@@ -1,0 +1,468 @@
+/* Grid Wrapper */
+#grid-wrapper {
+    position: relative;
+    width: 75%;           /* Similar to the piano keyboard width */
+    max-width: 400px;     /* Limit the maximum width */
+    height: 58vh;         /* Set the height to 35vh */
+    margin: 0 auto;       /* Center the grid wrapper */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 4vh;   /* Space between the grid and elements below it */
+}
+
+/* Controls and Grid Container */
+.controls-and-grid {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+/* Offset Control (Left Slider) */
+#offset-control {
+    width: 25px;             /* Fixed width */
+    height: 58vh;            /* Match the reduced height */
+    background-color: #8d8302;
+    border: 2px solid #ffea00;
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+    margin-right: 10px;      /* Space between slider and grid */
+}
+
+/* Grid Container (X/Y Grid) */
+#grid-container {
+    width: 70vw;            /* Fixed width */
+    height: 58vh;            /* Match the reduced height */
+    background-color: #4d004d;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 2px solid;
+    animation: rainbow-border 1s infinite linear;
+    overflow: hidden;
+    touch-action: none;
+    box-sizing: border-box;
+}
+
+/* OddsTRIG Control (Right Slider) */
+#oddsTRIG-control {
+    width: 25px;             /* Fixed width */
+    height: 58vh;            /* Match the reduced height */
+    background-color: #1b652f;
+    border: 2px solid #68fc68;
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+    margin-left: 10px;       /* Space between grid and slider */
+}
+
+/* Gradient Circle for Offset Control */
+#offset-control::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: var(--circle-position, 50%);  /* Centered vertically */
+    transform: translate(-50%, -50%);
+    width: 50px;             /* Larger size for a more impactful gradient effect */
+    height: 50px;            /* Match the width for a circular gradient */
+    background: radial-gradient(circle, rgba(255, 255, 0, 0.7) 0%, transparent 80%);
+    pointer-events: none;
+}
+
+/* Gradient Circle for OddsTRIG Control */
+#oddsTRIG-control::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: var(--circle-position-odds, 50%);  /* Centered vertically */
+    transform: translate(-50%, -50%);
+    width: 50px;             /* Larger size for a more impactful gradient effect */
+    height: 50px;            /* Match the width for a circular gradient */
+    background: radial-gradient(circle, rgba(0, 255, 0, 0.7) 0%, transparent 80%);
+    pointer-events: none;
+}
+
+
+/* General Button Style (used for both buttons) */
+.control-button {
+    position: absolute;
+    top: -5vh; /* Positioned above the X/Y grid */
+    width: 10vw; /* Rectangular landscape width */
+    height: 4vh; /* Rectangular landscape height */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* Glitch Button Specific */
+#glitch-button {
+    right: 18vw; /* Keep glitch button to the right */
+    background-color: grey; /* Default color */
+}
+
+#glitch-button.engaged {
+    background-color: #C0C0C0; /* Silver when engaged */
+}
+
+/* Clear Button Specific */
+#clear-button {
+    left: 18vw; /* Mirror position of the glitch button on the left */
+    background-color: #8B0000; /* Dark red color */
+}
+
+#clear-button.engaged {
+    background-color: #ff6666; /* Lighter red when engaged */
+}
+
+
+
+/* Animating the rainbow border */
+@keyframes rainbow-border {
+    0% {
+        border-image: conic-gradient(
+            from 0deg,
+            hsl(0, 100%, 50%),
+            hsl(60, 100%, 50%),
+            hsl(120, 100%, 50%),
+            hsl(180, 100%, 50%),
+            hsl(240, 100%, 50%),
+            hsl(300, 100%, 50%),
+            hsl(360, 100%, 50%)
+        ) 1;
+    }
+    100% {
+        border-image: conic-gradient(
+            from 360deg,
+            hsl(0, 100%, 50%),
+            hsl(60, 100%, 50%),
+            hsl(120, 100%, 50%),
+            hsl(180, 100%, 50%),
+            hsl(240, 100%, 50%),
+            hsl(300, 100%, 50%),
+            hsl(360, 100%, 50%)
+        ) 1;
+    }
+}
+
+/* Piano Keyboard (incorporated into grid-wrapper) */
+#piano-keyboard {
+    position: relative;
+    width: 75%; /* Overall keyboard width */
+    max-width: 400px; /* Slimmer max-width */
+    height: 140px; /* Adjusted height */
+    margin: 30px auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 7vh; /* Add bottom margin to create space between the keyboard and grid */
+}
+
+/* White keys styling */
+.white-key {
+    flex: 1 1 28px; /* Slimmer white key width */
+    height: 100%;
+    background-color: #ffffff;
+    border: 1px solid #000;
+    margin: 0 1px;
+    z-index: 1;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.2s ease;
+}
+
+.white-key:active {
+    background-color: #ccc;
+}
+
+/* Black keys styling */
+.black-key {
+    position: absolute;
+    width: 28px; /* Fatter black keys */
+    height: 60%;
+    background-color: #000;
+    border: 1px solid #000;
+    z-index: 2;
+    cursor: pointer;
+    top: 0;
+    margin-left: -10px; /* Slight right shift for better centering */
+    transition: background-color 0.2s ease;
+}
+
+.black-key:active {
+    background-color: #333;
+}
+
+/* Position each black key centered over its white keys with slight right shift */
+.black-key[data-note="49"] {
+    left: calc(100% / 7 * 1 - 4px); /* Centered with slight right offset */
+}
+.black-key[data-note="51"] {
+    left: calc(100% / 7 * 2 - 4px); /* Centered with slight right offset */
+}
+.black-key[data-note="54"] {
+    left: calc(100% / 7 * 4 - 4px); /* Centered with slight right offset */
+}
+.black-key[data-note="56"] {
+    left: calc(100% / 7 * 5 - 4px); /* Centered with slight right offset */
+}
+.black-key[data-note="58"] {
+    left: calc(100% / 7 * 6 - 4px); /* Centered with slight right offset */
+}
+
+
+
+/* General styling remains */
+html, body {
+    margin: 0;
+    padding: 0;
+    background-color: #001f3f;
+    color: #ffffff;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+#rnbo-root {
+    height: 100vh;
+    width: 100vw;
+    box-sizing: border-box;
+}
+
+#background {
+    position: absolute;
+    z-index: -1;
+}
+
+h2, em {
+    width: 100%;
+    font-family: 'Courier New', Courier, monospace;
+    color: #ffffff;
+    padding-bottom: 2px;
+}
+
+#rnbo-root {
+    margin: auto;
+    max-width: 540px;
+    padding: 0px;
+}
+
+#neptr-title {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #ffffff;
+    font-family: 'Courier New', Courier, monospace;
+    margin-top: 10;
+    margin-bottom: 0.1vh;
+    font-size: 2em;
+    letter-spacing: 2px;
+    height: 50px;
+}
+
+#start-instruction {
+    text-align: center;
+    font-family: 'Courier New', Courier, monospace;
+    color: #ffffff;
+    font-size: 0.8em;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+#rnbo-clickable-keyboard {
+    display: none; /* Hide old MIDI buttons but keep style */
+}
+
+#rnbo-parameter-sliders {
+    display: flex;
+    flex-direction: column;
+    margin-top: 20px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+#rnbo-parameter-sliders > div {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+#rnbo-parameter-sliders > div > input:first-of-type {
+    flex-grow: 1;
+}
+
+.param-label {
+    width: 50%;
+    font-size: 1.1em;
+    padding-right: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+input[type="text"] {
+    width: 50px;
+    margin-left: 10px;
+    text-align: right;
+}
+
+input, select, textarea {
+    background-color: #001f3f;
+    color: #ffffff;
+    border: 1px solid #ffffff;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+input[type="range"] {
+    accent-color: #ffffff;
+}
+
+/* Preset Section */
+#rnbo-presets {
+    width: 25%; /* Reduced width to make the box smaller */
+    max-width: 200px; /* Limit the maximum width */
+    margin: 0 auto; /* Center the preset dropdown */
+    padding: 0.5vh 0; /* Smaller padding to reduce the size */
+    text-align: center; /* Center text content */
+    box-sizing: border-box; /* Include padding and border in width calculation */
+    border: 2px solid white; /* Thicker border to match nerd shit box */
+    font-family: 'Courier New', Courier, monospace; /* Consistent font */
+    border-radius: 5px; /* Slightly rounded edges */
+    margin-right: 10px; /* Add margin-right to align with nerd shit box */
+}
+
+/* Nerd Shit Container */
+#nerd-shit-container {
+    width: 25%; /* Match the size of preset box */
+    max-width: 200px; /* Limit the maximum width */
+    margin: 0 auto; /* Center the nerd shit container */
+    padding: 0.5vh 0; /* Smaller padding to reduce the size */
+    text-align: center;
+    box-sizing: border-box;
+    border: 2px solid white; /* Thicker border to match preset box */
+    font-family: 'Courier New', Courier, monospace; /* Consistent font */
+    border-radius: 5px; /* Slightly rounded edges */
+    margin-left: 10px; /* Add margin-left to align with preset box */
+}
+
+/* Make preset and nerd shit boxes display inline to align horizontally */
+#rnbo-presets,
+#nerd-shit-container {
+    display: inline-block;
+    vertical-align: top; /* Align them properly when side by side */
+}
+
+
+/* Nerd Shit Toggle Button */
+#nerd-shit-toggle {
+    background: none;          /* No background color */
+    color: white;              /* White text */
+    border: none;              /* No border */
+    cursor: pointer;           /* Pointer cursor */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;      /* Inherit font from parent */
+    font-size: 1rem;
+}
+
+/* Arrow Indicator for Nerd Shit Button */
+#toggle-arrow {
+    width: 0;
+    height: 0;
+    margin-right: 0.5em;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 15px solid white;  /* Default arrow pointing down */
+    transform: skewX(-15deg);         /* Geometric skew for a unique triangle look */
+    transition: transform 0.3s ease;
+}
+
+#nerd-shit-toggle.open #toggle-arrow {
+    transform: skewX(-15deg) rotate(180deg);  /* Rotate the arrow upwards when open */
+}
+
+/* Adjust the select element in the preset box */
+#preset-select {
+    width: 80%;                   /* Adjust width as needed */
+    padding: 0.5em;
+    border-radius: 5px;
+    border: 1px solid white;
+    background-color: #001f3f;
+    color: white;
+    font-family: inherit;
+}
+
+/* Remove any extra padding or margin inside the select */
+#preset-select option {
+    padding: 0.5em;
+}
+
+/* Ensure the parameter sliders container is styled properly */
+#rnbo-parameter-sliders {
+    width: 100%;
+    margin-top: 1vh;
+}
+
+/* Adjust the parameter sliders styling if needed */
+#rnbo-parameter-sliders > div {
+    /* Your existing styles for sliders */
+}
+
+
+/* Arrow Indicator for Nerd Shit Button */
+#toggle-arrow {
+    width: 0;
+    height: 0;
+    margin-right: 0.5em;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 15px solid white;  /* Default arrow pointing down */
+    transform: skewX(-15deg);         /* Geometric skew for a unique triangle look */
+    transition: transform 0.3s ease;
+}
+
+#nerd-shit-toggle.open #toggle-arrow {
+    transform: skewX(-15deg) rotate(180deg);  /* Rotate the arrow upwards when open */
+}
+
+/* Nerd Shit Toggle Button Styles */
+.nerd-shit-button {
+    border: 2px solid white; /* White outline */
+    background: none;        /* No background color */
+    color: white;            /* White text */
+    cursor: pointer;         /* Pointer cursor */
+    font-size: 1rem;         /* Adjust font size as needed */
+    padding: 5px 10px;       /* Adjust padding for spacing */
+    border-radius: 5px;      /* Rounded corners */
+    margin-bottom: 1rem;     /* Space below button */
+    transition: background-color 0.3s ease;
+}
+
+.nerd-shit-button:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Slightly highlight on hover */
+}
+
+
+
+.spark {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.8;
+    pointer-events: none;
+    animation: disappear 1s ease-out forwards, colorChange 1s infinite;
+}
+
+@keyframes colorChange {
+    0% { background-color: #ff90dc; }  /* Red-orange */
+    25% { background-color: #ec5eff; } /* Green */
+    50% { background-color: #c72fd8; } /* Blue */
+    75% { background-color: #7a32ff; } /* Pink */
+    100% { background-color: #5d1eb1; } /* Yellow */
+}
+
+@keyframes disappear {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
