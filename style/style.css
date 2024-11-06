@@ -144,7 +144,7 @@ p {
     content: '';
     position: absolute;
     left: 50%;
-    top: var(--circle-position, 50%);  /* Centered vertically */
+    top: -4vh;  /* Centered vertically */
     transform: translate(-50%, -50%);
     width: 50px;             /* Larger size for a more impactful gradient effect */
     height: 50px;            /* Match the width for a circular gradient */
@@ -157,7 +157,7 @@ p {
     content: '';
     position: absolute;
     left: 50%;
-    top: var(--circle-position-odds, 50%);  /* Centered vertically */
+    top: -4vh;  /* Centered vertically */
     transform: translate(-50%, -50%);
     width: 50px;             /* Larger size for a more impactful gradient effect */
     height: 50px;            /* Match the width for a circular gradient */
@@ -169,18 +169,20 @@ p {
 /* General Button Style (used for both buttons) */
 .control-button {
     position: absolute;
-    top: -5vh; /* Positioned above the X/Y grid */
-    width: 10vw; /* Rectangular landscape width */
+    top: -4vh; /* Center the buttons vertically relative to the grid */
+    transform: translateY(-50%);
+    width: 10vw; /* Width remains flexible */
     height: 4vh; /* Rectangular landscape height */
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    z-index: 10; /* Ensure buttons stay above other elements */
 }
 
 /* Glitch Button Specific */
 #glitch-button {
-    right: 18vw; /* Keep glitch button to the right */
+    left: -12vw; /* Position it to the left of the grid-container */
     background-color: grey; /* Default color */
 }
 
@@ -190,7 +192,7 @@ p {
 
 /* Clear Button Specific */
 #clear-button {
-    left: 18vw; /* Mirror position of the glitch button on the left */
+    right: -12vw; /* Position it to the right of the grid-container */
     background-color: #8B0000; /* Dark red color */
 }
 

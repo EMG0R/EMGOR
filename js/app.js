@@ -134,6 +134,7 @@ function makeSliders(device) {
 
 function setupOffsetControl(device) {
     const offsetControl = document.getElementById('offset-control');
+    let isDragging = false; // Track whether dragging is occurring
 
     // Define the range
     const minOffset = -12;
@@ -144,6 +145,7 @@ function setupOffsetControl(device) {
 
     // Function to update the offset and gradient
     function updateOffset(event) {
+        if (!isDragging) return; // Only update when dragging
         event.preventDefault();
 
         let clientY;
@@ -183,19 +185,41 @@ function setupOffsetControl(device) {
         offsetControl.style.setProperty('--circle-position', lastCirclePosition); // Retain last position
     }
 
-    // Event listeners
+    // Event listeners for dragging
+    offsetControl.addEventListener('mousedown', (event) => {
+        isDragging = true;
+        updateOffset(event); // Update on initial click
+        showGradient();
+    });
+
     offsetControl.addEventListener('mousemove', (event) => {
-        updateOffset(event);
+        if (isDragging) {
+            updateOffset(event);
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        hideGradient();
+    });
+
+    // Touch event listeners
+    offsetControl.addEventListener('touchstart', (event) => {
+        isDragging = true;
+        updateOffset(event); // Update on initial touch
         showGradient();
     });
 
     offsetControl.addEventListener('touchmove', (event) => {
-        updateOffset(event);
-        showGradient();
+        if (isDragging) {
+            updateOffset(event);
+        }
     });
 
-    offsetControl.addEventListener('mouseleave', hideGradient); // Keep last position
-    offsetControl.addEventListener('touchend', hideGradient); // Keep last position
+    offsetControl.addEventListener('touchend', () => {
+        isDragging = false;
+        hideGradient();
+    });
 
     // Prevent default touch actions to avoid scrolling
     offsetControl.addEventListener('touchstart', (event) => {
@@ -203,9 +227,9 @@ function setupOffsetControl(device) {
     });
 }
 
-
 function setupOddsTRIGControl(device) {
     const oddsTRIGControl = document.getElementById('oddsTRIG-control');
+    let isDragging = false; // Track whether dragging is occurring
 
     // Define the range for oddsTRIG
     const minOddsTRIG = 0;   // Minimum value
@@ -216,6 +240,7 @@ function setupOddsTRIGControl(device) {
 
     // Function to update the oddsTRIG and gradient
     function updateOddsTRIG(event) {
+        if (!isDragging) return; // Only update when dragging
         event.preventDefault();
 
         let clientY;
@@ -255,19 +280,41 @@ function setupOddsTRIGControl(device) {
         oddsTRIGControl.style.setProperty('--circle-position-odds', lastCirclePositionOdds); // Retain last position
     }
 
-    // Event listeners
+    // Event listeners for dragging
+    oddsTRIGControl.addEventListener('mousedown', (event) => {
+        isDragging = true;
+        updateOddsTRIG(event); // Update on initial click
+        showGradient();
+    });
+
     oddsTRIGControl.addEventListener('mousemove', (event) => {
-        updateOddsTRIG(event);
+        if (isDragging) {
+            updateOddsTRIG(event);
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        hideGradient();
+    });
+
+    // Touch event listeners
+    oddsTRIGControl.addEventListener('touchstart', (event) => {
+        isDragging = true;
+        updateOddsTRIG(event); // Update on initial touch
         showGradient();
     });
 
     oddsTRIGControl.addEventListener('touchmove', (event) => {
-        updateOddsTRIG(event);
-        showGradient();
+        if (isDragging) {
+            updateOddsTRIG(event);
+        }
     });
 
-    oddsTRIGControl.addEventListener('mouseleave', hideGradient); // Keep last position
-    oddsTRIGControl.addEventListener('touchend', hideGradient); // Keep last position
+    oddsTRIGControl.addEventListener('touchend', () => {
+        isDragging = false;
+        hideGradient();
+    });
 
     // Prevent default touch actions to avoid scrolling
     oddsTRIGControl.addEventListener('touchstart', (event) => {
@@ -379,6 +426,8 @@ function playMIDINote(device, note) {
 function setupGridControl(device) {
     const gridContainer = document.getElementById('grid-container');
 
+    let isDragging = false; // Track whether mouse/finger is dragging
+
     function calculateXY(clientX, clientY) {
         const rect = gridContainer.getBoundingClientRect();
         const x = Math.min(127, Math.max(0, Math.floor(((clientX - rect.left) / rect.width) * 128)));
@@ -421,6 +470,64 @@ function setupGridControl(device) {
         }, 1000);
     }
 
+    function updateCoordinates(event) {
+        if (!isDragging) return; // Update only when dragging
+        event.preventDefault();
+        let clientX, clientY, pageX, pageY;
+
+        if (event.touches && event.touches.length > 0) {
+            clientX = event.touches[0].clientX;
+            clientY = event.touches[0].clientY;
+            pageX = event.touches[0].pageX;
+            pageY = event.touches[0].pageY;
+        } else {
+            clientX = event.clientX;
+            clientY = event.clientY;
+            pageX = event.pageX;
+            pageY = event.pageY;
+        }
+
+        const { x, y } = calculateXY(clientX, clientY);
+
+        // Update RNBO with X and Y values
+        updateRNBOValues(x, y);
+
+        // Create a spark trail at the touch/mouse position
+        createSpark(pageX, pageY);
+    }
+
+    // Mouse event listeners
+    gridContainer.addEventListener('mousedown', (event) => {
+        isDragging = true;
+        updateCoordinates(event); // Update on initial click
+    });
+
+    gridContainer.addEventListener('mousemove', (event) => {
+        if (isDragging) {
+            updateCoordinates(event); // Update while dragging
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        isDragging = false; // Stop dragging when mouse is released
+    });
+
+    // Touch event listeners
+    gridContainer.addEventListener('touchstart', (event) => {
+        isDragging = true;
+        updateCoordinates(event); // Update on initial touch
+    });
+
+    gridContainer.addEventListener('touchmove', (event) => {
+        if (isDragging) {
+            updateCoordinates(event); // Update while dragging
+        }
+    });
+
+    gridContainer.addEventListener('touchend', () => {
+        isDragging = false; // Stop dragging when touch is released
+    });
+
     // Setup the glitch button
     document.getElementById("glitch-button").addEventListener("click", function() {
         const glitchParam = device.parameters.find(param => param.id.includes("glitch"));
@@ -448,42 +555,6 @@ function setupGridControl(device) {
             }
         }
     });
-
-
-    function updateCoordinates(event) {
-        event.preventDefault();
-        let clientX, clientY, pageX, pageY;
-
-        if (event.touches && event.touches.length > 0) {
-            clientX = event.touches[0].clientX;
-            clientY = event.touches[0].clientY;
-            pageX = event.touches[0].pageX;
-            pageY = event.touches[0].pageY;
-        } else {
-            clientX = event.clientX;
-            clientY = event.clientY;
-            pageX = event.pageX;
-            pageY = event.pageY;
-        }
-
-        const { x, y } = calculateXY(clientX, clientY);
-
-        // Update RNBO with X and Y values
-        updateRNBOValues(x, y);
-
-        // Create a spark trail at the touch/mouse position
-        createSpark(pageX, pageY);
-    }
-
-    // Event listeners for touch/mouse events
-    gridContainer.addEventListener('touchmove', updateCoordinates);
-    gridContainer.addEventListener('mousemove', updateCoordinates);
-
-    gridContainer.addEventListener('touchstart', (event) => {
-        updateCoordinates(event);
-    });
-
-    gridContainer.addEventListener('mouseenter', updateCoordinates);
 }
 
 
