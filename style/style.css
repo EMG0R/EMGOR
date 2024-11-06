@@ -1,3 +1,83 @@
+/* General Body and HTML Styles */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%; /* Ensure the entire page height is covered */
+    background-color: #4d004d; /* Purple background color */
+    color: white; /* White text color */
+    font-family: 'Courier New', Courier, monospace; /* Consistent font style */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Center content horizontally */
+    text-align: center; /* Center the text */
+}
+
+/* Content Container to center vertically at the top */
+body > * {
+    margin-top: 40px; /* Align content towards the top */
+}
+
+/* Title Styles */
+h1 {
+    font-size: 4em; /* Large title size */
+    margin: 0; /* Remove default margin */
+}
+
+/* Paragraph Styles */
+p {
+    font-size: 1.5em; /* Larger paragraph text */
+    max-width: 600px; /* Maximum width for paragraph */
+    padding: 20px; /* Add padding around the paragraph */
+    color: rgba(255, 255, 255, 0.9); /* White text with a hint of grey */
+}
+
+/* Navigation Button Style */
+.navigation-button {
+    padding: 10px 20px;
+    font-size: 1.2em; /* Slightly larger font size */
+    font-family: 'Courier New', Courier, monospace; /* Consistent font */
+    color: white;
+    background-color: #6a0dad; /* Complementary shade to the purple background */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none; /* Remove underline for link-based button */
+    margin-top: 15px; /* Add margin for spacing above the button */
+}
+
+.navigation-button:hover {
+    background-color: #7b1fa2; /* Slightly lighter purple on hover */
+}
+
+.home-button {
+    position: fixed; /* Make it stay at the top left corner */
+    top: 20px;       /* Space from the top */
+    left: 20px;      /* Space from the left */
+    background-color: #6a0dad; /* Background color matching the overall theme */
+    color: white;    /* Text color */
+    padding: 5px; /* Reduced padding for a smaller button */
+    font-size: 1em; /* Smaller font size for the icon */
+    text-decoration: none; /* Remove underline */
+    border-radius: 50%; /* Make it a circle */
+    cursor: pointer; /* Pointer cursor for better UX */
+    z-index: 1000;   /* Ensure it stays above other elements */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; /* Reduced width for smaller circle */
+    height: 20px; /* Reduced height for smaller circle */
+    text-align: center; /* Center the text inside */
+}
+
+.home-button:hover {
+    background-color: #7b1fa2; /* Slightly lighter color when hovered over */
+}
+
+
+
+
+
+
 /* Grid Wrapper */
 #grid-wrapper {
     position: relative;
@@ -254,7 +334,7 @@ h2, em {
     align-items: center;
     color: #ffffff;
     font-family: 'Courier New', Courier, monospace;
-    margin-top: 10;
+    margin-top: 25;
     margin-bottom: 0.1vh;
     font-size: 2em;
     letter-spacing: 2px;

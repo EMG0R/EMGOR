@@ -289,7 +289,7 @@ function setupNerdShitToggle(device) {
     nerdButton.addEventListener("click", function() {
         if (slidersContainer.style.display === 'none') {
             slidersContainer.style.display = 'block'; // Show the sliders
-            nerdButton.textContent = 'Nerd Shit ↓';  // Change arrow to point down
+            nerdButton.textContent = 'nerd shit ↓';  // Change arrow to point down
 
             // Create sliders if they haven't been created yet
             if (!slidersCreated) {
@@ -298,7 +298,7 @@ function setupNerdShitToggle(device) {
             }
         } else {
             slidersContainer.style.display = 'none';  // Hide the sliders
-            nerdButton.textContent = 'Nerd Shit →';  // Change arrow to point to the right
+            nerdButton.textContent = 'nerd shit →';  // Change arrow to point to the right
 
             // Remove the sliders if they were created
             slidersContainer.innerHTML = ''; // Clear content
