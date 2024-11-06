@@ -144,7 +144,7 @@ p {
     content: '';
     position: absolute;
     left: 50%;
-    top: -4vh;  /* Centered vertically */
+    top: -3vh;  /* Centered vertically */
     transform: translate(-50%, -50%);
     width: 50px;             /* Larger size for a more impactful gradient effect */
     height: 50px;            /* Match the width for a circular gradient */
@@ -157,7 +157,7 @@ p {
     content: '';
     position: absolute;
     left: 50%;
-    top: -4vh;  /* Centered vertically */
+    top: -3vh;  /* Centered vertically */
     transform: translate(-50%, -50%);
     width: 50px;             /* Larger size for a more impactful gradient effect */
     height: 50px;            /* Match the width for a circular gradient */
@@ -169,7 +169,7 @@ p {
 /* General Button Style (used for both buttons) */
 .control-button {
     position: absolute;
-    top: -4vh; /* Center the buttons vertically relative to the grid */
+    top: -3vh; /* Center the buttons vertically relative to the grid */
     transform: translateY(-50%);
     width: 10vw; /* Width remains flexible */
     height: 4vh; /* Rectangular landscape height */
