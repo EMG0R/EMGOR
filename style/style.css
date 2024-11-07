@@ -87,57 +87,33 @@
     pointer-events: none;
 }
 
-/* BPM Control Slider - Styled Similarly to Offset and OddsTRIG */
+/* BPM Control Slider */
 #bpm-control {
-    width: 70vw;               /* Full width along bottom of grid */
-    height: 25px;              /* Slider height */
-    background-color: #1e3a8a; /* Dark blue background */
-    border: 2px solid #60a5fa; /* Light blue border */
+    width: 59vw;           /* Match the width of the grid container */
+    height: 25px;          /* Same height as other sliders */
+    background-color: #1e3a8a;
+    border: 2px solid #60a5fa;
     border-radius: 5px;
-    position: relative;
+    margin-top: 15px;      /* Space above the slider */
     overflow: hidden;
-    margin-top: 15px;          /* Space above the slider */
-}
-
-/* BPM Slider Gradient Circle */
-#bpm-control::before {
-    content: '';
-    position: absolute;
-    top: 50%; /* Center vertically */
-    left: 0;  /* Start at the left */
-    transform: translateY(-50%);
-    width: 50px;
-    height: 50px;
-    background: radial-gradient(circle, rgba(96, 165, 250, 0.7) 0%, transparent 80%);
-    pointer-events: none;
-}
-
-
-/* BPM Control (Horizontal Slider at Bottom of Grid) */
-#bpm-control {
-    width: 100%;            /* Matches width of #grid-container */
-    height: 25px;           /* Same height as offset and oddsTRIG sliders */
-    background-color: #1e3a8a; /* Dark blue background */
-    border: 2px solid #60a5fa; /* Light blue border */
-    border-radius: 5px;
+    display: flex;         /* Ensure content inside can be displayed properly */
     position: relative;
-    overflow: hidden;
-    margin-top: 15px;       /* Space above the slider */
 }
 
 /* Gradient Circle for BPM Control */
 #bpm-control::before {
     content: '';
     position: absolute;
-    top: 50%;               /* Center vertically */
-    left: 0;                /* Start at the left */
+    top: 50%;              /* Center vertically */
+    left: 0;
     transform: translateY(-50%);
-    width: 25px;            /* Matches height for a square appearance */
+    width: 25px;           /* Square size matching slider height */
     height: 25px;
+    padding-bottom: 15px;      /* Space above the slider */
+    justify-content: center;    /* Center the BPM slider */
     background: radial-gradient(circle, rgba(96, 165, 250, 0.7) 0%, transparent 80%);
-    pointer-events: none;
+    pointer-events:
 }
-
 
 /* General Body and HTML Styles */
 html, body {
@@ -279,8 +255,8 @@ html, body {
     left: 2vw;
     background-color: #6a0dad;
     color: white;
-    padding: 0.2vw; /* Smaller padding */
-    font-size: 1.3vw; /* Smaller font size */
+    padding: 0.3vw; /* Smaller padding */
+    font-size: 2.8vw; /* Smaller font size */
     text-decoration: none;
     border-radius: 50%;
     cursor: pointer;
@@ -288,8 +264,8 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2vw; /* Smaller width */
-    height: 2vw; /* Smaller height */
+    width: 3vw; /* Smaller width */
+    height: 3vw; /* Smaller height */
     text-align: center;
 }
 
