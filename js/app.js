@@ -17,6 +17,21 @@ async function setup() {
     document.addEventListener("visibilitychange", keepAwake);
     keepAwake();
 
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            document.querySelectorAll('.navigation-button').forEach(button => {
+                button.classList.add('appear');
+            });
+        }, 1000); // Delay by 1 second
+    });
+    
+    window.addEventListener('load', () => {
+    setTimeout(() => {
+        document.querySelectorAll('.animated-button').forEach(button => {
+            button.classList.add('appear');
+        });
+    }, 1000); // Delay by 1 second
+});
     // Resume AudioContext on visibility change
     const WAContext = window.AudioContext || window.webkitAudioContext;
     const context = new WAContext();
@@ -68,6 +83,7 @@ async function setup() {
     setupNerdShitToggle(device);
     setupOffsetControl(device); // Add this line
     setupOddsTRIGControl(device); // Add this line
+    setupBPMControl(device);
     attachOutports(device);
     loadPresets(device, patcher);
     makeMIDIKeyboard(device);
@@ -320,6 +336,49 @@ function setupOddsTRIGControl(device) {
     oddsTRIGControl.addEventListener('touchstart', (event) => {
         event.preventDefault();
     });
+}
+
+
+function setupBPMControl(device) {
+    const bpmControl = document.getElementById('bpm-control');
+    let isDragging = false;
+
+    // Define BPM range
+    const minBPM = 40;
+    const maxBPM = 400;
+
+    // Function to update BPM and gradient position
+    function updateBPM(event) {
+        if (!isDragging) return;
+        event.preventDefault();
+
+        let clientX = event.clientX || event.touches[0].clientX;
+        const rect = bpmControl.getBoundingClientRect();
+        let x = clientX - rect.left;
+        x = Math.max(0, Math.min(x, rect.width)); // Clamp x to [0, width]
+
+        // Map x position to BPM value
+        const bpmValue = minBPM + ((x / rect.width) * (maxBPM - minBPM));
+
+        // Update BPM parameter
+        const bpmParam = device.parameters.find(param => param.name === "BPM");
+        if (bpmParam) {
+            bpmParam.value = bpmValue;
+        }
+
+        // Update gradient position
+        const percentage = (x / rect.width) * 100;
+        bpmControl.style.setProperty('--circle-position', `${percentage}%`);
+    }
+
+    // Event listeners for dragging
+    bpmControl.addEventListener('mousedown', () => { isDragging = true; });
+    bpmControl.addEventListener('mousemove', updateBPM);
+    document.addEventListener('mouseup', () => { isDragging = false; });
+
+    bpmControl.addEventListener('touchstart', () => { isDragging = true; });
+    bpmControl.addEventListener('touchmove', updateBPM);
+    bpmControl.addEventListener('touchend', () => { isDragging = false; });
 }
 
 

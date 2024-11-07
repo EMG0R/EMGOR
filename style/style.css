@@ -1,81 +1,3 @@
-/* General Body and HTML Styles */
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%; /* Ensure the entire page height is covered */
-    background-color: #4d004d; /* Purple background color */
-    color: white; /* White text color */
-    font-family: 'Courier New', Courier, monospace; /* Consistent font style */
-    display: flex;
-    flex-direction: column;
-    align-items: center; /* Center content horizontally */
-    text-align: center; /* Center the text */
-}
-
-/* Content Container to center vertically at the top */
-body > * {
-    margin-top: 40px; /* Align content towards the top */
-}
-
-/* Title Styles */
-h1 {
-    font-size: 4em; /* Large title size */
-    margin: 0; /* Remove default margin */
-}
-
-/* Paragraph Styles */
-p {
-    font-size: 1.5em; /* Larger paragraph text */
-    max-width: 600px; /* Maximum width for paragraph */
-    padding: 20px; /* Add padding around the paragraph */
-    color: rgba(255, 255, 255, 0.9); /* White text with a hint of grey */
-}
-
-/* Navigation Button Style */
-.navigation-button {
-    padding: 10px 20px;
-    font-size: 1.2em; /* Slightly larger font size */
-    font-family: 'Courier New', Courier, monospace; /* Consistent font */
-    color: white;
-    background-color: #6a0dad; /* Complementary shade to the purple background */
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    text-decoration: none; /* Remove underline for link-based button */
-    margin-top: 15px; /* Add margin for spacing above the button */
-}
-
-.navigation-button:hover {
-    background-color: #7b1fa2; /* Slightly lighter purple on hover */
-}
-
-.home-button {
-    position: fixed; /* Make it stay at the top left corner */
-    top: 20px;       /* Space from the top */
-    left: 20px;      /* Space from the left */
-    background-color: #6a0dad; /* Background color matching the overall theme */
-    color: white;    /* Text color */
-    padding: 5px; /* Reduced padding for a smaller button */
-    font-size: 1em; /* Smaller font size for the icon */
-    text-decoration: none; /* Remove underline */
-    border-radius: 50%; /* Make it a circle */
-    cursor: pointer; /* Pointer cursor for better UX */
-    z-index: 1000;   /* Ensure it stays above other elements */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px; /* Reduced width for smaller circle */
-    height: 20px; /* Reduced height for smaller circle */
-    text-align: center; /* Center the text inside */
-}
-
-.home-button:hover {
-    background-color: #7b1fa2; /* Slightly lighter color when hovered over */
-}
-
-
-
-
 
 
 /* Grid Wrapper */
@@ -164,6 +86,217 @@ p {
     background: radial-gradient(circle, rgba(0, 255, 0, 0.7) 0%, transparent 80%);
     pointer-events: none;
 }
+
+/* BPM Control Slider - Styled Similarly to Offset and OddsTRIG */
+#bpm-control {
+    width: 70vw;               /* Full width along bottom of grid */
+    height: 25px;              /* Slider height */
+    background-color: #1e3a8a; /* Dark blue background */
+    border: 2px solid #60a5fa; /* Light blue border */
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+    margin-top: 15px;          /* Space above the slider */
+}
+
+/* BPM Slider Gradient Circle */
+#bpm-control::before {
+    content: '';
+    position: absolute;
+    top: 50%; /* Center vertically */
+    left: 0;  /* Start at the left */
+    transform: translateY(-50%);
+    width: 50px;
+    height: 50px;
+    background: radial-gradient(circle, rgba(96, 165, 250, 0.7) 0%, transparent 80%);
+    pointer-events: none;
+}
+
+
+/* BPM Control (Horizontal Slider at Bottom of Grid) */
+#bpm-control {
+    width: 100%;            /* Matches width of #grid-container */
+    height: 25px;           /* Same height as offset and oddsTRIG sliders */
+    background-color: #1e3a8a; /* Dark blue background */
+    border: 2px solid #60a5fa; /* Light blue border */
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+    margin-top: 15px;       /* Space above the slider */
+}
+
+/* Gradient Circle for BPM Control */
+#bpm-control::before {
+    content: '';
+    position: absolute;
+    top: 50%;               /* Center vertically */
+    left: 0;                /* Start at the left */
+    transform: translateY(-50%);
+    width: 25px;            /* Matches height for a square appearance */
+    height: 25px;
+    background: radial-gradient(circle, rgba(96, 165, 250, 0.7) 0%, transparent 80%);
+    pointer-events: none;
+}
+
+
+/* General Body and HTML Styles */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%; /* Ensure the entire page height is covered */
+    background-color: #4d004d; /* Purple background color */
+    color: white; /* White text color */
+    font-family: 'Courier New', Courier, monospace; /* Consistent font style */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Center content horizontally */
+    text-align: center; /* Center the text */
+}
+
+/* Content Container to center vertically at the top */
+body > * {
+    margin-top: 40px; /* Align content towards the top */
+}
+
+/* Title Styles */
+h1 {
+    font-size: 4em; /* Large title size */
+    margin: 0; /* Remove default margin */
+}
+
+/* Paragraph Styles */
+p {
+    font-size: 1.5em; /* Larger paragraph text */
+    max-width: 600px; /* Maximum width for paragraph */
+    padding: 20px; /* Add padding around the paragraph */
+    color: rgba(255, 255, 255, 0.9); /* White text with a hint of grey */
+}
+
+
+/* Container for Buttons in a Horizontal Row */
+.button-container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+/* Base Navigation Button Style */
+.navigation-button {
+    padding: 10px 20px;
+    font-size: 1.2em;
+    font-family: 'Courier New', Courier, monospace;
+    color: white;
+    background-color: #6a0dad;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+
+/* Title Style with Animation */
+h1 {
+    font-size: 4em;
+    margin: 0;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeSlideIn 1s ease-out forwards 0s; /* 0.5s delay */
+}
+
+/* Animation for Title and Buttons */
+@keyframes fadeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px); /* Start from lower position */
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0); /* Slide up to original position */
+    }
+}
+
+/* Button Container */
+.button-container {
+    display: flex;
+    justify-content: center;
+    gap: 2vw; /* Space between buttons scales with viewport */
+    margin-top: 2vh; /* Top margin scales with viewport height */
+}
+
+/* Page Button Style */
+.animated-button {
+    padding: 1vh 2vw; /* Reduced padding for half the previous size */
+    font-size: 1.25vw; /* Reduced font size */
+    color: rgba(255, 255, 255, 0.9); /* White text */
+    background-color: rgba(50, 0, 50, 0); /* Fully transparent initially */
+    border-radius: 20px; /* Rounded edges */
+    border: none; /* No visible border */
+    opacity: 0; /* Start fully transparent */
+    transform: translateY(0); /* No initial movement */
+    transition: opacity 0.6s ease, background-color 0.6s ease; /* Smooth fade-in */
+    animation: fadeIn 1.3s ease-out forwards 0.5s; /* Fade-in effect after delay */
+}
+
+.animated-button:hover {
+    background-color: rgba(50, 0, 50, 0.1); /* Slight background on hover */
+}
+
+/* Fade-In Animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        background-color: rgba(50, 0, 50, 0); /* Fully transparent */
+    }
+    to {
+        opacity: 0.9;
+        background-color: rgba(50, 0, 50, 0.3); /* 30% visible with background */
+    }
+}
+
+
+
+
+
+/* General Body and HTML Styles */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background-color: #4d004d;
+    color: white;
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+/* Home Button Style */
+.home-button {
+    position: fixed;
+    top: 2vw; /* Positioning with viewport units for responsiveness */
+    left: 2vw;
+    background-color: #6a0dad;
+    color: white;
+    padding: 0.2vw; /* Smaller padding */
+    font-size: 1.3vw; /* Smaller font size */
+    text-decoration: none;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2vw; /* Smaller width */
+    height: 2vw; /* Smaller height */
+    text-align: center;
+}
+
+.home-button:hover {
+    background-color: #7b1fa2; /* Slight color change on hover */
+}
+
 
 
 /* General Button Style (used for both buttons) */
