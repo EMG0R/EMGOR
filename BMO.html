@@ -14,12 +14,17 @@
     <!-- Home Button to Go Back to index.html -->
     <a href="index.html" class="home-button">&#8962;</a> <!-- Unicode character for home icon -->
 
+    <!-- On-screen Keyboard at the Top of the Screen -->
+    <div id="rnbo-clickable-keyboard">
+        <!-- Add keyboard controls if needed dynamically here -->
+    </div>
+
     <h1 id="neptr-title">NEPTR</h1>
 
     <!-- Background SVG -->
     <svg id="background" width="100%" height="100%"></svg>
 
-    <!-- Main Wrapper for All Controls -->
+    <!-- Main Wrapper for All Controls and Display -->
     <div id="grid-wrapper">
         
         <!-- Buttons Above the Grid -->
@@ -35,7 +40,7 @@
 
             <!-- X/Y Grid -->
             <div id="grid-container">
-                <!-- Optional dynamic grid content here -->
+                <!-- Optional dynamic grid content goes here -->
             </div>
 
             <!-- OddsTRIG Control (Right Slider) -->
@@ -44,6 +49,24 @@
 
         <!-- BPM Control Below the Grid -->
         <div id="bpm-control"></div>
+    </div>
+
+    <!-- Piano Keyboard Section Below the Grid -->
+    <div id="piano-keyboard">
+        <!-- White keys -->
+        <div class="white-key" data-note="48"></div>
+        <div class="white-key" data-note="50"></div>
+        <div class="white-key" data-note="52"></div>
+        <div class="white-key" data-note="53"></div>
+        <div class="white-key" data-note="55"></div>
+        <div class="white-key" data-note="57"></div>
+        <div class="white-key" data-note="59"></div>
+        <!-- Black keys -->
+        <div class="black-key" data-note="49"></div>
+        <div class="black-key" data-note="51"></div>
+        <div class="black-key" data-note="54"></div>
+        <div class="black-key" data-note="56"></div>
+        <div class="black-key" data-note="58"></div>
     </div>
 
     <!-- Additional Controls and Sections -->
