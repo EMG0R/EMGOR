@@ -11,28 +11,17 @@
 
 <body>
 
-    <body>
-
-        <!-- Home Button to Go Back to index.html -->
-        <a href="index.html" class="home-button">&#8962;</a> <!-- Unicode character for home icon -->
-    
-        <noscript>You need to enable JavaScript to run this app.</noscript>
-    </body>
-
+    <!-- Home Button to Go Back to index.html -->
+    <a href="index.html" class="home-button">&#8962;</a> <!-- Unicode character for home icon -->
     
     <h1 id="neptr-title">NEPTR</h1>
-
-    <!-- <p id="start-instruction">unsilence phone, click notes, drag finger around :0</p> -->
 
     <!-- Background SVG -->
     <svg id="background" width="100%" height="100%"></svg>
 
-            
     <!-- RNBO UI Root -->
     <div id="rnbo-root">
-        <div></div>
-
-
+        
         <!-- Piano Keyboard Section -->
         <div id="piano-keyboard">
             <!-- White keys -->
@@ -58,50 +47,48 @@
                 <em id="rnbo-console-description">Check the developer console for more messages from the RNBO device</em>
             </div>
         </div>
- 
-      
+
+        <!-- Main Grid and Controls Wrapper -->
         <div id="grid-wrapper">
+            <!-- Buttons Above the Grid -->
+            <div class="button-container">
+                <button id="glitch-button" class="control-button">Glitch</button>
+                <button id="clear-button" class="control-button">Clear</button>
+            </div>
+
             <!-- Controls and Grid Container -->
+            <div class="controls-and-grid">
                 <!-- Offset Control (Left Slider) -->
                 <div id="offset-control"></div>
-        
+                
                 <!-- X/Y Grid -->
                 <div id="grid-container">
-                    <!-- Your existing grid content -->
+                    <!-- Your existing grid content goes here if any dynamic elements are needed -->
                 </div>
-        
+
                 <!-- OddsTRIG Control (Right Slider) -->
                 <div id="oddsTRIG-control"></div>
+            </div>
 
-                <div id="bpm-control"></div>
-            </div>
-        
-            <!-- Glitch Button -->
-            <button id="glitch-button" class="control-button"></button> <!-- Removed text from the button -->
-        
-            <!-- Clear Button -->
-            <button id="clear-button" class="control-button"></button> <!-- New button for clear parameter -->
-        
-            <!-- Piano Keyboard Section -->
-            <div id="rnbo-clickable-keyboard">
-                <!-- Your keyboard content here -->
-            </div>
-                
-        
+            <!-- BPM Control Below the Grid -->
+            <div id="bpm-control"></div>
+        </div>
+
+        <!-- Additional Controls -->
         <button id="nerd-shit-button" class="nerd-shit-button">nerd shit →</button> <!-- Initially points to the right -->
 
         <!-- RNBO Parameter Sliders Container -->
         <div id="rnbo-parameter-sliders">
-            <!-- Existing RNBO parameter sliders here -->
+            <!-- Existing RNBO parameter sliders go here -->
         </div>
-        
-                <!-- Presets Section -->
+
+        <!-- Presets Section -->
         <div id="rnbo-presets">
-            <h3></h3>
+            <h3>Presets</h3>
             <em id="no-presets-label">No presets defined</em>
             <select id="preset-select"></select>
         </div>
-
+    </div>
 
     <!-- External JavaScript for application functionality -->
     <script type="text/javascript" src="js/guardrails.js"></script>
