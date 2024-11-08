@@ -9,18 +9,20 @@
     margin: 0 auto;
 }
 
-/* Button Container for Top-Right Positioning */
+//* Center Button Container Between Keyboard and X/Y Grid */
 .button-container {
     position: absolute;
-    top: 10px; /* Space from the top of the screen */
-    right: 10px; /* Space from the right side of the screen */
+    top: 50%; /* Adjusts vertical positioning */
+    left: 50%;
+    transform: translate(-50%, -50%); /* Centers the container horizontally */
     display: flex;
     gap: 10px; /* Space between the buttons */
+    z-index: 100; /* Ensures buttons are on top of other elements */
 }
 
-/* Control Button Styling (Adjust if Necessary) */
+/* Control Button Styling */
 .control-button {
-    padding: 5px 10px;
+    padding: 10px 20px;
     font-size: 1em;
     color: white;
     background-color: grey;
