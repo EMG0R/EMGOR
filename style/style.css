@@ -9,23 +9,25 @@
     margin: 0 auto;
 }
 
-/* Button Container */
-.button-container {
+-container {
+    position: absolute;
+    top: 10px; /* Space from the top of the screen */
+    right: 10px; /* Space from the right side of the screen */
     display: flex;
-    gap: 10px;
-    margin-bottom: 1vh;
+    gap: 10px; /* Space between the buttons */
 }
 
-/* Control Button Styling */
+/* Control Button Styling (Adjust if Necessary) */
 .control-button {
-    padding: 10px 20px;
-    font-size: 1.2em;
+    padding: 5px 10px;
+    font-size: 1em;
     color: white;
     background-color: grey;
     border: none;
     border-radius: 5px;
     cursor: pointer;
 }
+
 
 #glitch-button.engaged {
     background-color: #C0C0C0;
