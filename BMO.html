@@ -1,657 +1,109 @@
-/* Grid Wrapper */
-#grid-wrapper {
-    position: relative;
-    width: 75%;           /* Similar to the piano keyboard width */
-    max-width: 400px;     /* Limit the maximum width */
-    height: 58vh;         /* Set the height to 35vh */
-    margin: 0 auto;       /* Center the grid wrapper */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-bottom: 4vh;   /* Space between the grid and elements below it */
-}
-
-/* Controls and Grid Container */
-.controls-and-grid {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-
-/* Offset Control (Left Slider) */
-#offset-control {
-    width: 25px;             /* Fixed width */
-    height: 58vh;            /* Match the reduced height */
-    background-color: #8d8302;
-    border: 2px solid #ffea00;
-    border-radius: 5px;
-    position: relative;
-    overflow: hidden;
-    margin-right: 10px;      /* Space between slider and grid */
-}
-
-/* Grid Container (X/Y Grid) */
-#grid-container {
-    width: 70vw;            /* Fixed width */
-    height: 58vh;            /* Match the reduced height */
-    background-color: #4d004d;
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border: 2px solid;
-    animation: rainbow-border 1s infinite linear;
-    overflow: hidden;
-    touch-action: none;
-    box-sizing: border-box;
-}
-
-/* OddsTRIG Control (Right Slider) */
-#oddsTRIG-control {
-    width: 25px;             /* Fixed width */
-    height: 58vh;            /* Match the reduced height */
-    background-color: #1b652f;
-    border: 2px solid #68fc68;
-    border-radius: 5px;
-    position: relative;
-    overflow: hidden;
-    margin-left: 10px;       /* Space between grid and slider */
-}
-
-/* Gradient Circle for Offset Control */
-#offset-control::before {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: -3vh;  /* Centered vertically */
-    transform: translate(-50%, -50%);
-    width: 50px;             /* Larger size for a more impactful gradient effect */
-    height: 50px;            /* Match the width for a circular gradient */
-    background: radial-gradient(circle, rgba(255, 255, 0, 0.7) 0%, transparent 80%);
-    pointer-events: none;
-}
-
-/* Gradient Circle for OddsTRIG Control */
-#oddsTRIG-control::before {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: -3vh;  /* Centered vertically */
-    transform: translate(-50%, -50%);
-    width: 50px;             /* Larger size for a more impactful gradient effect */
-    height: 50px;            /* Match the width for a circular gradient */
-    background: radial-gradient(circle, rgba(0, 255, 0, 0.7) 0%, transparent 80%);
-    pointer-events: none;
-}
-
-/* BPM Control Slider */
-#bpm-control {
-    width: 59vw;           /* Match the width of the grid container */
-    height: 25px;          /* Same height as other sliders */
-    background-color: #1e3a8a;
-    border: 2px solid #60a5fa;
-    border-radius: 5px;
-    margin-top: 15px;      /* Space above the slider */
-    overflow: hidden;
-    display: flex;         /* Ensure content inside can be displayed properly */
-    position: relative;
-}
-
-/* Gradient Circle for BPM Control */
-#bpm-control::before {
-    content: '';
-    position: absolute;
-    top: 50%;              /* Center vertically */
-    left: 0;
-    transform: translateY(-50%);
-    width: 25px;           /* Square size matching slider height */
-    height: 25px;
-    padding-bottom: 15px;      /* Space above the slider */
-    justify-content: center;    /* Center the BPM slider */
-    background: radial-gradient(circle, rgba(96, 165, 250, 0.7) 0%, transparent 80%);
-    pointer-events:
-}
-
-/* General Body and HTML Styles */
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%; /* Ensure the entire page height is covered */
-    background-color: #4d004d; /* Purple background color */
-    color: white; /* White text color */
-    font-family: 'Courier New', Courier, monospace; /* Consistent font style */
-    display: flex;
-    flex-direction: column;
-    align-items: center; /* Center content horizontally */
-    text-align: center; /* Center the text */
-}
-
-/* Content Container to center vertically at the top */
-body > * {
-    margin-top: 40px; /* Align content towards the top */
-}
-
-/* Title Styles */
-h1 {
-    font-size: 4em; /* Large title size */
-    margin: 0; /* Remove default margin */
-}
-
-/* Paragraph Styles */
-p {
-    font-size: 1.5em; /* Larger paragraph text */
-    max-width: 600px; /* Maximum width for paragraph */
-    padding: 20px; /* Add padding around the paragraph */
-    color: rgba(255, 255, 255, 0.9); /* White text with a hint of grey */
-}
-
-
-/* Container for Buttons in a Horizontal Row */
-.button-container {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 20px;
-}
-
-/* Base Navigation Button Style */
-.navigation-button {
-    padding: 10px 20px;
-    font-size: 1.2em;
-    font-family: 'Courier New', Courier, monospace;
-    color: white;
-    background-color: #6a0dad;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    text-decoration: none;
-}
-
-
-/* Title Style with Animation */
-h1 {
-    font-size: 4em;
-    margin: 0;
-    opacity: 0;
-    transform: translateY(30px);
-    animation: fadeSlideIn 1s ease-out forwards 0s; /* 0.5s delay */
-}
-
-/* Animation for Title and Buttons */
-@keyframes fadeSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(30px); /* Start from lower position */
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0); /* Slide up to original position */
-    }
-}
-
-/* Button Container */
-.button-container {
-    display: flex;
-    justify-content: center;
-    gap: 2vw; /* Space between buttons scales with viewport */
-    margin-top: 2vh; /* Top margin scales with viewport height */
-}
-
-/* Page Button Style */
-.animated-button {
-    padding: 1vh 2vw; /* Reduced padding for half the previous size */
-    font-size: 1.25vw; /* Reduced font size */
-    color: rgba(255, 255, 255, 0.9); /* White text */
-    background-color: rgba(50, 0, 50, 0); /* Fully transparent initially */
-    border-radius: 20px; /* Rounded edges */
-    border: none; /* No visible border */
-    opacity: 0; /* Start fully transparent */
-    transform: translateY(0); /* No initial movement */
-    transition: opacity 0.6s ease, background-color 0.6s ease; /* Smooth fade-in */
-    animation: fadeIn 1.3s ease-out forwards 0.5s; /* Fade-in effect after delay */
-}
-
-.animated-button:hover {
-    background-color: rgba(50, 0, 50, 0.1); /* Slight background on hover */
-}
-
-/* Fade-In Animation */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        background-color: rgba(50, 0, 50, 0); /* Fully transparent */
-    }
-    to {
-        opacity: 0.9;
-        background-color: rgba(50, 0, 50, 0.3); /* 30% visible with background */
-    }
-}
-
-
-
-
-
-/* General Body and HTML Styles */
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    background-color: #4d004d;
-    color: white;
-    font-family: 'Courier New', Courier, monospace;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-}
-
-/* Home Button Style */
-.home-button {
-    position: fixed;
-    top: 2vw; /* Positioning with viewport units for responsiveness */
-    left: 2vw;
-    background-color: #6a0dad;
-    color: white;
-    padding: 0.3vw; /* Smaller padding */
-    font-size: 2.8vw; /* Smaller font size */
-    text-decoration: none;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 3vw; /* Smaller width */
-    height: 3vw; /* Smaller height */
-    text-align: center;
-}
-
-.home-button:hover {
-    background-color: #7b1fa2; /* Slight color change on hover */
-}
-
-
-
-/* General Button Style (used for both buttons) */
-.control-button {
-    position: absolute;
-    top: -3vh; /* Center the buttons vertically relative to the grid */
-    transform: translateY(-50%);
-    width: 10vw; /* Width remains flexible */
-    height: 4vh; /* Rectangular landscape height */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    z-index: 10; /* Ensure buttons stay above other elements */
-}
-
-/* Glitch Button Specific */
-#glitch-button {
-    left: -12vw; /* Position it to the left of the grid-container */
-    background-color: grey; /* Default color */
-}
-
-#glitch-button.engaged {
-    background-color: #C0C0C0; /* Silver when engaged */
-}
-
-/* Clear Button Specific */
-#clear-button {
-    right: -12vw; /* Position it to the right of the grid-container */
-    background-color: #8B0000; /* Dark red color */
-}
-
-#clear-button.engaged {
-    background-color: #ff6666; /* Lighter red when engaged */
-}
-
-
-
-/* Animating the rainbow border */
-@keyframes rainbow-border {
-    0% {
-        border-image: conic-gradient(
-            from 0deg,
-            hsl(0, 100%, 50%),
-            hsl(60, 100%, 50%),
-            hsl(120, 100%, 50%),
-            hsl(180, 100%, 50%),
-            hsl(240, 100%, 50%),
-            hsl(300, 100%, 50%),
-            hsl(360, 100%, 50%)
-        ) 1;
-    }
-    100% {
-        border-image: conic-gradient(
-            from 360deg,
-            hsl(0, 100%, 50%),
-            hsl(60, 100%, 50%),
-            hsl(120, 100%, 50%),
-            hsl(180, 100%, 50%),
-            hsl(240, 100%, 50%),
-            hsl(300, 100%, 50%),
-            hsl(360, 100%, 50%)
-        ) 1;
-    }
-}
-
-/* Piano Keyboard (incorporated into grid-wrapper) */
-#piano-keyboard {
-    position: relative;
-    width: 75%; /* Overall keyboard width */
-    max-width: 400px; /* Slimmer max-width */
-    height: 140px; /* Adjusted height */
-    margin: 30px auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 7vh; /* Add bottom margin to create space between the keyboard and grid */
-}
-
-/* White keys styling */
-.white-key {
-    flex: 1 1 28px; /* Slimmer white key width */
-    height: 100%;
-    background-color: #ffffff;
-    border: 1px solid #000;
-    margin: 0 1px;
-    z-index: 1;
-    cursor: pointer;
-    position: relative;
-    transition: background-color 0.2s ease;
-}
-
-.white-key:active {
-    background-color: #ccc;
-}
-
-/* Black keys styling */
-.black-key {
-    position: absolute;
-    width: 28px; /* Fatter black keys */
-    height: 60%;
-    background-color: #000;
-    border: 1px solid #000;
-    z-index: 2;
-    cursor: pointer;
-    top: 0;
-    margin-left: -10px; /* Slight right shift for better centering */
-    transition: background-color 0.2s ease;
-}
-
-.black-key:active {
-    background-color: #333;
-}
-
-/* Position each black key centered over its white keys with slight right shift */
-.black-key[data-note="49"] {
-    left: calc(100% / 7 * 1 - 4px); /* Centered with slight right offset */
-}
-.black-key[data-note="51"] {
-    left: calc(100% / 7 * 2 - 4px); /* Centered with slight right offset */
-}
-.black-key[data-note="54"] {
-    left: calc(100% / 7 * 4 - 4px); /* Centered with slight right offset */
-}
-.black-key[data-note="56"] {
-    left: calc(100% / 7 * 5 - 4px); /* Centered with slight right offset */
-}
-.black-key[data-note="58"] {
-    left: calc(100% / 7 * 6 - 4px); /* Centered with slight right offset */
-}
-
-
-
-/* General styling remains */
-html, body {
-    margin: 0;
-    padding: 0;
-    background-color: #001f3f;
-    color: #ffffff;
-    font-family: 'Courier New', Courier, monospace;
-}
-
-#rnbo-root {
-    height: 100vh;
-    width: 100vw;
-    box-sizing: border-box;
-}
-
-#background {
-    position: absolute;
-    z-index: -1;
-}
-
-h2, em {
-    width: 100%;
-    font-family: 'Courier New', Courier, monospace;
-    color: #ffffff;
-    padding-bottom: 2px;
-}
-
-#rnbo-root {
-    margin: auto;
-    max-width: 540px;
-    padding: 0px;
-}
-
-#neptr-title {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #ffffff;
-    font-family: 'Courier New', Courier, monospace;
-    margin-top: 25;
-    margin-bottom: 0.1vh;
-    font-size: 2em;
-    letter-spacing: 2px;
-    height: 50px;
-}
-
-#start-instruction {
-    text-align: center;
-    font-family: 'Courier New', Courier, monospace;
-    color: #ffffff;
-    font-size: 0.8em;
-    margin-bottom: 5px;
-    font-weight: bold;
-}
-
-#rnbo-clickable-keyboard {
-    display: none; /* Hide old MIDI buttons but keep style */
-}
-
-#rnbo-parameter-sliders {
-    display: flex;
-    flex-direction: column;
-    margin-top: 20px;
-    padding: 10px;
-    margin-bottom: 10px;
-}
-
-#rnbo-parameter-sliders > div {
-    display: flex;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-#rnbo-parameter-sliders > div > input:first-of-type {
-    flex-grow: 1;
-}
-
-.param-label {
-    width: 50%;
-    font-size: 1.1em;
-    padding-right: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-input[type="text"] {
-    width: 50px;
-    margin-left: 10px;
-    text-align: right;
-}
-
-input, select, textarea {
-    background-color: #001f3f;
-    color: #ffffff;
-    border: 1px solid #ffffff;
-    font-family: 'Courier New', Courier, monospace;
-}
-
-input[type="range"] {
-    accent-color: #ffffff;
-}
-
-/* Preset Section */
-#rnbo-presets {
-    width: 25%; /* Reduced width to make the box smaller */
-    max-width: 200px; /* Limit the maximum width */
-    margin: 0 auto; /* Center the preset dropdown */
-    padding: 0.5vh 0; /* Smaller padding to reduce the size */
-    text-align: center; /* Center text content */
-    box-sizing: border-box; /* Include padding and border in width calculation */
-    border: 2px solid white; /* Thicker border to match nerd shit box */
-    font-family: 'Courier New', Courier, monospace; /* Consistent font */
-    border-radius: 5px; /* Slightly rounded edges */
-    margin-right: 10px; /* Add margin-right to align with nerd shit box */
-}
-
-/* Nerd Shit Container */
-#nerd-shit-container {
-    width: 25%; /* Match the size of preset box */
-    max-width: 200px; /* Limit the maximum width */
-    margin: 0 auto; /* Center the nerd shit container */
-    padding: 0.5vh 0; /* Smaller padding to reduce the size */
-    text-align: center;
-    box-sizing: border-box;
-    border: 2px solid white; /* Thicker border to match preset box */
-    font-family: 'Courier New', Courier, monospace; /* Consistent font */
-    border-radius: 5px; /* Slightly rounded edges */
-    margin-left: 10px; /* Add margin-left to align with preset box */
-}
-
-/* Make preset and nerd shit boxes display inline to align horizontally */
-#rnbo-presets,
-#nerd-shit-container {
-    display: inline-block;
-    vertical-align: top; /* Align them properly when side by side */
-}
-
-
-/* Nerd Shit Toggle Button */
-#nerd-shit-toggle {
-    background: none;          /* No background color */
-    color: white;              /* White text */
-    border: none;              /* No border */
-    cursor: pointer;           /* Pointer cursor */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: inherit;      /* Inherit font from parent */
-    font-size: 1rem;
-}
-
-/* Arrow Indicator for Nerd Shit Button */
-#toggle-arrow {
-    width: 0;
-    height: 0;
-    margin-right: 0.5em;
-    border-left: 12px solid transparent;
-    border-right: 12px solid transparent;
-    border-bottom: 15px solid white;  /* Default arrow pointing down */
-    transform: skewX(-15deg);         /* Geometric skew for a unique triangle look */
-    transition: transform 0.3s ease;
-}
-
-#nerd-shit-toggle.open #toggle-arrow {
-    transform: skewX(-15deg) rotate(180deg);  /* Rotate the arrow upwards when open */
-}
-
-/* Adjust the select element in the preset box */
-#preset-select {
-    width: 80%;                   /* Adjust width as needed */
-    padding: 0.5em;
-    border-radius: 5px;
-    border: 1px solid white;
-    background-color: #001f3f;
-    color: white;
-    font-family: inherit;
-}
-
-/* Remove any extra padding or margin inside the select */
-#preset-select option {
-    padding: 0.5em;
-}
-
-/* Ensure the parameter sliders container is styled properly */
-#rnbo-parameter-sliders {
-    width: 100%;
-    margin-top: 1vh;
-}
-
-/* Adjust the parameter sliders styling if needed */
-#rnbo-parameter-sliders > div {
-    /* Your existing styles for sliders */
-}
-
-
-/* Arrow Indicator for Nerd Shit Button */
-#toggle-arrow {
-    width: 0;
-    height: 0;
-    margin-right: 0.5em;
-    border-left: 12px solid transparent;
-    border-right: 12px solid transparent;
-    border-bottom: 15px solid white;  /* Default arrow pointing down */
-    transform: skewX(-15deg);         /* Geometric skew for a unique triangle look */
-    transition: transform 0.3s ease;
-}
-
-#nerd-shit-toggle.open #toggle-arrow {
-    transform: skewX(-15deg) rotate(180deg);  /* Rotate the arrow upwards when open */
-}
-
-/* Nerd Shit Toggle Button Styles */
-.nerd-shit-button {
-    border: 2px solid white; /* White outline */
-    background: none;        /* No background color */
-    color: white;            /* White text */
-    cursor: pointer;         /* Pointer cursor */
-    font-size: 1rem;         /* Adjust font size as needed */
-    padding: 5px 10px;       /* Adjust padding for spacing */
-    border-radius: 5px;      /* Rounded corners */
-    margin-bottom: 1rem;     /* Space below button */
-    transition: background-color 0.3s ease;
-}
-
-.nerd-shit-button:hover {
-    background-color: rgba(255, 255, 255, 0.1); /* Slightly highlight on hover */
-}
-
-
-
-.spark {
-    position: absolute;
-    border-radius: 50%;
-    opacity: 0.8;
-    pointer-events: none;
-    animation: disappear 1s ease-out forwards, colorChange 1s infinite;
-}
-
-@keyframes colorChange {
-    0% { background-color: #ff90dc; }  /* Red-orange */
-    25% { background-color: #ec5eff; } /* Green */
-    50% { background-color: #c72fd8; } /* Blue */
-    75% { background-color: #7a32ff; } /* Pink */
-    100% { background-color: #5d1eb1; } /* Yellow */
-}
-
-@keyframes disappear {
-    0% { opacity: 1; }
-    100% { opacity: 0; }
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="theme-color" content="#000000">
+    <meta name="rnbo-version" content="1.0.0-alpha.5">
+    <link rel="stylesheet" href="style/style.css">
+    <title>NEPTR</title> <!-- Page title in the browser tab -->
+</head>
+
+<body>
+
+    <body>
+
+        <!-- Home Button to Go Back to index.html -->
+        <a href="index.html" class="home-button">&#8962;</a> <!-- Unicode character for home icon -->
+    
+        <noscript>You need to enable JavaScript to run this app.</noscript>
+    </body>
+
+    
+    <h1 id="neptr-title">NEPTR</h1>
+
+    <!-- <p id="start-instruction">unsilence phone, click notes, drag finger around :0</p> -->
+
+    <!-- Background SVG -->
+    <svg id="background" width="100%" height="100%"></svg>
+
+            
+    <!-- RNBO UI Root -->
+    <div id="rnbo-root">
+        <div></div>
+
+
+        <!-- Piano Keyboard Section -->
+        <div id="piano-keyboard">
+            <!-- White keys -->
+            <div class="white-key" data-note="48"></div>
+            <div class="white-key" data-note="50"></div>
+            <div class="white-key" data-note="52"></div>
+            <div class="white-key" data-note="53"></div>
+            <div class="white-key" data-note="55"></div>
+            <div class="white-key" data-note="57"></div>
+            <div class="white-key" data-note="59"></div>
+            <!-- Black keys -->
+            <div class="black-key" data-note="49"></div>
+            <div class="black-key" data-note="51"></div>
+            <div class="black-key" data-note="54"></div>
+            <div class="black-key" data-note="56"></div>
+            <div class="black-key" data-note="58"></div>
+        </div>
+
+        <!-- Console Output Section -->
+        <div id="rnbo-console">
+            <div id="rnbo-console-div">
+                <p id="rnbo-console-readout">Waiting for messages...</p>
+                <em id="rnbo-console-description">Check the developer console for more messages from the RNBO device</em>
+            </div>
+        </div>
+ 
+      
+        <div id="grid-wrapper">
+            <!-- Controls and Grid Container -->
+                <!-- Offset Control (Left Slider) -->
+                <div id="offset-control"></div>
+        
+                <!-- X/Y Grid -->
+                <div id="grid-container">
+                    <!-- Your existing grid content -->
+                </div>
+        
+                <!-- OddsTRIG Control (Right Slider) -->
+                <div id="oddsTRIG-control"></div>
+
+                <div id="bpm-control"></div>
+            </div>
+        
+            <!-- Glitch Button -->
+            <button id="glitch-button" class="control-button"></button> <!-- Removed text from the button -->
+        
+            <!-- Clear Button -->
+            <button id="clear-button" class="control-button"></button> <!-- New button for clear parameter -->
+        
+            <!-- Piano Keyboard Section -->
+            <div id="rnbo-clickable-keyboard">
+                <!-- Your keyboard content here -->
+            </div>
+                
+        
+        <button id="nerd-shit-button" class="nerd-shit-button">nerd shit →</button> <!-- Initially points to the right -->
+
+        <!-- RNBO Parameter Sliders Container -->
+        <div id="rnbo-parameter-sliders">
+            <!-- Existing RNBO parameter sliders here -->
+        </div>
+        
+                <!-- Presets Section -->
+        <div id="rnbo-presets">
+            <h3></h3>
+            <em id="no-presets-label">No presets defined</em>
+            <select id="preset-select"></select>
+        </div>
+
+    <!-- External JavaScript for application functionality -->
+    <script type="text/javascript" src="js/guardrails.js"></script>
+    <script type="text/javascript" src="js/app.js"></script>
+</body>
+</html>
