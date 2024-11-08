@@ -9,7 +9,8 @@
     margin: 0 auto;
 }
 
--container {
+/* Button Container for Top-Right Positioning */
+.button-container {
     position: absolute;
     top: 10px; /* Space from the top of the screen */
     right: 10px; /* Space from the right side of the screen */
