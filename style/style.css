@@ -218,7 +218,7 @@ html, body {
 
 /* Glitch Button Specific */
 #glitch-button {
-    left: -20vw; /* Position it to the left of the grid-container */
+    left: -60vw; /* Position it to the left of the grid-container */
     background-color: grey; /* Default color */
 }
 
@@ -228,7 +228,7 @@ html, body {
 
 /* Clear Button Specific */
 #clear-button {
-    left: -25vw; /* Position it to the right of the grid-container */
+    left: -50vw; /* Position it to the right of the grid-container */
     background-color: #8B0000; /* Dark red color */
 }
 
