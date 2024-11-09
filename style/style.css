@@ -228,7 +228,7 @@ html, body {
 
 /* Clear Button Specific */
 #clear-button {
-    right: -25vw; /* Position it to the right of the grid-container */
+    left: -25vw; /* Position it to the right of the grid-container */
     background-color: #8B0000; /* Dark red color */
 }
 
