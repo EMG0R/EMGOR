@@ -183,7 +183,7 @@ html, body {
     background-color: #6a0dad;
     color: white;
     padding: 0.3vw; /* Smaller padding */
-    font-size: 2.8vw; /* Smaller font size */
+    font-size: 3.2vw; /* Smaller font size */
     text-decoration: none;
     border-radius: 50%;
     cursor: pointer;
@@ -191,8 +191,8 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 3vw; /* Smaller width */
-    height: 3vw; /* Smaller height */
+    width: 4vw; /* Smaller width */
+    height: 4vw; /* Smaller height */
     text-align: center;
 }
 
@@ -218,7 +218,7 @@ html, body {
 
 /* Glitch Button Specific */
 #glitch-button {
-    left: -12vw; /* Position it to the left of the grid-container */
+    left: 0vw; /* Position it to the left of the grid-container */
     background-color: grey; /* Default color */
 }
 
