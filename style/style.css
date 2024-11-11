@@ -12,7 +12,7 @@
 /* Button Container for Top-Right Positioning */
 .button-container {
     position: absolute;
-    top: 40px; /* Space from the top of the screen */
+    top: 400px; /* Space from the top of the screen */
     right: 10px; /* Space from the right side of the screen */
     display: flex;
     gap: 10px; /* Space between the buttons */
