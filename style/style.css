@@ -1,3 +1,4 @@
+
 /* Main Wrapper for Controls */
 #grid-wrapper {
     display: flex;
@@ -8,18 +9,16 @@
     margin: 0 auto;
 }
 
-/* Button Container for Center Positioning */
+/* Button Container for Top-Right Positioning */
 .button-container {
     position: absolute;
-    top: 40vh; /* Positions the buttons at 40% of the viewport height */
-    left: 50%; /* Centers the container horizontally */
-    transform: translate(-50%, 0); /* Ensures perfect centering */
+    top: 260px; /* Space from the top of the screen */
+    right: 10px; /* Space from the right side of the screen */
     display: flex;
     gap: 10px; /* Space between the buttons */
-    z-index: 100; /* Places buttons above other elements */
 }
 
-/* Control Button Styling */
+/* Control Button Styling (Adjust if Necessary) */
 .control-button {
     padding: 5px 10px;
     font-size: 1em;
@@ -29,6 +28,7 @@
     border-radius: 5px;
     cursor: pointer;
 }
+
 
 #glitch-button.engaged {
     background-color: #C0C0C0;
@@ -47,7 +47,6 @@
     max-width: 300px;
     justify-content: center;
 }
-
 
 /* Offset and OddsTRIG Control Styling */
 #offset-control,
