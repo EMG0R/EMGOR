@@ -1,3 +1,9 @@
+/* Main Wrapper with Minimum Width */
+#main-wrapper {
+    width: 100%;
+    min-width: 400px; /* Set this to the width of the page with "nerd shit" engaged */
+    margin: 0 auto;
+}
 
 /* Main Wrapper for Controls */
 #grid-wrapper {
@@ -7,36 +13,9 @@
     width: 75%;
     max-width: 400px;
     margin: 0 auto;
+    padding-bottom: 30px;
 }
 
-/* Button Container for Top-Right Positioning */
-.button-container {
-    position: absolute;
-    top: 260px; /* Space from the top of the screen */
-    right: 10px; /* Space from the right side of the screen */
-    display: flex;
-    gap: 10px; /* Space between the buttons */
-}
-
-/* Control Button Styling (Adjust if Necessary) */
-.control-button {
-    padding: 5px 10px;
-    font-size: 1em;
-    color: white;
-    background-color: grey;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-
-#glitch-button.engaged {
-    background-color: #C0C0C0;
-}
-
-#clear-button.engaged {
-    background-color: #ff6666;
-}
 
 /* Controls and Grid Layout */
 .controls-and-grid {
@@ -119,13 +98,6 @@
         ) 1;
     }
 }
-/* Button Container */
-.button-container {
-    display: flex;
-    justify-content: center;
-    gap: 2vw; /* Space between buttons scales with viewport */
-    margin-top: 2vh; /* Top margin scales with viewport height */
-}
 
 /* Page Button Style */
 .animated-button {
@@ -200,40 +172,47 @@ html, body {
     background-color: #7b1fa2; /* Slight color change on hover */
 }
 
+/* Button Container */
+.button-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    position: relative;
+    top: -34px; /* Position it above the grid-container */
+    margin-bottom: -20px; /* Adjust to avoid extra spacing between container and grid */
+    left: 0px; /* Offset container slightly to the left */
+    gap: 130px; /* Increase space between the buttons */
+}
 
 
-/* General Button Style (used for both buttons) */
+/* General Button Style */
 .control-button {
-    position: absolute;
-    top: -3vh; /* Center the buttons vertically relative to the grid */
-    transform: translateY(-50%);
-    width: 10vw; /* Width remains flexible */
-    height: 4vh; /* Rectangular landscape height */
+    width: 39px; /* Fixed width */
+    height: 34px; /* Fixed height */
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    z-index: 10; /* Ensure buttons stay above other elements */
+    z-index: 10;
+    text-align: center;
 }
 
-/* Glitch Button Specific */
+/* Individual Button Styling */
 #glitch-button {
-    left: -60vw; /* Position it to the left of the grid-container */
-    background-color: grey; /* Default color */
+    background-color: grey;
 }
 
 #glitch-button.engaged {
-    background-color: #C0C0C0; /* Silver when engaged */
+    background-color: #C0C0C0;
 }
 
-/* Clear Button Specific */
 #clear-button {
-    left: -50vw; /* Position it to the right of the grid-container */
-    background-color: #8B0000; /* Dark red color */
+    background-color: #8B0000;
 }
 
 #clear-button.engaged {
-    background-color: #ff6666; /* Lighter red when engaged */
+    background-color: #ff6666;
 }
 
 
@@ -266,27 +245,27 @@ html, body {
     }
 }
 
-/* Piano Keyboard (incorporated into grid-wrapper) */
 #piano-keyboard {
     position: relative;
-    width: 75%; /* Overall keyboard width */
-    max-width: 400px; /* Slimmer max-width */
-    height: 140px; /* Adjusted height */
+    width: 75%;
+    max-width: 600px;
+    min-height: 180px; /* Set a minimum height */
+    height: 21vh; /* Relative height for responsiveness */
     margin: 30px auto;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 7vh; /* Add bottom margin to create space between the keyboard and grid */
+    margin-bottom: 50px; /* Equivalent to 4vh on iPhone 13 */
+    ;
 }
 
 /* White keys styling */
 .white-key {
-    flex: 1 1 28px; /* Slimmer white key width */
-    height: 100%;
+    flex: 1 1 35px; /* Adjusted width for white keys */
+    height: 100%; /* Full height for white keys */
     background-color: #ffffff;
     border: 1px solid #000;
     margin: 0 1px;
-    z-index: 1;
     cursor: pointer;
     position: relative;
     transition: background-color 0.2s ease;
@@ -299,14 +278,13 @@ html, body {
 /* Black keys styling */
 .black-key {
     position: absolute;
-    width: 28px; /* Fatter black keys */
-    height: 60%;
+    width: 24px; /* Narrower width for black keys */
+    height: 65%; /* Black keys occupy 65% of the white key height */
     background-color: #000;
     border: 1px solid #000;
     z-index: 2;
     cursor: pointer;
     top: 0;
-    margin-left: -10px; /* Slight right shift for better centering */
     transition: background-color 0.2s ease;
 }
 
@@ -314,22 +292,12 @@ html, body {
     background-color: #333;
 }
 
-/* Position each black key centered over its white keys with slight right shift */
-.black-key[data-note="49"] {
-    left: calc(100% / 7 * 1 - 4px); /* Centered with slight right offset */
-}
-.black-key[data-note="51"] {
-    left: calc(100% / 7 * 2 - 4px); /* Centered with slight right offset */
-}
-.black-key[data-note="54"] {
-    left: calc(100% / 7 * 4 - 4px); /* Centered with slight right offset */
-}
-.black-key[data-note="56"] {
-    left: calc(100% / 7 * 5 - 4px); /* Centered with slight right offset */
-}
-.black-key[data-note="58"] {
-    left: calc(100% / 7 * 6 - 4px); /* Centered with slight right offset */
-}
+/* Position black keys over the correct white keys */
+.black-key[data-note="49"] { left: calc(100% / 7 * 1 - 10px); }
+.black-key[data-note="51"] { left: calc(100% / 7 * 2 - 10px); }
+.black-key[data-note="54"] { left: calc(100% / 7 * 4 - 10px); }
+.black-key[data-note="56"] { left: calc(100% / 7 * 5 - 10px); }
+.black-key[data-note="58"] { left: calc(100% / 7 * 6 - 10px); }
 
 
 

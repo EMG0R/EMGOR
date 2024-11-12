@@ -587,33 +587,45 @@ function setupGridControl(device) {
         isDragging = false; // Stop dragging when touch is released
     });
 
-    // Setup the glitch button
-    document.getElementById("glitch-button").addEventListener("click", function() {
-        const glitchParam = device.parameters.find(param => param.id.includes("glitch"));
-        if (glitchParam) {
-            if (glitchParam.value === 0) {
-                glitchParam.value = 127; // Engage the glitch
-                this.classList.add('engaged'); // Add engaged state
-            } else {
-                glitchParam.value = 0; // Turn off the glitch
-                this.classList.remove('engaged'); // Remove engaged state
-            }
-        }
-    });
+ // Ensure these event listeners are placed correctly in the file and device is available
 
-    // Clear Button Functionality
-    document.getElementById("clear-button").addEventListener("click", function() {
-        const clearParam = device.parameters.find(param => param.id.includes("CLEAR")); // Adjust to match your parameter's ID
-        if (clearParam) {
-            if (clearParam.value === 0) {
-                clearParam.value = 1; // Engage the clear parameter
-                this.classList.add('engaged'); // Add engaged state
-            } else {
-                clearParam.value = 0; // Turn off the clear parameter
-                this.classList.remove('engaged'); // Remove engaged state
-            }
-        }
-    });
+// Modify glitch button to act like a "bang" on press and release
+const glitchButton = document.getElementById("glitch-button");
+const clearButton = document.getElementById("clear-button");
+
+glitchButton.addEventListener("pointerdown", function() {
+    const glitchParam = device.parameters.find(param => param.id.includes("glitch"));
+    if (glitchParam) {
+        glitchParam.value = 127; // Engage the glitch action
+        this.classList.add('engaged'); // Add visual feedback
+    }
+});
+
+glitchButton.addEventListener("pointerup", function() {
+    const glitchParam = device.parameters.find(param => param.id.includes("glitch"));
+    if (glitchParam) {
+        glitchParam.value = 0; // Reset glitch parameter
+        this.classList.remove('engaged'); // Remove visual feedback
+    }
+});
+
+// Modify clear button to act like a "bang" on press and release
+clearButton.addEventListener("pointerdown", function() {
+    const clearParam = device.parameters.find(param => param.id.includes("CLEAR"));
+    if (clearParam) {
+        clearParam.value = 1; // Engage the clear action
+        this.classList.add('engaged'); // Add visual feedback
+    }
+});
+
+clearButton.addEventListener("pointerup", function() {
+    const clearParam = device.parameters.find(param => param.id.includes("CLEAR"));
+    if (clearParam) {
+        clearParam.value = 0; // Reset clear parameter
+        this.classList.remove('engaged'); // Remove visual feedback
+    }
+});
+
 }
 
 

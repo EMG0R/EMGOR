@@ -25,6 +25,10 @@
     <svg id="background" width="100%" height="100%"></svg>
 
 
+<!-- Main Wrapper for All Content -->
+<div id="main-wrapper">
+
+
     <!-- Piano Keyboard Section Below the Grid -->
     <div id="piano-keyboard">
         <!-- White keys -->
@@ -42,15 +46,13 @@
         <div class="black-key" data-note="56"></div>
         <div class="black-key" data-note="58"></div>
     </div>
+
     
-
-
-
-<!-- Button Container for Glitch and Clear Buttons (Top-Right of Screen) -->
-<div class="button-container">
-    <button id="glitch-button" class="control-button"></button>
-    <button id="clear-button" class="control-button"></button>
-</div>
+    <!-- Button Container for Glitch and Clear Buttons -->
+    <div class="button-container">
+        <button id="glitch-button" class="control-button"></button>
+        <button id="clear-button" class="control-button"></button>
+    </div>
 
     <!-- Main Wrapper for All Controls and Display -->
     <div id="grid-wrapper">
@@ -71,6 +73,10 @@
         <!-- BPM Control Below the Grid -->
         <div id="bpm-control"></div>
     </div>
+
+</div>
+
+
     
     <!-- Additional Controls and Sections -->
     <button id="nerd-shit-button" class="nerd-shit-button">nerd shit →</button>
@@ -79,6 +85,7 @@
         <!-- RNBO parameter sliders here -->
     </div>
 
+    
     <div id="rnbo-presets">
         <h3>Presets</h3>
         <em id="no-presets-label">No presets defined</em>
