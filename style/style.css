@@ -226,8 +226,8 @@ html, body {
     left: 30px;
     background-color: #6a0dad;
     color: white;
-    padding: 5px; /* Smaller padding */
-    font-size: 24px; /* Smaller font size */
+    padding: 7px; /* Smaller padding */
+    font-size: 27px; /* Smaller font size */
     text-decoration: none;
     border-radius: 50%;
     cursor: pointer;
@@ -235,8 +235,8 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 25px; /* Smaller width */
-    height: 25px; /* Smaller height */
+    width: 31px; /* Smaller width */
+    height: 31px; /* Smaller height */
     text-align: center;
 }
 
