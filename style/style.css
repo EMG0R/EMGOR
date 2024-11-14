@@ -343,7 +343,7 @@ p {
     align-items: center;
     width: 100%;
     position: relative;
-    top: -34px; /* Position it above the grid-container */
+    top: -10px; /* Position it above the grid-container */
     margin-bottom: -20px; /* Adjust to avoid extra spacing between container and grid */
     left: 0px; /* Offset container slightly to the left */
     gap: 130px; /* Increase space between the buttons */
@@ -424,7 +424,7 @@ p {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 50px; /* Equivalent to 4vh on iPhone 13 */
+    margin-bottom: 20px; /* Equivalent to 4vh on iPhone 13 */
     ;
 }
 
