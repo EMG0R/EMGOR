@@ -80,6 +80,11 @@ async function setup() {
     if (dependencies.length) await device.loadDataBufferDependencies(dependencies);
     device.node.connect(outputNode);
 
+    // Initialize indicators to center
+    document.getElementById('offset-control').style.setProperty('--circle-position', '50%');
+    document.getElementById('oddsTRIG-control').style.setProperty('--circle-position-odds', '50%');
+    document.getElementById('bpm-control').style.setProperty('--circle-position', '50%');
+        
     setupNerdShitToggle(device);
     setupOffsetControl(device); // Add this line
     setupOddsTRIGControl(device); // Add this line
@@ -150,191 +155,90 @@ function makeSliders(device) {
 
 function setupOffsetControl(device) {
     const offsetControl = document.getElementById('offset-control');
-    let isDragging = false; // Track whether dragging is occurring
+    let isDragging = false;
 
-    // Define the range
     const minOffset = -12;
     const maxOffset = 12;
 
-    // Variable to hold the last known circle position
-    let lastCirclePosition = '0%';
-
-    // Function to update the offset and gradient
     function updateOffset(event) {
-        if (!isDragging) return; // Only update when dragging
         event.preventDefault();
 
-        let clientY;
-        if (event.touches && event.touches.length > 0) {
-            clientY = event.touches[0].clientY;
-        } else {
-            clientY = event.clientY;
-        }
-
         const rect = offsetControl.getBoundingClientRect();
+        const clientY = event.touches ? event.touches[0].clientY : event.clientY;
         let y = clientY - rect.top;
-        y = Math.max(0, Math.min(y, rect.height)); // Clamp y to [0, height]
+        y = Math.max(0, Math.min(y, rect.height));
 
-        // Map y to offset value (invert mapping so +12 is at the top)
         const offsetValue = maxOffset - ((y / rect.height) * (maxOffset - minOffset));
-
-        // Update the offset parameter
         const offsetParam = device.parameters.find(param => param.name === "offset");
-        if (offsetParam) {
-            offsetParam.value = offsetValue; // Set the offset parameter to the calculated value
-        }
+        if (offsetParam) offsetParam.value = offsetValue;
 
-        // Update the gradient circle position
         const percentage = (y / rect.height) * 100;
-        offsetControl.style.setProperty('--circle-position', `${percentage}%`);
-        lastCirclePosition = `${percentage}%`; // Store the last known position
+        offsetControl.style.setProperty('--indicator-position-offset', `${percentage}%`);
     }
 
-    // Function to show the gradient circle
-    function showGradient() {
-        offsetControl.classList.add('active');
-    }
-
-    // Function to hide the gradient circle but keep it in the last position
-    function hideGradient() {
-        offsetControl.classList.remove('active');
-        offsetControl.style.setProperty('--circle-position', lastCirclePosition); // Retain last position
-    }
-
-    // Event listeners for dragging
     offsetControl.addEventListener('mousedown', (event) => {
         isDragging = true;
-        updateOffset(event); // Update on initial click
-        showGradient();
-    });
-
-    offsetControl.addEventListener('mousemove', (event) => {
-        if (isDragging) {
-            updateOffset(event);
-        }
+        updateOffset(event);
+        document.addEventListener('mousemove', updateOffset);
     });
 
     document.addEventListener('mouseup', () => {
         isDragging = false;
-        hideGradient();
+        document.removeEventListener('mousemove', updateOffset);
     });
 
-    // Touch event listeners
     offsetControl.addEventListener('touchstart', (event) => {
-        isDragging = true;
-        updateOffset(event); // Update on initial touch
-        showGradient();
+        updateOffset(event);
+        document.addEventListener('touchmove', updateOffset);
     });
 
-    offsetControl.addEventListener('touchmove', (event) => {
-        if (isDragging) {
-            updateOffset(event);
-        }
-    });
-
-    offsetControl.addEventListener('touchend', () => {
-        isDragging = false;
-        hideGradient();
-    });
-
-    // Prevent default touch actions to avoid scrolling
-    offsetControl.addEventListener('touchstart', (event) => {
-        event.preventDefault();
+    document.addEventListener('touchend', () => {
+        document.removeEventListener('touchmove', updateOffset);
     });
 }
 
+
 function setupOddsTRIGControl(device) {
     const oddsTRIGControl = document.getElementById('oddsTRIG-control');
-    let isDragging = false; // Track whether dragging is occurring
+    let isDragging = false;
 
-    // Define the range for oddsTRIG
-    const minOddsTRIG = 0;   // Minimum value
-    const maxOddsTRIG = 100; // Maximum value
+    const minOddsTRIG = 0;
+    const maxOddsTRIG = 100;
 
-    // Variable to hold the last known circle position
-    let lastCirclePositionOdds = '0%';
-
-    // Function to update the oddsTRIG and gradient
     function updateOddsTRIG(event) {
-        if (!isDragging) return; // Only update when dragging
         event.preventDefault();
 
-        let clientY;
-        if (event.touches && event.touches.length > 0) {
-            clientY = event.touches[0].clientY;
-        } else {
-            clientY = event.clientY;
-        }
-
         const rect = oddsTRIGControl.getBoundingClientRect();
+        const clientY = event.touches ? event.touches[0].clientY : event.clientY;
         let y = clientY - rect.top;
-        y = Math.max(0, Math.min(y, rect.height)); // Clamp y to [0, height]
+        y = Math.max(0, Math.min(y, rect.height));
 
-        // Map y to oddsTRIG value (invert mapping so 100 is at the top)
         const oddsTRIGValue = maxOddsTRIG - ((y / rect.height) * (maxOddsTRIG - minOddsTRIG));
-
-        // Update the oddsTRIG parameter
         const oddsTRIGParam = device.parameters.find(param => param.name === "oddsTRIG");
-        if (oddsTRIGParam) {
-            oddsTRIGParam.value = oddsTRIGValue; // Set the oddsTRIG parameter to the calculated value
-        }
+        if (oddsTRIGParam) oddsTRIGParam.value = oddsTRIGValue;
 
-        // Update the gradient circle position
         const percentage = (y / rect.height) * 100;
-        oddsTRIGControl.style.setProperty('--circle-position-odds', `${percentage}%`);
-        lastCirclePositionOdds = `${percentage}%`; // Store the last known position
+        oddsTRIGControl.style.setProperty('--indicator-position-oddsTRIG', `${percentage}%`);
     }
 
-    // Function to show the gradient circle
-    function showGradient() {
-        oddsTRIGControl.classList.add('active');
-    }
-
-    // Function to hide the gradient circle but keep it in the last position
-    function hideGradient() {
-        oddsTRIGControl.classList.remove('active');
-        oddsTRIGControl.style.setProperty('--circle-position-odds', lastCirclePositionOdds); // Retain last position
-    }
-
-    // Event listeners for dragging
     oddsTRIGControl.addEventListener('mousedown', (event) => {
         isDragging = true;
-        updateOddsTRIG(event); // Update on initial click
-        showGradient();
-    });
-
-    oddsTRIGControl.addEventListener('mousemove', (event) => {
-        if (isDragging) {
-            updateOddsTRIG(event);
-        }
+        updateOddsTRIG(event);
+        document.addEventListener('mousemove', updateOddsTRIG);
     });
 
     document.addEventListener('mouseup', () => {
         isDragging = false;
-        hideGradient();
+        document.removeEventListener('mousemove', updateOddsTRIG);
     });
 
-    // Touch event listeners
     oddsTRIGControl.addEventListener('touchstart', (event) => {
-        isDragging = true;
-        updateOddsTRIG(event); // Update on initial touch
-        showGradient();
+        updateOddsTRIG(event);
+        document.addEventListener('touchmove', updateOddsTRIG);
     });
 
-    oddsTRIGControl.addEventListener('touchmove', (event) => {
-        if (isDragging) {
-            updateOddsTRIG(event);
-        }
-    });
-
-    oddsTRIGControl.addEventListener('touchend', () => {
-        isDragging = false;
-        hideGradient();
-    });
-
-    // Prevent default touch actions to avoid scrolling
-    oddsTRIGControl.addEventListener('touchstart', (event) => {
-        event.preventDefault();
+    document.addEventListener('touchend', () => {
+        document.removeEventListener('touchmove', updateOddsTRIG);
     });
 }
 
@@ -343,43 +247,46 @@ function setupBPMControl(device) {
     const bpmControl = document.getElementById('bpm-control');
     let isDragging = false;
 
-    // Define BPM range
     const minBPM = 40;
     const maxBPM = 400;
 
-    // Function to update BPM and gradient position
     function updateBPM(event) {
-        if (!isDragging) return;
         event.preventDefault();
 
-        let clientX = event.clientX || event.touches[0].clientX;
         const rect = bpmControl.getBoundingClientRect();
+        const clientX = event.touches ? event.touches[0].clientX : event.clientX;
         let x = clientX - rect.left;
-        x = Math.max(0, Math.min(x, rect.width)); // Clamp x to [0, width]
+        x = Math.max(0, Math.min(x, rect.width));
 
-        // Map x position to BPM value
         const bpmValue = minBPM + ((x / rect.width) * (maxBPM - minBPM));
-
-        // Update BPM parameter
         const bpmParam = device.parameters.find(param => param.name === "BPM");
-        if (bpmParam) {
-            bpmParam.value = bpmValue;
-        }
+        if (bpmParam) bpmParam.value = bpmValue;
 
-        // Update gradient position
         const percentage = (x / rect.width) * 100;
-        bpmControl.style.setProperty('--circle-position', `${percentage}%`);
+        bpmControl.style.setProperty('--indicator-position-bpm', `${percentage}%`);
     }
 
-    // Event listeners for dragging
-    bpmControl.addEventListener('mousedown', () => { isDragging = true; });
-    bpmControl.addEventListener('mousemove', updateBPM);
-    document.addEventListener('mouseup', () => { isDragging = false; });
+    bpmControl.addEventListener('mousedown', (event) => {
+        isDragging = true;
+        updateBPM(event);
+        document.addEventListener('mousemove', updateBPM);
+    });
 
-    bpmControl.addEventListener('touchstart', () => { isDragging = true; });
-    bpmControl.addEventListener('touchmove', updateBPM);
-    bpmControl.addEventListener('touchend', () => { isDragging = false; });
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        document.removeEventListener('mousemove', updateBPM);
+    });
+
+    bpmControl.addEventListener('touchstart', (event) => {
+        updateBPM(event);
+        document.addEventListener('touchmove', updateBPM);
+    });
+
+    document.addEventListener('touchend', () => {
+        document.removeEventListener('touchmove', updateBPM);
+    });
 }
+
 
 
 function setupNerdShitToggle(device) {

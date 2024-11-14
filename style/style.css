@@ -16,7 +16,6 @@
     padding-bottom: 30px;
 }
 
-
 /* Controls and Grid Layout */
 .controls-and-grid {
     display: flex;
@@ -25,26 +24,6 @@
     width: 100%;
     max-width: 300px;
     justify-content: center;
-}
-
-/* Offset and OddsTRIG Control Styling */
-#offset-control,
-#oddsTRIG-control {
-    width: 25px;
-    height: 58vh;
-    border-radius: 5px;
-    position: relative;
-    overflow: hidden;
-}
-
-#offset-control {
-    background-color: #8d8302;
-    border: 2px solid #ffea00;
-}
-
-#oddsTRIG-control {
-    background-color: #1b652f;
-    border: 2px solid #68fc68;
 }
 
 /* X/Y Grid Container */
@@ -59,16 +38,100 @@
     animation: rainbow-border 1s infinite linear;
 }
 
-/* BPM Control Below Grid */
-#bpm-control {
-    width: 100%;
-    max-width: 300px;
-    height: 25px;
-    background-color: #1e3a8a;
-    border: 2px solid #60a5fa;
-    border-radius: 5px;
-    margin-top: 15px;
+/* General Styles for Control Containers */
+#offset-control, #oddsTRIG-control, #bpm-control {
+    position: relative; /* Establishes positioning context for the indicator */
+    border-radius: 10px; /* Rounded corners for the control container */
+    overflow: hidden; /* Prevents indicator overflow beyond edges */
+    /* Keep existing background colors and borders intact */
 }
+
+/* Offset Control Styling */
+#offset-control {
+    background-color: #8d8302; /* Original background */
+    border: 2px solid #ffea00; /* Original border */
+    width: 25px; /* Width for vertical slider */
+    height: 58vh; /* Height for vertical slider */
+    margin: 20px auto;
+    --indicator-position-offset: 50%; /* Initial position for the indicator */
+}
+
+/* OddsTRIG Control Styling */
+#oddsTRIG-control {
+    background-color: #1b652f; /* Original background */
+    border: 2px solid #68fc68; /* Original border */
+    width: 25px; /* Width for vertical slider */
+    height: 58vh; /* Height for vertical slider */
+    margin: 20px auto;
+    --indicator-position-oddsTRIG: 50%; /* Initial position for the indicator */
+}
+
+/* BPM Control Styling */
+#bpm-control {
+    background-color: #1e3a8a; /* Original background */
+    border: 2px solid #60a5fa; /* Original border */
+    width: 100%; /* Width for horizontal slider */
+    max-width: 300px;
+    height: 25px; /* Height for horizontal slider */
+    margin: 15px auto;
+    --indicator-position-bpm: 50%; /* Initial position for the indicator */
+}
+
+/* Indicator Styling Using Pseudo-Elements with Gradient for Subtle Discoloration */
+#offset-control::before,
+#oddsTRIG-control::before,
+#bpm-control::before {
+    content: '';
+    position: absolute;
+    pointer-events: none; /* Ensures indicator does not interfere with mouse events */
+    border-radius: 15px; /* Rounded corners for the indicator */
+}
+
+/* Offset Control Indicator */
+#offset-control::before {
+    width: 110%; /* Slightly wider than slider width */
+    height: 45%; /* 3x larger to occupy 45% of the slider height */
+    left: 50%;
+    top: var(--indicator-position-offset, 50%);
+    transform: translate(-50%, -50%);
+    background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+}
+
+/* OddsTRIG Control Indicator */
+#oddsTRIG-control::before {
+    width: 110%;
+    height: 45%;
+    left: 50%;
+    top: var(--indicator-position-oddsTRIG, 50%);
+    transform: translate(-50%, -50%);
+    background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+}
+
+/* BPM Control Indicator */
+#bpm-control::before {
+    width: 45%; /* 3x larger to occupy 45% of the slider width */
+    height: calc(100% + 20px); /* Adjusted to match the visual size of other indicators */
+    top: 50%;
+    left: var(--indicator-position-bpm, 50%);
+    transform: translate(-50%, -50%);
+    background: linear-gradient(
+        to right,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+}
+
 
 
 /* Animation for the rainbow border */
@@ -216,6 +279,7 @@ h1 {
 /* Apply animation to "hello world" paragraph */
 p {
     margin-bottom: 40px;
+    margin-top: 10px;
     text-align: center;
     opacity: 0; /* Start hidden */
     animation: fadeIn 1s ease forwards;
