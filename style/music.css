@@ -11,12 +11,12 @@ html, body {
     padding: 0;
     height: 100%;
     width: 100%;
-    background-color: #001f3f;
+    background-color: #001f3f; /* Background color for the page */
     color: white; /* White text for contrast */
-    font-family: 'Courier New', Courier, monospace;
+    font-family: 'Courier New', Courier, monospace; /* Uniform font style */
     display: flex;
     flex-direction: column;
-    align-items: center; /* Horizontally center content */
+    align-items: center; /* Center content horizontally */
     justify-content: flex-start; /* Align content to the top */
     text-align: center;
 }
@@ -28,7 +28,7 @@ h1 {
     text-align: center;
     color: #ffffff;
     letter-spacing: 2px;
-    animation: fadeIn 1s ease forwards;
+    animation: fadeIn 1s ease forwards; /* Fade-in animation for title */
 }
 
 /* Play Button Container */
@@ -42,57 +42,61 @@ h1 {
 
 /* Custom Play Button */
 .custom-play-button {
-    width: 57.5px; /* 15% wider */
-    height: 42.5px; /* 15% shorter */
+    width: 57.5px; /* Button width */
+    height: 42.5px; /* Button height */
     color: #ffffff; /* White text color */
-    background-color: rgba(75, 0, 130, 0.85); /* Consistent purple background */
-    border: 2px solid rgba(255, 255, 255, 0.5); /* Border consistent with navigation buttons */
-    border-radius: 8px; /* Slight rounding for consistency */
-    font-size: 100%; /* 15% larger font for pause icon */
+    background-color: rgba(75, 0, 130, 0.85); /* Purple background */
+    border: 2px solid rgba(255, 255, 255, 0.5); /* White border */
+    border-radius: 8px; /* Rounded edges */
+    font-family: 'Courier New', Courier, monospace; /* Matching font */
+    font-size: 1.25em; /* Font size for icon */
     font-weight: bold; /* Bold text */
-    cursor: pointer; /* Pointer cursor for interactivity */
-    text-align: center; /* Center text */
-    display: flex; /* Flex layout for centering content */
+    cursor: pointer; /* Pointer cursor for interaction */
+    text-align: center; /* Center text inside button */
+    display: flex;
     justify-content: center;
     align-items: center;
-    transition: background-color 0.3s ease, transform 0.2s ease, font-size 0.2s ease;
+    opacity: 0; /* Initially hidden */
+    transform: translateY(20px); /* Start below position */
+    animation: fadeInDelayed 1.5s ease forwards 1s; /* Animate in slightly after heading */
+    transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
 /* Hover Effects for Play Button */
 .custom-play-button:hover {
-    background-color: rgba(102, 0, 153, 0.9); /* Slightly darker purple on hover */
-    transform: scale(1.05); /* Scale up slightly on hover */
+    background-color: rgba(102, 0, 153, 0.9); /* Darker purple on hover */
+    transform: scale(1.05); /* Slight enlargement */
 }
 
 /* Active State for Play Button */
 .custom-play-button:active {
-    background-color: rgba(50, 0, 100, 0.9); /* Darker purple for active state */
-    transform: scale(0.95); /* Slightly shrink on click */
+    background-color: rgba(50, 0, 100, 0.9); /* Even darker purple when pressed */
+    transform: scale(0.95); /* Slight shrinkage */
 }
 
 /* Scrub Bar Control Styling */
-#scrub-control {
-    background-color: rgba(75, 0, 130, 0.85); /* Same purple as play button */
-    border: 2px solid rgba(255, 255, 255, 0.5); /* Consistent white border */
-    width: 300px; /* 3x the play button width */
-    max-width: 100%; /* Ensure it doesn't overflow parent container */
-    height: 12.5px; /* Half the play button height */
-    margin: 20px auto; /* Center the control horizontally */
-    position: relative; /* Positioning context for the indicator */
-    overflow: hidden; /* Prevents indicator overflow */
+.scrub-control {
+    display: none; /* Start hidden */
+    background-color: rgba(75, 0, 130, 0.85); /* Purple background */
+    border: 2px solid rgba(255, 255, 255, 0.5); /* White border */
+    width: 400px; /* Scrub bar width */
+    height: 12.5px; /* Scrub bar height */
+    margin: 20px auto;
+    position: relative;
+    overflow: hidden;
     --indicator-position-scrub: 0%; /* Initial scrub position */
 }
 
 /* Scrub Bar Indicator Styling */
-#scrub-control::before {
+.scrub-control::before {
     content: '';
     position: absolute;
-    pointer-events: none; /* Prevent interaction with the indicator */
-    border-radius: 15px; /* Rounded edges for smooth styling */
-    width: 25%; /* Matches bpm-control's indicator width */
-    height: calc(100% + 20px); /* Extend beyond the slider’s visual boundaries */
+    pointer-events: none; /* Prevent interaction */
+    border-radius: 15px; /* Rounded edges */
+    width: 25%; /* Indicator width */
+    height: calc(100% + 20px); /* Extend beyond slider boundaries */
     top: 50%; /* Center vertically */
-    left: var(--indicator-position-scrub, 0%); /* Initial position at the start */
+    left: var(--indicator-position-scrub, 0%); /* Initial position */
     transform: translate(-50%, -50%); /* Center alignment */
     background: linear-gradient(
         to right,
@@ -109,12 +113,12 @@ h1 {
     left: 30px;
     background-color: #6a0dad; /* Purple background */
     color: white;
-    padding: 7px; /* Smaller padding */
-    font-size: 27px; /* Smaller font size */
+    padding: 7px;
+    font-size: 27px; /* Font size for the home icon */
     text-decoration: none;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 1000;
+    border-radius: 50%; /* Circular button */
+    cursor: pointer; /* Pointer cursor for interaction */
+    z-index: 1000; /* Ensure it appears above other elements */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -122,14 +126,56 @@ h1 {
     height: 31px;
 }
 
+/* Play Button Delays */
+#play-button-fitmk {
+    animation-delay: 0.2s; /* Top button fades in first */
+}
+
+#play-button-mashup {
+    animation-delay: 0.5s; /* Middle button fades in next */
+}
+
+#play-button-anxiety {
+    animation-delay: 0.8s; /* Bottom button fades in last */
+}
+
+#play-button-matthew {
+    animation-delay: 1.1s; /* New button fades in last */
+}
+
+
+/* Hover Effects for Play Button */
+.custom-play-button:hover {
+    background-color: rgba(102, 0, 153, 0.9); /* Darker purple on hover */
+    transform: scale(1.05); /* Slight enlargement */
+}
+
+/* Active State for Play Button */
+.custom-play-button:active {
+    background-color: rgba(50, 0, 100, 0.9); /* Even darker purple when pressed */
+    transform: scale(0.95); /* Slight shrinkage */
+}
+
+/* Fade-In Animation */
+@keyframes fadeInDelayed {
+    from {
+        opacity: 0; /* Start hidden */
+        transform: translateY(20px); /* Start below */
+    }
+    to {
+        opacity: 1; /* Fully visible */
+        transform: translateY(0); /* Final position */
+    }
+}
+
 /* Fade-In Animation */
 @keyframes fadeIn {
     from {
-        opacity: 0;
+        opacity: 0; /* Start hidden */
         transform: translateY(-20px); /* Slight upward motion */
     }
     to {
-        opacity: 1;
-        transform: translateY(0);
+        opacity: 1; /* Fully visible */
+        transform: translateY(0); /* Final position */
     }
 }
