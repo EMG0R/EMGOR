@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
             stopOthers();
             if (audioElement.paused) {
                 audioElement.play();
-                playButton.textContent = '⏸';
+                playButton.textContent = '⏹';
                 scrubControl.style.display = 'block';
             } else {
                 audioElement.pause();
@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         audioSystems.push({ audio: audioElement, button: playButton, scrubber: scrubControl });
+    
     }
 
     // Initialize audio systems
@@ -95,4 +96,47 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeAudioSystem('../resources/fitmk.wav', 'play-button-fitmk', 'scrub-control-fitmk');
     initializeAudioSystem('../resources/mashup.wav', 'play-button-mashup', 'scrub-control-mashup');
     initializeAudioSystem('../resources/matthew.wav', 'play-button-matthew', 'scrub-control-matthew');
+    initializeAudioSystem('../resources/okay.wav', 'play-button-okay', 'scrub-control-okay');
+    initializeAudioSystem('../resources/sad.wav', 'play-button-sad', 'scrub-control-sad');
+
+
+
+
+
+    function initializeVideoSystem(buttonId, videoId) {
+        const playButton = document.getElementById(buttonId);
+        const videoElement = document.getElementById(videoId);
+    
+        if (!playButton || !videoElement) {
+            console.error(`Missing elements for button: ${buttonId}, video: ${videoId}`);
+            return;
+        }
+    
+        // Function to toggle video play/pause and visibility
+        function toggleVideoPlay() {
+            if (videoElement.paused) {
+                videoElement.play();
+                playButton.textContent = '⏹'; // Use || for pause
+                videoElement.style.display = 'block';
+            } else {
+                videoElement.pause();
+                videoElement.style.display = 'none';
+                playButton.textContent = '▶'; // Reset to play symbol
+            }
+        }
+    
+        // Reset video and button state when video ends
+        videoElement.addEventListener('ended', () => {
+            videoElement.style.display = 'none';
+            playButton.textContent = '▶';
+        });
+    
+        // Add click event listener to the button
+        playButton.addEventListener('click', toggleVideoPlay);
+    }
+    
+    // Initialize the video system
+    initializeVideoSystem('play-button-spiderverse', 'spiderverse-video');
+
+
 });

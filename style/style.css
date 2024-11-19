@@ -176,9 +176,6 @@
     animation: fadeIn 1.3s ease-out forwards 0.5s; /* Fade-in effect after delay */
 }
 
-.animated-button:hover {
-    background-color: rgba(50, 0, 50, 0.1); /* Slight background on hover */
-}
 
 /* Fade-In Animation */
 @keyframes fadeIn {
@@ -325,10 +322,8 @@ p {
 /* Button hover effects */
 .navigation-button:hover {
     background-color: rgba(102, 0, 153, 0.9); /* Slightly darker purple on hover */
-    transform: scale(1.05);
+    transform: scale(1.18);
 }
-
-
 
 
 
@@ -734,17 +729,6 @@ input[type="range"] {
     transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
-/* Hover Effects for Play Button */
-.custom-play-button:hover {
-    background-color: rgba(102, 0, 153, 0.9); /* Slightly darker purple on hover */
-    transform: scale(1.05); /* Scale up slightly on hover */
-}
-
-/* Active State for Play Button */
-.custom-play-button:active {
-    background-color: rgba(50, 0, 100, 0.9); /* Darker purple for active state */
-    transform: scale(0.95); /* Slightly shrink on click */
-}
 
 
 @keyframes colorChange {
