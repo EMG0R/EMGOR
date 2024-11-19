@@ -1,0 +1,135 @@
+/* General Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* General Body and HTML Styles */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    background-color: #001f3f;
+    color: white; /* White text for contrast */
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Horizontally center content */
+    justify-content: flex-start; /* Align content to the top */
+    text-align: center;
+}
+
+/* Heading Style */
+h1 {
+    margin-top: 20px;
+    font-size: 2em;
+    text-align: center;
+    color: #ffffff;
+    letter-spacing: 2px;
+    animation: fadeIn 1s ease forwards;
+}
+
+/* Play Button Container */
+.play-button-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-top: 30px;
+}
+
+/* Custom Play Button */
+.custom-play-button {
+    width: 57.5px; /* 15% wider */
+    height: 42.5px; /* 15% shorter */
+    color: #ffffff; /* White text color */
+    background-color: rgba(75, 0, 130, 0.85); /* Consistent purple background */
+    border: 2px solid rgba(255, 255, 255, 0.5); /* Border consistent with navigation buttons */
+    border-radius: 8px; /* Slight rounding for consistency */
+    font-size: 100%; /* 15% larger font for pause icon */
+    font-weight: bold; /* Bold text */
+    cursor: pointer; /* Pointer cursor for interactivity */
+    text-align: center; /* Center text */
+    display: flex; /* Flex layout for centering content */
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.3s ease, transform 0.2s ease, font-size 0.2s ease;
+}
+
+/* Hover Effects for Play Button */
+.custom-play-button:hover {
+    background-color: rgba(102, 0, 153, 0.9); /* Slightly darker purple on hover */
+    transform: scale(1.05); /* Scale up slightly on hover */
+}
+
+/* Active State for Play Button */
+.custom-play-button:active {
+    background-color: rgba(50, 0, 100, 0.9); /* Darker purple for active state */
+    transform: scale(0.95); /* Slightly shrink on click */
+}
+
+/* Scrub Bar Control Styling */
+#scrub-control {
+    background-color: rgba(75, 0, 130, 0.85); /* Same purple as play button */
+    border: 2px solid rgba(255, 255, 255, 0.5); /* Consistent white border */
+    width: 300px; /* 3x the play button width */
+    max-width: 100%; /* Ensure it doesn't overflow parent container */
+    height: 12.5px; /* Half the play button height */
+    margin: 20px auto; /* Center the control horizontally */
+    position: relative; /* Positioning context for the indicator */
+    overflow: hidden; /* Prevents indicator overflow */
+    --indicator-position-scrub: 0%; /* Initial scrub position */
+}
+
+/* Scrub Bar Indicator Styling */
+#scrub-control::before {
+    content: '';
+    position: absolute;
+    pointer-events: none; /* Prevent interaction with the indicator */
+    border-radius: 15px; /* Rounded edges for smooth styling */
+    width: 25%; /* Matches bpm-control's indicator width */
+    height: calc(100% + 20px); /* Extend beyond the slider’s visual boundaries */
+    top: 50%; /* Center vertically */
+    left: var(--indicator-position-scrub, 0%); /* Initial position at the start */
+    transform: translate(-50%, -50%); /* Center alignment */
+    background: linear-gradient(
+        to right,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+}
+
+/* Home Button Style */
+.home-button {
+    position: fixed;
+    top: 30px;
+    left: 30px;
+    background-color: #6a0dad; /* Purple background */
+    color: white;
+    padding: 7px; /* Smaller padding */
+    font-size: 27px; /* Smaller font size */
+    text-decoration: none;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 31px;
+    height: 31px;
+}
+
+/* Fade-In Animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px); /* Slight upward motion */
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

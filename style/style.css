@@ -208,7 +208,6 @@ html, body {
     margin: 0;
     padding: 0;
     height: 100%;
-    background-color: #4d004d;
     color: white;
     font-family: 'Courier New', Courier, monospace;
     display: flex;
@@ -699,8 +698,6 @@ input[type="range"] {
     background-color: rgba(255, 255, 255, 0.1); /* Slightly highlight on hover */
 }
 
-
-
 .spark {
     position: absolute;
     border-radius: 50%;
@@ -708,6 +705,47 @@ input[type="range"] {
     pointer-events: none;
     animation: disappear 1s ease-out forwards, colorChange 1s infinite;
 }
+
+
+/* Play Button Container */
+.play-button-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 30px;
+}
+
+/* Custom Play Button */
+.custom-play-button {
+    width: 100px; /* Width of the play button */
+    height: 50px; /* Height of the play button */
+    color: #ffffff; /* White text color */
+    background-color: rgba(75, 0, 130, 0.85); /* Consistent purple background */
+    border: 2px solid rgba(255, 255, 255, 0.5); /* Border consistent with navigation buttons */
+    border-radius: 12px; /* Rounded edges for consistency */
+    font-family: 'Courier New', Courier, monospace; /* Matching font */
+    font-size: 1.25em; /* Adjust text size */
+    font-weight: bold; /* Bold text */
+    cursor: pointer; /* Pointer cursor for interactivity */
+    text-align: center; /* Center text */
+    display: flex; /* Flex layout for centering content */
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+/* Hover Effects for Play Button */
+.custom-play-button:hover {
+    background-color: rgba(102, 0, 153, 0.9); /* Slightly darker purple on hover */
+    transform: scale(1.05); /* Scale up slightly on hover */
+}
+
+/* Active State for Play Button */
+.custom-play-button:active {
+    background-color: rgba(50, 0, 100, 0.9); /* Darker purple for active state */
+    transform: scale(0.95); /* Slightly shrink on click */
+}
+
 
 @keyframes colorChange {
     0% { background-color: #ff90dc; }  /* Red-orange */

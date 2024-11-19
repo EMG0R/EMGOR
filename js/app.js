@@ -2,6 +2,7 @@
 
 async function setup() {
 
+    
     // Keep screen awake
     async function keepAwake() {
         try {
