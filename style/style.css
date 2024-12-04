@@ -1,3 +1,40 @@
+:root {
+    /* PURPLE TONES (Lightest to Darkest) */
+    --purple-light: #72009F;   /* RGB: 114–0–159 */
+    --purple-mid: #5B007F;     /* RGB: 91–0–127 */
+    --purple-dark: #470063;    /* RGB: 71–0–99 */
+    --purple-darker: #310044;  /* RGB: 49–0–68 */
+    --purple-darkest: #13001B; /* RGB: 19–0–27 */
+
+    /* GREEN TONES (Lightest to Darkest) */
+    --green-light: #00B917;    /* RGB: 0–185–23 */
+    --green-mid: #009512;      /* RGB: 0–149–18 */
+    --green-dark: #00730E;     /* RGB: 0–115–14 */
+    --green-darker: #00500A;   /* RGB: 0–80–10 */
+    --green-darkest: #002004;  /* RGB: 0–32–4 */
+
+    /* BLUE TONES (Lightest to Darkest) */
+    --blue-light: #5478a8;
+    --blue-mid: #3a5493;
+    --blue-dark: #283b75;
+    --blue-darker: #14295b;
+    --blue-darkest: #061640;
+
+    /* YELLOW TONES (Lightest to Darkest) */
+    --yellow-light: #e6d32f;
+    --yellow-mid: #c3aa16;
+    --yellow-dark: #9e8503;
+    --yellow-darker: #7b6800;
+    --yellow-darkest: #554800;
+
+    /* RED TONES (Lightest to Darkest) */
+    --red-light: #EF0C00;     /* RGB: 239–12–0 */
+    --red-mid: #C00A00;       /* RGB: 192–10–0 */
+    --red-dark: #950700;      /* RGB: 149–7–0 */
+    --red-darker: #670500;    /* RGB: 103–5–0 */
+    --red-darkest: #290200;   /* RGB: 41–2–0 */
+}
+
 /* Main Wrapper with Minimum Width */
 #main-wrapper {
     width: 100%;
@@ -26,17 +63,6 @@
     justify-content: center;
 }
 
-/* X/Y Grid Container */
-#grid-container {
-    width: 100%;
-    height: 58vh;
-    background-color: #4d004d;
-    border: 2px solid;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    animation: rainbow-border 1s infinite linear;
-}
 
 /* General Styles for Control Containers */
 #offset-control, #oddsTRIG-control, #bpm-control {
@@ -46,10 +72,25 @@
     /* Keep existing background colors and borders intact */
 }
 
+
+/* X/Y Grid Container */
+#grid-container {
+    background-color: var(--purple-dark); /* Matching the style with a mid-tone color */
+    border: 2px solid var(--purple-light); /* Border in a complementary lighter purple */
+    width: 100%; /* Maintain existing width */
+    height: 58vh; /* Maintain existing height */
+    margin: 20px auto; /* Center the container */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px; /* Adds rounded corners */
+}
+
+
 /* Offset Control Styling */
 #offset-control {
-    background-color: #8d8302; /* Original background */
-    border: 2px solid #ffea00; /* Original border */
+    background-color: var(--yellow-dark); /* Original background */
+    border: 2px solid var(--yellow-light); /* Original border */
     width: 25px; /* Width for vertical slider */
     height: 58vh; /* Height for vertical slider */
     margin: 20px auto;
@@ -58,8 +99,8 @@
 
 /* OddsTRIG Control Styling */
 #oddsTRIG-control {
-    background-color: #1b652f; /* Original background */
-    border: 2px solid #68fc68; /* Original border */
+    background-color: var(--green-dark); /* Original background */
+    border: 2px solid var(--green-light); /* Original border */
     width: 25px; /* Width for vertical slider */
     height: 58vh; /* Height for vertical slider */
     margin: 20px auto;
@@ -68,12 +109,12 @@
 
 /* BPM Control Styling */
 #bpm-control {
-    background-color: #1e3a8a; /* Original background */
-    border: 2px solid #60a5fa; /* Original border */
+    background-color: var(--blue-dark); /* Original background */
+    border: 2px solid var(--blue-light); /* Original border */
     width: 100%; /* Width for horizontal slider */
     max-width: 300px;
-    height: 25px; /* Height for horizontal slider */
-    margin: 15px auto;
+    height: 22px; /* Height for horizontal slider */
+    margin: -9px;
     --indicator-position-bpm: 50%; /* Initial position for the indicator */
 }
 
@@ -366,16 +407,12 @@ p {
 }
 
 #clear-button {
-    background-color: #8B0000;
+    background-color: var(--red-dark);
 }
 
 #clear-button.engaged {
-    background-color: #ff6666;
+    background-color: var(--red-light); 
 }
-
-
-
-
 
 
 
@@ -468,7 +505,7 @@ p {
 html, body {
     margin: 0;
     padding: 0;
-    background-color: #001f3f;
+    background-color: var(--blue-darkest);
     color: #ffffff;
     font-family: 'Courier New', Courier, monospace;
 }
@@ -701,33 +738,6 @@ input[type="range"] {
     animation: disappear 1s ease-out forwards, colorChange 1s infinite;
 }
 
-
-/* Play Button Container */
-.play-button-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-top: 30px;
-}
-
-/* Custom Play Button */
-.custom-play-button {
-    width: 100px; /* Width of the play button */
-    height: 50px; /* Height of the play button */
-    color: #ffffff; /* White text color */
-    background-color: rgba(75, 0, 130, 0.85); /* Consistent purple background */
-    border: 2px solid rgba(255, 255, 255, 0.5); /* Border consistent with navigation buttons */
-    border-radius: 12px; /* Rounded edges for consistency */
-    font-family: 'Courier New', Courier, monospace; /* Matching font */
-    font-size: 1.25em; /* Adjust text size */
-    font-weight: bold; /* Bold text */
-    cursor: pointer; /* Pointer cursor for interactivity */
-    text-align: center; /* Center text */
-    display: flex; /* Flex layout for centering content */
-    justify-content: center;
-    align-items: center;
-    transition: background-color 0.3s ease, transform 0.2s ease;
-}
 
 
 
