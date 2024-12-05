@@ -312,7 +312,7 @@ function setupNerdShitToggle(device) {
             }
         } else {
             slidersContainer.style.display = 'none';  // Hide the sliders
-            nerdButton.textContent = 'nerd shit →';  // Change arrow to point to the right
+            nerdButton.textContent = 'paramaters →';  // Change arrow to point to the right
 
             // Remove the sliders if they were created
             slidersContainer.innerHTML = ''; // Clear content
