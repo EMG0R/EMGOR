@@ -303,7 +303,7 @@ function setupNerdShitToggle(device) {
     nerdButton.addEventListener("click", function() {
         if (slidersContainer.style.display === 'none') {
             slidersContainer.style.display = 'block'; // Show the sliders
-            nerdButton.textContent = 'nerd shit ↓';  // Change arrow to point down
+            nerdButton.textContent = 'paramaters ↓';  // Change arrow to point down
 
             // Create sliders if they haven't been created yet
             if (!slidersCreated) {
