@@ -3,16 +3,137 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <meta name="theme-color" content="#000000">
-    <link rel="stylesheet" href="style/style.css">
-    <title>EMGOR</title> <!-- Page title in the browser tab -->
+    <link rel="stylesheet" href="style/resources.css">
+    <title>EMGOR Resources</title>
 </head>
 <body>
 
-    <!-- Home Button to Go Back to index.html -->
-    <a href="index.html" class="home-button">&#8962;</a> <!-- Unicode character for home icon -->
+    <!-- Home Button to Navigate Back -->
+    <a href="index.html" class="home-button">&#8962;</a>
 
-    <h1 id="neptr-title">RESOURCES</h1>
+    <!-- Page Title -->
+    <header>
+        <h1>SETTING UP UI FOR RNBO PI</h1>
+
+        <div class="download-section">
+            <div class="instruction">
+                <p><strong>Download example.maxpat:</strong></p>
+                <a href="downloads/example.maxpat" class="download-link" download>Click here to download example.maxpat</a>
+            </div>
+            <div class="instruction">
+                <p><strong>Download exampleUI.py:</strong></p>
+                <a href="downloads/exampleUI.py" class="download-link" download>Click here to download exampleUI.py</a>
+            </div>
+        </div>
+    </header>
+
+    <p><strong>[USE CHATGPT FOR ASSISTANCE]</strong></p>
+
+    <!-- Resource Sections -->
+    <section>
+        <h2>Install Python on Pi</h2>
+        <div class="instruction">
+            <p><strong>Update system packages:</strong></p>
+            <div class="code-box">sudo apt-get update && sudo apt-get upgrade</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Install Python 3 and pip:</strong></p>
+            <div class="code-box">sudo apt install python3-pip</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Install python-osc library:</strong></p>
+            <div class="code-box">pip3 install python-osc</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Upgrade pip, setuptools, and virtualenv:</strong></p>
+            <div class="code-box">pip install --upgrade pip setuptools virtualenv</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Create a Python virtual environment:</strong></p>
+            <div class="code-box">python3 -m venv ~/myenv</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Activate the virtual environment:</strong></p>
+            <div class="code-box">source ~/myenv/bin/activate</div>
+        </div>
+        <hr class="divider">
+
+        <h2>Install Kivy on Pi</h2>
+        <div class="instruction">
+            <p><strong>Upgrade pip for compatibility:</strong></p>
+            <div class="code-box">pip install --upgrade pip</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Install Kivy library:</strong></p>
+            <div class="code-box">pip install --upgrade kivy</div>
+        </div>
+        <hr class="divider">
+
+        <h2>Send Your UI Script to the Pi</h2>
+        <div class="instruction">
+            <p><strong>Transfer your UI script to the Pi:</strong></p>
+            <div class="code-box">scp [YOUR_PATH][YOUR_UI.py] pi@[YOUR_PI].local:/home/pi/</div>
+        </div>
+        <hr class="divider">
+
+        <h2>Set Up OSC Communication</h2>
+        <div class="instruction">
+            <p><strong>Verify the RNBO OSCQuery runner is active:</strong></p>
+            <div class="code-box">curl http://127.0.0.1:5678</div>
+            <p>Expected output: A JSON structure representing the RNBO patcher's OSC parameters and namespace.</p>
+        </div>
+        <div class="instruction">
+            <p><strong>Install `oscsend` for testing OSC (optional):</strong></p>
+            <div class="code-box">sudo apt-get install liblo-tools</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Test OSC communication:</strong></p>
+            <div class="code-box">oscsend osc.udp://127.0.0.1:1234 /rnbo/inst/0/params/ratio f 0.5</div>
+        </div>
+        <hr class="divider">
+
+        <h2>Install Desktop on Pi</h2>
+        <p class="subtitle">[After recent RNBO update, handles display detection]</p>
+        <div class="instruction">
+            <p><strong>Install XFCE desktop environment:</strong></p>
+            <div class="code-box">sudo apt install xfce4 xfce4-goodies lightdm</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Disable screen blanking:</strong></p>
+            <div class="code-box">sudo nano /etc/lightdm/lightdm.conf</div>
+            <p>Then add this under [Seat:*]:</p>
+            <div class="code-box">xserver-command=X -s 0 -dpms</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Create an autostart configuration:</strong></p>
+            <div class="code-box">mkdir -p ~/.config/autostart</div>
+            <p>Then create and edit the file:</p>
+            <div class="code-box">nano ~/.config/autostart/my_kivy_ui.desktop</div>
+            <p>Insert the following:</p>
+            <div class="code-box">[Desktop Entry]
+Type=Application
+Exec=/bin/bash -c 'cd /home/pi/projects && source /home/pi/myenv/bin/activate && python3 [YOUR_UI.py]'
+Name=KivyUI</div>
+        </div>
+        <hr class="divider">
+
+        <h2>Finalize</h2>
+        <div class="instruction">
+            <p><strong>Test the Kivy UI locally:</strong></p>
+            <div class="code-box">source ~/myenv/bin/activate</div>
+            <div class="code-box">python3 /home/pi/[YOUR_UI.py]</div>
+        </div>
+        <div class="instruction">
+            <p><strong>Enable automatic boot to desktop:</strong></p>
+            <div class="code-box">sudo raspi-config</div>
+            <p>Navigate to:</p>
+            <p><em>System Options > Boot/Auto Login > Desktop GUI with Auto Login</em></p>
+        </div>
+        <div class="instruction">
+            <p><strong>Reboot the Pi:</strong></p>
+            <div class="code-box">sudo reboot</div>
+        </div>
+    </section>
 
 </body>
 </html>
