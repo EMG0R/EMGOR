@@ -64,7 +64,7 @@ h1 {
     margin-top: 20px;
     font-size: 2em;
     text-align: center;
-    color: var(--yellow-light); /* Updated Color */
+    color: white; /* Text Color */
     letter-spacing: 2px;
     animation: fadeIn 1s ease forwards;
 }
@@ -147,7 +147,7 @@ h1 {
     top: 30px;
     left: 30px;
     background-color: var(--purple-light);
-    color: var(--yellow-light); /* Updated Color */
+    color: white; /* Text Color */
     padding: 7px;
     font-size: 27px;
     text-decoration: none;
