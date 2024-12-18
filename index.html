@@ -2,23 +2,66 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#000000">
     <link rel="stylesheet" href="style/style.css">
-    <title>EMGOR</title>
+    <title>Emory Smith</title>
 </head>
 <body>
 
-    <!-- Home Button to Go Back to Home -->
-    <h1>EMGOR</h1>
-    <p>hello world</p>
+    <!-- Heading -->
+    <h1>Emory Smith</h1>
 
-    <!-- Centered Button Container -->
+    <!-- Navigation Buttons -->
     <div class="homescreen-button-container">
-        <a href="BMO.html" class="navigation-button animated-button">WEB SYNTH</a>
-        <a href="music.html" class="navigation-button animated-button">MUSIC</a>
-        <a href="research.html" class="navigation-button animated-button">RESEARCH</a>
-        <a href="resources.html" class="navigation-button animated-button">RESOURCES</a>
+        <a href="BMO.html" class="navigation-button">WEB SYNTH</a>
+        <a href="music.html" class="navigation-button">MUSIC</a>
+        <a href="research.html" class="navigation-button">RESEARCH</a>
+        <a href="resources.html" class="navigation-button">RESOURCES</a>
+    </div>
+
+    <!-- Video Section -->
+    <div class="video-container">
+        <div class="video-wrapper video-left">
+            <h2 class="video-title"> </h2>
+            <div class="video-content">
+                <video class="video-player" controls>
+                    <source src="/resources/indexVIDS/1_PROTOTYPES.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <p class="video-text">Showcase of protoypes I've made in contexts they are most useful</p>
+            </div>
+        </div>
+        <div class="video-wrapper video-right">
+            <h2 class="video-title"> </h2>
+            <div class="video-content">
+                <p class="video-text">Showcase of DSP work in Max/MSP, Csound and C++</p>
+                <video class="video-player" controls>
+                    <source src="/resources/indexVIDS/2_DSP.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        </div>
+        <div class="video-wrapper video-left">
+            <h2 class="video-title"> </h2>
+            <div class="video-content">
+                <video class="video-player" controls>
+                    <source src="/resources/indexVIDS/3_VIDEOSYNTH.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <p class="video-text">Showcase of my video synth built in Max/MSP's Jitter</p>
+            </div>
+        </div>
+        <div class="video-wrapper video-right">
+            <h2 class="video-title"> </h2>
+            <div class="video-content">
+                <p class="video-text">Demo of my web synth</p>
+                <video class="video-player" controls>
+                    <source src="/resources/indexVIDS/4_WEBSYNTH.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>

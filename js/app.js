@@ -608,5 +608,20 @@ function makeMIDIKeyboard(device) {
     });
 }
 
+document.addEventListener("DOMContentLoaded", () => {
+    const videos = document.querySelectorAll(".video-player");
+
+    // Lazy load videos
+    videos.forEach((video) => {
+        video.addEventListener("mouseenter", () => {
+            const source = video.querySelector("source");
+            if (!source.src) {
+                source.src = source.dataset.src;
+                video.load();
+            }
+        });
+    });
+});
+
 // Call the setup function
 setup();

@@ -82,9 +82,9 @@ h1 {
 .custom-play-button {
     width: 57.5px;
     height: 42.5px;
-    color: var(--yellow-light); /* Updated Color */
+    color: var(--purple-lightest); /* Updated Background Color */
     background-color: var(--purple-mid); /* Updated Background Color */
-    border: 2px solid var(--yellow-dark); /* Updated Border */
+    border: 2px solid var(--purple-lightest); /* Updated Background Color */
     border-radius: 8px;
     font-family: 'Courier New', Courier, monospace;
     font-size: 1.25em;
@@ -113,8 +113,8 @@ h1 {
 /* Scrub Bar Control Styling */
 .scrub-control {
     display: none;
-    background-color: var(--green-dark);
-    border: 2px solid var(--green-light);
+    background-color: var(--purple-darker);
+    border: 5px solid var(--purple-lightest);
     width: 400px;
     height: 12.5px;
     margin: 20px auto;
@@ -141,25 +141,25 @@ h1 {
     );
 }
 
-/* Home Button Style */
 .home-button {
-    position: fixed;
-    top: 30px;
-    left: 30px;
-    background-color: var(--purple-light);
-    color: white; /* Text Color */
-    padding: 7px;
-    font-size: 27px;
-    text-decoration: none;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
+    position: fixed; /* Ensures the button stays stationary relative to the viewport */
+    top: 20px; /* Distance from the top of the viewport */
+    left: 20px; /* Distance from the left of the viewport */
+    background-color: var(--purple-light); /* Button background color */
+    color: white; /* Text color */
+    padding: 7px; /* Inner spacing for the button */
+    font-size: 27px; /* Font size of the button's text */
+    text-decoration: none; /* Remove underline from text */
+    border-radius: 50%; /* Make the button circular */
+    cursor: pointer; /* Change cursor to pointer on hover */
+    z-index: 1000; /* Ensure it stays above all other elements */
+    display: flex; /* Center text/icon inside the button */
+    align-items: center; /* Vertical centering */
+    justify-content: center; /* Horizontal centering */
+    width: 40px; /* Fixed width */
+    height: 40px; /* Fixed height */
 }
+
 
 /* Play Button Delays */
 #play-button-fitmk { animation-delay: 0.2s; }
@@ -173,9 +173,9 @@ h1 {
 /* Video Player */
 .video-player {
     margin-top: 20px;
-    border: 2px solid var(--purple-light); /* Updated Border */
+    border: 2px solid var(--purple-light); /* Matches other buttons */
     border-radius: 8px;
-    background-color: var(--purple-darkest);
+    background-color: var(--purple-darkest); /* Matches other buttons */
     max-width: 900px;
     width: 100%;
 }

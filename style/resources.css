@@ -1,10 +1,45 @@
 /* Root Variables */
 :root {
-    --background-blue: #061640;
-    --text-white: #FFFFFF;
-    --box-border: #3a5493;
-    --divider-line: #5478A8;
-}
+        --background-blue: #061640;
+        --text-white: #FFFFFF;
+        --box-border: #3a5493;
+        --divider-line: #5478A8;
+
+        /* PURPLE TONES (Lightest to Darkest) */
+        --purple-light: #72009F;   /* RGB: 114–0–159 */
+        --purple-mid: #5B007F;     /* RGB: 91–0–127 */
+        --purple-dark: #470063;    /* RGB: 71–0–99 */
+        --purple-darker: #310044;  /* RGB: 49–0–68 */
+        --purple-darkest: #13001B; /* RGB: 19–0–27 */
+    
+        /* GREEN TONES (Lightest to Darkest) */
+        --green-light: #00B917;    /* RGB: 0–185–23 */
+        --green-mid: #009512;      /* RGB: 0–149–18 */
+        --green-dark: #00730E;     /* RGB: 0–115–14 */
+        --green-darker: #00500A;   /* RGB: 0–80–10 */
+        --green-darkest: #002004;  /* RGB: 0–32–4 */
+    
+        /* BLUE TONES (Lightest to Darkest) */
+        --blue-light: #5478a8;
+        --blue-mid: #3a5493;
+        --blue-dark: #283b75;
+        --blue-darker: #14295b;
+        --blue-darkest: #061640;
+    
+        /* YELLOW TONES (Lightest to Darkest) */
+        --yellow-light: #e6d32f;
+        --yellow-mid: #c3aa16;
+        --yellow-dark: #9e8503;
+        --yellow-darker: #7b6800;
+        --yellow-darkest: #554800;
+    
+        /* RED TONES (Lightest to Darkest) */
+        --red-light: #EF0C00;     /* RGB: 239–12–0 */
+        --red-mid: #C00A00;       /* RGB: 192–10–0 */
+        --red-dark: #950700;      /* RGB: 149–7–0 */
+        --red-darker: #670500;    /* RGB: 103–5–0 */
+        --red-darkest: #290200;   /* RGB: 41–2–0 */
+    }
 
 /* General Styling */
 body {
@@ -71,18 +106,23 @@ h2 {
     margin: 20px 0;
 }
 
-/* Home Button */
 .home-button {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    font-size: 24px;
-    text-decoration: none;
-    color: var(--text-white);
-    background-color: var(--box-border);
-    padding: 10px 15px;
-    border-radius: 50%;
-    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+    position: fixed; /* Ensures the button stays stationary relative to the viewport */
+    top: 20px; /* Distance from the top of the viewport */
+    left: 20px; /* Distance from the left of the viewport */
+    background-color: var(--purple-light); /* Button background color */
+    color: white; /* Text color */
+    padding: 7px; /* Inner spacing for the button */
+    font-size: 27px; /* Font size of the button's text */
+    text-decoration: none; /* Remove underline from text */
+    border-radius: 50%; /* Make the button circular */
+    cursor: pointer; /* Change cursor to pointer on hover */
+    z-index: 1000; /* Ensure it stays above all other elements */
+    display: flex; /* Center text/icon inside the button */
+    align-items: center; /* Vertical centering */
+    justify-content: center; /* Horizontal centering */
+    width: 40px; /* Fixed width */
+    height: 40px; /* Fixed height */
 }
 
 .home-button:hover {
