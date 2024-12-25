@@ -1,0 +1,139 @@
+:root {
+    /* PURPLE TONES */
+    --purple-light: #72009F;
+    --purple-mid: #5B007F;
+    --purple-dark: #470063;
+    --purple-darker: #310044;
+    --purple-darkest: #13001B;
+
+    /* BLUE TONES */
+    --blue-light: #5478a8;
+    --blue-mid: #3a5493;
+    --blue-dark: #283b75;
+    --blue-darker: #14295b;
+    --blue-darkest: #061640;
+
+    /* GENERAL COLORS */
+    --white: #ffffff;
+    --background-color: var(--blue-darkest); /* Background color */
+    --input-bg: var(--purple-darker); /* Input box background */
+    --input-border: var(--purple-light); /* Input box border */
+    --button-bg: var(--purple-mid); /* Button background */
+    --button-hover-bg: var(--purple-light); /* Button hover background */
+}
+
+/* General Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body and HTML */
+html, body {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: var(--background-color);
+    color: var(--white);
+    width: 100vw; /* Full viewport width */
+    height: 100vh; /* Full viewport height */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden; /* Prevent scrolling */
+    flex-direction: row; /* Ensure landscape layout */
+}
+
+/* Survey Container */
+.survey-container {
+    width: 90%; /* Use most of the width */
+    height: 70%; /* Use a smaller height to maintain landscape proportions */
+    background-color: var(--blue-darker); /* Container background */
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    overflow-y: auto; /* Allow vertical scrolling if content overflows */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Center content horizontally */
+    justify-content: space-evenly; /* Space out content evenly */
+}
+
+/* Survey Title */
+.survey-title {
+    font-size: 2.5rem; /* Larger font for readability */
+    margin-bottom: 20px;
+    color: var(--white);
+    text-align: center;
+}
+
+/* Question Styles */
+.survey-question {
+    font-size: 1.3rem; /* Slightly larger for readability */
+    margin-bottom: 10px;
+    color: var(--white);
+    text-align: left;
+    width: 100%; /* Make questions full width */
+    max-width: 700px; /* Limit for readability */
+}
+
+/* Input Styles */
+.survey-input {
+    width: 100%; /* Full width of container */
+    max-width: 700px; /* Limit input width */
+    background-color: var(--input-bg); /* Dark purple background */
+    border: 2px solid var(--input-border); /* Purple border */
+    color: var(--white); /* White text */
+    font-size: 1.2rem; /* Increased font size */
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 20px;
+    transition: border-color 0.3s ease;
+}
+
+.survey-input:focus {
+    outline: none;
+    border-color: var(--button-hover-bg); /* Highlight on focus */
+}
+
+/* Submit Button */
+.survey-submit {
+    background-color: var(--button-bg); /* Button background */
+    color: var(--white); /* White text */
+    border: none;
+    border-radius: 5px;
+    font-size: 1.3rem; /* Button text size */
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    margin-top: 10px; /* Spacing above button */
+}
+
+.survey-submit:hover {
+    background-color: var(--button-hover-bg); /* Lighter on hover */
+    transform: scale(1.05); /* Slight zoom on hover */
+}
+
+.survey-submit:active {
+    transform: scale(0.95); /* Compress slightly */
+}
+
+/* Home Button */
+.home-button {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background-color: var(--purple-light);
+    color: var(--white);
+    padding: 7px;
+    font-size: 27px;
+    text-decoration: none;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+}
