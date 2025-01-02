@@ -1,17 +1,38 @@
 :root {
-    /* PURPLE TONES */
-    --purple-light: #72009F;
-    --purple-mid: #5B007F;
-    --purple-dark: #470063;
-    --purple-darker: #310044;
-    --purple-darkest: #13001B;
+    /* PURPLE TONES (Lightest to Darkest) */
+    --purple-light: #72009F;   /* RGB: 114–0–159 */
+    --purple-mid: #5B007F;     /* RGB: 91–0–127 */
+    --purple-dark: #470063;    /* RGB: 71–0–99 */
+    --purple-darker: #310044;  /* RGB: 49–0–68 */
+    --purple-darkest: #13001B; /* RGB: 19–0–27 */
 
-    /* BLUE TONES */
+    /* GREEN TONES (Lightest to Darkest) */
+    --green-light: #00B917;    /* RGB: 0–185–23 */
+    --green-mid: #009512;      /* RGB: 0–149–18 */
+    --green-dark: #00730E;     /* RGB: 0–115–14 */
+    --green-darker: #00500A;   /* RGB: 0–80–10 */
+    --green-darkest: #002004;  /* RGB: 0–32–4 */
+
+    /* BLUE TONES (Lightest to Darkest) */
     --blue-light: #5478a8;
     --blue-mid: #3a5493;
     --blue-dark: #283b75;
     --blue-darker: #14295b;
     --blue-darkest: #061640;
+
+    /* YELLOW TONES (Lightest to Darkest) */
+    --yellow-light: #e6d32f;
+    --yellow-mid: #c3aa16;
+    --yellow-dark: #9e8503;
+    --yellow-darker: #7b6800;
+    --yellow-darkest: #554800;
+
+    /* RED TONES (Lightest to Darkest) */
+    --red-light: #EF0C00;     /* RGB: 239–12–0 */
+    --red-mid: #C00A00;       /* RGB: 192–10–0 */
+    --red-dark: #950700;      /* RGB: 149–7–0 */
+    --red-darker: #670500;    /* RGB: 103–5–0 */
+    --red-darkest: #290200;   /* RGB: 41–2–0 */
 
     /* GENERAL COLORS */
     --white: #ffffff;
@@ -34,52 +55,48 @@ html, body {
     font-family: 'Courier New', Courier, monospace;
     background-color: var(--background-color);
     color: var(--white);
-    width: 100vw; /* Full viewport width */
-    height: 100vh; /* Full viewport height */
+    width: 100vw;
+    height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
     overflow: hidden; /* Prevent scrolling */
-    flex-direction: row; /* Ensure landscape layout */
 }
 
 /* Survey Container */
 .survey-container {
-    width: 90%; /* Use most of the width */
-    height: 70%; /* Use a smaller height to maintain landscape proportions */
-    background-color: var(--blue-darker); /* Container background */
-    padding: 40px;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-    text-align: center;
-    overflow-y: auto; /* Allow vertical scrolling if content overflows */
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
     display: flex;
     flex-direction: column;
+    justify-content: center; /* Center content vertically */
     align-items: center; /* Center content horizontally */
-    justify-content: space-evenly; /* Space out content evenly */
+    background-color: var(--background-color); /* Darkest blue for container */
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 /* Survey Title */
 .survey-title {
-    font-size: 2.5rem; /* Larger font for readability */
-    margin-bottom: 20px;
-    color: var(--white);
-    text-align: center;
+    font-size: 3rem; /* Ensure the title is large enough */
+    color: var(--white); /* Make the title white for visibility */
+    text-align: center; /* Center the title horizontally */
+    margin-bottom: 20px; /* Add spacing below the title */
 }
 
 /* Question Styles */
 .survey-question {
     font-size: 1.3rem; /* Slightly larger for readability */
-    margin-bottom: 10px;
     color: var(--white);
-    text-align: left;
-    width: 100%; /* Make questions full width */
+    text-align: center; /* Center questions horizontally */
+    width: 100%; /* Full width within container */
     max-width: 700px; /* Limit for readability */
+    margin-bottom: 20px;
 }
 
 /* Input Styles */
 .survey-input {
-    width: 100%; /* Full width of container */
+    width: 100%; /* Full width within container */
     max-width: 700px; /* Limit input width */
     background-color: var(--input-bg); /* Dark purple background */
     border: 2px solid var(--input-border); /* Purple border */
@@ -87,7 +104,7 @@ html, body {
     font-size: 1.2rem; /* Increased font size */
     border-radius: 5px;
     padding: 10px;
-    margin-bottom: 20px;
+    margin-top: 10px; /* Slight spacing above inputs */
     transition: border-color 0.3s ease;
 }
 
@@ -102,11 +119,11 @@ html, body {
     color: var(--white); /* White text */
     border: none;
     border-radius: 5px;
-    font-size: 1.3rem; /* Button text size */
-    padding: 10px 20px;
+    font-size: 1.5rem; /* Button text size */
+    padding: 15px 30px;
     cursor: pointer;
+    margin-top: 20px;
     transition: background-color 0.3s ease, transform 0.2s ease;
-    margin-top: 10px; /* Spacing above button */
 }
 
 .survey-submit:hover {
