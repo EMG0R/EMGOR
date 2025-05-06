@@ -275,7 +275,9 @@ html, body {
     height: 40px; /* Fixed height */
 }
 
-
+.home-button:hover {
+    background-color: var(--blue-light);
+}
 
 /* Fade-in animation for heading */
 @keyframes fadeIn {
@@ -358,12 +360,11 @@ p {
     border: 1px solid var(--purple-light);
     text-align: center;
     max-width: 150px;
-    transition: color 0.3s ease, background-color 0.3s ease, transform 0.2s;
-
+    transition: color 0.3s ease, background-color 0.3s ease, transform 0.2s ease;
     /* Animation Properties */
     opacity: 0; /* Initially hidden */
-    transform: translateY(20px); /* Start slightly below */
-    animation: fadeInDelayed 1s ease forwards; /* Apply fade-in animation */
+    transform: translateY(20px);
+    animation: fadeInDelayed 1s ease forwards;
 }
 
 /* Staggered Animation Delay */
@@ -382,14 +383,10 @@ p {
 
 /* Button Hover Effect */
 .navigation-button:hover {
-    background-color: var(--purple-light); /* Lighter purple on hover */
+    background-color: var(--purple-light);
     color: var(--white, #ffffff);
-    transform: scale(1.05); /* Slight zoom effect */
+    transform: translateY(0) scale(1.7);
 }
-
-
-
-
 
 
 /* Button Container */
@@ -853,4 +850,131 @@ input[type="range"] {
 .video-right .video-text {
     margin-left: auto; /* Text is positioned between the video and the left edge */
     margin-right: 10%; /* Ensure proper spacing from the video */
+}
+
+/* Hero section */
+.landing-hero {
+    background-image: url('../resources/hero_bg.jpg'); /* Replace with your own image path */
+    background-size: cover;
+    background-attachment: fixed;
+    background-position: center;
+    padding: 100px 20px 0 20px; /* remove bottom padding */
+    position: relative;
+    color: white;
+    text-align: center;
+    font-family: 'Helvetica Neue', sans-serif;
+}
+
+.bio-overlay.bio-left {
+    flex: 1;
+    min-width: 800px;
+    max-width: 1440px;
+    background-color: var(--purple-dark);
+    border: 2px solid var(--purple-light);
+    padding: 20px 20px 0 20px; /* Remove bottom padding */
+    border-radius: 10px;
+    margin-top: -40px;
+    margin-left: 40px;
+    margin-bottom: 0 !important; /* Force override any inherited margin */
+    opacity: 0;
+    animation: fadeIn 1.1s ease-out forwards;
+    animation-delay: 0.8s;
+}
+
+.bio-text {
+    font-size: 1.25em;
+    line-height: 1.6;
+    transition: transform 0.3s ease;
+}
+
+.bio-text:hover {
+    transform: scale(1.01);
+}
+
+
+/* Fade-in animation */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Social links in column, icons in a row, caption below */
+.social-links {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    animation: fadeIn 1s ease-out forwards;
+    animation-delay: 1.1s;
+}
+
+/* Optional: Spacing and style for the social caption */
+.social-caption {
+    margin-top: -5px;
+    font-size: 0.75rem;
+    text-transform: lowercase;
+    color: white;
+    text-align: center;
+    opacity: 0;
+    animation: fadeIn 0.8s ease-out forwards;
+    animation-delay: 1.3s;
+}
+
+.icon-link {
+    font-size: 2em;
+    text-decoration: none;
+    transition: transform 0.2s ease, color 0.3s ease;
+    color: white;
+    filter: drop-shadow(0 0 4px rgba(255,255,255,0.5));
+}
+
+.icon-link:hover {
+    transform: scale(1.2);
+    color: var(--purple-light);
+}
+
+.hero-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    gap: 40px;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 20px 40px;
+}
+
+.bio-overlay {
+    flex: 1;
+    min-width: 300px;
+    margin-top: 60px;
+    background-color: rgba(0, 0, 0, 0.6);
+    padding: 40px;
+    border-radius: 8px;
+    animation: fadeIn 1.5s ease-out;
+}
+
+.hero-image {
+    width: 40%;
+    display: block;
+    margin-top: -100px;
+    margin-right: -20px;
+}
+
+.hero-image img {
+    width: 80%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    margin-top: 10px;
+}
+
+
+.fade-delayed-2 {
+    opacity: 0;
+    animation: fadeIn 0.9s ease forwards;
+    animation-delay: 0.9s;
+    animation-fill-mode: forwards;
 }

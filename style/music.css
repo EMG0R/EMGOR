@@ -160,6 +160,9 @@ h1 {
     height: 40px; /* Fixed height */
 }
 
+.home-button:hover {
+    background-color: var(--blue-light);
+}
 
 /* Play Button Delays */
 #play-button-fitmk { animation-delay: 0.2s; }
