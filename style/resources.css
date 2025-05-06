@@ -106,24 +106,23 @@ h2 {
     margin: 20px 0;
 }
 
-/* Home Button */
 .home-button {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    background-color: var(--purple-light);
-    color: var(--white);
-    padding: 7px;
-    font-size: 27px;
-    text-decoration: none;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
+    position: fixed; /* Ensures the button stays stationary relative to the viewport */
+    top: 20px; /* Distance from the top of the viewport */
+    left: 20px; /* Distance from the left of the viewport */
+    background-color: var(--purple-light); /* Button background color */
+    color: white; /* Text color */
+    padding: 7px; /* Inner spacing for the button */
+    font-size: 27px; /* Font size of the button's text */
+    text-decoration: none; /* Remove underline from text */
+    border-radius: 50%; /* Make the button circular */
+    cursor: pointer; /* Change cursor to pointer on hover */
+    z-index: 1000; /* Ensure it stays above all other elements */
+    display: flex; /* Center text/icon inside the button */
+    align-items: center; /* Vertical centering */
+    justify-content: center; /* Horizontal centering */
+    width: 40px; /* Fixed width */
+    height: 40px; /* Fixed height */
 }
 
 .home-button:hover {
