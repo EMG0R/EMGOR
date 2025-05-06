@@ -65,7 +65,20 @@ body::after {
     height: 100px;
 }
 
+#background-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--blue-darkest);
+    z-index: -2;
+}
 #lavaCanvas {
+    z-index: -1;
+}
+#lavaCanvas {
+    --background-color: var(--blue-darkest);
     position: fixed;
     top: 0;
     left: 0;

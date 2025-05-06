@@ -35,6 +35,29 @@
     --red-darkest: #290200;   /* RGB: 41–2–0 */
 }
 
+#background-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--blue-darkest);
+    z-index: -2;
+}
+#lavaCanvas {
+    z-index: -1;
+}
+#lavaCanvas {
+    --background-color: var(--blue-darkest);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    display: block;
+}
+
 /* Main Wrapper with Minimum Width */
 #main-wrapper {
     width: 100%;
@@ -231,15 +254,7 @@
 }
 
 
-#lavaCanvas {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: -1;
-    display: block;
-}
+
 
 /* General reset to remove padding, margin, and box-sizing issues */
 * {

@@ -128,8 +128,20 @@ h2 {
 .home-button:hover {
     background-color: var(--purple-light);
 }
-
+#background-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--blue-darkest);
+    z-index: -2;
+}
 #lavaCanvas {
+    z-index: -1;
+}
+#lavaCanvas {
+    --background-color: var(--blue-darkest);
     position: fixed;
     top: 0;
     left: 0;
@@ -137,4 +149,4 @@ h2 {
     height: 100vh;
     z-index: -1;
     display: block;
-  }
+}
