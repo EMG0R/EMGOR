@@ -268,7 +268,7 @@ html, body {
     position: fixed; /* Ensures the button stays stationary relative to the viewport */
     top: 20px; /* Distance from the top of the viewport */
     left: 20px; /* Distance from the left of the viewport */
-    background-color: var(--purple-light); /* Button background color */
+    background-color: var(--purple-mid); /* Slightly darker shade */
     color: white; /* Text color */
     padding: 7px; /* Inner spacing for the button */
     font-size: 27px; /* Font size of the button's text */
@@ -284,7 +284,7 @@ html, body {
 }
 
 .home-button:hover {
-    background-color: var(--blue-light);
+    background-color: var(--purple-light);
 }
 
 /* Fade-in animation for heading */

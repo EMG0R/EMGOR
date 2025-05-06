@@ -106,11 +106,11 @@ h2 {
     margin: 20px 0;
 }
 
-.home-button {
+ .home-button {
     position: fixed; /* Ensures the button stays stationary relative to the viewport */
     top: 20px; /* Distance from the top of the viewport */
     left: 20px; /* Distance from the left of the viewport */
-    background-color: var(--purple-light); /* Button background color */
+    background-color: var(--purple-mid); /* Slightly darker shade */
     color: white; /* Text color */
     padding: 7px; /* Inner spacing for the button */
     font-size: 27px; /* Font size of the button's text */
@@ -121,12 +121,12 @@ h2 {
     display: flex; /* Center text/icon inside the button */
     align-items: center; /* Vertical centering */
     justify-content: center; /* Horizontal centering */
-    width: 40px; /* Fixed width */
-    height: 40px; /* Fixed height */
+    width: 25px; /* Fixed width */
+    height: 25px; /* Fixed height */
 }
 
 .home-button:hover {
-    background-color: var(--blue-light);
+    background-color: var(--purple-light);
 }
 
 #lavaCanvas {

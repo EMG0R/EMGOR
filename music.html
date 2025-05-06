@@ -14,7 +14,7 @@
     <!-- Home Button to Go Back to index.html -->
     <a href="index.html" class="home-button">&#8962;</a> <!-- Unicode character for home icon -->
 
-    <h1 id="neptr-title">MUSIC</h1>
+    <h1 id="neptr-title">PORTFOLIO</h1>
     <!-- Video Section -->
     <div class="video-container">
         <div class="video-wrapper video-left">
@@ -59,9 +59,23 @@
         </div>
     </div>
 
+    <img id="toggle-image" src="resources/EMGOR.jpg" alt="Reveal Audio" style="width: 60vw; max-width: 600px; display: block; margin: 40px auto 10px auto; cursor: pointer;">
+    <p style="text-align: center; color: white; font-family: 'Courier New', monospace; margin-bottom: 40px;">music i have produced/written</p>
 
-    <div class="play-button-container">
+    <div id="play-button-container" class="play-button-container" style="display: none;">
 
+        <!-- Anxiety Audio -->
+        <button id="play-button-anxiety" class="custom-play-button">▶</button>
+        <div id="scrub-control-anxiety" class="scrub-control"></div>
+<br>        
+        <!-- Okay Audio -->
+        <button id="play-button-okay" class="custom-play-button">▶</button>
+        <div id="scrub-control-okay" class="scrub-control"></div>
+<br>
+        <!-- Matthew Audio -->
+        <button id="play-button-matthew" class="custom-play-button">▶</button>
+        <div id="scrub-control-matthew" class="scrub-control"></div>
+<br>
         <!-- Fitmk Audio -->
         <button id="play-button-fitmk" class="custom-play-button">▶</button>
         <div id="scrub-control-fitmk" class="scrub-control"></div>
@@ -69,18 +83,6 @@
         <!-- Mashup Audio -->
         <button id="play-button-mashup" class="custom-play-button">▶</button>
         <div id="scrub-control-mashup" class="scrub-control"></div>
-<br>
-        <!-- Anxiety Audio -->
-        <button id="play-button-anxiety" class="custom-play-button">▶</button>
-        <div id="scrub-control-anxiety" class="scrub-control"></div>
-<br>
-        <!-- Matthew Audio -->
-        <button id="play-button-matthew" class="custom-play-button">▶</button>
-        <div id="scrub-control-matthew" class="scrub-control"></div>
-<br>
-        <!-- Okay Audio -->
-        <button id="play-button-okay" class="custom-play-button">▶</button>
-        <div id="scrub-control-okay" class="scrub-control"></div>
 <br>
         <!-- sad Audio -->
         <button id="play-button-sad" class="custom-play-button">▶</button>
@@ -95,6 +97,8 @@
 
     <!-- Link to External JavaScript -->
     <script src="js/music.js"></script>
-<script src="js/lava.js"></script>
+
+    <script src="js/lava.js"></script>
+    <div style="height: 200px;"></div>
 </body>
 </html>

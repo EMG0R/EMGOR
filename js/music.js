@@ -1,6 +1,24 @@
 document.addEventListener('DOMContentLoaded', () => {
     const audioSystems = [];
 
+    const toggleImage = document.getElementById('toggle-image');
+    const playButtonContainer = document.getElementById('play-button-container');
+
+    if (toggleImage && playButtonContainer) {
+        toggleImage.addEventListener('click', () => {
+            const isVisible = playButtonContainer.style.display === 'block';
+            playButtonContainer.style.display = isVisible ? 'none' : 'block';
+            playButtonContainer.style.justifyContent = 'flex-start';
+            playButtonContainer.style.alignItems = 'flex-start';
+
+            if (!isVisible) {
+                setTimeout(() => {
+                    playButtonContainer.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+            }
+        });
+    }
+
     function initializeAudioSystem(fileName, buttonId, scrubberId, color = 'rgba(75, 0, 130, 0.85)') {
         const playButton = document.getElementById(buttonId);
         const scrubControl = document.getElementById(scrubberId);
