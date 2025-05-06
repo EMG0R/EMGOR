@@ -3,7 +3,7 @@ const gl = canvas.getContext("webgl");
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
-gl.clearColor(0.0, 0.0, 0.0, 1.0);
+gl.clearColor(0.027, 0.098, 0.290, 1.0); // Brightened version of #061640
 gl.clear(gl.COLOR_BUFFER_BIT);
 
 const vertexShaderSource = `

@@ -208,9 +208,9 @@ h1 {
 /* Video Player */
 .video-player {
     margin-top: 20px;
-    border: 2px solid var(--purple-light); /* Matches other buttons */
+    border: none;
     border-radius: 8px;
-    background-color: var(--purple-darkest); /* Matches other buttons */
+    background-color: var(--purple-darkest);
     max-width: 900px;
     width: 100%;
 }
