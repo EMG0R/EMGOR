@@ -231,7 +231,15 @@
 }
 
 
-
+#lavaCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    display: block;
+}
 
 /* General reset to remove padding, margin, and box-sizing issues */
 * {
@@ -523,7 +531,7 @@ p {
 html, body {
     margin: 0;
     padding: 0;
-    background-color: var(--blue-darkest);
+    /* background-color: var(--blue-darkest); */
     color: #ffffff;
     font-family: 'Courier New', Courier, monospace;
 }

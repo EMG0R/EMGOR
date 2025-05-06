@@ -44,7 +44,7 @@
 /* General Styling */
 body {
     font-family: 'Courier New', Courier, monospace;
-    background-color: var(--background-blue);
+    /* background-color: var(--background-blue); */
     color: var(--text-white);
     margin: 0;
     padding: 0;
@@ -129,3 +129,13 @@ h2 {
 .home-button:hover {
     background-color: var(--blue-light);
 }
+
+#lavaCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    display: block;
+  }
