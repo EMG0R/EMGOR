@@ -1,0 +1,224 @@
+/* ciesen.css */
+
+:root {
+    /* PURPLE TONES (Lightest to Darkest) */
+    --purple-light: #72009F;
+    --purple-mid: #5B007F;
+    --purple-dark: #470063;
+    --purple-darker: #310044;
+    --purple-darkest: #13001B;
+
+    /* BLUE TONES (Lightest to Darkest) */
+    --blue-light: #5478a8;
+    --blue-mid: #3a5493;
+    --blue-dark: #283b75;
+    --blue-darker: #14295b;
+    --blue-darkest: #061640;
+}
+
+/* General reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    color: white;
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+/* Blue wavy background layer */
+#background-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--blue-darkest);
+    z-index: -2;
+}
+
+/* Lava canvas for wavy effect */
+#lavaCanvas {
+    --background-color: var(--blue-darkest);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    display: block;
+}
+
+/* Home Button */
+.home-button {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background-color: var(--purple-mid);
+    color: white;
+    padding: 7px;
+    font-size: 27px;
+    text-decoration: none;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    transition: background-color 0.3s ease;
+}
+
+.home-button:hover {
+    background-color: var(--purple-light);
+}
+
+/* Title */
+#ciesen-title {
+    margin-top: 30px;
+    margin-bottom: -50px;
+    font-size: 2em;
+    letter-spacing: 2px;
+    color: #ffffff;
+    opacity: 0;
+    animation: fadeIn 1s ease forwards;
+}
+
+/* Fade-in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Main Wrapper */
+#main-wrapper {
+    width: 100%;
+    min-width: 300px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-grow: 1;
+    padding: 20px;
+}
+
+/* Grid Wrapper - holds both pads */
+#grid-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 90%;
+    max-width: 500px;
+    gap: 40px;
+}
+
+/* Circular Blue XY Pad */
+#circle-container {
+    background-color: var(--blue-dark);
+    border: 3px solid var(--blue-light);
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: crosshair;
+    touch-action: none;
+    transition: border-color 0.2s ease;
+}
+
+#circle-container:hover {
+    border-color: #6688bb;
+}
+
+#circle-container:active {
+    border-color: #88aadd;
+}
+
+/* Square Purple XY Pad */
+#grid-container {
+    background-color: var(--purple-dark);
+    border: 3px solid var(--purple-light);
+    width: 100%;
+    max-width: 300px;
+    height: 48vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px;
+    cursor: crosshair;
+    touch-action: none;
+    transition: border-color 0.2s ease;
+}
+
+#grid-container:hover {
+    border-color: #9933cc;
+}
+
+#grid-container:active {
+    border-color: #cc66ff;
+}
+
+/* Spark effect */
+.spark {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.8;
+    pointer-events: none;
+    animation: disappear 1s ease-out forwards, colorChange 1s infinite;
+}
+
+/* Purple sparks for square pad */
+.spark.purple {
+    animation: disappear 1s ease-out forwards, colorChangePurple 1s infinite;
+}
+
+/* Blue sparks for circle pad */
+.spark.blue {
+    animation: disappear 1s ease-out forwards, colorChangeBlue 1s infinite;
+}
+
+@keyframes colorChangePurple {
+    0% { background-color: #ff90dc; }
+    25% { background-color: #ec5eff; }
+    50% { background-color: #c72fd8; }
+    75% { background-color: #7a32ff; }
+    100% { background-color: #5d1eb1; }
+}
+
+@keyframes colorChangeBlue {
+    0% { background-color: #90dcff; }
+    25% { background-color: #5eb8ff; }
+    50% { background-color: #2f8fd8; }
+    75% { background-color: #3264ff; }
+    100% { background-color: #1e4bb1; }
+}
+
+@keyframes colorChange {
+    0% { background-color: #ff90dc; }
+    25% { background-color: #ec5eff; }
+    50% { background-color: #c72fd8; }
+    75% { background-color: #7a32ff; }
+    100% { background-color: #5d1eb1; }
+}
+
+@keyframes disappear {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
