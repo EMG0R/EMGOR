@@ -70,6 +70,10 @@ async function setup() {
     if (dependencies.length) await device.loadDataBufferDependencies(dependencies);
     device.node.connect(outputNode);
 
+    // Set initial volume to full (presetY = 1)
+    const presetYParam = device.parameters.find(param => param.name === "presetY");
+    if (presetYParam) presetYParam.value = 1;
+
     // Setup both XY controls
     setupCircleControl(device);  // Blue circular pad
     setupGridControl(device);    // Purple square pad
@@ -140,11 +144,11 @@ function setupCircleControl(device) {
     }
 
     function updateRNBOCircleValues(x, y) {
-        // Change these parameter names to match your RNBO patch
-        const paramX = device.parameters.find(param => param.name === "circleX");
-        const paramY = device.parameters.find(param => param.name === "circleY");
+        // Circle pad controls: presetX and presetY (Y inverted so down = quieter)
+        const paramX = device.parameters.find(param => param.name === "presetX");
+        const paramY = device.parameters.find(param => param.name === "presetY");
         if (paramX) paramX.value = x;
-        if (paramY) paramY.value = y;
+        if (paramY) paramY.value = 1 - y;  // Invert Y: top = 1, bottom = 0
     }
 
     function createSpark(pageX, pageY, isBlue = true) {
