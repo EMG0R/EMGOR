@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#000000">
     <link rel="stylesheet" href="style/style.css">
+    <style>
+        /* Force content above canvas layer */
+        h1, .homescreen-button-container, .landing-hero {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
     <title>Emory Smith</title>
 </head>
 <body>
@@ -12,20 +19,17 @@
     <div id="background-layer"></div>
     <canvas id="lavaCanvas"></canvas>
 
-    <!-- Heading -->
     <h1>EMGOR.ONLINE</h1>
 
-    <!-- Navigation Buttons -->
     <div class="homescreen-button-container">
-        <a href="ciesen.html" class="navigation-button">WEB SYNTH</a>
-        <a href="music.html" class="navigation-button">PORTFOLIO</a>
-        <a href="research.html" class="navigation-button">RESEARCH</a>
-        <a href="resources.html" class="navigation-button">RESOURCES</a>
+        <a href="webSynthHub.html" class="navigation-button">WEB SYNTH</a>
+        <a href="music.html"       class="navigation-button">PORTFOLIO</a>
+        <a href="research.html"    class="navigation-button">RESEARCH</a>
+        <a href="resources.html"   class="navigation-button">RESOURCES</a>
     </div>
 
-    <a href="index.html" class="home-button">&#8962;</a> <!-- Unicode character for home icon -->
+    <a href="index.html" class="home-button">&#8962;</a>
 
-    <!-- Landing Bio Section -->
     <section class="landing-hero">
         <div class="hero-content">
             <div class="bio-overlay bio-left fade-delayed-1" style="margin-bottom: 0; padding-bottom: 0;">
@@ -44,13 +48,11 @@
                         <path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2zm0 1.5A4.25 4.25 0 0 0 3.5 7.75v8.5A4.25 4.25 0 0 0 7.75 20.5h8.5A4.25 4.25 0 0 0 20.5 16.25v-8.5A4.25 4.25 0 0 0 16.25 3.5h-8.5zm8.75 2a.75.75 0 0 1 .743.648l.007.102v.004a.75.75 0 0 1-1.493.102l-.007-.102v-.004a.75.75 0 0 1 .75-.75zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 1.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/>
                     </svg>
                 </a>
-
                 <a href="https://ditto.fm/emgor_emgor" target="_blank" class="icon-link" title="music">
                     <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M9 3v12.26a3.25 3.25 0 1 0 1.5 2.74V7.25l8-2V13.5a3.25 3.25 0 1 0 1.5 2.74V3l-11 3z"/>
                     </svg>
                 </a>
-
                 <a href="https://untitled.stream/library/project/8FlkR9w3ybbkAk4FfengE" target="_blank" class="icon-link" title="demos">
                     <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 1a10 10 0 0 0-10 10v7a3 3 0 0 0 6 0v-4a3 3 0 0 0-3-3H4a8 8 0 0 1 16 0h-1a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0v-7A10 10 0 0 0 12 1z"/>
@@ -61,7 +63,8 @@
         </div>
     </section>
 
-    <script src="js/app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script src="js/lava.js"></script>
+    <script src="js/physics.js"></script>
 </body>
 </html>

@@ -981,14 +981,14 @@ input[type="range"] {
 }
 
 .hero-image {
-    width: 40%;
+    width: 50%;
     display: block;
     margin-top: -100px;
     margin-right: -20px;
 }
 
 .hero-image img {
-    width: 80%;
+    width: 100%;
     height: auto;
     border-radius: 10px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);

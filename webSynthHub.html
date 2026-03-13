@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#000000">
+    <link rel="stylesheet" href="style/style.css">
+    <style>
+        .synth-box {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 55vw;
+            max-width: 680px;
+            height: 20vh;
+            min-height: 110px;
+            text-decoration: none;
+            color: #ffffff;
+            background-color: var(--purple-dark);
+            border: 1px solid var(--purple-light);
+            border-radius: 5px;
+            font-size: 2rem;
+            letter-spacing: 5px;
+            font-family: 'Courier New', Courier, monospace;
+            transition: background-color 0.3s ease;
+        }
+        .synth-box:hover { background-color: var(--purple-mid); }
+        /* Force content above canvas layer */
+        h1, .synth-hub { position: relative; z-index: 1; }
+        .synth-hub {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 28px;
+            margin: 80px auto 0;
+            width: 60vw;
+        }
+    </style>
+    <title>WEB SYNTH</title>
+</head>
+<body>
+    <div id="background-layer"></div>
+    <canvas id="lavaCanvas"></canvas>
+
+    <a href="index.html" class="home-button">&#8962;</a>
+
+    <h1>WEB SYNTH</h1>
+
+    <div class="synth-hub">
+        <a href="ciesen.html" class="synth-box">CIESEN</a>
+        <a href="NEPTR.html"  class="synth-box">NEPTR</a>
+        <a href="BMO.html"    class="synth-box">BMO</a>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="js/lava.js"></script>
+    <script src="js/physics.js"></script>
+</body>
+</html>
