@@ -321,6 +321,37 @@ fun void triggerSineNote( int noteIdx, float vol, float pitch ) {
     }
 }
 
+// trigger sine voice by raw frequency (for chords outside cMajor scale)
+fun void triggerSineByFreq( float baseFreq, float vol ) {
+    findFreeSine() => int i;
+    if( i < 0 ) return;
+
+    baseFreq * Math.pow(2.0, gPitch / 12.0) * 0.5 => float freq;
+    freq => sineOsc[i].freq;
+    sineEnv[i].set( 1200::ms, 3500::ms, 0.0, 30::ms );
+    sineEnv[i].keyOn();
+    0.22 * vol => float amp;
+    amp => sineAmp[i].gain;
+    Math.random2f(-0.7, 0.7) => float pan;
+    pan => svPan[i];
+    pan => sinePanV[i].pan;
+
+    1 => svActive[i];
+    now => svTrigTime[i];
+    4700::ms => svLife[i];
+    -1 => svNote[i]; // flag: use svFreq for pitch updates
+    amp => svAmp[i];
+    baseFreq * 0.5 => svFreq[i]; // store base freq (with 0.5 factor, no pitch)
+
+    if( sineSpawnCount < 24 ) {
+        freq => sineSpawnFreq[sineSpawnCount];
+        amp => sineSpawnAmp[sineSpawnCount];
+        0 => sineSpawnNote[sineSpawnCount];
+        sineSpawnCount + 1 => sineSpawnCount;
+    }
+    spawnSine + 1 => spawnSine;
+}
+
 // audio shreds
 
 fun void kickLoop() {
@@ -328,8 +359,8 @@ fun void kickLoop() {
         gKickMacro => float m;
         // 0-50%: volume ramps to max. 50-100%: speed ramps up
         Math.min(m / 0.5, 1.0) => float vol;
-        115.0 => float bpm;
-        if( m > 0.5 ) 115.0 + (m - 0.5) / 0.5 * 30.0 => bpm;
+        135.0 => float bpm;
+        if( m > 0.5 ) 135.0 + (m - 0.5) / 0.5 * 50.0 => bpm;
         bpm => gBPM;
 
         if( m > 0.0 ) {
@@ -381,7 +412,12 @@ fun void sineLoop() {
                     0.0 => sineAmp[i].gain;
                     0 => svActive[i];
                 } else {
-                    cMajor[svNote[i]] * Math.pow(2.0, pitch / 12.0) * 0.5 => float newFreq;
+                    // svNote >= 0: cMajor lookup; svNote < 0: use stored base freq
+                    0.0 => float newFreq;
+                    if( svNote[i] >= 0 )
+                        cMajor[svNote[i]] * Math.pow(2.0, pitch / 12.0) * 0.5 => newFreq;
+                    else
+                        svFreq[i] * Math.pow(2.0, pitch / 12.0) => newFreq;
                     newFreq => sineOsc[i].freq;
                 }
             }
@@ -427,6 +463,33 @@ fun void chordLoop() {
         }
         // exactly 15 seconds between chords
         15::second => now;
+    }
+}
+
+// Bmaj7 chord burst — completely independent from chordLoop
+// Bmaj7 = B, D#, F#, A# across octaves 2-5
+fun void bmaj7Loop() {
+    // raw frequencies for Bmaj7 chord tones
+    [
+        123.47, 155.56, 185.00, 233.08,   // B2, D#3, F#3, A#3
+        246.94, 311.13, 369.99, 466.16,   // B3, D#4, F#4, A#4
+        493.88, 622.25, 739.99, 932.33,   // B4, D#5, F#5, A#5
+        987.77                             // B5
+    ] @=> float bmaj7[];
+
+    12::second => now; // initial offset from chordLoop
+    while( true ) {
+        if( gSineMacro > 0.0 ) {
+            // fire 8-14 notes — big lush chord
+            Math.random2(8, 14) => int numNotes;
+            for( 0 => int cn; cn < numNotes; cn++ ) {
+                // bias mid-high octaves (indices 4-12)
+                Math.random2(2, 12) => int idx;
+                triggerSineByFreq( bmaj7[idx], 0.95 );
+            }
+        }
+        // fire every 10-18 seconds — pretty often
+        Math.random2(10, 18)::second => now;
     }
 }
 
@@ -754,6 +817,7 @@ fun void pluckLoop() {
 spork ~ kickLoop();
 spork ~ sineLoop();
 spork ~ chordLoop();
+spork ~ bmaj7Loop();
 spork ~ birdLoop();
 spork ~ wavesLoop();
 spork ~ thunderLoop();
@@ -798,11 +862,11 @@ for( 0 => int i; i < 36; i++ ) {
     }
     Math.random2f(-4.5, 4.5) => bpX[i];
     Math.random2f(-3.5, 3.5) => bpY[i];
-    Math.random2f(-0.02, 0.02) => bpVX[i];
-    Math.random2f(-0.015, 0.015) => bpVY[i];
+    Math.random2f(-0.008, 0.008) => bpVX[i];
+    Math.random2f(-0.006, 0.006) => bpVY[i];
     Math.random2f(0.0, 6.28) => bpPhase[i];
     Math.random2f(-0.1, 0.1) => bpRotSpd[i];
-    Math.random2f(0.8, 3.0) => bpBaseSca[i];
+    Math.random2f(1.8, 5.5) => bpBaseSca[i];
     // varied aspect ratios: circles normal, rects varied, last 12 = thin diamond/triangle shapes
     if( i < 12 ) {
         Math.random2f(0.5, 1.3) => bpAspX[i];
@@ -960,7 +1024,7 @@ fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     rdHead => int i;
     (rdHead + 1) % 128 => rdHead;
     // dots falling 1/3 down the screen — fast velocity, long life
-    hH * 2.0 * 0.33 => float targetDist;
+    hH * 2.0 * 0.55 => float targetDist;
     Math.random2f(0.7, 1.0) => float distMul;
     targetDist * distMul => float dist;
     2.5 => float speed;
@@ -991,7 +1055,8 @@ GCircle ctrlInner[8];
 [0.85, 0.15, 0.95, 0.1, 0.7, 0.9, 0.75, 0.6] @=> float ctrlCB[];
 
 float ctrlVal[8];
-[0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.0, 0.0] @=> float ctrlDefaults[];
+// orbs: pitch, kick, sine, bird, waves, pluck, thunder, rain
+[0.46, 0.33, 0.75, 0.75, 0.80, 0.70, 1.0, 0.20] @=> float ctrlDefaults[];
 
 float orbSwayPh[8];
 float orbSwayRt[8];
@@ -1123,7 +1188,7 @@ while( true ) {
     Math.min(gKickMacro / 0.5, 1.0) => float kickVol;
     kickVol * scSmooth => float rawDuck;
     if( rawDuck > 1.0 ) 1.0 => rawDuck;
-    Math.pow(rawDuck, 0.5) * 0.52 => float duck;
+    Math.pow(rawDuck, 0.5) * 0.30 => float duck;
     1.0 - duck => gScMult;
 
     // bus volumes (sidechain applied via gScMult)
@@ -1167,13 +1232,15 @@ while( true ) {
         Math.sin(pitchNorm * 6.28) * 0.4 + 0.5 => float sR;
         Math.sin(pitchNorm * 6.28 + 2.09) * 0.35 + 0.35 => float sG;
         Math.sin(pitchNorm * 6.28 + 4.19) * 0.4 + 0.5 => float sB;
+        // shape life = 4.7s to match sine ADSR (1.2s atk + 3.5s dec)
+        // size proportional to note amplitude
         spawnRp(
             Math.random2f(-halfW * 0.8, halfW * 0.8),
             Math.random2f(-halfH * 0.7, halfH * 0.7),
-            Math.random2f(-0.05, 0.05), Math.random2f(-0.03, 0.05),
-            sR * bright * 0.12, sG * bright * 0.12, sB * bright * 0.12,
-            Math.random2f(0.3, 0.7) + amp * 1.2,
-            Math.random2f(6.0, 12.0),
+            Math.random2f(-0.03, 0.03), Math.random2f(-0.02, 0.03),
+            sR * bright * 0.15, sG * bright * 0.15, sB * bright * 0.15,
+            0.3 + amp * 2.0,
+            4.7,
             Math.random2f(0.3, 0.9)
         );
     }
@@ -1386,10 +1453,10 @@ while( true ) {
             bpMaxLife[i] => bpLife[i];
             Math.random2f(-halfW, halfW) => bpX[i];
             Math.random2f(-halfH, halfH) => bpY[i];
-            Math.random2f(-0.02, 0.02) => bpVX[i];
-            Math.random2f(-0.015, 0.015) => bpVY[i];
+            Math.random2f(-0.008, 0.008) => bpVX[i];
+            Math.random2f(-0.006, 0.006) => bpVY[i];
             Math.random2f(-0.1, 0.1) => bpRotSpd[i];
-            Math.random2f(0.8, 3.0) => bpBaseSca[i];
+            Math.random2f(1.8, 5.5) => bpBaseSca[i];
             if( i < 12 ) {
                 Math.random2f(0.5, 1.3) => bpAspX[i];
                 Math.random2f(0.5, 1.3) => bpAspY[i];
