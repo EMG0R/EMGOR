@@ -153,56 +153,79 @@
             ]);
         }
 
-        // ── iOS Safari audio fix ──────────────────────────────────────
-        //
-        // WHY previous attempts failed:
-        // WebChuGL's handleInitAudio() creates AudioContext INSIDE WASM
-        // execution (when ChucK uses dac). On iOS, this context starts
-        // suspended. Then audioWorklet.addModule() + AudioWorkletNode
-        // creation happen on a SUSPENDED context. Even though we later
-        // resume() it, the AudioWorkletNode's process() callback may
-        // never fire on iOS Safari — a known Safari AudioWorklet bug
-        // where nodes created on suspended contexts don't activate.
-        //
-        // THE FIX:
-        // Pre-create an AudioContext IN the user's tap gesture (so iOS
-        // honors resume()). Then monkey-patch returns this ALREADY-RUNNING
-        // context when WebChuGL tries to create one. This guarantees
-        // addModule() and AudioWorkletNode happen on a running context.
-        //
-        // Flow: import → ChuGL.init (no audio yet) → show tap →
-        //       user taps → pre-create+resume ctx → runFile →
-        //       handleInitAudio gets our running ctx → audio works
-
+        // ── Capture every AudioContext created on this page ──────────
+        const _allCtx = [];
         const _OrigAC = window.AudioContext || window.webkitAudioContext;
-        let _preCtx = null; // pre-created AudioContext from user gesture
-
-        // Monkey-patch: return pre-created running context if available,
-        // otherwise create new one with forwarded args
         if (_OrigAC) {
-            const Patched = function(...args) {
-                if (_preCtx) {
-                    const ctx = _preCtx;
-                    _preCtx = null;
-                    console.log('[CIESEN] gave pre-created ctx:', ctx.state, 'sr:', ctx.sampleRate);
-                    return ctx;
-                }
+            const P = function(...args) {
                 const ctx = new _OrigAC(...args);
-                console.log('[CIESEN] new ctx:', ctx.state, 'sr:', ctx.sampleRate);
+                _allCtx.push(ctx);
+                console.log('[CIESEN] ctx created:', ctx.state, ctx.sampleRate);
                 return ctx;
             };
-            Patched.prototype = _OrigAC.prototype;
-            if (window.AudioContext) window.AudioContext = Patched;
-            if (window.webkitAudioContext) window.webkitAudioContext = Patched;
+            P.prototype = _OrigAC.prototype;
+            if (window.AudioContext) window.AudioContext = P;
+            if (window.webkitAudioContext) window.webkitAudioContext = P;
+        }
+
+        // Try every possible way to unlock + connect audio
+        function tryAllAudioFixes(ck) {
+            // Resume all captured contexts
+            for (const ctx of _allCtx) {
+                if (ctx.state !== 'running') {
+                    ctx.resume().then(() => log('resumed: ' + ctx.state));
+                }
+            }
+
+            // Try ck.connect() — WebChucK extends AudioWorkletNode
+            // so ck itself might BE the audio node
+            for (const ctx of _allCtx) {
+                if (typeof ck.connect === 'function') {
+                    try {
+                        ck.connect(ctx.destination);
+                        log('ck.connect() ok');
+                    } catch(e) { log('ck.connect: ' + e.message); }
+                }
+            }
+
+            // Try ck.audioNode.connect() — WebChuGL getter
+            try {
+                const node = ck.audioNode;
+                if (node) {
+                    for (const ctx of _allCtx) {
+                        try { node.disconnect(); } catch(e) {}
+                        node.connect(ctx.destination);
+                        log('audioNode reconnected');
+                    }
+                }
+            } catch(e) {}
+
+            // Try ck.output.connect() — some WebChucK builds
+            try {
+                if (ck.output && typeof ck.output.connect === 'function') {
+                    for (const ctx of _allCtx) {
+                        ck.output.connect(ctx.destination);
+                        log('ck.output connected');
+                    }
+                }
+            } catch(e) {}
+
+            // Try ck.theChuck.connect() — internal WebChucK instance
+            try {
+                if (ck.theChuck && typeof ck.theChuck.connect === 'function') {
+                    for (const ctx of _allCtx) {
+                        ck.theChuck.connect(ctx.destination);
+                        log('theChuck connected');
+                    }
+                }
+            } catch(e) {}
         }
 
         // Safari tab-switch / screen-lock recovery
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState !== 'visible') return;
-            // Try to resume any context that got interrupted
-            const ctx = _preCtx || (window._ckInstance && window._ckInstance.audioContext);
-            if (ctx && ctx.state !== 'running') {
-                ctx.resume().then(() => log('visibility resumed'));
+            for (const ctx of _allCtx) {
+                if (ctx.state !== 'running') ctx.resume();
             }
         });
 
@@ -211,7 +234,6 @@
         } else {
             (async () => {
                 try {
-                    // Phase 1: Import WebChuGL + init (WebGPU/WASM, no audio yet)
                     const { default: ChuGL } = await withTimeout(
                         import('https://cdn.jsdelivr.net/npm/webchugl/+esm'),
                         15000,
@@ -230,49 +252,11 @@
                         'WebChuGL init timed out.\n\nThis usually means WebGPU is not available.\n\niOS: Settings > Safari > Feature Flags > WebGPU\nAndroid: use Chrome 113+\nDesktop: Chrome/Edge 113+'
                     );
 
-                    window._ckInstance = ck;
-
                     ck.chuckPrint = (msg) => {
                         console.log('[ChucK]', msg);
                         log(msg);
                     };
 
-                    // Phase 2: Wait for user gesture (tap/click)
-                    // This is REQUIRED before runFile — we need to pre-create
-                    // a running AudioContext so WebChuGL's handleInitAudio
-                    // gets a running context (not suspended).
-                    clearInterval(dotInterval);
-                    statusEl.classList.add('hidden');
-                    tapOverlay.classList.add('show');
-
-                    await new Promise(resolve => {
-                        function onGesture() {
-                            // Pre-create AudioContext IN the gesture call stack.
-                            // iOS Safari ONLY honors resume() during user gesture.
-                            if (!_preCtx) {
-                                _preCtx = new _OrigAC({ latencyHint: 'interactive' });
-                                _preCtx.resume();
-                                log('pre-ctx: ' + _preCtx.state + ' sr:' + _preCtx.sampleRate);
-                            }
-                            tapOverlay.classList.remove('show');
-                            // Clean up all gesture listeners
-                            ['touchend', 'click', 'keydown'].forEach(ev => {
-                                tapOverlay.removeEventListener(ev, onGesture);
-                                document.removeEventListener(ev, onGesture, true);
-                            });
-                            resolve();
-                        }
-                        // touchend — NOT touchstart (miniaudio#759, iOS 17+)
-                        tapOverlay.addEventListener('touchend', onGesture);
-                        tapOverlay.addEventListener('click', onGesture);
-                        document.addEventListener('keydown', onGesture, { capture: true });
-                    });
-
-                    // Phase 3: Run ChucK file — audio init happens here.
-                    // handleInitAudio calls new AudioContext() → monkey-patch
-                    // returns our pre-created RUNNING context → addModule()
-                    // and AudioWorkletNode happen on a running context → audio works.
-                    log('starting ChucK...');
                     const result = await withTimeout(
                         ck.runFile('./_CIESEN.ck?v=' + Date.now()),
                         20000,
@@ -286,23 +270,65 @@
                         return;
                     }
 
-                    // Log audio pipeline state
-                    const ckCtx  = ck.audioContext;
-                    const ckNode = ck.audioNode;
-                    log('ctx: ' + (ckCtx ? ckCtx.state + ' sr:' + ckCtx.sampleRate : 'null'));
-                    log('node: ' + (ckNode ? 'connected' : 'NULL'));
+                    clearInterval(dotInterval);
+                    statusEl.classList.add('hidden');
 
-                    // Handle Safari interrupted state
-                    if (ckCtx) {
-                        ckCtx.onstatechange = () => {
-                            log('state: ' + ckCtx.state);
-                            if (ckCtx.state === 'interrupted' || ckCtx.state === 'suspended') {
-                                ckCtx.resume();
-                            }
-                        };
+                    // Debug: what IS the ck object?
+                    log('ck type: ' + typeof ck);
+                    log('ck.connect: ' + typeof ck.connect);
+                    log('ck.context: ' + (ck.context ? ck.context.state : 'undef'));
+                    log('ck.audioContext: ' + (ck.audioContext ? ck.audioContext.state : 'undef'));
+                    log('ck.audioNode: ' + (ck.audioNode || 'undef'));
+                    log('captured ' + _allCtx.length + ' ctx');
+                    _allCtx.forEach((c,i) => log('  ctx' + i + ': ' + c.state + ' sr:' + c.sampleRate));
+
+                    // If already running (desktop), try connecting now
+                    const anyRunning = _allCtx.some(c => c.state === 'running');
+                    if (anyRunning) {
+                        tryAllAudioFixes(ck);
                     }
 
-                    // Prevent iOS rubber-banding
+                    // If any ctx is suspended, show tap overlay
+                    if (!anyRunning || _allCtx.length === 0) {
+                        tapOverlay.classList.add('show');
+                    }
+
+                    // On gesture: resume + try all fixes
+                    function onUnlock() {
+                        tryAllAudioFixes(ck);
+                        // Also poll for audioNode becoming available (async addModule)
+                        let polls = 0;
+                        const poller = setInterval(() => {
+                            polls++;
+                            const node = ck.audioNode;
+                            if (node) {
+                                clearInterval(poller);
+                                for (const ctx of _allCtx) {
+                                    try { node.disconnect(); } catch(e) {}
+                                    try {
+                                        node.connect(ctx.destination);
+                                        log('node connected (poll ' + polls + ')');
+                                    } catch(e) {}
+                                }
+                            }
+                            // Also retry ck.connect each poll
+                            if (typeof ck.connect === 'function') {
+                                for (const ctx of _allCtx) {
+                                    try { ck.connect(ctx.destination); } catch(e) {}
+                                }
+                            }
+                            if (polls >= 30) clearInterval(poller); // 3s max
+                        }, 100);
+
+                        tapOverlay.classList.remove('show');
+                        ['touchend', 'click', 'keydown'].forEach(ev =>
+                            document.removeEventListener(ev, onUnlock, true)
+                        );
+                    }
+                    ['touchend', 'click', 'keydown'].forEach(ev =>
+                        document.addEventListener(ev, onUnlock, { capture: true })
+                    );
+
                     document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
                 } catch (err) {

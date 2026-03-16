@@ -877,15 +877,16 @@ bg.sca( 40.0 );
 bg.posZ( -2.5 );
 bg.color( @(0.012, 0.012, 0.025) );
 
-// sine visual pool — 1:1 with sine audio voices
-// each circle follows the EXACT sine ADSR: 1200ms atk, 3500ms decay, 0 sus
-24 => int SINE_VP;
-GCircle sineShape[24];
-float ssLife[24], ssMaxLife[24];
-float ssX[24], ssY[24];
-float ssR[24], ssG[24], ssB[24];
+// sine visual pool — one big circle per sine wave
+// follows EXACT sine ADSR: 1200ms atk, 3500ms decay, 0 sustain
+6 => int SINE_VP;
+GCircle sineShape[6];
+float ssLife[6], ssMaxLife[6];
+float ssX[6], ssY[6];
+float ssR[6], ssG[6], ssB[6];
+0 => int ssHead;
 
-for( 0 => int i; i < 24; i++ ) {
+for( 0 => int i; i < 6; i++ ) {
     sineShape[i] --> GG.scene();
     sineShape[i].posZ( -0.3 );
     sineShape[i].sca( 0.0 );
@@ -924,21 +925,22 @@ fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     Math.random2f(0.02, 0.04) => rdSz[i];
 }
 
-// spawn sine visual — matches voice index 1:1
+// spawn sine visual — one huge circle per sine wave
 // shape follows exact ADSR envelope: 1200ms attack, 3500ms decay
-fun void spawnSineVisual( int idx, float freq, float amp, float hW, float hH ) {
-    if( idx < 0 || idx >= 24 ) return;
+fun void spawnSineVisual( float freq, float amp, float hW, float hH ) {
+    ssHead => int i;
+    (ssHead + 1) % SINE_VP => ssHead;
     // life matches sine ADSR total: attack + decay = 4700ms
-    4.7 => ssLife[idx];
-    4.7 => ssMaxLife[idx];
+    4.7 => ssLife[i];
+    4.7 => ssMaxLife[i];
     // position: random spread across screen
-    Math.random2f(-0.85, 0.85) * hW => ssX[idx];
-    Math.random2f(-0.6, 0.6) * hH => ssY[idx];
-    // color from frequency — low=warm, high=cool
+    Math.random2f(-0.7, 0.7) * hW => ssX[i];
+    Math.random2f(-0.5, 0.5) * hH => ssY[i];
+    // color from frequency — low=warm purple, high=cool blue
     Math.min(1.0, freq / 2000.0) => float t;
-    0.3 + 0.5 * (1.0 - t) => ssR[idx];
-    0.2 + 0.3 * t => ssG[idx];
-    0.5 + 0.45 * t => ssB[idx];
+    0.3 + 0.5 * (1.0 - t) => ssR[i];
+    0.2 + 0.3 * t => ssG[i];
+    0.5 + 0.45 * t => ssB[i];
 }
 
 // control orbs - 8 orbs (no master prob)
@@ -1104,12 +1106,10 @@ while( true ) {
     1.0 + duck * 0.4 => float scPulse;
     1.0 + duck * 0.5 => float scBright;
 
-    // sine visual: if voice is active but visual isn't, spawn it
-    // guarantees 1:1 sine audio → visual circle relationship
-    for( 0 => int vi; vi < 24; vi++ ) {
-        if( svActive[vi] && ssLife[vi] <= 0.0 ) {
-            spawnSineVisual( vi, svFreq[vi], svAmp[vi], halfW, halfH );
-        }
+    // sine visual: spawn ONE circle per frame if any sine triggered
+    // (not per-voice — just one big shape per sine event)
+    if( spawnSine > 0 && sineSpawnCount > 0 ) {
+        spawnSineVisual( sineSpawnFreq[0], sineSpawnAmp[0], halfW, halfH );
     }
 
     // reset spawn counters (audio shreds still increment these)
@@ -1158,7 +1158,7 @@ while( true ) {
     // update sine visual circles — scale follows EXACT sine ADSR envelope
     // ADSR: 1200ms attack, 3500ms decay, 0.0 sustain, 30ms release
     // total life = 4700ms = 4.7s
-    for( 0 => int i; i < 24; i++ ) {
+    for( 0 => int i; i < SINE_VP; i++ ) {
         if( ssLife[i] > 0.0 ) {
             ssLife[i] - dt => ssLife[i];
             if( ssLife[i] <= 0.0 ) {
@@ -1177,13 +1177,13 @@ while( true ) {
                     if( env < 0.0 ) 0.0 => env;
                 }
 
-                // big circle: max size ~0.8 world units, scales with window
-                env * 0.8 * winScale => float sz;
+                // HUGE circle: fills significant screen area
+                env * 5.0 * winScale => float sz;
                 sineShape[i].sca( sz );
                 sineShape[i].posX( ssX[i] );
                 sineShape[i].posY( ssY[i] );
-                // color fades with envelope
-                env * 0.12 => float bright;
+                // color: soft glow that fades with envelope
+                env * 0.08 => float bright;
                 sineShape[i].color( @(
                     ssR[i] * bright,
                     ssG[i] * bright,
