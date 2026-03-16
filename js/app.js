@@ -37,16 +37,17 @@ async function setup() {
     const WAContext = window.AudioContext || window.webkitAudioContext;
     const context = new WAContext();
 
-    // iOS Safari audio unlock — touchend (NOT touchstart) required on iOS 17+
-    // Silent buffer + resume pattern (proven by Howler.js / Tone.js)
+    // iOS Safari audio unlock — touchend only, NO touchstart (miniaudio#759)
+    // No silent buffers (causes clicks). Just resume() on user gesture.
     let _rnboUnlocked = false;
     function unlockRnboAudio() {
-        if (_rnboUnlocked || context.state === 'running') { _rnboUnlocked = true; return; }
-        const buf = context.createBuffer(1, 1, context.sampleRate || 22050);
-        const src = context.createBufferSource();
-        src.buffer = buf;
-        src.connect(context.destination);
-        src.start(0);
+        if (_rnboUnlocked || context.state === 'running') {
+            _rnboUnlocked = true;
+            ['touchend', 'click', 'keydown'].forEach(ev =>
+                document.removeEventListener(ev, unlockRnboAudio, true)
+            );
+            return;
+        }
         context.resume().then(() => {
             console.log('AudioContext resumed:', context.state);
             if (context.state === 'running') {
@@ -63,15 +64,12 @@ async function setup() {
 
     document.addEventListener("visibilitychange", function() {
         if (document.visibilityState === 'visible' && context.state !== 'running') {
-            context.resume().then(() => console.log('resumed after visibility change'));
+            context.resume();
         }
     });
 
-    // Handle Safari "interrupted" state (non-standard, caused by tab switch / screen lock)
     context.onstatechange = () => {
-        if (context.state === 'interrupted') {
-            context.resume().then(() => console.log('resumed from interrupted'));
-        }
+        if (context.state === 'interrupted') context.resume();
     };
 
     const patchExportURL = "export/patch.export.json";

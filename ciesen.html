@@ -121,11 +121,10 @@
     <div id="chuck-output"></div>
 
     <script type="module">
-        const statusEl  = document.getElementById('status');
-        const outputEl  = document.getElementById('chuck-output');
+        const statusEl   = document.getElementById('status');
+        const outputEl   = document.getElementById('chuck-output');
         const tapOverlay = document.getElementById('tap-overlay');
 
-        // cycling dots
         let dotCount = 0;
         const dotInterval = setInterval(() => {
             dotCount = (dotCount + 1) % 4;
@@ -155,82 +154,79 @@
         }
 
         // ── iOS Safari audio unlock ──────────────────────────────────
-        // iOS 17+ requires touchend (NOT touchstart) to unlock audio.
-        // Must play a silent buffer AND call resume() together (Howler/Tone pattern).
-        // Safari has a non-standard "interrupted" state we must handle.
+        // Per miniaudio#759: iOS 17+ requires touchend (NOT touchstart).
+        // touchstart actively interferes with unlock on iOS.
+        // No silent buffers — just resume(). Silent buffers cause clicks.
+        //
+        // Strategy: monkey-patch captures AudioContext at creation time,
+        // but also grab ck.audioContext directly after init as backup.
+        // Show tap overlay so user gesture happens AFTER context exists.
 
-        const _capturedContexts = [];
+        const _allContexts = [];
         let _audioUnlocked = false;
+        let _hasUserGesture = false;
         const _OrigAC = window.AudioContext || window.webkitAudioContext;
 
-        // Monkey-patch AudioContext constructor to capture contexts created in WASM
+        // Monkey-patch to intercept AudioContext created inside WASM/closures
         if (_OrigAC) {
-            function PatchedAC() {
+            const Patched = function() {
                 const ctx = new _OrigAC();
-                _capturedContexts.push(ctx);
-                console.log('[CIESEN] captured AudioContext, state:', ctx.state);
-                return ctx;
-            }
-            PatchedAC.prototype = _OrigAC.prototype;
-            if (window.AudioContext) window.AudioContext = PatchedAC;
-            if (window.webkitAudioContext) window.webkitAudioContext = PatchedAC;
-        }
-
-        // The real unlock: silent buffer + resume (Howler.js / Tone.js proven pattern)
-        function unlockAudioContext(ctx) {
-            if (!ctx || ctx.state === 'running') return Promise.resolve();
-            return new Promise(resolve => {
-                // Play a silent buffer — this is what actually unlocks on iOS
-                const buffer = ctx.createBuffer(1, 1, ctx.sampleRate || 22050);
-                const source = ctx.createBufferSource();
-                source.buffer = buffer;
-                source.connect(ctx.destination);
-                source.start(0);
-                source.onended = () => {
-                    source.disconnect();
-                };
-                // Also call resume — handles both suspended AND Safari's "interrupted" state
-                ctx.resume().then(() => {
-                    log('ctx unlocked: ' + ctx.state);
-                    resolve();
-                }).catch(() => resolve());
-            });
-        }
-
-        function unlockAll() {
-            const promises = _capturedContexts.map(ctx => unlockAudioContext(ctx));
-            Promise.all(promises).then(() => {
-                const allRunning = _capturedContexts.every(c => c.state === 'running');
-                if (allRunning && _capturedContexts.length > 0) {
-                    _audioUnlocked = true;
-                    tapOverlay.classList.remove('show');
-                    log('all audio unlocked');
-                    // Clean up gesture listeners once unlocked
-                    _unlockEvents.forEach(ev =>
-                        document.removeEventListener(ev, _onGesture, true)
-                    );
+                _allContexts.push(ctx);
+                console.log('[CIESEN] captured ctx:', ctx.state);
+                // If user already tapped during loading, resume immediately
+                if (_hasUserGesture && ctx.state === 'suspended') {
+                    ctx.resume().then(() => console.log('[CIESEN] auto-resumed new ctx'));
                 }
-            });
+                return ctx;
+            };
+            Patched.prototype = _OrigAC.prototype;
+            if (window.AudioContext) window.AudioContext = Patched;
+            if (window.webkitAudioContext) window.webkitAudioContext = Patched;
         }
 
-        function _onGesture() { unlockAll(); }
+        // Resume all known contexts — called ONLY from gesture handlers
+        function resumeAll() {
+            _hasUserGesture = true;
+            let pending = 0;
+            for (const ctx of _allContexts) {
+                if (ctx.state !== 'running') {
+                    pending++;
+                    ctx.resume().then(() => {
+                        log('resumed: ' + ctx.state);
+                        checkAllRunning();
+                    });
+                }
+            }
+            if (pending === 0) checkAllRunning();
+        }
 
-        // iOS 17+: touchend is the reliable unlock event, NOT touchstart.
-        // touchstart can actually interfere. Use touchend + click + keydown.
-        const _unlockEvents = ['touchend', 'click', 'keydown'];
-        _unlockEvents.forEach(ev =>
-            document.addEventListener(ev, _onGesture, { capture: true })
+        function checkAllRunning() {
+            if (_audioUnlocked) return;
+            const allGood = _allContexts.length > 0 && _allContexts.every(c => c.state === 'running');
+            if (allGood) {
+                _audioUnlocked = true;
+                tapOverlay.classList.remove('show');
+                log('audio unlocked');
+                // Clean up — no more gesture listeners needed
+                ['touchend', 'click', 'keydown'].forEach(ev =>
+                    document.removeEventListener(ev, resumeAll, true)
+                );
+            }
+        }
+
+        // touchend ONLY — no touchstart (miniaudio#759)
+        ['touchend', 'click', 'keydown'].forEach(ev =>
+            document.addEventListener(ev, resumeAll, { capture: true })
         );
 
-        // Handle Safari's "interrupted" state — happens on tab switch / screen lock.
-        // Re-resume when page becomes visible again.
+        // Safari "interrupted" state + tab switch recovery
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
-                _capturedContexts.forEach(ctx => {
+                for (const ctx of _allContexts) {
                     if (ctx.state !== 'running') {
-                        ctx.resume().then(() => log('resumed after visibility change'));
+                        ctx.resume().then(() => log('visibility resumed'));
                     }
-                });
+                }
             }
         });
 
@@ -278,46 +274,43 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // Get the actual AudioContext from WebChucK.
-                    // ck.audioContext (getter) or ck.context (inherited AudioWorkletNode)
+                    // Grab AudioContext directly from WebChucK as backup
+                    // (in case WASM bypassed our monkey-patch)
                     const ckCtx = ck.audioContext || ck.context;
-                    log('captured ' + _capturedContexts.length + ' ctx(s)');
+                    if (ckCtx && !_allContexts.includes(ckCtx)) {
+                        _allContexts.push(ckCtx);
+                        log('added ck ctx directly: ' + ckCtx.state);
+                    }
+                    log(_allContexts.length + ' ctx(s), states: ' +
+                        _allContexts.map(c => c.state).join(', '));
+
+                    // Safari interrupted handler
                     if (ckCtx) {
-                        log('ck audio: ' + ckCtx.state);
-                        if (!_capturedContexts.includes(ckCtx)) {
-                            _capturedContexts.push(ckCtx);
-                        }
-                        // Watch for Safari "interrupted" → auto-resume
                         ckCtx.onstatechange = () => {
-                            log('ctx state: ' + ckCtx.state);
+                            log('state change: ' + ckCtx.state);
                             if (ckCtx.state === 'interrupted') {
-                                ckCtx.resume().then(() => log('resumed from interrupted'));
+                                ckCtx.resume();
                             }
                         };
                     }
 
-                    // Try immediate unlock (works on desktop, may work if user already tapped)
-                    unlockAll();
+                    // On desktop, context may already be running — check now
+                    if (_hasUserGesture) resumeAll();
+                    checkAllRunning();
 
-                    // If still suspended, show the tap overlay
-                    setTimeout(() => {
-                        const needsUnlock = _capturedContexts.some(c => c.state !== 'running');
-                        if (needsUnlock) {
-                            tapOverlay.classList.add('show');
-                            log('tap overlay shown — waiting for gesture');
-                        }
-                    }, 300);
+                    // If audio still needs unlock, show tap overlay
+                    if (!_audioUnlocked) {
+                        tapOverlay.classList.add('show');
+                        log('tap to start');
+                    }
 
-                    // Tap overlay handler — dedicated unlock on direct tap
+                    // Dedicated tap overlay handlers
                     tapOverlay.addEventListener('touchend', (e) => {
                         e.preventDefault();
-                        unlockAll();
+                        resumeAll();
                     });
-                    tapOverlay.addEventListener('click', () => {
-                        unlockAll();
-                    });
+                    tapOverlay.addEventListener('click', () => resumeAll());
 
-                    // Prevent iOS rubber-banding on canvas
                     document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
                 } catch (err) {
