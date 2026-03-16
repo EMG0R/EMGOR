@@ -111,6 +111,80 @@
             ]);
         }
 
+        // iOS audio unlock — must warm audio BEFORE ChuGL init
+        // iOS Safari suspends AudioContexts created outside user gestures.
+        // By playing a silent buffer on the first tap (even during loading),
+        // we unlock the audio pipeline so ChuGL's context can resume later.
+        let _chuglCtx = null;
+        let _audioUnlocked = false;
+
+        function unlockiOSAudio() {
+            // 1. Silent buffer trick — warms iOS audio pipeline system-wide
+            if (!_audioUnlocked) {
+                try {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (AC) {
+                        const tmp = new AC();
+                        const buf = tmp.createBuffer(1, 1, 22050);
+                        const src = tmp.createBufferSource();
+                        src.buffer = buf;
+                        src.connect(tmp.destination);
+                        src.start(0);
+                        if (tmp.state === 'suspended') tmp.resume();
+                        _audioUnlocked = true;
+                    }
+                } catch(e) {}
+            }
+
+            // 2. Resume ChuGL's AudioContext if we've found it
+            if (_chuglCtx && _chuglCtx.state === 'suspended') {
+                _chuglCtx.resume().then(() => log('audio resumed'));
+            }
+        }
+
+        // Register EARLY — captures taps during the loading screen
+        ['touchstart', 'touchend', 'click', 'keydown'].forEach(ev =>
+            document.addEventListener(ev, unlockiOSAudio, { capture: true })
+        );
+
+        // prevent iOS rubber-banding on canvas
+        document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+        // Find AudioContext buried in a ChuGL/ChucK object
+        function findAudioContext(obj) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return null;
+            // check known property names
+            for (const prop of ['audioContext', 'context', '_audioContext', '_context', 'audio', '_audio']) {
+                try {
+                    const ctx = obj[prop];
+                    if (ctx instanceof AC) return ctx;
+                } catch(e) {}
+            }
+            // walk own properties
+            try {
+                for (const key of Object.getOwnPropertyNames(obj)) {
+                    try {
+                        const v = obj[key];
+                        if (v instanceof AC) return v;
+                    } catch(e) {}
+                }
+            } catch(e) {}
+            // walk prototype
+            try {
+                const proto = Object.getPrototypeOf(obj);
+                if (proto) {
+                    for (const key of Object.getOwnPropertyNames(proto)) {
+                        try {
+                            const v = obj[key];
+                            if (v && typeof v === 'object' && v instanceof AC) return v;
+                        } catch(e) {}
+                    }
+                }
+            } catch(e) {}
+            return null;
+        }
+
         if (location.protocol === 'file:') {
             fail('requires HTTP server\n\nnpx serve .\nthen open http://localhost:PORT/ciesen.html');
         } else {
@@ -157,46 +231,16 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // iOS audio unlock — resume any suspended AudioContext on user gesture
-                    // iOS Safari blocks audio until a touch/click event fires
-                    function unlockAudio() {
-                        // try known properties on ck object
-                        for (const prop of ['audioContext', 'context', '_audioContext', '_context']) {
-                            const ctx = ck[prop];
-                            if (ctx && typeof ctx.resume === 'function' && ctx.state === 'suspended') {
-                                ctx.resume();
-                                log('audio resumed');
-                            }
+                    // Now that ChuGL is running, find its AudioContext
+                    _chuglCtx = findAudioContext(ck);
+                    if (_chuglCtx) {
+                        log('found audio context (' + _chuglCtx.state + ')');
+                        if (_chuglCtx.state === 'suspended') {
+                            _chuglCtx.resume().then(() => log('audio resumed'));
                         }
-                        // walk ck properties to find any AudioContext
-                        try {
-                            for (const key of Object.keys(ck)) {
-                                const v = ck[key];
-                                if (v && v instanceof AudioContext && v.state === 'suspended') {
-                                    v.resume();
-                                }
-                            }
-                        } catch(e) {}
-                        // fallback: silent buffer trick to unlock iOS audio system
-                        try {
-                            const AC = window.AudioContext || window.webkitAudioContext;
-                            if (AC) {
-                                const tmp = new AC();
-                                const buf = tmp.createBuffer(1, 1, 22050);
-                                const src = tmp.createBufferSource();
-                                src.buffer = buf;
-                                src.connect(tmp.destination);
-                                src.start(0);
-                                tmp.resume();
-                            }
-                        } catch(e) {}
+                    } else {
+                        log('audio context not found on ck object — tap screen for audio');
                     }
-                    ['touchstart', 'click', 'keydown'].forEach(ev =>
-                        document.addEventListener(ev, unlockAudio, { once: true })
-                    );
-
-                    // prevent iOS rubber-banding on canvas
-                    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
                 } catch (err) {
                     console.error('[CIESEN]', err);

@@ -130,6 +130,12 @@
             mouse.element.removeEventListener(ev, mouse[ev.replace('DOM','').toLowerCase()] || (() => {}));
         });
 
+        // Remove Matter.js default touch handlers — they call preventDefault()
+        // which blocks <a> links and buttons from working on mobile
+        ['touchstart', 'touchmove', 'touchend'].forEach(ev => {
+            mouse.element.removeEventListener(ev, mouse[ev]);
+        });
+
         function syncPos(e) {
             mouse.position.x = mouse.absolute.x = e.clientX;
             mouse.position.y = mouse.absolute.y = e.clientY;

@@ -37,13 +37,19 @@ async function setup() {
     const WAContext = window.AudioContext || window.webkitAudioContext;
     const context = new WAContext();
 
+    // iOS audio unlock — resume on any user gesture (touch or click)
+    function resumeAudio() {
+        if (context.state === 'suspended') {
+            context.resume().then(() => console.log('AudioContext resumed'));
+        }
+    }
+    ['touchstart', 'touchend', 'click'].forEach(ev =>
+        document.addEventListener(ev, resumeAudio, { capture: true })
+    );
+
     document.addEventListener("visibilitychange", function() {
         if (document.visibilityState === 'visible') {
-            if (context.state === 'suspended') {
-                context.resume().then(() => {
-                    console.log('AudioContext resumed');
-                });
-            }
+            resumeAudio();
         }
     });
 
@@ -95,8 +101,6 @@ async function setup() {
     makeMIDIKeyboard(device);
     setupGridControl(device);
     initializePianoKeyboard(device);
-
-    document.body.onclick = () => context.resume();
 
     if (typeof guardrails === "function") guardrails();
 }
