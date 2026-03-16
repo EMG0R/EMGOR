@@ -877,23 +877,20 @@ bg.sca( 40.0 );
 bg.posZ( -2.5 );
 bg.color( @(0.012, 0.012, 0.025) );
 
-/* --- COMMENTED OUT for iPhone perf optimization (keep only rain) ---
-// background shapes - mix of circles and rectangles, varied aspect ratios
-36 => int NUM_BG_POLY;
-GCircle bgCirc[12];
-GPlane bgRect[24];
-float bpX[36], bpY[36], bpVX[36], bpVY[36], bpPhase[36], bpRotSpd[36];
-float bpBaseSca[36], bpAspX[36], bpAspY[36];
-float bpR[36], bpG[36], bpB[36], bpLife[36], bpMaxLife[36];
-... (bg shape init)
+// sine visual pool — 1:1 with sine audio voices
+// each circle follows the EXACT sine ADSR: 1200ms atk, 3500ms decay, 0 sus
+24 => int SINE_VP;
+GCircle sineShape[24];
+float ssLife[24], ssMaxLife[24];
+float ssX[24], ssY[24];
+float ssR[24], ssG[24], ssB[24];
 
-// particle pools - circles and planes
-40 => int CIRC_P;
-20 => int RECT_P;
-GCircle pCirc[40];
-GPlane pRect[20];
-... (particle pool init)
---- end bg shapes + particle pools --- */
+for( 0 => int i; i < 24; i++ ) {
+    sineShape[i] --> GG.scene();
+    sineShape[i].posZ( -0.3 );
+    sineShape[i].sca( 0.0 );
+    0.0 => ssLife[i];
+}
 
 // rain visual pool - 1:1 with audio
 128 => int RAIN_VP;
@@ -908,10 +905,6 @@ for( 0 => int i; i < 128; i++ ) {
     rainDrop[i].sca( 0.0 );
     0.0 => rdLife[i];
 }
-
-/* --- COMMENTED OUT for iPhone perf optimization ---
-// flowers, sparkles, spawn helpers (spawnCp, spawnRp, spawnAny, spawnStreak)
---- end flowers/sparkles/spawn helpers --- */
 
 fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     rdHead => int i;
@@ -931,11 +924,22 @@ fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     Math.random2f(0.02, 0.04) => rdSz[i];
 }
 
-/* --- COMMENTED OUT for iPhone perf ---
-GCircle kickRing --> GG.scene();
-kickRing.posZ( -0.5 );
-kickRing.sca( 0.0 );
---- end kick ring --- */
+// spawn sine visual — matches voice index 1:1
+// shape follows exact ADSR envelope: 1200ms attack, 3500ms decay
+fun void spawnSineVisual( int idx, float freq, float amp, float hW, float hH ) {
+    if( idx < 0 || idx >= 24 ) return;
+    // life matches sine ADSR total: attack + decay = 4700ms
+    4.7 => ssLife[idx];
+    4.7 => ssMaxLife[idx];
+    // position: random spread across screen
+    Math.random2f(-0.85, 0.85) * hW => ssX[idx];
+    Math.random2f(-0.6, 0.6) * hH => ssY[idx];
+    // color from frequency — low=warm, high=cool
+    Math.min(1.0, freq / 2000.0) => float t;
+    0.3 + 0.5 * (1.0 - t) => ssR[idx];
+    0.2 + 0.3 * t => ssG[idx];
+    0.5 + 0.45 * t => ssB[idx];
+}
 
 // control orbs - 8 orbs (no master prob)
 8 => int NUM_CTRL;
@@ -1100,6 +1104,14 @@ while( true ) {
     1.0 + duck * 0.4 => float scPulse;
     1.0 + duck * 0.5 => float scBright;
 
+    // sine visual: if voice is active but visual isn't, spawn it
+    // guarantees 1:1 sine audio → visual circle relationship
+    for( 0 => int vi; vi < 24; vi++ ) {
+        if( svActive[vi] && ssLife[vi] <= 0.0 ) {
+            spawnSineVisual( vi, svFreq[vi], svAmp[vi], halfW, halfH );
+        }
+    }
+
     // reset spawn counters (audio shreds still increment these)
     0 => spawnKick;
     0 => sineSpawnCount;
@@ -1139,6 +1151,44 @@ while( true ) {
                 rainDrop[i].sca( rdSz[i] * alpha );
                 0.9 * alpha => float rb;
                 rainDrop[i].color( @(0.78 * rb, 0.82 * rb, 0.93 * rb) );
+            }
+        }
+    }
+
+    // update sine visual circles — scale follows EXACT sine ADSR envelope
+    // ADSR: 1200ms attack, 3500ms decay, 0.0 sustain, 30ms release
+    // total life = 4700ms = 4.7s
+    for( 0 => int i; i < 24; i++ ) {
+        if( ssLife[i] > 0.0 ) {
+            ssLife[i] - dt => ssLife[i];
+            if( ssLife[i] <= 0.0 ) {
+                0.0 => ssLife[i];
+                sineShape[i].sca( 0.0 );
+            } else {
+                ssMaxLife[i] - ssLife[i] => float elapsed;
+                // ADSR envelope shape: attack 1.2s, decay 3.5s
+                0.0 => float env;
+                if( elapsed < 1.2 ) {
+                    // attack: 0 → 1 over 1.2s
+                    elapsed / 1.2 => env;
+                } else {
+                    // decay: 1 → 0 over 3.5s
+                    1.0 - (elapsed - 1.2) / 3.5 => env;
+                    if( env < 0.0 ) 0.0 => env;
+                }
+
+                // big circle: max size ~0.8 world units, scales with window
+                env * 0.8 * winScale => float sz;
+                sineShape[i].sca( sz );
+                sineShape[i].posX( ssX[i] );
+                sineShape[i].posY( ssY[i] );
+                // color fades with envelope
+                env * 0.12 => float bright;
+                sineShape[i].color( @(
+                    ssR[i] * bright,
+                    ssG[i] * bright,
+                    ssB[i] * bright
+                ) );
             }
         }
     }
