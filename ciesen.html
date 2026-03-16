@@ -102,7 +102,7 @@
                         log(msg);
                     };
 
-                    const result = await ck.runFile('./_CIESEN.ck');
+                    const result = await ck.runFile('./_CIESEN.ck?v=' + Date.now());
 
                     if (result && (result.error || result.shredId === 0)) {
                         let err = result.error || 'unknown error';
