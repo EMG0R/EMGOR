@@ -4,27 +4,223 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#000000">
-    <link rel="stylesheet" href="style/style.css">
     <style>
-        .wip {
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+        }
+
+        .home-button {
             position: fixed;
-            z-index: 2;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 1.5rem;
-            letter-spacing: 3px;
+            top: 16px;
+            left: 16px;
+            z-index: 100;
+            font-size: 1.8rem;
             color: rgba(255,255,255,0.6);
-            font-family: 'Courier New', Courier, monospace;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .home-button:hover { color: rgba(255,255,255,0.95); }
+
+        #start-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.92);
+            cursor: pointer;
+            transition: opacity 0.8s;
+        }
+        #start-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #start-overlay h1 {
+            font-size: 2.2rem;
+            letter-spacing: 8px;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 1.2rem;
+        }
+        #start-overlay .subtitle {
+            font-size: 0.85rem;
+            letter-spacing: 3px;
+            color: rgba(255,255,255,0.35);
+        }
+        #status {
+            margin-top: 1.5rem;
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.3);
+            max-width: 80vw;
+            text-align: center;
+            word-break: break-word;
+            white-space: pre-wrap;
+        }
+        #status.error {
+            color: rgba(239,80,60,0.8);
+            font-size: 0.68rem;
+            max-height: 50vh;
+            overflow-y: auto;
+            text-align: left;
+            background: rgba(30,0,0,0.4);
+            padding: 12px;
+            border-radius: 6px;
+        }
+        #chuck-output {
+            position: fixed;
+            bottom: 8px;
+            left: 8px;
+            z-index: 100;
+            font-size: 0.58rem;
+            color: rgba(255,255,255,0.18);
+            max-width: 50vw;
+            max-height: 18vh;
+            overflow-y: auto;
+            pointer-events: none;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
     </style>
     <title>CIESEN</title>
 </head>
 <body>
-    <div id="background-layer"></div>
-    <canvas id="lavaCanvas"></canvas>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     <a href="index.html" class="home-button">&#8962;</a>
-    <div class="wip">WORK IN PROGRESS</div>
-    <script src="js/lava.js"></script>
+
+    <div id="start-overlay">
+        <h1>C I E S E N</h1>
+        <p class="subtitle" id="subtitle">click anywhere to begin</p>
+        <div id="status"></div>
+    </div>
+
+    <div id="chuck-output"></div>
+
+    <script type="module">
+        // ── elements ────────────────────────────────────────────
+        const overlay  = document.getElementById('start-overlay');
+        const subtitle = document.getElementById('subtitle');
+        const statusEl = document.getElementById('status');
+        const outputEl = document.getElementById('chuck-output');
+
+        // ── helpers ─────────────────────────────────────────────
+        function setStatus(msg, isError) {
+            statusEl.textContent = msg;
+            statusEl.className = isError ? 'error' : '';
+        }
+
+        function log(msg) {
+            outputEl.textContent += msg + '\n';
+            const lines = outputEl.textContent.split('\n');
+            if (lines.length > 40) outputEl.textContent = lines.slice(-40).join('\n');
+            outputEl.scrollTop = outputEl.scrollHeight;
+        }
+
+        // ── preflight checks ────────────────────────────────────
+        const protocol = location.protocol;
+        if (protocol === 'file:') {
+            subtitle.textContent = '';
+            setStatus(
+                'WebChuGL requires HTTP — cannot run from file://\n\n' +
+                'start a local server:\n' +
+                '  npx serve .\n' +
+                '  python3 -m http.server\n\n' +
+                'then open http://localhost:PORT/ciesen.html',
+                true
+            );
+        } else if (!navigator.gpu) {
+            subtitle.textContent = '';
+            setStatus(
+                'WebGPU not available in this browser.\n' +
+                'Use Chrome 113+, Edge 113+, or Firefox Nightly.',
+                true
+            );
+        }
+
+        // ── main ────────────────────────────────────────────────
+        let started = false;
+
+        overlay.addEventListener('click', async () => {
+            if (started || protocol === 'file:' || !navigator.gpu) return;
+            started = true;
+
+            try {
+                setStatus('importing webchugl from CDN...');
+
+                const { default: ChuGL } = await import(
+                    'https://cdn.jsdelivr.net/npm/webchugl/+esm'
+                );
+
+                setStatus('initializing WebChuGL runtime...\n(first load may reload once for service worker)');
+
+                const ck = await ChuGL.init({
+                    canvas: document.getElementById('canvas'),
+                    onProgress: (pct) => {
+                        setStatus('loading WASM runtime... ' + Math.round(pct * 100) + '%');
+                    },
+                    onError: (msg) => {
+                        console.error('[WebChuGL onError]', msg);
+                        log('[error] ' + msg);
+                    },
+                    onReady: () => {
+                        log('[ready] WebChuGL VM initialized');
+                    }
+                });
+
+                // capture all ChucK console output
+                ck.chuckPrint = (msg) => {
+                    console.log('[ChucK]', msg);
+                    log(msg);
+                };
+
+                setStatus('running _CIESEN.ck...');
+
+                // runFile fetches the .ck from the server, writes to VFS, and executes
+                const result = await ck.runFile('./_CIESEN.ck');
+
+                // check for compile/runtime errors
+                if (result && (result.error || result.shredId === 0)) {
+                    let errMsg = result.error || 'unknown error';
+                    try { errMsg = errMsg || await ck.getLastError(); } catch(e) {}
+                    console.error('[ChucK compile error]', errMsg);
+                    setStatus('ChucK compile error:\n\n' + errMsg, true);
+                    return;
+                }
+
+                // success
+                console.log('[CIESEN] running — shred', result && result.shredId);
+                overlay.classList.add('hidden');
+
+            } catch (err) {
+                console.error('[CIESEN] fatal:', err);
+
+                let detail = err.message || String(err);
+
+                // add actionable context for common failures
+                if (detail.includes('Failed to fetch') || detail.includes('NetworkError')) {
+                    detail += '\n\nPossible causes:\n' +
+                        '• not served over HTTP (use npx serve .)\n' +
+                        '• CDN unreachable (check network / firewall)\n' +
+                        '• service worker blocked (check devtools > Application)';
+                }
+                if (detail.includes('SharedArrayBuffer')) {
+                    detail += '\n\nFix: ensure sw.js is in the project root\n' +
+                        'and the page is served via HTTP.';
+                }
+                if (detail.includes('WebGPU') || detail.includes('GPUAdapter')) {
+                    detail += '\n\nWebGPU not available — use Chrome 113+ or Edge 113+.';
+                }
+
+                setStatus(detail, true);
+            }
+        });
+    </script>
 </body>
 </html>
