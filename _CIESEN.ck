@@ -877,100 +877,23 @@ bg.sca( 40.0 );
 bg.posZ( -2.5 );
 bg.color( @(0.012, 0.012, 0.025) );
 
+/* --- COMMENTED OUT for iPhone perf optimization (keep only rain) ---
 // background shapes - mix of circles and rectangles, varied aspect ratios
-// thin rectangles rotated look like triangles/diamonds
 36 => int NUM_BG_POLY;
-// 12 circles + 12 rectangles + 12 thin diamond-like planes
 GCircle bgCirc[12];
 GPlane bgRect[24];
 float bpX[36], bpY[36], bpVX[36], bpVY[36], bpPhase[36], bpRotSpd[36];
 float bpBaseSca[36], bpAspX[36], bpAspY[36];
 float bpR[36], bpG[36], bpB[36], bpLife[36], bpMaxLife[36];
-
-for( 0 => int i; i < 36; i++ ) {
-    if( i < 12 ) {
-        bgCirc[i] --> GG.scene();
-        bgCirc[i].posZ( -2.0 + Math.random2f(0.0, 0.5) );
-    } else {
-        bgRect[i - 12] --> GG.scene();
-        bgRect[i - 12].posZ( -2.0 + Math.random2f(0.0, 0.5) );
-    }
-    Math.random2f(-4.5, 4.5) => bpX[i];
-    Math.random2f(-3.5, 3.5) => bpY[i];
-    Math.random2f(-0.008, 0.008) => bpVX[i];
-    Math.random2f(-0.006, 0.006) => bpVY[i];
-    Math.random2f(0.0, 6.28) => bpPhase[i];
-    Math.random2f(-0.1, 0.1) => bpRotSpd[i];
-    Math.random2f(1.8, 5.5) => bpBaseSca[i];
-    // varied aspect ratios: circles normal, rects varied, last 12 = thin diamond/triangle shapes
-    if( i < 12 ) {
-        Math.random2f(0.5, 1.3) => bpAspX[i];
-        Math.random2f(0.5, 1.3) => bpAspY[i];
-    } else if( i < 24 ) {
-        Math.random2f(0.3, 1.5) => bpAspX[i];
-        Math.random2f(0.3, 1.5) => bpAspY[i];
-    } else {
-        // thin diamond/triangle-like: one axis very thin
-        if( Math.random2f(0.0, 1.0) < 0.5 ) {
-            Math.random2f(0.05, 0.2) => bpAspX[i];
-            Math.random2f(0.8, 2.0) => bpAspY[i];
-        } else {
-            Math.random2f(0.8, 2.0) => bpAspX[i];
-            Math.random2f(0.05, 0.2) => bpAspY[i];
-        }
-    }
-    // colorful dark — 2x darker
-    Math.random2f(0.0, 6.28) => float bpHue;
-    0.015 + 0.03 * Math.max(0.0, Math.sin(bpHue)) => bpR[i];
-    0.012 + 0.025 * Math.max(0.0, Math.sin(bpHue + 2.09)) => bpG[i];
-    0.015 + 0.035 * Math.max(0.0, Math.sin(bpHue + 4.19)) => bpB[i];
-    // staggered lifecycle
-    Math.random2f(10.0, 30.0) => bpMaxLife[i];
-    Math.random2f(0.0, bpMaxLife[i]) => bpLife[i];
-    if( i < 12 ) {
-        bgCirc[i].posX( bpX[i] );
-        bgCirc[i].posY( bpY[i] );
-        bgCirc[i].scaX( bpBaseSca[i] * bpAspX[i] );
-        bgCirc[i].scaY( bpBaseSca[i] * bpAspY[i] );
-        bgCirc[i].rotZ( Math.random2f(0.0, 6.28) );
-    } else {
-        bgRect[i-12].posX( bpX[i] );
-        bgRect[i-12].posY( bpY[i] );
-        bgRect[i-12].scaX( bpBaseSca[i] * bpAspX[i] );
-        bgRect[i-12].scaY( bpBaseSca[i] * bpAspY[i] );
-        bgRect[i-12].rotZ( Math.random2f(0.0, 6.28) );
-    }
-}
+... (bg shape init)
 
 // particle pools - circles and planes
 40 => int CIRC_P;
 20 => int RECT_P;
 GCircle pCirc[40];
 GPlane pRect[20];
-
-float pLife[60], pMaxLife[60];
-float pX[60], pY[60], pVX[60], pVY[60];
-float pR[60], pG[60], pB[60], pSz[60];
-float pAspect[60], pRotZ[60];
-0 => int cHead;
-0 => int rHead;
-
-for( 0 => int i; i < 40; i++ ) {
-    pCirc[i] --> GG.scene();
-    pCirc[i].posZ( -0.3 );
-    pCirc[i].sca( 0.0 );
-}
-// sine shapes sit above bg polys
-for( 0 => int i; i < 20; i++ ) {
-    pRect[i] --> GG.scene();
-    pRect[i].posZ( -1.0 );
-    pRect[i].sca( 0.0 );
-}
-for( 0 => int i; i < 60; i++ ) {
-    0.0 => pLife[i];
-    1.0 => pAspect[i];
-    0.0 => pRotZ[i];
-}
+... (particle pool init)
+--- end bg shapes + particle pools --- */
 
 // rain visual pool - 1:1 with audio
 128 => int RAIN_VP;
@@ -986,74 +909,9 @@ for( 0 => int i; i < 128; i++ ) {
     0.0 => rdLife[i];
 }
 
-// border decorations - flowers along bottom, sparkles on sides
-16 => int NUM_FLOWERS;
-GCircle flower[16];
-float flLife[16], flMaxLife[16], flX[16], flY[16], flSz[16];
-float flR[16], flG[16], flB[16];
-
-for( 0 => int i; i < 16; i++ ) {
-    flower[i] --> GG.scene();
-    flower[i].posZ( -0.1 );
-    flower[i].sca( 0.0 );
-    0.0 => flLife[i];
-}
-0 => int flHead;
-
-12 => int NUM_SPARKLE;
-GCircle sparkle[12];
-float spLife[12], spMaxLife[12], spX[12], spY[12], spSz[12];
-float spVY[12];
-
-for( 0 => int i; i < 12; i++ ) {
-    sparkle[i] --> GG.scene();
-    sparkle[i].posZ( -0.05 );
-    sparkle[i].sca( 0.0 );
-    0.0 => spLife[i];
-}
-0 => int spHead;
-
-// spawn helpers
-fun void spawnCp( float x, float y, float vx, float vy,
-                  float r, float g, float b, float sz, float life,
-                  float asp ) {
-    cHead => int i;
-    (cHead + 1) % 40 => cHead;
-    life => pLife[i]; life => pMaxLife[i];
-    x => pX[i]; y => pY[i]; vx => pVX[i]; vy => pVY[i];
-    r => pR[i]; g => pG[i]; b => pB[i]; sz => pSz[i];
-    asp => pAspect[i];
-    if( asp < 0.8 ) Math.atan2(vy, vx) => pRotZ[i];
-    else 0.0 => pRotZ[i];
-}
-
-fun void spawnRp( float x, float y, float vx, float vy,
-                  float r, float g, float b, float sz, float life,
-                  float asp ) {
-    rHead => int j;
-    (rHead + 1) % 20 => rHead;
-    40 + j => int i;
-    life => pLife[i]; life => pMaxLife[i];
-    x => pX[i]; y => pY[i]; vx => pVX[i]; vy => pVY[i];
-    r => pR[i]; g => pG[i]; b => pB[i]; sz => pSz[i];
-    asp => pAspect[i];
-    if( asp < 0.8 ) Math.atan2(vy, vx) => pRotZ[i];
-    else Math.random2f(0.0, 6.28) => pRotZ[i];
-}
-
-fun void spawnAny( float x, float y, float vx, float vy,
-                   float r, float g, float b, float sz, float life,
-                   float asp ) {
-    if( Math.random2f(0.0, 1.0) < 0.6 )
-        spawnCp(x, y, vx, vy, r, g, b, sz, life, asp);
-    else
-        spawnRp(x, y, vx, vy, r, g, b, sz, life, asp);
-}
-
-fun void spawnStreak( float x, float y, float vx, float vy,
-                      float r, float g, float b, float sz, float life ) {
-    spawnAny(x, y, vx, vy, r, g, b, sz, life, Math.random2f(0.15, 0.35));
-}
+/* --- COMMENTED OUT for iPhone perf optimization ---
+// flowers, sparkles, spawn helpers (spawnCp, spawnRp, spawnAny, spawnStreak)
+--- end flowers/sparkles/spawn helpers --- */
 
 fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     rdHead => int i;
@@ -1073,10 +931,11 @@ fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     Math.random2f(0.02, 0.04) => rdSz[i];
 }
 
-// kick ring
+/* --- COMMENTED OUT for iPhone perf ---
 GCircle kickRing --> GG.scene();
 kickRing.posZ( -0.5 );
 kickRing.sca( 0.0 );
+--- end kick ring --- */
 
 // control orbs - 8 orbs (no master prob)
 8 => int NUM_CTRL;
@@ -1241,76 +1100,12 @@ while( true ) {
     1.0 + duck * 0.4 => float scPulse;
     1.0 + duck * 0.5 => float scBright;
 
-    // spawn kick particles
-    while( spawnKick > 0 ) {
-        for( 0 => int j; j < 8; j++ ) {
-            Math.random2f(0.0, 6.28) => float ang;
-            Math.random2f(0.8, 2.5) * kickVol => float spd;
-            spawnAny(
-                Math.random2f(-0.4, 0.4), Math.random2f(-0.4, 0.4),
-                Math.cos(ang) * spd, Math.sin(ang) * spd,
-                Math.random2f(0.5, 0.9), Math.random2f(0.04, 0.2), Math.random2f(0.15, 0.5),
-                Math.random2f(0.2, 0.55) * kickVol, Math.random2f(0.5, 1.2),
-                Math.random2f(0.3, 1.0)
-            );
-        }
-        spawnKick - 1 => spawnKick;
-    }
-
-    // sine: background polygons
-    while( sineSpawnCount > 0 ) {
-        sineSpawnCount - 1 => sineSpawnCount;
-        sineSpawnNote[sineSpawnCount] => int noteIdx;
-        noteIdx $ float / 47.0 => float pitchNorm;
-        sineSpawnAmp[sineSpawnCount] => float amp;
-        0.3 + pitchNorm * 0.7 => float bright;
-        Math.sin(pitchNorm * 6.28) * 0.4 + 0.5 => float sR;
-        Math.sin(pitchNorm * 6.28 + 2.09) * 0.35 + 0.35 => float sG;
-        Math.sin(pitchNorm * 6.28 + 4.19) * 0.4 + 0.5 => float sB;
-        // shape life = 4.7s to match sine ADSR (1.2s atk + 3.5s dec)
-        // size proportional to note amplitude
-        spawnRp(
-            Math.random2f(-halfW * 0.8, halfW * 0.8),
-            Math.random2f(-halfH * 0.7, halfH * 0.7),
-            Math.random2f(-0.03, 0.03), Math.random2f(-0.02, 0.03),
-            sR * bright * 0.15, sG * bright * 0.15, sB * bright * 0.15,
-            0.3 + amp * 2.0,
-            4.7,
-            Math.random2f(0.3, 0.9)
-        );
-    }
+    // reset spawn counters (audio shreds still increment these)
+    0 => spawnKick;
+    0 => sineSpawnCount;
     0 => spawnSine;
-
-    // bird: dramatic golden streaks
-    while( spawnBird > 0 ) {
-        Math.random2f(-halfW * 0.7, halfW * 0.7) => float bx;
-        Math.random2f(-halfH * 0.3, halfH * 0.7) => float by;
-        for( 0 => int bj; bj < 3; bj++ ) {
-            Math.random2f(0.0, 6.28) => float bAng;
-            spawnStreak(
-                bx + Math.random2f(-0.3, 0.3), by + Math.random2f(-0.2, 0.2),
-                Math.cos(bAng) * Math.random2f(0.5, 1.8),
-                Math.sin(bAng) * Math.random2f(0.3, 1.2),
-                Math.random2f(0.9, 1.0), Math.random2f(0.75, 0.95), Math.random2f(0.05, 0.3),
-                Math.random2f(0.1, 0.35), Math.random2f(1.0, 2.5)
-            );
-        }
-        spawnBird - 1 => spawnBird;
-    }
-
-    // thunder: massive dark shapes in background
-    while( spawnThunder > 0 ) {
-        for( 0 => int j; j < 3; j++ ) {
-            spawnRp(
-                Math.random2f(-halfW, halfW), Math.random2f(-halfH, halfH * 0.5),
-                Math.random2f(-0.03, 0.03), Math.random2f(-0.01, 0.04),
-                Math.random2f(0.02, 0.06), Math.random2f(0.01, 0.04), Math.random2f(0.04, 0.1),
-                Math.random2f(1.5, 4.0), Math.random2f(6.0, 14.0),
-                Math.random2f(0.5, 1.0)
-            );
-        }
-        spawnThunder - 1 => spawnThunder;
-    }
+    0 => spawnBird;
+    0 => spawnThunder;
 
     // rain: 1:1 audio drop -> visual drop
     while( rainDropCount > 0 ) {
@@ -1321,139 +1116,9 @@ while( true ) {
         );
     }
 
-    // pluck: triangles across the screen
-    while( spawnPluck > 0 ) {
-        if( pluckSpawnCount > 0 ) {
-            pluckSpawnCount - 1 => pluckSpawnCount;
-            pluckSpawnFreq[pluckSpawnCount] / 2000.0 => float fNorm;
-            if( fNorm > 1.0 ) 1.0 => fNorm;
-            0.4 + fNorm * 0.6 => float bright;
-            // elongated triangle shape
-            spawnRp(
-                Math.random2f(-halfW * 0.9, halfW * 0.9),
-                Math.random2f(-halfH * 0.8, halfH * 0.8),
-                Math.random2f(-0.4, 0.4), Math.random2f(0.1, 0.6),
-                0.75 * bright, 0.25 * bright, 0.9 * bright,
-                Math.random2f(0.08, 0.2), Math.random2f(0.4, 1.0),
-                Math.random2f(0.15, 0.3)
-            );
-        }
-        spawnPluck - 1 => spawnPluck;
-    }
-
-    // ambient background particles
-    if( frameCount % 5 == 0 ) {
-        Math.random2f(0.0, 6.28) => float hue;
-        0.06 + 0.14 * Math.max(0.0, Math.sin(hue)) => float ar;
-        0.04 + 0.12 * Math.max(0.0, Math.sin(hue + 2.09)) => float ag;
-        0.05 + 0.13 * Math.max(0.0, Math.sin(hue + 4.19)) => float ab;
-        spawnAny(
-            Math.random2f(-halfW, halfW), Math.random2f(-halfH, halfH),
-            Math.random2f(-0.05, 0.05), Math.random2f(0.01, 0.07),
-            ar, ag, ab,
-            Math.random2f(0.04, 0.15), Math.random2f(4.0, 9.0),
-            Math.random2f(0.4, 1.0)
-        );
-    }
-
-    // border flowers - grow from bottom
-    if( frameCount % 45 == 0 ) {
-        flHead => int fi;
-        (flHead + 1) % 16 => flHead;
-        Math.random2f(3.0, 6.0) => flMaxLife[fi];
-        flMaxLife[fi] => flLife[fi];
-        Math.random2f(-halfW * 0.95, halfW * 0.95) => flX[fi];
-        -halfH * 0.95 => flY[fi];
-        Math.random2f(0.03, 0.08) => flSz[fi];
-        Math.random2f(0.0, 6.28) => float fHue;
-        0.3 + 0.5 * Math.max(0.0, Math.sin(fHue)) => flR[fi];
-        0.2 + 0.4 * Math.max(0.0, Math.sin(fHue + 2.09)) => flG[fi];
-        0.3 + 0.5 * Math.max(0.0, Math.sin(fHue + 4.19)) => flB[fi];
-    }
-
-    // side sparkles
-    if( frameCount % 30 == 0 ) {
-        spHead => int si;
-        (spHead + 1) % 12 => spHead;
-        Math.random2f(1.5, 3.0) => spMaxLife[si];
-        spMaxLife[si] => spLife[si];
-        if( Math.random2f(0.0, 1.0) < 0.5 )
-            -halfW * Math.random2f(0.85, 1.0) => spX[si];
-        else
-            halfW * Math.random2f(0.85, 1.0) => spX[si];
-        Math.random2f(-halfH * 0.8, halfH * 0.8) => spY[si];
-        Math.random2f(0.02, 0.05) => spSz[si];
-        Math.random2f(-0.3, 0.3) => spVY[si];
-    }
-
-    // kick ring
-    duck * 4.0 => float ringScale;
-    kickRing.sca( ringScale );
-    kickRing.color( @(0.08 * duck, 0.01 * duck, 0.15 * duck) );
-
-    // update circle particles
-    for( 0 => int i; i < 40; i++ ) {
-        if( pLife[i] > 0.0 ) {
-            pLife[i] - dt => pLife[i];
-            if( pLife[i] <= 0.0 ) {
-                0.0 => pLife[i];
-                pCirc[i].sca( 0.0 );
-            } else {
-                pX[i] + pVX[i] * dt => pX[i];
-                pY[i] + pVY[i] * dt => pY[i];
-                pLife[i] / pMaxLife[i] => float alpha;
-                alpha => float szMul;
-                if( alpha > 0.85 ) (1.0 - alpha) / 0.15 => szMul;
-                szMul * scPulse => szMul;
-                alpha * scBright => float bright;
-                if( bright > 1.0 ) 1.0 => bright;
-                pCirc[i].posX( pX[i] );
-                pCirc[i].posY( pY[i] );
-                pSz[i] * szMul => float finalSz;
-                if( pAspect[i] < 0.8 ) {
-                    pCirc[i].scaX( finalSz * pAspect[i] );
-                    pCirc[i].scaY( finalSz );
-                    pCirc[i].rotZ( pRotZ[i] );
-                } else {
-                    pCirc[i].sca( finalSz );
-                }
-                pCirc[i].color( @(pR[i] * bright, pG[i] * bright, pB[i] * bright) );
-            }
-        }
-    }
-
-    // update plane particles (sine shapes etc)
-    for( 0 => int j; j < 20; j++ ) {
-        40 + j => int i;
-        if( pLife[i] > 0.0 ) {
-            pLife[i] - dt => pLife[i];
-            if( pLife[i] <= 0.0 ) {
-                0.0 => pLife[i];
-                pRect[j].sca( 0.0 );
-            } else {
-                pX[i] + pVX[i] * dt => pX[i];
-                pY[i] + pVY[i] * dt => pY[i];
-                pLife[i] / pMaxLife[i] => float alpha;
-                alpha => float szMul;
-                if( alpha > 0.85 ) (1.0 - alpha) / 0.15 => szMul;
-                szMul * scPulse => szMul;
-                alpha * scBright => float bright;
-                if( bright > 1.0 ) 1.0 => bright;
-                pRect[j].posX( pX[i] );
-                pRect[j].posY( pY[i] );
-                pSz[i] * szMul => float finalSz;
-                if( pAspect[i] < 0.8 ) {
-                    pRect[j].scaX( finalSz * pAspect[i] );
-                    pRect[j].scaY( finalSz );
-                    pRect[j].rotZ( pRotZ[i] + globalTime * 0.1 );
-                } else {
-                    pRect[j].sca( finalSz * 0.8 );
-                    pRect[j].rotZ( pRotZ[i] + globalTime * 0.15 );
-                }
-                pRect[j].color( @(pR[i] * bright, pG[i] * bright, pB[i] * bright) );
-            }
-        }
-    }
+    // reset remaining spawn counters
+    0 => spawnPluck;
+    0 => pluckSpawnCount;
 
     // update rain drops - fall far down screen
     for( 0 => int i; i < 128; i++ ) {
@@ -1478,120 +1143,11 @@ while( true ) {
         }
     }
 
-    // update bg shapes - fade color from black, size stays fixed
-    gThunderMacro * 0.02 => float thColorBoost;
-    for( 0 => int i; i < 36; i++ ) {
-        bpLife[i] - dt => bpLife[i];
-        if( bpLife[i] <= 0.0 ) {
-            // respawn - new position, color, aspect
-            Math.random2f(10.0, 30.0) => bpMaxLife[i];
-            bpMaxLife[i] => bpLife[i];
-            Math.random2f(-halfW, halfW) => bpX[i];
-            Math.random2f(-halfH, halfH) => bpY[i];
-            Math.random2f(-0.008, 0.008) => bpVX[i];
-            Math.random2f(-0.006, 0.006) => bpVY[i];
-            Math.random2f(-0.1, 0.1) => bpRotSpd[i];
-            Math.random2f(1.8, 5.5) => bpBaseSca[i];
-            if( i < 12 ) {
-                Math.random2f(0.5, 1.3) => bpAspX[i];
-                Math.random2f(0.5, 1.3) => bpAspY[i];
-            } else if( i < 24 ) {
-                Math.random2f(0.3, 1.5) => bpAspX[i];
-                Math.random2f(0.3, 1.5) => bpAspY[i];
-            } else {
-                if( Math.random2f(0.0, 1.0) < 0.5 ) {
-                    Math.random2f(0.05, 0.2) => bpAspX[i];
-                    Math.random2f(0.8, 2.0) => bpAspY[i];
-                } else {
-                    Math.random2f(0.8, 2.0) => bpAspX[i];
-                    Math.random2f(0.05, 0.2) => bpAspY[i];
-                }
-            }
-            Math.random2f(0.0, 6.28) => float h;
-            0.015 + 0.03 * Math.max(0.0, Math.sin(h)) => bpR[i];
-            0.012 + 0.025 * Math.max(0.0, Math.sin(h + 2.09)) => bpG[i];
-            0.015 + 0.035 * Math.max(0.0, Math.sin(h + 4.19)) => bpB[i];
-        }
-        bpPhase[i] + dt * 0.2 => bpPhase[i];
-        bpX[i] + bpVX[i] * dt => bpX[i];
-        bpY[i] + bpVY[i] * dt => bpY[i];
-        // fade color from black -> color -> black
-        bpLife[i] / bpMaxLife[i] => float lifeRatio;
-        1.0 - lifeRatio => float age;
-        1.0 => float fade;
-        if( age < 0.15 ) age / 0.15 => fade;
-        if( lifeRatio < 0.15 ) lifeRatio / 0.15 => fade;
-
-        bpR[i] * fade + thColorBoost * 0.3 * fade => float cr;
-        bpG[i] * fade + Math.sin(bpPhase[i] + 2.0) * 0.008 * fade => float cg;
-        bpB[i] * fade + thColorBoost * 0.2 * fade => float cb;
-
-        if( i < 12 ) {
-            bgCirc[i].posX( bpX[i] );
-            bgCirc[i].posY( bpY[i] );
-            bgCirc[i].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
-            bgCirc[i].scaX( bpBaseSca[i] * bpAspX[i] );
-            bgCirc[i].scaY( bpBaseSca[i] * bpAspY[i] );
-            bgCirc[i].color( @(cr, cg, cb) );
-        } else {
-            bgRect[i-12].posX( bpX[i] );
-            bgRect[i-12].posY( bpY[i] );
-            bgRect[i-12].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
-            bgRect[i-12].scaX( bpBaseSca[i] * bpAspX[i] );
-            bgRect[i-12].scaY( bpBaseSca[i] * bpAspY[i] );
-            bgRect[i-12].color( @(cr, cg, cb) );
-        }
-    }
-
-    // update flowers
-    for( 0 => int i; i < 16; i++ ) {
-        if( flLife[i] > 0.0 ) {
-            flLife[i] - dt => flLife[i];
-            if( flLife[i] <= 0.0 ) {
-                0.0 => flLife[i];
-                flower[i].sca( 0.0 );
-            } else {
-                flLife[i] / flMaxLife[i] => float lifeRatio;
-                1.0 - lifeRatio => float age;
-                // grow in, hold, shrink out
-                0.0 => float sz;
-                if( age < 0.3 ) (age / 0.3) * flSz[i] => sz;
-                else if( lifeRatio < 0.25 ) (lifeRatio / 0.25) * flSz[i] => sz;
-                else flSz[i] => sz;
-                flower[i].posX( flX[i] );
-                flower[i].posY( flY[i] + sz * 0.5 );
-                flower[i].sca( sz );
-                flower[i].color( @(flR[i] * 0.5, flG[i] * 0.5, flB[i] * 0.5) );
-            }
-        }
-    }
-
-    // update sparkles
-    for( 0 => int i; i < 12; i++ ) {
-        if( spLife[i] > 0.0 ) {
-            spLife[i] - dt => spLife[i];
-            if( spLife[i] <= 0.0 ) {
-                0.0 => spLife[i];
-                sparkle[i].sca( 0.0 );
-            } else {
-                spY[i] + spVY[i] * dt => spY[i];
-                spLife[i] / spMaxLife[i] => float alpha;
-                // twinkle
-                Math.sin(globalTime * 8.0 + i * 1.5) * 0.5 + 0.5 => float twinkle;
-                sparkle[i].posX( spX[i] );
-                sparkle[i].posY( spY[i] );
-                sparkle[i].sca( spSz[i] * alpha * (0.5 + twinkle * 0.5) );
-                alpha * twinkle => float sb;
-                sparkle[i].color( @(0.7 * sb, 0.7 * sb, 0.9 * sb) );
-            }
-        }
-    }
-
-    // background color - no wave teal
+    // background color — simplified (no thColorBoost since bg shapes disabled)
     bg.color( @(
-        0.012 + duck * 0.003 + thColorBoost * 0.15,
+        0.012 + duck * 0.003,
         0.012 + duck * 0.002,
-        0.025 + duck * 0.005 + thColorBoost * 0.2
+        0.025 + duck * 0.005
     ) );
 
     // control orbs - all fixed size, no growing/shrinking
