@@ -68,6 +68,43 @@
             white-space: pre-wrap;
             word-break: break-word;
         }
+
+        #tap-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.85);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #tap-overlay.show { display: flex; }
+        #tap-overlay .tap-ring {
+            width: 100px; height: 100px;
+            border: 1.5px solid rgba(255,255,255,0.15);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            animation: tapPulse 2s ease-in-out infinite;
+        }
+        #tap-overlay .tap-icon {
+            font-size: 1.6rem;
+            color: rgba(255,255,255,0.5);
+            letter-spacing: 1px;
+        }
+        #tap-overlay .tap-label {
+            margin-top: 18px;
+            font-size: 0.6rem;
+            letter-spacing: 3px;
+            color: rgba(255,255,255,0.2);
+            text-transform: uppercase;
+        }
+        @keyframes tapPulse {
+            0%, 100% { transform: scale(1); border-color: rgba(255,255,255,0.15); }
+            50% { transform: scale(1.08); border-color: rgba(255,255,255,0.3); }
+        }
     </style>
     <title>CIESEN</title>
 </head>
@@ -75,11 +112,18 @@
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     <a href="index.html" class="home-button">&#8962;</a>
     <div id="status">Loading CIESEN</div>
+    <div id="tap-overlay">
+        <div class="tap-ring">
+            <span class="tap-icon">&#9654;</span>
+        </div>
+        <div class="tap-label">tap to start audio</div>
+    </div>
     <div id="chuck-output"></div>
 
     <script type="module">
-        const statusEl = document.getElementById('status');
-        const outputEl = document.getElementById('chuck-output');
+        const statusEl  = document.getElementById('status');
+        const outputEl  = document.getElementById('chuck-output');
+        const tapOverlay = document.getElementById('tap-overlay');
 
         // cycling dots
         let dotCount = 0;
@@ -103,7 +147,6 @@
             statusEl.textContent = msg;
         }
 
-        // promise with timeout
         function withTimeout(promise, ms, msg) {
             return Promise.race([
                 promise,
@@ -111,18 +154,21 @@
             ]);
         }
 
-        // iOS audio unlock: intercept AudioContext constructor BEFORE ChuGL loads.
-        // WebChuGL creates its AudioContext internally (in WASM/closure) where we
-        // can't reach it via property names. By monkey-patching the constructor,
-        // we capture every AudioContext created on this page so we can resume them
-        // on user gesture.
+        // ── iOS Safari audio unlock ──────────────────────────────────
+        // iOS 17+ requires touchend (NOT touchstart) to unlock audio.
+        // Must play a silent buffer AND call resume() together (Howler/Tone pattern).
+        // Safari has a non-standard "interrupted" state we must handle.
+
         const _capturedContexts = [];
+        let _audioUnlocked = false;
         const _OrigAC = window.AudioContext || window.webkitAudioContext;
+
+        // Monkey-patch AudioContext constructor to capture contexts created in WASM
         if (_OrigAC) {
             function PatchedAC() {
                 const ctx = new _OrigAC();
                 _capturedContexts.push(ctx);
-                console.log('[CIESEN] captured AudioContext', ctx.state);
+                console.log('[CIESEN] captured AudioContext, state:', ctx.state);
                 return ctx;
             }
             PatchedAC.prototype = _OrigAC.prototype;
@@ -130,32 +176,75 @@
             if (window.webkitAudioContext) window.webkitAudioContext = PatchedAC;
         }
 
-        function resumeAllAudio() {
-            for (const ctx of _capturedContexts) {
-                if (ctx.state === 'suspended') {
-                    ctx.resume().then(() => log('audio context resumed'));
-                }
-            }
+        // The real unlock: silent buffer + resume (Howler.js / Tone.js proven pattern)
+        function unlockAudioContext(ctx) {
+            if (!ctx || ctx.state === 'running') return Promise.resolve();
+            return new Promise(resolve => {
+                // Play a silent buffer — this is what actually unlocks on iOS
+                const buffer = ctx.createBuffer(1, 1, ctx.sampleRate || 22050);
+                const source = ctx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(ctx.destination);
+                source.start(0);
+                source.onended = () => {
+                    source.disconnect();
+                };
+                // Also call resume — handles both suspended AND Safari's "interrupted" state
+                ctx.resume().then(() => {
+                    log('ctx unlocked: ' + ctx.state);
+                    resolve();
+                }).catch(() => resolve());
+            });
         }
 
-        // Register EARLY — captures taps during the loading screen
-        ['touchstart', 'touchend', 'click', 'keydown'].forEach(ev =>
-            document.addEventListener(ev, resumeAllAudio, { capture: true })
+        function unlockAll() {
+            const promises = _capturedContexts.map(ctx => unlockAudioContext(ctx));
+            Promise.all(promises).then(() => {
+                const allRunning = _capturedContexts.every(c => c.state === 'running');
+                if (allRunning && _capturedContexts.length > 0) {
+                    _audioUnlocked = true;
+                    tapOverlay.classList.remove('show');
+                    log('all audio unlocked');
+                    // Clean up gesture listeners once unlocked
+                    _unlockEvents.forEach(ev =>
+                        document.removeEventListener(ev, _onGesture, true)
+                    );
+                }
+            });
+        }
+
+        function _onGesture() { unlockAll(); }
+
+        // iOS 17+: touchend is the reliable unlock event, NOT touchstart.
+        // touchstart can actually interfere. Use touchend + click + keydown.
+        const _unlockEvents = ['touchend', 'click', 'keydown'];
+        _unlockEvents.forEach(ev =>
+            document.addEventListener(ev, _onGesture, { capture: true })
         );
+
+        // Handle Safari's "interrupted" state — happens on tab switch / screen lock.
+        // Re-resume when page becomes visible again.
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                _capturedContexts.forEach(ctx => {
+                    if (ctx.state !== 'running') {
+                        ctx.resume().then(() => log('resumed after visibility change'));
+                    }
+                });
+            }
+        });
 
         if (location.protocol === 'file:') {
             fail('requires HTTP server\n\nnpx serve .\nthen open http://localhost:PORT/ciesen.html');
         } else {
             (async () => {
                 try {
-                    // import with 15s timeout
                     const { default: ChuGL } = await withTimeout(
                         import('https://cdn.jsdelivr.net/npm/webchugl/+esm'),
                         15000,
                         'CDN import timed out — check network connection'
                     );
 
-                    // init with 30s timeout — catches iOS service worker hang
                     const ck = await withTimeout(
                         ChuGL.init({
                             canvas: document.getElementById('canvas'),
@@ -189,21 +278,46 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // Resume audio — WebChucK extends AudioWorkletNode so ck.context
-                    // is the AudioContext (inherited). Also resume any monkey-patched captures.
-                    log('captured ' + _capturedContexts.length + ' AudioContext(s)');
-                    if (ck.context && ck.context.state === 'suspended') {
-                        log('ck.context found (' + ck.context.state + ')');
-                        // Also add it to captured list for gesture-based resume
-                        if (!_capturedContexts.includes(ck.context)) {
-                            _capturedContexts.push(ck.context);
+                    // Get the actual AudioContext from WebChucK.
+                    // ck.audioContext (getter) or ck.context (inherited AudioWorkletNode)
+                    const ckCtx = ck.audioContext || ck.context;
+                    log('captured ' + _capturedContexts.length + ' ctx(s)');
+                    if (ckCtx) {
+                        log('ck audio: ' + ckCtx.state);
+                        if (!_capturedContexts.includes(ckCtx)) {
+                            _capturedContexts.push(ckCtx);
                         }
+                        // Watch for Safari "interrupted" → auto-resume
+                        ckCtx.onstatechange = () => {
+                            log('ctx state: ' + ckCtx.state);
+                            if (ckCtx.state === 'interrupted') {
+                                ckCtx.resume().then(() => log('resumed from interrupted'));
+                            }
+                        };
                     }
-                    resumeAllAudio();
-                    const anySuspended = _capturedContexts.some(c => c.state === 'suspended');
-                    if (anySuspended) log('tap screen for audio');
 
-                    // prevent iOS rubber-banding on canvas
+                    // Try immediate unlock (works on desktop, may work if user already tapped)
+                    unlockAll();
+
+                    // If still suspended, show the tap overlay
+                    setTimeout(() => {
+                        const needsUnlock = _capturedContexts.some(c => c.state !== 'running');
+                        if (needsUnlock) {
+                            tapOverlay.classList.add('show');
+                            log('tap overlay shown — waiting for gesture');
+                        }
+                    }, 300);
+
+                    // Tap overlay handler — dedicated unlock on direct tap
+                    tapOverlay.addEventListener('touchend', (e) => {
+                        e.preventDefault();
+                        unlockAll();
+                    });
+                    tapOverlay.addEventListener('click', () => {
+                        unlockAll();
+                    });
+
+                    // Prevent iOS rubber-banding on canvas
                     document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
                 } catch (err) {
