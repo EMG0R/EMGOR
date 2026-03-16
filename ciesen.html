@@ -167,13 +167,14 @@
         let _hasUserGesture = false;
         const _OrigAC = window.AudioContext || window.webkitAudioContext;
 
-        // Monkey-patch to intercept AudioContext created inside WASM/closures
+        // Monkey-patch to intercept AudioContext created inside WASM/closures.
+        // MUST forward constructor arguments — WebChuGL passes
+        // {sampleRate, latencyHint:'interactive'} which are critical.
         if (_OrigAC) {
-            const Patched = function() {
-                const ctx = new _OrigAC();
+            const Patched = function(...args) {
+                const ctx = new _OrigAC(...args);
                 _allContexts.push(ctx);
-                console.log('[CIESEN] captured ctx:', ctx.state);
-                // If user already tapped during loading, resume immediately
+                console.log('[CIESEN] captured ctx:', ctx.state, 'sr:', ctx.sampleRate);
                 if (_hasUserGesture && ctx.state === 'suspended') {
                     ctx.resume().then(() => console.log('[CIESEN] auto-resumed new ctx'));
                 }
@@ -184,6 +185,9 @@
             if (window.webkitAudioContext) window.webkitAudioContext = Patched;
         }
 
+        // The ck instance — set after init, used by resumeAll to reconnect audio node
+        let _ck = null;
+
         // Resume all known contexts — called ONLY from gesture handlers
         function resumeAll() {
             _hasUserGesture = true;
@@ -193,11 +197,31 @@
                     pending++;
                     ctx.resume().then(() => {
                         log('resumed: ' + ctx.state);
+                        // After resume, reconnect audio node to destination.
+                        // iOS Safari may drop AudioWorkletNode connections
+                        // when context transitions from suspended → running.
+                        reconnectAudioNode();
                         checkAllRunning();
                     });
                 }
             }
-            if (pending === 0) checkAllRunning();
+            if (pending === 0) {
+                reconnectAudioNode();
+                checkAllRunning();
+            }
+        }
+
+        function reconnectAudioNode() {
+            if (!_ck) return;
+            const node = _ck.audioNode;
+            const ctx  = _ck.audioContext;
+            if (node && ctx) {
+                try {
+                    node.disconnect();
+                } catch(e) { /* may not be connected */ }
+                node.connect(ctx.destination);
+                log('node reconnected');
+            }
         }
 
         function checkAllRunning() {
@@ -207,7 +231,6 @@
                 _audioUnlocked = true;
                 tapOverlay.classList.remove('show');
                 log('audio unlocked');
-                // Clean up — no more gesture listeners needed
                 ['touchend', 'click', 'keydown'].forEach(ev =>
                     document.removeEventListener(ev, resumeAll, true)
                 );
@@ -274,27 +297,34 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // Grab AudioContext directly from WebChucK as backup
-                    // (in case WASM bypassed our monkey-patch)
-                    const ckCtx = ck.audioContext || ck.context;
+                    // Store ck for reconnectAudioNode()
+                    _ck = ck;
+
+                    // Grab AudioContext directly from WebChuGL
+                    const ckCtx  = ck.audioContext;
+                    const ckNode = ck.audioNode;
+                    log('audioContext: ' + (ckCtx ? ckCtx.state + ' sr:' + ckCtx.sampleRate : 'null'));
+                    log('audioNode: ' + (ckNode ? 'exists' : 'NULL'));
+
+                    // Add to tracked contexts (backup if monkey-patch missed it)
                     if (ckCtx && !_allContexts.includes(ckCtx)) {
                         _allContexts.push(ckCtx);
-                        log('added ck ctx directly: ' + ckCtx.state);
+                        log('added ck ctx directly');
                     }
-                    log(_allContexts.length + ' ctx(s), states: ' +
+                    log(_allContexts.length + ' ctx(s): ' +
                         _allContexts.map(c => c.state).join(', '));
 
                     // Safari interrupted handler
                     if (ckCtx) {
                         ckCtx.onstatechange = () => {
-                            log('state change: ' + ckCtx.state);
-                            if (ckCtx.state === 'interrupted') {
-                                ckCtx.resume();
+                            log('state: ' + ckCtx.state);
+                            if (ckCtx.state === 'interrupted' || ckCtx.state === 'suspended') {
+                                ckCtx.resume().then(() => reconnectAudioNode());
                             }
                         };
                     }
 
-                    // On desktop, context may already be running — check now
+                    // On desktop, context may already be running
                     if (_hasUserGesture) resumeAll();
                     checkAllRunning();
 
