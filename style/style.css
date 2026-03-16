@@ -280,25 +280,33 @@ html, body {
 
 
 .home-button {
-    position: fixed; /* Ensures the button stays stationary relative to the viewport */
-    top: 20px; /* Distance from the top of the viewport */
-    left: 20px; /* Distance from the left of the viewport */
-    background-color: var(--purple-mid); /* Slightly darker shade */
-    color: white; /* Text color */
-    padding: 7px; /* Inner spacing for the button */
-    font-size: 27px; /* Font size of the button's text */
-    text-decoration: none; /* Remove underline from text */
-    border-radius: 50%; /* Make the button circular */
-    cursor: pointer; /* Change cursor to pointer on hover */
-    z-index: 1000; /* Ensure it stays above all other elements */
-    display: flex; /* Center text/icon inside the button */
-    align-items: center; /* Vertical centering */
-    justify-content: center; /* Horizontal centering */
-    width: 40px; /* Fixed width */
-    height: 40px; /* Fixed height */
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background-color: var(--purple-mid);
+    color: white;
+    padding: 7px;
+    font-size: 27px;
+    text-decoration: none;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    /* Touch-friendly: Apple recommends 44x44 minimum tap target */
+    -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
+    touch-action: manipulation;
 }
 
-.home-button:hover {
+@media (hover: hover) {
+    .home-button:hover {
+        background-color: var(--purple-light);
+    }
+}
+.home-button:active {
     background-color: var(--purple-light);
 }
 
@@ -376,7 +384,7 @@ p {
 /* Navigation Button Styles */
 .navigation-button {
     text-decoration: none;
-    padding: 8px 16px;
+    padding: 12px 20px;
     font-size: 0.9rem;
     color: var(--white, #ffffff);
     background-color: var(--purple-dark);
@@ -389,6 +397,11 @@ p {
     opacity: 0; /* Initially hidden */
     transform: translateY(20px);
     animation: fadeInDelayed 1s ease forwards;
+    /* Touch-friendly: prevent iOS tap delays and ensure clickability */
+    -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
+    touch-action: manipulation;
+    cursor: pointer;
+    position: relative;
 }
 
 /* Staggered Animation Delay */

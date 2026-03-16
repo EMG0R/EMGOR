@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
     <link rel="stylesheet" href="style/style.css">
     <style>
@@ -24,9 +24,17 @@
             font-family: 'Courier New', Courier, monospace;
             transition: background-color 0.3s ease;
         }
-        .synth-box:hover { background-color: var(--purple-mid); }
-        /* Force content above canvas layer */
-        h1, .synth-hub { position: relative; z-index: 1; }
+        @media (hover: hover) {
+            .synth-box:hover { background-color: var(--purple-mid); }
+        }
+        .synth-box:active { background-color: var(--purple-mid); }
+        .synth-box {
+            -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
+            touch-action: manipulation;
+            cursor: pointer;
+        }
+        /* Force content above canvas AND star physics (z-index:50) */
+        h1, .synth-hub { position: relative; z-index: 60; }
         .synth-hub {
             display: flex;
             flex-direction: column;

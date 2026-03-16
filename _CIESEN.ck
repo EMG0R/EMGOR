@@ -368,7 +368,7 @@ fun void kickLoop() {
         bpm => gBPM;
 
         if( m > 0.0 ) {
-            vol * 0.30 => kickOut.gain;
+            vol * 0.36 => kickOut.gain;
             kickBodyEnv.keyOn();
             kickSubEnv.keyOn();
             vol => scEnv;
@@ -733,8 +733,8 @@ fun void thunderLoop() {
                         cutoff => thunderLPF[ch].freq;
                         0.707 + Math.random2f(0.0, 0.3) => thunderLPF[ch].Q;
                         g * vol * 0.94 * gScMult => thunderGain[ch].gain;
-                        // no mid layer - pure low rumble
-                        0.0 => thunderMidGain[ch].gain;
+                        // mid layer at 350Hz for phone speaker audibility
+                        g * vol * 0.45 * gScMult => thunderMidGain[ch].gain;
                     } else {
                         0 => thSweeping[ch];
                         0.0 => thunderGain[ch].gain;
@@ -866,10 +866,10 @@ GWindow.windowed( 1100, 700 );
 GG.camera().posZ( 6.0 );
 
 GG.bloom( 1 );
-GG.bloomPass().intensity( 3.5 );
-GG.bloomPass().radius( 0.95 );
+GG.bloomPass().intensity( 2.0 );
+GG.bloomPass().radius( 0.65 );
 GG.bloomPass().threshold( 0.0 );
-GG.bloomPass().levels( 10 );
+GG.bloomPass().levels( 4 );
 
 // background plane
 GPlane bg --> GG.scene();
@@ -1342,7 +1342,7 @@ while( true ) {
     }
 
     // ambient background particles
-    if( frameCount % 3 == 0 ) {
+    if( frameCount % 5 == 0 ) {
         Math.random2f(0.0, 6.28) => float hue;
         0.06 + 0.14 * Math.max(0.0, Math.sin(hue)) => float ar;
         0.04 + 0.12 * Math.max(0.0, Math.sin(hue + 2.09)) => float ag;
@@ -1357,7 +1357,7 @@ while( true ) {
     }
 
     // border flowers - grow from bottom
-    if( frameCount % 30 == 0 ) {
+    if( frameCount % 45 == 0 ) {
         flHead => int fi;
         (flHead + 1) % 16 => flHead;
         Math.random2f(3.0, 6.0) => flMaxLife[fi];
@@ -1372,7 +1372,7 @@ while( true ) {
     }
 
     // side sparkles
-    if( frameCount % 20 == 0 ) {
+    if( frameCount % 30 == 0 ) {
         spHead => int si;
         (spHead + 1) % 12 => spHead;
         Math.random2f(1.5, 3.0) => spMaxLife[si];

@@ -157,6 +157,44 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
+                    // iOS audio unlock — resume any suspended AudioContext on user gesture
+                    // iOS Safari blocks audio until a touch/click event fires
+                    function unlockAudio() {
+                        // try known properties on ck object
+                        for (const prop of ['audioContext', 'context', '_audioContext', '_context']) {
+                            const ctx = ck[prop];
+                            if (ctx && typeof ctx.resume === 'function' && ctx.state === 'suspended') {
+                                ctx.resume();
+                                log('audio resumed');
+                            }
+                        }
+                        // walk ck properties to find any AudioContext
+                        try {
+                            for (const key of Object.keys(ck)) {
+                                const v = ck[key];
+                                if (v && v instanceof AudioContext && v.state === 'suspended') {
+                                    v.resume();
+                                }
+                            }
+                        } catch(e) {}
+                        // fallback: silent buffer trick to unlock iOS audio system
+                        try {
+                            const AC = window.AudioContext || window.webkitAudioContext;
+                            if (AC) {
+                                const tmp = new AC();
+                                const buf = tmp.createBuffer(1, 1, 22050);
+                                const src = tmp.createBufferSource();
+                                src.buffer = buf;
+                                src.connect(tmp.destination);
+                                src.start(0);
+                                tmp.resume();
+                            }
+                        } catch(e) {}
+                    }
+                    ['touchstart', 'click', 'keydown'].forEach(ev =>
+                        document.addEventListener(ev, unlockAudio, { once: true })
+                    );
+
                     // prevent iOS rubber-banding on canvas
                     document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
