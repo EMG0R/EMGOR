@@ -147,6 +147,32 @@
             mouse.mouseupPosition.y = e.clientY;
         });
 
+        // Touch support for mobile
+        function syncTouch(e) {
+            const t = e.touches[0] || e.changedTouches[0];
+            if (!t) return;
+            mouse.position.x = mouse.absolute.x = t.clientX;
+            mouse.position.y = mouse.absolute.y = t.clientY;
+        }
+        document.addEventListener('touchstart', e => {
+            const t = e.touches[0];
+            if (!t || !e.target.closest('.star-wrap')) return;
+            mouse.button = 0; syncTouch(e);
+            mouse.mousedownPosition.x = t.clientX;
+            mouse.mousedownPosition.y = t.clientY;
+        }, { passive: true });
+        document.addEventListener('touchmove', e => {
+            if (mouse.button !== 0) return;
+            syncTouch(e);
+        }, { passive: true });
+        document.addEventListener('touchend', e => {
+            const t = e.changedTouches[0];
+            if (!t) return;
+            mouse.button = -1; syncTouch(e);
+            mouse.mouseupPosition.x = t.clientX;
+            mouse.mouseupPosition.y = t.clientY;
+        }, { passive: true });
+
         const mc = MouseConstraint.create(engine, {
             mouse,
             constraint: { stiffness: 0.18, damping: 0.08, render: { visible: false } },

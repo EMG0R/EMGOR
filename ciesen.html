@@ -53,12 +53,6 @@
         }
         #status.hidden { opacity: 0; pointer-events: none; }
         #status.error { color: rgba(239,80,60,0.8); background: rgba(0,0,0,0.92); font-size: 0.65rem; }
-        #status .tap-hint {
-            margin-top: 1.2rem;
-            font-size: 0.6rem;
-            color: rgba(255,255,255,0.15);
-            display: none;
-        }
 
         #chuck-output {
             position: fixed;
@@ -80,25 +74,19 @@
 <body>
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     <a href="index.html" class="home-button">&#8962;</a>
-    <div id="status">
-        Loading CIESEN
-        <span class="tap-hint" id="tap-hint">tap to start audio</span>
-    </div>
+    <div id="status">Loading CIESEN</div>
     <div id="chuck-output"></div>
 
     <script type="module">
         const statusEl = document.getElementById('status');
         const outputEl = document.getElementById('chuck-output');
-        const tapHint  = document.getElementById('tap-hint');
 
         // cycling dots
         let dotCount = 0;
         const dotInterval = setInterval(() => {
             dotCount = (dotCount + 1) % 4;
             if (!statusEl.classList.contains('error') && !statusEl.classList.contains('hidden')) {
-                const dots = '.'.repeat(dotCount);
-                // preserve tap hint element
-                statusEl.childNodes[0].textContent = 'Loading CIESEN' + dots + '\n';
+                statusEl.textContent = 'Loading CIESEN' + '.'.repeat(dotCount);
             }
         }, 400);
 
@@ -109,77 +97,76 @@
             outputEl.scrollTop = outputEl.scrollHeight;
         }
 
-        // only block on file:// — everything else: try and let it fail
-        if (location.protocol === 'file:') {
+        function fail(msg) {
             clearInterval(dotInterval);
             statusEl.className = 'error';
-            statusEl.textContent = 'requires HTTP server\n\nnpx serve .\nthen open http://localhost:PORT/ciesen.html';
+            statusEl.textContent = msg;
+        }
+
+        // promise with timeout
+        function withTimeout(promise, ms, msg) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), ms))
+            ]);
+        }
+
+        if (location.protocol === 'file:') {
+            fail('requires HTTP server\n\nnpx serve .\nthen open http://localhost:PORT/ciesen.html');
         } else {
             (async () => {
                 try {
-                    const { default: ChuGL } = await import(
-                        'https://cdn.jsdelivr.net/npm/webchugl/+esm'
+                    // import with 15s timeout
+                    const { default: ChuGL } = await withTimeout(
+                        import('https://cdn.jsdelivr.net/npm/webchugl/+esm'),
+                        15000,
+                        'CDN import timed out — check network connection'
                     );
 
-                    const ck = await ChuGL.init({
-                        canvas: document.getElementById('canvas'),
-                        onError: (msg) => {
-                            console.error('[WebChuGL]', msg);
-                            log('[error] ' + msg);
-                        }
-                    });
+                    // init with 30s timeout — catches iOS service worker hang
+                    const ck = await withTimeout(
+                        ChuGL.init({
+                            canvas: document.getElementById('canvas'),
+                            onError: (msg) => {
+                                console.error('[WebChuGL]', msg);
+                                log('[error] ' + msg);
+                            }
+                        }),
+                        30000,
+                        'WebChuGL init timed out.\n\nThis usually means WebGPU is not available.\n\niOS: Settings > Safari > Feature Flags > WebGPU\nAndroid: use Chrome 113+\nDesktop: Chrome/Edge 113+'
+                    );
 
                     ck.chuckPrint = (msg) => {
                         console.log('[ChucK]', msg);
                         log(msg);
                     };
 
-                    const result = await ck.runFile('./_CIESEN.ck?v=' + Date.now());
+                    const result = await withTimeout(
+                        ck.runFile('./_CIESEN.ck?v=' + Date.now()),
+                        20000,
+                        'Loading _CIESEN.ck timed out'
+                    );
 
                     if (result && (result.error || result.shredId === 0)) {
                         let err = result.error || 'unknown error';
                         try { err = err || await ck.getLastError(); } catch(e) {}
-                        console.error('[ChucK]', err);
-                        clearInterval(dotInterval);
-                        statusEl.className = 'error';
-                        statusEl.textContent = 'compile error:\n\n' + err;
+                        fail('compile error:\n\n' + err);
                         return;
-                    }
-
-                    // success — check if audio needs a gesture (iOS)
-                    if (ck.audioContext && ck.audioContext.state === 'suspended') {
-                        tapHint.style.display = 'block';
-                        const resumeAudio = () => {
-                            ck.audioContext.resume();
-                            tapHint.style.display = 'none';
-                            document.removeEventListener('touchstart', resumeAudio);
-                            document.removeEventListener('click', resumeAudio);
-                        };
-                        document.addEventListener('touchstart', resumeAudio, { once: true });
-                        document.addEventListener('click', resumeAudio, { once: true });
                     }
 
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // prevent iOS rubber-banding and zoom on canvas
+                    // prevent iOS rubber-banding on canvas
                     document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
                 } catch (err) {
                     console.error('[CIESEN]', err);
-                    clearInterval(dotInterval);
                     let detail = err.message || String(err);
-
-                    // helpful context for common failures
-                    if (detail.includes('Failed to fetch') || detail.includes('NetworkError')) {
-                        detail += '\n\nserve via HTTP (npx serve .)';
-                    }
                     if (detail.includes('GPU') || detail.includes('gpu') || detail.includes('adapter')) {
-                        detail += '\n\nWebGPU not available on this device.\niOS: Settings > Safari > Feature Flags > WebGPU';
+                        detail += '\n\niOS: Settings > Safari > Feature Flags > WebGPU';
                     }
-
-                    statusEl.className = 'error';
-                    statusEl.textContent = detail;
+                    fail(detail);
                 }
             })();
         }

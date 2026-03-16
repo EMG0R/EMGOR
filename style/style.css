@@ -405,11 +405,20 @@ p {
     animation-delay: 0.8s;
 }
 
-/* Button Hover Effect */
-.navigation-button:hover {
+/* Button Hover Effect — only on devices with real hover (not touch) */
+@media (hover: hover) {
+    .navigation-button:hover {
+        background-color: var(--purple-light);
+        color: var(--white, #ffffff);
+        transform: translateY(0) scale(1.05);
+    }
+}
+
+/* Active state for touch feedback */
+.navigation-button:active {
     background-color: var(--purple-light);
     color: var(--white, #ffffff);
-    transform: translateY(0) scale(1.7);
+    transform: translateY(0) scale(0.97);
 }
 
 
