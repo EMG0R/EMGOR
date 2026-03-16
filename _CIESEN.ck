@@ -170,6 +170,7 @@ for( 0 => int i; i < 4; i++ ) {
 0.15 => float gRainMacro;
 
 // state
+0 => int bmaj7Suppress; // when 1, sineLoop + chordLoop stop triggering new notes
 0.0 => float scEnv;
 1.0 => float gScMult;
 0.0 => float scSmooth;
@@ -426,7 +427,7 @@ fun void sineLoop() {
             }
         }
 
-        if( m > 0.0 && now >= sineNextNote ) {
+        if( m > 0.0 && now >= sineNextNote && !bmaj7Suppress ) {
             // trigger more often
             if( Math.random2f(0.0, 1.0) < prob * 0.9 ) {
                 Math.random2(0, 39) => int noteIdx;
@@ -449,8 +450,8 @@ fun void sineLoop() {
 fun void chordLoop() {
     10::second => now; // initial wait
     while( true ) {
-        // always fire if sine macro > 0
-        if( gSineMacro > 0.0 ) {
+        // always fire if sine macro > 0 and not suppressed for bmaj7
+        if( gSineMacro > 0.0 && !bmaj7Suppress ) {
             gPitch => float pitch;
             // Cmaj7 chord tones: C(0) E(2) G(4) B(6) in each octave block of 8
             // fire 10-14 notes spread across octaves 2-5, bias high
@@ -469,30 +470,61 @@ fun void chordLoop() {
     }
 }
 
-// Bmaj7 chord burst — completely independent from chordLoop
-// Bmaj7 = B, D#, F#, A# across octaves 2-5
+// Bmaj7 chord burst — suppress other sine activity, let decays breathe, then hit
+// Bmaj7 = B, D#, F#, A# from octave 2 up to octave 7 for sparkle
 fun void bmaj7Loop() {
-    // raw frequencies for Bmaj7 chord tones
     [
-        123.47, 155.56, 185.00, 233.08,   // B2, D#3, F#3, A#3
-        246.94, 311.13, 369.99, 466.16,   // B3, D#4, F#4, A#4
-        493.88, 622.25, 739.99, 932.33,   // B4, D#5, F#5, A#5
-        987.77                             // B5
+        // low warmth
+        123.47, 155.56, 185.00, 233.08,    // B2, D#3, F#3, A#3
+        // mid body
+        246.94, 311.13, 369.99, 466.16,    // B3, D#4, F#4, A#4
+        // upper
+        493.88, 622.25, 739.99, 932.33,    // B4, D#5, F#5, A#5
+        // high shimmer
+        987.77, 1244.51, 1479.98, 1864.66, // B5, D#6, F#6, A#6
+        // sparkle top
+        1975.53, 2489.02                    // B6, D#7
     ] @=> float bmaj7[];
 
     12::second => now; // initial offset from chordLoop
     while( true ) {
         if( gSineMacro > 0.0 ) {
-            // fire 8-14 notes — big lush chord
-            Math.random2(8, 14) => int numNotes;
+            // 1. suppress normal sine + chord triggering
+            1 => bmaj7Suppress;
+
+            // 2. breathe — let existing notes decay
+            Math.random2f(2.0, 3.5)::second => now;
+
+            // 3. fire the Bmaj7 — big lush chord across full range
+            //    10-16 notes: a few low, mostly mid, a few high sparkles
+            Math.random2(10, 16) => int numNotes;
             for( 0 => int cn; cn < numNotes; cn++ ) {
-                // bias mid-high octaves (indices 4-12)
-                Math.random2(2, 12) => int idx;
+                0 => int idx;
+                Math.random2f(0.0, 1.0) => float roll;
+                if( roll < 0.15 )
+                    // low warmth (indices 0-3)
+                    Math.random2(0, 3) => idx;
+                else if( roll < 0.55 )
+                    // mid body (indices 4-7)
+                    Math.random2(4, 7) => idx;
+                else if( roll < 0.80 )
+                    // upper (indices 8-11)
+                    Math.random2(8, 11) => idx;
+                else if( roll < 0.93 )
+                    // high shimmer (indices 12-15)
+                    Math.random2(12, 15) => idx;
+                else
+                    // sparkle top (indices 16-17)
+                    Math.random2(16, 17) => idx;
                 triggerSineByFreq( bmaj7[idx], 0.95 );
             }
+
+            // 4. let the chord ring for a moment before resuming
+            1.5::second => now;
+            0 => bmaj7Suppress;
         }
-        // fire every 10-18 seconds — pretty often
-        Math.random2(10, 18)::second => now;
+        // fire every 12-20 seconds
+        Math.random2(12, 20)::second => now;
     }
 }
 
@@ -1202,7 +1234,7 @@ while( true ) {
         if( svActive[si] ) svAmp[si] * sineGainMul => sineAmp[si].gain;
     }
     Math.max(0.0, (gBirdMacro - 0.25) / 0.75) * 1.25 * gScMult => birdBus.gain;
-    1.1 * gScMult => rainBus.gain;
+    0.88 * gScMult => rainBus.gain;
     Math.max(0.0, (gPluckMacro - 0.25) / 0.75) * 1.2 * gScMult => pluckBus.gain;
 
     // sidechain visual (20% intensity)
