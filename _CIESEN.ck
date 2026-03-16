@@ -156,15 +156,16 @@ for( 0 => int i; i < 4; i++ ) {
 }
 
 // macros - each orb controls prob+vol merged
-0.0 => float gPitch;
-0.0 => float gKickMacro;
-120.0 => float gBPM;
-0.5 => float gSineMacro;
-0.0 => float gBirdMacro;
-0.5 => float gWavesMacro;
-0.0 => float gPluckMacro;
-0.0 => float gThunderMacro;
-0.0 => float gRainMacro;
+// initial values must match ctrlDefaults: pitch=0.46 kick=0.33 sin=0.75 bird=0.75 waves=0.80 arp=0.70 thunder=1.0 rain=0.20
+-0.96 => float gPitch;        // -12 + 0.46*24
+0.33 => float gKickMacro;
+135.0 => float gBPM;
+0.75 => float gSineMacro;
+0.75 => float gBirdMacro;
+0.80 => float gWavesMacro;
+0.70 => float gPluckMacro;
+1.0 => float gThunderMacro;
+0.20 => float gRainMacro;
 
 // state
 0.0 => float scEnv;
