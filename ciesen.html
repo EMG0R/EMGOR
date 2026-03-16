@@ -2,22 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #000; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
-        canvas { width: 100%; height: 100%; display: block; outline: none; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+        body { font-family: 'Courier New', Courier, monospace; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+            position: fixed;
+            top: 0; left: 0;
+        }
 
         .home-button {
             position: fixed;
-            top: 16px;
-            left: 16px;
+            top: max(16px, env(safe-area-inset-top));
+            left: max(16px, env(safe-area-inset-left));
             z-index: 100;
             font-size: 1.8rem;
             color: rgba(255,255,255,0.6);
             text-decoration: none;
             transition: color 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
         .home-button:hover { color: rgba(255,255,255,0.95); }
 
@@ -26,6 +38,7 @@
             inset: 0;
             z-index: 50;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             background: #000;
@@ -36,14 +49,21 @@
             white-space: pre-wrap;
             word-break: break-word;
             transition: opacity 0.8s;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
         #status.hidden { opacity: 0; pointer-events: none; }
-        #status.error { color: rgba(239,80,60,0.8); background: rgba(0,0,0,0.92); }
+        #status.error { color: rgba(239,80,60,0.8); background: rgba(0,0,0,0.92); font-size: 0.65rem; }
+        #status .tap-hint {
+            margin-top: 1.2rem;
+            font-size: 0.6rem;
+            color: rgba(255,255,255,0.15);
+            display: none;
+        }
 
         #chuck-output {
             position: fixed;
-            bottom: 8px;
-            left: 8px;
+            bottom: max(8px, env(safe-area-inset-bottom));
+            left: max(8px, env(safe-area-inset-left));
             z-index: 100;
             font-size: 0.58rem;
             color: rgba(255,255,255,0.18);
@@ -60,19 +80,25 @@
 <body>
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     <a href="index.html" class="home-button">&#8962;</a>
-    <div id="status">Loading CIESEN</div>
+    <div id="status">
+        Loading CIESEN
+        <span class="tap-hint" id="tap-hint">tap to start audio</span>
+    </div>
     <div id="chuck-output"></div>
 
     <script type="module">
         const statusEl = document.getElementById('status');
         const outputEl = document.getElementById('chuck-output');
+        const tapHint  = document.getElementById('tap-hint');
 
-        // cycling dots animation
+        // cycling dots
         let dotCount = 0;
         const dotInterval = setInterval(() => {
             dotCount = (dotCount + 1) % 4;
             if (!statusEl.classList.contains('error') && !statusEl.classList.contains('hidden')) {
-                statusEl.textContent = 'Loading CIESEN' + '.'.repeat(dotCount);
+                const dots = '.'.repeat(dotCount);
+                // preserve tap hint element
+                statusEl.childNodes[0].textContent = 'Loading CIESEN' + dots + '\n';
             }
         }, 400);
 
@@ -83,15 +109,12 @@
             outputEl.scrollTop = outputEl.scrollHeight;
         }
 
-        // preflight
+        // only block on file:// — everything else: try and let it fail
         if (location.protocol === 'file:') {
+            clearInterval(dotInterval);
             statusEl.className = 'error';
             statusEl.textContent = 'requires HTTP server\n\nnpx serve .\nthen open http://localhost:PORT/ciesen.html';
-        } else if (!navigator.gpu) {
-            statusEl.className = 'error';
-            statusEl.textContent = 'WebGPU not available\nUse Chrome 113+ or Edge 113+';
         } else {
-            // auto-init — same pattern as official WebChuGL examples
             (async () => {
                 try {
                     const { default: ChuGL } = await import(
@@ -117,19 +140,44 @@
                         let err = result.error || 'unknown error';
                         try { err = err || await ck.getLastError(); } catch(e) {}
                         console.error('[ChucK]', err);
+                        clearInterval(dotInterval);
                         statusEl.className = 'error';
                         statusEl.textContent = 'compile error:\n\n' + err;
                         return;
                     }
 
+                    // success — check if audio needs a gesture (iOS)
+                    if (ck.audioContext && ck.audioContext.state === 'suspended') {
+                        tapHint.style.display = 'block';
+                        const resumeAudio = () => {
+                            ck.audioContext.resume();
+                            tapHint.style.display = 'none';
+                            document.removeEventListener('touchstart', resumeAudio);
+                            document.removeEventListener('click', resumeAudio);
+                        };
+                        document.addEventListener('touchstart', resumeAudio, { once: true });
+                        document.addEventListener('click', resumeAudio, { once: true });
+                    }
+
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
+
+                    // prevent iOS rubber-banding and zoom on canvas
+                    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
                 } catch (err) {
                     console.error('[CIESEN]', err);
+                    clearInterval(dotInterval);
                     let detail = err.message || String(err);
+
+                    // helpful context for common failures
                     if (detail.includes('Failed to fetch') || detail.includes('NetworkError')) {
-                        detail += '\n\n• serve via HTTP (npx serve .)\n• check network/firewall';
+                        detail += '\n\nserve via HTTP (npx serve .)';
                     }
+                    if (detail.includes('GPU') || detail.includes('gpu') || detail.includes('adapter')) {
+                        detail += '\n\nWebGPU not available on this device.\niOS: Settings > Safari > Feature Flags > WebGPU';
+                    }
+
                     statusEl.className = 'error';
                     statusEl.textContent = detail;
                 }
