@@ -156,16 +156,18 @@ for( 0 => int i; i < 4; i++ ) {
 }
 
 // macros - each orb controls prob+vol merged
-// initial values must match ctrlDefaults: pitch=0.46 kick=0.33 sin=0.75 bird=0.75 waves=0.80 arp=0.70 thunder=1.0 rain=0.20
--0.96 => float gPitch;        // -12 + 0.46*24
+// initial values must match ctrlDefaults
+// pitch: B3 above lowest octave. range is -12 to +12 semitones.
+// lowest = -12 (C). B is 11 semitones above C. so pitch = -12 + 11 = -1. ctrlVal = (-1+12)/24 = 0.458
+-1.0 => float gPitch;
 0.33 => float gKickMacro;
 135.0 => float gBPM;
 0.75 => float gSineMacro;
-0.75 => float gBirdMacro;
+0.50 => float gBirdMacro;
 0.80 => float gWavesMacro;
-0.70 => float gPluckMacro;
+0.50 => float gPluckMacro;
 1.0 => float gThunderMacro;
-0.20 => float gRainMacro;
+0.15 => float gRainMacro;
 
 // state
 0.0 => float scEnv;
@@ -1057,7 +1059,7 @@ GCircle ctrlInner[8];
 
 float ctrlVal[8];
 // orbs: pitch, kick, sine, bird, waves, pluck, thunder, rain
-[0.46, 0.33, 0.75, 0.75, 0.80, 0.70, 1.0, 0.20] @=> float ctrlDefaults[];
+[0.458, 0.33, 0.75, 0.50, 0.80, 0.50, 1.0, 0.15] @=> float ctrlDefaults[];
 
 float orbSwayPh[8];
 float orbSwayRt[8];
