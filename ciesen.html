@@ -111,44 +111,24 @@
             ]);
         }
 
-        // iOS audio unlock — must warm audio BEFORE ChuGL init
-        // iOS Safari suspends AudioContexts created outside user gestures.
-        // By playing a silent buffer on the first tap (even during loading),
-        // we unlock the audio pipeline so ChuGL's context can resume later.
+        // iOS audio unlock strategy:
+        // Don't create any AudioContext during loading — that can conflict with
+        // ChuGL's internal audio init. Instead, just track that a user gesture
+        // happened, then resume ChuGL's AudioContext after init completes.
         let _chuglCtx = null;
-        let _audioUnlocked = false;
+        let _hadGesture = false;
 
-        function unlockiOSAudio() {
-            // 1. Silent buffer trick — warms iOS audio pipeline system-wide
-            if (!_audioUnlocked) {
-                try {
-                    const AC = window.AudioContext || window.webkitAudioContext;
-                    if (AC) {
-                        const tmp = new AC();
-                        const buf = tmp.createBuffer(1, 1, 22050);
-                        const src = tmp.createBufferSource();
-                        src.buffer = buf;
-                        src.connect(tmp.destination);
-                        src.start(0);
-                        if (tmp.state === 'suspended') tmp.resume();
-                        _audioUnlocked = true;
-                    }
-                } catch(e) {}
-            }
-
-            // 2. Resume ChuGL's AudioContext if we've found it
+        function resumeChuGLAudio() {
             if (_chuglCtx && _chuglCtx.state === 'suspended') {
                 _chuglCtx.resume().then(() => log('audio resumed'));
             }
+            _hadGesture = true;
         }
 
         // Register EARLY — captures taps during the loading screen
         ['touchstart', 'touchend', 'click', 'keydown'].forEach(ev =>
-            document.addEventListener(ev, unlockiOSAudio, { capture: true })
+            document.addEventListener(ev, resumeChuGLAudio, { capture: true })
         );
-
-        // prevent iOS rubber-banding on canvas
-        document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
         // Find AudioContext buried in a ChuGL/ChucK object
         function findAudioContext(obj) {
@@ -161,27 +141,18 @@
                     if (ctx instanceof AC) return ctx;
                 } catch(e) {}
             }
-            // walk own properties
-            try {
-                for (const key of Object.getOwnPropertyNames(obj)) {
-                    try {
-                        const v = obj[key];
-                        if (v instanceof AC) return v;
-                    } catch(e) {}
-                }
-            } catch(e) {}
-            // walk prototype
-            try {
-                const proto = Object.getPrototypeOf(obj);
-                if (proto) {
-                    for (const key of Object.getOwnPropertyNames(proto)) {
+            // walk own + prototype properties
+            for (const source of [obj, Object.getPrototypeOf(obj)]) {
+                if (!source) continue;
+                try {
+                    for (const key of Object.getOwnPropertyNames(source)) {
                         try {
                             const v = obj[key];
-                            if (v && typeof v === 'object' && v instanceof AC) return v;
+                            if (v instanceof AC) return v;
                         } catch(e) {}
                     }
-                }
-            } catch(e) {}
+                } catch(e) {}
+            }
             return null;
         }
 
@@ -231,16 +202,24 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // Now that ChuGL is running, find its AudioContext
+                    // Now that ChuGL is running, find its AudioContext and resume
                     _chuglCtx = findAudioContext(ck);
                     if (_chuglCtx) {
                         log('found audio context (' + _chuglCtx.state + ')');
                         if (_chuglCtx.state === 'suspended') {
-                            _chuglCtx.resume().then(() => log('audio resumed'));
+                            // If user already tapped during loading, resume immediately
+                            if (_hadGesture) {
+                                _chuglCtx.resume().then(() => log('audio resumed'));
+                            } else {
+                                log('tap screen for audio');
+                            }
                         }
                     } else {
-                        log('audio context not found on ck object — tap screen for audio');
+                        log('audio context not found on ck — tap screen for audio');
                     }
+
+                    // prevent iOS rubber-banding on canvas
+                    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
                 } catch (err) {
                     console.error('[CIESEN]', err);

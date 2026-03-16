@@ -131,10 +131,11 @@
         });
 
         // Remove Matter.js default touch handlers — they call preventDefault()
-        // which blocks <a> links and buttons from working on mobile
-        ['touchstart', 'touchmove', 'touchend'].forEach(ev => {
-            mouse.element.removeEventListener(ev, mouse[ev]);
-        });
+        // which blocks <a> links and buttons from working on mobile.
+        // Matter.js reuses mouse handlers for touch: touchstart→mousedown, etc.
+        mouse.element.removeEventListener('touchstart', mouse.mousedown);
+        mouse.element.removeEventListener('touchmove',  mouse.mousemove);
+        mouse.element.removeEventListener('touchend',   mouse.mouseup);
 
         function syncPos(e) {
             mouse.position.x = mouse.absolute.x = e.clientX;
