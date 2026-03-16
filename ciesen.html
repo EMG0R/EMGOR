@@ -31,7 +31,7 @@
             background: #000;
             font-size: 0.72rem;
             letter-spacing: 2px;
-            color: transparent;
+            color: rgba(255,255,255,0.25);
             text-align: center;
             white-space: pre-wrap;
             word-break: break-word;
@@ -60,12 +60,21 @@
 <body>
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     <a href="index.html" class="home-button">&#8962;</a>
-    <div id="status"></div>
+    <div id="status">Loading CIESEN</div>
     <div id="chuck-output"></div>
 
     <script type="module">
         const statusEl = document.getElementById('status');
         const outputEl = document.getElementById('chuck-output');
+
+        // cycling dots animation
+        let dotCount = 0;
+        const dotInterval = setInterval(() => {
+            dotCount = (dotCount + 1) % 4;
+            if (!statusEl.classList.contains('error') && !statusEl.classList.contains('hidden')) {
+                statusEl.textContent = 'Loading CIESEN' + '.'.repeat(dotCount);
+            }
+        }, 400);
 
         function log(msg) {
             outputEl.textContent += msg + '\n';
@@ -113,6 +122,7 @@
                         return;
                     }
 
+                    clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
                 } catch (err) {
                     console.error('[CIESEN]', err);
