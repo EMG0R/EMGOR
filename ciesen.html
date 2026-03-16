@@ -189,10 +189,17 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // Resume all captured AudioContexts now that ChuGL is running
+                    // Resume audio — WebChucK extends AudioWorkletNode so ck.context
+                    // is the AudioContext (inherited). Also resume any monkey-patched captures.
                     log('captured ' + _capturedContexts.length + ' AudioContext(s)');
+                    if (ck.context && ck.context.state === 'suspended') {
+                        log('ck.context found (' + ck.context.state + ')');
+                        // Also add it to captured list for gesture-based resume
+                        if (!_capturedContexts.includes(ck.context)) {
+                            _capturedContexts.push(ck.context);
+                        }
+                    }
                     resumeAllAudio();
-                    // If still suspended, user needs to tap
                     const anySuspended = _capturedContexts.some(c => c.state === 'suspended');
                     if (anySuspended) log('tap screen for audio');
 
