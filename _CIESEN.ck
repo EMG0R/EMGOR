@@ -342,7 +342,7 @@ fun void triggerSineNote( int noteIdx, float vol, float pitch ) {
     if( noteIdx < 0 ) 0 => noteIdx;
     if( noteIdx > 47 ) 47 => noteIdx;
 
-    cMajor[noteIdx] * Math.pow(2.0, pitch / 12.0) * 0.5 => float freq;
+    cMajor[noteIdx] * Math.pow(2.0, pitch / 12.0) * 0.25 => float freq;
     freq => sineOsc[i].freq;
     freq * 3.0 => sineHarm[i].freq;
     0.15 => sineOsc[i].gain;
@@ -442,7 +442,7 @@ fun void sineLoop() {
                 } else {
                     0.0 => float newFreq;
                     if( svNote[i] >= 0 )
-                        cMajor[svNote[i]] * Math.pow(2.0, pitch / 12.0) * 0.5 => newFreq;
+                        cMajor[svNote[i]] * Math.pow(2.0, pitch / 12.0) * 0.25 => newFreq;
                     else
                         svFreq[i] * Math.pow(2.0, pitch / 12.0) => newFreq;
                     // slow vibrato (half intensity)
@@ -470,7 +470,7 @@ fun void sineLoop() {
                 now + wholeNote / 2.0 => sineNextNote;
         }
 
-        10::ms => now;
+        20::ms => now;
     }
 }
 
@@ -718,7 +718,7 @@ fun void thunderLoop() {
                 0 => thSweeping[ch];
             }
         }
-        50::ms => now;
+        80::ms => now;
     }
 }
 
@@ -882,7 +882,7 @@ GG.bloom( 1 );
 GG.bloomPass().intensity( 2.2 );
 GG.bloomPass().radius( 0.3 );
 GG.bloomPass().threshold( 0.0 );
-GG.bloomPass().levels( 2 );
+GG.bloomPass().levels( 1 );
 
 // background plane
 GPlane bg --> GG.scene();
@@ -1400,7 +1400,7 @@ while( true ) {
     }
 
     // control orbs
-    0.62 * winScale => float orbFixedSz;
+    1.24 * winScale => float orbFixedSz;
     for( 0 => int i; i < 6; i++ ) {
         ctrlVal[i] => float norm;
         0.5 + norm * 0.5 => float obright;
