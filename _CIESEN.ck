@@ -1400,7 +1400,7 @@ while( true ) {
     }
 
     // control orbs
-    1.24 * winScale => float orbFixedSz;
+    1 * winScale => float orbFixedSz;
     for( 0 => int i; i < 6; i++ ) {
         ctrlVal[i] => float norm;
         0.5 + norm * 0.5 => float obright;
