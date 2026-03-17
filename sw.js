@@ -9,7 +9,7 @@
  * happens on first fetch regardless of deployment layout.
  */
 
-var CACHE_NAME = 'webchugl-v16';
+var CACHE_NAME = 'webchugl-v21';
 
 // ── Install ─────────────────────────────────────────────────────────
 self.addEventListener('install', function() { self.skipWaiting(); });
