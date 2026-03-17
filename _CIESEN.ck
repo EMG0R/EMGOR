@@ -136,15 +136,16 @@ rainHissGain => masterR;
 2500.0 => rainHissLPF.freq; 0.707 => rainHissLPF.Q;
 0.0 => rainHissGain.gain;
 
-Noise rainBoilNoise[8];
-BPF rainBoilFilt[8];
-ADSR rainBoilEnv[8];
-Gain rainBoilAmp[8];
-int rbActive[8];
-time rbTrigTime[8];
-dur rbLife[8];
+// rain boil: 4 voices (was 8 — halved for iPhone DSP)
+Noise rainBoilNoise[4];
+BPF rainBoilFilt[4];
+ADSR rainBoilEnv[4];
+Gain rainBoilAmp[4];
+int rbActive[4];
+time rbTrigTime[4];
+dur rbLife[4];
 
-for( 0 => int i; i < 8; i++ ) {
+for( 0 => int i; i < 4; i++ ) {
     rainBoilNoise[i] => rainBoilFilt[i] => rainBoilEnv[i] => rainBoilAmp[i];
     rainBoilAmp[i] => masterL;
     rainBoilAmp[i] => masterR;
@@ -156,15 +157,16 @@ for( 0 => int i; i < 8; i++ ) {
     0 => rbActive[i];
 }
 
-Noise rainImpactNoise[24];
-BPF rainImpactFilt[24];
-ADSR rainImpactEnv[24];
-Gain rainImpactAmp[24];
-SinOsc rainBubble[24];
-ADSR rainBubbleEnv[24];
-Gain rainBubbleAmp[24];
+// rain impact + bubble: 8 voices (was 24 — 1/3 for iPhone DSP)
+Noise rainImpactNoise[8];
+BPF rainImpactFilt[8];
+ADSR rainImpactEnv[8];
+Gain rainImpactAmp[8];
+SinOsc rainBubble[8];
+ADSR rainBubbleEnv[8];
+Gain rainBubbleAmp[8];
 
-for( 0 => int i; i < 24; i++ ) {
+for( 0 => int i; i < 8; i++ ) {
     rainImpactNoise[i] => rainImpactFilt[i] => rainImpactEnv[i] => rainImpactAmp[i] => rainBus;
     0.9 => rainImpactNoise[i].gain;
     rainImpactEnv[i].set( 0.4::ms, 10::ms, 0.0, 3::ms );
@@ -177,25 +179,7 @@ for( 0 => int i; i < 24; i++ ) {
     0.0 => rainBubbleAmp[i].gain;
 }
 
-// pluck uses fm synthesis with 4 voices, each carrier sine gets
-// modulated by another sine at whole number frequency ratios
-// (1:1, 2:1, 3:2, 3:1) then through a low pass and adsr
-SinOsc pluckCar[4];
-SinOsc pluckMod[4];
-ADSR pluckEnv[4];
-Gain pluckAmp[4];
-LPF pluckFilt[4];
-[1.0, 2.0, 1.5, 3.0] @=> float fmRatios[];
-
-for( 0 => int i; i < 4; i++ ) {
-    pluckMod[i] => pluckCar[i];
-    pluckCar[i] => pluckFilt[i] => pluckEnv[i] => pluckAmp[i] => pluckBus;
-    0.2 => pluckCar[i].gain;
-    0.0 => pluckAmp[i].gain;
-    pluckEnv[i].set( 3::ms, 140::ms, 0.0, 20::ms );
-    2500.0 => pluckFilt[i].freq;
-    1.5 => pluckFilt[i].Q;
-}
+// pluck removed for iPhone DSP performance
 
 // each orb controls a macro value from 0 to 1 that maps to
 // probability and volume for its instrument
@@ -256,9 +240,9 @@ int bsRel[4];
 [25.0, 6.0, 40.0, 15.0] @=> float bVibRate[];
 [0.5, 0.12, 1.0, 0.25] @=> float bVibDepth[];
 
-int rvActive[24];
-time rvTrigTime[24];
-dur rvLife[24];
+int rvActive[8];
+time rvTrigTime[8];
+dur rvLife[8];
 
 float wvPhase[4];
 float wvPhaseRate[4];
@@ -315,14 +299,14 @@ fun int findFreeBird( int btype ) {
 }
 
 fun int findFreeBoil() {
-    for( 0 => int i; i < 8; i++ )
+    for( 0 => int i; i < 4; i++ )
         if( !rbActive[i] ) return i;
     return -1;
 }
 
 fun int findFreeRain( int ch ) {
-    ch * 6 => int base;
-    for( 0 => int i; i < 6; i++ )
+    ch * 2 => int base;
+    for( 0 => int i; i < 2; i++ )
         if( !rvActive[base + i] ) return base + i;
     return -1;
 }
@@ -576,7 +560,7 @@ fun void birdLoop() {
                 }
             }
         }
-        5::ms => now;
+        15::ms => now;
     }
 }
 
@@ -717,14 +701,14 @@ fun void rainLoop() {
         2000.0 + m * 5000.0 => rainHissLPF.freq;
         hissGain * 0.014 => rainHissGain.gain;
 
-        for( 0 => int i; i < 8; i++ ) {
+        for( 0 => int i; i < 4; i++ ) {
             if( rbActive[i] && now - rbTrigTime[i] > rbLife[i] ) {
                 rainBoilEnv[i].keyOff();
                 0.0 => rainBoilAmp[i].gain;
                 0 => rbActive[i];
             }
         }
-        for( 0 => int i; i < 24; i++ ) {
+        for( 0 => int i; i < 8; i++ ) {
             if( rvActive[i] && now - rvTrigTime[i] > rvLife[i] ) {
                 rainImpactEnv[i].keyOff();
                 rainBubbleEnv[i].keyOff();
@@ -857,7 +841,6 @@ spork ~ birdLoop();
 spork ~ wavesLoop();
 spork ~ thunderLoop();
 spork ~ rainLoop();
-spork ~ pluckLoop();
 
 // visuals
 
@@ -866,10 +849,10 @@ GWindow.windowed( 1100, 700 );
 GG.camera().posZ( 6.0 );
 
 GG.bloom( 1 );
-GG.bloomPass().intensity( 1.8 );
-GG.bloomPass().radius( 0.25 );
+GG.bloomPass().intensity( 2.2 );
+GG.bloomPass().radius( 0.3 );
 GG.bloomPass().threshold( 0.0 );
-GG.bloomPass().levels( 2 );
+GG.bloomPass().levels( 1 );
 
 // background plane
 GPlane bg --> GG.scene();
@@ -880,20 +863,20 @@ bg.color( @(0.014, 0.010, 0.032) );
 // background shapes - mix of circles and rectangles, varied aspect ratios
 // some thin ones rotated look like diamonds and triangles
 // slowly drifting, fading in and out over 10-30 second cycles
-3 => int NUM_BG_POLY;
-GCircle bgCirc[1];
-GPlane bgRect[2];
-float bpX[3], bpY[3], bpVX[3], bpVY[3], bpPhase[3], bpRotSpd[3];
-float bpBaseSca[3], bpAspX[3], bpAspY[3];
-float bpR[3], bpG[3], bpB[3], bpLife[3], bpMaxLife[3];
+5 => int NUM_BG_POLY;
+GCircle bgCirc[2];
+GPlane bgRect[3];
+float bpX[5], bpY[5], bpVX[5], bpVY[5], bpPhase[5], bpRotSpd[5];
+float bpBaseSca[5], bpAspX[5], bpAspY[5];
+float bpR[5], bpG[5], bpB[5], bpLife[5], bpMaxLife[5];
 
-for( 0 => int i; i < 3; i++ ) {
-    if( i < 1 ) {
+for( 0 => int i; i < 5; i++ ) {
+    if( i < 2 ) {
         bgCirc[i] --> GG.scene();
         bgCirc[i].posZ( -2.0 + Math.random2f(0.0, 0.4) );
     } else {
-        bgRect[i-1] --> GG.scene();
-        bgRect[i-1].posZ( -2.0 + Math.random2f(0.0, 0.4) );
+        bgRect[i-2] --> GG.scene();
+        bgRect[i-2].posZ( -2.0 + Math.random2f(0.0, 0.4) );
     }
     Math.random2f(-4.5, 4.5) => bpX[i];
     Math.random2f(-3.5, 3.5) => bpY[i];
@@ -911,33 +894,32 @@ for( 0 => int i; i < 3; i++ ) {
     0.020 + 0.045 * Math.max(0.0, Math.sin(bpHue + 4.19)) => bpB[i];
     Math.random2f(15.0, 40.0) => bpMaxLife[i];
     Math.random2f(0.0, bpMaxLife[i]) => bpLife[i];
-    if( i < 1 ) {
+    if( i < 2 ) {
         bgCirc[i].posX( bpX[i] );
         bgCirc[i].posY( bpY[i] );
         bgCirc[i].scaX( bpBaseSca[i] * bpAspX[i] );
         bgCirc[i].scaY( bpBaseSca[i] * bpAspY[i] );
         bgCirc[i].rotZ( Math.random2f(0.0, 6.28) );
     } else {
-        bgRect[i-1].posX( bpX[i] );
-        bgRect[i-1].posY( bpY[i] );
-        bgRect[i-1].scaX( bpBaseSca[i] * bpAspX[i] );
-        bgRect[i-1].scaY( bpBaseSca[i] * bpAspY[i] );
-        bgRect[i-1].rotZ( Math.random2f(0.0, 6.28) );
+        bgRect[i-2].posX( bpX[i] );
+        bgRect[i-2].posY( bpY[i] );
+        bgRect[i-2].scaX( bpBaseSca[i] * bpAspX[i] );
+        bgRect[i-2].scaY( bpBaseSca[i] * bpAspY[i] );
+        bgRect[i-2].rotZ( Math.random2f(0.0, 6.28) );
     }
 }
 
-// kick circle, big one in the middle of everything
-4 => int KICK_VP;
-GCircle kickShape[4];
-float ksLife[4], ksMaxLife[4];
-float ksR[4], ksG[4], ksB[4];
+// kick circle — single circle, grows and shrinks
+1 => int KICK_VP;
+GCircle kickShape[1];
+float ksLife[1], ksMaxLife[1];
+float ksR[1], ksG[1], ksB[1];
 0 => int ksHead;
 
-for( 0 => int i; i < 4; i++ ) {
-    kickShape[i] --> GG.scene();
-    kickShape[i].posZ( -2.3 );
-    kickShape[i].sca( 0.0 );
-    0.0 => ksLife[i];
+kickShape[0] --> GG.scene();
+kickShape[0].posZ( -2.3 );
+kickShape[0].sca( 0.0 );
+0.0 => ksLife[0];
 }
 
 // particle pools removed for iPhone performance
@@ -1017,10 +999,10 @@ fun void spawnBirdDot( int voice, float freq, float pan, float hW, float hH ) {
 GCircle ctrlBody[6];
 GCircle ctrlInner[6];
 
-// teal  amber  ocean  lavender  gold  slate
-[0.1, 0.95, 0.1, 0.5, 0.9, 0.15] @=> float ctrlCR[];
-[0.75, 0.45, 0.4, 0.15, 0.75, 0.5] @=> float ctrlCG[];
-[0.85, 0.05, 0.9, 0.9, 0.05, 0.7] @=> float ctrlCB[];
+// washed-out: dusty-teal  copper  slate-blue  mauve  muted-gold  steel
+[0.2, 0.65, 0.2, 0.42, 0.6, 0.2] @=> float ctrlCR[];
+[0.5, 0.32, 0.3, 0.18, 0.52, 0.35] @=> float ctrlCG[];
+[0.58, 0.12, 0.62, 0.58, 0.12, 0.52] @=> float ctrlCB[];
 
 float ctrlVal[6];
 [0.458, 0.33, 0.80, 0.75, 0.50, 0.25] @=> float ctrlDefaults[];
@@ -1260,7 +1242,7 @@ while( true ) {
                 kickShape[i].sca( sz );
                 kickShape[i].posX( 0.0 );
                 kickShape[i].posY( 0.0 );
-                Math.pow(env, 0.4) * 0.5 => float kbright;
+                Math.pow(env, 0.7) * 0.18 => float kbright;
                 kickShape[i].color( @(
                     ksR[i] * kbright,
                     ksG[i] * kbright,
@@ -1301,7 +1283,7 @@ while( true ) {
     svActive[0] + svActive[1] + svActive[2] + svActive[3] + svActive[4] +
     svActive[5] + svActive[6] + svActive[7] => int sineVoices;
     Math.min(sineVoices * 0.08, 0.4) => float sineBright;
-    for( 0 => int i; i < 3; i++ ) {
+    for( 0 => int i; i < 5; i++ ) {
         bpLife[i] - dt => bpLife[i];
         if( bpLife[i] <= 0.0 ) {
             Math.random2f(15.0, 40.0) => bpMaxLife[i];
@@ -1333,18 +1315,18 @@ while( true ) {
         bpG[i] * fade * 0.7 * (1.0 + sineBright) + Math.sin(bpPhase[i] + 2.0) * 0.006 * fade => float cg;
         bpB[i] * fade * 0.7 * (1.0 + sineBright) + thColorBoost * 0.13 * fade => float cb;
 
-        if( i < 1 ) {
+        if( i < 2 ) {
             bgCirc[i].posX( bpX[i] ); bgCirc[i].posY( bpY[i] );
             bgCirc[i].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
             bgCirc[i].scaX( bpBaseSca[i] * bpAspX[i] * kickGrow );
             bgCirc[i].scaY( bpBaseSca[i] * bpAspY[i] * kickGrow );
             bgCirc[i].color( @(cr, cg, cb) );
         } else {
-            bgRect[i-1].posX( bpX[i] ); bgRect[i-1].posY( bpY[i] );
-            bgRect[i-1].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
-            bgRect[i-1].scaX( bpBaseSca[i] * bpAspX[i] * kickGrow );
-            bgRect[i-1].scaY( bpBaseSca[i] * bpAspY[i] * kickGrow );
-            bgRect[i-1].color( @(cr, cg, cb) );
+            bgRect[i-2].posX( bpX[i] ); bgRect[i-2].posY( bpY[i] );
+            bgRect[i-2].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
+            bgRect[i-2].scaX( bpBaseSca[i] * bpAspX[i] * kickGrow );
+            bgRect[i-2].scaY( bpBaseSca[i] * bpAspY[i] * kickGrow );
+            bgRect[i-2].color( @(cr, cg, cb) );
         }
     }
 
@@ -1391,7 +1373,7 @@ while( true ) {
     }
 
     // control orbs at 1.5x size with extra jitter
-    0.33 * winScale => float orbFixedSz;
+    0.52 * winScale => float orbFixedSz;
     for( 0 => int i; i < 6; i++ ) {
         ctrlVal[i] => float norm;
         0.5 + norm * 0.5 => float obright;
