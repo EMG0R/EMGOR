@@ -175,11 +175,6 @@
             ]);
         }
 
-        // ── Cross-origin isolation check ────────────────────────────
-        // SharedArrayBuffer (required for WebChuGL audio) needs COOP/COEP headers.
-        // The service worker (sw.js) injects these. On first visit it auto-reloads.
-        log('crossOriginIsolated: ' + self.crossOriginIsolated);
-
         // ── Capture every AudioContext created on this page ──────────
         const _allCtx = [];
         const _OrigAC = window.AudioContext || window.webkitAudioContext;
@@ -187,7 +182,6 @@
             const P = function(...args) {
                 const ctx = new _OrigAC(...args);
                 _allCtx.push(ctx);
-                console.log('[CIESEN] ctx created:', ctx.state, ctx.sampleRate);
                 return ctx;
             };
             P.prototype = _OrigAC.prototype;
@@ -251,12 +245,6 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // Debug status
-                    log('isolated: ' + self.crossOriginIsolated);
-                    log('audioNode: ' + (ck.audioNode ? 'yes' : 'NULL'));
-                    log('contexts: ' + _allCtx.length);
-                    _allCtx.forEach((c,i) => log('  ctx' + i + ': ' + c.state));
-
                     // Desktop: contexts may already be running
                     const anyRunning = _allCtx.some(c => c.state === 'running');
                     if (anyRunning) {
@@ -279,7 +267,6 @@
                             for (const ctx of _allCtx) {
                                 try { node.connect(ctx.destination); } catch(e) {}
                             }
-                            log('audioNode connected');
                         }
 
                         // Poll briefly for audioNode if not ready yet (async addModule)
@@ -293,7 +280,6 @@
                                     for (const ctx of _allCtx) {
                                         try { n.connect(ctx.destination); } catch(e) {}
                                     }
-                                    log('audioNode connected (poll ' + polls + ')');
                                 }
                                 if (polls >= 30) clearInterval(poller);
                             }, 100);

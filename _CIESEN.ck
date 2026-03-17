@@ -1,6 +1,6 @@
-// viebs - generative ambient music therapy synth + visuals
+// generative ambient synth with interactive visuals
 
-// c major scale, 6 octaves
+// c major scale across 6 octaves, 8 notes per octave block
 [
     65.41,  73.42,  82.41,  87.31,  98.00, 110.00, 123.47, 130.81,
     130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 261.63,
@@ -10,16 +10,16 @@
     2093.00, 2349.32, 2637.02, 2793.83, 3135.96, 3520.00, 3951.07, 4186.01
 ] @=> float cMajor[];
 
-// stereo master volume
+// stereo master bus, everything routes here before hitting dac
 Gain masterL => dac.left;
 Gain masterR => dac.right;
 3 => masterL.gain;
 3 => masterR.gain;
 
-// stereo audio graph — everything routes through master
+// each instrument has its own gain bus into the master
 Gain kickOut => masterL;
 kickOut => masterR;
-// sine uses per-voice Pan2 (no shared bus) — routed to master below
+// sine pads use per-voice pan2 so each note has its own stereo position
 Gain birdBus => Pan2 birdPan;
 birdPan.left => masterL;
 birdPan.right => masterR;
@@ -30,7 +30,9 @@ Gain pluckBus => Pan2 pluckPan;
 pluckPan.left => masterL;
 pluckPan.right => masterR;
 
-// kick - body + sub, no click
+// kick drum is two sine oscillators, body at 90hz and sub at 45hz
+// both shaped by adsr envelopes with basically instant 2ms attack
+// the body does a pitch sweep from 90 down to 55hz over 18ms for that thump
 SinOsc kickBody => ADSR kickBodyEnv => kickOut;
 SinOsc kickSub => ADSR kickSubEnv => kickOut;
 0.55 => kickBody.gain;
@@ -41,7 +43,10 @@ kickBodyEnv.set( 2::ms, 260::ms, 0.0, 10::ms );
 kickSubEnv.set( 3::ms, 200::ms, 0.0, 10::ms );
 0.0 => kickOut.gain;
 
-// sine voices - 24 polyphonic pads, per-voice stereo panning
+// 24 sine oscillators for the pad voices, each one gets its own
+// stereo panner so notes spread across the field independently
+// default envelope is 2s attack 6s decay but gets overridden to
+// 1200ms attack 3500ms decay when actually triggered
 SinOsc sineOsc[24];
 ADSR sineEnv[24];
 Gain sineAmp[24];
@@ -58,7 +63,8 @@ for( 0 => int i; i < 24; i++ ) {
     0.0 => svPan[i];
 }
 
-// birds - 8 voices, 2 per type
+// 8 bird voices, 2 per bird type (chirp up, chirp down, trill, warble)
+// each bird does a frequency sweep with vibrato during its short life
 SinOsc birdOsc[8];
 ADSR birdEnv[8];
 Gain birdAmp[8];
@@ -70,7 +76,8 @@ for( 0 => int i; i < 8; i++ ) {
     birdEnv[i].set( 50::ms, 150::ms, 0.0, 30::ms );
 }
 
-// waves - 4ch stereo spread
+// ocean waves are 4 channels of filtered white noise spread across stereo
+// a low pass filter slowly sweeps up and down to create the wash effect
 Noise wavesNoise[4];
 LPF wavesLPF[4];
 Gain wavesGain[4];
@@ -90,12 +97,13 @@ for( 0 => int ch; ch < 4; ch++ ) {
 -0.3 => wavesPan[2].pan;
 0.3 => wavesPan[3].pan;
 
-// thunder - rumble w/ mids for phone speakers, stereo spread
+// thunder is filtered noise with a low pass for the rumble and a
+// bandpass at 350hz so it still comes through on phone speakers
+// 4 channels with stereo spread for width
 Noise thunderNoise[4];
 LPF thunderLPF[4];
 Gain thunderGain[4];
 Pan2 thunderPan[4];
-// extra mid layer for iphone audibility
 Noise thunderMidNoise[4];
 BPF thunderBPF[4];
 Gain thunderMidGain[4];
@@ -119,7 +127,9 @@ for( 0 => int ch; ch < 4; ch++ ) {
 -0.2 => thunderPan[2].pan;
 0.2 => thunderPan[3].pan;
 
-// rain - 12 voices
+// rain is 12 voices of filtered noise with very short envelopes
+// 4 noise sources shared across 3 voices each, high pass filtered
+// each drop is like 5-80ms of soft white noise above 6000hz
 Noise rainNoiseSrc[4];
 ADSR rainEnv[12];
 LPF rainFilt[12];
@@ -135,14 +145,14 @@ for( 0 => int i; i < 12; i++ ) {
     0.0 => rainAmp[i].gain;
 }
 
-// pluck - fm synthesis, 4 voices
-// carrier + modulator with whole number ratios
+// pluck uses fm synthesis with 4 voices, each carrier sine gets
+// modulated by another sine at whole number frequency ratios
+// (1:1, 2:1, 3:2, 3:1) then through a low pass and adsr
 SinOsc pluckCar[4];
 SinOsc pluckMod[4];
 ADSR pluckEnv[4];
 Gain pluckAmp[4];
 LPF pluckFilt[4];
-// fm ratios: 1:1, 2:1, 3:2, 3:1
 [1.0, 2.0, 1.5, 3.0] @=> float fmRatios[];
 
 for( 0 => int i; i < 4; i++ ) {
@@ -155,10 +165,9 @@ for( 0 => int i; i < 4; i++ ) {
     1.5 => pluckFilt[i].Q;
 }
 
-// macros - each orb controls prob+vol merged
-// initial values must match ctrlDefaults
-// pitch: B3 above lowest octave. range is -12 to +12 semitones.
-// lowest = -12 (C). B is 11 semitones above C. so pitch = -12 + 11 = -1. ctrlVal = (-1+12)/24 = 0.458
+// each orb controls a macro value from 0 to 1 that maps to
+// probability and volume for its instrument
+// pitch orb shifts everything by -12 to +12 semitones
 -1.0 => float gPitch;
 0.33 => float gKickMacro;
 135.0 => float gBPM;
@@ -169,14 +178,14 @@ for( 0 => int i; i < 4; i++ ) {
 1.0 => float gThunderMacro;
 0.15 => float gRainMacro;
 
-// state
-0 => int bmaj7Suppress; // when 1, sineLoop + chordLoop stop triggering new notes
+// sidechain state, bmaj7 suppression flag
+0 => int bmaj7Suppress;
 0.0 => float scEnv;
 1.0 => float gScMult;
 0.0 => float scSmooth;
 0 => int spawnKick;
 
-// sine voice state
+// per-voice tracking for sine pads
 int svActive[24];
 time svTrigTime[24];
 dur svLife[24];
@@ -184,7 +193,7 @@ int svNote[24];
 float svAmp[24];
 float svFreq[24];
 
-// bird state
+// per-voice tracking for birds
 int bvActive[8];
 time bvTrigTime[8];
 dur bvLife[8];
@@ -193,12 +202,14 @@ float bvSweep[8];
 float bvBaseFreq[8];
 int bvType[8];
 
+// bird burst scheduling, 4 types
 int bsBurstLeft[4];
 time bsNextNote[4];
 time bsNextCall[4];
 int bsCurrentNote[4];
 int bsRel[4];
 
+// bird type parameters: burst sizes, timing, pitch behavior, envelope, sweep, vibrato
 [3, 2, 8, 4] @=> int bMinBurst[];
 [6, 4, 16, 8] @=> int bMaxBurst[];
 [50, 200, 20, 40] @=> int bMinInt[];
@@ -213,12 +224,10 @@ int bsRel[4];
 [25.0, 6.0, 40.0, 15.0] @=> float bVibRate[];
 [0.5, 0.12, 1.0, 0.25] @=> float bVibDepth[];
 
-// rain voice state
 int rvActive[12];
 time rvTrigTime[12];
 dur rvLife[12];
 
-// wave state
 float wvPhase[4];
 float wvPhaseRate[4];
 time wvNextSweep[4];
@@ -228,7 +237,6 @@ time wvSweepStart[4];
 float wvMaxCut[4];
 float wvSweepDur[4];
 
-// thunder state
 int thSweeping[4];
 time thSweepStart[4];
 float thMaxCut[4];
@@ -236,23 +244,23 @@ float thDuration[4];
 float thMaxGain[4];
 time thNextTrig[4];
 
-// pluck state
 int pkVoice;
 time pkNextNote;
 int pkLastNotes[8];
 0 => int pkNoteCount;
 
-// spawn triggers
+// visual spawn triggers, audio shreds set these and the render loop reads them
 int spawnSine;
 int spawnBird;
 int spawnThunder;
 int spawnPluck;
 
-// rain visual: 1:1 audio-to-visual mapping
+// rain drop positions for 1:1 audio-to-visual mapping
 float rainDropX[128];
 float rainDropY[128];
 0 => int rainDropCount;
 
+// sine spawn data so visuals know what frequency and amplitude triggered
 float sineSpawnFreq[24];
 float sineSpawnAmp[24];
 int sineSpawnNote[24];
@@ -261,7 +269,6 @@ int sineSpawnNote[24];
 float pluckSpawnFreq[8];
 0 => int pluckSpawnCount;
 
-// helpers
 fun int findFreeSine() {
     for( 0 => int i; i < 24; i++ )
         if( !svActive[i] ) return i;
@@ -282,6 +289,9 @@ fun int findFreeRain( int ch ) {
     return -1;
 }
 
+// trigger a sine pad voice from the c major scale
+// looks up the frequency, applies pitch shift, sets a 1200ms attack
+// 3500ms decay adsr, random stereo pan, and queues a visual spawn
 fun void triggerSineNote( int noteIdx, float vol, float pitch ) {
     findFreeSine() => int i;
     if( i < 0 ) return;
@@ -294,7 +304,6 @@ fun void triggerSineNote( int noteIdx, float vol, float pitch ) {
     sineEnv[i].keyOn();
     0.22 * vol => float amp;
     amp => sineAmp[i].gain;
-    // per-voice panning — no volume jumps
     Math.random2f(-0.7, 0.7) => float pan;
     pan => svPan[i];
     pan => sinePanV[i].pan;
@@ -314,7 +323,6 @@ fun void triggerSineNote( int noteIdx, float vol, float pitch ) {
     }
     spawnSine + 1 => spawnSine;
 
-    // feed pluck arp
     if( pkNoteCount < 8 ) {
         noteIdx => pkLastNotes[pkNoteCount];
         pkNoteCount + 1 => pkNoteCount;
@@ -325,7 +333,8 @@ fun void triggerSineNote( int noteIdx, float vol, float pitch ) {
     }
 }
 
-// trigger sine voice by raw frequency (for chords outside cMajor scale)
+// trigger a sine pad by raw frequency instead of scale index
+// used for the bmaj7 chord which has notes outside c major
 fun void triggerSineByFreq( float baseFreq, float vol ) {
     findFreeSine() => int i;
     if( i < 0 ) return;
@@ -343,9 +352,9 @@ fun void triggerSineByFreq( float baseFreq, float vol ) {
     1 => svActive[i];
     now => svTrigTime[i];
     4700::ms => svLife[i];
-    -1 => svNote[i]; // flag: use svFreq for pitch updates
+    -1 => svNote[i];
     amp => svAmp[i];
-    baseFreq * 0.5 => svFreq[i]; // store base freq (with 0.5 factor, no pitch)
+    baseFreq * 0.5 => svFreq[i];
 
     if( sineSpawnCount < 24 ) {
         freq => sineSpawnFreq[sineSpawnCount];
@@ -356,12 +365,12 @@ fun void triggerSineByFreq( float baseFreq, float vol ) {
     spawnSine + 1 => spawnSine;
 }
 
-// audio shreds
-
+// kick loop runs on its own shred, fires the two sine oscs
+// and sweeps their pitch down over 18ms for the thump
+// the macro 0-50% controls volume, 50-100% speeds up the tempo
 fun void kickLoop() {
     while( true ) {
         gKickMacro => float m;
-        // 0-50%: volume ramps to max. 50-100%: speed ramps up
         Math.min(m / 0.5, 1.0) => float vol;
         135.0 => float bpm;
         if( m > 0.5 ) 135.0 + (m - 0.5) / 0.5 * 50.0 => bpm;
@@ -374,7 +383,6 @@ fun void kickLoop() {
             vol => scEnv;
             spawnKick + 1 => spawnKick;
 
-            // pitch sweep body 90->55, sub 45->27
             90.0 => kickBody.freq;
             45.0 => kickSub.freq;
             6::ms => now;
@@ -397,18 +405,18 @@ fun void kickLoop() {
     }
 }
 
+// sine pad loop picks random notes from the scale and triggers them
+// also updates active voice pitches in realtime when the pitch orb moves
 fun void sineLoop() {
     now => time sineNextNote;
     while( true ) {
         gSineMacro => float m;
-        // macro = probability only, volume fixed at 0.9
         m => float prob;
         0.9 => float vol;
         gPitch => float pitch;
         gBPM => float bpm;
         (60.0 / bpm)::second => dur wholeNote;
 
-        // update active note pitches in realtime
         for( 0 => int i; i < 24; i++ ) {
             if( svActive[i] ) {
                 if( now - svTrigTime[i] > svLife[i] ) {
@@ -416,7 +424,6 @@ fun void sineLoop() {
                     0.0 => sineAmp[i].gain;
                     0 => svActive[i];
                 } else {
-                    // svNote >= 0: cMajor lookup; svNote < 0: use stored base freq
                     0.0 => float newFreq;
                     if( svNote[i] >= 0 )
                         cMajor[svNote[i]] * Math.pow(2.0, pitch / 12.0) * 0.5 => newFreq;
@@ -428,36 +435,29 @@ fun void sineLoop() {
         }
 
         if( m > 0.0 && now >= sineNextNote && !bmaj7Suppress ) {
-            // trigger more often
             if( Math.random2f(0.0, 1.0) < prob * 0.9 ) {
                 Math.random2(0, 39) => int noteIdx;
                 triggerSineNote( noteIdx, vol, pitch );
             }
-            // mostly quarter notes for more density
             if( Math.random2f(0.0, 1.0) < 0.75 )
                 now + wholeNote / 4.0 => sineNextNote;
             else
                 now + wholeNote / 2.0 => sineNextNote;
         }
 
-        // chord handled by separate chordLoop shred
-
         10::ms => now;
     }
 }
 
-// DEDICATED b7maj7 chord event — completely independent, ALWAYS fires every 15s
+// fires a big cmaj7 chord every 15 seconds, 10-14 notes spread
+// across octaves 2-5 biased toward the higher registers
 fun void chordLoop() {
-    10::second => now; // initial wait
+    10::second => now;
     while( true ) {
-        // always fire if sine macro > 0 and not suppressed for bmaj7
         if( gSineMacro > 0.0 && !bmaj7Suppress ) {
             gPitch => float pitch;
-            // Cmaj7 chord tones: C(0) E(2) G(4) B(6) in each octave block of 8
-            // fire 10-14 notes spread across octaves 2-5, bias high
             Math.random2(10, 14) => int numNotes;
             for( 0 => int cn; cn < numNotes; cn++ ) {
-                // octaves 2-5 (indices 16-47), weighted toward higher
                 Math.random2(2, 5) => int oct;
                 [0, 2, 4, 6] @=> int deg[];
                 oct * 8 + deg[Math.random2(0, 3)] => int cNote;
@@ -465,69 +465,55 @@ fun void chordLoop() {
                 triggerSineNote( cNote, 0.95, pitch );
             }
         }
-        // exactly 15 seconds between chords
         15::second => now;
     }
 }
 
-// Bmaj7 chord burst — suppress other sine activity, let decays breathe, then hit
-// Bmaj7 = B, D#, F#, A# from octave 2 up to octave 7 for sparkle
+// bmaj7 chord burst, suppresses normal sine activity first so the
+// existing notes can decay into silence, then fires 10-16 notes
+// across the full frequency range from b2 up to d#7 for sparkle
 fun void bmaj7Loop() {
     [
-        // low warmth
-        123.47, 155.56, 185.00, 233.08,    // B2, D#3, F#3, A#3
-        // mid body
-        246.94, 311.13, 369.99, 466.16,    // B3, D#4, F#4, A#4
-        // upper
-        493.88, 622.25, 739.99, 932.33,    // B4, D#5, F#5, A#5
-        // high shimmer
-        987.77, 1244.51, 1479.98, 1864.66, // B5, D#6, F#6, A#6
-        // sparkle top
-        1975.53, 2489.02                    // B6, D#7
+        123.47, 155.56, 185.00, 233.08,
+        246.94, 311.13, 369.99, 466.16,
+        493.88, 622.25, 739.99, 932.33,
+        987.77, 1244.51, 1479.98, 1864.66,
+        1975.53, 2489.02
     ] @=> float bmaj7[];
 
-    12::second => now; // initial offset from chordLoop
+    12::second => now;
     while( true ) {
         if( gSineMacro > 0.0 ) {
-            // 1. suppress normal sine + chord triggering
             1 => bmaj7Suppress;
-
-            // 2. breathe — let existing notes decay
             Math.random2f(2.0, 3.5)::second => now;
 
-            // 3. fire the Bmaj7 — big lush chord across full range
-            //    10-16 notes: a few low, mostly mid, a few high sparkles
             Math.random2(10, 16) => int numNotes;
             for( 0 => int cn; cn < numNotes; cn++ ) {
                 0 => int idx;
                 Math.random2f(0.0, 1.0) => float roll;
                 if( roll < 0.15 )
-                    // low warmth (indices 0-3)
                     Math.random2(0, 3) => idx;
                 else if( roll < 0.55 )
-                    // mid body (indices 4-7)
                     Math.random2(4, 7) => idx;
                 else if( roll < 0.80 )
-                    // upper (indices 8-11)
                     Math.random2(8, 11) => idx;
                 else if( roll < 0.93 )
-                    // high shimmer (indices 12-15)
                     Math.random2(12, 15) => idx;
                 else
-                    // sparkle top (indices 16-17)
                     Math.random2(16, 17) => idx;
                 triggerSineByFreq( bmaj7[idx], 0.95 );
             }
 
-            // 4. let the chord ring for a moment before resuming
             1.5::second => now;
             0 => bmaj7Suppress;
         }
-        // fire every 12-20 seconds
         Math.random2(12, 20)::second => now;
     }
 }
 
+// 4 bird types each with 2 voices, they fire in bursts of chirps
+// each chirp sweeps its frequency up or down with vibrato on top
+// type 0 chirps up, type 1 chirps down, type 2 trills fast, type 3 warbles
 fun void birdLoop() {
     for( 0 => int t; t < 4; t++ ) {
         now + Math.random2(500, 2000)::ms => bsNextCall[t];
@@ -537,7 +523,6 @@ fun void birdLoop() {
 
     while( true ) {
         gBirdMacro => float m;
-        // prob ramps 0-40%, vol ramps 40-100%
         Math.min(m / 0.4, 1.0) * 0.23 => float probRaw;
         0.3 => float vol;
         if( m > 0.4 ) 0.3 + (m - 0.4) / 0.6 * 0.7 => vol;
@@ -552,7 +537,6 @@ fun void birdLoop() {
             }
         }
 
-        // bird pitch modulation
         for( 0 => int i; i < 8; i++ ) {
             if( bvActive[i] ) {
                 (now - bvTrigTime[i]) / second => float elapsedSec;
@@ -624,6 +608,8 @@ fun void birdLoop() {
     }
 }
 
+// ocean waves use slow sine-modulated filter cutoff with occasional
+// longer sweeps where the lpf opens up then closes back down
 fun void wavesLoop() {
     for( 0 => int ch; ch < 4; ch++ ) {
         Math.random2f(0.05, 0.15) => wvPhaseRate[ch];
@@ -633,13 +619,11 @@ fun void wavesLoop() {
     }
     while( true ) {
         gWavesMacro => float m;
-        // prob ramps 0-40%, vol ramps 40-100%
         Math.min(m / 0.4, 1.0) => float prob;
         0.3 => float vol;
         if( m > 0.4 ) 0.3 + (m - 0.4) / 0.6 * 0.7 => vol;
         gPitch => float pitch;
         0.016 => float dt;
-        // lower filter ceiling — keep it chill
         300.0 + (pitch + 12.0) / 24.0 * 1200.0 => float filterMax;
         for( 0 => int ch; ch < 4; ch++ ) {
             if( m > 0.0 ) {
@@ -652,7 +636,6 @@ fun void wavesLoop() {
                         1 => wvSweeping[ch];
                         1 => wvSweepUp[ch];
                         now => wvSweepStart[ch];
-                        // mostly small sweeps, 15% chance of big one
                         if( Math.random2f(0.0, 1.0) < 0.15 )
                             filterMax * Math.random2f(0.7, 1.0) => wvMaxCut[ch];
                         else
@@ -683,6 +666,9 @@ fun void wavesLoop() {
     }
 }
 
+// thunder fires rumble events that sweep the filter up then back down
+// fast percussive attack followed by long random decay, the gain
+// wobbles slightly during the tail for organic texture
 fun void thunderLoop() {
     for( 0 => int ch; ch < 4; ch++ ) {
         now + Math.random2(2, 10)::second => thNextTrig[ch];
@@ -698,7 +684,6 @@ fun void thunderLoop() {
                     if( Math.random2f(0.0, 1.0) < trigProb ) {
                         1 => thSweeping[ch];
                         now => thSweepStart[ch];
-                        // percussive rumble
                         80.0 + Math.random2f(0.0, 140.0) => thMaxCut[ch];
                         Math.random2f(3.0, 12.0) => thDuration[ch];
                         0.5 + Math.random2f(0.0, 0.35) => thMaxGain[ch];
@@ -714,14 +699,11 @@ fun void thunderLoop() {
                     if( p < 1.0 ) {
                         0.0 => float g;
                         if( p < 0.06 ) {
-                            // fast percussive attack
                             (p / 0.06) * (p / 0.06) * thMaxGain[ch] => g;
                         } else {
-                            // smooth decay with rumble variation
                             thMaxGain[ch] * Math.pow(1.0 - p, 0.6) => float baseG;
                             (0.6 + Math.random2f(0.0, 0.4)) * baseG => g;
                         }
-                        // lpf sweeps up then down - warm rumble
                         0.0 => float cutoff;
                         if( p < 0.3 ) {
                             60.0 + thMaxCut[ch] * (p / 0.3) => cutoff;
@@ -733,7 +715,6 @@ fun void thunderLoop() {
                         cutoff => thunderLPF[ch].freq;
                         0.707 + Math.random2f(0.0, 0.3) => thunderLPF[ch].Q;
                         g * vol * 0.94 * gScMult => thunderGain[ch].gain;
-                        // mid layer at 350Hz for phone speaker audibility
                         g * vol * 0.45 * gScMult => thunderMidGain[ch].gain;
                     } else {
                         0 => thSweeping[ch];
@@ -754,10 +735,12 @@ fun void thunderLoop() {
     }
 }
 
+// rain triggers tiny bursts of high-frequency filtered noise
+// each drop has its own stereo pan position which also maps
+// to a visual dot falling down the screen
 fun void rainLoop() {
     while( true ) {
         gRainMacro => float m;
-        // macro = probability only, volume fixed at 0.5
         m => float prob;
         0.5 => float vol;
         for( 0 => int i; i < 12; i++ ) {
@@ -772,22 +755,18 @@ fun void rainLoop() {
                 if( Math.random2f(0.0, 1.0) < prob ) {
                     findFreeRain(ch) => int v;
                     if( v >= 0 ) {
-                        // rain: ultra soft — long attack, no resonance
                         Math.random2f(2.0, 5.0) => float a;
                         Math.random2f(30.0, 80.0) => float d;
                         rainEnv[v].set( a::ms, d::ms, 0.0, 25::ms );
-                        // heavily filtered — only very top shimmer
                         6000.0 + Math.random2f(0.0, 1500.0) => rainFilt[v].freq;
                         0.05 + Math.random2f(0.0, 0.02) => rainFilt[v].Q;
                         rainEnv[v].keyOn();
                         (0.03 + Math.random2f(0.0, 0.06)) * (vol + 0.25) => rainAmp[v].gain;
-                        // per-drop panning — visual matches audio
                         Math.random2f(-0.9, 0.9) => float dropPan;
                         dropPan => rainPan.pan;
                         1 => rvActive[v];
                         now => rvTrigTime[v];
                         (a + d)::ms => rvLife[v];
-                        // 1:1 visual rain drop — X position matches pan
                         if( rainDropCount < 128 ) {
                             dropPan => rainDropX[rainDropCount];
                             1.0 => rainDropY[rainDropCount];
@@ -801,6 +780,9 @@ fun void rainLoop() {
     }
 }
 
+// pluck arp uses fm synthesis, the modulator frequency is a whole
+// number ratio of the carrier so it sounds metallic and bell-like
+// notes jump around the scale based on what the sine pads played
 fun void pluckLoop() {
     0 => pkVoice;
     now => pkNextNote;
@@ -809,19 +791,16 @@ fun void pluckLoop() {
     4 => pkNoteCount;
     while( true ) {
         gPluckMacro => float m;
-        // macro = probability only, volume fixed at 0.9
         0.9 => float vol;
         m => float plkProb;
         gPitch => float pitch;
         gBPM => float bpm;
         (60.0 / bpm / 4.0)::second => dur sixteenth;
         if( m > 0.0 && now >= pkNextNote && pkNoteCount > 0 ) {
-            // wider range: jump across octaves
             pkLastNotes[Math.random2(0, pkNoteCount - 1)] + Math.random2(-8, 8) => int noteIdx;
             if( noteIdx < 0 ) 0 => noteIdx;
             if( noteIdx > 47 ) 47 => noteIdx;
             cMajor[noteIdx] * Math.pow(2.0, pitch / 12.0) => float freq;
-            // fm setup: modulator at whole ratio
             fmRatios[pkVoice] => float ratio;
             freq * ratio => pluckMod[pkVoice].freq;
             freq * ratio * Math.random2f(0.5, 2.0) => pluckMod[pkVoice].gain;
@@ -871,13 +850,12 @@ GG.bloomPass().radius( 0.65 );
 GG.bloomPass().threshold( 0.0 );
 GG.bloomPass().levels( 4 );
 
-// background plane
 GPlane bg --> GG.scene();
 bg.sca( 40.0 );
 bg.posZ( -2.5 );
 bg.color( @(0.012, 0.012, 0.025) );
 
-// kick visual pool — huge pulse in screen center
+// kick circle, big one in the middle of everything
 4 => int KICK_VP;
 GCircle kickShape[4];
 float ksLife[4], ksMaxLife[4];
@@ -891,14 +869,42 @@ for( 0 => int i; i < 4; i++ ) {
     0.0 => ksLife[i];
 }
 
-// ambient background shapes — chill slowly drifting geometry
+// big background shapes that spawn when sine pads trigger
+// they sit way behind everything and fade slowly with the sine adsr
+6 => int SINEBG_VP;
+GCircle sineBg[6];
+float sbLife[6], sbMaxLife[6];
+float sbX[6], sbY[6];
+float sbR[6], sbG[6], sbB[6];
+0 => int sbHead;
+
+for( 0 => int i; i < 6; i++ ) {
+    sineBg[i] --> GG.scene();
+    sineBg[i].posZ( -2.0 );
+    sineBg[i].sca( 0.0 );
+    0.0 => sbLife[i];
+}
+
+// bird visual dots, one per voice
+8 => int BIRD_VP;
+GCircle birdDot[8];
+float bdLife[8], bdMaxLife[8];
+float bdX[8], bdY[8];
+
+for( 0 => int i; i < 8; i++ ) {
+    birdDot[i] --> GG.scene();
+    birdDot[i].posZ( 0.3 );
+    birdDot[i].sca( 0.0 );
+    0.0 => bdLife[i];
+}
+
+// ambient drifting shapes in the background
 8 => int BG_COUNT;
 GCircle bgShape[8];
 float bgPhase[8];
 float bgSpeed[8];
 float bgBaseX[8], bgBaseY[8];
 float bgSize[8];
-// muted palette: deep purple, teal, rose, amber, indigo, sage, lavender, coral
 [0.35, 0.15, 0.50, 0.60, 0.18, 0.25, 0.42, 0.50] @=> float bgCR[];
 [0.18, 0.45, 0.18, 0.38, 0.15, 0.50, 0.28, 0.22] @=> float bgCG[];
 [0.55, 0.42, 0.32, 0.18, 0.55, 0.32, 0.52, 0.28] @=> float bgCB[];
@@ -914,7 +920,7 @@ for( 0 => int i; i < BG_COUNT; i++ ) {
     Math.random2f(1.5, 4.0) => bgSize[i];
 }
 
-// rain visual pool - 1:1 with audio
+// rain drops falling down
 128 => int RAIN_VP;
 GCircle rainDrop[128];
 float rdLife[128], rdMaxLife[128];
@@ -932,45 +938,61 @@ fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     rdHead => int i;
     (rdHead + 1) % 128 => rdHead;
     hH * 2.0 * 0.55 => float targetDist;
-    Math.random2f(0.7, 1.0) => float distMul;
-    targetDist * distMul => float dist;
+    Math.random2f(0.7, 1.0) * targetDist => float dist;
     2.5 => float speed;
     dist / speed => float life;
     life => rdLife[i];
     life => rdMaxLife[i];
     normX * hW => rdX[i];
     hH * 0.95 => rdY[i];
-    0.0 => rdVX[i];
+    Math.random2f(-0.15, 0.15) => rdVX[i];
     -1.0 * speed => rdVY[i];
     Math.random2f(0.02, 0.04) => rdSz[i];
 }
 
-// spawn kick visual — huge centered pulse
 fun void spawnKickVisual( float hW, float hH ) {
     ksHead => int i;
     (ksHead + 1) % KICK_VP => ksHead;
-    // kick envelope: fast attack ~10ms, decay ~300ms
     0.32 => ksLife[i];
     0.32 => ksMaxLife[i];
-    // deep warm colors — purple/magenta shifting
     0.6 + Math.random2f(-0.1, 0.15) => ksR[i];
     0.1 + Math.random2f(-0.05, 0.1) => ksG[i];
     0.4 + Math.random2f(-0.1, 0.2) => ksB[i];
 }
 
-// control orbs - 8 orbs (no master prob)
+fun void spawnSineBg( float freq, float hW, float hH ) {
+    sbHead => int i;
+    (sbHead + 1) % SINEBG_VP => sbHead;
+    4.7 => sbLife[i];
+    4.7 => sbMaxLife[i];
+    Math.random2f(-0.5, 0.5) * hW => sbX[i];
+    Math.random2f(-0.35, 0.35) * hH => sbY[i];
+    Math.min(1.0, freq / 2000.0) => float t;
+    0.45 + 0.4 * (1.0 - t) => sbR[i];
+    0.15 + 0.45 * t => sbG[i];
+    0.35 + 0.55 * t => sbB[i];
+}
+
+fun void spawnBirdDot( int voice, float freq, float hW, float hH ) {
+    voice => int i;
+    if( i < 0 || i >= BIRD_VP ) return;
+    0.25 => bdLife[i];
+    0.25 => bdMaxLife[i];
+    Math.random2f(-0.7, 0.7) * hW => bdX[i];
+    Math.random2f(-0.3, 0.5) * hH => bdY[i];
+}
+
+// control orbs, 1.5x bigger with more jitter
 8 => int NUM_CTRL;
 GCircle ctrlBody[8];
 GCircle ctrlGlow[8];
 GCircle ctrlInner[8];
 
-// vibrant orb colors: pitch, kick, sine, bird, waves, pluck, thunder, rain
 [0.1, 0.9, 0.2, 0.9, 0.15, 0.6, 0.2, 0.25] @=> float ctrlCR[];
 [0.75, 0.25, 0.4, 0.75, 0.8, 0.2, 0.15, 0.85] @=> float ctrlCG[];
 [0.85, 0.15, 0.95, 0.1, 0.7, 0.9, 0.75, 0.6] @=> float ctrlCB[];
 
 float ctrlVal[8];
-// orbs: pitch, kick, sine, bird, waves, pluck, thunder, rain
 [0.458, 0.33, 0.75, 0.50, 0.80, 0.50, 1.0, 0.15] @=> float ctrlDefaults[];
 
 float orbSwayPh[8];
@@ -979,7 +1001,7 @@ float orbSwayRt[8];
 for( 0 => int i; i < 8; i++ ) {
     ctrlDefaults[i] => ctrlVal[i];
     Math.random2f(0.0, 6.28) => orbSwayPh[i];
-    Math.random2f(0.25, 0.6) => orbSwayRt[i];
+    Math.random2f(0.3, 0.8) => orbSwayRt[i];
     ctrlGlow[i] --> GG.scene();
     ctrlGlow[i].posZ( 0.01 );
     ctrlBody[i] --> GG.scene();
@@ -988,7 +1010,6 @@ for( 0 => int i; i < 8; i++ ) {
     ctrlInner[i].posZ( 0.03 );
 }
 
-// text labels under orbs
 GText ctrlLabel[8];
 ["PITCH", "KICK", "SIN", "BIRD", "WAVES", "ARP", "THUNDER", "RAIN"] @=> string labelText[];
 for( 0 => int i; i < 8; i++ ) {
@@ -1002,7 +1023,6 @@ for( 0 => int i; i < 8; i++ ) {
 -1 => int grabIdx;
 0.0 => float grabOffsetY;
 
-// main render loop
 0.0 => float globalTime;
 0 => int frameCount;
 
@@ -1012,7 +1032,6 @@ while( true ) {
     globalTime + dt => globalTime;
     frameCount + 1 => frameCount;
 
-    // window + world bounds
     GG.windowWidth() $ float => float winW;
     GG.windowHeight() $ float => float winH;
     if( winW < 10.0 ) 10.0 => winW;
@@ -1022,27 +1041,25 @@ while( true ) {
     camZ * Math.tan( 22.5 * 3.14159265 / 180.0 ) => float halfH;
     halfH * aspect => float halfW;
 
-    // mouse input
     GWindow.mousePos() => vec2 mpos;
     GWindow.mouseLeft() => int mDown;
 
-    // normalized mouse [0,1]
     mpos.x / winW => float mNormX;
     mpos.y / winH => float mNormY;
 
-    // orb positions in screen space, 8% padding
     float orbNormX[8];
     float orbNormY[8];
     for( 0 => int i; i < 8; i++ ) {
         0.08 + 0.84 * (i $ float) / 7.0
-            + Math.sin(globalTime * orbSwayRt[i] + orbSwayPh[i]) * 0.018
+            + Math.sin(globalTime * orbSwayRt[i] + orbSwayPh[i]) * 0.028
+            + Math.sin(globalTime * orbSwayRt[i] * 2.3 + orbSwayPh[i] * 0.7) * 0.012
             => orbNormX[i];
         0.82 - ctrlVal[i] * 0.74
-            + Math.sin(globalTime * orbSwayRt[i] * 0.6 + orbSwayPh[i] + 1.5) * 0.009
+            + Math.sin(globalTime * orbSwayRt[i] * 0.6 + orbSwayPh[i] + 1.5) * 0.015
+            + Math.cos(globalTime * orbSwayRt[i] * 1.7 + orbSwayPh[i] * 1.3) * 0.008
             => orbNormY[i];
     }
 
-    // screen to world for rendering
     float orbDispX[8];
     float orbDispY[8];
     for( 0 => int i; i < 8; i++ ) {
@@ -1054,7 +1071,6 @@ while( true ) {
     if( winScale > 1.5 ) 1.5 => winScale;
     if( winScale < 0.5 ) 0.5 => winScale;
 
-    // mouse grab in normalized screen space
     if( mDown && grabIdx < 0 ) {
         -1 => int closest;
         999.0 => float closestDist;
@@ -1083,7 +1099,6 @@ while( true ) {
         norm => ctrlVal[grabIdx];
     }
 
-    // map to params - 8 orbs: pitch, kick, sine, bird, waves, pluck, thunder, rain
     -12.0 + ctrlVal[0] * 24.0 => gPitch;
     ctrlVal[1] => gKickMacro;
     ctrlVal[2] => gSineMacro;
@@ -1093,22 +1108,19 @@ while( true ) {
     ctrlVal[6] => gThunderMacro;
     ctrlVal[7] => gRainMacro;
 
-    // sidechain - 2x more dramatic
+    // sidechain ducking from the kick
     scSmooth + (scEnv - scSmooth) * Math.min(1.0, 50.0 * dt) => scSmooth;
     scEnv * Math.exp( -2.0 * dt ) => scEnv;
     if( scEnv < 0.003 ) 0.0 => scEnv;
     if( scSmooth < 0.003 ) 0.0 => scSmooth;
 
-    // kick vol maxes at 50% of macro
     Math.min(gKickMacro / 0.5, 1.0) => float kickVol;
     kickVol * scSmooth => float rawDuck;
     if( rawDuck > 1.0 ) 1.0 => rawDuck;
     Math.pow(rawDuck, 0.5) * 0.30 => float duck;
     1.0 - duck => gScMult;
 
-    // bus volumes (sidechain applied via gScMult)
-    // vol derived from macro in each loop, but bus gain scales overall
-    // per-voice sine sidechain — each voice keeps its own pan/gain
+    // apply sidechain to all the instrument buses
     Math.max(0.0, (gSineMacro - 0.25) / 0.75) * 1.5 * gScMult => float sineGainMul;
     for( 0 => int si; si < 24; si++ ) {
         if( svActive[si] ) svAmp[si] * sineGainMul => sineAmp[si].gain;
@@ -1117,16 +1129,27 @@ while( true ) {
     0.88 * gScMult => rainBus.gain;
     Math.max(0.0, (gPluckMacro - 0.25) / 0.75) * 1.2 * gScMult => pluckBus.gain;
 
-    // sidechain visual (20% intensity)
     1.0 + duck * 0.4 => float scPulse;
     1.0 + duck * 0.5 => float scBright;
 
-    // kick visual: big centered pulse on each kick
+    // spawn visuals from audio triggers
     if( spawnKick > 0 ) {
         spawnKickVisual( halfW, halfH );
     }
 
-    // reset spawn counters
+    if( spawnSine > 0 && sineSpawnCount > 0 ) {
+        spawnSineBg( sineSpawnFreq[0], halfW, halfH );
+    }
+
+    // bird visual spawns, one dot per bird voice that just fired
+    if( spawnBird > 0 ) {
+        for( 0 => int i; i < 8; i++ ) {
+            if( bvActive[i] && now - bvTrigTime[i] < 20::ms ) {
+                spawnBirdDot( i, bvBaseFreq[i], halfW, halfH );
+            }
+        }
+    }
+
     0 => spawnKick;
     0 => sineSpawnCount;
     0 => spawnSine;
@@ -1135,7 +1158,7 @@ while( true ) {
     0 => spawnPluck;
     0 => pluckSpawnCount;
 
-    // rain: 1:1 audio drop -> visual drop
+    // rain visual spawning
     while( rainDropCount > 0 ) {
         rainDropCount - 1 => rainDropCount;
         spawnVisualRainDrop(
@@ -1144,7 +1167,7 @@ while( true ) {
         );
     }
 
-    // update rain drops
+    // rain drops falling with jitter
     for( 0 => int i; i < 128; i++ ) {
         if( rdLife[i] > 0.0 ) {
             rdLife[i] - dt => rdLife[i];
@@ -1155,8 +1178,10 @@ while( true ) {
                 rdX[i] + rdVX[i] * dt => rdX[i];
                 rdY[i] + rdVY[i] * dt => rdY[i];
                 rdLife[i] / rdMaxLife[i] => float lifeLeft;
-                rainDrop[i].posX( rdX[i] );
-                rainDrop[i].posY( rdY[i] );
+                Math.random2f(-0.8, 0.8) => float jx;
+                Math.random2f(-0.5, 0.5) => float jy;
+                rainDrop[i].posX( rdX[i] + jx * 0.02 );
+                rainDrop[i].posY( rdY[i] + jy * 0.02 );
                 1.0 => float alpha;
                 if( lifeLeft < 0.15 ) lifeLeft / 0.15 => alpha;
                 rainDrop[i].sca( rdSz[i] * alpha );
@@ -1166,7 +1191,7 @@ while( true ) {
         }
     }
 
-    // update kick visual — huge centered pulse, fast attack/decay
+    // kick circle update
     for( 0 => int i; i < KICK_VP; i++ ) {
         if( ksLife[i] > 0.0 ) {
             ksLife[i] - dt => ksLife[i];
@@ -1175,7 +1200,6 @@ while( true ) {
                 kickShape[i].sca( 0.0 );
             } else {
                 ksMaxLife[i] - ksLife[i] => float elapsed;
-                // fast punch: attack ~15ms, then decay
                 0.0 => float env;
                 if( elapsed < 0.015 ) {
                     elapsed / 0.015 => env;
@@ -1184,12 +1208,10 @@ while( true ) {
                     if( env < 0.0 ) 0.0 => env;
                 }
 
-                // MASSIVE centered circle
                 env * 10.0 * winScale => float sz;
                 kickShape[i].sca( sz );
                 kickShape[i].posX( 0.0 );
                 kickShape[i].posY( 0.0 );
-                // bright on impact, fading to deep glow
                 Math.pow(env, 0.6) * 0.18 => float bright;
                 kickShape[i].color( @(
                     ksR[i] * bright,
@@ -1200,38 +1222,89 @@ while( true ) {
         }
     }
 
-    // ambient background shapes — slow chill drift
+    // sine background shapes, huge and behind everything
+    // follows the 1200ms attack 3500ms decay envelope shape
+    for( 0 => int i; i < SINEBG_VP; i++ ) {
+        if( sbLife[i] > 0.0 ) {
+            sbLife[i] - dt => sbLife[i];
+            if( sbLife[i] <= 0.0 ) {
+                0.0 => sbLife[i];
+                sineBg[i].sca( 0.0 );
+            } else {
+                sbMaxLife[i] - sbLife[i] => float elapsed;
+                0.0 => float env;
+                if( elapsed < 1.2 ) {
+                    elapsed / 1.2 => env;
+                } else {
+                    1.0 - (elapsed - 1.2) / 3.5 => env;
+                    if( env < 0.0 ) 0.0 => env;
+                }
+
+                env * 7.0 * winScale => float sz;
+                sineBg[i].sca( sz );
+                sineBg[i].posX( sbX[i] );
+                sineBg[i].posY( sbY[i] );
+                Math.pow(env, 0.7) * 0.06 => float bright;
+                sineBg[i].color( @(
+                    sbR[i] * bright,
+                    sbG[i] * bright,
+                    sbB[i] * bright
+                ) );
+            }
+        }
+    }
+
+    // bird dots, small bright flickers
+    for( 0 => int i; i < BIRD_VP; i++ ) {
+        if( bdLife[i] > 0.0 ) {
+            bdLife[i] - dt => bdLife[i];
+            if( bdLife[i] <= 0.0 ) {
+                0.0 => bdLife[i];
+                birdDot[i].sca( 0.0 );
+            } else {
+                bdLife[i] / bdMaxLife[i] => float t;
+                0.15 * winScale * t => float sz;
+                birdDot[i].sca( sz );
+                birdDot[i].posX( bdX[i] + Math.random2f(-0.03, 0.03) );
+                birdDot[i].posY( bdY[i] + Math.random2f(-0.03, 0.03) );
+                t * 0.5 => float bright;
+                birdDot[i].color( @(0.95 * bright, 0.8 * bright, 0.3 * bright) );
+            }
+        }
+    }
+
+    // ambient background shapes drifting slowly
     for( 0 => int i; i < BG_COUNT; i++ ) {
         bgPhase[i] + bgSpeed[i] * dt => bgPhase[i];
         bgBaseX[i] * halfW + Math.sin(bgPhase[i]) * halfW * 0.3 => float bx;
         bgBaseY[i] * halfH + Math.cos(bgPhase[i] * 0.7 + 1.5) * halfH * 0.25 => float by;
         bgShape[i].posX( bx );
         bgShape[i].posY( by );
-        // gentle pulsing size
         bgSize[i] * winScale * (0.85 + 0.15 * Math.sin(bgPhase[i] * 0.4)) => float sz;
         bgShape[i].sca( sz );
-        // very dim soft glow
         0.025 + 0.012 * Math.sin(bgPhase[i] * 0.3) => float bright;
         bgShape[i].color( @(bgCR[i] * bright, bgCG[i] * bright, bgCB[i] * bright) );
     }
 
-    // background color
     bg.color( @(
         0.012 + duck * 0.003,
         0.012 + duck * 0.002,
         0.025 + duck * 0.005
     ) );
 
-    // control orbs - all fixed size, no growing/shrinking
-    0.22 * winScale => float orbFixedSz;
+    // control orbs at 1.5x size with extra jitter
+    0.33 * winScale => float orbFixedSz;
     for( 0 => int i; i < 8; i++ ) {
         ctrlVal[i] => float norm;
         0.5 + norm * 0.5 => float bright;
         orbFixedSz => float thisSz;
         0.02 => float thisZ;
 
-        ctrlGlow[i].posX( orbDispX[i] );
-        ctrlGlow[i].posY( orbDispY[i] );
+        Math.random2f(-0.006, 0.006) => float ojx;
+        Math.random2f(-0.006, 0.006) => float ojy;
+
+        ctrlGlow[i].posX( orbDispX[i] + ojx );
+        ctrlGlow[i].posY( orbDispY[i] + ojy );
         ctrlGlow[i].posZ( thisZ - 0.01 );
         ctrlGlow[i].sca( thisSz * 2.5 );
         ctrlGlow[i].color( @(
@@ -1240,8 +1313,8 @@ while( true ) {
             ctrlCB[i] * 0.12 * bright
         ) );
 
-        ctrlBody[i].posX( orbDispX[i] );
-        ctrlBody[i].posY( orbDispY[i] );
+        ctrlBody[i].posX( orbDispX[i] + ojx );
+        ctrlBody[i].posY( orbDispY[i] + ojy );
         ctrlBody[i].posZ( thisZ );
         ctrlBody[i].sca( thisSz );
         ctrlBody[i].color( @(
@@ -1250,8 +1323,8 @@ while( true ) {
             ctrlCB[i] * 0.6 * bright
         ) );
 
-        ctrlInner[i].posX( orbDispX[i] );
-        ctrlInner[i].posY( orbDispY[i] );
+        ctrlInner[i].posX( orbDispX[i] + ojx );
+        ctrlInner[i].posY( orbDispY[i] + ojy );
         ctrlInner[i].posZ( thisZ + 0.01 );
         ctrlInner[i].sca( thisSz * 0.4 );
         ctrlInner[i].color( @(
@@ -1260,7 +1333,6 @@ while( true ) {
             (0.5 + ctrlCB[i] * 0.5) * bright
         ) );
 
-        // label fixed at bottom — scaled to window width
         (0.08 + 0.84 * (i $ float) / 7.0 - 0.5) * 2.0 * halfW => float labelX;
         ctrlLabel[i].posX( labelX );
         ctrlLabel[i].posY( -halfH * 0.92 );
