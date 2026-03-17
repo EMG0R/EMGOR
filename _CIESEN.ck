@@ -36,9 +36,13 @@ pluckPan.right => masterR;
 SinOsc kickBody => ADSR kickBodyEnv => kickOut;
 SinOsc kickSub => ADSR kickSubEnv => kickOut;
 0.55 => kickBody.gain;
-0.25 => kickSub.gain;
+0.30 => kickSub.gain;
 90.0 => kickBody.freq;
 45.0 => kickSub.freq;
+SinOsc kickClick => ADSR kickClickEnv => kickOut;
+0.18 => kickClick.gain;
+180.0 => kickClick.freq;
+kickClickEnv.set( 1::ms, 40::ms, 0.0, 5::ms );
 kickBodyEnv.set( 2::ms, 260::ms, 0.0, 10::ms );
 kickSubEnv.set( 3::ms, 200::ms, 0.0, 10::ms );
 0.0 => kickOut.gain;
@@ -391,6 +395,7 @@ fun void kickLoop() {
             vol * 0.432 => kickOut.gain;
             kickBodyEnv.keyOn();
             kickSubEnv.keyOn();
+            kickClickEnv.keyOn();
             vol => scEnv;
             spawnKick + 1 => spawnKick;
 
@@ -1021,13 +1026,13 @@ fun void spawnBirdDot( int voice, float freq, float pan, float hW, float hH ) {
 GCircle ctrlBody[6];
 GCircle ctrlInner[6];
 
-// muted earthy palette: teal, amber, sage, dusty rose, warm gold, slate blue
-[0.25, 0.72, 0.28, 0.55, 0.65, 0.30] @=> float ctrlCR[];
-[0.52, 0.38, 0.42, 0.25, 0.55, 0.35] @=> float ctrlCG[];
-[0.55, 0.12, 0.50, 0.50, 0.15, 0.55] @=> float ctrlCB[];
+// blue→yellow gradient left to right: deep blue, indigo, teal, green, warm, gold
+[0.15, 0.30, 0.20, 0.40, 0.65, 0.85] @=> float ctrlCR[];
+[0.22, 0.25, 0.45, 0.50, 0.55, 0.75] @=> float ctrlCG[];
+[0.70, 0.60, 0.55, 0.35, 0.25, 0.10] @=> float ctrlCB[];
 
 float ctrlVal[6];
-[0.458, 0.33, 0.80, 0.75, 0.50, 0.25] @=> float ctrlDefaults[];
+[0.458, 0.33, 0.80, 0.75, 0.25, 0.50] @=> float ctrlDefaults[];
 
 float orbSwayPh[6];
 float orbSwayRt[6];
@@ -1043,7 +1048,7 @@ for( 0 => int i; i < 6; i++ ) {
 }
 
 GText ctrlLabel[6];
-["PITCH", "KICK", "WAVES", "SIN", "BIRD", "RAIN"] @=> string labelText[];
+["PITCH", "KICK", "WAVES", "SIN", "STORM", "BIRD"] @=> string labelText[];
 for( 0 => int i; i < 6; i++ ) {
     ctrlLabel[i] --> GG.scene();
     ctrlLabel[i].posZ( 0.04 );
@@ -1150,9 +1155,9 @@ while( true ) {
     ctrlVal[1] => gKickMacro;
     ctrlVal[2] => gWavesMacro;
     ctrlVal[3] => gSineMacro;
-    ctrlVal[4] => gBirdMacro;
-    ctrlVal[5] => gThunderMacro;
-    ctrlVal[5] => gRainMacro;
+    ctrlVal[4] => gThunderMacro;
+    ctrlVal[4] => gRainMacro;
+    ctrlVal[5] => gBirdMacro;
 
     // sidechain ducking from the kick, gentle so it doesn't pump too hard
     scSmooth + (scEnv - scSmooth) * Math.min(1.0, 50.0 * dt) => scSmooth;
@@ -1331,9 +1336,9 @@ while( true ) {
         if( age < 0.15 ) age / 0.15 => fade;
         if( lifeRatio < 0.15 ) lifeRatio / 0.15 => fade;
 
-        bpR[i] * fade * 0.7 * (1.0 + sineBright) + thColorBoost * 0.18 * fade => float cr;
-        bpG[i] * fade * 0.7 * (1.0 + sineBright) + Math.sin(bpPhase[i] + 2.0) * 0.006 * fade => float cg;
-        bpB[i] * fade * 0.7 * (1.0 + sineBright) + thColorBoost * 0.13 * fade => float cb;
+        bpR[i] * fade * 0.525 * (1.0 + sineBright) + thColorBoost * 0.14 * fade => float cr;
+        bpG[i] * fade * 0.525 * (1.0 + sineBright) + Math.sin(bpPhase[i] + 2.0) * 0.004 * fade => float cg;
+        bpB[i] * fade * 0.525 * (1.0 + sineBright) + thColorBoost * 0.10 * fade => float cb;
 
         if( i < 2 ) {
             bgCirc[i].posX( bpX[i] );
@@ -1395,7 +1400,7 @@ while( true ) {
     }
 
     // control orbs
-    0.52 * winScale => float orbFixedSz;
+    0.62 * winScale => float orbFixedSz;
     for( 0 => int i; i < 6; i++ ) {
         ctrlVal[i] => float norm;
         0.5 + norm * 0.5 => float obright;
