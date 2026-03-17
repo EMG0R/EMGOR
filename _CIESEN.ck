@@ -43,11 +43,9 @@ kickBodyEnv.set( 2::ms, 260::ms, 0.0, 10::ms );
 kickSubEnv.set( 3::ms, 200::ms, 0.0, 10::ms );
 0.0 => kickOut.gain;
 
-// 24 sine oscillators for the pad voices, each one gets its own
-// stereo panner so notes spread across the field independently
-// default envelope is 2s attack 6s decay but gets overridden to
-// 1200ms attack 3500ms decay when actually triggered
+// 24 sine pad voices — fundamental + harmonic overlay for locked-in timbre
 SinOsc sineOsc[24];
+SinOsc sineHarm[24];
 ADSR sineEnv[24];
 Gain sineAmp[24];
 Pan2 sinePanV[24];
@@ -55,9 +53,11 @@ float svPan[24];
 
 for( 0 => int i; i < 24; i++ ) {
     sineOsc[i] => sineEnv[i] => sineAmp[i] => sinePanV[i];
+    sineHarm[i] => sineEnv[i];
     sinePanV[i].left => masterL;
     sinePanV[i].right => masterR;
     0.15 => sineOsc[i].gain;
+    0.0 => sineHarm[i].gain;
     0.0 => sineAmp[i].gain;
     sineEnv[i].set( 2000::ms, 6000::ms, 0.0, 30::ms );
     0.0 => svPan[i];
@@ -131,22 +131,53 @@ for( 0 => int ch; ch < 4; ch++ ) {
 -0.2 => thunderPan[2].pan;
 0.2 => thunderPan[3].pan;
 
-// rain is 12 voices of filtered noise with very short envelopes
-// 4 noise sources shared across 3 voices each, high pass filtered
-// each drop is like 5-80ms of soft white noise above 6000hz
-Noise rainNoiseSrc[4];
-ADSR rainEnv[12];
-LPF rainFilt[12];
-Gain rainAmp[12];
+// rain: 3 layers — continuous hiss + dense boil bursts + individual Minnaert-model drops
+Noise rainHiss => HPF rainHissHPF => LPF rainHissLPF => Gain rainHissGain;
+rainHissGain => masterL;
+rainHissGain => masterR;
+350.0 => rainHissHPF.freq;  0.707 => rainHissHPF.Q;
+2500.0 => rainHissLPF.freq; 0.707 => rainHissLPF.Q;
+0.0 => rainHissGain.gain;
 
-for( 0 => int i; i < 12; i++ ) {
-    i / 3 => int ch;
-    rainNoiseSrc[ch] => rainEnv[i] => rainFilt[i] => rainAmp[i] => rainBus;
-    0.3 => rainNoiseSrc[ch].gain;
-    rainEnv[i].set( 1::ms, 5::ms, 0.0, 30::ms );
-    3000.0 => rainFilt[i].freq;
-    0.707 => rainFilt[i].Q;
-    0.0 => rainAmp[i].gain;
+Noise rainBoilNoise[8];
+BPF rainBoilFilt[8];
+ADSR rainBoilEnv[8];
+Gain rainBoilAmp[8];
+int rbActive[8];
+time rbTrigTime[8];
+dur rbLife[8];
+
+for( 0 => int i; i < 8; i++ ) {
+    rainBoilNoise[i] => rainBoilFilt[i] => rainBoilEnv[i] => rainBoilAmp[i];
+    rainBoilAmp[i] => masterL;
+    rainBoilAmp[i] => masterR;
+    0.8 => rainBoilNoise[i].gain;
+    rainBoilEnv[i].set( 0.2::ms, 5::ms, 0.0, 1::ms );
+    8000.0 => rainBoilFilt[i].freq;
+    3.5 => rainBoilFilt[i].Q;
+    0.0 => rainBoilAmp[i].gain;
+    0 => rbActive[i];
+}
+
+Noise rainImpactNoise[24];
+BPF rainImpactFilt[24];
+ADSR rainImpactEnv[24];
+Gain rainImpactAmp[24];
+SinOsc rainBubble[24];
+ADSR rainBubbleEnv[24];
+Gain rainBubbleAmp[24];
+
+for( 0 => int i; i < 24; i++ ) {
+    rainImpactNoise[i] => rainImpactFilt[i] => rainImpactEnv[i] => rainImpactAmp[i] => rainBus;
+    0.9 => rainImpactNoise[i].gain;
+    rainImpactEnv[i].set( 0.4::ms, 10::ms, 0.0, 3::ms );
+    5000.0 => rainImpactFilt[i].freq;
+    1.8 => rainImpactFilt[i].Q;
+    0.0 => rainImpactAmp[i].gain;
+    rainBubble[i] => rainBubbleEnv[i] => rainBubbleAmp[i] => rainBus;
+    rainBubbleEnv[i].set( 0.3::ms, 15::ms, 0.0, 5::ms );
+    5000.0 => rainBubble[i].freq;
+    0.0 => rainBubbleAmp[i].gain;
 }
 
 // pluck uses fm synthesis with 4 voices, each carrier sine gets
@@ -228,9 +259,9 @@ int bsRel[4];
 [25.0, 6.0, 40.0, 15.0] @=> float bVibRate[];
 [0.5, 0.12, 1.0, 0.25] @=> float bVibDepth[];
 
-int rvActive[12];
-time rvTrigTime[12];
-dur rvLife[12];
+int rvActive[24];
+time rvTrigTime[24];
+dur rvLife[24];
 
 float wvPhase[4];
 float wvPhaseRate[4];
@@ -260,8 +291,8 @@ int spawnThunder;
 int spawnPluck;
 
 // rain drop positions for 1:1 audio-to-visual mapping
-float rainDropX[128];
-float rainDropY[128];
+float rainDropX[64];
+float rainDropY[64];
 0 => int rainDropCount;
 
 // sine spawn data so visuals know what frequency and amplitude triggered
@@ -286,9 +317,15 @@ fun int findFreeBird( int btype ) {
     return -1;
 }
 
+fun int findFreeBoil() {
+    for( 0 => int i; i < 8; i++ )
+        if( !rbActive[i] ) return i;
+    return -1;
+}
+
 fun int findFreeRain( int ch ) {
-    ch * 3 => int base;
-    for( 0 => int i; i < 3; i++ )
+    ch * 6 => int base;
+    for( 0 => int i; i < 6; i++ )
         if( !rvActive[base + i] ) return base + i;
     return -1;
 }
@@ -304,6 +341,9 @@ fun void triggerSineNote( int noteIdx, float vol, float pitch ) {
 
     cMajor[noteIdx] * Math.pow(2.0, pitch / 12.0) * 0.5 => float freq;
     freq => sineOsc[i].freq;
+    freq * 3.0 => sineHarm[i].freq;
+    0.15 => sineOsc[i].gain;
+    0.0 => sineHarm[i].gain;
     sineEnv[i].set( 1200::ms, 3500::ms, 0.0, 30::ms );
     sineEnv[i].keyOn();
     0.22 * vol => float amp;
@@ -401,10 +441,16 @@ fun void sineLoop() {
                         cMajor[svNote[i]] * Math.pow(2.0, pitch / 12.0) * 0.5 => newFreq;
                     else
                         svFreq[i] * Math.pow(2.0, pitch / 12.0) => newFreq;
-                    // slow deep vibrato
+                    // slow vibrato (half intensity)
                     (now - svTrigTime[i]) / second => float elapsedV;
                     Math.sin(elapsedV * 0.5 * 6.2832) => float vibLFO;
-                    newFreq * (1.0 + vibLFO * 0.015) => sineOsc[i].freq;
+                    newFreq * (1.0 + vibLFO * 0.0075) => sineOsc[i].freq;
+                    newFreq * 3.0 * (1.0 + vibLFO * 0.0075) => sineHarm[i].freq;
+                    // locked-in timbre: harmonic fades in at upper SIN
+                    Math.max(0.0, (gSineMacro - 0.3) * 1.43) => float morphAmt;
+                    if( morphAmt > 1.0 ) 1.0 => morphAmt;
+                    0.15 * (1.0 - morphAmt * 0.4) => sineOsc[i].gain;
+                    0.08 * morphAmt => sineHarm[i].gain;
                 }
             }
         }
@@ -672,39 +718,84 @@ fun void thunderLoop() {
     }
 }
 
-// rain triggers tiny bursts of high-frequency filtered noise
-// each drop has its own stereo pan position which also maps
-// to a visual dot falling down the screen
+// rain: hiss + boil bursts + Minnaert-model individual drops
 fun void rainLoop() {
     while( true ) {
         gRainMacro => float m;
-        m * m => float prob;
-        0.5 => float vol;
-        for( 0 => int i; i < 12; i++ ) {
+        0.7 => float vol;
+
+        m * m * 2.0 => float hissGain;
+        2000.0 + m * 5000.0 => rainHissLPF.freq;
+        hissGain * 0.014 => rainHissGain.gain;
+
+        for( 0 => int i; i < 8; i++ ) {
+            if( rbActive[i] && now - rbTrigTime[i] > rbLife[i] ) {
+                rainBoilEnv[i].keyOff();
+                0.0 => rainBoilAmp[i].gain;
+                0 => rbActive[i];
+            }
+        }
+        for( 0 => int i; i < 24; i++ ) {
             if( rvActive[i] && now - rvTrigTime[i] > rvLife[i] ) {
-                rainEnv[i].keyOff();
-                0.0 => rainAmp[i].gain;
+                rainImpactEnv[i].keyOff();
+                rainBubbleEnv[i].keyOff();
+                0.0 => rainImpactAmp[i].gain;
+                0.0 => rainBubbleAmp[i].gain;
                 0 => rvActive[i];
             }
         }
+
         if( m > 0.0 ) {
+            Math.random2(0, 1 + (m * m * 2.0) $ int) => int boilCount;
+            for( 0 => int b; b < boilCount; b++ ) {
+                if( Math.random2f(0.0, 1.0) < m * m * 0.85 ) {
+                    findFreeBoil() => int bv;
+                    if( bv >= 0 ) {
+                        4000.0 + Math.pow(Math.random2f(0.0,1.0),0.6)*10000.0 => rainBoilFilt[bv].freq;
+                        2.5 + Math.random2f(0.0, 3.0) => rainBoilFilt[bv].Q;
+                        rainBoilEnv[bv].keyOn();
+                        (0.003 + Math.random2f(0.0,0.005)) * m * vol => rainBoilAmp[bv].gain;
+                        1 => rbActive[bv];
+                        now => rbTrigTime[bv];
+                        7::ms => rbLife[bv];
+                    }
+                }
+            }
             for( 0 => int ch; ch < 4; ch++ ) {
-                if( Math.random2f(0.0, 1.0) < prob ) {
+                if( Math.random2f(0.0, 1.0) < m * m * 0.9 ) {
                     findFreeRain(ch) => int v;
                     if( v >= 0 ) {
-                        Math.random2f(2.0, 5.0) => float a;
-                        Math.random2f(30.0, 80.0) => float d;
-                        rainEnv[v].set( a::ms, d::ms, 0.0, 25::ms );
-                        6000.0 + Math.random2f(0.0, 1500.0) => rainFilt[v].freq;
-                        0.05 + Math.random2f(0.0, 0.02) => rainFilt[v].Q;
-                        rainEnv[v].keyOn();
-                        (0.03 + Math.random2f(0.0, 0.06)) * (vol + 0.25) => rainAmp[v].gain;
+                        Math.pow(Math.random2f(0.0,1.0), 2.2) => float dropSize;
+                        9000.0 - dropSize*7500.0 + Math.random2f(-600.0,600.0) => float impactFreq;
+                        if( impactFreq < 1000.0 ) 1000.0 => impactFreq;
+                        if( impactFreq > 11000.0 ) 11000.0 => impactFreq;
+                        1.2 + (1.0-dropSize)*2.8 => float impactQ;
+                        Math.random2f(0.3, 0.8) => float atk;
+                        3.0 + dropSize*57.0 + Math.random2f(-2.0,6.0) => float dec;
+                        impactFreq => rainImpactFilt[v].freq;
+                        impactQ => rainImpactFilt[v].Q;
+                        rainImpactEnv[v].set( atk::ms, dec::ms, 0.0, 3::ms );
+                        rainImpactEnv[v].keyOn();
+                        (0.009 + Math.random2f(0.0,0.016)) * (vol+0.2) => rainImpactAmp[v].gain;
+                        if( Math.random2f(0.0,1.0) < 0.25 + dropSize*0.65 ) {
+                            800.0 + (1.0-dropSize)*(1.0-dropSize)*14200.0
+                                + Math.random2f(-200.0,200.0)*(1.0+dropSize*3.0) => float bubFreq;
+                            if( bubFreq < 600.0 ) 600.0 => bubFreq;
+                            if( bubFreq > 16000.0 ) 16000.0 => bubFreq;
+                            (4.0 + dropSize*26.0)::ms => dur bubTau;
+                            bubFreq => rainBubble[v].freq;
+                            rainBubbleEnv[v].set( 0.3::ms, bubTau, 0.0, 3::ms );
+                            rainBubbleEnv[v].keyOn();
+                            (0.002 + dropSize*0.012) * (vol+0.2) => rainBubbleAmp[v].gain;
+                        } else {
+                            0.0 => rainBubbleAmp[v].gain;
+                        }
                         Math.random2f(-0.9, 0.9) => float dropPan;
                         dropPan => rainPan.pan;
                         1 => rvActive[v];
                         now => rvTrigTime[v];
-                        (a + d)::ms => rvLife[v];
-                        if( rainDropCount < 128 ) {
+                        (atk + dec + 5.0)::ms => rvLife[v];
+                        if( rainDropCount < 64 ) {
                             dropPan => rainDropX[rainDropCount];
                             1.0 => rainDropY[rainDropCount];
                             rainDropCount + 1 => rainDropCount;
@@ -712,6 +803,8 @@ fun void rainLoop() {
                     }
                 }
             }
+        } else {
+            0.0 => rainHissGain.gain;
         }
         5::ms => now;
     }
@@ -818,7 +911,8 @@ for( 0 => int i; i < 5; i++ ) {
     Math.random2f(-0.008, 0.008) => bpVX[i];
     Math.random2f(-0.006, 0.006) => bpVY[i];
     Math.random2f(0.0, 6.28) => bpPhase[i];
-    Math.random2f(-0.1, 0.1) => bpRotSpd[i];
+    Math.random2f(0.06, 0.2) => bpRotSpd[i];
+    if( Math.random2f(0.0, 1.0) < 0.5 ) -1.0 * bpRotSpd[i] => bpRotSpd[i];
     Math.random2f(1.2, 3.5) => bpBaseSca[i];
     Math.random2f(0.4, 1.4) => bpAspX[i];
     Math.random2f(0.4, 1.4) => bpAspY[i];
@@ -852,7 +946,7 @@ float ksR[4], ksG[4], ksB[4];
 
 for( 0 => int i; i < 4; i++ ) {
     kickShape[i] --> GG.scene();
-    kickShape[i].posZ( -1.5 );
+    kickShape[i].posZ( -2.3 );
     kickShape[i].sca( 0.0 );
     0.0 => ksLife[i];
 }
@@ -902,14 +996,13 @@ for( 0 => int i; i < 8; i++ ) {
     Math.random2f(0.0, 6.28) => bdRotBase[i];
 }
 
-// rain drops falling down, 48 visual pool (not every audio drop gets a visual)
-48 => int RAIN_VP;
-GCircle rainDrop[48];
-float rdLife[48], rdMaxLife[48];
-float rdX[48], rdY[48], rdVX[48], rdVY[48], rdSz[48];
-0 => int rdHead;
+// rain drops visual pool
+64 => int RAIN_VP;
+GCircle rainDrop[64];
+float rdLife[64], rdMaxLife[64];
+float rdX[64], rdY[64], rdVX[64], rdVY[64], rdSz[64];
 
-for( 0 => int i; i < 48; i++ ) {
+for( 0 => int i; i < 64; i++ ) {
     rainDrop[i] --> GG.scene();
     rainDrop[i].posZ( 0.5 );
     rainDrop[i].sca( 0.0 );
@@ -954,9 +1047,12 @@ fun void spawnAny( float x, float y, float vx, float vy,
 }
 
 fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
-    rdHead => int i;
-    (rdHead + 1) % 48 => rdHead;
-    hH * 2.0 * 0.55 => float targetDist;
+    -1 => int i;
+    for( 0 => int s; s < 64; s++ ) {
+        if( rdLife[s] <= 0.0 ) { s => i; break; }
+    }
+    if( i < 0 ) return;
+    hH * 2.0 * 0.65 => float targetDist;
     Math.random2f(0.7, 1.0) * targetDist => float dist;
     2.5 => float speed;
     dist / speed => float life;
@@ -975,8 +1071,8 @@ fun void spawnKickVisual( float hW, float hH ) {
     0.32 => ksLife[i];
     0.32 => ksMaxLife[i];
     0.0 => ksR[i];
-    0.1 => ksG[i];
-    1.0 => ksB[i];
+    0.05 => ksG[i];
+    0.8 => ksB[i];
 }
 
 // bird triangle spawn, position reflects the stereo pan position
@@ -996,12 +1092,12 @@ GCircle ctrlBody[6];
 GCircle ctrlGlow[6];
 GCircle ctrlInner[6];
 
-[0.1, 0.9, 0.2, 0.9, 0.15, 0.2] @=> float ctrlCR[];
-[0.75, 0.25, 0.4, 0.75, 0.8, 0.15] @=> float ctrlCG[];
-[0.85, 0.15, 0.95, 0.1, 0.7, 0.75] @=> float ctrlCB[];
+[0.1, 0.9, 0.15, 0.2, 0.9, 0.2] @=> float ctrlCR[];
+[0.75, 0.25, 0.8, 0.4, 0.75, 0.15] @=> float ctrlCG[];
+[0.85, 0.15, 0.7, 0.95, 0.1, 0.75] @=> float ctrlCB[];
 
 float ctrlVal[6];
-[0.458, 0.33, 0.75, 0.50, 0.80, 0.25] @=> float ctrlDefaults[];
+[0.458, 0.33, 0.80, 0.75, 0.50, 0.25] @=> float ctrlDefaults[];
 
 float orbSwayPh[6];
 float orbSwayRt[6];
@@ -1019,7 +1115,7 @@ for( 0 => int i; i < 6; i++ ) {
 }
 
 GText ctrlLabel[6];
-["PITCH", "KICK", "SIN", "BIRD", "WAVES", "RAIN"] @=> string labelText[];
+["PITCH", "KICK", "WAVES", "SIN", "BIRD", "RAIN"] @=> string labelText[];
 for( 0 => int i; i < 6; i++ ) {
     ctrlLabel[i] --> GG.scene();
     ctrlLabel[i].posZ( 0.04 );
@@ -1124,9 +1220,9 @@ while( true ) {
 
     -12.0 + ctrlVal[0] * 24.0 => gPitch;
     ctrlVal[1] => gKickMacro;
-    ctrlVal[2] => gSineMacro;
-    ctrlVal[3] => gBirdMacro;
-    ctrlVal[4] => gWavesMacro;
+    ctrlVal[2] => gWavesMacro;
+    ctrlVal[3] => gSineMacro;
+    ctrlVal[4] => gBirdMacro;
     ctrlVal[5] => gThunderMacro;
     ctrlVal[5] => gRainMacro;
 
@@ -1163,26 +1259,8 @@ while( true ) {
         spawnKick - 1 => spawnKick;
     }
 
-    // sine: background polygon shapes, colors shift with pitch
-    while( sineSpawnCount > 0 ) {
-        sineSpawnCount - 1 => sineSpawnCount;
-        sineSpawnNote[sineSpawnCount] => int noteIdx;
-        noteIdx $ float / 47.0 => float pitchNorm;
-        sineSpawnAmp[sineSpawnCount] => float amp;
-        0.3 + pitchNorm * 0.7 => float bright;
-        Math.sin(pitchNorm * 6.28) * 0.4 + 0.5 => float sR;
-        Math.sin(pitchNorm * 6.28 + 2.09) * 0.35 + 0.35 => float sG;
-        Math.sin(pitchNorm * 6.28 + 4.19) * 0.4 + 0.5 => float sB;
-        spawnRp(
-            Math.random2f(-halfW * 0.8, halfW * 0.8),
-            Math.random2f(-halfH * 0.7, halfH * 0.7),
-            Math.random2f(-0.03, 0.03), Math.random2f(-0.02, 0.03),
-            sR * bright * 0.15, sG * bright * 0.15, sB * bright * 0.15,
-            0.3 + amp * 2.0,
-            4.7,
-            Math.random2f(0.3, 0.9)
-        );
-    }
+    // sine: no particles — sineBright handles visual response
+    0 => sineSpawnCount;
     0 => spawnSine;
 
     // bird: spawn triangle at stereo pan position
@@ -1231,14 +1309,16 @@ while( true ) {
     }
     0 => pluckSpawnCount;
 
-    // rain: only ~35% of audio drops get a visual to keep iphone smooth
     while( rainDropCount > 0 ) {
         rainDropCount - 1 => rainDropCount;
-        if( Math.random2f(0.0, 1.0) < 0.35 ) {
-            spawnVisualRainDrop(
-                rainDropX[rainDropCount], rainDropY[rainDropCount],
-                halfW, halfH
-            );
+        spawnVisualRainDrop( rainDropX[rainDropCount], rainDropY[rainDropCount], halfW, halfH );
+    }
+    if( gRainMacro > 0.0 ) {
+        gRainMacro * gRainMacro * 3.0 => float extraF;
+        extraF $ int => int extraDrops;
+        if( Math.random2f(0.0, 1.0) < (extraF - extraDrops) ) extraDrops + 1 => extraDrops;
+        for( 0 => int d; d < extraDrops; d++ ) {
+            spawnVisualRainDrop( Math.random2f(-1.0, 1.0), 1.0, halfW, halfH );
         }
     }
 
@@ -1321,8 +1401,8 @@ while( true ) {
         }
     }
 
-    // rain drops falling, no per-frame jitter for iphone perf
-    for( 0 => int i; i < 48; i++ ) {
+    // rain drops falling
+    for( 0 => int i; i < 64; i++ ) {
         if( rdLife[i] > 0.0 ) {
             rdLife[i] - dt => rdLife[i];
             if( rdLife[i] <= 0.0 ) {
@@ -1415,7 +1495,8 @@ while( true ) {
             Math.random2f(-halfH, halfH) => bpY[i];
             Math.random2f(-0.008, 0.008) => bpVX[i];
             Math.random2f(-0.006, 0.006) => bpVY[i];
-            Math.random2f(-0.1, 0.1) => bpRotSpd[i];
+            Math.random2f(0.06, 0.2) => bpRotSpd[i];
+            if( Math.random2f(0.0, 1.0) < 0.5 ) -1.0 * bpRotSpd[i] => bpRotSpd[i];
             Math.random2f(1.2, 3.5) => bpBaseSca[i];
             Math.random2f(0.4, 1.4) => bpAspX[i];
             Math.random2f(0.4, 1.4) => bpAspY[i];
