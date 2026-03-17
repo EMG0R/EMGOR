@@ -878,7 +878,7 @@ GG.bloom( 1 );
 GG.bloomPass().intensity( 2.2 );
 GG.bloomPass().radius( 0.3 );
 GG.bloomPass().threshold( 0.0 );
-GG.bloomPass().levels( 1 );
+GG.bloomPass().levels( 3 );
 
 // background plane
 GPlane bg --> GG.scene();
