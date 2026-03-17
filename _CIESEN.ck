@@ -877,16 +877,30 @@ bg.sca( 40.0 );
 bg.posZ( -2.5 );
 bg.color( @(0.012, 0.012, 0.025) );
 
-// sine visual pool — one big circle per sine wave
+// kick visual pool — huge pulse in screen center
+4 => int KICK_VP;
+GCircle kickShape[4];
+float ksLife[4], ksMaxLife[4];
+float ksR[4], ksG[4], ksB[4];
+0 => int ksHead;
+
+for( 0 => int i; i < 4; i++ ) {
+    kickShape[i] --> GG.scene();
+    kickShape[i].posZ( -0.5 );
+    kickShape[i].sca( 0.0 );
+    0.0 => ksLife[i];
+}
+
+// sine visual pool — layered circles per sine wave
 // follows EXACT sine ADSR: 1200ms atk, 3500ms decay, 0 sustain
-6 => int SINE_VP;
-GCircle sineShape[6];
-float ssLife[6], ssMaxLife[6];
-float ssX[6], ssY[6];
-float ssR[6], ssG[6], ssB[6];
+12 => int SINE_VP;
+GCircle sineShape[12];
+float ssLife[12], ssMaxLife[12];
+float ssX[12], ssY[12];
+float ssR[12], ssG[12], ssB[12];
 0 => int ssHead;
 
-for( 0 => int i; i < 6; i++ ) {
+for( 0 => int i; i < 12; i++ ) {
     sineShape[i] --> GG.scene();
     sineShape[i].posZ( -0.3 );
     sineShape[i].sca( 0.0 );
@@ -925,7 +939,20 @@ fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     Math.random2f(0.02, 0.04) => rdSz[i];
 }
 
-// spawn sine visual — one huge circle per sine wave
+// spawn kick visual — huge centered pulse
+fun void spawnKickVisual( float hW, float hH ) {
+    ksHead => int i;
+    (ksHead + 1) % KICK_VP => ksHead;
+    // kick envelope: fast attack ~10ms, decay ~300ms
+    0.32 => ksLife[i];
+    0.32 => ksMaxLife[i];
+    // deep warm colors — purple/magenta shifting
+    0.6 + Math.random2f(-0.1, 0.15) => ksR[i];
+    0.1 + Math.random2f(-0.05, 0.1) => ksG[i];
+    0.4 + Math.random2f(-0.1, 0.2) => ksB[i];
+}
+
+// spawn sine visual — layered circles that stack over each other
 // shape follows exact ADSR envelope: 1200ms attack, 3500ms decay
 fun void spawnSineVisual( float freq, float amp, float hW, float hH ) {
     ssHead => int i;
@@ -933,14 +960,14 @@ fun void spawnSineVisual( float freq, float amp, float hW, float hH ) {
     // life matches sine ADSR total: attack + decay = 4700ms
     4.7 => ssLife[i];
     4.7 => ssMaxLife[i];
-    // position: random spread across screen
-    Math.random2f(-0.7, 0.7) * hW => ssX[i];
-    Math.random2f(-0.5, 0.5) * hH => ssY[i];
-    // color from frequency — low=warm purple, high=cool blue
+    // position: clustered near center with some spread (layering effect)
+    Math.random2f(-0.4, 0.4) * hW => ssX[i];
+    Math.random2f(-0.3, 0.3) * hH => ssY[i];
+    // color from frequency — low=warm purple/rose, high=cool teal/blue
     Math.min(1.0, freq / 2000.0) => float t;
-    0.3 + 0.5 * (1.0 - t) => ssR[i];
-    0.2 + 0.3 * t => ssG[i];
-    0.5 + 0.45 * t => ssB[i];
+    0.5 + 0.4 * (1.0 - t) => ssR[i];
+    0.15 + 0.5 * t => ssG[i];
+    0.4 + 0.55 * t => ssB[i];
 }
 
 // control orbs - 8 orbs (no master prob)
@@ -1106,6 +1133,11 @@ while( true ) {
     1.0 + duck * 0.4 => float scPulse;
     1.0 + duck * 0.5 => float scBright;
 
+    // kick visual: big centered pulse on each kick
+    if( spawnKick > 0 ) {
+        spawnKickVisual( halfW, halfH );
+    }
+
     // sine visual: spawn ONE circle per frame if any sine triggered
     // (not per-voice — just one big shape per sine event)
     if( spawnSine > 0 && sineSpawnCount > 0 ) {
@@ -1155,6 +1187,40 @@ while( true ) {
         }
     }
 
+    // update kick visual — huge centered pulse, fast attack/decay
+    for( 0 => int i; i < KICK_VP; i++ ) {
+        if( ksLife[i] > 0.0 ) {
+            ksLife[i] - dt => ksLife[i];
+            if( ksLife[i] <= 0.0 ) {
+                0.0 => ksLife[i];
+                kickShape[i].sca( 0.0 );
+            } else {
+                ksMaxLife[i] - ksLife[i] => float elapsed;
+                // fast punch: attack ~15ms, then decay
+                0.0 => float env;
+                if( elapsed < 0.015 ) {
+                    elapsed / 0.015 => env;
+                } else {
+                    1.0 - (elapsed - 0.015) / 0.305 => env;
+                    if( env < 0.0 ) 0.0 => env;
+                }
+
+                // MASSIVE centered circle
+                env * 10.0 * winScale => float sz;
+                kickShape[i].sca( sz );
+                kickShape[i].posX( 0.0 );
+                kickShape[i].posY( 0.0 );
+                // bright on impact, fading to deep glow
+                Math.pow(env, 0.6) * 0.18 => float bright;
+                kickShape[i].color( @(
+                    ksR[i] * bright,
+                    ksG[i] * bright,
+                    ksB[i] * bright
+                ) );
+            }
+        }
+    }
+
     // update sine visual circles — scale follows EXACT sine ADSR envelope
     // ADSR: 1200ms attack, 3500ms decay, 0.0 sustain, 30ms release
     // total life = 4700ms = 4.7s
@@ -1177,13 +1243,13 @@ while( true ) {
                     if( env < 0.0 ) 0.0 => env;
                 }
 
-                // HUGE circle: fills significant screen area
-                env * 5.0 * winScale => float sz;
+                // HUGE layered circles — fill the screen
+                env * 8.0 * winScale => float sz;
                 sineShape[i].sca( sz );
                 sineShape[i].posX( ssX[i] );
                 sineShape[i].posY( ssY[i] );
-                // color: soft glow that fades with envelope
-                env * 0.08 => float bright;
+                // vivid glow that fades with envelope — brighter for layering effect
+                Math.pow(env, 0.7) * 0.14 => float bright;
                 sineShape[i].color( @(
                     ssR[i] * bright,
                     ssG[i] * bright,
@@ -1193,7 +1259,7 @@ while( true ) {
         }
     }
 
-    // background color — simplified (no thColorBoost since bg shapes disabled)
+    // background color
     bg.color( @(
         0.012 + duck * 0.003,
         0.012 + duck * 0.002,

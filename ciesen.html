@@ -120,6 +120,26 @@
     </div>
     <div id="chuck-output"></div>
 
+    <!-- Register service worker for COOP/COEP headers (required for SharedArrayBuffer → audio) -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').then(function(reg) {
+                // If the SW is installing/waiting, reload once it activates
+                // so the COOP/COEP headers take effect
+                if (!navigator.serviceWorker.controller) {
+                    reg.addEventListener('updatefound', function() {
+                        var sw = reg.installing;
+                        sw.addEventListener('statechange', function() {
+                            if (sw.state === 'activated') {
+                                window.location.reload();
+                            }
+                        });
+                    });
+                }
+            });
+        }
+    </script>
+
     <script type="module">
         const statusEl   = document.getElementById('status');
         const outputEl   = document.getElementById('chuck-output');
@@ -153,6 +173,11 @@
             ]);
         }
 
+        // ── Cross-origin isolation check ────────────────────────────
+        // SharedArrayBuffer (required for WebChuGL audio) needs COOP/COEP headers.
+        // The service worker (sw.js) injects these. On first visit it auto-reloads.
+        log('crossOriginIsolated: ' + self.crossOriginIsolated);
+
         // ── Capture every AudioContext created on this page ──────────
         const _allCtx = [];
         const _OrigAC = window.AudioContext || window.webkitAudioContext;
@@ -168,65 +193,16 @@
             if (window.webkitAudioContext) window.webkitAudioContext = P;
         }
 
-        // Try every possible way to unlock + connect audio
-        function tryAllAudioFixes(ck) {
-            // Resume all captured contexts
+        // Resume all captured AudioContexts (+ handle Safari 'interrupted' state)
+        function resumeAll() {
             for (const ctx of _allCtx) {
-                if (ctx.state !== 'running') {
-                    ctx.resume().then(() => log('resumed: ' + ctx.state));
-                }
+                if (ctx.state !== 'running') ctx.resume().catch(() => {});
             }
-
-            // Try ck.connect() — WebChucK extends AudioWorkletNode
-            // so ck itself might BE the audio node
-            for (const ctx of _allCtx) {
-                if (typeof ck.connect === 'function') {
-                    try {
-                        ck.connect(ctx.destination);
-                        log('ck.connect() ok');
-                    } catch(e) { log('ck.connect: ' + e.message); }
-                }
-            }
-
-            // Try ck.audioNode.connect() — WebChuGL getter
-            try {
-                const node = ck.audioNode;
-                if (node) {
-                    for (const ctx of _allCtx) {
-                        try { node.disconnect(); } catch(e) {}
-                        node.connect(ctx.destination);
-                        log('audioNode reconnected');
-                    }
-                }
-            } catch(e) {}
-
-            // Try ck.output.connect() — some WebChucK builds
-            try {
-                if (ck.output && typeof ck.output.connect === 'function') {
-                    for (const ctx of _allCtx) {
-                        ck.output.connect(ctx.destination);
-                        log('ck.output connected');
-                    }
-                }
-            } catch(e) {}
-
-            // Try ck.theChuck.connect() — internal WebChucK instance
-            try {
-                if (ck.theChuck && typeof ck.theChuck.connect === 'function') {
-                    for (const ctx of _allCtx) {
-                        ck.theChuck.connect(ctx.destination);
-                        log('theChuck connected');
-                    }
-                }
-            } catch(e) {}
         }
 
         // Safari tab-switch / screen-lock recovery
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState !== 'visible') return;
-            for (const ctx of _allCtx) {
-                if (ctx.state !== 'running') ctx.resume();
-            }
+            if (document.visibilityState === 'visible') resumeAll();
         });
 
         if (location.protocol === 'file:') {
@@ -273,54 +249,54 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // Debug: what IS the ck object?
-                    log('ck type: ' + typeof ck);
-                    log('ck.connect: ' + typeof ck.connect);
-                    log('ck.context: ' + (ck.context ? ck.context.state : 'undef'));
-                    log('ck.audioContext: ' + (ck.audioContext ? ck.audioContext.state : 'undef'));
-                    log('ck.audioNode: ' + (ck.audioNode || 'undef'));
-                    log('captured ' + _allCtx.length + ' ctx');
-                    _allCtx.forEach((c,i) => log('  ctx' + i + ': ' + c.state + ' sr:' + c.sampleRate));
+                    // Debug status
+                    log('isolated: ' + self.crossOriginIsolated);
+                    log('audioNode: ' + (ck.audioNode ? 'yes' : 'NULL'));
+                    log('contexts: ' + _allCtx.length);
+                    _allCtx.forEach((c,i) => log('  ctx' + i + ': ' + c.state));
 
-                    // If already running (desktop), try connecting now
+                    // Desktop: contexts may already be running
                     const anyRunning = _allCtx.some(c => c.state === 'running');
                     if (anyRunning) {
-                        tryAllAudioFixes(ck);
+                        resumeAll();
                     }
 
-                    // If any ctx is suspended, show tap overlay
+                    // Mobile / suspended: show tap overlay for user gesture unlock
                     if (!anyRunning || _allCtx.length === 0) {
                         tapOverlay.classList.add('show');
                     }
 
-                    // On gesture: resume + try all fixes
+                    // On user gesture: resume AudioContexts + ensure node is connected
                     function onUnlock() {
-                        tryAllAudioFixes(ck);
-                        // Also poll for audioNode becoming available (async addModule)
-                        let polls = 0;
-                        const poller = setInterval(() => {
-                            polls++;
-                            const node = ck.audioNode;
-                            if (node) {
-                                clearInterval(poller);
-                                for (const ctx of _allCtx) {
-                                    try { node.disconnect(); } catch(e) {}
-                                    try {
-                                        node.connect(ctx.destination);
-                                        log('node connected (poll ' + polls + ')');
-                                    } catch(e) {}
-                                }
-                            }
-                            // Also retry ck.connect each poll
-                            if (typeof ck.connect === 'function') {
-                                for (const ctx of _allCtx) {
-                                    try { ck.connect(ctx.destination); } catch(e) {}
-                                }
-                            }
-                            if (polls >= 30) clearInterval(poller); // 3s max
-                        }, 100);
-
+                        resumeAll();
                         tapOverlay.classList.remove('show');
+
+                        // Ensure audioNode is connected (may have been created async)
+                        const node = ck.audioNode;
+                        if (node) {
+                            for (const ctx of _allCtx) {
+                                try { node.connect(ctx.destination); } catch(e) {}
+                            }
+                            log('audioNode connected');
+                        }
+
+                        // Poll briefly for audioNode if not ready yet (async addModule)
+                        if (!node) {
+                            let polls = 0;
+                            const poller = setInterval(() => {
+                                polls++;
+                                const n = ck.audioNode;
+                                if (n) {
+                                    clearInterval(poller);
+                                    for (const ctx of _allCtx) {
+                                        try { n.connect(ctx.destination); } catch(e) {}
+                                    }
+                                    log('audioNode connected (poll ' + polls + ')');
+                                }
+                                if (polls >= 30) clearInterval(poller);
+                            }, 100);
+                        }
+
                         ['touchend', 'click', 'keydown'].forEach(ev =>
                             document.removeEventListener(ev, onUnlock, true)
                         );
