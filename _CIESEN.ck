@@ -920,7 +920,6 @@ kickShape[0] --> GG.scene();
 kickShape[0].posZ( -2.3 );
 kickShape[0].sca( 0.0 );
 0.0 => ksLife[0];
-}
 
 // particle pools removed for iPhone performance
 
