@@ -349,7 +349,7 @@ fun void kickLoop() {
         bpm => gBPM;
 
         if( m > 0.0 ) {
-            vol * 0.36 => kickOut.gain;
+            vol * 0.432 => kickOut.gain;
             kickBodyEnv.keyOn();
             kickSubEnv.keyOn();
             vol => scEnv;
@@ -991,10 +991,10 @@ fun void spawnKickVisual( float hW, float hH ) {
 fun void spawnBirdDot( int voice, float freq, float pan, float hW, float hH ) {
     voice => int i;
     if( i < 0 || i >= BIRD_VP ) return;
-    0.25 => bdLife[i];
-    0.25 => bdMaxLife[i];
+    0.5 => bdLife[i];
+    0.5 => bdMaxLife[i];
     pan * 0.85 * hW => bdX[i];
-    Math.random2f(-0.3, 0.5) * hH => bdY[i];
+    Math.random2f(-0.2, 0.6) * hH => bdY[i];
     Math.random2f(0.0, 6.28) => bdRotBase[i];
 }
 
@@ -1034,6 +1034,21 @@ for( 0 => int i; i < 8; i++ ) {
     ctrlLabel[i].text( labelText[i] );
     ctrlLabel[i].sca( 0.1 );
     ctrlLabel[i].color( @(0.85, 0.85, 0.85) );
+}
+
+// orb trails, small fading circles left behind as orbs move
+24 => int TRAIL_COUNT;
+GCircle orbTrail[24];
+float trLife[24], trMaxLife[24];
+float trX[24], trY[24], trSz[24];
+float trR[24], trG[24], trB[24];
+0 => int trHead;
+
+for( 0 => int i; i < 24; i++ ) {
+    orbTrail[i] --> GG.scene();
+    orbTrail[i].posZ( 0.005 );
+    orbTrail[i].sca( 0.0 );
+    0.0 => trLife[i];
 }
 
 -1 => int grabIdx;
@@ -1193,7 +1208,7 @@ while( true ) {
     // bird: spawn triangle at stereo pan position
     if( spawnBird > 0 ) {
         for( 0 => int i; i < 8; i++ ) {
-            if( bvActive[i] && now - bvTrigTime[i] < 20::ms ) {
+            if( bvActive[i] && now - bvTrigTime[i] < 80::ms ) {
                 spawnBirdDot( i, bvBaseFreq[i], bvPan[i], halfW, halfH );
             }
         }
@@ -1377,7 +1392,7 @@ while( true ) {
         }
     }
 
-    // bird triangles, thin elongated planes that flicker at the pan position
+    // bird triangles, small yellow shapes that pop at the pan position
     for( 0 => int i; i < BIRD_VP; i++ ) {
         if( bdLife[i] > 0.0 ) {
             bdLife[i] - dt => bdLife[i];
@@ -1386,14 +1401,17 @@ while( true ) {
                 birdTri[i].sca( 0.0 );
             } else {
                 bdLife[i] / bdMaxLife[i] => float t;
-                0.18 * winScale * t => float sz;
-                birdTri[i].scaX( sz * 0.35 );
+                0.0 => float env;
+                if( t > 0.85 ) (1.0 - t) / 0.15 => env;
+                else t / 0.85 => env;
+                0.4 * winScale * env => float sz;
+                birdTri[i].scaX( sz * 0.4 );
                 birdTri[i].scaY( sz );
-                birdTri[i].posX( bdX[i] + Math.random2f(-0.04, 0.04) );
-                birdTri[i].posY( bdY[i] + Math.random2f(-0.04, 0.04) );
-                birdTri[i].rotZ( bdRotBase[i] + Math.random2f(-0.15, 0.15) );
-                t * 0.65 => float bbright;
-                birdTri[i].color( @(1.0 * bbright, 0.95 * bbright, 0.12 * bbright) );
+                birdTri[i].posX( bdX[i] + Math.random2f(-0.03, 0.03) );
+                birdTri[i].posY( bdY[i] + Math.random2f(-0.03, 0.03) );
+                birdTri[i].rotZ( bdRotBase[i] + Math.random2f(-0.2, 0.2) );
+                env * 0.8 => float bbright;
+                birdTri[i].color( @(1.0 * bbright, 0.92 * bbright, 0.08 * bbright) );
             }
         }
     }
@@ -1467,6 +1485,41 @@ while( true ) {
         0.010 + duck * 0.002 + thColorBoost * 0.02,
         0.032 + duck * 0.006 + thColorBoost * 0.18
     ) );
+
+    // spawn orb trail particles every 3 frames
+    if( frameCount % 3 == 0 ) {
+        for( 0 => int i; i < 8; i++ ) {
+            trHead => int ti;
+            (trHead + 1) % 24 => trHead;
+            0.6 => trLife[ti];
+            0.6 => trMaxLife[ti];
+            orbDispX[i] => trX[ti];
+            orbDispY[i] => trY[ti];
+            0.33 * winScale * 0.5 => trSz[ti];
+            ctrlCR[i] => trR[ti];
+            ctrlCG[i] => trG[ti];
+            ctrlCB[i] => trB[ti];
+        }
+    }
+
+    // update trail particles
+    for( 0 => int i; i < 24; i++ ) {
+        if( trLife[i] > 0.0 ) {
+            trLife[i] - dt => trLife[i];
+            if( trLife[i] <= 0.0 ) {
+                0.0 => trLife[i];
+                orbTrail[i].sca( 0.0 );
+            } else {
+                trLife[i] / trMaxLife[i] => float alpha;
+                alpha * alpha => float fade;
+                orbTrail[i].posX( trX[i] );
+                orbTrail[i].posY( trY[i] );
+                orbTrail[i].sca( trSz[i] * fade );
+                fade * 0.08 => float tb;
+                orbTrail[i].color( @(trR[i] * tb, trG[i] * tb, trB[i] * tb) );
+            }
+        }
+    }
 
     // control orbs at 1.5x size with extra jitter
     0.33 * winScale => float orbFixedSz;
