@@ -9,7 +9,7 @@
  * happens on first fetch regardless of deployment layout.
  */
 
-var CACHE_NAME = 'webchugl-v15';
+var CACHE_NAME = 'webchugl-v16';
 
 // ── Install ─────────────────────────────────────────────────────────
 self.addEventListener('install', function() { self.skipWaiting(); });
@@ -56,10 +56,10 @@ self.addEventListener('fetch', function(event) {
 
     var isSameOrigin = new URL(r.url).origin === self.location.origin;
 
-    // Only intercept same-origin requests. Cross-origin requests are left
-    // to the browser, which handles credential stripping natively under
-    // COEP credentialless. Intercepting them would break CORS proxies and
-    // legitimate cross-origin fetches.
+    // Cross-origin requests: need CORS headers for require-corp COEP.
+    // jsdelivr and other major CDNs send Access-Control-Allow-Origin: *
+    // so dynamic import() (which uses CORS mode) works fine.
+    // Don't intercept cross-origin — browser handles CORS natively.
     if (!isSameOrigin) return;
 
     // Same-origin: stale-while-revalidate cache + COI headers
@@ -100,7 +100,7 @@ function addCoiHeaders(response) {
 
     var headers = new Headers(response.headers);
     headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-    headers.set('Cross-Origin-Embedder-Policy', 'credentialless');
+    headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
 
     return new Response(response.body, {
         status: response.status,

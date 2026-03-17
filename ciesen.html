@@ -123,20 +123,22 @@
     <!-- Register service worker for COOP/COEP headers (required for SharedArrayBuffer → audio) -->
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js').then(function(reg) {
-                // If the SW is installing/waiting, reload once it activates
-                // so the COOP/COEP headers take effect
-                if (!navigator.serviceWorker.controller) {
-                    reg.addEventListener('updatefound', function() {
-                        var sw = reg.installing;
-                        sw.addEventListener('statechange', function() {
-                            if (sw.state === 'activated') {
-                                window.location.reload();
-                            }
-                        });
-                    });
+            navigator.serviceWorker.register('./sw.js');
+
+            // When a new SW takes control, reload so COOP/COEP headers take effect
+            navigator.serviceWorker.addEventListener('controllerchange', function() {
+                if (!self.crossOriginIsolated) {
+                    window.location.reload();
                 }
             });
+
+            // Fallback: if SW is controlling but isolation failed (stale SW), reload once
+            if (navigator.serviceWorker.controller && !self.crossOriginIsolated) {
+                if (!sessionStorage.getItem('coi-retry')) {
+                    sessionStorage.setItem('coi-retry', '1');
+                    window.location.reload();
+                }
+            }
         }
     </script>
 

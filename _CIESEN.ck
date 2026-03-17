@@ -891,20 +891,27 @@ for( 0 => int i; i < 4; i++ ) {
     0.0 => ksLife[i];
 }
 
-// sine visual pool — layered circles per sine wave
-// follows EXACT sine ADSR: 1200ms atk, 3500ms decay, 0 sustain
-12 => int SINE_VP;
-GCircle sineShape[12];
-float ssLife[12], ssMaxLife[12];
-float ssX[12], ssY[12];
-float ssR[12], ssG[12], ssB[12];
-0 => int ssHead;
+// ambient background shapes — chill slowly drifting geometry
+8 => int BG_COUNT;
+GCircle bgShape[8];
+float bgPhase[8];
+float bgSpeed[8];
+float bgBaseX[8], bgBaseY[8];
+float bgSize[8];
+// muted palette: deep purple, teal, rose, amber, indigo, sage, lavender, coral
+[0.35, 0.15, 0.50, 0.60, 0.18, 0.25, 0.42, 0.50] @=> float bgCR[];
+[0.18, 0.45, 0.18, 0.38, 0.15, 0.50, 0.28, 0.22] @=> float bgCG[];
+[0.55, 0.42, 0.32, 0.18, 0.55, 0.32, 0.52, 0.28] @=> float bgCB[];
 
-for( 0 => int i; i < 12; i++ ) {
-    sineShape[i] --> GG.scene();
-    sineShape[i].posZ( -0.3 );
-    sineShape[i].sca( 0.0 );
-    0.0 => ssLife[i];
+for( 0 => int i; i < BG_COUNT; i++ ) {
+    bgShape[i] --> GG.scene();
+    bgShape[i].posZ( -1.8 + (i $ float) * 0.15 );
+    bgShape[i].sca( 0.0 );
+    Math.random2f(0.0, 6.28) => bgPhase[i];
+    Math.random2f(0.12, 0.35) => bgSpeed[i];
+    Math.random2f(-0.6, 0.6) => bgBaseX[i];
+    Math.random2f(-0.4, 0.4) => bgBaseY[i];
+    Math.random2f(1.5, 4.0) => bgSize[i];
 }
 
 // rain visual pool - 1:1 with audio
@@ -924,7 +931,6 @@ for( 0 => int i; i < 128; i++ ) {
 fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     rdHead => int i;
     (rdHead + 1) % 128 => rdHead;
-    // dots falling 1/3 down the screen — fast velocity, long life
     hH * 2.0 * 0.55 => float targetDist;
     Math.random2f(0.7, 1.0) => float distMul;
     targetDist * distMul => float dist;
@@ -950,24 +956,6 @@ fun void spawnKickVisual( float hW, float hH ) {
     0.6 + Math.random2f(-0.1, 0.15) => ksR[i];
     0.1 + Math.random2f(-0.05, 0.1) => ksG[i];
     0.4 + Math.random2f(-0.1, 0.2) => ksB[i];
-}
-
-// spawn sine visual — layered circles that stack over each other
-// shape follows exact ADSR envelope: 1200ms attack, 3500ms decay
-fun void spawnSineVisual( float freq, float amp, float hW, float hH ) {
-    ssHead => int i;
-    (ssHead + 1) % SINE_VP => ssHead;
-    // life matches sine ADSR total: attack + decay = 4700ms
-    4.7 => ssLife[i];
-    4.7 => ssMaxLife[i];
-    // position: clustered near center with some spread (layering effect)
-    Math.random2f(-0.4, 0.4) * hW => ssX[i];
-    Math.random2f(-0.3, 0.3) * hH => ssY[i];
-    // color from frequency — low=warm purple/rose, high=cool teal/blue
-    Math.min(1.0, freq / 2000.0) => float t;
-    0.5 + 0.4 * (1.0 - t) => ssR[i];
-    0.15 + 0.5 * t => ssG[i];
-    0.4 + 0.55 * t => ssB[i];
 }
 
 // control orbs - 8 orbs (no master prob)
@@ -1138,18 +1126,14 @@ while( true ) {
         spawnKickVisual( halfW, halfH );
     }
 
-    // sine visual: spawn ONE circle per frame if any sine triggered
-    // (not per-voice — just one big shape per sine event)
-    if( spawnSine > 0 && sineSpawnCount > 0 ) {
-        spawnSineVisual( sineSpawnFreq[0], sineSpawnAmp[0], halfW, halfH );
-    }
-
-    // reset spawn counters (audio shreds still increment these)
+    // reset spawn counters
     0 => spawnKick;
     0 => sineSpawnCount;
     0 => spawnSine;
     0 => spawnBird;
     0 => spawnThunder;
+    0 => spawnPluck;
+    0 => pluckSpawnCount;
 
     // rain: 1:1 audio drop -> visual drop
     while( rainDropCount > 0 ) {
@@ -1160,11 +1144,7 @@ while( true ) {
         );
     }
 
-    // reset remaining spawn counters
-    0 => spawnPluck;
-    0 => pluckSpawnCount;
-
-    // update rain drops - fall far down screen
+    // update rain drops
     for( 0 => int i; i < 128; i++ ) {
         if( rdLife[i] > 0.0 ) {
             rdLife[i] - dt => rdLife[i];
@@ -1177,7 +1157,6 @@ while( true ) {
                 rdLife[i] / rdMaxLife[i] => float lifeLeft;
                 rainDrop[i].posX( rdX[i] );
                 rainDrop[i].posY( rdY[i] );
-                // stay full size, fade only in last 15%
                 1.0 => float alpha;
                 if( lifeLeft < 0.15 ) lifeLeft / 0.15 => alpha;
                 rainDrop[i].sca( rdSz[i] * alpha );
@@ -1221,42 +1200,19 @@ while( true ) {
         }
     }
 
-    // update sine visual circles — scale follows EXACT sine ADSR envelope
-    // ADSR: 1200ms attack, 3500ms decay, 0.0 sustain, 30ms release
-    // total life = 4700ms = 4.7s
-    for( 0 => int i; i < SINE_VP; i++ ) {
-        if( ssLife[i] > 0.0 ) {
-            ssLife[i] - dt => ssLife[i];
-            if( ssLife[i] <= 0.0 ) {
-                0.0 => ssLife[i];
-                sineShape[i].sca( 0.0 );
-            } else {
-                ssMaxLife[i] - ssLife[i] => float elapsed;
-                // ADSR envelope shape: attack 1.2s, decay 3.5s
-                0.0 => float env;
-                if( elapsed < 1.2 ) {
-                    // attack: 0 → 1 over 1.2s
-                    elapsed / 1.2 => env;
-                } else {
-                    // decay: 1 → 0 over 3.5s
-                    1.0 - (elapsed - 1.2) / 3.5 => env;
-                    if( env < 0.0 ) 0.0 => env;
-                }
-
-                // HUGE layered circles — fill the screen
-                env * 8.0 * winScale => float sz;
-                sineShape[i].sca( sz );
-                sineShape[i].posX( ssX[i] );
-                sineShape[i].posY( ssY[i] );
-                // vivid glow that fades with envelope — brighter for layering effect
-                Math.pow(env, 0.7) * 0.14 => float bright;
-                sineShape[i].color( @(
-                    ssR[i] * bright,
-                    ssG[i] * bright,
-                    ssB[i] * bright
-                ) );
-            }
-        }
+    // ambient background shapes — slow chill drift
+    for( 0 => int i; i < BG_COUNT; i++ ) {
+        bgPhase[i] + bgSpeed[i] * dt => bgPhase[i];
+        bgBaseX[i] * halfW + Math.sin(bgPhase[i]) * halfW * 0.3 => float bx;
+        bgBaseY[i] * halfH + Math.cos(bgPhase[i] * 0.7 + 1.5) * halfH * 0.25 => float by;
+        bgShape[i].posX( bx );
+        bgShape[i].posY( by );
+        // gentle pulsing size
+        bgSize[i] * winScale * (0.85 + 0.15 * Math.sin(bgPhase[i] * 0.4)) => float sz;
+        bgShape[i].sca( sz );
+        // very dim soft glow
+        0.025 + 0.012 * Math.sin(bgPhase[i] * 0.3) => float bright;
+        bgShape[i].color( @(bgCR[i] * bright, bgCG[i] * bright, bgCB[i] * bright) );
     }
 
     // background color
