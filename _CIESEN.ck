@@ -783,56 +783,6 @@ fun void rainLoop() {
     }
 }
 
-// pluck arp uses fm synthesis, the modulator frequency is a whole
-// number ratio of the carrier so it sounds metallic and bell-like
-// notes jump around the scale based on what the sine pads played
-fun void pluckLoop() {
-    0 => pkVoice;
-    now => pkNextNote;
-    10 => pkLastNotes[0]; 14 => pkLastNotes[1];
-    18 => pkLastNotes[2]; 22 => pkLastNotes[3];
-    4 => pkNoteCount;
-    while( true ) {
-        0.0 => float m;
-        0.9 => float vol;
-        m => float plkProb;
-        gPitch => float pitch;
-        gBPM => float bpm;
-        (60.0 / bpm / 4.0)::second => dur sixteenth;
-        if( m > 0.0 && now >= pkNextNote && pkNoteCount > 0 ) {
-            pkLastNotes[Math.random2(0, pkNoteCount - 1)] + Math.random2(-8, 8) => int noteIdx;
-            if( noteIdx < 0 ) 0 => noteIdx;
-            if( noteIdx > 47 ) 47 => noteIdx;
-            cMajor[noteIdx] * Math.pow(2.0, pitch / 12.0) => float freq;
-            fmRatios[pkVoice] => float ratio;
-            freq * ratio => pluckMod[pkVoice].freq;
-            freq * ratio * Math.random2f(0.5, 2.0) => pluckMod[pkVoice].gain;
-            freq => pluckCar[pkVoice].freq;
-            freq * 3.0 + 500.0 => float fCut;
-            if( fCut > 6000.0 ) 6000.0 => fCut;
-            fCut => pluckFilt[pkVoice].freq;
-            (200.0 - m * 197.0)::ms => dur atkDur;
-            (600.0 - m * 520.0)::ms => dur decDur;
-            pluckEnv[pkVoice].set( atkDur, decDur, 0.0, 20::ms );
-            pluckEnv[pkVoice].keyOn();
-            0.25 * vol => pluckAmp[pkVoice].gain;
-            Math.random2f(-0.6, 0.6) => pluckPan.pan;
-            if( pluckSpawnCount < 8 ) {
-                freq => pluckSpawnFreq[pluckSpawnCount];
-                pluckSpawnCount + 1 => pluckSpawnCount;
-            }
-            spawnPluck + 1 => spawnPluck;
-            (pkVoice + 1) % 4 => pkVoice;
-            if( Math.random2f(0.0, 1.0) < plkProb * 0.8 + 0.2 )
-                now + sixteenth => pkNextNote;
-            else
-                now + sixteenth * 2 => pkNextNote;
-        } else if( m <= 0.0 ) {
-            now + 50::ms => pkNextNote;
-        }
-        5::ms => now;
-    }
-}
 
 spork ~ kickLoop();
 spork ~ sineLoop();
