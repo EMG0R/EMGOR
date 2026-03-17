@@ -288,8 +288,8 @@ int spawnThunder;
 int spawnPluck;
 
 // rain drop positions for 1:1 audio-to-visual mapping
-float rainDropX[64];
-float rainDropY[64];
+float rainDropX[32];
+float rainDropY[32];
 0 => int rainDropCount;
 
 // sine spawn data so visuals know what frequency and amplitude triggered
@@ -634,7 +634,7 @@ fun void wavesLoop() {
                 0.0 => wavesGain[ch].gain;
             }
         }
-        16::ms => now;
+        25::ms => now;
     }
 }
 
@@ -784,7 +784,7 @@ fun void rainLoop() {
                         1 => rvActive[v];
                         now => rvTrigTime[v];
                         (atk + dec + 5.0)::ms => rvLife[v];
-                        if( rainDropCount < 64 ) {
+                        if( rainDropCount < 32 ) {
                             dropPan => rainDropX[rainDropCount];
                             1.0 => rainDropY[rainDropCount];
                             rainDropCount + 1 => rainDropCount;
@@ -795,7 +795,7 @@ fun void rainLoop() {
         } else {
             0.0 => rainHissGain.gain;
         }
-        5::ms => now;
+        10::ms => now;
     }
 }
 
@@ -866,10 +866,10 @@ GWindow.windowed( 1100, 700 );
 GG.camera().posZ( 6.0 );
 
 GG.bloom( 1 );
-GG.bloomPass().intensity( 2.0 );
-GG.bloomPass().radius( 0.35 );
+GG.bloomPass().intensity( 1.8 );
+GG.bloomPass().radius( 0.25 );
 GG.bloomPass().threshold( 0.0 );
-GG.bloomPass().levels( 4 );
+GG.bloomPass().levels( 2 );
 
 // background plane
 GPlane bg --> GG.scene();
@@ -958,12 +958,12 @@ for( 0 => int i; i < 8; i++ ) {
 }
 
 // rain drops visual pool
-64 => int RAIN_VP;
-GCircle rainDrop[64];
-float rdLife[64], rdMaxLife[64];
-float rdX[64], rdY[64], rdVX[64], rdVY[64], rdSz[64];
+32 => int RAIN_VP;
+GCircle rainDrop[32];
+float rdLife[32], rdMaxLife[32];
+float rdX[32], rdY[32], rdVX[32], rdVY[32], rdSz[32];
 
-for( 0 => int i; i < 64; i++ ) {
+for( 0 => int i; i < 32; i++ ) {
     rainDrop[i] --> GG.scene();
     rainDrop[i].posZ( 0.5 );
     rainDrop[i].sca( 0.0 );
@@ -974,7 +974,7 @@ for( 0 => int i; i < 64; i++ ) {
 
 fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     -1 => int i;
-    for( 0 => int s; s < 64; s++ ) {
+    for( 0 => int s; s < 32; s++ ) {
         if( rdLife[s] <= 0.0 ) { s => i; break; }
     }
     if( i < 0 ) return;
@@ -997,8 +997,8 @@ fun void spawnKickVisual( float hW, float hH ) {
     0.32 => ksLife[i];
     0.32 => ksMaxLife[i];
     0.0 => ksR[i];
-    0.05 => ksG[i];
-    0.8 => ksB[i];
+    0.02 => ksG[i];
+    0.55 => ksB[i];
 }
 
 // bird triangle spawn, position reflects the stereo pan position
@@ -1012,15 +1012,15 @@ fun void spawnBirdDot( int voice, float freq, float pan, float hW, float hH ) {
     Math.random2f(0.0, 6.28) => bdRotBase[i];
 }
 
-// 6 control orbs: PITCH KICK SIN BIRD WAVES RAIN (ARP+THUNDER merged into SIN/RAIN)
+// 6 control orbs: PITCH KICK WAVES SIN BIRD RAIN
 6 => int NUM_CTRL;
 GCircle ctrlBody[6];
-GCircle ctrlGlow[6];
 GCircle ctrlInner[6];
 
-[0.1, 0.9, 0.15, 0.2, 0.9, 0.2] @=> float ctrlCR[];
-[0.75, 0.25, 0.8, 0.4, 0.75, 0.15] @=> float ctrlCG[];
-[0.85, 0.15, 0.7, 0.95, 0.1, 0.75] @=> float ctrlCB[];
+// teal  amber  ocean  lavender  gold  slate
+[0.1, 0.95, 0.1, 0.5, 0.9, 0.15] @=> float ctrlCR[];
+[0.75, 0.45, 0.4, 0.15, 0.75, 0.5] @=> float ctrlCG[];
+[0.85, 0.05, 0.9, 0.9, 0.05, 0.7] @=> float ctrlCB[];
 
 float ctrlVal[6];
 [0.458, 0.33, 0.80, 0.75, 0.50, 0.25] @=> float ctrlDefaults[];
@@ -1032,8 +1032,6 @@ for( 0 => int i; i < 6; i++ ) {
     ctrlDefaults[i] => ctrlVal[i];
     Math.random2f(0.0, 6.28) => orbSwayPh[i];
     Math.random2f(0.3, 0.8) => orbSwayRt[i];
-    ctrlGlow[i] --> GG.scene();
-    ctrlGlow[i].posZ( 0.01 );
     ctrlBody[i] --> GG.scene();
     ctrlBody[i].posZ( 0.02 );
     ctrlInner[i] --> GG.scene();
@@ -1051,14 +1049,14 @@ for( 0 => int i; i < 6; i++ ) {
 }
 
 // orb trails
-18 => int TRAIL_COUNT;
-GCircle orbTrail[18];
-float trLife[18], trMaxLife[18];
-float trX[18], trY[18], trSz[18];
-float trR[18], trG[18], trB[18];
+12 => int TRAIL_COUNT;
+GCircle orbTrail[12];
+float trLife[12], trMaxLife[12];
+float trX[12], trY[12], trSz[12];
+float trR[12], trG[12], trB[12];
 0 => int trHead;
 
-for( 0 => int i; i < 18; i++ ) {
+for( 0 => int i; i < 12; i++ ) {
     orbTrail[i] --> GG.scene();
     orbTrail[i].posZ( 0.005 );
     orbTrail[i].sca( 0.0 );
@@ -1175,10 +1173,6 @@ while( true ) {
     0.88 * gScMult => rainBus.gain;
     0.0 => pluckBus.gain;
 
-    // sidechain visual pulse, subtle
-    1.0 + duck * 0.4 => float scPulse;
-    1.0 + duck * 0.5 => float scBright;
-
     // kick: grow and shrink circle only
     while( spawnKick > 0 ) {
         spawnKickVisual( halfW, halfH );
@@ -1209,7 +1203,7 @@ while( true ) {
         spawnVisualRainDrop( rainDropX[rainDropCount], rainDropY[rainDropCount], halfW, halfH );
     }
     if( gRainMacro > 0.0 ) {
-        gRainMacro * gRainMacro * 3.0 => float extraF;
+        gRainMacro * gRainMacro * 2.0 => float extraF;
         extraF $ int => int extraDrops;
         if( Math.random2f(0.0, 1.0) < (extraF - extraDrops) ) extraDrops + 1 => extraDrops;
         for( 0 => int d; d < extraDrops; d++ ) {
@@ -1224,7 +1218,7 @@ while( true ) {
     // rect particle update removed
 
     // rain drops falling
-    for( 0 => int i; i < 64; i++ ) {
+    for( 0 => int i; i < 32; i++ ) {
         if( rdLife[i] > 0.0 ) {
             rdLife[i] - dt => rdLife[i];
             if( rdLife[i] <= 0.0 ) {
@@ -1262,11 +1256,11 @@ while( true ) {
                     if( env < 0.0 ) 0.0 => env;
                 }
 
-                env * 5.5 * winScale => float sz;
+                env * 9.0 * winScale => float sz;
                 kickShape[i].sca( sz );
                 kickShape[i].posX( 0.0 );
                 kickShape[i].posY( 0.0 );
-                Math.pow(env, 0.5) * 0.35 => float kbright;
+                Math.pow(env, 0.4) * 0.5 => float kbright;
                 kickShape[i].color( @(
                     ksR[i] * kbright,
                     ksG[i] * kbright,
@@ -1303,11 +1297,10 @@ while( true ) {
     // background polygons, slowly drifting with color cycling
     gThunderMacro * 0.02 => float thColorBoost;
     1.0 + duck * 0.08 => float kickGrow;
-    0.0 => float rawSineAmp;
-    for( 0 => int si; si < 24; si++ ) {
-        if( svActive[si] ) rawSineAmp + svAmp[si] => rawSineAmp;
-    }
-    Math.min(rawSineAmp * 2.0, 1.0) * 0.5 => float sineBright;
+    // sine brightness via simple active voice count (no per-frame amplitude loop)
+    svActive[0] + svActive[1] + svActive[2] + svActive[3] + svActive[4] +
+    svActive[5] + svActive[6] + svActive[7] => int sineVoices;
+    Math.min(sineVoices * 0.08, 0.4) => float sineBright;
     for( 0 => int i; i < 3; i++ ) {
         bpLife[i] - dt => bpLife[i];
         if( bpLife[i] <= 0.0 ) {
@@ -1363,10 +1356,10 @@ while( true ) {
     ) );
 
     // spawn orb trail particles every 3 frames
-    if( frameCount % 6 == 0 ) {
+    if( frameCount % 10 == 0 ) {
         for( 0 => int i; i < 6; i++ ) {
             trHead => int ti;
-            (trHead + 1) % 18 => trHead;
+            (trHead + 1) % 12 => trHead;
             0.6 => trLife[ti];
             0.6 => trMaxLife[ti];
             orbDispX[i] => trX[ti];
@@ -1379,7 +1372,7 @@ while( true ) {
     }
 
     // update trail particles
-    for( 0 => int i; i < 18; i++ ) {
+    for( 0 => int i; i < 12; i++ ) {
         if( trLife[i] > 0.0 ) {
             trLife[i] - dt => trLife[i];
             if( trLife[i] <= 0.0 ) {
@@ -1407,16 +1400,6 @@ while( true ) {
 
         Math.random2f(-0.006, 0.006) => float ojx;
         Math.random2f(-0.006, 0.006) => float ojy;
-
-        ctrlGlow[i].posX( orbDispX[i] + ojx );
-        ctrlGlow[i].posY( orbDispY[i] + ojy );
-        ctrlGlow[i].posZ( thisZ - 0.01 );
-        ctrlGlow[i].sca( thisSz * 2.5 );
-        ctrlGlow[i].color( @(
-            ctrlCR[i] * 0.22 * obright,
-            ctrlCG[i] * 0.22 * obright,
-            ctrlCB[i] * 0.22 * obright
-        ) );
 
         ctrlBody[i].posX( orbDispX[i] + ojx );
         ctrlBody[i].posY( orbDispY[i] + ojy );
