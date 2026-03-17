@@ -43,9 +43,8 @@ kickBodyEnv.set( 2::ms, 260::ms, 0.0, 10::ms );
 kickSubEnv.set( 3::ms, 200::ms, 0.0, 10::ms );
 0.0 => kickOut.gain;
 
-// 24 sine pad voices — fundamental + harmonic overlay for locked-in timbre
+// 24 sine pad voices
 SinOsc sineOsc[24];
-SinOsc sineHarm[24];
 ADSR sineEnv[24];
 Gain sineAmp[24];
 Pan2 sinePanV[24];
@@ -53,11 +52,9 @@ float svPan[24];
 
 for( 0 => int i; i < 24; i++ ) {
     sineOsc[i] => sineEnv[i] => sineAmp[i] => sinePanV[i];
-    sineHarm[i] => sineEnv[i];
     sinePanV[i].left => masterL;
     sinePanV[i].right => masterR;
     0.15 => sineOsc[i].gain;
-    0.0 => sineHarm[i].gain;
     0.0 => sineAmp[i].gain;
     sineEnv[i].set( 2000::ms, 6000::ms, 0.0, 30::ms );
     0.0 => svPan[i];
@@ -341,9 +338,7 @@ fun void triggerSineNote( int noteIdx, float vol, float pitch ) {
 
     cMajor[noteIdx] * Math.pow(2.0, pitch / 12.0) * 0.5 => float freq;
     freq => sineOsc[i].freq;
-    freq * 3.0 => sineHarm[i].freq;
     0.15 => sineOsc[i].gain;
-    0.0 => sineHarm[i].gain;
     sineEnv[i].set( 1200::ms, 3500::ms, 0.0, 30::ms );
     sineEnv[i].keyOn();
     0.22 * vol => float amp;
@@ -423,7 +418,7 @@ fun void sineLoop() {
     now => time sineNextNote;
     while( true ) {
         gSineMacro => float m;
-        Math.min(m * 2.0, 1.0) => float prob;
+        m => float prob;
         0.9 => float vol;
         gPitch => float pitch;
         gBPM => float bpm;
@@ -441,16 +436,10 @@ fun void sineLoop() {
                         cMajor[svNote[i]] * Math.pow(2.0, pitch / 12.0) * 0.5 => newFreq;
                     else
                         svFreq[i] * Math.pow(2.0, pitch / 12.0) => newFreq;
-                    // slow vibrato (half intensity)
+                    // subtle slow vibrato
                     (now - svTrigTime[i]) / second => float elapsedV;
                     Math.sin(elapsedV * 0.5 * 6.2832) => float vibLFO;
                     newFreq * (1.0 + vibLFO * 0.0075) => sineOsc[i].freq;
-                    newFreq * 3.0 * (1.0 + vibLFO * 0.0075) => sineHarm[i].freq;
-                    // locked-in timbre: harmonic fades in at upper SIN
-                    Math.max(0.0, (gSineMacro - 0.3) * 1.43) => float morphAmt;
-                    if( morphAmt > 1.0 ) 1.0 => morphAmt;
-                    0.15 * (1.0 - morphAmt * 0.4) => sineOsc[i].gain;
-                    0.08 * morphAmt => sineHarm[i].gain;
                 }
             }
         }
@@ -820,7 +809,7 @@ fun void pluckLoop() {
     18 => pkLastNotes[2]; 22 => pkLastNotes[3];
     4 => pkNoteCount;
     while( true ) {
-        Math.max(0.0, (gSineMacro - 0.5) * 2.0) => float m;
+        0.0 => float m;
         0.9 => float vol;
         m => float plkProb;
         gPitch => float pitch;
@@ -877,34 +866,34 @@ GWindow.windowed( 1100, 700 );
 GG.camera().posZ( 6.0 );
 
 GG.bloom( 1 );
-GG.bloomPass().intensity( 2.5 );
-GG.bloomPass().radius( 0.45 );
+GG.bloomPass().intensity( 2.0 );
+GG.bloomPass().radius( 0.35 );
 GG.bloomPass().threshold( 0.0 );
-GG.bloomPass().levels( 5 );
+GG.bloomPass().levels( 4 );
 
 // background plane
 GPlane bg --> GG.scene();
 bg.sca( 40.0 );
 bg.posZ( -2.5 );
-bg.color( @(0.005, 0.003, 0.010) );
+bg.color( @(0.014, 0.010, 0.032) );
 
 // background shapes - mix of circles and rectangles, varied aspect ratios
 // some thin ones rotated look like diamonds and triangles
 // slowly drifting, fading in and out over 10-30 second cycles
-5 => int NUM_BG_POLY;
-GCircle bgCirc[2];
-GPlane bgRect[3];
-float bpX[5], bpY[5], bpVX[5], bpVY[5], bpPhase[5], bpRotSpd[5];
-float bpBaseSca[5], bpAspX[5], bpAspY[5];
-float bpR[5], bpG[5], bpB[5], bpLife[5], bpMaxLife[5];
+3 => int NUM_BG_POLY;
+GCircle bgCirc[1];
+GPlane bgRect[2];
+float bpX[3], bpY[3], bpVX[3], bpVY[3], bpPhase[3], bpRotSpd[3];
+float bpBaseSca[3], bpAspX[3], bpAspY[3];
+float bpR[3], bpG[3], bpB[3], bpLife[3], bpMaxLife[3];
 
-for( 0 => int i; i < 5; i++ ) {
-    if( i < 2 ) {
+for( 0 => int i; i < 3; i++ ) {
+    if( i < 1 ) {
         bgCirc[i] --> GG.scene();
         bgCirc[i].posZ( -2.0 + Math.random2f(0.0, 0.4) );
     } else {
-        bgRect[i-2] --> GG.scene();
-        bgRect[i-2].posZ( -2.0 + Math.random2f(0.0, 0.4) );
+        bgRect[i-1] --> GG.scene();
+        bgRect[i-1].posZ( -2.0 + Math.random2f(0.0, 0.4) );
     }
     Math.random2f(-4.5, 4.5) => bpX[i];
     Math.random2f(-3.5, 3.5) => bpY[i];
@@ -922,18 +911,18 @@ for( 0 => int i; i < 5; i++ ) {
     0.020 + 0.045 * Math.max(0.0, Math.sin(bpHue + 4.19)) => bpB[i];
     Math.random2f(15.0, 40.0) => bpMaxLife[i];
     Math.random2f(0.0, bpMaxLife[i]) => bpLife[i];
-    if( i < 2 ) {
+    if( i < 1 ) {
         bgCirc[i].posX( bpX[i] );
         bgCirc[i].posY( bpY[i] );
         bgCirc[i].scaX( bpBaseSca[i] * bpAspX[i] );
         bgCirc[i].scaY( bpBaseSca[i] * bpAspY[i] );
         bgCirc[i].rotZ( Math.random2f(0.0, 6.28) );
     } else {
-        bgRect[i-2].posX( bpX[i] );
-        bgRect[i-2].posY( bpY[i] );
-        bgRect[i-2].scaX( bpBaseSca[i] * bpAspX[i] );
-        bgRect[i-2].scaY( bpBaseSca[i] * bpAspY[i] );
-        bgRect[i-2].rotZ( Math.random2f(0.0, 6.28) );
+        bgRect[i-1].posX( bpX[i] );
+        bgRect[i-1].posY( bpY[i] );
+        bgRect[i-1].scaX( bpBaseSca[i] * bpAspX[i] );
+        bgRect[i-1].scaY( bpBaseSca[i] * bpAspY[i] );
+        bgRect[i-1].rotZ( Math.random2f(0.0, 6.28) );
     }
 }
 
@@ -951,35 +940,7 @@ for( 0 => int i; i < 4; i++ ) {
     0.0 => ksLife[i];
 }
 
-// particle pools for dynamic spawns from kick, sine, thunder, pluck
-// circles float in foreground, rects sit behind for sine shapes
-16 => int CIRC_P;
-8 => int RECT_P;
-GCircle pCirc[16];
-GPlane pRect[8];
-
-float pLife[24], pMaxLife[24];
-float pX[24], pY[24], pVX[24], pVY[24];
-float pR[24], pG[24], pB[24], pSz[24];
-float pAspect[24], pRotZ[24];
-0 => int cHead;
-0 => int rHead;
-
-for( 0 => int i; i < 16; i++ ) {
-    pCirc[i] --> GG.scene();
-    pCirc[i].posZ( -0.3 );
-    pCirc[i].sca( 0.0 );
-}
-for( 0 => int i; i < 8; i++ ) {
-    pRect[i] --> GG.scene();
-    pRect[i].posZ( -1.0 );
-    pRect[i].sca( 0.0 );
-}
-for( 0 => int i; i < 24; i++ ) {
-    0.0 => pLife[i];
-    1.0 => pAspect[i];
-    0.0 => pRotZ[i];
-}
+// particle pools removed for iPhone performance
 
 // bird triangles, thin elongated planes that follow the audio pan position
 8 => int BIRD_VP;
@@ -1009,42 +970,7 @@ for( 0 => int i; i < 64; i++ ) {
     0.0 => rdLife[i];
 }
 
-// particle spawn helpers
-fun void spawnCp( float x, float y, float vx, float vy,
-                  float r, float g, float b, float sz, float life,
-                  float asp ) {
-    cHead => int i;
-    (cHead + 1) % 16 => cHead;
-    life => pLife[i]; life => pMaxLife[i];
-    x => pX[i]; y => pY[i]; vx => pVX[i]; vy => pVY[i];
-    r => pR[i]; g => pG[i]; b => pB[i]; sz => pSz[i];
-    asp => pAspect[i];
-    if( asp < 0.8 ) Math.atan2(vy, vx) => pRotZ[i];
-    else 0.0 => pRotZ[i];
-}
-
-fun void spawnRp( float x, float y, float vx, float vy,
-                  float r, float g, float b, float sz, float life,
-                  float asp ) {
-    rHead => int j;
-    (rHead + 1) % 8 => rHead;
-    16 + j => int i;
-    life => pLife[i]; life => pMaxLife[i];
-    x => pX[i]; y => pY[i]; vx => pVX[i]; vy => pVY[i];
-    r => pR[i]; g => pG[i]; b => pB[i]; sz => pSz[i];
-    asp => pAspect[i];
-    if( asp < 0.8 ) Math.atan2(vy, vx) => pRotZ[i];
-    else Math.random2f(0.0, 6.28) => pRotZ[i];
-}
-
-fun void spawnAny( float x, float y, float vx, float vy,
-                   float r, float g, float b, float sz, float life,
-                   float asp ) {
-    if( Math.random2f(0.0, 1.0) < 0.6 )
-        spawnCp(x, y, vx, vy, r, g, b, sz, life, asp);
-    else
-        spawnRp(x, y, vx, vy, r, g, b, sz, life, asp);
-}
+// spawn helpers removed — no particle pools
 
 fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     -1 => int i;
@@ -1239,7 +1165,7 @@ while( true ) {
     1.0 - duck => gScMult;
 
     // apply sidechain to all the instrument buses
-    Math.min(gSineMacro * 2.0, 1.0) * 1.5 * gScMult => float sineGainMul;
+    Math.max(0.0, (gSineMacro - 0.25) / 0.75) * 1.5 * gScMult => float sineGainMul;
     for( 0 => int si; si < 24; si++ ) {
         if( svActive[si] ) svAmp[si] * sineGainMul => sineAmp[si].gain;
     }
@@ -1247,7 +1173,7 @@ while( true ) {
     birdGainVal => birdL.gain;
     birdGainVal => birdR.gain;
     0.88 * gScMult => rainBus.gain;
-    Math.max(0.0, (gSineMacro - 0.5) * 2.0) * 1.2 * gScMult => pluckBus.gain;
+    0.0 => pluckBus.gain;
 
     // sidechain visual pulse, subtle
     1.0 + duck * 0.4 => float scPulse;
@@ -1273,40 +1199,9 @@ while( true ) {
     }
     0 => spawnBird;
 
-    // thunder: massive dark shapes in background
-    while( spawnThunder > 0 ) {
-        for( 0 => int j; j < 2; j++ ) {
-            spawnRp(
-                Math.random2f(-halfW, halfW), Math.random2f(-halfH, halfH * 0.5),
-                Math.random2f(-0.03, 0.03), Math.random2f(-0.01, 0.04),
-                Math.random2f(0.02, 0.06), Math.random2f(0.01, 0.04), Math.random2f(0.04, 0.1),
-                Math.random2f(1.5, 3.5), Math.random2f(6.0, 12.0),
-                Math.random2f(0.5, 1.0)
-            );
-        }
-        spawnThunder - 1 => spawnThunder;
-    }
+    0 => spawnThunder;
 
-    // arp cubes: spawn when SIN slider in upper half
-    Math.max(0.0, (gSineMacro - 0.5) * 2.0) => float arpAmt;
-    while( spawnPluck > 0 ) {
-        if( pluckSpawnCount > 0 && arpAmt > 0.0 ) {
-            pluckSpawnCount - 1 => pluckSpawnCount;
-            pluckSpawnFreq[pluckSpawnCount] / 2000.0 => float fNorm;
-            if( fNorm > 1.0 ) 1.0 => fNorm;
-            spawnRp(
-                Math.random2f(-halfW * 0.7, halfW * 0.7),
-                Math.random2f(-halfH * 0.6, halfH * 0.6),
-                Math.random2f(-0.2, 0.2), Math.random2f(0.05, 0.3),
-                (0.2 + fNorm * 0.4) * arpAmt,
-                (0.05 + fNorm * 0.1) * arpAmt,
-                (0.7 + fNorm * 0.3) * arpAmt,
-                Math.random2f(0.06, 0.14), Math.random2f(0.3, 0.7),
-                Math.random2f(0.75, 1.0)
-            );
-        }
-        spawnPluck - 1 => spawnPluck;
-    }
+    0 => spawnPluck;
     0 => pluckSpawnCount;
 
     while( rainDropCount > 0 ) {
@@ -1322,84 +1217,11 @@ while( true ) {
         }
     }
 
-    // ambient particles, one every 5 frames so it doesn't overwhelm
-    if( frameCount % 8 == 0 ) {
-        Math.random2f(0.0, 6.28) => float hue;
-        0.06 + 0.14 * Math.max(0.0, Math.sin(hue)) => float ar;
-        0.04 + 0.12 * Math.max(0.0, Math.sin(hue + 2.09)) => float ag;
-        0.05 + 0.13 * Math.max(0.0, Math.sin(hue + 4.19)) => float ab;
-        spawnAny(
-            Math.random2f(-halfW, halfW), Math.random2f(-halfH, halfH),
-            Math.random2f(-0.05, 0.05), Math.random2f(0.01, 0.07),
-            ar, ag, ab,
-            Math.random2f(0.04, 0.15), Math.random2f(4.0, 9.0),
-            Math.random2f(0.4, 1.0)
-        );
-    }
+    // ambient particles removed
 
-    // update circle particles
-    for( 0 => int i; i < 16; i++ ) {
-        if( pLife[i] > 0.0 ) {
-            pLife[i] - dt => pLife[i];
-            if( pLife[i] <= 0.0 ) {
-                0.0 => pLife[i];
-                pCirc[i].sca( 0.0 );
-            } else {
-                pX[i] + pVX[i] * dt => pX[i];
-                pY[i] + pVY[i] * dt => pY[i];
-                pLife[i] / pMaxLife[i] => float alpha;
-                alpha => float szMul;
-                if( alpha > 0.85 ) (1.0 - alpha) / 0.15 => szMul;
-                szMul * scPulse => szMul;
-                alpha * scBright => float pbright;
-                if( pbright > 1.0 ) 1.0 => pbright;
-                pCirc[i].posX( pX[i] );
-                pCirc[i].posY( pY[i] );
-                pSz[i] * szMul => float finalSz;
-                if( pAspect[i] < 0.8 ) {
-                    pCirc[i].scaX( finalSz * pAspect[i] );
-                    pCirc[i].scaY( finalSz );
-                    pCirc[i].rotZ( pRotZ[i] );
-                } else {
-                    pCirc[i].sca( finalSz );
-                }
-                pCirc[i].color( @(pR[i] * pbright, pG[i] * pbright, pB[i] * pbright) );
-            }
-        }
-    }
+    // particle update removed
 
-    // update plane particles (sine shapes, thunder, pluck)
-    for( 0 => int j; j < 8; j++ ) {
-        16 + j => int i;
-        if( pLife[i] > 0.0 ) {
-            pLife[i] - dt => pLife[i];
-            if( pLife[i] <= 0.0 ) {
-                0.0 => pLife[i];
-                pRect[j].sca( 0.0 );
-            } else {
-                pX[i] + pVX[i] * dt => pX[i];
-                pY[i] + pVY[i] * dt => pY[i];
-                pLife[i] / pMaxLife[i] => float alpha;
-                alpha => float szMul;
-                if( alpha > 0.85 ) (1.0 - alpha) / 0.15 => szMul;
-                szMul * scPulse => szMul;
-                alpha * scBright => float pbright;
-                if( pbright > 1.0 ) 1.0 => pbright;
-                pRect[j].posX( pX[i] );
-                pRect[j].posY( pY[i] );
-                pSz[i] * szMul => float finalSz;
-                if( pAspect[i] < 0.8 ) {
-                    pRect[j].scaX( finalSz * pAspect[i] );
-                    pRect[j].scaY( finalSz );
-                    pRect[j].rotZ( pRotZ[i] + globalTime * 0.1 );
-                } else {
-                    pRect[j].sca( finalSz * 0.8 );
-                    pRect[j].rotZ( pRotZ[i] + globalTime * 0.15 );
-                }
-                pRect[j].color( @(pR[i] * pbright, pG[i] * pbright, pB[i] * pbright) );
-            }
-        }
-    }
+    // rect particle update removed
 
     // rain drops falling
     for( 0 => int i; i < 64; i++ ) {
@@ -1486,7 +1308,7 @@ while( true ) {
         if( svActive[si] ) rawSineAmp + svAmp[si] => rawSineAmp;
     }
     Math.min(rawSineAmp * 2.0, 1.0) * 0.5 => float sineBright;
-    for( 0 => int i; i < 5; i++ ) {
+    for( 0 => int i; i < 3; i++ ) {
         bpLife[i] - dt => bpLife[i];
         if( bpLife[i] <= 0.0 ) {
             Math.random2f(15.0, 40.0) => bpMaxLife[i];
@@ -1518,28 +1340,26 @@ while( true ) {
         bpG[i] * fade * 0.7 * (1.0 + sineBright) + Math.sin(bpPhase[i] + 2.0) * 0.006 * fade => float cg;
         bpB[i] * fade * 0.7 * (1.0 + sineBright) + thColorBoost * 0.13 * fade => float cb;
 
-        if( i < 2 ) {
-            bgCirc[i].posX( bpX[i] );
-            bgCirc[i].posY( bpY[i] );
+        if( i < 1 ) {
+            bgCirc[i].posX( bpX[i] ); bgCirc[i].posY( bpY[i] );
             bgCirc[i].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
             bgCirc[i].scaX( bpBaseSca[i] * bpAspX[i] * kickGrow );
             bgCirc[i].scaY( bpBaseSca[i] * bpAspY[i] * kickGrow );
             bgCirc[i].color( @(cr, cg, cb) );
         } else {
-            bgRect[i-2].posX( bpX[i] );
-            bgRect[i-2].posY( bpY[i] );
-            bgRect[i-2].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
-            bgRect[i-2].scaX( bpBaseSca[i] * bpAspX[i] * kickGrow );
-            bgRect[i-2].scaY( bpBaseSca[i] * bpAspY[i] * kickGrow );
-            bgRect[i-2].color( @(cr, cg, cb) );
+            bgRect[i-1].posX( bpX[i] ); bgRect[i-1].posY( bpY[i] );
+            bgRect[i-1].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
+            bgRect[i-1].scaX( bpBaseSca[i] * bpAspX[i] * kickGrow );
+            bgRect[i-1].scaY( bpBaseSca[i] * bpAspY[i] * kickGrow );
+            bgRect[i-1].color( @(cr, cg, cb) );
         }
     }
 
     // background color, deep purple-blue with subtle kick pulse and thunder warmth
     bg.color( @(
-        0.005 + duck * 0.002 + thColorBoost * 0.08,
-        0.003 + duck * 0.001 + thColorBoost * 0.012,
-        0.010 + duck * 0.004 + thColorBoost * 0.12
+        0.014 + duck * 0.003 + thColorBoost * 0.12,
+        0.010 + duck * 0.002 + thColorBoost * 0.02,
+        0.032 + duck * 0.006 + thColorBoost * 0.18
     ) );
 
     // spawn orb trail particles every 3 frames
