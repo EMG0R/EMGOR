@@ -136,7 +136,6 @@ rainHissGain => masterR;
 2500.0 => rainHissLPF.freq; 0.707 => rainHissLPF.Q;
 0.0 => rainHissGain.gain;
 
-// rain boil: 4 voices (was 8 — halved for iPhone DSP)
 Noise rainBoilNoise[4];
 BPF rainBoilFilt[4];
 ADSR rainBoilEnv[4];
@@ -157,7 +156,6 @@ for( 0 => int i; i < 4; i++ ) {
     0 => rbActive[i];
 }
 
-// rain impact + bubble: 8 voices (was 24 — 1/3 for iPhone DSP)
 Noise rainImpactNoise[8];
 BPF rainImpactFilt[8];
 ADSR rainImpactEnv[8];
@@ -179,7 +177,25 @@ for( 0 => int i; i < 8; i++ ) {
     0.0 => rainBubbleAmp[i].gain;
 }
 
-// pluck removed for iPhone DSP performance
+// pluck uses fm synthesis with 4 voices, each carrier sine gets
+// modulated by another sine at whole number frequency ratios
+// (1:1, 2:1, 3:2, 3:1) then through a low pass and adsr
+SinOsc pluckCar[4];
+SinOsc pluckMod[4];
+ADSR pluckEnv[4];
+Gain pluckAmp[4];
+LPF pluckFilt[4];
+[1.0, 2.0, 1.5, 3.0] @=> float fmRatios[];
+
+for( 0 => int i; i < 4; i++ ) {
+    pluckMod[i] => pluckCar[i];
+    pluckCar[i] => pluckFilt[i] => pluckEnv[i] => pluckAmp[i] => pluckBus;
+    0.2 => pluckCar[i].gain;
+    0.0 => pluckAmp[i].gain;
+    pluckEnv[i].set( 3::ms, 140::ms, 0.0, 20::ms );
+    2500.0 => pluckFilt[i].freq;
+    1.5 => pluckFilt[i].Q;
+}
 
 // each orb controls a macro value from 0 to 1 that maps to
 // probability and volume for its instrument
@@ -783,7 +799,6 @@ fun void rainLoop() {
     }
 }
 
-
 spork ~ kickLoop();
 spork ~ sineLoop();
 spork ~ chordLoop();
@@ -791,7 +806,6 @@ spork ~ birdLoop();
 spork ~ wavesLoop();
 spork ~ thunderLoop();
 spork ~ rainLoop();
-
 // visuals
 
 GWindow.title( "V I E B S" );
@@ -808,7 +822,7 @@ GG.bloomPass().levels( 1 );
 GPlane bg --> GG.scene();
 bg.sca( 40.0 );
 bg.posZ( -2.5 );
-bg.color( @(0.014, 0.010, 0.032) );
+bg.color( @(0.005, 0.003, 0.010) );
 
 // background shapes - mix of circles and rectangles, varied aspect ratios
 // some thin ones rotated look like diamonds and triangles
@@ -948,7 +962,7 @@ fun void spawnBirdDot( int voice, float freq, float pan, float hW, float hH ) {
 GCircle ctrlBody[6];
 GCircle ctrlInner[6];
 
-// washed-out: dusty-teal  copper  slate-blue  mauve  muted-gold  steel
+// washed-out palette
 [0.2, 0.65, 0.2, 0.42, 0.6, 0.2] @=> float ctrlCR[];
 [0.5, 0.32, 0.3, 0.18, 0.52, 0.35] @=> float ctrlCG[];
 [0.58, 0.12, 0.62, 0.58, 0.12, 0.52] @=> float ctrlCB[];
@@ -1104,6 +1118,10 @@ while( true ) {
     0.88 * gScMult => rainBus.gain;
     0.0 => pluckBus.gain;
 
+    // sidechain visual pulse, subtle
+    1.0 + duck * 0.4 => float scPulse;
+    1.0 + duck * 0.5 => float scBright;
+
     // kick: grow and shrink circle only
     while( spawnKick > 0 ) {
         spawnKickVisual( halfW, halfH );
@@ -1228,10 +1246,11 @@ while( true ) {
     // background polygons, slowly drifting with color cycling
     gThunderMacro * 0.02 => float thColorBoost;
     1.0 + duck * 0.08 => float kickGrow;
-    // sine brightness via simple active voice count (no per-frame amplitude loop)
-    svActive[0] + svActive[1] + svActive[2] + svActive[3] + svActive[4] +
-    svActive[5] + svActive[6] + svActive[7] => int sineVoices;
-    Math.min(sineVoices * 0.08, 0.4) => float sineBright;
+    0.0 => float rawSineAmp;
+    for( 0 => int si; si < 24; si++ ) {
+        if( svActive[si] ) rawSineAmp + svAmp[si] => rawSineAmp;
+    }
+    Math.min(rawSineAmp * 2.0, 1.0) * 0.5 => float sineBright;
     for( 0 => int i; i < 5; i++ ) {
         bpLife[i] - dt => bpLife[i];
         if( bpLife[i] <= 0.0 ) {
@@ -1286,7 +1305,7 @@ while( true ) {
         0.032 + duck * 0.006 + thColorBoost * 0.18
     ) );
 
-    // spawn orb trail particles every 3 frames
+    // spawn orb trail particles every 10 frames
     if( frameCount % 10 == 0 ) {
         for( 0 => int i; i < 6; i++ ) {
             trHead => int ti;
@@ -1321,7 +1340,7 @@ while( true ) {
         }
     }
 
-    // control orbs at 1.5x size with extra jitter
+    // control orbs
     0.52 * winScale => float orbFixedSz;
     for( 0 => int i; i < 6; i++ ) {
         ctrlVal[i] => float norm;
@@ -1337,9 +1356,9 @@ while( true ) {
         ctrlBody[i].posZ( thisZ );
         ctrlBody[i].sca( thisSz );
         ctrlBody[i].color( @(
-            ctrlCR[i] * 0.35 * obright,
-            ctrlCG[i] * 0.35 * obright,
-            ctrlCB[i] * 0.35 * obright
+            ctrlCR[i] * 0.45 * obright,
+            ctrlCG[i] * 0.45 * obright,
+            ctrlCB[i] * 0.45 * obright
         ) );
 
         ctrlInner[i].posX( orbDispX[i] + ojx );
@@ -1347,9 +1366,9 @@ while( true ) {
         ctrlInner[i].posZ( thisZ + 0.01 );
         ctrlInner[i].sca( thisSz * 0.4 );
         ctrlInner[i].color( @(
-            (0.1 + ctrlCR[i] * 0.25) * obright,
-            (0.1 + ctrlCG[i] * 0.25) * obright,
-            (0.1 + ctrlCB[i] * 0.25) * obright
+            (0.12 + ctrlCR[i] * 0.3) * obright,
+            (0.12 + ctrlCG[i] * 0.3) * obright,
+            (0.12 + ctrlCB[i] * 0.3) * obright
         ) );
 
         (0.08 + 0.84 * (i $ float) / 5.0 - 0.5) * 2.0 * halfW => float labelX;
