@@ -792,20 +792,20 @@ bg.color( @(0.014, 0.010, 0.032) );
 // background shapes - mix of circles and rectangles, varied aspect ratios
 // some thin ones rotated look like diamonds and triangles
 // slowly drifting, fading in and out over 10-30 second cycles
-20 => int NUM_BG_POLY;
-GCircle bgCirc[8];
-GPlane bgRect[12];
-float bpX[20], bpY[20], bpVX[20], bpVY[20], bpPhase[20], bpRotSpd[20];
-float bpBaseSca[20], bpAspX[20], bpAspY[20];
-float bpR[20], bpG[20], bpB[20], bpLife[20], bpMaxLife[20];
+12 => int NUM_BG_POLY;
+GCircle bgCirc[4];
+GPlane bgRect[8];
+float bpX[12], bpY[12], bpVX[12], bpVY[12], bpPhase[12], bpRotSpd[12];
+float bpBaseSca[12], bpAspX[12], bpAspY[12];
+float bpR[12], bpG[12], bpB[12], bpLife[12], bpMaxLife[12];
 
-for( 0 => int i; i < 20; i++ ) {
-    if( i < 8 ) {
+for( 0 => int i; i < 12; i++ ) {
+    if( i < 4 ) {
         bgCirc[i] --> GG.scene();
         bgCirc[i].posZ( -2.0 + Math.random2f(0.0, 0.4) );
     } else {
-        bgRect[i - 8] --> GG.scene();
-        bgRect[i - 8].posZ( -2.0 + Math.random2f(0.0, 0.4) );
+        bgRect[i - 4] --> GG.scene();
+        bgRect[i - 4].posZ( -2.0 + Math.random2f(0.0, 0.4) );
     }
     Math.random2f(-4.5, 4.5) => bpX[i];
     Math.random2f(-3.5, 3.5) => bpY[i];
@@ -813,11 +813,11 @@ for( 0 => int i; i < 20; i++ ) {
     Math.random2f(-0.006, 0.006) => bpVY[i];
     Math.random2f(0.0, 6.28) => bpPhase[i];
     Math.random2f(-0.1, 0.1) => bpRotSpd[i];
-    Math.random2f(1.8, 5.5) => bpBaseSca[i];
-    if( i < 8 ) {
+    Math.random2f(1.2, 3.5) => bpBaseSca[i];
+    if( i < 4 ) {
         Math.random2f(0.5, 1.3) => bpAspX[i];
         Math.random2f(0.5, 1.3) => bpAspY[i];
-    } else if( i < 14 ) {
+    } else if( i < 8 ) {
         Math.random2f(0.3, 1.5) => bpAspX[i];
         Math.random2f(0.3, 1.5) => bpAspY[i];
     } else {
@@ -836,18 +836,18 @@ for( 0 => int i; i < 20; i++ ) {
     0.020 + 0.045 * Math.max(0.0, Math.sin(bpHue + 4.19)) => bpB[i];
     Math.random2f(10.0, 30.0) => bpMaxLife[i];
     Math.random2f(0.0, bpMaxLife[i]) => bpLife[i];
-    if( i < 8 ) {
+    if( i < 4 ) {
         bgCirc[i].posX( bpX[i] );
         bgCirc[i].posY( bpY[i] );
         bgCirc[i].scaX( bpBaseSca[i] * bpAspX[i] );
         bgCirc[i].scaY( bpBaseSca[i] * bpAspY[i] );
         bgCirc[i].rotZ( Math.random2f(0.0, 6.28) );
     } else {
-        bgRect[i-8].posX( bpX[i] );
-        bgRect[i-8].posY( bpY[i] );
-        bgRect[i-8].scaX( bpBaseSca[i] * bpAspX[i] );
-        bgRect[i-8].scaY( bpBaseSca[i] * bpAspY[i] );
-        bgRect[i-8].rotZ( Math.random2f(0.0, 6.28) );
+        bgRect[i-4].posX( bpX[i] );
+        bgRect[i-4].posY( bpY[i] );
+        bgRect[i-4].scaX( bpBaseSca[i] * bpAspX[i] );
+        bgRect[i-4].scaY( bpBaseSca[i] * bpAspY[i] );
+        bgRect[i-4].rotZ( Math.random2f(0.0, 6.28) );
     }
 }
 
@@ -904,20 +904,20 @@ float bdRotBase[8];
 
 for( 0 => int i; i < 8; i++ ) {
     birdTri[i] --> GG.scene();
-    birdTri[i].posZ( 0.3 );
+    birdTri[i].posZ( 0.9 );
     birdTri[i].sca( 0.0 );
     0.0 => bdLife[i];
     Math.random2f(0.0, 6.28) => bdRotBase[i];
 }
 
-// rain drops falling down
-128 => int RAIN_VP;
-GCircle rainDrop[128];
-float rdLife[128], rdMaxLife[128];
-float rdX[128], rdY[128], rdVX[128], rdVY[128], rdSz[128];
+// rain drops falling down, 48 visual pool (not every audio drop gets a visual)
+48 => int RAIN_VP;
+GCircle rainDrop[48];
+float rdLife[48], rdMaxLife[48];
+float rdX[48], rdY[48], rdVX[48], rdVY[48], rdSz[48];
 0 => int rdHead;
 
-for( 0 => int i; i < 128; i++ ) {
+for( 0 => int i; i < 48; i++ ) {
     rainDrop[i] --> GG.scene();
     rainDrop[i].posZ( 0.5 );
     rainDrop[i].sca( 0.0 );
@@ -963,7 +963,7 @@ fun void spawnAny( float x, float y, float vx, float vy,
 
 fun void spawnVisualRainDrop( float normX, float normY, float hW, float hH ) {
     rdHead => int i;
-    (rdHead + 1) % 128 => rdHead;
+    (rdHead + 1) % 48 => rdHead;
     hH * 2.0 * 0.55 => float targetDist;
     Math.random2f(0.7, 1.0) * targetDist => float dist;
     2.5 => float speed;
@@ -982,9 +982,9 @@ fun void spawnKickVisual( float hW, float hH ) {
     (ksHead + 1) % KICK_VP => ksHead;
     0.32 => ksLife[i];
     0.32 => ksMaxLife[i];
-    0.6 + Math.random2f(-0.1, 0.15) => ksR[i];
-    0.1 + Math.random2f(-0.05, 0.1) => ksG[i];
-    0.4 + Math.random2f(-0.1, 0.2) => ksB[i];
+    0.30 + Math.random2f(-0.08, 0.08) => ksR[i];
+    0.04 + Math.random2f(-0.02, 0.04) => ksG[i];
+    0.20 + Math.random2f(-0.06, 0.10) => ksB[i];
 }
 
 // bird triangle spawn, position reflects the stereo pan position
@@ -1234,13 +1234,15 @@ while( true ) {
     }
     0 => pluckSpawnCount;
 
-    // rain: 1:1 audio drop to visual drop
+    // rain: only ~35% of audio drops get a visual to keep iphone smooth
     while( rainDropCount > 0 ) {
         rainDropCount - 1 => rainDropCount;
-        spawnVisualRainDrop(
-            rainDropX[rainDropCount], rainDropY[rainDropCount],
-            halfW, halfH
-        );
+        if( Math.random2f(0.0, 1.0) < 0.35 ) {
+            spawnVisualRainDrop(
+                rainDropX[rainDropCount], rainDropY[rainDropCount],
+                halfW, halfH
+            );
+        }
     }
 
     // ambient particles, one every 5 frames so it doesn't overwhelm
@@ -1322,8 +1324,8 @@ while( true ) {
         }
     }
 
-    // rain drops falling with jitter
-    for( 0 => int i; i < 128; i++ ) {
+    // rain drops falling, no per-frame jitter for iphone perf
+    for( 0 => int i; i < 48; i++ ) {
         if( rdLife[i] > 0.0 ) {
             rdLife[i] - dt => rdLife[i];
             if( rdLife[i] <= 0.0 ) {
@@ -1333,10 +1335,8 @@ while( true ) {
                 rdX[i] + rdVX[i] * dt => rdX[i];
                 rdY[i] + rdVY[i] * dt => rdY[i];
                 rdLife[i] / rdMaxLife[i] => float lifeLeft;
-                Math.random2f(-0.8, 0.8) => float jx;
-                Math.random2f(-0.5, 0.5) => float jy;
-                rainDrop[i].posX( rdX[i] + jx * 0.02 );
-                rainDrop[i].posY( rdY[i] + jy * 0.02 );
+                rainDrop[i].posX( rdX[i] );
+                rainDrop[i].posY( rdY[i] );
                 1.0 => float alpha;
                 if( lifeLeft < 0.15 ) lifeLeft / 0.15 => alpha;
                 rainDrop[i].sca( rdSz[i] * alpha );
@@ -1363,11 +1363,11 @@ while( true ) {
                     if( env < 0.0 ) 0.0 => env;
                 }
 
-                env * 10.0 * winScale => float sz;
+                env * 5.5 * winScale => float sz;
                 kickShape[i].sca( sz );
                 kickShape[i].posX( 0.0 );
                 kickShape[i].posY( 0.0 );
-                Math.pow(env, 0.6) * 0.18 => float kbright;
+                Math.pow(env, 0.6) * 0.10 => float kbright;
                 kickShape[i].color( @(
                     ksR[i] * kbright,
                     ksG[i] * kbright,
@@ -1392,15 +1392,15 @@ while( true ) {
                 birdTri[i].posX( bdX[i] + Math.random2f(-0.04, 0.04) );
                 birdTri[i].posY( bdY[i] + Math.random2f(-0.04, 0.04) );
                 birdTri[i].rotZ( bdRotBase[i] + Math.random2f(-0.15, 0.15) );
-                t * 0.55 => float bbright;
-                birdTri[i].color( @(0.95 * bbright, 0.82 * bbright, 0.28 * bbright) );
+                t * 0.65 => float bbright;
+                birdTri[i].color( @(1.0 * bbright, 0.95 * bbright, 0.12 * bbright) );
             }
         }
     }
 
     // background polygons, slowly drifting with color cycling
     gThunderMacro * 0.02 => float thColorBoost;
-    for( 0 => int i; i < 20; i++ ) {
+    for( 0 => int i; i < 12; i++ ) {
         bpLife[i] - dt => bpLife[i];
         if( bpLife[i] <= 0.0 ) {
             Math.random2f(10.0, 30.0) => bpMaxLife[i];
@@ -1410,11 +1410,11 @@ while( true ) {
             Math.random2f(-0.008, 0.008) => bpVX[i];
             Math.random2f(-0.006, 0.006) => bpVY[i];
             Math.random2f(-0.1, 0.1) => bpRotSpd[i];
-            Math.random2f(1.8, 5.5) => bpBaseSca[i];
-            if( i < 8 ) {
+            Math.random2f(1.2, 3.5) => bpBaseSca[i];
+            if( i < 4 ) {
                 Math.random2f(0.5, 1.3) => bpAspX[i];
                 Math.random2f(0.5, 1.3) => bpAspY[i];
-            } else if( i < 14 ) {
+            } else if( i < 8 ) {
                 Math.random2f(0.3, 1.5) => bpAspX[i];
                 Math.random2f(0.3, 1.5) => bpAspY[i];
             } else {
@@ -1444,7 +1444,7 @@ while( true ) {
         bpG[i] * fade + Math.sin(bpPhase[i] + 2.0) * 0.008 * fade => float cg;
         bpB[i] * fade + thColorBoost * 0.18 * fade => float cb;
 
-        if( i < 8 ) {
+        if( i < 4 ) {
             bgCirc[i].posX( bpX[i] );
             bgCirc[i].posY( bpY[i] );
             bgCirc[i].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
@@ -1452,12 +1452,12 @@ while( true ) {
             bgCirc[i].scaY( bpBaseSca[i] * bpAspY[i] );
             bgCirc[i].color( @(cr, cg, cb) );
         } else {
-            bgRect[i-8].posX( bpX[i] );
-            bgRect[i-8].posY( bpY[i] );
-            bgRect[i-8].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
-            bgRect[i-8].scaX( bpBaseSca[i] * bpAspX[i] );
-            bgRect[i-8].scaY( bpBaseSca[i] * bpAspY[i] );
-            bgRect[i-8].color( @(cr, cg, cb) );
+            bgRect[i-4].posX( bpX[i] );
+            bgRect[i-4].posY( bpY[i] );
+            bgRect[i-4].rotZ( globalTime * bpRotSpd[i] + bpPhase[i] );
+            bgRect[i-4].scaX( bpBaseSca[i] * bpAspX[i] );
+            bgRect[i-4].scaY( bpBaseSca[i] * bpAspY[i] );
+            bgRect[i-4].color( @(cr, cg, cb) );
         }
     }
 
