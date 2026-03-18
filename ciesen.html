@@ -120,19 +120,22 @@
     </div>
     <div id="chuck-output"></div>
 
-    <!-- Register service worker for COOP/COEP headers (required for SharedArrayBuffer → audio) -->
+    <!-- Hidden audio element — routes WebAudio through a media element so
+         the OS treats this page as a media player and keeps audio alive
+         when switching tabs, locking the phone, or leaving Safari. -->
+    <audio id="bg-audio" playsinline webkit-playsinline></audio>
+
+    <!-- Register service worker for COOP/COEP headers (required for SharedArrayBuffer) -->
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js');
 
-            // When a new SW takes control, reload so COOP/COEP headers take effect
             navigator.serviceWorker.addEventListener('controllerchange', function() {
                 if (!self.crossOriginIsolated) {
                     window.location.reload();
                 }
             });
 
-            // Fallback: if SW is controlling but isolation failed (stale SW), reload once
             if (navigator.serviceWorker.controller && !self.crossOriginIsolated) {
                 if (!sessionStorage.getItem('coi-retry')) {
                     sessionStorage.setItem('coi-retry', '1');
@@ -146,6 +149,7 @@
         const statusEl   = document.getElementById('status');
         const outputEl   = document.getElementById('chuck-output');
         const tapOverlay = document.getElementById('tap-overlay');
+        const bgAudio    = document.getElementById('bg-audio');
 
         let dotCount = 0;
         const dotInterval = setInterval(() => {
@@ -189,18 +193,111 @@
             if (window.webkitAudioContext) window.webkitAudioContext = P;
         }
 
-        // Resume all captured AudioContexts (+ handle Safari 'interrupted' state)
+        // ── Background audio keepalive ──────────────────────────────
+        // Route audio through a MediaStream → <audio> element so the OS
+        // treats this as a media playback page. This is the key trick that
+        // keeps audio running when:
+        //   - iPhone user leaves Safari / locks phone
+        //   - Desktop user switches tabs
+        //   - Any browser tries to suspend the AudioContext
+        let mediaStreamDest = null;
+        let bgAudioStarted = false;
+
+        function setupBackgroundAudio(ctx) {
+            if (bgAudioStarted) return;
+            try {
+                // createMediaStreamDestination gives us a MediaStream fed by
+                // the AudioContext graph — we pipe it to an <audio> element
+                mediaStreamDest = ctx.createMediaStreamDestination();
+                bgAudio.srcObject = mediaStreamDest.stream;
+                bgAudio.loop = true;
+                bgAudioStarted = true;
+            } catch(e) {
+                console.warn('[CIESEN] MediaStreamDestination not supported:', e);
+            }
+        }
+
+        function playBgAudio() {
+            if (!bgAudioStarted) return;
+            // play() must happen inside a user gesture on iOS
+            bgAudio.play().catch(() => {});
+        }
+
+        function connectNodeToMediaStream(node) {
+            // Connect the ChucK audio output to the MediaStreamDestination
+            // so it flows through the <audio> element → OS media session
+            if (mediaStreamDest && node) {
+                try { node.connect(mediaStreamDest); } catch(e) {}
+            }
+        }
+
+        // ── Media Session API ───────────────────────────────────────
+        // Register as a media player with the OS — shows in lock screen,
+        // control center, notification bar. Prevents OS from killing audio.
+        function setupMediaSession() {
+            if (!('mediaSession' in navigator)) return;
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: 'CIESEN',
+                artist: 'EMGOR',
+                album: 'EMGOR.ONLINE'
+            });
+            // Handle play/pause from lock screen / headphone controls
+            navigator.mediaSession.setActionHandler('play', () => {
+                resumeAll();
+                playBgAudio();
+            });
+            navigator.mediaSession.setActionHandler('pause', () => {
+                // Don't actually pause — keep audio alive
+                // User can close the tab if they want to stop
+            });
+            // Prevent "stop" from killing audio
+            try { navigator.mediaSession.setActionHandler('stop', () => {}); } catch(e) {}
+        }
+
+        // ── Web Locks API — prevent page from being fully suspended ─
+        function acquireWakeLock() {
+            // Web Locks: keeps a lock that prevents the browser from
+            // fully freezing the page in background
+            if (navigator.locks) {
+                navigator.locks.request('ciesen-audio-keepalive', { mode: 'exclusive' }, () => {
+                    // Return a promise that never resolves — holds the lock forever
+                    return new Promise(() => {});
+                }).catch(() => {});
+            }
+        }
+
+        // ── Resume all AudioContexts ────────────────────────────────
         function resumeAll() {
             for (const ctx of _allCtx) {
                 if (ctx.state !== 'running') ctx.resume().catch(() => {});
             }
         }
 
-        // Safari tab-switch / screen-lock recovery
+        // ── Visibility change: aggressively resume on return ────────
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') resumeAll();
+            if (document.visibilityState === 'visible') {
+                resumeAll();
+                playBgAudio();
+            }
         });
 
+        // ── Periodic keepalive: resume AudioContext every 3s ────────
+        // Some browsers suspend AudioContext after a delay in background.
+        // This timer fires even when throttled (browsers allow >=1s timers
+        // in background tabs) and re-resumes the context.
+        let keepaliveTimer = null;
+        function startKeepalive() {
+            if (keepaliveTimer) return;
+            keepaliveTimer = setInterval(() => {
+                for (const ctx of _allCtx) {
+                    if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+                        ctx.resume().catch(() => {});
+                    }
+                }
+            }, 3000);
+        }
+
+        // ── Main init ───────────────────────────────────────────────
         if (location.protocol === 'file:') {
             fail('requires HTTP server\n\nnpx serve .\nthen open http://localhost:PORT/ciesen.html');
         } else {
@@ -245,6 +342,11 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
+                    // Setup background audio infrastructure on the first AudioContext
+                    if (_allCtx.length > 0) {
+                        setupBackgroundAudio(_allCtx[0]);
+                    }
+
                     // Desktop: contexts may already be running
                     const anyRunning = _allCtx.some(c => c.state === 'running');
                     if (anyRunning) {
@@ -256,20 +358,30 @@
                         tapOverlay.classList.add('show');
                     }
 
-                    // On user gesture: resume AudioContexts + ensure node is connected
+                    // On user gesture: resume AudioContexts, start background audio,
+                    // connect nodes, register media session, acquire wake lock
                     function onUnlock() {
                         resumeAll();
                         tapOverlay.classList.remove('show');
 
-                        // Ensure audioNode is connected (may have been created async)
+                        // Setup background audio if not done yet
+                        if (_allCtx.length > 0 && !bgAudioStarted) {
+                            setupBackgroundAudio(_allCtx[0]);
+                        }
+
+                        // Start the <audio> element (requires user gesture on iOS)
+                        playBgAudio();
+
+                        // Connect ChucK audioNode to both destinations
                         const node = ck.audioNode;
                         if (node) {
                             for (const ctx of _allCtx) {
                                 try { node.connect(ctx.destination); } catch(e) {}
                             }
+                            connectNodeToMediaStream(node);
                         }
 
-                        // Poll briefly for audioNode if not ready yet (async addModule)
+                        // Poll briefly for audioNode if not ready yet
                         if (!node) {
                             let polls = 0;
                             const poller = setInterval(() => {
@@ -280,10 +392,20 @@
                                     for (const ctx of _allCtx) {
                                         try { n.connect(ctx.destination); } catch(e) {}
                                     }
+                                    connectNodeToMediaStream(n);
                                 }
                                 if (polls >= 30) clearInterval(poller);
                             }, 100);
                         }
+
+                        // Register with OS media session (lock screen controls)
+                        setupMediaSession();
+
+                        // Acquire web lock to prevent page freeze
+                        acquireWakeLock();
+
+                        // Start periodic AudioContext resume timer
+                        startKeepalive();
 
                         ['touchend', 'click', 'keydown'].forEach(ev =>
                             document.removeEventListener(ev, onUnlock, true)
