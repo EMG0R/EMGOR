@@ -193,40 +193,58 @@
             if (window.webkitAudioContext) window.webkitAudioContext = P;
         }
 
-        // ── Background audio keepalive ──────────────────────────────
-        // Route audio through a MediaStream → <audio> element so the OS
-        // treats this as a media playback page. This is the key trick that
-        // keeps audio running when:
-        //   - iPhone user leaves Safari / locks phone
-        //   - Desktop user switches tabs
-        //   - Any browser tries to suspend the AudioContext
+        // ── Background audio: route ALL audio through <audio> element ─
+        //
+        // iOS Safari keeps <audio> elements playing in the background
+        // (that's how Spotify/podcasts work). The trick: make ChucK's
+        // output flow through <audio> as the SOLE audio path, so iOS
+        // treats this page as a media player.
+        //
+        // Audio chain:
+        //   ChucK AudioWorklet → MediaStreamDestination → <audio>.srcObject → speakers
+        //   (silent oscillator also feeds the stream as keepalive insurance)
+        //
+        // We do NOT connect to ctx.destination — that would double the
+        // audio AND wouldn't survive backgrounding anyway.
         let mediaStreamDest = null;
-        let bgAudioStarted = false;
+        let bgAudioReady = false;
+        let silentOsc = null;
 
         function setupBackgroundAudio(ctx) {
-            if (bgAudioStarted) return;
+            if (bgAudioReady) return;
             try {
-                // createMediaStreamDestination gives us a MediaStream fed by
-                // the AudioContext graph — we pipe it to an <audio> element
                 mediaStreamDest = ctx.createMediaStreamDestination();
+
+                // Near-silent oscillator: keeps the MediaStream "active" even
+                // if ChucK goes briefly silent. iOS will not keep an <audio>
+                // element alive if the stream has no audio content.
+                // 1 Hz at gain 0.001 = inaudible but non-zero samples.
+                silentOsc = ctx.createOscillator();
+                const silentGain = ctx.createGain();
+                silentGain.gain.value = 0.001;
+                silentOsc.frequency.value = 1;
+                silentOsc.connect(silentGain);
+                silentGain.connect(mediaStreamDest);
+                silentOsc.start();
+
                 bgAudio.srcObject = mediaStreamDest.stream;
-                bgAudio.loop = true;
-                bgAudioStarted = true;
+                bgAudioReady = true;
             } catch(e) {
-                console.warn('[CIESEN] MediaStreamDestination not supported:', e);
+                console.warn('[CIESEN] MediaStreamDestination setup failed:', e);
             }
         }
 
         function playBgAudio() {
-            if (!bgAudioStarted) return;
-            // play() must happen inside a user gesture on iOS
+            if (!bgAudioReady) return;
             bgAudio.play().catch(() => {});
         }
 
-        function connectNodeToMediaStream(node) {
-            // Connect the ChucK audio output to the MediaStreamDestination
-            // so it flows through the <audio> element → OS media session
-            if (mediaStreamDest && node) {
+        function routeNodeThroughAudioElement(node, ctx) {
+            // Disconnect from ctx.destination if WebChuGL auto-connected it —
+            // we want audio ONLY through the <audio> element
+            try { node.disconnect(ctx.destination); } catch(e) {}
+            // Connect to MediaStreamDestination → <audio> element
+            if (mediaStreamDest) {
                 try { node.connect(mediaStreamDest); } catch(e) {}
             }
         }
@@ -342,46 +360,37 @@
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // Setup background audio infrastructure on the first AudioContext
+                    // Setup background audio on the AudioContext WebChuGL created
                     if (_allCtx.length > 0) {
                         setupBackgroundAudio(_allCtx[0]);
                     }
 
                     // Desktop: contexts may already be running
                     const anyRunning = _allCtx.some(c => c.state === 'running');
-                    if (anyRunning) {
-                        resumeAll();
-                    }
+                    if (anyRunning) resumeAll();
 
                     // Mobile / suspended: show tap overlay for user gesture unlock
                     if (!anyRunning || _allCtx.length === 0) {
                         tapOverlay.classList.add('show');
                     }
 
-                    // On user gesture: resume AudioContexts, start background audio,
-                    // connect nodes, register media session, acquire wake lock
+                    // On user gesture: wire everything up
                     function onUnlock() {
                         resumeAll();
                         tapOverlay.classList.remove('show');
 
-                        // Setup background audio if not done yet
-                        if (_allCtx.length > 0 && !bgAudioStarted) {
+                        // Ensure background audio infra exists
+                        if (_allCtx.length > 0 && !bgAudioReady) {
                             setupBackgroundAudio(_allCtx[0]);
                         }
 
-                        // Start the <audio> element (requires user gesture on iOS)
-                        playBgAudio();
-
-                        // Connect ChucK audioNode to both destinations
+                        // Route ChucK audio ONLY through <audio> element
                         const node = ck.audioNode;
-                        if (node) {
-                            for (const ctx of _allCtx) {
-                                try { node.connect(ctx.destination); } catch(e) {}
-                            }
-                            connectNodeToMediaStream(node);
+                        if (node && _allCtx.length > 0) {
+                            routeNodeThroughAudioElement(node, _allCtx[0]);
                         }
 
-                        // Poll briefly for audioNode if not ready yet
+                        // Poll for audioNode if not ready yet (async addModule)
                         if (!node) {
                             let polls = 0;
                             const poller = setInterval(() => {
@@ -389,22 +398,21 @@
                                 const n = ck.audioNode;
                                 if (n) {
                                     clearInterval(poller);
-                                    for (const ctx of _allCtx) {
-                                        try { n.connect(ctx.destination); } catch(e) {}
+                                    if (_allCtx.length > 0) {
+                                        routeNodeThroughAudioElement(n, _allCtx[0]);
                                     }
-                                    connectNodeToMediaStream(n);
                                 }
                                 if (polls >= 30) clearInterval(poller);
                             }, 100);
                         }
 
-                        // Register with OS media session (lock screen controls)
+                        // Start the <audio> element — MUST happen inside user
+                        // gesture for iOS to honor background playback
+                        playBgAudio();
+
+                        // Register as media player with OS
                         setupMediaSession();
-
-                        // Acquire web lock to prevent page freeze
                         acquireWakeLock();
-
-                        // Start periodic AudioContext resume timer
                         startKeepalive();
 
                         ['touchend', 'click', 'keydown'].forEach(ev =>
