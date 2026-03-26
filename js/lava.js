@@ -39,15 +39,16 @@ void main() {
     vec2 st = gl_FragCoord.xy / u_resolution.xy;
     float aspect = u_resolution.x / u_resolution.y;
 
-    vec2 bhPos = vec2(0.82, 0.22);
+    vec2 bhPos = vec2(0.5, 0.5);
     vec2 toBH = st - bhPos;
     vec2 toBHc = toBH;
     toBHc.x *= aspect;
     float bhDist = length(toBHc);
     vec2 bhDir = normalize(toBH + vec2(0.0001));
+    float bhAngle = atan(toBHc.y, toBHc.x);
 
-    float lensing = 0.005 / (bhDist * bhDist + 0.002);
-    lensing = min(lensing, 0.4);
+    float lensing = 0.008 / (bhDist * bhDist + 0.003);
+    lensing = min(lensing, 0.6);
     vec2 lensedST = st + bhDir * lensing;
 
     vec2 q = lensedST * 2.0;
@@ -63,28 +64,52 @@ void main() {
     vec2 diskUV = toBHc;
     diskUV.y *= 2.8;
     float diskDist = length(diskUV);
-    float angle = atan(diskUV.y, diskUV.x);
-    float diskNoise = noise(vec2(angle * 3.0 + u_time * 0.3, diskDist * 20.0));
+    float diskAngle = atan(diskUV.y, diskUV.x);
 
-    float outerR = 0.18;
-    float outerW = 0.035;
+    float spiralNoise = noise(vec2(diskAngle * 4.0 - u_time * 0.4 + diskDist * 15.0, diskDist * 30.0));
+    float fineNoise = noise(vec2(diskAngle * 8.0 + u_time * 0.2, diskDist * 50.0 - u_time * 0.5));
+
+    float outerR = 0.22;
+    float outerW = 0.05;
     float outerDisk = exp(-(diskDist - outerR) * (diskDist - outerR) / (outerW * outerW));
-    float doppler = 0.4 + 0.6 * cos(angle + u_time * 0.5);
-    vec3 outerColor = mix(vec3(0.08, 0.02, 0.18), vec3(0.28, 0.12, 0.5), doppler);
-    color += outerColor * outerDisk * doppler * (0.7 + diskNoise * 0.3);
+    float doppler = 0.3 + 0.7 * cos(diskAngle + u_time * 0.4);
+    vec3 outerColor = mix(vec3(0.05, 0.01, 0.12), vec3(0.22, 0.08, 0.38), doppler);
+    color += outerColor * outerDisk * doppler * (0.5 + spiralNoise * 0.4 + fineNoise * 0.1);
 
-    float innerR = 0.10;
+    float midR = 0.15;
+    float midW = 0.032;
+    float midDisk = exp(-(diskDist - midR) * (diskDist - midR) / (midW * midW));
+    vec3 midColor = mix(vec3(0.1, 0.03, 0.22), vec3(0.38, 0.14, 0.58), doppler);
+    color += midColor * midDisk * doppler * (0.6 + spiralNoise * 0.3 + fineNoise * 0.1);
+
+    float innerR = 0.09;
     float innerW = 0.02;
     float innerDisk = exp(-(diskDist - innerR) * (diskDist - innerR) / (innerW * innerW));
-    float innerDoppler = 0.3 + 0.7 * cos(angle + u_time * 0.8);
-    vec3 innerColor = mix(vec3(0.15, 0.06, 0.3), vec3(0.45, 0.2, 0.65), innerDoppler);
-    color += innerColor * innerDisk * innerDoppler * (0.8 + diskNoise * 0.2);
+    float innerDoppler = 0.2 + 0.8 * cos(diskAngle + u_time * 0.7);
+    vec3 innerColor = mix(vec3(0.2, 0.08, 0.38), vec3(0.6, 0.35, 0.8), innerDoppler);
+    color += innerColor * innerDisk * innerDoppler * (0.7 + fineNoise * 0.3);
 
-    float photon = exp(-(bhDist - 0.07) * (bhDist - 0.07) / 0.00003) * 0.4;
-    color += vec3(0.22, 0.12, 0.38) * photon;
+    float photonR = 0.06;
+    float photon = exp(-(bhDist - photonR) * (bhDist - photonR) / 0.000018) * 0.5;
+    float photonDoppler = 0.4 + 0.6 * cos(bhAngle + u_time * 1.2);
+    color += vec3(0.35, 0.2, 0.55) * photon * photonDoppler;
 
-    float horizon = smoothstep(0.055, 0.035, bhDist);
+    float einsteinR = 0.08;
+    float einstein = exp(-(bhDist - einsteinR) * (bhDist - einsteinR) / 0.00006) * 0.15;
+    color += vec3(0.1, 0.05, 0.2) * einstein;
+
+    float jetWidth = 0.02;
+    float jetX = exp(-toBHc.x * toBHc.x / (jetWidth * jetWidth));
+    float jetY = smoothstep(0.0, 0.07, abs(toBHc.y)) * exp(-abs(toBHc.y) * 5.0);
+    float jetMask = smoothstep(0.055, 0.08, bhDist);
+    float jet = jetX * jetY * jetMask * 0.06;
+    color += vec3(0.12, 0.06, 0.25) * jet;
+
+    float horizon = smoothstep(0.05, 0.03, bhDist);
     color *= (1.0 - horizon);
+
+    float redshift = smoothstep(0.03, 0.065, bhDist);
+    color *= (0.3 + 0.7 * redshift);
 
     gl_FragColor = vec4(color, 1.0);
 }

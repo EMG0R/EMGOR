@@ -36,6 +36,10 @@
     --button-hover-bg: var(--purple-light);
 }
 
+html {
+    background-color: #030010;
+}
+
 * {
     margin: 0;
     padding: 0;

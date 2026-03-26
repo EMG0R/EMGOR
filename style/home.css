@@ -2,8 +2,6 @@
     width: 57px;
     height: 57px;
     padding: 0;
-    background-color: rgba(49, 0, 68, 0.6);
-    border-color: var(--purple-mid);
 }
 
 .icon-planet svg {
@@ -11,10 +9,6 @@
 }
 
 @media (hover: hover) {
-    .icon-planet:hover {
-        background-color: var(--purple-mid);
-        box-shadow: 0 0 30px rgba(114, 0, 159, 0.6);
-    }
     .icon-planet:hover svg {
         filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.7));
     }
