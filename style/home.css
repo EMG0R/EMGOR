@@ -1,16 +1,3 @@
-.sun-title {
-    position: fixed;
-    z-index: 20;
-    font-size: 1.8em;
-    letter-spacing: 4px;
-    text-shadow:
-        0 0 20px rgba(114, 0, 159, 0.6),
-        0 0 40px rgba(114, 0, 159, 0.3),
-        0 0 80px rgba(114, 0, 159, 0.15);
-    margin: 0;
-    white-space: nowrap;
-}
-
 .orbit-planet {
     position: fixed;
     z-index: 15;
@@ -22,24 +9,24 @@
     background-color: var(--purple-dark);
     border: 1.5px solid var(--purple-light);
     border-radius: 50%;
-    width: 100px;
-    height: 100px;
-    font-size: 0.75rem;
+    width: 200px;
+    height: 200px;
+    font-size: 1.1rem;
     font-weight: bold;
-    letter-spacing: 1.5px;
+    letter-spacing: 3px;
     text-align: center;
     padding: 10px;
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
     -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
     touch-action: manipulation;
     cursor: pointer;
-    box-shadow: 0 0 12px rgba(114, 0, 159, 0.2);
+    box-shadow: 0 0 20px rgba(114, 0, 159, 0.3);
 }
 
 @media (hover: hover) {
     .orbit-planet:hover {
         background-color: var(--purple-mid);
-        box-shadow: 0 0 25px rgba(114, 0, 159, 0.5);
+        box-shadow: 0 0 40px rgba(114, 0, 159, 0.6);
     }
 }
 
@@ -47,74 +34,114 @@
     background-color: var(--purple-light);
 }
 
-.orbit-bio {
-    width: 180px;
-    height: 180px;
-    padding: 18px;
-    font-size: 0.55rem;
-    font-weight: normal;
-    letter-spacing: 0;
-    cursor: default;
-    background-color: rgba(49, 0, 68, 0.7);
+.icon-planet {
+    width: 140px;
+    height: 140px;
+    background-color: rgba(49, 0, 68, 0.6);
     border-color: var(--purple-mid);
 }
 
-.bio-text {
-    font-size: inherit;
-    line-height: 1.5;
-    color: rgba(255, 255, 255, 0.85);
-    text-align: center;
-}
-
-.orbit-social {
-    width: 110px;
-    height: 110px;
-    padding: 10px;
-    cursor: default;
-    background-color: rgba(49, 0, 68, 0.5);
-    border-color: var(--purple-mid);
-    flex-direction: column;
-}
-
-.icon-link {
-    font-size: 1.5em;
-    text-decoration: none;
-    transition: transform 0.2s ease, color 0.3s ease;
-    color: white;
-    filter: drop-shadow(0 0 3px rgba(255,255,255,0.4));
+.icon-planet svg {
+    filter: drop-shadow(0 0 4px rgba(255,255,255,0.4));
 }
 
 @media (hover: hover) {
-    .icon-link:hover {
-        transform: scale(1.2);
-        color: var(--purple-light);
+    .icon-planet:hover svg {
+        filter: drop-shadow(0 0 8px rgba(255,255,255,0.7));
     }
 }
 
+.floating-word {
+    position: fixed;
+    z-index: 10;
+    color: rgba(255, 255, 255, 0.25);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+}
+
+.black-hole {
+    position: fixed;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.black-hole-core {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #000000 30%, rgba(0,0,0,0.9) 50%, rgba(20,0,40,0.4) 70%, transparent 100%);
+    box-shadow:
+        0 0 60px 20px rgba(0,0,0,0.8),
+        0 0 100px 40px rgba(40,0,80,0.15);
+    animation: blackHolePulse 8s ease-in-out infinite;
+}
+
+.black-hole-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotateX(75deg);
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(114, 0, 159, 0.2);
+    box-shadow:
+        0 0 15px rgba(114, 0, 159, 0.15),
+        inset 0 0 15px rgba(114, 0, 159, 0.1);
+    animation: blackHoleRingSpin 20s linear infinite;
+}
+
+.black-hole-ring:nth-child(3) {
+    width: 260px;
+    height: 260px;
+    border-color: rgba(114, 0, 159, 0.1);
+    animation-duration: 30s;
+    animation-direction: reverse;
+}
+
+@keyframes blackHolePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+}
+
+@keyframes blackHoleRingSpin {
+    from { transform: translate(-50%, -50%) rotateX(75deg) rotateZ(0deg); }
+    to { transform: translate(-50%, -50%) rotateX(75deg) rotateZ(360deg); }
+}
+
 @media (max-width: 600px) {
-    .sun-title {
-        font-size: 1.3em;
-        letter-spacing: 2px;
-    }
     .orbit-planet {
-        width: 75px;
-        height: 75px;
-        font-size: 0.6rem;
-        padding: 8px;
-    }
-    .orbit-bio {
         width: 130px;
         height: 130px;
-        padding: 12px;
-        font-size: 0.45rem;
-    }
-    .orbit-social {
-        width: 85px;
-        height: 85px;
+        font-size: 0.8rem;
+        letter-spacing: 2px;
         padding: 8px;
     }
-    .icon-link svg {
-        width: 20px;
-        height: 20px;
+    .icon-planet {
+        width: 95px;
+        height: 95px;
+    }
+    .icon-planet svg {
+        width: 28px;
+        height: 28px;
+    }
+    .floating-word {
+        font-size: 0.55rem;
+    }
+    .black-hole-core {
+        width: 80px;
+        height: 80px;
+    }
+    .black-hole-ring {
+        width: 150px;
+        height: 150px;
+    }
+    .black-hole-ring:nth-child(3) {
+        width: 180px;
+        height: 180px;
     }
 }

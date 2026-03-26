@@ -1,4 +1,6 @@
 (function () {
+    var WORDS = ['sound', 'signal', 'rhythm', 'noise', 'pulse', 'wave', 'flux', 'drift', 'echo', 'void'];
+
     function spawnStars() {
         var container = document.createElement('div');
         container.id = 'bg-stars';
@@ -13,17 +15,77 @@
             document.head.appendChild(style);
         }
 
-        for (var i = 0; i < 80; i++) {
+        for (var i = 0; i < 200; i++) {
             var s = document.createElement('div');
-            var size = 0.8 + Math.random() * 2;
-            var dur = 3 + Math.random() * 6;
-            var delay = Math.random() * 10;
+            var size = 0.5 + Math.random() * 2.5;
+            var dur = 2 + Math.random() * 8;
+            var delay = Math.random() * 12;
             s.style.cssText = 'position:absolute;border-radius:50%;background:rgba(255,255,255,0.7);' +
                 'width:' + size + 'px;height:' + size + 'px;' +
                 'left:' + (Math.random() * 100) + '%;top:' + (Math.random() * 100) + '%;' +
                 'animation:starPulse ' + dur + 's ease-in-out ' + delay + 's infinite;opacity:0;';
             container.appendChild(s);
         }
+    }
+
+    function spawnBlackHole() {
+        var W = window.innerWidth;
+        var H = window.innerHeight;
+        var hole = document.createElement('div');
+        hole.className = 'black-hole';
+        hole.style.right = (W * 0.08) + 'px';
+        hole.style.bottom = (H * 0.15) + 'px';
+
+        hole.innerHTML =
+            '<div class="black-hole-core"></div>' +
+            '<div class="black-hole-ring"></div>' +
+            '<div class="black-hole-ring"></div>';
+
+        document.body.appendChild(hole);
+
+        window.addEventListener('resize', function () {
+            hole.style.right = (window.innerWidth * 0.08) + 'px';
+            hole.style.bottom = (window.innerHeight * 0.15) + 'px';
+        });
+    }
+
+    function spawnFloatingWords() {
+        var container = document.querySelector('[data-orbit="planet"]');
+        if (!container) return;
+
+        var wordEls = [];
+        WORDS.forEach(function (word) {
+            var el = document.createElement('span');
+            el.className = 'floating-word';
+            el.textContent = word;
+            document.body.appendChild(el);
+            wordEls.push({
+                el: el,
+                x: Math.random() * window.innerWidth,
+                y: Math.random() * window.innerHeight,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: (Math.random() - 0.5) * 0.3,
+                baseOpacity: 0.15 + Math.random() * 0.2
+            });
+        });
+
+        function animateWords() {
+            var W = window.innerWidth;
+            var H = window.innerHeight;
+            wordEls.forEach(function (w) {
+                w.x += w.vx;
+                w.y += w.vy;
+                if (w.x < -80) w.x = W + 20;
+                if (w.x > W + 80) w.x = -20;
+                if (w.y < -20) w.y = H + 20;
+                if (w.y > H + 20) w.y = -20;
+                w.el.style.left = w.x + 'px';
+                w.el.style.top = w.y + 'px';
+                w.el.style.opacity = w.baseOpacity;
+            });
+            requestAnimationFrame(animateWords);
+        }
+        animateWords();
     }
 
     function drawOrbitRings(cx, cy, orbits) {
@@ -40,7 +102,7 @@
             circle.setAttribute('rx', orb.rx);
             circle.setAttribute('ry', orb.ry);
             circle.setAttribute('fill', 'none');
-            circle.setAttribute('stroke', 'rgba(114, 0, 159, 0.12)');
+            circle.setAttribute('stroke', 'rgba(114, 0, 159, 0.10)');
             circle.setAttribute('stroke-width', '1');
             circle.setAttribute('stroke-dasharray', '4 8');
             svg.appendChild(circle);
@@ -51,23 +113,17 @@
     }
 
     function initSolarSystem() {
-        var sun = document.querySelector('[data-orbit="sun"]');
         var orbiters = document.querySelectorAll('[data-orbit="planet"]');
-        if (!sun || orbiters.length === 0) return;
+        if (orbiters.length === 0) return;
 
         var W = window.innerWidth;
         var H = window.innerHeight;
         var cx = W / 2;
         var cy = H / 2;
 
-        sun.style.position = 'fixed';
-        sun.style.zIndex = '20';
-        sun.style.left = (cx - sun.offsetWidth / 2) + 'px';
-        sun.style.top = (cy - sun.offsetHeight / 2) + 'px';
-
         var minDim = Math.min(W, H);
-        var baseRadius = minDim * 0.14;
-        var radiusStep = minDim * 0.09;
+        var baseRadius = minDim * 0.18;
+        var radiusStep = minDim * 0.10;
 
         var planets = [];
         var orbitData = [];
@@ -78,7 +134,7 @@
 
             var rx = baseRadius + radiusStep * i + (Math.random() * 20 - 10);
             var ry = rx * (0.45 + Math.random() * 0.15);
-            var speed = (0.15 + Math.random() * 0.15) / (1 + i * 0.3);
+            var speed = (0.12 + Math.random() * 0.12) / (1 + i * 0.25);
             var angle = (i / orbiters.length) * Math.PI * 2 + Math.random() * 0.5;
             var tilt = (Math.random() - 0.5) * 0.3;
 
@@ -128,12 +184,9 @@
             cx = W / 2;
             cy = H / 2;
 
-            sun.style.left = (cx - sun.offsetWidth / 2) + 'px';
-            sun.style.top = (cy - sun.offsetHeight / 2) + 'px';
-
             minDim = Math.min(W, H);
-            baseRadius = minDim * 0.14;
-            radiusStep = minDim * 0.09;
+            baseRadius = minDim * 0.18;
+            radiusStep = minDim * 0.10;
 
             planets.forEach(function (p, i) {
                 p.rx = baseRadius + radiusStep * i + (Math.random() * 20 - 10);
@@ -150,6 +203,13 @@
 
     window.addEventListener('load', function () {
         spawnStars();
+        if (document.querySelector('.black-hole') === null && document.querySelector('.floating-word') === null) {
+            var isHome = document.querySelector('.icon-planet');
+            if (isHome) {
+                spawnBlackHole();
+                spawnFloatingWords();
+            }
+        }
         initSolarSystem();
     });
 })();
