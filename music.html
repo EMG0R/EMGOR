@@ -2,104 +2,106 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
+    <link rel="stylesheet" href="style/base.css">
     <link rel="stylesheet" href="style/music.css">
-    <title>EMGOR</title> <!-- Page title in the browser tab -->
+    <title>EMGOR</title>
 </head>
 <body>
 
     <div id="background-layer"></div>
     <canvas id="lavaCanvas"></canvas>
 
-    <!-- Home Button to Go Back to index.html -->
-    <a href="index.html" class="home-button">&#8962;</a> <!-- Unicode character for home icon -->
+    <a href="index.html" class="home-button">&#8962;</a>
 
     <h1 id="neptr-title">PORTFOLIO</h1>
-    <!-- Video Section -->
+
     <div class="video-container">
-        <div class="video-wrapper video-left">
-            <h2 class="video-title"> </h2>
+        <div class="video-wrapper">
             <div class="video-content">
-                <video class="video-player" controls>
+                <video class="video-player" controls playsinline>
                     <source src="/resources/indexVIDS/1_EMORY_SMITH_491.mp4" type="video/mp4">
-                    Your browser does not support the video tag.
                 </video>
-                <p class="video-text">Showcase of protoypes I've made</p>
+                <p class="video-text">Showcase of prototypes I've made</p>
             </div>
         </div>
-        <div class="video-wrapper video-right">
-            <h2 class="video-title"> </h2>
+        <div class="video-wrapper">
             <div class="video-content">
-                <video class="video-player" controls>
+                <video class="video-player" controls playsinline>
                     <source src="/resources/indexVIDS/2_DSP.mp4" type="video/mp4">
-                    Your browser does not support the video tag.
                 </video>
                 <p class="video-text">Showcase of DSP work in Max/MSP, Csound and C++</p>
             </div>
         </div>
-        <div class="video-wrapper video-left">
-            <h2 class="video-title"> </h2>
+        <div class="video-wrapper">
             <div class="video-content">
-                <video class="video-player" controls>
+                <video class="video-player" controls playsinline>
                     <source src="/resources/indexVIDS/3_VIDEOSYNTH.mp4" type="video/mp4">
-                    Your browser does not support the video tag.
                 </video>
                 <p class="video-text">Showcase of my video synth built in Max/MSP's Jitter</p>
             </div>
         </div>
-        <div class="video-wrapper video-right">
-            <h2 class="video-title"> </h2>
+        <div class="video-wrapper">
             <div class="video-content">
-                <video class="video-player" controls>
+                <video class="video-player" controls playsinline>
                     <source src="/resources/indexVIDS/4_WEBSYNTH.mp4" type="video/mp4">
-                    Your browser does not support the video tag.
                 </video>
                 <p class="video-text">Demo of my web synth</p>
             </div>
         </div>
     </div>
 
-    <img id="toggle-image" src="resources/EMGOR.jpg" alt="Reveal Audio" style="width: 60vw; max-width: 600px; display: block; margin: 40px auto 10px auto; cursor: pointer;">
-    <p style="text-align: center; color: white; font-family: 'Courier New', monospace; margin-bottom: 40px;">music i have produced/written</p>
+    <img id="toggle-image" src="resources/EMGOR.jpg" alt="Reveal Audio">
+    <p style="text-align: center; color: white; font-family: 'Courier New', monospace; margin-bottom: 20px;">music i have produced/written</p>
 
-    <div id="play-button-container" class="play-button-container" style="display: none;">
-
-        <!-- Anxiety Audio -->
-        <button id="play-button-anxiety" class="custom-play-button">▶</button>
-        <div id="scrub-control-anxiety" class="scrub-control"></div>
-<br>        
-        <!-- Okay Audio -->
-        <button id="play-button-okay" class="custom-play-button">▶</button>
-        <div id="scrub-control-okay" class="scrub-control"></div>
-<br>
-        <!-- Matthew Audio -->
-        <button id="play-button-matthew" class="custom-play-button">▶</button>
-        <div id="scrub-control-matthew" class="scrub-control"></div>
-<br>
-        <!-- Fitmk Audio -->
-        <button id="play-button-fitmk" class="custom-play-button">▶</button>
-        <div id="scrub-control-fitmk" class="scrub-control"></div>
-<br>
-        <!-- Mashup Audio -->
-        <button id="play-button-mashup" class="custom-play-button">▶</button>
-        <div id="scrub-control-mashup" class="scrub-control"></div>
-<br>
-        <!-- sad Audio -->
-        <button id="play-button-sad" class="custom-play-button">▶</button>
-        <div id="scrub-control-sad" class="scrub-control"></div>
-<br>
-        <button id="play-button-spiderverse" class="custom-play-button">▶</button>
-        <video id="spiderverse-video" class="video-player" controls style="display: none; width: 100%; max-width: 600px;">
-            <source src="../resources/spiderverse.mov" type="video/mp4">
-        </video>
-
+    <div id="track-list" class="track-list" style="display: none;">
+        <div class="track-row" data-src="../resources/anxiety.wav">
+            <button class="track-play">&#9654;</button>
+            <span class="track-name">anxiety</span>
+            <div class="track-scrubber"><div class="track-progress"></div></div>
+            <span class="track-time">0:00</span>
+        </div>
+        <div class="track-row" data-src="../resources/okay.wav">
+            <button class="track-play">&#9654;</button>
+            <span class="track-name">okay</span>
+            <div class="track-scrubber"><div class="track-progress"></div></div>
+            <span class="track-time">0:00</span>
+        </div>
+        <div class="track-row" data-src="../resources/matthew.wav">
+            <button class="track-play">&#9654;</button>
+            <span class="track-name">matthew</span>
+            <div class="track-scrubber"><div class="track-progress"></div></div>
+            <span class="track-time">0:00</span>
+        </div>
+        <div class="track-row" data-src="../resources/fitmk.wav">
+            <button class="track-play">&#9654;</button>
+            <span class="track-name">fitmk</span>
+            <div class="track-scrubber"><div class="track-progress"></div></div>
+            <span class="track-time">0:00</span>
+        </div>
+        <div class="track-row" data-src="../resources/mashup.wav">
+            <button class="track-play">&#9654;</button>
+            <span class="track-name">mashup</span>
+            <div class="track-scrubber"><div class="track-progress"></div></div>
+            <span class="track-time">0:00</span>
+        </div>
+        <div class="track-row" data-src="../resources/sad.wav">
+            <button class="track-play">&#9654;</button>
+            <span class="track-name">sad</span>
+            <div class="track-scrubber"><div class="track-progress"></div></div>
+            <span class="track-time">0:00</span>
+        </div>
+        <div class="video-track-row" data-video="../resources/spiderverse.mov">
+            <button class="track-play">&#9654; spiderverse</button>
+            <video controls playsinline style="display: none;">
+                <source src="../resources/spiderverse.mov" type="video/mp4">
+            </video>
+        </div>
     </div>
 
-    <!-- Link to External JavaScript -->
     <script src="js/music.js"></script>
-
     <script src="js/lava.js"></script>
-    <div style="height: 200px;"></div>
+    <div style="height: 100px;"></div>
 </body>
 </html>

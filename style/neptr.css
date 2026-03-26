@@ -1,0 +1,398 @@
+#main-wrapper {
+    width: 100%;
+    min-width: 320px;
+    margin: 0 auto;
+}
+
+#grid-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 85%;
+    max-width: 400px;
+    margin: 0 auto;
+    padding-bottom: 30px;
+}
+
+.controls-and-grid {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 300px;
+    justify-content: center;
+}
+
+#offset-control, #oddsTRIG-control, #bpm-control {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+#grid-container {
+    background-color: var(--purple-dark);
+    border: 2px solid var(--purple-light);
+    width: 100%;
+    height: 58vh;
+    margin: 20px auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px;
+}
+
+#offset-control {
+    background-color: var(--yellow-dark);
+    border: 2px solid var(--yellow-light);
+    width: 25px;
+    height: 58vh;
+    margin: 20px auto;
+    --indicator-position-offset: 50%;
+}
+
+#oddsTRIG-control {
+    background-color: var(--green-dark);
+    border: 2px solid var(--green-light);
+    width: 25px;
+    height: 58vh;
+    margin: 20px auto;
+    --indicator-position-oddsTRIG: 50%;
+}
+
+#bpm-control {
+    background-color: var(--blue-dark);
+    border: 2px solid var(--blue-light);
+    width: 100%;
+    max-width: 300px;
+    height: 22px;
+    margin: -9px;
+    --indicator-position-bpm: 50%;
+}
+
+#offset-control::before,
+#oddsTRIG-control::before,
+#bpm-control::before {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    border-radius: 15px;
+}
+
+#offset-control::before {
+    width: 110%;
+    height: 45%;
+    left: 50%;
+    top: var(--indicator-position-offset, 50%);
+    transform: translate(-50%, -50%);
+    background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+}
+
+#oddsTRIG-control::before {
+    width: 110%;
+    height: 45%;
+    left: 50%;
+    top: var(--indicator-position-oddsTRIG, 50%);
+    transform: translate(-50%, -50%);
+    background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+}
+
+#bpm-control::before {
+    width: 45%;
+    height: calc(100% + 20px);
+    top: 50%;
+    left: var(--indicator-position-bpm, 50%);
+    transform: translate(-50%, -50%);
+    background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
+}
+
+.button-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    position: relative;
+    top: -10px;
+    margin-bottom: -20px;
+    gap: 130px;
+}
+
+.control-button {
+    width: 39px;
+    height: 34px;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    z-index: 10;
+    text-align: center;
+}
+
+#glitch-button { background-color: grey; }
+#glitch-button.engaged { background-color: #C0C0C0; }
+#clear-button { background-color: var(--red-dark); }
+#clear-button.engaged { background-color: var(--red-light); }
+
+#piano-keyboard {
+    position: relative;
+    width: 75%;
+    max-width: 600px;
+    min-height: 120px;
+    height: 18vh;
+    margin: 30px auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.white-key {
+    flex: 1 1 35px;
+    height: 100%;
+    background-color: #ffffff;
+    border: 1px solid #000;
+    margin: 0 1px;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.2s ease;
+}
+
+.white-key:active { background-color: #ccc; }
+
+.black-key {
+    position: absolute;
+    width: 24px;
+    height: 60%;
+    background-color: #000;
+    border: 1px solid #000;
+    z-index: 2;
+    cursor: pointer;
+    top: 0;
+    transition: background-color 0.2s ease;
+}
+
+.black-key:active { background-color: #333; }
+
+.black-key[data-note="49"] { left: calc(100% / 7 * 1 - 12px); }
+.black-key[data-note="51"] { left: calc(100% / 7 * 2 - 12px); }
+.black-key[data-note="54"] { left: calc(100% / 7 * 4 - 12px); }
+.black-key[data-note="56"] { left: calc(100% / 7 * 5 - 12px); }
+.black-key[data-note="58"] { left: calc(100% / 7 * 6 - 12px); }
+
+#rnbo-root {
+    height: 100vh;
+    width: 100vw;
+    box-sizing: border-box;
+}
+
+#background {
+    position: absolute;
+    z-index: -1;
+}
+
+h2, em {
+    width: 100%;
+    font-family: 'Courier New', Courier, monospace;
+    color: #ffffff;
+    padding-bottom: 2px;
+}
+
+#rnbo-root {
+    margin: auto;
+    max-width: 540px;
+    padding: 0px;
+}
+
+#neptr-title {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #ffffff;
+    font-family: 'Courier New', Courier, monospace;
+    margin-top: 30px;
+    margin-bottom: 0px;
+    font-size: 2em;
+    letter-spacing: 2px;
+    height: 0px;
+}
+
+#start-instruction {
+    text-align: center;
+    font-family: 'Courier New', Courier, monospace;
+    color: #ffffff;
+    font-size: 0.8em;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+#rnbo-clickable-keyboard {
+    display: none;
+}
+
+#rnbo-parameter-sliders {
+    display: flex;
+    flex-direction: column;
+    margin-top: 20px;
+    padding: 10px;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+#rnbo-parameter-sliders > div {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+#rnbo-parameter-sliders > div > input:first-of-type {
+    flex-grow: 1;
+}
+
+.param-label {
+    width: 50%;
+    font-size: 1.1em;
+    padding-right: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+input[type="text"] {
+    width: 50px;
+    margin-left: 10px;
+    text-align: right;
+}
+
+input, select, textarea {
+    background-color: #001f3f;
+    color: #ffffff;
+    border: 1px solid #ffffff;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+input[type="range"] {
+    accent-color: #ffffff;
+}
+
+#rnbo-presets {
+    width: 25%;
+    max-width: 200px;
+    margin: 0 auto;
+    padding: 0.5vh 0;
+    text-align: center;
+    box-sizing: border-box;
+    border: 2px solid white;
+    font-family: 'Courier New', Courier, monospace;
+    border-radius: 5px;
+    margin-right: 10px;
+    display: inline-block;
+    vertical-align: top;
+}
+
+#nerd-shit-container {
+    width: 25%;
+    max-width: 200px;
+    margin: 0 auto;
+    padding: 0.5vh 0;
+    text-align: center;
+    box-sizing: border-box;
+    border: 2px solid white;
+    font-family: 'Courier New', Courier, monospace;
+    border-radius: 5px;
+    margin-left: 10px;
+    display: inline-block;
+    vertical-align: top;
+}
+
+#nerd-shit-toggle {
+    background: none;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+#toggle-arrow {
+    width: 0;
+    height: 0;
+    margin-right: 0.5em;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 15px solid white;
+    transform: skewX(-15deg);
+    transition: transform 0.3s ease;
+}
+
+#nerd-shit-toggle.open #toggle-arrow {
+    transform: skewX(-15deg) rotate(180deg);
+}
+
+#preset-select {
+    width: 80%;
+    padding: 0.5em;
+    border-radius: 5px;
+    border: 1px solid white;
+    background-color: #001f3f;
+    color: white;
+    font-family: inherit;
+}
+
+#preset-select option {
+    padding: 0.5em;
+}
+
+.nerd-shit-button {
+    border: 2px solid white;
+    background: none;
+    color: white;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 5px 10px;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+@media (hover: hover) {
+    .nerd-shit-button:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.spark {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.8;
+    pointer-events: none;
+    animation: disappear 1s ease-out forwards, colorChange 1s infinite;
+}
+
+@keyframes colorChange {
+    0% { background-color: #ff90dc; }
+    25% { background-color: #ec5eff; }
+    50% { background-color: #c72fd8; }
+    75% { background-color: #7a32ff; }
+    100% { background-color: #5d1eb1; }
+}
+
+@keyframes disappear {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@media (max-width: 480px) {
+    #piano-keyboard {
+        width: 90%;
+        height: 14vh;
+        min-height: 90px;
+    }
+    .button-container {
+        gap: 80px;
+    }
+    #grid-wrapper {
+        width: 95%;
+    }
+}

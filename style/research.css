@@ -1,139 +1,62 @@
-:root {
-    /* PURPLE TONES (Lightest to Darkest) */
-    --purple-light: #72009F;   /* RGB: 114–0–159 */
-    --purple-mid: #5B007F;     /* RGB: 91–0–127 */
-    --purple-dark: #470063;    /* RGB: 71–0–99 */
-    --purple-darker: #310044;  /* RGB: 49–0–68 */
-    --purple-darkest: #13001B; /* RGB: 19–0–27 */
-
-    /* GREEN TONES (Lightest to Darkest) */
-    --green-light: #00B917;    /* RGB: 0–185–23 */
-    --green-mid: #009512;      /* RGB: 0–149–18 */
-    --green-dark: #00730E;     /* RGB: 0–115–14 */
-    --green-darker: #00500A;   /* RGB: 0–80–10 */
-    --green-darkest: #002004;  /* RGB: 0–32–4 */
-
-    /* BLUE TONES (Lightest to Darkest) */
-    --blue-light: #5478a8;
-    --blue-mid: #3a5493;
-    --blue-dark: #283b75;
-    --blue-darker: #14295b;
-    --blue-darkest: #061640;
-
-    /* YELLOW TONES (Lightest to Darkest) */
-    --yellow-light: #e6d32f;
-    --yellow-mid: #c3aa16;
-    --yellow-dark: #9e8503;
-    --yellow-darker: #7b6800;
-    --yellow-darkest: #554800;
-
-    /* RED TONES (Lightest to Darkest) */
-    --red-light: #EF0C00;     /* RGB: 239–12–0 */
-    --red-mid: #C00A00;       /* RGB: 192–10–0 */
-    --red-dark: #950700;      /* RGB: 149–7–0 */
-    --red-darker: #670500;    /* RGB: 103–5–0 */
-    --red-darkest: #290200;   /* RGB: 41–2–0 */
-
-    /* GENERAL COLORS */
-    --white: #ffffff;
-    /* --background-color: var(--blue-darkest); */
-    --input-bg: var(--purple-darker); /* Input box background */
-    --input-border: var(--purple-light); /* Input box border */
-    --button-bg: var(--purple-mid); /* Button background */
-    --button-hover-bg: var(--purple-light); /* Button hover background */
-}
-
-/* General Reset */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-/* Apply animation to heading */
-h1 {
-    margin-top: -20px;
-    font-size: 2em;
-    text-align: center;
-    opacity: 0; /* Start hidden */
-    animation: fadeIn 1s ease forwards; /* Fade in over 1 second */
-}
-
-@keyframes fadeIn {
-    to {
-        opacity: 1;
-    }
-}
-
-/* Body and HTML */
 html, body {
-    font-family: 'Courier New', Courier, monospace;
-    background-color: var(--background-color);
-    color: var(--white);
-    width: 100vw;
-    height: 100vh;
-    display: flex;
     justify-content: center;
-    align-items: center;
-    overflow-y: auto; /* Allow vertical scrolling */
+    overflow-y: auto;
     overflow-x: hidden;
 }
 
-/* Survey Container */
+h1 {
+    margin-top: -20px;
+}
+
 .survey-container {
-    width: 100%; /* Full width */
-    height: 100%; /* Full height */
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: center; /* Center content vertically */
-    align-items: center; /* Center content horizontally */
-    background-color: var(--background-color); /* Darkest blue for container */
+    justify-content: center;
+    align-items: center;
     padding: 20px;
     box-sizing: border-box;
 }
 
-/* Survey Title */
 .survey-title {
     font-size: 5rem;
-    font-family: 'Courier New', Courier, monospace;
     color: var(--white);
     text-align: center;
     margin-bottom: 20px;
 }
 
-/* Question Styles */
 .survey-question {
-    font-size: 1.3rem; /* Slightly larger for readability */
+    font-size: 1.3rem;
     color: var(--white);
-    text-align: center; /* Center questions horizontally */
-    width: 100%; /* Full width within container */
-    max-width: 700px; /* Limit for readability */
+    text-align: center;
+    width: 100%;
+    max-width: 700px;
     margin-bottom: 20px;
 }
 
-/* Input Styles */
 .survey-input {
-    width: 100%; /* Full width within container */
-    max-width: 700px; /* Limit input width */
-    background-color: var(--input-bg); /* Dark purple background */
-    border: 2px solid var(--input-border); /* Purple border */
-    color: var(--white); /* White text */
-    font-size: 1.2rem; /* Increased font size */
+    width: 100%;
+    max-width: 700px;
+    background-color: var(--input-bg);
+    border: 2px solid var(--input-border);
+    color: var(--white);
+    font-size: 1.2rem;
     border-radius: 5px;
     padding: 10px;
-    margin-top: 10px; /* Slight spacing above inputs */
+    margin-top: 10px;
     transition: border-color 0.3s ease;
+    font-family: 'Courier New', Courier, monospace;
 }
 
 .survey-input:focus {
     outline: none;
-    border-color: var(--button-hover-bg); /* Highlight on focus */
+    border-color: var(--button-hover-bg);
 }
 
-/* Submit Button */
 .survey-submit {
     display: block;
-    margin: 30px auto 0 auto; /* Center horizontally */
+    margin: 30px auto 0 auto;
     padding: 15px 30px;
     font-size: 1.5rem;
     color: var(--white);
@@ -141,56 +64,26 @@ html, body {
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    font-family: 'Courier New', Courier, monospace;
     transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
-.survey-submit:hover {
-    background-color: var(--button-hover-bg);
-    transform: scale(1.05);
+@media (hover: hover) {
+    .survey-submit:hover {
+        background-color: var(--button-hover-bg);
+        transform: scale(1.05);
+    }
 }
 
-.home-button {
-    position: fixed; /* Ensures the button stays stationary relative to the viewport */
-    top: 20px; /* Distance from the top of the viewport */
-    left: 20px; /* Distance from the left of the viewport */
-    background-color: var(--purple-mid); /* Slightly darker shade */
-    color: white; /* Text color */
-    padding: 7px; /* Inner spacing for the button */
-    font-size: 27px; /* Font size of the button's text */
-    text-decoration: none; /* Remove underline from text */
-    border-radius: 50%; /* Make the button circular */
-    cursor: pointer; /* Change cursor to pointer on hover */
-    z-index: 1000; /* Ensure it stays above all other elements */
-    display: flex; /* Center text/icon inside the button */
-    align-items: center; /* Vertical centering */
-    justify-content: center; /* Horizontal centering */
-    width: 40px; /* Fixed width */
-    height: 40px; /* Fixed height */
-}
-
-.home-button:hover {
-    background-color: var(--purple-light);
-}
-
-#background-layer {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: var(--blue-darkest);
-    z-index: -2;
-}
-#lavaCanvas {
-    z-index: -1;
-}
-#lavaCanvas {
-    --background-color: var(--blue-darkest);
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: -1;
-    display: block;
+@media (max-width: 600px) {
+    .survey-question {
+        font-size: 1.1rem;
+    }
+    .survey-input {
+        font-size: 1rem;
+    }
+    .survey-submit {
+        font-size: 1.2rem;
+        padding: 12px 24px;
+    }
 }

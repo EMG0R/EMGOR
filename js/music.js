@@ -1,160 +1,131 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const audioSystems = [];
-
     const toggleImage = document.getElementById('toggle-image');
-    const playButtonContainer = document.getElementById('play-button-container');
+    const trackList = document.getElementById('track-list');
+    const rows = trackList.querySelectorAll('.track-row');
+    const videoRow = trackList.querySelector('.video-track-row');
 
-    if (toggleImage && playButtonContainer) {
+    let activeAudio = null;
+    let activeRow = null;
+
+    if (toggleImage && trackList) {
         toggleImage.addEventListener('click', () => {
-            const isVisible = playButtonContainer.style.display === 'block';
-            playButtonContainer.style.display = isVisible ? 'none' : 'block';
-            playButtonContainer.style.justifyContent = 'flex-start';
-            playButtonContainer.style.alignItems = 'flex-start';
-
+            const isVisible = trackList.style.display !== 'none';
+            trackList.style.display = isVisible ? 'none' : 'flex';
             if (!isVisible) {
-                setTimeout(() => {
-                    playButtonContainer.scrollIntoView({ behavior: 'smooth' });
-                }, 100);
+                setTimeout(() => trackList.scrollIntoView({ behavior: 'smooth' }), 100);
             }
         });
     }
 
-    function initializeAudioSystem(fileName, buttonId, scrubberId, color = 'rgba(75, 0, 130, 0.85)') {
-        const playButton = document.getElementById(buttonId);
-        const scrubControl = document.getElementById(scrubberId);
-        const audioElement = new Audio(fileName);
+    function formatTime(s) {
+        if (!s || !isFinite(s)) return '0:00';
+        const m = Math.floor(s / 60);
+        const sec = Math.floor(s % 60);
+        return m + ':' + (sec < 10 ? '0' : '') + sec;
+    }
 
-        if (!playButton || !scrubControl) {
-            console.error(`Missing elements for button: ${buttonId}, scrubber: ${scrubberId}`);
-            return;
+    function stopAll() {
+        if (activeAudio) {
+            activeAudio.pause();
+            activeAudio.currentTime = 0;
         }
-
-        // Set default or custom colors
-        playButton.style.backgroundColor = color;
-        scrubControl.style.backgroundColor = color;
-
-        function stopOthers() {
-            audioSystems.forEach(({ audio, button, scrubber }) => {
-                if (audio !== audioElement) {
-                    audio.pause();
-                    audio.currentTime = 0;
-                    button.textContent = '▶';
-                    scrubber.style.display = 'none';
-                }
-            });
+        if (activeRow) {
+            activeRow.querySelector('.track-play').textContent = '\u25B6';
+            activeRow.querySelector('.track-play').classList.remove('playing');
+            activeRow.querySelector('.track-progress').style.width = '0%';
+            activeRow.querySelector('.track-time').textContent = '0:00';
         }
+        activeAudio = null;
+        activeRow = null;
+    }
 
-        function togglePlay() {
-            stopOthers();
-            if (audioElement.paused) {
-                audioElement.play();
-                playButton.textContent = '⏹';
-                scrubControl.style.display = 'block';
-            } else {
-                audioElement.pause();
-                playButton.textContent = '▶';
-                scrubControl.style.display = 'none';
+    rows.forEach(row => {
+        const src = row.dataset.src;
+        const btn = row.querySelector('.track-play');
+        const scrubber = row.querySelector('.track-scrubber');
+        const progress = row.querySelector('.track-progress');
+        const timeEl = row.querySelector('.track-time');
+        const audio = new Audio(src);
+
+        btn.addEventListener('click', () => {
+            if (activeRow === row && !audio.paused) {
+                stopAll();
+                return;
+            }
+            stopAll();
+            activeAudio = audio;
+            activeRow = row;
+            audio.play();
+            btn.textContent = '\u23F9';
+            btn.classList.add('playing');
+        });
+
+        audio.addEventListener('timeupdate', () => {
+            if (!audio.duration) return;
+            const pct = (audio.currentTime / audio.duration) * 100;
+            progress.style.width = pct + '%';
+            timeEl.textContent = formatTime(audio.currentTime);
+        });
+
+        audio.addEventListener('ended', () => {
+            stopAll();
+        });
+
+        function scrub(e) {
+            const rect = scrubber.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+            if (audio.duration) {
+                audio.currentTime = (x / rect.width) * audio.duration;
+                progress.style.width = ((x / rect.width) * 100) + '%';
             }
         }
 
-        function handleAudioEnd() {
-            audioElement.pause();
-            audioElement.currentTime = 0;
-            playButton.textContent = '▶';
-            scrubControl.style.display = 'none';
-        }
+        let scrubbing = false;
 
-        function updateScrubIndicator() {
-            if (audioElement.duration) {
-                const progress = (audioElement.currentTime / audioElement.duration) * 100;
-                scrubControl.style.setProperty('--indicator-position-scrub', `${progress}%`);
-            }
-        }
-
-        function setAudioPosition(event) {
-            const rect = scrubControl.getBoundingClientRect();
-            const clientX = event.touches ? event.touches[0].clientX : event.clientX;
-            let x = clientX - rect.left;
-            x = Math.max(0, Math.min(x, rect.width));
-
-            if (audioElement.duration) {
-                const newTime = (x / rect.width) * audioElement.duration;
-                audioElement.currentTime = newTime;
-
-                const progress = (x / rect.width) * 100;
-                scrubControl.style.setProperty('--indicator-position-scrub', `${progress}%`);
-            }
-        }
-
-        playButton.addEventListener('click', togglePlay);
-        audioElement.addEventListener('ended', handleAudioEnd);
-        audioElement.addEventListener('timeupdate', updateScrubIndicator);
-
-        scrubControl.addEventListener('mousedown', (event) => {
-            setAudioPosition(event);
-            document.addEventListener('mousemove', setAudioPosition);
+        scrubber.addEventListener('mousedown', (e) => {
+            scrubbing = true;
+            scrub(e);
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (scrubbing) scrub(e);
         });
         document.addEventListener('mouseup', () => {
-            document.removeEventListener('mousemove', setAudioPosition);
+            scrubbing = false;
         });
-        scrubControl.addEventListener('touchstart', (event) => {
-            setAudioPosition(event);
-            document.addEventListener('touchmove', setAudioPosition);
-        });
+
+        scrubber.addEventListener('touchstart', (e) => {
+            scrubbing = true;
+            scrub(e);
+        }, { passive: true });
+        document.addEventListener('touchmove', (e) => {
+            if (scrubbing) scrub(e);
+        }, { passive: true });
         document.addEventListener('touchend', () => {
-            document.removeEventListener('touchmove', setAudioPosition);
+            scrubbing = false;
         });
+    });
 
-        audioSystems.push({ audio: audioElement, button: playButton, scrubber: scrubControl });
-    
-    }
+    if (videoRow) {
+        const videoBtn = videoRow.querySelector('.track-play');
+        const videoEl = videoRow.querySelector('video');
 
-    // Initialize audio systems
-    initializeAudioSystem('../resources/anxiety.wav', 'play-button-anxiety', 'scrub-control-anxiety');
-    initializeAudioSystem('../resources/fitmk.wav', 'play-button-fitmk', 'scrub-control-fitmk');
-    initializeAudioSystem('../resources/mashup.wav', 'play-button-mashup', 'scrub-control-mashup');
-    initializeAudioSystem('../resources/matthew.wav', 'play-button-matthew', 'scrub-control-matthew');
-    initializeAudioSystem('../resources/okay.wav', 'play-button-okay', 'scrub-control-okay');
-    initializeAudioSystem('../resources/sad.wav', 'play-button-sad', 'scrub-control-sad');
-
-
-
-
-
-    function initializeVideoSystem(buttonId, videoId) {
-        const playButton = document.getElementById(buttonId);
-        const videoElement = document.getElementById(videoId);
-    
-        if (!playButton || !videoElement) {
-            console.error(`Missing elements for button: ${buttonId}, video: ${videoId}`);
-            return;
-        }
-    
-        // Function to toggle video play/pause and visibility
-        function toggleVideoPlay() {
-            if (videoElement.paused) {
-                videoElement.play();
-                playButton.textContent = '⏹'; // Use || for pause
-                videoElement.style.display = 'block';
+        videoBtn.addEventListener('click', () => {
+            stopAll();
+            if (videoEl.paused) {
+                videoEl.style.display = 'block';
+                videoEl.play();
+                videoBtn.textContent = '\u23F9 spiderverse';
             } else {
-                videoElement.pause();
-                videoElement.style.display = 'none';
-                playButton.textContent = '▶'; // Reset to play symbol
+                videoEl.pause();
+                videoEl.style.display = 'none';
+                videoBtn.textContent = '\u25B6 spiderverse';
             }
-        }
-    
-        // Reset video and button state when video ends
-        videoElement.addEventListener('ended', () => {
-            videoElement.style.display = 'none';
-            playButton.textContent = '▶';
         });
-    
-        // Add click event listener to the button
-        playButton.addEventListener('click', toggleVideoPlay);
+
+        videoEl.addEventListener('ended', () => {
+            videoEl.style.display = 'none';
+            videoBtn.textContent = '\u25B6 spiderverse';
+        });
     }
-    
-    // Initialize the video system
-    initializeVideoSystem('play-button-spiderverse', 'spiderverse-video');
-
-
 });

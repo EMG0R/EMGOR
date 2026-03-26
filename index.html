@@ -4,14 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
-    <link rel="stylesheet" href="style/style.css">
-    <style>
-        /* Force content above canvas AND star physics layers (stars z-index:50) */
-        h1, .homescreen-button-container, .landing-hero {
-            position: relative;
-            z-index: 60;
-        }
-    </style>
+    <link rel="stylesheet" href="style/base.css">
+    <link rel="stylesheet" href="style/home.css">
     <title>Emory Smith</title>
 </head>
 <body>
@@ -32,13 +26,13 @@
 
     <section class="landing-hero">
         <div class="hero-content">
-            <div class="bio-overlay bio-left fade-delayed-1" style="margin-bottom: 0; padding-bottom: 0;">
-                <p class="bio-text">
+            <div class="bio-overlay bio-left fade-delayed-1" style="margin-bottom: 0; padding-bottom: 20px;">
+                <!-- <p class="bio-text">
                     My name is Emory Smith, I am a musician specializing in the creation of unique and accessible experiences through technology. I am a high-level producer across Ableton, Logic Pro X and Pro Tools and an effective programmer in all major programming languages but I specialize in the use of Max/MSP, Touchdesigner and Csound to design instruments, visuals and hardware. I am useful to my collaborators in my perspective and my ability to implement concepts across mediums.
+                </p> -->
+                <p class="bio-text">
+                    I'm Emory Smith — I use whatever tools and technologies are necessary to realize ideas across music, visuals, and interactive systems. I adapt quickly, build across mediums, and care deeply about how things feel. Refined taste, relentless execution.
                 </p>
-            </div>
-            <div class="hero-image fade-delayed-2">
-                <img src="resources/newgor-artwork.jpeg" alt="Emory artwork">
             </div>
         </div>
         <div class="social-links">
@@ -63,8 +57,6 @@
         </div>
     </section>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script src="js/lava.js"></script>
-    <script src="js/physics.js"></script>
 </body>
 </html>

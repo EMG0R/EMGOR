@@ -4,46 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
-    <link rel="stylesheet" href="style/style.css">
-    <style>
-        .synth-box {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 55vw;
-            max-width: 680px;
-            height: 20vh;
-            min-height: 110px;
-            text-decoration: none;
-            color: #ffffff;
-            background-color: var(--purple-dark);
-            border: 1px solid var(--purple-light);
-            border-radius: 5px;
-            font-size: 2rem;
-            letter-spacing: 5px;
-            font-family: 'Courier New', Courier, monospace;
-            transition: background-color 0.3s ease;
-        }
-        @media (hover: hover) {
-            .synth-box:hover { background-color: var(--purple-mid); }
-        }
-        .synth-box:active { background-color: var(--purple-mid); }
-        .synth-box {
-            -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
-            touch-action: manipulation;
-            cursor: pointer;
-        }
-        /* Force content above canvas AND star physics (z-index:50) */
-        h1, .synth-hub { position: relative; z-index: 60; }
-        .synth-hub {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 28px;
-            margin: 80px auto 0;
-            width: 60vw;
-        }
-    </style>
+    <link rel="stylesheet" href="style/base.css">
+    <link rel="stylesheet" href="style/websynthhub.css">
     <title>WEB SYNTH</title>
 </head>
 <body>
@@ -60,8 +22,6 @@
         <a href="BMO.html"    class="synth-box">BMO</a>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script src="js/lava.js"></script>
-    <script src="js/physics.js"></script>
 </body>
 </html>

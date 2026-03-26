@@ -1,55 +1,4 @@
-/* Root Variables */
-:root {
-        --background-blue: #061640;
-        --text-white: #FFFFFF;
-        --box-border: #3a5493;
-        --divider-line: #5478A8;
-
-        /* PURPLE TONES (Lightest to Darkest) */
-        --purple-light: #72009F;   /* RGB: 114–0–159 */
-        --purple-mid: #5B007F;     /* RGB: 91–0–127 */
-        --purple-dark: #470063;    /* RGB: 71–0–99 */
-        --purple-darker: #310044;  /* RGB: 49–0–68 */
-        --purple-darkest: #13001B; /* RGB: 19–0–27 */
-    
-        /* GREEN TONES (Lightest to Darkest) */
-        --green-light: #00B917;    /* RGB: 0–185–23 */
-        --green-mid: #009512;      /* RGB: 0–149–18 */
-        --green-dark: #00730E;     /* RGB: 0–115–14 */
-        --green-darker: #00500A;   /* RGB: 0–80–10 */
-        --green-darkest: #002004;  /* RGB: 0–32–4 */
-    
-        /* BLUE TONES (Lightest to Darkest) */
-        --blue-light: #5478a8;
-        --blue-mid: #3a5493;
-        --blue-dark: #283b75;
-        --blue-darker: #14295b;
-        --blue-darkest: #061640;
-    
-        /* YELLOW TONES (Lightest to Darkest) */
-        --yellow-light: #e6d32f;
-        --yellow-mid: #c3aa16;
-        --yellow-dark: #9e8503;
-        --yellow-darker: #7b6800;
-        --yellow-darkest: #554800;
-    
-        /* RED TONES (Lightest to Darkest) */
-        --red-light: #EF0C00;     /* RGB: 239–12–0 */
-        --red-mid: #C00A00;       /* RGB: 192–10–0 */
-        --red-dark: #950700;      /* RGB: 149–7–0 */
-        --red-darker: #670500;    /* RGB: 103–5–0 */
-        --red-darkest: #290200;   /* RGB: 41–2–0 */
-    }
-
-/* General Styling */
 body {
-    font-family: 'Courier New', Courier, monospace;
-    /* background-color: var(--background-blue); */
-    color: var(--text-white);
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
     align-items: center;
 }
 
@@ -68,7 +17,6 @@ h1 {
     margin-top: 5px;
 }
 
-/* Section and Titles */
 h2 {
     font-size: 1.8rem;
     margin: 20px 0 10px;
@@ -76,7 +24,6 @@ h2 {
     width: 80%;
 }
 
-/* Instruction Blocks */
 .instruction {
     width: 80%;
     margin-bottom: 20px;
@@ -88,9 +35,9 @@ h2 {
 }
 
 .code-box {
-    background-color: var(--background-blue);
-    color: var(--text-white);
-    border: 2px solid var(--box-border);
+    background-color: var(--blue-darkest);
+    color: var(--white);
+    border: 2px solid var(--blue-mid);
     border-radius: 5px;
     padding: 10px;
     font-family: monospace;
@@ -98,55 +45,27 @@ h2 {
     font-size: 0.9rem;
 }
 
-/* Divider Line */
 .divider {
     width: 80%;
     height: 2px;
-    background-color: var(--divider-line);
+    background-color: var(--blue-light);
     margin: 20px 0;
 }
 
- .home-button {
-    position: fixed; /* Ensures the button stays stationary relative to the viewport */
-    top: 20px; /* Distance from the top of the viewport */
-    left: 20px; /* Distance from the left of the viewport */
-    background-color: var(--purple-mid); /* Slightly darker shade */
-    color: white; /* Text color */
-    padding: 7px; /* Inner spacing for the button */
-    font-size: 27px; /* Font size of the button's text */
-    text-decoration: none; /* Remove underline from text */
-    border-radius: 50%; /* Make the button circular */
-    cursor: pointer; /* Change cursor to pointer on hover */
-    z-index: 1000; /* Ensure it stays above all other elements */
-    display: flex; /* Center text/icon inside the button */
-    align-items: center; /* Vertical centering */
-    justify-content: center; /* Horizontal centering */
-    width: 25px; /* Fixed width */
-    height: 25px; /* Fixed height */
+.download-link {
+    color: var(--purple-light);
+    text-decoration: underline;
 }
 
-.home-button:hover {
-    background-color: var(--purple-light);
-}
-#background-layer {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: var(--blue-darkest);
-    z-index: -2;
-}
-#lavaCanvas {
-    z-index: -1;
-}
-#lavaCanvas {
-    --background-color: var(--blue-darkest);
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: -1;
-    display: block;
+@media (max-width: 600px) {
+    h2 {
+        width: 90%;
+        font-size: 1.4rem;
+    }
+    .instruction {
+        width: 90%;
+    }
+    .code-box {
+        font-size: 0.8rem;
+    }
 }

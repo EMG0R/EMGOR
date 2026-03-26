@@ -1,0 +1,147 @@
+:root {
+    --purple-light: #72009F;
+    --purple-mid: #5B007F;
+    --purple-dark: #470063;
+    --purple-darker: #310044;
+    --purple-darkest: #13001B;
+
+    --green-light: #00B917;
+    --green-mid: #009512;
+    --green-dark: #00730E;
+    --green-darker: #00500A;
+    --green-darkest: #002004;
+
+    --blue-light: #5478a8;
+    --blue-mid: #3a5493;
+    --blue-dark: #283b75;
+    --blue-darker: #14295b;
+    --blue-darkest: #061640;
+
+    --yellow-light: #e6d32f;
+    --yellow-mid: #c3aa16;
+    --yellow-dark: #9e8503;
+    --yellow-darker: #7b6800;
+    --yellow-darkest: #554800;
+
+    --red-light: #EF0C00;
+    --red-mid: #C00A00;
+    --red-dark: #950700;
+    --red-darker: #670500;
+    --red-darkest: #290200;
+
+    --white: #ffffff;
+    --input-bg: var(--purple-darker);
+    --input-border: var(--purple-light);
+    --button-bg: var(--purple-mid);
+    --button-hover-bg: var(--purple-light);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    color: white;
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+#background-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--blue-darkest);
+    z-index: -2;
+}
+
+#lavaCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    display: block;
+}
+
+.home-button {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background-color: var(--purple-mid);
+    color: white;
+    padding: 7px;
+    font-size: 27px;
+    text-decoration: none;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
+    touch-action: manipulation;
+}
+
+@media (hover: hover) {
+    .home-button:hover {
+        background-color: var(--purple-light);
+    }
+}
+
+.home-button:active {
+    background-color: var(--purple-light);
+}
+
+h1 {
+    margin-top: 20px;
+    font-size: 2em;
+    text-align: center;
+    opacity: 0;
+    animation: fadeIn 1s ease forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInDelayed {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
