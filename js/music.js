@@ -1,26 +1,12 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const toggleImage = document.getElementById('toggle-image');
-    const trackList = document.getElementById('track-list');
-    const rows = trackList.querySelectorAll('.track-row');
-    const videoRow = trackList.querySelector('.video-track-row');
-
-    let activeAudio = null;
-    let activeRow = null;
-
-    if (toggleImage && trackList) {
-        toggleImage.addEventListener('click', () => {
-            const isVisible = trackList.style.display !== 'none';
-            trackList.style.display = isVisible ? 'none' : 'flex';
-            if (!isVisible) {
-                setTimeout(() => trackList.scrollIntoView({ behavior: 'smooth' }), 100);
-            }
-        });
-    }
+document.addEventListener('DOMContentLoaded', function() {
+    var rows = document.querySelectorAll('.track-row');
+    var activeAudio = null;
+    var activeRow = null;
 
     function formatTime(s) {
         if (!s || !isFinite(s)) return '0:00';
-        const m = Math.floor(s / 60);
-        const sec = Math.floor(s % 60);
+        var m = Math.floor(s / 60);
+        var sec = Math.floor(s % 60);
         return m + ':' + (sec < 10 ? '0' : '') + sec;
     }
 
@@ -39,15 +25,15 @@ document.addEventListener('DOMContentLoaded', () => {
         activeRow = null;
     }
 
-    rows.forEach(row => {
-        const src = row.dataset.src;
-        const btn = row.querySelector('.track-play');
-        const scrubber = row.querySelector('.track-scrubber');
-        const progress = row.querySelector('.track-progress');
-        const timeEl = row.querySelector('.track-time');
-        const audio = new Audio(src);
+    rows.forEach(function(row) {
+        var src = row.dataset.src;
+        var btn = row.querySelector('.track-play');
+        var scrubber = row.querySelector('.track-scrubber');
+        var progress = row.querySelector('.track-progress');
+        var timeEl = row.querySelector('.track-time');
+        var audio = new Audio(src);
 
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', function() {
             if (activeRow === row && !audio.paused) {
                 stopAll();
                 return;
@@ -60,72 +46,48 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.add('playing');
         });
 
-        audio.addEventListener('timeupdate', () => {
+        audio.addEventListener('timeupdate', function() {
             if (!audio.duration) return;
-            const pct = (audio.currentTime / audio.duration) * 100;
-            progress.style.width = pct + '%';
+            progress.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
             timeEl.textContent = formatTime(audio.currentTime);
         });
 
-        audio.addEventListener('ended', () => {
+        audio.addEventListener('ended', function() {
             stopAll();
         });
 
         function scrub(e) {
-            const rect = scrubber.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+            var rect = scrubber.getBoundingClientRect();
+            var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            var x = Math.max(0, Math.min(clientX - rect.left, rect.width));
             if (audio.duration) {
                 audio.currentTime = (x / rect.width) * audio.duration;
                 progress.style.width = ((x / rect.width) * 100) + '%';
             }
         }
 
-        let scrubbing = false;
+        var scrubbing = false;
 
-        scrubber.addEventListener('mousedown', (e) => {
+        scrubber.addEventListener('mousedown', function(e) {
             scrubbing = true;
             scrub(e);
         });
-        document.addEventListener('mousemove', (e) => {
+        document.addEventListener('mousemove', function(e) {
             if (scrubbing) scrub(e);
         });
-        document.addEventListener('mouseup', () => {
+        document.addEventListener('mouseup', function() {
             scrubbing = false;
         });
 
-        scrubber.addEventListener('touchstart', (e) => {
+        scrubber.addEventListener('touchstart', function(e) {
             scrubbing = true;
             scrub(e);
         }, { passive: true });
-        document.addEventListener('touchmove', (e) => {
+        document.addEventListener('touchmove', function(e) {
             if (scrubbing) scrub(e);
         }, { passive: true });
-        document.addEventListener('touchend', () => {
+        document.addEventListener('touchend', function() {
             scrubbing = false;
         });
     });
-
-    if (videoRow) {
-        const videoBtn = videoRow.querySelector('.track-play');
-        const videoEl = videoRow.querySelector('video');
-
-        videoBtn.addEventListener('click', () => {
-            stopAll();
-            if (videoEl.paused) {
-                videoEl.style.display = 'block';
-                videoEl.play();
-                videoBtn.textContent = '\u23F9 spiderverse';
-            } else {
-                videoEl.pause();
-                videoEl.style.display = 'none';
-                videoBtn.textContent = '\u25B6 spiderverse';
-            }
-        });
-
-        videoEl.addEventListener('ended', () => {
-            videoEl.style.display = 'none';
-            videoBtn.textContent = '\u25B6 spiderverse';
-        });
-    }
 });

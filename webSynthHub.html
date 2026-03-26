@@ -8,20 +8,20 @@
     <link rel="stylesheet" href="style/websynthhub.css">
     <title>WEB SYNTH</title>
 </head>
-<body>
+<body style="overflow: hidden; height: 100vh;">
     <div id="background-layer"></div>
     <canvas id="lavaCanvas"></canvas>
 
-    <a href="index.html" class="home-button">&#8962;</a>
+    <a href="index.html" class="home-button" data-float="true" style="cursor:grab;">&#8962;</a>
 
-    <h1>WEB SYNTH</h1>
+    <h1 data-float="true" style="cursor:grab;">WEB SYNTH</h1>
 
-    <div class="synth-hub">
-        <a href="ciesen.html" class="synth-box">CIESEN</a>
-        <a href="NEPTR.html"  class="synth-box">NEPTR</a>
-        <a href="BMO.html"    class="synth-box">BMO</a>
-    </div>
+    <a href="ciesen.html" class="synth-box" data-float="shape" style="cursor:grab;">CIESEN</a>
+    <a href="NEPTR.html" class="synth-box" data-float="shape" style="cursor:grab;">NEPTR</a>
+    <a href="BMO.html" class="synth-box" data-float="shape" style="cursor:grab;">BMO</a>
 
     <script src="js/lava.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="js/space.js"></script>
 </body>
 </html>

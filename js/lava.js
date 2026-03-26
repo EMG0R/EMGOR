@@ -3,7 +3,7 @@ const gl = canvas.getContext("webgl");
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
-gl.clearColor(0.027, 0.098, 0.290, 1.0);
+gl.clearColor(0.01, 0.0, 0.04, 1.0);
 gl.clear(gl.COLOR_BUFFER_BIT);
 
 const vertexShaderSource = `
@@ -38,53 +38,77 @@ float fbm(vec2 p) {
     float val = 0.0;
     float amp = 0.5;
     float freq = 1.0;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         val += amp * noise(p * freq);
-        freq *= 2.0;
-        amp *= 0.5;
+        freq *= 2.1;
+        amp *= 0.48;
         p += vec2(1.7, 9.2);
     }
     return val;
 }
 
+float starField(vec2 uv, float t) {
+    float stars = 0.0;
+    for (float i = 0.0; i < 3.0; i++) {
+        vec2 grid = uv * (80.0 + i * 60.0);
+        vec2 id = floor(grid);
+        vec2 gv = fract(grid) - 0.5;
+        float h = hash(id + i * 100.0);
+        float size = 0.015 + h * 0.01;
+        float brightness = smoothstep(size, 0.0, length(gv));
+        float twinkle = sin(t * (2.0 + h * 4.0) + h * 6.28) * 0.5 + 0.5;
+        twinkle = mix(0.3, 1.0, twinkle);
+        stars += brightness * twinkle * step(0.92, h);
+    }
+    return stars;
+}
+
 void main() {
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
-    float t = u_time * 0.15;
+    float t = u_time * 0.12;
     float scroll = u_scroll * 0.0003;
 
-    vec2 q = uv * 2.5;
+    vec2 q = uv * 2.0;
     q.y += scroll;
 
     float n1 = fbm(q + vec2(
-        sin(q.y * 1.5 + t * 2.0) * 0.8,
-        cos(q.x * 1.8 + t * 1.6) * 0.7
+        sin(q.y * 1.2 + t * 1.8) * 0.9,
+        cos(q.x * 1.5 + t * 1.4) * 0.8
     ));
 
-    float n2 = fbm(q * 1.3 + vec2(
-        cos(t * 1.2 + n1 * 2.0),
-        sin(t * 0.9 + n1 * 1.5)
+    float n2 = fbm(q * 1.4 + vec2(
+        cos(t * 1.0 + n1 * 2.5),
+        sin(t * 0.7 + n1 * 2.0)
     ));
 
-    float n3 = fbm(q * 0.7 + vec2(n2 * 1.5, n1 * 1.2) + t * 0.5);
+    float n3 = fbm(q * 0.6 + vec2(n2 * 1.8, n1 * 1.4) + t * 0.4);
 
-    vec3 deepBlue = vec3(0.012, 0.043, 0.125);
-    vec3 deepPurple = vec3(0.06, 0.0, 0.12);
-    vec3 deepTeal = vec3(0.0, 0.05, 0.1);
-    vec3 midBlue = vec3(0.02, 0.07, 0.2);
+    vec3 voidBlack = vec3(0.005, 0.0, 0.015);
+    vec3 deepPurple = vec3(0.08, 0.0, 0.14);
+    vec3 spacePurple = vec3(0.04, 0.005, 0.10);
+    vec3 darkViolet = vec3(0.06, 0.0, 0.08);
+    vec3 nebulaTeal = vec3(0.0, 0.03, 0.07);
+    vec3 nebulaBlue = vec3(0.01, 0.02, 0.09);
 
-    float blend1 = smoothstep(0.2, 0.7, n2);
-    float blend2 = smoothstep(0.3, 0.8, n3);
-    float blend3 = smoothstep(0.1, 0.6, n1);
+    float blend1 = smoothstep(0.15, 0.75, n2);
+    float blend2 = smoothstep(0.25, 0.85, n3);
+    float blend3 = smoothstep(0.1, 0.65, n1);
 
-    vec3 color = deepBlue;
-    color = mix(color, deepPurple, blend1 * 0.6);
-    color = mix(color, deepTeal, blend2 * 0.5);
-    color = mix(color, midBlue, blend3 * 0.4);
+    vec3 color = voidBlack;
+    color = mix(color, spacePurple, blend1 * 0.7);
+    color = mix(color, deepPurple, blend3 * 0.5);
+    color = mix(color, nebulaTeal, blend2 * 0.35);
+    color = mix(color, nebulaBlue, (1.0 - blend1) * blend2 * 0.3);
+    color = mix(color, darkViolet, smoothstep(0.4, 0.9, n1 * n2) * 0.4);
 
-    float glow = pow(n2, 2.0) * 0.15;
-    color += vec3(0.03, 0.01, 0.06) * glow;
+    float nebulaGlow = pow(n2 * n3, 1.5) * 0.25;
+    color += vec3(0.06, 0.01, 0.10) * nebulaGlow;
 
-    color *= 0.85 + 0.15 * n3;
+    color *= 0.8 + 0.2 * n3;
+
+    float stars = starField(uv, u_time * 0.5);
+    float starMask = 1.0 - smoothstep(0.0, 0.3, length(color) * 2.0);
+    color += vec3(0.9, 0.85, 1.0) * stars * starMask * 0.7;
 
     gl_FragColor = vec4(color, 1.0);
 }

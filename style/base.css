@@ -15,7 +15,7 @@
     --blue-mid: #3a5493;
     --blue-dark: #283b75;
     --blue-darker: #14295b;
-    --blue-darkest: #061640;
+    --blue-darkest: #030010;
 
     --yellow-light: #e6d32f;
     --yellow-mid: #c3aa16;
@@ -60,7 +60,7 @@ html, body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: var(--blue-darkest);
+    background-color: #030010;
     z-index: -2;
 }
 
@@ -109,8 +109,6 @@ h1 {
     margin-top: 20px;
     font-size: 2em;
     text-align: center;
-    opacity: 0;
-    animation: fadeIn 1s ease forwards;
 }
 
 @keyframes fadeIn {

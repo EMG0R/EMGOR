@@ -15,47 +15,11 @@
 
     <a href="index.html" class="home-button">&#8962;</a>
 
-    <h1 id="neptr-title">PORTFOLIO</h1>
+    <h1>PORTFOLIO</h1>
 
-    <div class="video-container">
-        <div class="video-wrapper">
-            <div class="video-content">
-                <video class="video-player" controls playsinline>
-                    <source src="/resources/indexVIDS/1_EMORY_SMITH_491.mp4" type="video/mp4">
-                </video>
-                <p class="video-text">Showcase of prototypes I've made</p>
-            </div>
-        </div>
-        <div class="video-wrapper">
-            <div class="video-content">
-                <video class="video-player" controls playsinline>
-                    <source src="/resources/indexVIDS/2_DSP.mp4" type="video/mp4">
-                </video>
-                <p class="video-text">Showcase of DSP work in Max/MSP, Csound and C++</p>
-            </div>
-        </div>
-        <div class="video-wrapper">
-            <div class="video-content">
-                <video class="video-player" controls playsinline>
-                    <source src="/resources/indexVIDS/3_VIDEOSYNTH.mp4" type="video/mp4">
-                </video>
-                <p class="video-text">Showcase of my video synth built in Max/MSP's Jitter</p>
-            </div>
-        </div>
-        <div class="video-wrapper">
-            <div class="video-content">
-                <video class="video-player" controls playsinline>
-                    <source src="/resources/indexVIDS/4_WEBSYNTH.mp4" type="video/mp4">
-                </video>
-                <p class="video-text">Demo of my web synth</p>
-            </div>
-        </div>
-    </div>
+    <p style="text-align:center; color:white; font-family:'Courier New',monospace; margin:10px 0 5px 0; opacity:0.7; font-size:0.85rem;">music i have produced/written</p>
 
-    <img id="toggle-image" src="resources/EMGOR.jpg" alt="Reveal Audio">
-    <p style="text-align: center; color: white; font-family: 'Courier New', monospace; margin-bottom: 20px;">music i have produced/written</p>
-
-    <div id="track-list" class="track-list" style="display: none;">
+    <div id="track-list" class="track-list">
         <div class="track-row" data-src="../resources/anxiety.wav">
             <button class="track-play">&#9654;</button>
             <span class="track-name">anxiety</span>
@@ -92,12 +56,55 @@
             <div class="track-scrubber"><div class="track-progress"></div></div>
             <span class="track-time">0:00</span>
         </div>
-        <div class="video-track-row" data-video="../resources/spiderverse.mov">
-            <button class="track-play">&#9654; spiderverse</button>
-            <video controls playsinline style="display: none;">
-                <source src="../resources/spiderverse.mov" type="video/mp4">
-            </video>
+    </div>
+
+    <div class="video-container">
+
+        <div class="video-wrapper">
+            <h2 class="video-title">spiderverse</h2>
+            <div class="video-content">
+                <video class="video-player" controls playsinline>
+                    <source src="../resources/spiderverse.mov" type="video/mp4">
+                </video>
+            </div>
         </div>
+
+        <div class="video-wrapper">
+            <h2 class="video-title">video synth</h2>
+            <div class="video-content">
+                <video class="video-player" controls playsinline>
+                    <source src="/resources/indexVIDS/3_VIDEOSYNTH.mp4" type="video/mp4">
+                </video>
+            </div>
+        </div>
+
+        <div class="video-wrapper">
+            <h2 class="video-title">prototypes</h2>
+            <div class="video-content">
+                <video class="video-player" controls playsinline>
+                    <source src="/resources/indexVIDS/1_EMORY_SMITH_491.mp4" type="video/mp4">
+                </video>
+            </div>
+        </div>
+
+        <!-- <div class="video-wrapper">
+            <h2 class="video-title">DSP</h2>
+            <div class="video-content">
+                <video class="video-player" controls playsinline>
+                    <source src="/resources/indexVIDS/2_DSP.mp4" type="video/mp4">
+                </video>
+            </div>
+        </div> -->
+
+        <!-- <div class="video-wrapper">
+            <h2 class="video-title">web synth demo</h2>
+            <div class="video-content">
+                <video class="video-player" controls playsinline>
+                    <source src="/resources/indexVIDS/4_WEBSYNTH.mp4" type="video/mp4">
+                </video>
+            </div>
+        </div> -->
+
     </div>
 
     <script src="js/music.js"></script>

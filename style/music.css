@@ -14,72 +14,13 @@ h1 {
     letter-spacing: 2px;
 }
 
-.video-container {
-    display: flex;
-    flex-direction: column;
-    gap: 40px;
-    margin: 20px auto;
-    width: 90%;
-    max-width: 1000px;
-}
-
-.video-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-}
-
-.video-content {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    gap: 20px;
-    flex-wrap: wrap;
-}
-
-.video-player {
-    margin-top: 10px;
-    border: none;
-    border-radius: 8px;
-    background-color: var(--purple-darkest);
-    max-width: 700px;
-    width: 100%;
-}
-
-.video-text {
-    color: var(--white, #ffffff);
-    font-size: 1rem;
-    text-align: center;
-    line-height: 1.5;
-    max-width: 300px;
-    flex-shrink: 0;
-}
-
-.video-title {
-    font-size: 1.8rem;
-    color: var(--white, #ffffff);
-    text-align: center;
-    margin-bottom: 10px;
-}
-
-#toggle-image {
-    width: 60vw;
-    max-width: 600px;
-    display: block;
-    margin: 40px auto 10px auto;
-    cursor: pointer;
-    border-radius: 8px;
-}
-
 .track-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
     width: 90%;
     max-width: 600px;
-    margin: 20px auto 60px auto;
+    margin: 10px auto 40px auto;
     padding: 0;
 }
 
@@ -172,34 +113,48 @@ h1 {
     font-variant-numeric: tabular-nums;
 }
 
-.video-track-row {
+.video-container {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    margin: 20px auto;
+    width: 90%;
+    max-width: 800px;
+}
+
+.video-wrapper {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
     width: 100%;
-    padding: 8px 0;
 }
 
-.video-track-row .track-play {
+.video-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
-    max-width: 200px;
 }
 
-.video-track-row video {
-    width: 100%;
-    max-width: 600px;
+.video-player {
+    border: none;
     border-radius: 8px;
     background-color: var(--purple-darkest);
+    max-width: 700px;
+    width: 100%;
+}
+
+.video-title {
+    font-size: 1.2rem;
+    color: var(--white, #ffffff);
+    text-align: center;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    letter-spacing: 2px;
+    opacity: 0.7;
 }
 
 @media (max-width: 600px) {
-    .video-content {
-        flex-direction: column;
-    }
-    .video-text {
-        max-width: 100%;
-    }
     .track-row {
         gap: 8px;
     }
@@ -217,6 +172,9 @@ h1 {
         font-size: 0.7rem;
     }
     .track-list {
+        width: 95%;
+    }
+    .video-container {
         width: 95%;
     }
 }
