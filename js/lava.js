@@ -37,7 +37,20 @@ float noise(vec2 st) {
 
 void main() {
     vec2 st = gl_FragCoord.xy / u_resolution.xy;
-    vec2 q = st * 2.0;
+    float aspect = u_resolution.x / u_resolution.y;
+
+    vec2 bhPos = vec2(0.82, 0.22);
+    vec2 toBH = st - bhPos;
+    vec2 toBHc = toBH;
+    toBHc.x *= aspect;
+    float bhDist = length(toBHc);
+    vec2 bhDir = normalize(toBH + vec2(0.0001));
+
+    float lensing = 0.005 / (bhDist * bhDist + 0.002);
+    lensing = min(lensing, 0.4);
+    vec2 lensedST = st + bhDir * lensing;
+
+    vec2 q = lensedST * 2.0;
     float n = noise(q + vec2(
         sin(q.y * 2.0 + u_time * 0.8),
         cos(q.x * 2.0 + u_time * 1.2)
@@ -46,6 +59,32 @@ void main() {
     vec3 base = vec3(0.008, 0.002, 0.035);
     vec3 glow = vec3(0.04, 0.01, 0.12);
     vec3 color = mix(base, glow, pow(n, 0.8));
+
+    vec2 diskUV = toBHc;
+    diskUV.y *= 2.8;
+    float diskDist = length(diskUV);
+    float angle = atan(diskUV.y, diskUV.x);
+    float diskNoise = noise(vec2(angle * 3.0 + u_time * 0.3, diskDist * 20.0));
+
+    float outerR = 0.18;
+    float outerW = 0.035;
+    float outerDisk = exp(-(diskDist - outerR) * (diskDist - outerR) / (outerW * outerW));
+    float doppler = 0.4 + 0.6 * cos(angle + u_time * 0.5);
+    vec3 outerColor = mix(vec3(0.08, 0.02, 0.18), vec3(0.28, 0.12, 0.5), doppler);
+    color += outerColor * outerDisk * doppler * (0.7 + diskNoise * 0.3);
+
+    float innerR = 0.10;
+    float innerW = 0.02;
+    float innerDisk = exp(-(diskDist - innerR) * (diskDist - innerR) / (innerW * innerW));
+    float innerDoppler = 0.3 + 0.7 * cos(angle + u_time * 0.8);
+    vec3 innerColor = mix(vec3(0.15, 0.06, 0.3), vec3(0.45, 0.2, 0.65), innerDoppler);
+    color += innerColor * innerDisk * innerDoppler * (0.8 + diskNoise * 0.2);
+
+    float photon = exp(-(bhDist - 0.07) * (bhDist - 0.07) / 0.00003) * 0.4;
+    color += vec3(0.22, 0.12, 0.38) * photon;
+
+    float horizon = smoothstep(0.055, 0.035, bhDist);
+    color *= (1.0 - horizon);
 
     gl_FragColor = vec4(color, 1.0);
 }

@@ -1,60 +1,29 @@
-.orbit-planet {
-    position: fixed;
-    z-index: 15;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-decoration: none;
-    color: white;
-    background-color: var(--purple-dark);
-    border: 1.5px solid var(--purple-light);
-    border-radius: 50%;
-    width: 200px;
-    height: 200px;
-    font-size: 1.1rem;
-    font-weight: bold;
-    letter-spacing: 3px;
-    text-align: center;
-    padding: 10px;
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-    -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
-    touch-action: manipulation;
-    cursor: pointer;
-    box-shadow: 0 0 20px rgba(114, 0, 159, 0.3);
-}
-
-@media (hover: hover) {
-    .orbit-planet:hover {
-        background-color: var(--purple-mid);
-        box-shadow: 0 0 40px rgba(114, 0, 159, 0.6);
-    }
-}
-
-.orbit-planet:active {
-    background-color: var(--purple-light);
-}
-
 .icon-planet {
-    width: 140px;
-    height: 140px;
+    width: 57px;
+    height: 57px;
+    padding: 0;
     background-color: rgba(49, 0, 68, 0.6);
     border-color: var(--purple-mid);
 }
 
 .icon-planet svg {
-    filter: drop-shadow(0 0 4px rgba(255,255,255,0.4));
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
 }
 
 @media (hover: hover) {
+    .icon-planet:hover {
+        background-color: var(--purple-mid);
+        box-shadow: 0 0 30px rgba(114, 0, 159, 0.6);
+    }
     .icon-planet:hover svg {
-        filter: drop-shadow(0 0 8px rgba(255,255,255,0.7));
+        filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.7));
     }
 }
 
 .floating-word {
     position: fixed;
     z-index: 10;
-    color: rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.2);
     font-family: 'Courier New', Courier, monospace;
     font-size: 0.7rem;
     letter-spacing: 3px;
@@ -63,85 +32,16 @@
     user-select: none;
 }
 
-.black-hole {
-    position: fixed;
-    z-index: 2;
-    pointer-events: none;
-}
-
-.black-hole-core {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #000000 30%, rgba(0,0,0,0.9) 50%, rgba(20,0,40,0.4) 70%, transparent 100%);
-    box-shadow:
-        0 0 60px 20px rgba(0,0,0,0.8),
-        0 0 100px 40px rgba(40,0,80,0.15);
-    animation: blackHolePulse 8s ease-in-out infinite;
-}
-
-.black-hole-ring {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotateX(75deg);
-    width: 220px;
-    height: 220px;
-    border-radius: 50%;
-    border: 1.5px solid rgba(114, 0, 159, 0.2);
-    box-shadow:
-        0 0 15px rgba(114, 0, 159, 0.15),
-        inset 0 0 15px rgba(114, 0, 159, 0.1);
-    animation: blackHoleRingSpin 20s linear infinite;
-}
-
-.black-hole-ring:nth-child(3) {
-    width: 260px;
-    height: 260px;
-    border-color: rgba(114, 0, 159, 0.1);
-    animation-duration: 30s;
-    animation-direction: reverse;
-}
-
-@keyframes blackHolePulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.06); }
-}
-
-@keyframes blackHoleRingSpin {
-    from { transform: translate(-50%, -50%) rotateX(75deg) rotateZ(0deg); }
-    to { transform: translate(-50%, -50%) rotateX(75deg) rotateZ(360deg); }
-}
-
 @media (max-width: 600px) {
-    .orbit-planet {
-        width: 130px;
-        height: 130px;
-        font-size: 0.8rem;
-        letter-spacing: 2px;
-        padding: 8px;
-    }
     .icon-planet {
-        width: 95px;
-        height: 95px;
+        width: 42px;
+        height: 42px;
     }
     .icon-planet svg {
-        width: 28px;
-        height: 28px;
+        width: 24px;
+        height: 24px;
     }
     .floating-word {
         font-size: 0.55rem;
-    }
-    .black-hole-core {
-        width: 80px;
-        height: 80px;
-    }
-    .black-hole-ring {
-        width: 150px;
-        height: 150px;
-    }
-    .black-hole-ring:nth-child(3) {
-        width: 180px;
-        height: 180px;
     }
 }

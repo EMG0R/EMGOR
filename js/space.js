@@ -1,4 +1,5 @@
 (function () {
+    var TILT = 0.38;
     var WORDS = ['sound', 'signal', 'rhythm', 'noise', 'pulse', 'wave', 'flux', 'drift', 'echo', 'void'];
 
     function spawnStars() {
@@ -28,31 +29,7 @@
         }
     }
 
-    function spawnBlackHole() {
-        var W = window.innerWidth;
-        var H = window.innerHeight;
-        var hole = document.createElement('div');
-        hole.className = 'black-hole';
-        hole.style.right = (W * 0.08) + 'px';
-        hole.style.bottom = (H * 0.15) + 'px';
-
-        hole.innerHTML =
-            '<div class="black-hole-core"></div>' +
-            '<div class="black-hole-ring"></div>' +
-            '<div class="black-hole-ring"></div>';
-
-        document.body.appendChild(hole);
-
-        window.addEventListener('resize', function () {
-            hole.style.right = (window.innerWidth * 0.08) + 'px';
-            hole.style.bottom = (window.innerHeight * 0.15) + 'px';
-        });
-    }
-
     function spawnFloatingWords() {
-        var container = document.querySelector('[data-orbit="planet"]');
-        if (!container) return;
-
         var wordEls = [];
         WORDS.forEach(function (word) {
             var el = document.createElement('span');
@@ -65,7 +42,7 @@
                 y: Math.random() * window.innerHeight,
                 vx: (Math.random() - 0.5) * 0.3,
                 vy: (Math.random() - 0.5) * 0.3,
-                baseOpacity: 0.15 + Math.random() * 0.2
+                baseOpacity: 0.12 + Math.random() * 0.15
             });
         });
 
@@ -102,7 +79,7 @@
             circle.setAttribute('rx', orb.rx);
             circle.setAttribute('ry', orb.ry);
             circle.setAttribute('fill', 'none');
-            circle.setAttribute('stroke', 'rgba(114, 0, 159, 0.10)');
+            circle.setAttribute('stroke', 'rgba(114, 0, 159, 0.08)');
             circle.setAttribute('stroke-width', '1');
             circle.setAttribute('stroke-dasharray', '4 8');
             svg.appendChild(circle);
@@ -130,23 +107,13 @@
 
         orbiters.forEach(function (el, i) {
             el.style.position = 'fixed';
-            el.style.zIndex = '15';
 
-            var rx = baseRadius + radiusStep * i + (Math.random() * 20 - 10);
-            var ry = rx * (0.45 + Math.random() * 0.15);
-            var speed = (0.12 + Math.random() * 0.12) / (1 + i * 0.25);
-            var angle = (i / orbiters.length) * Math.PI * 2 + Math.random() * 0.5;
-            var tilt = (Math.random() - 0.5) * 0.3;
+            var rx = baseRadius + radiusStep * i;
+            var ry = rx * TILT;
+            var speed = (0.10 + Math.random() * 0.08) / (1 + i * 0.2);
+            var angle = (i / orbiters.length) * Math.PI * 2;
 
-            planets.push({
-                el: el,
-                rx: rx,
-                ry: ry,
-                speed: speed,
-                angle: angle,
-                tilt: tilt
-            });
-
+            planets.push({ el: el, rx: rx, ry: ry, speed: speed, angle: angle });
             orbitData.push({ rx: rx, ry: ry });
         });
 
@@ -159,18 +126,15 @@
                 var x = cx + Math.cos(p.angle) * p.rx;
                 var y = cy + Math.sin(p.angle) * p.ry;
 
-                x += Math.sin(p.angle * 0.7 + p.tilt) * p.rx * 0.05;
-                y += Math.cos(p.angle * 0.5 + p.tilt) * p.ry * 0.05;
-
                 var ew = p.el.offsetWidth;
                 var eh = p.el.offsetHeight;
                 p.el.style.left = (x - ew / 2) + 'px';
                 p.el.style.top = (y - eh / 2) + 'px';
 
-                var depth = Math.sin(p.angle) * 0.15 + 0.85;
+                var depth = Math.sin(p.angle) * 0.2 + 0.8;
                 p.el.style.transform = 'scale(' + depth.toFixed(3) + ')';
-                p.el.style.opacity = (0.7 + depth * 0.3).toFixed(3);
-                p.el.style.zIndex = depth > 1 ? '16' : '14';
+                p.el.style.opacity = (0.6 + depth * 0.4).toFixed(3);
+                p.el.style.zIndex = Math.floor(depth * 100);
             });
 
             requestAnimationFrame(animate);
@@ -183,14 +147,13 @@
             H = window.innerHeight;
             cx = W / 2;
             cy = H / 2;
-
             minDim = Math.min(W, H);
             baseRadius = minDim * 0.18;
             radiusStep = minDim * 0.10;
 
             planets.forEach(function (p, i) {
-                p.rx = baseRadius + radiusStep * i + (Math.random() * 20 - 10);
-                p.ry = p.rx * (0.45 + Math.random() * 0.15);
+                p.rx = baseRadius + radiusStep * i;
+                p.ry = p.rx * TILT;
             });
 
             if (orbitSvg && orbitSvg.parentNode) {
@@ -201,15 +164,68 @@
         });
     }
 
+    function initHomeButton() {
+        var btn = document.querySelector('.home-button');
+        if (!btn) return;
+
+        var angle = parseFloat(sessionStorage.getItem('space-home-angle') || '0');
+
+        function spin() {
+            angle += 0.3;
+            if (angle > 3600) angle -= 3600;
+            btn.style.transform = 'rotate(' + angle.toFixed(1) + 'deg)';
+            sessionStorage.setItem('space-home-angle', angle.toFixed(1));
+            requestAnimationFrame(spin);
+        }
+        spin();
+    }
+
+    function setupTransitions() {
+        document.addEventListener('click', function (e) {
+            var link = e.target.closest('a[href]');
+            if (!link) return;
+            var href = link.getAttribute('href');
+            if (!href || href.startsWith('http') || href.startsWith('#') || link.target === '_blank') return;
+
+            e.preventDefault();
+            sessionStorage.setItem('space-nav', '1');
+
+            var planets = document.querySelectorAll('[data-orbit="planet"]');
+            planets.forEach(function (p) {
+                p.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
+                p.style.opacity = '0';
+                p.style.transform = 'scale(0.2)';
+            });
+
+            document.body.style.transition = 'opacity 0.35s ease';
+            document.body.style.opacity = '0';
+
+            setTimeout(function () {
+                window.location.href = href;
+            }, 350);
+        });
+    }
+
     window.addEventListener('load', function () {
+        var fromNav = sessionStorage.getItem('space-nav');
+        if (fromNav) {
+            document.body.style.opacity = '0';
+            requestAnimationFrame(function () {
+                document.body.style.transition = 'opacity 0.4s ease';
+                document.body.style.opacity = '1';
+            });
+            sessionStorage.removeItem('space-nav');
+        }
+
         spawnStars();
-        if (document.querySelector('.black-hole') === null && document.querySelector('.floating-word') === null) {
-            var isHome = document.querySelector('.icon-planet');
-            if (isHome) {
-                spawnBlackHole();
+        initHomeButton();
+        setupTransitions();
+
+        if (document.querySelector('[data-orbit="planet"]')) {
+            if (document.querySelector('.icon-planet')) {
                 spawnFloatingWords();
             }
+            initSolarSystem();
         }
-        initSolarSystem();
     });
 })();
