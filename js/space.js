@@ -13,22 +13,25 @@
     var orbitLines = [];
     var cameraAngle = 0;
     var cameraTilt = 0.35;
-    var cameraRadius = 35;
 
-    // Dark, moody jewel tones — rich but not bright
+    // Camera distance calculated to fit all orbits
+    var cameraRadius = 30;
+    var cameraFOV = 60;
+
+    // Deep vivid jewel tones — saturated but dark
     var PLANET_COLORS = [
-        { base: 0x0E6B62, emissive: 0x053530 },  // dark jade
-        { base: 0x8B3A4A, emissive: 0x451D25 },  // dark rose
-        { base: 0x1E4A7A, emissive: 0x0F253D },  // deep ocean
-        { base: 0x8A5A20, emissive: 0x452D10 },  // dark amber
-        { base: 0x4A3A8E, emissive: 0x251D47 },  // deep indigo
-        { base: 0x1A7A55, emissive: 0x0D3D2B },  // dark emerald
-        { base: 0x7A4A8A, emissive: 0x3D2545 },  // dark orchid
-        { base: 0x8A4030, emissive: 0x452018 },  // dark terracotta
-        { base: 0x1A6A7A, emissive: 0x0D353D },  // dark teal
-        { base: 0x6A5A20, emissive: 0x352D10 },  // dark gold
-        { base: 0x3A4A6A, emissive: 0x1D2535 },  // dark steel
-        { base: 0x7A4A50, emissive: 0x3D2528 },  // dark mauve
+        { base: 0x0C5C54, emissive: 0x062E2A },  // deep jade
+        { base: 0x8C2840, emissive: 0x461420 },  // crimson rose
+        { base: 0x15406E, emissive: 0x0A2037 },  // midnight blue
+        { base: 0x8E5010, emissive: 0x472808 },  // burnt sienna
+        { base: 0x3E2888, emissive: 0x1F1444 },  // royal indigo
+        { base: 0x106848, emissive: 0x083424 },  // forest emerald
+        { base: 0x6E3080, emissive: 0x371840 },  // deep plum
+        { base: 0x882818, emissive: 0x44140C },  // oxblood
+        { base: 0x0E5868, emissive: 0x072C34 },  // deep teal
+        { base: 0x685010, emissive: 0x342808 },  // dark bronze
+        { base: 0x283868, emissive: 0x141C34 },  // navy steel
+        { base: 0x6E3848, emissive: 0x371C24 },  // wine
     ];
 
     // ─── CIRCLE TEXTURE ────────────────────────────────────────
@@ -55,7 +58,7 @@
         scene = new THREE.Scene();
         clock = new THREE.Clock();
 
-        camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera = new THREE.PerspectiveCamera(cameraFOV, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 8, cameraRadius);
         camera.lookAt(0, 0, 0);
 
@@ -64,26 +67,26 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setClearColor(0x000000, 0);
 
-        // Gentle ambient — subtle overall fill
-        scene.add(new THREE.AmbientLight(0x443355, 0.6));
+        // Soft ambient fill
+        scene.add(new THREE.AmbientLight(0x443355, 0.5));
 
-        // Soft hemisphere for natural sky/ground
-        scene.add(new THREE.HemisphereLight(0x665588, 0x1a0a2e, 0.4));
+        // Hemisphere for general fill
+        scene.add(new THREE.HemisphereLight(0x554466, 0x110822, 0.4));
 
-        // Subtle directional from above-right
-        var dl1 = new THREE.DirectionalLight(0x9988AA, 0.35);
-        dl1.position.set(8, 6, 10);
+        // Gentle directional from above-right
+        var dl1 = new THREE.DirectionalLight(0x887799, 0.3);
+        dl1.position.set(10, 8, 12);
         scene.add(dl1);
 
-        // Faint fill from opposite side
-        var dl2 = new THREE.DirectionalLight(0x776699, 0.2);
-        dl2.position.set(-8, 3, -8);
+        // Fill from left
+        var dl2 = new THREE.DirectionalLight(0x665577, 0.2);
+        dl2.position.set(-10, 4, -8);
         scene.add(dl2);
 
-        // Faint purple glow from accretion disk
-        var accretionGlow = new THREE.PointLight(0x6622AA, 0.6, 20);
-        accretionGlow.position.set(0, 0.3, 0);
-        scene.add(accretionGlow);
+        // Faint accretion glow at center
+        var accretion = new THREE.PointLight(0x5511AA, 0.5, 18);
+        accretion.position.set(0, 0.3, 0);
+        scene.add(accretion);
 
         createStarField();
     }
@@ -117,13 +120,8 @@
         geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
 
         starField = new THREE.Points(geom, new THREE.PointsMaterial({
-            size: 0.7,
-            map: tex,
-            vertexColors: true,
-            transparent: true,
-            opacity: 1.0,
-            sizeAttenuation: true,
-            blending: THREE.AdditiveBlending,
+            size: 0.7, map: tex, vertexColors: true, transparent: true,
+            opacity: 1.0, sizeAttenuation: true, blending: THREE.AdditiveBlending,
             depthWrite: false
         }));
         scene.add(starField);
@@ -136,12 +134,12 @@
         for (var i = 0; i < seg; i++) {
             var a = (i / seg) * Math.PI * 2;
             pos[i*3] = Math.cos(a) * radius;
-            pos[i*3+1] = Math.sin(a) * radius * Math.sin(inclination) * 0.15;
+            pos[i*3+1] = Math.sin(a) * radius * Math.sin(inclination) * 0.12;
             pos[i*3+2] = Math.sin(a) * radius;
         }
         geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         return new THREE.LineLoop(geom, new THREE.LineBasicMaterial({
-            color: 0xA855F7, transparent: true, opacity: 0.05,
+            color: 0xA855F7, transparent: true, opacity: 0.04,
             blending: THREE.AdditiveBlending
         }));
     }
@@ -158,42 +156,52 @@
     }
 
     // ─── PLANET MESH ───────────────────────────────────────────
+    // Each planet gets a custom shader-like material that's dark facing center
     function createPlanetMesh(colorIndex, size) {
         var c = PLANET_COLORS[colorIndex % PLANET_COLORS.length];
-        return new THREE.Mesh(
+        var mesh = new THREE.Mesh(
             new THREE.SphereGeometry(size, 48, 48),
             new THREE.MeshPhongMaterial({
                 color: c.base,
                 emissive: c.emissive,
-                emissiveIntensity: 0.35,
-                shininess: 25,
-                specular: 0x333333
+                emissiveIntensity: 0.3,
+                shininess: 20,
+                specular: 0x222222
             })
         );
+        return mesh;
     }
 
-    // ─── ORBIT PARAMS ──────────────────────────────────────────
+    // ─── ORBIT SIZING — guaranteed to fit screen ───────────────
+    function computeMaxVisibleRadius() {
+        // Calculate max orbit radius that stays on screen
+        // Using camera FOV and distance to compute visible area
+        var fovRad = (cameraFOV / 2) * Math.PI / 180;
+        var visibleHeight = Math.tan(fovRad) * cameraRadius;
+        var visibleWidth = visibleHeight * (window.innerWidth / window.innerHeight);
+        // Use 70% of the smaller dimension for safety margin
+        return Math.min(visibleWidth, visibleHeight) * 0.70;
+    }
+
     function getOrbitRadius(index, total) {
-        // Each orbit spaced 4 units apart minimum so planets never overlap
-        // Planet diameter is ~3, so 4 units gap is safe
-        var baseR = 5.0;
-        var spacing = 4.0;
-        return baseR + index * spacing;
+        var maxR = computeMaxVisibleRadius();
+        var minR = maxR * 0.22;
+        if (total <= 1) return (minR + maxR) / 2;
+        return minR + (maxR - minR) * (index / (total - 1));
     }
 
     function getOrbitSpeed(index) {
         return 0.2 / (1 + index * 0.3);
     }
 
-    // Each orbit has a slight inclination for Y-axis modulation
     function getInclination(index) {
         var vals = [0.15, -0.25, 0.2, -0.18, 0.28, -0.12, 0.22, -0.2, 0.17, -0.15, 0.25, -0.22];
         return vals[index % vals.length];
     }
 
     function getPlanetSize(el) {
-        if (el.classList.contains('icon-planet')) return 1.2;
-        return 1.5;
+        if (el.classList.contains('icon-planet')) return 1.8;
+        return 2.2;
     }
 
     // ─── SPRING ────────────────────────────────────────────────
@@ -204,11 +212,11 @@
         return { v: cur, vel: vel };
     }
 
-    // ─── ORBITAL POSITION WITH Y MODULATION ────────────────────
+    // ─── ORBITAL POSITION ──────────────────────────────────────
     function orbitalPos(angle, radius, inclination) {
         return {
             x: Math.cos(angle) * radius,
-            y: Math.sin(angle) * radius * Math.sin(inclination) * 0.15,
+            y: Math.sin(angle) * radius * Math.sin(inclination) * 0.12,
             z: Math.sin(angle) * radius
         };
     }
@@ -243,6 +251,7 @@
                 orbitSpeed: speed,
                 angle: angle,
                 inclination: incl,
+                planetSize: size,
                 view: el.getAttribute('data-view'),
                 entering: false,
                 leaving: false,
@@ -284,19 +293,40 @@
         };
     }
 
+    // ─── COMPUTE APPARENT SIZE ON SCREEN ───────────────────────
+    // Returns the pixel radius of a sphere on screen
+    function apparentSize(worldRadius, worldPos) {
+        var dist = worldPos.distanceTo(camera.position);
+        if (dist < 0.1) dist = 0.1;
+        var fovRad = (cameraFOV / 2) * Math.PI / 180;
+        var screenHeight = window.innerHeight;
+        var projectedSize = (worldRadius / (dist * Math.tan(fovRad))) * (screenHeight / 2);
+        return projectedSize;
+    }
+
+    // ─── UPDATE PLANET SHADOW TOWARD CENTER ────────────────────
+    // Move a directional light to always point from each planet toward center
+    // This creates a dark side facing the black hole
+    var shadowLight;
+    function initShadowLight() {
+        shadowLight = new THREE.DirectionalLight(0x000011, 0.8);
+        shadowLight.position.set(0, 0, 0);
+        scene.add(shadowLight);
+    }
+
     // ─── ANIMATION ─────────────────────────────────────────────
     function animate() {
         requestAnimationFrame(animate);
         var dt = Math.min(clock.getDelta(), 0.05);
         var elapsed = clock.getElapsedTime();
 
-        // Camera drift — 25% faster rotation
+        // Camera drift
         cameraAngle += dt * 0.0375;
         cameraTilt = 0.35 + Math.sin(elapsed * 0.07) * 0.1;
 
         camera.position.x = Math.sin(cameraAngle) * cameraRadius;
         camera.position.z = Math.cos(cameraAngle) * cameraRadius;
-        camera.position.y = 10 + Math.sin(cameraTilt) * 3;
+        camera.position.y = 8 + Math.sin(cameraTilt) * 3;
         camera.lookAt(0, 0, 0);
 
         if (starField) {
@@ -314,9 +344,13 @@
                 p.mesh.position.add(p.flyDir.clone().multiplyScalar(dt * 20 * acc));
                 p.mesh.rotation.x += dt * 5;
 
+                // Scale label with the 3D sphere as it flies away
                 var sp2 = proj(p.mesh.position);
-                p.label.style.left = (sp2.x - p.label.offsetWidth / 2) + 'px';
-                p.label.style.top = (sp2.y - p.label.offsetHeight / 2) + 'px';
+                var appSz = apparentSize(p.planetSize, p.mesh.position);
+                var flyScale = Math.max(0.1, appSz / 60);
+                p.label.style.left = (sp2.x - p.label.offsetWidth * flyScale / 2) + 'px';
+                p.label.style.top = (sp2.y - p.label.offsetHeight * flyScale / 2) + 'px';
+                p.label.style.transform = 'scale(' + flyScale.toFixed(3) + ')';
                 p.label.style.opacity = Math.max(0, 1 - p.flyProgress * 3).toFixed(3);
 
                 if (p.flyProgress > 0.7) {
@@ -327,7 +361,7 @@
                 continue;
             }
 
-            // Orbital target with Y modulation
+            // Orbital target
             p.angle += p.orbitSpeed * dt;
             var tgt = orbitalPos(p.angle, p.orbitRadius, p.inclination);
 
@@ -359,19 +393,31 @@
                 p.mesh.rotation.y += dt * p.spinSpeed;
             }
 
-            // Project to screen — ALL planets get same scaling logic
+            // Update planet material darkness toward center
+            // Compute how much the center-facing side should be dark
+            var planetPos = p.mesh.position;
+            var toCenter = new THREE.Vector3(-planetPos.x, -planetPos.y, -planetPos.z).normalize();
+            // Darken emissive on the center-facing hemisphere by reducing emissive
+            // This is approximate — the directional lights already handle most of it
+            // but we can modulate emissive to help
+            var distFromCenter = planetPos.length();
+            var darkenFactor = Math.max(0.1, Math.min(0.4, distFromCenter / 20));
+            p.mesh.material.emissiveIntensity = darkenFactor;
+
+            // Project to screen — label scales with apparent 3D size
             var sp = proj(p.mesh.position);
+            var appPx = apparentSize(p.planetSize * p.mesh.scale.x, p.mesh.position);
+            // Scale label so it matches the planet's apparent size
+            // Base: 60px apparent = scale 1.0
+            var labelScale = Math.max(0.3, appPx / 55);
             var ew = p.label.offsetWidth;
             var eh = p.label.offsetHeight;
-            p.label.style.left = (sp.x - ew / 2) + 'px';
-            p.label.style.top = (sp.y - eh / 2) + 'px';
+            p.label.style.left = (sp.x - ew * labelScale / 2) + 'px';
+            p.label.style.top = (sp.y - eh * labelScale / 2) + 'px';
+            p.label.style.transform = 'scale(' + labelScale.toFixed(3) + ')';
+            p.label.style.transformOrigin = 'center center';
             p.label.style.opacity = '1';
             p.label.style.zIndex = '15';
-
-            // Depth-based scale — same formula for ALL planets including icons
-            var dist = p.mesh.position.distanceTo(camera.position);
-            var labelScale = Math.max(0.5, Math.min(1.3, 16 / dist));
-            p.label.style.transform = 'scale(' + labelScale.toFixed(3) + ')';
         }
 
         renderer.render(scene, camera);
@@ -388,7 +434,7 @@
                 var pos = p.mesh.position.clone();
                 if (pos.length() < 0.1) pos.set(1, 0, 0);
                 var dir = pos.clone().normalize();
-                dir.y += (Math.random() - 0.5) * 0.6;
+                dir.y += (Math.random() - 0.5) * 0.5;
                 dir.normalize();
                 p.flyDir = dir;
             }
@@ -426,7 +472,7 @@
                 var mesh = createPlanetMesh(i + aC, size);
 
                 var sA = Math.random() * Math.PI * 2;
-                var sR = 35;
+                var sR = computeMaxVisibleRadius() * 2.5;
                 var startPos = new THREE.Vector3(
                     Math.cos(sA) * sR,
                     (Math.random() - 0.5) * 3,
@@ -440,6 +486,7 @@
                     mesh: mesh, label: el,
                     orbitRadius: radius, orbitSpeed: speed,
                     angle: angle, inclination: incl,
+                    planetSize: size,
                     view: el.getAttribute('data-view'),
                     entering: true, leaving: false,
                     flyDir: new THREE.Vector3(), flyProgress: 0,
@@ -475,7 +522,7 @@
             m.position.set(Math.cos(a)*r, (Math.random()-0.5)*6, Math.sin(a)*r);
             var d = new THREE.Vector3(-m.position.x, (Math.random()-0.5)*2, -m.position.z).normalize();
             scene.add(m);
-            arr.push({ m: m, d: d, s: 0.3+Math.random()*1, rs: new THREE.Vector3((Math.random()-0.5)*2,(Math.random()-0.5)*2,(Math.random()-0.5)*2) });
+            arr.push({ m:m, d:d, s:0.3+Math.random()*1, rs:new THREE.Vector3((Math.random()-0.5)*2,(Math.random()-0.5)*2,(Math.random()-0.5)*2) });
         }
         (function loop(){ setTimeout(function(){ if(arr.length<8) spawn(); loop(); }, 3000+Math.random()*4000); })();
         for(var k=0;k<3;k++) spawn();
@@ -625,5 +672,13 @@
         camera.aspect=window.innerWidth/window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth,window.innerHeight);
+        // Rebuild orbits to fit new viewport
+        if(isOrbitPage && planetMeshes.length > 0) {
+            var total = planetMeshes.length;
+            planetMeshes.forEach(function(p, i) {
+                p.orbitRadius = getOrbitRadius(i, total);
+            });
+            rebuildRings();
+        }
     });
 })();
