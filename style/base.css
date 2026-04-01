@@ -184,46 +184,35 @@ h1 {
     align-items: center;
     text-decoration: none;
     color: var(--pale);
-    background: linear-gradient(135deg, #1E0F5C, #3D1D8E);
-    border: 1px solid rgba(168, 85, 247, 0.25);
+    background: transparent;
+    border: none;
     border-radius: 50%;
-    width: 130px;
-    height: 130px;
-    font-size: 1.1rem;
+    overflow: hidden;
+    width: 110px;
+    height: 110px;
+    font-size: 1rem;
     font-weight: bold;
     letter-spacing: 2px;
     text-align: center;
     padding: 10px;
     font-family: 'Courier New', Courier, monospace;
-    transition: box-shadow 0.3s ease, border-color 0.3s ease;
     -webkit-tap-highlight-color: rgba(168, 85, 247, 0.3);
     touch-action: manipulation;
     cursor: pointer;
-    box-shadow:
-        0 0 8px 2px rgba(168, 85, 247, 0.35),
-        0 0 25px 8px rgba(168, 85, 247, 0.12),
-        0 0 50px 16px rgba(123, 47, 190, 0.05);
+    text-shadow: 0 0 12px rgba(168, 85, 247, 0.8), 0 0 4px rgba(255,255,255,0.3);
 }
 
 @media (hover: hover) {
     .orbit-planet:hover {
-        border-color: rgba(168, 85, 247, 0.5);
-        box-shadow:
-            0 0 12px 4px rgba(168, 85, 247, 0.5),
-            0 0 35px 12px rgba(168, 85, 247, 0.2),
-            0 0 70px 24px rgba(123, 47, 190, 0.08);
+        text-shadow: 0 0 18px rgba(168, 85, 247, 1), 0 0 8px rgba(255,255,255,0.5);
     }
-}
-
-.orbit-planet:active {
-    background: linear-gradient(135deg, #3D1D8E, #7B2FBE);
 }
 
 @media (max-width: 600px) {
     .orbit-planet {
-        width: 85px;
-        height: 85px;
-        font-size: 0.75rem;
+        width: 75px;
+        height: 75px;
+        font-size: 0.7rem;
         letter-spacing: 1.5px;
         padding: 6px;
     }

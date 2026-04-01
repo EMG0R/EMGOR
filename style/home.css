@@ -1,23 +1,25 @@
 .icon-planet {
-    width: 57px;
-    height: 57px;
+    width: 80px;
+    height: 80px;
     padding: 0;
+    background: transparent;
+    border: none;
 }
 
 .icon-planet svg {
-    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
+    filter: drop-shadow(0 0 4px rgba(192, 132, 252, 0.5));
 }
 
 @media (hover: hover) {
     .icon-planet:hover svg {
-        filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.7));
+        filter: drop-shadow(0 0 10px rgba(192, 132, 252, 0.9));
     }
 }
 
 .floating-word {
     position: fixed;
     z-index: 10;
-    color: rgba(255, 255, 255, 0.2);
+    color: rgba(192, 132, 252, 0.15);
     font-family: 'Courier New', Courier, monospace;
     font-size: 0.7rem;
     letter-spacing: 3px;
@@ -28,12 +30,8 @@
 
 @media (max-width: 600px) {
     .icon-planet {
-        width: 42px;
-        height: 42px;
-    }
-    .icon-planet svg {
-        width: 24px;
-        height: 24px;
+        width: 55px;
+        height: 55px;
     }
     .floating-word {
         font-size: 0.55rem;
