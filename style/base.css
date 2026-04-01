@@ -1,9 +1,20 @@
 :root {
-    --purple-light: #72009F;
-    --purple-mid: #5B007F;
-    --purple-dark: #470063;
-    --purple-darker: #310044;
-    --purple-darkest: #13001B;
+    --void: #0D0221;
+    --nebula-dark: #0F0A3C;
+    --space-blue: #150E56;
+    --indigo: #1E0F5C;
+    --amethyst: #3D1D8E;
+    --purple-bright: #7B2FBE;
+    --violet: #A855F7;
+    --lavender: #C084FC;
+    --pale: #E0AAFF;
+    --cyan: #00F0FF;
+
+    --purple-light: #7B2FBE;
+    --purple-mid: #3D1D8E;
+    --purple-dark: #1E0F5C;
+    --purple-darker: #150E56;
+    --purple-darkest: #0F0A3C;
 
     --green-light: #00B917;
     --green-mid: #009512;
@@ -15,7 +26,7 @@
     --blue-mid: #3a5493;
     --blue-dark: #283b75;
     --blue-darker: #14295b;
-    --blue-darkest: #030010;
+    --blue-darkest: #0D0221;
 
     --yellow-light: #e6d32f;
     --yellow-mid: #c3aa16;
@@ -29,15 +40,15 @@
     --red-darker: #670500;
     --red-darkest: #290200;
 
-    --white: #ffffff;
-    --input-bg: var(--purple-darker);
-    --input-border: var(--purple-light);
-    --button-bg: var(--purple-mid);
-    --button-hover-bg: var(--purple-light);
+    --white: #E0AAFF;
+    --input-bg: var(--nebula-dark);
+    --input-border: var(--purple-bright);
+    --button-bg: var(--amethyst);
+    --button-hover-bg: var(--purple-bright);
 }
 
 html {
-    background-color: #030010;
+    background-color: var(--void);
 }
 
 * {
@@ -50,7 +61,7 @@ html, body {
     margin: 0;
     padding: 0;
     height: 100%;
-    color: white;
+    color: var(--pale);
     font-family: 'Courier New', Courier, monospace;
     display: flex;
     flex-direction: column;
@@ -64,7 +75,7 @@ html, body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: #030010;
+    background-color: var(--void);
     z-index: -2;
 }
 
@@ -78,14 +89,24 @@ html, body {
     display: block;
 }
 
+#spaceCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+    pointer-events: none;
+}
+
 .home-button {
     position: fixed;
     top: 20px;
     left: 20px;
-    background-color: var(--purple-mid);
-    color: white;
+    background: linear-gradient(135deg, #3D1D8E, #7B2FBE);
+    color: var(--pale);
     padding: 7px;
-    font-size: 27px;
+    font-size: 36px;
     text-decoration: none;
     border-radius: 50%;
     cursor: pointer;
@@ -93,20 +114,27 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
-    -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
+    width: 64px;
+    height: 64px;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    -webkit-tap-highlight-color: rgba(168, 85, 247, 0.3);
     touch-action: manipulation;
+    box-shadow:
+        0 0 12px 3px rgba(168, 85, 247, 0.3),
+        0 0 30px 8px rgba(123, 47, 190, 0.12);
+    transition: box-shadow 0.3s ease;
 }
 
 @media (hover: hover) {
     .home-button:hover {
-        background-color: var(--purple-light);
+        box-shadow:
+            0 0 18px 5px rgba(168, 85, 247, 0.5),
+            0 0 45px 12px rgba(123, 47, 190, 0.2);
     }
 }
 
 .home-button:active {
-    background-color: var(--purple-light);
+    background: linear-gradient(135deg, #4B0082, #A855F7);
 }
 
 h1 {
@@ -155,42 +183,48 @@ h1 {
     justify-content: center;
     align-items: center;
     text-decoration: none;
-    color: white;
-    background-color: var(--purple-dark);
-    border: 1.5px solid var(--purple-light);
+    color: var(--pale);
+    background: linear-gradient(135deg, #1E0F5C, #3D1D8E);
+    border: 1px solid rgba(168, 85, 247, 0.25);
     border-radius: 50%;
-    width: 170px;
-    height: 170px;
-    font-size: 1.4rem;
+    width: 130px;
+    height: 130px;
+    font-size: 1.1rem;
     font-weight: bold;
-    letter-spacing: 3px;
+    letter-spacing: 2px;
     text-align: center;
     padding: 10px;
     font-family: 'Courier New', Courier, monospace;
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-    -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    -webkit-tap-highlight-color: rgba(168, 85, 247, 0.3);
     touch-action: manipulation;
     cursor: pointer;
-    box-shadow: 0 0 20px rgba(114, 0, 159, 0.3);
+    box-shadow:
+        0 0 8px 2px rgba(168, 85, 247, 0.35),
+        0 0 25px 8px rgba(168, 85, 247, 0.12),
+        0 0 50px 16px rgba(123, 47, 190, 0.05);
 }
 
 @media (hover: hover) {
     .orbit-planet:hover {
-        background-color: var(--purple-mid);
-        box-shadow: 0 0 40px rgba(114, 0, 159, 0.6);
+        border-color: rgba(168, 85, 247, 0.5);
+        box-shadow:
+            0 0 12px 4px rgba(168, 85, 247, 0.5),
+            0 0 35px 12px rgba(168, 85, 247, 0.2),
+            0 0 70px 24px rgba(123, 47, 190, 0.08);
     }
 }
 
 .orbit-planet:active {
-    background-color: var(--purple-light);
+    background: linear-gradient(135deg, #3D1D8E, #7B2FBE);
 }
 
 @media (max-width: 600px) {
     .orbit-planet {
-        width: 110px;
-        height: 110px;
-        font-size: 0.95rem;
-        letter-spacing: 2px;
-        padding: 8px;
+        width: 85px;
+        height: 85px;
+        font-size: 0.75rem;
+        letter-spacing: 1.5px;
+        padding: 6px;
     }
 }
