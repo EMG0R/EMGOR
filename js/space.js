@@ -13,22 +13,22 @@
     var orbitLines = [];
     var cameraAngle = 0;
     var cameraTilt = 0.35;
-    var cameraRadius = 18;
+    var cameraRadius = 35;
 
-    // Rich jewel-tone space palette — each planet distinct
+    // Dark, moody jewel tones — rich but not bright
     var PLANET_COLORS = [
-        { base: 0x1B998B, emissive: 0x0D4D46 },  // deep jade
-        { base: 0xD4637A, emissive: 0x6A2233 },  // dusty rose
-        { base: 0x3A86C8, emissive: 0x1D4364 },  // ocean blue
-        { base: 0xE8963E, emissive: 0x744B1F },  // burnt amber
-        { base: 0x7B68EE, emissive: 0x3D3477 },  // medium slate blue
-        { base: 0x2ECC9A, emissive: 0x17664D },  // emerald
-        { base: 0xC47ADB, emissive: 0x623D6E },  // orchid purple
-        { base: 0xE07050, emissive: 0x703828 },  // terracotta
-        { base: 0x44B8D6, emissive: 0x225C6B },  // cerulean
-        { base: 0xBFA44D, emissive: 0x5F5227 },  // antique gold
-        { base: 0x6C8EBF, emissive: 0x364760 },  // steel blue
-        { base: 0xC97B84, emissive: 0x653E42 },  // mauve pink
+        { base: 0x0E6B62, emissive: 0x053530 },  // dark jade
+        { base: 0x8B3A4A, emissive: 0x451D25 },  // dark rose
+        { base: 0x1E4A7A, emissive: 0x0F253D },  // deep ocean
+        { base: 0x8A5A20, emissive: 0x452D10 },  // dark amber
+        { base: 0x4A3A8E, emissive: 0x251D47 },  // deep indigo
+        { base: 0x1A7A55, emissive: 0x0D3D2B },  // dark emerald
+        { base: 0x7A4A8A, emissive: 0x3D2545 },  // dark orchid
+        { base: 0x8A4030, emissive: 0x452018 },  // dark terracotta
+        { base: 0x1A6A7A, emissive: 0x0D353D },  // dark teal
+        { base: 0x6A5A20, emissive: 0x352D10 },  // dark gold
+        { base: 0x3A4A6A, emissive: 0x1D2535 },  // dark steel
+        { base: 0x7A4A50, emissive: 0x3D2528 },  // dark mauve
     ];
 
     // ─── CIRCLE TEXTURE ────────────────────────────────────────
@@ -165,19 +165,20 @@
             new THREE.MeshPhongMaterial({
                 color: c.base,
                 emissive: c.emissive,
-                emissiveIntensity: 0.7,
-                shininess: 30,
-                specular: 0x444444
+                emissiveIntensity: 0.35,
+                shininess: 25,
+                specular: 0x333333
             })
         );
     }
 
     // ─── ORBIT PARAMS ──────────────────────────────────────────
     function getOrbitRadius(index, total) {
-        var minR = 4.0;
-        var maxR = 14.0;
-        if (total <= 1) return 8;
-        return minR + (maxR - minR) * (index / (total - 1));
+        // Each orbit spaced 4 units apart minimum so planets never overlap
+        // Planet diameter is ~3, so 4 units gap is safe
+        var baseR = 5.0;
+        var spacing = 4.0;
+        return baseR + index * spacing;
     }
 
     function getOrbitSpeed(index) {
@@ -186,13 +187,13 @@
 
     // Each orbit has a slight inclination for Y-axis modulation
     function getInclination(index) {
-        var vals = [0.3, -0.5, 0.4, -0.35, 0.55, -0.25, 0.45, -0.4, 0.35, -0.3, 0.5, -0.45];
+        var vals = [0.15, -0.25, 0.2, -0.18, 0.28, -0.12, 0.22, -0.2, 0.17, -0.15, 0.25, -0.22];
         return vals[index % vals.length];
     }
 
     function getPlanetSize(el) {
-        if (el.classList.contains('icon-planet')) return 1.4;
-        return 1.8;
+        if (el.classList.contains('icon-planet')) return 1.2;
+        return 1.5;
     }
 
     // ─── SPRING ────────────────────────────────────────────────
@@ -295,7 +296,7 @@
 
         camera.position.x = Math.sin(cameraAngle) * cameraRadius;
         camera.position.z = Math.cos(cameraAngle) * cameraRadius;
-        camera.position.y = 5 + Math.sin(cameraTilt) * 2;
+        camera.position.y = 10 + Math.sin(cameraTilt) * 3;
         camera.lookAt(0, 0, 0);
 
         if (starField) {
@@ -425,7 +426,7 @@
                 var mesh = createPlanetMesh(i + aC, size);
 
                 var sA = Math.random() * Math.PI * 2;
-                var sR = 22;
+                var sR = 35;
                 var startPos = new THREE.Vector3(
                     Math.cos(sA) * sR,
                     (Math.random() - 0.5) * 3,
