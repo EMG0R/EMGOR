@@ -9,30 +9,49 @@
 
     // Three.js globals
     var scene, camera, renderer, clock;
-    var planetMeshes = [];      // { mesh, label, orbitRadius, orbitSpeed, angle, orbitTilt, view, entering, leaving, flyDir, flyProgress }
+    var planetMeshes = [];
     var starField;
     var orbitLines = [];
     var cameraAngle = 0;
     var cameraTilt = 0.3;
-    var cameraRadius = 18;
+    var cameraRadius = 22;
     var targetCameraAngle = 0;
     var targetCameraTilt = 0.3;
 
-    // Planet color palette — diverse, not just purple
+    // Planet color palette — vivid and diverse
     var PLANET_COLORS = [
-        { base: 0x00CED1, emissive: 0x006666 },  // deep teal
-        { base: 0xE8A87C, emissive: 0x8B5A3C },  // rose gold
-        { base: 0x4169E1, emissive: 0x1a2d6b },  // electric blue
-        { base: 0xFFB347, emissive: 0x995500 },  // amber
-        { base: 0xFF6F61, emissive: 0x8B2500 },  // coral
-        { base: 0x88D8B0, emissive: 0x2d6b4a },  // mint
-        { base: 0xB388FF, emissive: 0x5C2D91 },  // violet
-        { base: 0xFF69B4, emissive: 0x8B1A5C },  // hot pink
-        { base: 0x7FFFD4, emissive: 0x2E8B57 },  // aquamarine
-        { base: 0xDDA0DD, emissive: 0x6B3A6B },  // plum
-        { base: 0x20B2AA, emissive: 0x0E5E5A },  // light sea green
-        { base: 0xF0E68C, emissive: 0x8B8000 },  // khaki gold
+        { base: 0x00CED1, emissive: 0x004D4D },  // deep teal
+        { base: 0xE8A87C, emissive: 0x6B3A2C },  // rose gold
+        { base: 0x4488FF, emissive: 0x1a3388 },  // electric blue
+        { base: 0xFFB347, emissive: 0x774400 },  // amber
+        { base: 0xFF6B6B, emissive: 0x6B1A1A },  // coral red
+        { base: 0x66DDAA, emissive: 0x1a5533 },  // seafoam mint
+        { base: 0xC084FC, emissive: 0x4C2D80 },  // lavender violet
+        { base: 0xFF77AA, emissive: 0x6B2244 },  // bubblegum pink
+        { base: 0x55EEDD, emissive: 0x1a5550 },  // aquamarine
+        { base: 0xFFDD55, emissive: 0x665500 },  // golden yellow
+        { base: 0x77AAFF, emissive: 0x2244aa },  // sky blue
+        { base: 0xDD88CC, emissive: 0x553355 },  // orchid
     ];
+
+    // ─── CIRCLE TEXTURE (prevents square particles) ────────────
+    function createCircleTexture() {
+        var size = 64;
+        var canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        var ctx = canvas.getContext('2d');
+        var half = size / 2;
+        var gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.3, 'rgba(255,255,255,0.8)');
+        gradient.addColorStop(0.7, 'rgba(255,255,255,0.15)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+        var texture = new THREE.CanvasTexture(canvas);
+        return texture;
+    }
 
     // ─── THREE.JS SETUP ────────────────────────────────────────
     function initThree() {
@@ -40,7 +59,7 @@
         scene = new THREE.Scene();
         clock = new THREE.Clock();
 
-        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 5, cameraRadius);
         camera.lookAt(0, 0, 0);
 
@@ -49,21 +68,21 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setClearColor(0x000000, 0);
 
-        // Point light at center (the black hole emits light from accretion disk)
+        // Point light at center (accretion disk glow)
         var centerLight = new THREE.PointLight(0xB388FF, 2.5, 100);
         centerLight.position.set(0, 0, 0);
         scene.add(centerLight);
 
-        // Secondary warm light for depth
-        var warmLight = new THREE.PointLight(0xFF6633, 0.8, 80);
+        // Secondary warm light
+        var warmLight = new THREE.PointLight(0xFF6633, 0.6, 80);
         warmLight.position.set(0, 3, 0);
         scene.add(warmLight);
 
-        // Subtle ambient so dark sides aren't pure black
-        var ambient = new THREE.AmbientLight(0x1a0a2e, 0.4);
+        // Ambient
+        var ambient = new THREE.AmbientLight(0x1a0a2e, 0.5);
         scene.add(ambient);
 
-        // Rim light from behind camera for that cinematic feel
+        // Rim light
         var rimLight = new THREE.DirectionalLight(0x4400AA, 0.3);
         rimLight.position.set(0, 10, 20);
         scene.add(rimLight);
@@ -74,14 +93,13 @@
 
     // ─── STARS ─────────────────────────────────────────────────
     function createStarField() {
+        var circleTexture = createCircleTexture();
         var starCount = 2500;
         var geometry = new THREE.BufferGeometry();
         var positions = new Float32Array(starCount * 3);
         var colors = new Float32Array(starCount * 3);
-        var sizes = new Float32Array(starCount);
 
         for (var i = 0; i < starCount; i++) {
-            // Distribute stars on a large sphere
             var theta = Math.random() * Math.PI * 2;
             var phi = Math.acos(2 * Math.random() - 1);
             var r = 80 + Math.random() * 120;
@@ -90,28 +108,22 @@
             positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
             positions[i * 3 + 2] = r * Math.cos(phi);
 
-            // Color variety: purple, cyan, white
             var roll = Math.random();
             if (roll < 0.12) {
-                // Cyan
                 colors[i * 3] = 0.0; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 1.0;
             } else if (roll < 0.4) {
-                // Purple tint
                 colors[i * 3] = 0.7; colors[i * 3 + 1] = 0.5; colors[i * 3 + 2] = 1.0;
             } else {
-                // Warm white
                 colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.95; colors[i * 3 + 2] = 0.9;
             }
-
-            sizes[i] = 0.3 + Math.random() * 1.8;
         }
 
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
         var starMaterial = new THREE.PointsMaterial({
-            size: 0.8,
+            size: 0.6,
+            map: circleTexture,
             vertexColors: true,
             transparent: true,
             opacity: 0.85,
@@ -126,15 +138,16 @@
 
     // ─── NEBULA DUST ───────────────────────────────────────────
     function createNebulaParticles() {
-        var count = 600;
+        var circleTexture = createCircleTexture();
+        var count = 400;
         var geometry = new THREE.BufferGeometry();
         var positions = new Float32Array(count * 3);
         var colors = new Float32Array(count * 3);
 
         for (var i = 0; i < count; i++) {
-            positions[i * 3] = (Math.random() - 0.5) * 100;
+            positions[i * 3] = (Math.random() - 0.5) * 120;
             positions[i * 3 + 1] = (Math.random() - 0.5) * 60;
-            positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+            positions[i * 3 + 2] = (Math.random() - 0.5) * 120;
 
             var roll = Math.random();
             if (roll < 0.3) {
@@ -150,10 +163,11 @@
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
         var material = new THREE.PointsMaterial({
-            size: 2.5,
+            size: 3.0,
+            map: circleTexture,
             vertexColors: true,
             transparent: true,
-            opacity: 0.12,
+            opacity: 0.08,
             sizeAttenuation: true,
             blending: THREE.AdditiveBlending,
             depthWrite: false
@@ -181,7 +195,7 @@
         var material = new THREE.LineBasicMaterial({
             color: 0xA855F7,
             transparent: true,
-            opacity: 0.08,
+            opacity: 0.06,
             blending: THREE.AdditiveBlending
         });
 
@@ -210,49 +224,60 @@
         var material = new THREE.MeshPhongMaterial({
             color: col.base,
             emissive: col.emissive,
-            emissiveIntensity: 0.3,
-            shininess: 80,
-            specular: 0x444444
+            emissiveIntensity: 0.35,
+            shininess: 90,
+            specular: 0x555555
         });
 
         var mesh = new THREE.Mesh(geometry, material);
 
-        // Add glow sprite
+        // Soft glow sprite
         var spriteMaterial = new THREE.SpriteMaterial({
             color: col.base,
             transparent: true,
-            opacity: 0.15,
+            opacity: 0.12,
             blending: THREE.AdditiveBlending
         });
         var glow = new THREE.Sprite(spriteMaterial);
-        glow.scale.set(size * 4, size * 4, 1);
+        glow.scale.set(size * 3.5, size * 3.5, 1);
         mesh.add(glow);
 
         return mesh;
     }
 
     function getOrbitRadius(index) {
-        return 3.5 + index * 2.2;
+        // Wider spacing: starts at 4, each orbit 2.8 units further
+        return 4.0 + index * 2.8;
     }
 
     function getOrbitSpeed(index) {
-        return 0.15 / (1 + index * 0.25);
+        return 0.18 / (1 + index * 0.3);
     }
 
     function getOrbitTilt(index) {
-        // Slight unique tilt per orbit for 3D feel
-        var tilts = [0.1, -0.15, 0.08, -0.2, 0.12, -0.05, 0.18, -0.1, 0.06, -0.14, 0.09, -0.07];
+        var tilts = [0.08, -0.12, 0.06, -0.15, 0.1, -0.04, 0.14, -0.08, 0.05, -0.11, 0.07, -0.06];
         return tilts[index % tilts.length];
     }
 
     function getPlanetSize(el) {
-        if (el.classList.contains('icon-planet')) return 0.4;
-        return 0.7 + Math.random() * 0.3;
+        if (el.classList.contains('icon-planet')) return 0.35;
+        return 0.55;
+    }
+
+    // ─── SPRING PHYSICS FOR SMOOTH ANIMATIONS ──────────────────
+    // Critically damped spring — smooth deceleration, no stutter
+    function springLerp(current, target, velocity, stiffness, damping, dt) {
+        var diff = target - current;
+        var springForce = diff * stiffness;
+        var dampForce = -velocity * damping;
+        var accel = springForce + dampForce;
+        velocity += accel * dt;
+        current += velocity * dt;
+        return { value: current, velocity: velocity };
     }
 
     // ─── BUILD ORBIT SYSTEM ────────────────────────────────────
     function buildOrbit(fromCenter) {
-        // Remove existing planet meshes
         planetMeshes.forEach(function (p) {
             scene.remove(p.mesh);
         });
@@ -273,6 +298,11 @@
             var mesh = createPlanetMesh(i, size);
             scene.add(mesh);
 
+            // Compute target orbital position
+            var targetX = Math.cos(angle) * radius;
+            var targetZ = Math.sin(angle) * radius;
+            var targetY = Math.sin(tilt) * Math.sin(angle) * radius * 0.3;
+
             var p = {
                 mesh: mesh,
                 label: el,
@@ -284,15 +314,21 @@
                 entering: false,
                 leaving: false,
                 flyDir: new THREE.Vector3(),
-                flyProgress: 0,
-                flyStartPos: new THREE.Vector3(),
+                // Spring state for smooth fly-in
+                sx: targetX, sy: targetY, sz: targetZ,
+                vx: 0, vy: 0, vz: 0,
+                sScale: 1,
+                vScale: 0,
                 spinSpeed: 0.5 + Math.random() * 1.5
             };
 
             if (fromCenter) {
                 p.entering = true;
-                p.flyProgress = 0;
-                p.flyStartPos.set(0, 0, 0);
+                // Start at center with zero velocity
+                p.sx = 0; p.sy = 0; p.sz = 0;
+                p.vx = 0; p.vy = 0; p.vz = 0;
+                p.sScale = 0.01;
+                p.vScale = 0;
                 mesh.position.set(0, 0, 0);
                 mesh.scale.set(0.01, 0.01, 0.01);
             }
@@ -323,46 +359,48 @@
     // ─── ANIMATION LOOP ────────────────────────────────────────
     function animate() {
         requestAnimationFrame(animate);
-        var dt = clock.getDelta();
+        var dt = Math.min(clock.getDelta(), 0.05); // cap dt to prevent jumps
         var elapsed = clock.getElapsedTime();
 
         // Slow camera drift
         targetCameraAngle += dt * 0.03;
-        targetCameraTilt = 0.3 + Math.sin(elapsed * 0.08) * 0.15;
+        targetCameraTilt = 0.3 + Math.sin(elapsed * 0.08) * 0.12;
         cameraAngle += (targetCameraAngle - cameraAngle) * 0.02;
         cameraTilt += (targetCameraTilt - cameraTilt) * 0.02;
 
         camera.position.x = Math.sin(cameraAngle) * cameraRadius;
         camera.position.z = Math.cos(cameraAngle) * cameraRadius;
-        camera.position.y = Math.sin(cameraTilt) * 6;
+        camera.position.y = Math.sin(cameraTilt) * 5;
         camera.lookAt(0, 0, 0);
 
-        // Rotate star field very slowly with camera for parallax
+        // Rotate star field slowly
         if (starField) {
             starField.rotation.y = elapsed * 0.005;
             starField.rotation.x = Math.sin(elapsed * 0.003) * 0.02;
         }
 
         // Animate planets
+        var stiffness = 4.0;
+        var damping = 4.0; // critically damped
+
         for (var i = planetMeshes.length - 1; i >= 0; i--) {
             var p = planetMeshes[i];
 
             if (p.leaving) {
-                p.flyProgress += dt * 1.8;
-                var accel = 1 + p.flyProgress * 3;
-                p.mesh.position.add(p.flyDir.clone().multiplyScalar(dt * 15 * accel));
-                // Spin dramatically while flying away
-                p.mesh.rotation.x += dt * 8;
-                p.mesh.rotation.z += dt * 5;
+                p.flyProgress += dt * 2.0;
+                var accel = 1 + p.flyProgress * 4;
+                p.mesh.position.add(p.flyDir.clone().multiplyScalar(dt * 18 * accel));
+                p.mesh.rotation.x += dt * 6;
+                p.mesh.rotation.z += dt * 4;
 
                 var screenPos = projectToScreen(p.mesh.position);
                 var ew = p.label.offsetWidth;
                 var eh = p.label.offsetHeight;
                 p.label.style.left = (screenPos.x - ew / 2) + 'px';
                 p.label.style.top = (screenPos.y - eh / 2) + 'px';
-                p.label.style.opacity = Math.max(0, 1 - p.flyProgress * 1.5);
+                p.label.style.opacity = Math.max(0, 1 - p.flyProgress * 2).toFixed(3);
 
-                if (p.flyProgress > 1.5) {
+                if (p.flyProgress > 1.2) {
                     p.label.style.display = 'none';
                     scene.remove(p.mesh);
                     planetMeshes.splice(i, 1);
@@ -370,45 +408,46 @@
                 continue;
             }
 
+            // Compute orbital target position
+            p.angle += p.orbitSpeed * dt;
+            var targetX = Math.cos(p.angle) * p.orbitRadius;
+            var targetZ = Math.sin(p.angle) * p.orbitRadius;
+            var targetY = Math.sin(p.orbitTilt) * Math.sin(p.angle) * p.orbitRadius * 0.3;
+
             if (p.entering) {
-                p.flyProgress = Math.min(1, p.flyProgress + dt * 0.8);
-                // Elastic ease out for bouncy arrival
-                var t = p.flyProgress;
-                var ease = 1 - Math.pow(1 - t, 3);
-                // Add a bounce at the end
-                if (t > 0.7) {
-                    var bounceT = (t - 0.7) / 0.3;
-                    ease += Math.sin(bounceT * Math.PI * 2) * 0.05 * (1 - bounceT);
-                }
+                // Spring physics for smooth arrival — no stutter
+                var rx = springLerp(p.sx, targetX, p.vx, stiffness, damping, dt);
+                var ry = springLerp(p.sy, targetY, p.vy, stiffness, damping, dt);
+                var rz = springLerp(p.sz, targetZ, p.vz, stiffness, damping, dt);
+                var rs = springLerp(p.sScale, 1, p.vScale, stiffness, damping, dt);
 
-                var targetX = Math.cos(p.angle) * p.orbitRadius;
-                var targetZ = Math.sin(p.angle) * p.orbitRadius;
-                var targetY = Math.sin(p.orbitTilt) * Math.sin(p.angle) * p.orbitRadius * 0.3;
+                p.sx = rx.value; p.vx = rx.velocity;
+                p.sy = ry.value; p.vy = ry.velocity;
+                p.sz = rz.value; p.vz = rz.velocity;
+                p.sScale = rs.value; p.vScale = rs.velocity;
 
-                p.mesh.position.x = p.flyStartPos.x + (targetX - p.flyStartPos.x) * ease;
-                p.mesh.position.y = p.flyStartPos.y + (targetY - p.flyStartPos.y) * ease;
-                p.mesh.position.z = p.flyStartPos.z + (targetZ - p.flyStartPos.z) * ease;
-                p.mesh.scale.setScalar(ease);
+                p.mesh.position.set(p.sx, p.sy, p.sz);
+                var s = Math.max(0.01, p.sScale);
+                p.mesh.scale.set(s, s, s);
 
-                // Spin while entering
-                p.mesh.rotation.y += dt * 3;
+                p.mesh.rotation.y += dt * 2;
 
-                if (p.flyProgress >= 1) {
+                // Check if settled (close enough to target)
+                var dx = Math.abs(p.sx - targetX);
+                var dy = Math.abs(p.sy - targetY);
+                var dz = Math.abs(p.sz - targetZ);
+                var ds = Math.abs(p.sScale - 1);
+                if (dx < 0.01 && dy < 0.01 && dz < 0.01 && ds < 0.01) {
                     p.entering = false;
                     p.mesh.scale.set(1, 1, 1);
                 }
             } else {
-                // Normal orbit
-                p.angle += p.orbitSpeed * dt;
-                p.mesh.position.x = Math.cos(p.angle) * p.orbitRadius;
-                p.mesh.position.z = Math.sin(p.angle) * p.orbitRadius;
-                p.mesh.position.y = Math.sin(p.orbitTilt) * Math.sin(p.angle) * p.orbitRadius * 0.3;
-
-                // Gentle self-rotation
+                // Normal orbit — direct position
+                p.mesh.position.set(targetX, targetY, targetZ);
                 p.mesh.rotation.y += dt * p.spinSpeed;
             }
 
-            // Project 3D position to screen for HTML label
+            // Project to screen for HTML label
             var screenPos = projectToScreen(p.mesh.position);
             var ew = p.label.offsetWidth;
             var eh = p.label.offsetHeight;
@@ -417,34 +456,31 @@
             p.label.style.opacity = '1';
             p.label.style.zIndex = '15';
 
-            // Scale label based on distance to camera for depth
+            // Depth-based label scaling
             var dist = p.mesh.position.distanceTo(camera.position);
-            var labelScale = Math.max(0.5, Math.min(1.3, 12 / dist));
+            var labelScale = Math.max(0.55, Math.min(1.2, 14 / dist));
             p.label.style.transform = 'scale(' + labelScale.toFixed(3) + ')';
         }
 
         renderer.render(scene, camera);
     }
 
-    // ─── VIEW SWITCHING (hip fly-off/fly-on) ───────────────────
+    // ─── VIEW SWITCHING ────────────────────────────────────────
     function switchView(newView) {
         if (newView === currentView) return;
 
-        // Eject current non-always planets with funny trajectories
+        // Eject non-always planets
         planetMeshes.forEach(function (p) {
             if (p.view !== 'always' && !p.leaving) {
                 p.leaving = true;
                 p.flyProgress = 0;
 
-                // Random dramatic ejection direction
-                var ejections = [
-                    new THREE.Vector3(1, 2, 0.5),    // up-right
-                    new THREE.Vector3(-1.5, -0.5, 1), // down-left-forward
-                    new THREE.Vector3(0, -2, -1),     // down-back
-                    new THREE.Vector3(1, 0.3, -1.5),  // right-back
-                    new THREE.Vector3(-0.8, 1.5, 0.8), // up-left-forward
-                ];
-                var dir = ejections[Math.floor(Math.random() * ejections.length)].clone();
+                // Use current position to determine natural ejection direction
+                var pos = p.mesh.position.clone();
+                if (pos.length() < 0.1) pos.set(1, 0, 0);
+                var dir = pos.clone().normalize();
+                // Add some random vertical kick for fun
+                dir.y += (Math.random() - 0.5) * 1.5;
                 dir.normalize();
                 p.flyDir = dir;
             }
@@ -457,7 +493,6 @@
             history.replaceState(null, '', location.pathname);
         }
 
-        // Bring in new planets from random 3D edges after a beat
         setTimeout(function () {
             var newEls = Array.from(document.querySelectorAll('[data-orbit="planet"]')).filter(function (el) {
                 return el.getAttribute('data-view') === currentView;
@@ -480,16 +515,16 @@
 
                 var mesh = createPlanetMesh(i + alwaysCount, size);
 
-                // Start from random 3D edge — dramatic entrances
-                var entrances = [
-                    new THREE.Vector3(30, 15, 0),
-                    new THREE.Vector3(-25, -10, 20),
-                    new THREE.Vector3(0, 25, -15),
-                    new THREE.Vector3(-30, 5, -10),
-                    new THREE.Vector3(15, -20, 25),
-                ];
-                var startPos = entrances[Math.floor(Math.random() * entrances.length)].clone();
+                // Fly in from a random 3D edge position
+                var theta = Math.random() * Math.PI * 2;
+                var startR = 35 + Math.random() * 15;
+                var startPos = new THREE.Vector3(
+                    Math.cos(theta) * startR,
+                    (Math.random() - 0.5) * 20,
+                    Math.sin(theta) * startR
+                );
                 mesh.position.copy(startPos);
+                mesh.scale.set(0.3, 0.3, 0.3);
                 scene.add(mesh);
 
                 planetMeshes.push({
@@ -503,14 +538,16 @@
                     entering: true,
                     leaving: false,
                     flyDir: new THREE.Vector3(),
-                    flyProgress: 0,
-                    flyStartPos: startPos.clone(),
+                    sx: startPos.x, sy: startPos.y, sz: startPos.z,
+                    vx: 0, vy: 0, vz: 0,
+                    sScale: 0.3,
+                    vScale: 0,
                     spinSpeed: 0.5 + Math.random() * 1.5
                 });
             });
 
             rebuildOrbitRings();
-        }, 500);
+        }, 400);
     }
 
     // ─── ASTEROIDS (3D) ────────────────────────────────────────
@@ -518,7 +555,7 @@
         var asteroids = [];
 
         function createAsteroid() {
-            var size = 0.05 + Math.random() * 0.15;
+            var size = 0.04 + Math.random() * 0.12;
             var geometry = new THREE.DodecahedronGeometry(size, 0);
             var isCyan = Math.random() < 0.15;
             var material = new THREE.MeshPhongMaterial({
@@ -526,12 +563,10 @@
                 emissive: isCyan ? 0x004455 : 0x2a1a44,
                 emissiveIntensity: 0.4,
                 transparent: true,
-                opacity: 0.4 + Math.random() * 0.3
+                opacity: 0.3 + Math.random() * 0.3
             });
 
             var mesh = new THREE.Mesh(geometry, material);
-
-            // Start from random edge of the 3D space
             var angle = Math.random() * Math.PI * 2;
             var r = 30 + Math.random() * 20;
             mesh.position.set(
@@ -540,30 +575,24 @@
                 Math.sin(angle) * r
             );
 
-            var speed = 0.5 + Math.random() * 1.5;
             var dir = new THREE.Vector3(-mesh.position.x, (Math.random() - 0.5) * 5, -mesh.position.z).normalize();
+            var speed = 0.5 + Math.random() * 1.5;
 
             scene.add(mesh);
             asteroids.push({
-                mesh: mesh,
-                dir: dir,
-                speed: speed,
-                rotSpeed: new THREE.Vector3(
-                    (Math.random() - 0.5) * 3,
-                    (Math.random() - 0.5) * 3,
-                    (Math.random() - 0.5) * 3
-                )
+                mesh: mesh, dir: dir, speed: speed,
+                rotSpeed: new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3)
             });
         }
 
         function scheduleSpawn() {
             setTimeout(function () {
-                if (asteroids.length < 15) createAsteroid();
+                if (asteroids.length < 12) createAsteroid();
                 scheduleSpawn();
-            }, 2000 + Math.random() * 4000);
+            }, 2500 + Math.random() * 4000);
         }
         scheduleSpawn();
-        for (var k = 0; k < 5; k++) createAsteroid();
+        for (var k = 0; k < 4; k++) createAsteroid();
 
         function animateAsteroids() {
             for (var j = asteroids.length - 1; j >= 0; j--) {
@@ -572,7 +601,6 @@
                 a.mesh.rotation.x += a.rotSpeed.x * 0.016;
                 a.mesh.rotation.y += a.rotSpeed.y * 0.016;
                 a.mesh.rotation.z += a.rotSpeed.z * 0.016;
-
                 if (a.mesh.position.length() > 60) {
                     scene.remove(a.mesh);
                     asteroids.splice(j, 1);
@@ -619,7 +647,7 @@
         animateWords();
     }
 
-    // ─── BIG BANG (3D version) ─────────────────────────────────
+    // ─── BIG BANG (3D) ─────────────────────────────────────────
     function doBigBang() {
         sessionStorage.setItem('bigbang', '1');
 
@@ -630,8 +658,7 @@
             el.style.display = 'none';
         });
 
-        // Create explosion particles in 3D
-        var particles = [];
+        var circleTexture = createCircleTexture();
         var particleGeom = new THREE.BufferGeometry();
         var particleCount = 800;
         var positions = new Float32Array(particleCount * 3);
@@ -667,7 +694,8 @@
         particleGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
         var particleMat = new THREE.PointsMaterial({
-            size: 0.3,
+            size: 0.25,
+            map: circleTexture,
             vertexColors: true,
             transparent: true,
             opacity: 1,
@@ -679,7 +707,6 @@
         var particleMesh = new THREE.Points(particleGeom, particleMat);
         scene.add(particleMesh);
 
-        // Seed glow
         var seedGeom = new THREE.SphereGeometry(0.1, 16, 16);
         var seedMat = new THREE.MeshBasicMaterial({ color: 0xA855F7, transparent: true, opacity: 1 });
         var seed = new THREE.Mesh(seedGeom, seedMat);
@@ -698,7 +725,6 @@
         function bangTick() {
             frame++;
 
-            // Seed glow phase
             if (!exploded && frame < SEED_FRAMES) {
                 var progress = frame / SEED_FRAMES;
                 seed.scale.setScalar(1 + progress * 3);
@@ -706,14 +732,12 @@
                 seedMat.opacity = 0.5 + progress * 0.5;
             }
 
-            // Explode
             if (!exploded && frame >= SEED_FRAMES) {
                 exploded = true;
                 scene.remove(seed);
                 seedGlow.intensity = 30;
             }
 
-            // Animate explosion particles
             if (exploded) {
                 var posAttr = particleGeom.getAttribute('position');
                 var allDead = true;
@@ -722,7 +746,6 @@
                     v.life -= 0.008;
                     if (v.life <= 0) continue;
                     allDead = false;
-
                     posAttr.array[j * 3] += v.x * 0.016;
                     posAttr.array[j * 3 + 1] += v.y * 0.016;
                     posAttr.array[j * 3 + 2] += v.z * 0.016;
@@ -732,30 +755,24 @@
                 }
                 posAttr.needsUpdate = true;
                 particleMat.opacity = Math.max(0, velocities[0].life);
-
-                // Fade seed glow
                 if (seedGlow.intensity > 0) seedGlow.intensity *= 0.97;
-
                 if (allDead) {
                     scene.remove(particleMesh);
                     scene.remove(seedGlow);
                 }
             }
 
-            // Fade overlay
             if (!overlayFaded && frame >= SEED_FRAMES + 8) {
                 overlayFaded = true;
                 transitionOverlay.style.transition = 'opacity 1.5s ease';
                 transitionOverlay.style.opacity = '0';
             }
 
-            // Launch planets from center
             if (!planetsLaunched && frame >= SEED_FRAMES + 50) {
                 planetsLaunched = true;
                 buildOrbit(true);
             }
 
-            // Extras
             if (!extrasLaunched && frame >= SEED_FRAMES + 80) {
                 extrasLaunched = true;
                 spawnAsteroids3D();
