@@ -15,20 +15,20 @@
     var cameraTilt = 0.35;
     var cameraRadius = 28;
 
-    // Truly different planet colors — not just purple shades
+    // Rich jewel-tone space palette — each planet distinct
     var PLANET_COLORS = [
-        { base: 0x22CCBB, emissive: 0x0A4A44 },  // teal
-        { base: 0xEE8844, emissive: 0x663311 },  // warm orange
-        { base: 0x4488FF, emissive: 0x1A3388 },  // bright blue
-        { base: 0xFFCC33, emissive: 0x665500 },  // golden
-        { base: 0xFF5555, emissive: 0x661111 },  // red
-        { base: 0x44DD88, emissive: 0x115533 },  // green
-        { base: 0xCC66FF, emissive: 0x552288 },  // violet
-        { base: 0xFF88BB, emissive: 0x662244 },  // pink
-        { base: 0x44DDEE, emissive: 0x115566 },  // cyan
-        { base: 0xDDDD44, emissive: 0x555511 },  // yellow-green
-        { base: 0x8888FF, emissive: 0x333388 },  // periwinkle
-        { base: 0xEE7766, emissive: 0x663322 },  // salmon
+        { base: 0x1B998B, emissive: 0x0D4D46 },  // deep jade
+        { base: 0xD4637A, emissive: 0x6A2233 },  // dusty rose
+        { base: 0x3A86C8, emissive: 0x1D4364 },  // ocean blue
+        { base: 0xE8963E, emissive: 0x744B1F },  // burnt amber
+        { base: 0x7B68EE, emissive: 0x3D3477 },  // medium slate blue
+        { base: 0x2ECC9A, emissive: 0x17664D },  // emerald
+        { base: 0xC47ADB, emissive: 0x623D6E },  // orchid purple
+        { base: 0xE07050, emissive: 0x703828 },  // terracotta
+        { base: 0x44B8D6, emissive: 0x225C6B },  // cerulean
+        { base: 0xBFA44D, emissive: 0x5F5227 },  // antique gold
+        { base: 0x6C8EBF, emissive: 0x364760 },  // steel blue
+        { base: 0xC97B84, emissive: 0x653E42 },  // mauve pink
     ];
 
     // ─── CIRCLE TEXTURE ────────────────────────────────────────
@@ -64,23 +64,36 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setClearColor(0x000000, 0);
 
-        // Center light
-        var cl = new THREE.PointLight(0xDDBBFF, 3.5, 80);
-        cl.position.set(0, 0, 0);
-        scene.add(cl);
+        // Strong ambient so planets are lit from all directions
+        scene.add(new THREE.AmbientLight(0x554477, 1.0));
 
-        // Warm fill
-        var wl = new THREE.PointLight(0xFF8844, 0.8, 60);
-        wl.position.set(0, 2, 0);
-        scene.add(wl);
+        // Hemisphere light — sky/ground fill from all angles
+        var hemi = new THREE.HemisphereLight(0x8866BB, 0x221133, 0.8);
+        scene.add(hemi);
 
-        // Ambient — bright enough to show planet colors
-        scene.add(new THREE.AmbientLight(0x332255, 0.7));
+        // Directional lights from multiple angles for full illumination
+        var dl1 = new THREE.DirectionalLight(0xBB99EE, 0.6);
+        dl1.position.set(10, 8, 15);
+        scene.add(dl1);
 
-        // Key light from camera direction so planets are always lit
-        var kl = new THREE.DirectionalLight(0xBB99FF, 0.5);
-        kl.position.set(0, 10, 25);
-        scene.add(kl);
+        var dl2 = new THREE.DirectionalLight(0x9977CC, 0.4);
+        dl2.position.set(-12, 5, -10);
+        scene.add(dl2);
+
+        var dl3 = new THREE.DirectionalLight(0x8866AA, 0.3);
+        dl3.position.set(0, -8, 12);
+        scene.add(dl3);
+
+        // Center "anti-light" — the black hole sucks light
+        // Negative intensity point light at center creates shadow toward center
+        var blackHoleLight = new THREE.PointLight(0x000000, -1.5, 15);
+        blackHoleLight.position.set(0, 0, 0);
+        scene.add(blackHoleLight);
+
+        // Faint purple glow from accretion disk edges
+        var accretionGlow = new THREE.PointLight(0x7733AA, 1.0, 25);
+        accretionGlow.position.set(0, 0.5, 0);
+        scene.add(accretionGlow);
 
         createStarField();
     }
@@ -158,23 +171,22 @@
     function createPlanetMesh(colorIndex, size) {
         var c = PLANET_COLORS[colorIndex % PLANET_COLORS.length];
         return new THREE.Mesh(
-            new THREE.SphereGeometry(size, 32, 32),
+            new THREE.SphereGeometry(size, 48, 48),
             new THREE.MeshPhongMaterial({
                 color: c.base,
                 emissive: c.emissive,
-                emissiveIntensity: 0.5,
-                shininess: 60,
-                specular: 0x666666
+                emissiveIntensity: 0.6,
+                shininess: 40,
+                specular: 0x888888
             })
         );
     }
 
     // ─── ORBIT PARAMS ──────────────────────────────────────────
     function getOrbitRadius(index, total) {
-        // Keep all orbits comfortably within view
-        var minR = 3.0;
-        var maxR = 10.0;
-        if (total <= 1) return 6;
+        var minR = 4.0;
+        var maxR = 14.0;
+        if (total <= 1) return 8;
         return minR + (maxR - minR) * (index / (total - 1));
     }
 
@@ -189,9 +201,8 @@
     }
 
     function getPlanetSize(el) {
-        // Icon planets: slightly smaller but same ballpark
-        if (el.classList.contains('icon-planet')) return 0.5;
-        return 0.6;
+        if (el.classList.contains('icon-planet')) return 1.0;
+        return 1.3;
     }
 
     // ─── SPRING ────────────────────────────────────────────────
