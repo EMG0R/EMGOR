@@ -1,19 +1,24 @@
 .icon-planet {
-    width: 90px;
-    height: 90px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    box-shadow: none;
+    width: 90px !important;
+    height: 90px !important;
+    padding: 0 !important;
+    background: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    text-shadow: none !important;
 }
 
 .icon-planet svg {
-    filter: drop-shadow(0 0 4px rgba(192, 132, 252, 0.5));
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
 }
 
 @media (hover: hover) {
     .icon-planet:hover svg {
-        filter: drop-shadow(0 0 10px rgba(192, 132, 252, 0.9));
+        filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.7));
     }
 }
 
@@ -31,8 +36,8 @@
 
 @media (max-width: 600px) {
     .icon-planet {
-        width: 65px;
-        height: 65px;
+        width: 65px !important;
+        height: 65px !important;
     }
     .floating-word {
         font-size: 0.55rem;

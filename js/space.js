@@ -13,7 +13,7 @@
     var orbitLines = [];
     var cameraAngle = 0;
     var cameraTilt = 0.35;
-    var cameraRadius = 28;
+    var cameraRadius = 18;
 
     // Rich jewel-tone space palette — each planet distinct
     var PLANET_COLORS = [
@@ -64,35 +64,25 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setClearColor(0x000000, 0);
 
-        // Strong ambient so planets are lit from all directions
-        scene.add(new THREE.AmbientLight(0x554477, 1.0));
+        // Gentle ambient — subtle overall fill
+        scene.add(new THREE.AmbientLight(0x443355, 0.6));
 
-        // Hemisphere light — sky/ground fill from all angles
-        var hemi = new THREE.HemisphereLight(0x8866BB, 0x221133, 0.8);
-        scene.add(hemi);
+        // Soft hemisphere for natural sky/ground
+        scene.add(new THREE.HemisphereLight(0x665588, 0x1a0a2e, 0.4));
 
-        // Directional lights from multiple angles for full illumination
-        var dl1 = new THREE.DirectionalLight(0xBB99EE, 0.6);
-        dl1.position.set(10, 8, 15);
+        // Subtle directional from above-right
+        var dl1 = new THREE.DirectionalLight(0x9988AA, 0.35);
+        dl1.position.set(8, 6, 10);
         scene.add(dl1);
 
-        var dl2 = new THREE.DirectionalLight(0x9977CC, 0.4);
-        dl2.position.set(-12, 5, -10);
+        // Faint fill from opposite side
+        var dl2 = new THREE.DirectionalLight(0x776699, 0.2);
+        dl2.position.set(-8, 3, -8);
         scene.add(dl2);
 
-        var dl3 = new THREE.DirectionalLight(0x8866AA, 0.3);
-        dl3.position.set(0, -8, 12);
-        scene.add(dl3);
-
-        // Center "anti-light" — the black hole sucks light
-        // Negative intensity point light at center creates shadow toward center
-        var blackHoleLight = new THREE.PointLight(0x000000, -1.5, 15);
-        blackHoleLight.position.set(0, 0, 0);
-        scene.add(blackHoleLight);
-
-        // Faint purple glow from accretion disk edges
-        var accretionGlow = new THREE.PointLight(0x7733AA, 1.0, 25);
-        accretionGlow.position.set(0, 0.5, 0);
+        // Faint purple glow from accretion disk
+        var accretionGlow = new THREE.PointLight(0x6622AA, 0.6, 20);
+        accretionGlow.position.set(0, 0.3, 0);
         scene.add(accretionGlow);
 
         createStarField();
@@ -175,9 +165,9 @@
             new THREE.MeshPhongMaterial({
                 color: c.base,
                 emissive: c.emissive,
-                emissiveIntensity: 0.6,
-                shininess: 40,
-                specular: 0x888888
+                emissiveIntensity: 0.7,
+                shininess: 30,
+                specular: 0x444444
             })
         );
     }
@@ -201,8 +191,8 @@
     }
 
     function getPlanetSize(el) {
-        if (el.classList.contains('icon-planet')) return 1.0;
-        return 1.3;
+        if (el.classList.contains('icon-planet')) return 1.4;
+        return 1.8;
     }
 
     // ─── SPRING ────────────────────────────────────────────────
@@ -305,7 +295,7 @@
 
         camera.position.x = Math.sin(cameraAngle) * cameraRadius;
         camera.position.z = Math.cos(cameraAngle) * cameraRadius;
-        camera.position.y = 7 + Math.sin(cameraTilt) * 3;
+        camera.position.y = 5 + Math.sin(cameraTilt) * 2;
         camera.lookAt(0, 0, 0);
 
         if (starField) {
