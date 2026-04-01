@@ -1,9 +1,10 @@
 .icon-planet {
-    width: 80px;
-    height: 80px;
+    width: 90px;
+    height: 90px;
     padding: 0;
     background: transparent;
     border: none;
+    box-shadow: none;
 }
 
 .icon-planet svg {
@@ -30,8 +31,8 @@
 
 @media (max-width: 600px) {
     .icon-planet {
-        width: 55px;
-        height: 55px;
+        width: 65px;
+        height: 65px;
     }
     .floating-word {
         font-size: 0.55rem;
