@@ -12,11 +12,10 @@
     var starField;
     var orbitLines = [];
     var cameraAngle = 0;
-    var cameraTilt = 0.35;
 
-    // Camera distance calculated to fit all orbits
     var cameraRadius = 30;
-    var cameraFOV = 60;
+    var cameraFOV = 55;
+    var cameraHeight = 12;
 
     // Deep vivid jewel tones — saturated but dark
     var PLANET_COLORS = [
@@ -55,11 +54,13 @@
     // ─── THREE.JS SETUP ────────────────────────────────────────
     function initThree() {
         var canvas = document.getElementById('spaceCanvas');
+        if (!canvas || typeof THREE === 'undefined') return;
+
         scene = new THREE.Scene();
         clock = new THREE.Clock();
 
         camera = new THREE.PerspectiveCamera(cameraFOV, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 8, cameraRadius);
+        camera.position.set(0, cameraHeight, cameraRadius);
         camera.lookAt(0, 0, 0);
 
         renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
@@ -88,13 +89,20 @@
         accretion.position.set(0, 0.3, 0);
         scene.add(accretion);
 
+        // Black hole occluder — matches the shader's dark event horizon
+        var bhOccluder = new THREE.Mesh(
+            new THREE.SphereGeometry(2.0, 32, 32),
+            new THREE.MeshBasicMaterial({ color: 0x0D0221 })
+        );
+        scene.add(bhOccluder);
+
         createStarField();
     }
 
     // ─── STARS ─────────────────────────────────────────────────
     function createStarField() {
         var tex = circTex();
-        var n = 2500;
+        var n = 3500;
         var geom = new THREE.BufferGeometry();
         var pos = new Float32Array(n * 3);
         var col = new Float32Array(n * 3);
@@ -102,26 +110,27 @@
         for (var i = 0; i < n; i++) {
             var th = Math.random() * Math.PI * 2;
             var ph = Math.acos(2 * Math.random() - 1);
-            var r = 50 + Math.random() * 150;
+            var r = 60 + Math.random() * 180;
             pos[i*3] = r * Math.sin(ph) * Math.cos(th);
             pos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
             pos[i*3+2] = r * Math.cos(ph);
 
             var roll = Math.random();
-            if (roll < 0.1) {
-                col[i*3] = 0.2; col[i*3+1] = 1.0; col[i*3+2] = 1.0;
-            } else if (roll < 0.3) {
-                col[i*3] = 0.8; col[i*3+1] = 0.6; col[i*3+2] = 1.0;
+            if (roll < 0.08) {
+                col[i*3] = 0.3; col[i*3+1] = 0.9; col[i*3+2] = 1.0;
+            } else if (roll < 0.25) {
+                col[i*3] = 0.7; col[i*3+1] = 0.5; col[i*3+2] = 1.0;
             } else {
-                col[i*3] = 1.0; col[i*3+1] = 1.0; col[i*3+2] = 1.0;
+                var b = 0.7 + Math.random() * 0.3;
+                col[i*3] = b; col[i*3+1] = b; col[i*3+2] = b;
             }
         }
         geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
 
         starField = new THREE.Points(geom, new THREE.PointsMaterial({
-            size: 0.7, map: tex, vertexColors: true, transparent: true,
-            opacity: 1.0, sizeAttenuation: true, blending: THREE.AdditiveBlending,
+            size: 0.6, map: tex, vertexColors: true, transparent: true,
+            opacity: 0.9, sizeAttenuation: true, blending: THREE.AdditiveBlending,
             depthWrite: false
         }));
         scene.add(starField);
@@ -134,12 +143,12 @@
         for (var i = 0; i < seg; i++) {
             var a = (i / seg) * Math.PI * 2;
             pos[i*3] = Math.cos(a) * radius;
-            pos[i*3+1] = Math.sin(a) * radius * Math.sin(inclination) * 0.12;
+            pos[i*3+1] = Math.sin(a) * radius * Math.sin(inclination) * 0.06;
             pos[i*3+2] = Math.sin(a) * radius;
         }
         geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         return new THREE.LineLoop(geom, new THREE.LineBasicMaterial({
-            color: 0xA855F7, transparent: true, opacity: 0.04,
+            color: 0xA855F7, transparent: true, opacity: 0.035,
             blending: THREE.AdditiveBlending
         }));
     }
@@ -156,7 +165,6 @@
     }
 
     // ─── PLANET MESH ───────────────────────────────────────────
-    // Each planet gets a custom shader-like material that's dark facing center
     function createPlanetMesh(colorIndex, size) {
         var c = PLANET_COLORS[colorIndex % PLANET_COLORS.length];
         var mesh = new THREE.Mesh(
@@ -174,13 +182,11 @@
 
     // ─── ORBIT SIZING — guaranteed to fit screen ───────────────
     function computeMaxVisibleRadius() {
-        // Calculate max orbit radius that stays on screen
-        // Using camera FOV and distance to compute visible area
         var fovRad = (cameraFOV / 2) * Math.PI / 180;
-        var visibleHeight = Math.tan(fovRad) * cameraRadius;
+        var dist = Math.sqrt(cameraRadius * cameraRadius + cameraHeight * cameraHeight);
+        var visibleHeight = Math.tan(fovRad) * dist;
         var visibleWidth = visibleHeight * (window.innerWidth / window.innerHeight);
-        // Use 70% of the smaller dimension for safety margin
-        return Math.min(visibleWidth, visibleHeight) * 0.70;
+        return Math.min(visibleWidth, visibleHeight) * 0.80;
     }
 
     function getOrbitRadius(index, total) {
@@ -191,17 +197,18 @@
     }
 
     function getOrbitSpeed(index) {
-        return 0.2 / (1 + index * 0.3);
+        return 0.15 / (1 + index * 0.35);
     }
 
     function getInclination(index) {
-        var vals = [0.15, -0.25, 0.2, -0.18, 0.28, -0.12, 0.22, -0.2, 0.17, -0.15, 0.25, -0.22];
+        // Subtle — thin galactic disc
+        var vals = [0.08, -0.12, 0.1, -0.07, 0.11, -0.06, 0.09, -0.1, 0.07, -0.08, 0.1, -0.09];
         return vals[index % vals.length];
     }
 
     function getPlanetSize(el) {
-        if (el.classList.contains('icon-planet')) return 1.8;
-        return 2.2;
+        if (el.classList.contains('icon-planet')) return 0.65;
+        return 0.85;
     }
 
     // ─── SPRING ────────────────────────────────────────────────
@@ -216,9 +223,25 @@
     function orbitalPos(angle, radius, inclination) {
         return {
             x: Math.cos(angle) * radius,
-            y: Math.sin(angle) * radius * Math.sin(inclination) * 0.12,
+            y: Math.sin(angle) * radius * Math.sin(inclination) * 0.06,
             z: Math.sin(angle) * radius
         };
+    }
+
+    // ─── BLACK HOLE OVERLAY ────────────────────────────────────
+    function createBlackHoleOverlay() {
+        var overlay = document.createElement('div');
+        overlay.className = 'black-hole-overlay';
+        document.body.appendChild(overlay);
+        updateBlackHoleOverlay();
+    }
+
+    function updateBlackHoleOverlay() {
+        var overlay = document.querySelector('.black-hole-overlay');
+        if (!overlay) return;
+        var size = Math.min(window.innerWidth, window.innerHeight) * 0.22;
+        overlay.style.width = size + 'px';
+        overlay.style.height = size + 'px';
     }
 
     // ─── BUILD ORBITS ──────────────────────────────────────────
@@ -294,7 +317,6 @@
     }
 
     // ─── COMPUTE APPARENT SIZE ON SCREEN ───────────────────────
-    // Returns the pixel radius of a sphere on screen
     function apparentSize(worldRadius, worldPos) {
         var dist = worldPos.distanceTo(camera.position);
         if (dist < 0.1) dist = 0.1;
@@ -304,36 +326,27 @@
         return projectedSize;
     }
 
-    // ─── UPDATE PLANET SHADOW TOWARD CENTER ────────────────────
-    // Move a directional light to always point from each planet toward center
-    // This creates a dark side facing the black hole
-    var shadowLight;
-    function initShadowLight() {
-        shadowLight = new THREE.DirectionalLight(0x000011, 0.8);
-        shadowLight.position.set(0, 0, 0);
-        scene.add(shadowLight);
-    }
-
     // ─── ANIMATION ─────────────────────────────────────────────
     function animate() {
+        if (!renderer) return;
         requestAnimationFrame(animate);
         var dt = Math.min(clock.getDelta(), 0.05);
         var elapsed = clock.getElapsedTime();
 
-        // Camera drift
-        cameraAngle += dt * 0.0375;
-        cameraTilt = 0.35 + Math.sin(elapsed * 0.07) * 0.1;
+        // Slow, majestic camera drift
+        cameraAngle += dt * 0.02;
 
         camera.position.x = Math.sin(cameraAngle) * cameraRadius;
         camera.position.z = Math.cos(cameraAngle) * cameraRadius;
-        camera.position.y = 8 + Math.sin(cameraTilt) * 3;
+        camera.position.y = cameraHeight + Math.sin(elapsed * 0.04) * 0.5;
         camera.lookAt(0, 0, 0);
 
         if (starField) {
-            starField.rotation.y = elapsed * 0.005;
+            starField.rotation.y = elapsed * 0.003;
         }
 
         var K = 3.5, D = 3.8;
+        var camDist = camera.position.length();
 
         for (var i = planetMeshes.length - 1; i >= 0; i--) {
             var p = planetMeshes[i];
@@ -344,12 +357,11 @@
                 p.mesh.position.add(p.flyDir.clone().multiplyScalar(dt * 20 * acc));
                 p.mesh.rotation.x += dt * 5;
 
-                // Scale label with the 3D sphere as it flies away
                 var sp2 = proj(p.mesh.position);
                 var appSz = apparentSize(p.planetSize, p.mesh.position);
                 var flyScale = Math.max(0.1, appSz / 60);
-                p.label.style.left = (sp2.x - p.label.offsetWidth * flyScale / 2) + 'px';
-                p.label.style.top = (sp2.y - p.label.offsetHeight * flyScale / 2) + 'px';
+                p.label.style.left = (sp2.x - p.label.offsetWidth / 2) + 'px';
+                p.label.style.top = (sp2.y - p.label.offsetHeight / 2) + 'px';
                 p.label.style.transform = 'scale(' + flyScale.toFixed(3) + ')';
                 p.label.style.opacity = Math.max(0, 1 - p.flyProgress * 3).toFixed(3);
 
@@ -393,31 +405,35 @@
                 p.mesh.rotation.y += dt * p.spinSpeed;
             }
 
-            // Update planet material darkness toward center
-            // Compute how much the center-facing side should be dark
-            var planetPos = p.mesh.position;
-            var toCenter = new THREE.Vector3(-planetPos.x, -planetPos.y, -planetPos.z).normalize();
-            // Darken emissive on the center-facing hemisphere by reducing emissive
-            // This is approximate — the directional lights already handle most of it
-            // but we can modulate emissive to help
-            var distFromCenter = planetPos.length();
+            // Emissive intensity based on distance from center
+            var distFromCenter = p.mesh.position.length();
             var darkenFactor = Math.max(0.1, Math.min(0.4, distFromCenter / 20));
             p.mesh.material.emissiveIntensity = darkenFactor;
 
-            // Project to screen — label scales with apparent 3D size
+            // ─── LABEL POSITIONING (FIXED) ─────────────────────
             var sp = proj(p.mesh.position);
-            var appPx = apparentSize(p.planetSize * p.mesh.scale.x, p.mesh.position);
-            // Scale label so it matches the planet's apparent size
-            // Base: 60px apparent = scale 1.0
-            var labelScale = Math.max(0.3, appPx / 55);
+
+            // Depth-based subtle scale and opacity
+            var dist = p.mesh.position.distanceTo(camera.position);
+            var maxDist = camDist + computeMaxVisibleRadius();
+            var minDist = Math.max(1, camDist - computeMaxVisibleRadius());
+            var t = (dist - minDist) / (maxDist - minDist);
+            t = Math.max(0, Math.min(1, t));
+            var labelScale = 1.0 - t * 0.2;   // 1.0 near → 0.8 far
+            var labelOpacity = 1.0 - t * 0.3;  // 1.0 near → 0.7 far
+
             var ew = p.label.offsetWidth;
             var eh = p.label.offsetHeight;
-            p.label.style.left = (sp.x - ew * labelScale / 2) + 'px';
-            p.label.style.top = (sp.y - eh * labelScale / 2) + 'px';
+            // Center label on projected planet position
+            p.label.style.left = (sp.x - ew / 2) + 'px';
+            p.label.style.top = (sp.y - eh / 2) + 'px';
             p.label.style.transform = 'scale(' + labelScale.toFixed(3) + ')';
             p.label.style.transformOrigin = 'center center';
-            p.label.style.opacity = '1';
-            p.label.style.zIndex = '15';
+            p.label.style.opacity = labelOpacity.toFixed(3);
+
+            // Behind the black hole? Lower z-index so overlay occludes label
+            var isBehind = dist > camDist + 0.5;
+            p.label.style.zIndex = isBehind ? '3' : '15';
         }
 
         renderer.render(scene, camera);
@@ -649,6 +665,7 @@
                 var view=el.getAttribute('data-view');
                 if(view!==currentView&&view!=='always') el.style.display='none';
             });
+            createBlackHoleOverlay();
         }
         setupNavigation();
         initThree();
@@ -656,7 +673,7 @@
         if(isOrbitPage&&!sessionStorage.getItem('bigbang')&&currentView==='home'){
             doBigBang();
         } else {
-            spawnAsteroids3D();
+            if (typeof THREE !== 'undefined' && scene) spawnAsteroids3D();
             if(isOrbitPage){ if(document.querySelector('.icon-planet')) spawnFloatingWords(); buildOrbit(false); }
         }
     });
@@ -672,7 +689,7 @@
         camera.aspect=window.innerWidth/window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth,window.innerHeight);
-        // Rebuild orbits to fit new viewport
+        updateBlackHoleOverlay();
         if(isOrbitPage && planetMeshes.length > 0) {
             var total = planetMeshes.length;
             planetMeshes.forEach(function(p, i) {

@@ -3,7 +3,7 @@ const gl = canvas.getContext("webgl");
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
-gl.clearColor(0.005, 0.0, 0.02, 1.0);
+gl.clearColor(0.051, 0.008, 0.129, 1.0);
 gl.clear(gl.COLOR_BUFFER_BIT);
 
 const vertexShaderSource = `
@@ -57,8 +57,8 @@ void main() {
         cos(q.x * 2.0 + u_time * 1.2)
     ));
 
-    vec3 base = vec3(0.008, 0.002, 0.035);
-    vec3 glow = vec3(0.04, 0.01, 0.12);
+    vec3 base = vec3(0.051, 0.008, 0.129);
+    vec3 glow = vec3(0.082, 0.039, 0.337);
     vec3 color = mix(base, glow, pow(n, 0.8));
 
     vec2 diskUV = toBHc;
@@ -73,37 +73,37 @@ void main() {
     float outerW = 0.05;
     float outerDisk = exp(-(diskDist - outerR) * (diskDist - outerR) / (outerW * outerW));
     float doppler = 0.3 + 0.7 * cos(diskAngle + u_time * 0.4);
-    vec3 outerColor = mix(vec3(0.05, 0.01, 0.12), vec3(0.22, 0.08, 0.38), doppler);
+    vec3 outerColor = mix(vec3(0.06, 0.02, 0.18), vec3(0.24, 0.11, 0.56), doppler);
     color += outerColor * outerDisk * doppler * (0.5 + spiralNoise * 0.4 + fineNoise * 0.1);
 
     float midR = 0.15;
     float midW = 0.032;
     float midDisk = exp(-(diskDist - midR) * (diskDist - midR) / (midW * midW));
-    vec3 midColor = mix(vec3(0.1, 0.03, 0.22), vec3(0.38, 0.14, 0.58), doppler);
+    vec3 midColor = mix(vec3(0.12, 0.04, 0.34), vec3(0.48, 0.18, 0.74), doppler);
     color += midColor * midDisk * doppler * (0.6 + spiralNoise * 0.3 + fineNoise * 0.1);
 
     float innerR = 0.09;
     float innerW = 0.02;
     float innerDisk = exp(-(diskDist - innerR) * (diskDist - innerR) / (innerW * innerW));
     float innerDoppler = 0.2 + 0.8 * cos(diskAngle + u_time * 0.7);
-    vec3 innerColor = mix(vec3(0.2, 0.08, 0.38), vec3(0.6, 0.35, 0.8), innerDoppler);
+    vec3 innerColor = mix(vec3(0.24, 0.1, 0.56), vec3(0.66, 0.4, 0.92), innerDoppler);
     color += innerColor * innerDisk * innerDoppler * (0.7 + fineNoise * 0.3);
 
     float photonR = 0.06;
     float photon = exp(-(bhDist - photonR) * (bhDist - photonR) / 0.000018) * 0.5;
     float photonDoppler = 0.4 + 0.6 * cos(bhAngle + u_time * 1.2);
-    color += vec3(0.35, 0.2, 0.55) * photon * photonDoppler;
+    color += vec3(0.4, 0.25, 0.7) * photon * photonDoppler;
 
     float einsteinR = 0.08;
     float einstein = exp(-(bhDist - einsteinR) * (bhDist - einsteinR) / 0.00006) * 0.15;
-    color += vec3(0.1, 0.05, 0.2) * einstein;
+    color += vec3(0.0, 0.12, 0.25) * einstein;
 
     float jetWidth = 0.02;
     float jetX = exp(-toBHc.x * toBHc.x / (jetWidth * jetWidth));
     float jetY = smoothstep(0.0, 0.07, abs(toBHc.y)) * exp(-abs(toBHc.y) * 5.0);
     float jetMask = smoothstep(0.055, 0.08, bhDist);
     float jet = jetX * jetY * jetMask * 0.06;
-    color += vec3(0.12, 0.06, 0.25) * jet;
+    color += vec3(0.0, 0.15, 0.35) * jet;
 
     float horizon = smoothstep(0.05, 0.03, bhDist);
     color *= (1.0 - horizon);
