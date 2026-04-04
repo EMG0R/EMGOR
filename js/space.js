@@ -13,9 +13,9 @@
     var orbitLines = [];
     var cameraAngle = 0;
 
-    var cameraRadius = 30;
-    var cameraFOV = 55;
-    var cameraHeight = 12;
+    var cameraRadius = 34;
+    var cameraFOV = 58;
+    var cameraHeight = 13;
 
     // Deep vivid jewel tones — saturated but dark
     var PLANET_COLORS = [
@@ -148,7 +148,7 @@
         }
         geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         return new THREE.LineLoop(geom, new THREE.LineBasicMaterial({
-            color: 0xA855F7, transparent: true, opacity: 0.035,
+            color: 0xA855F7, transparent: true, opacity: 0.055,
             blending: THREE.AdditiveBlending
         }));
     }
@@ -184,20 +184,24 @@
     function computeMaxVisibleRadius() {
         var fovRad = (cameraFOV / 2) * Math.PI / 180;
         var dist = Math.sqrt(cameraRadius * cameraRadius + cameraHeight * cameraHeight);
-        var visibleHeight = Math.tan(fovRad) * dist;
-        var visibleWidth = visibleHeight * (window.innerWidth / window.innerHeight);
-        return Math.min(visibleWidth, visibleHeight) * 0.80;
+        var visH = Math.tan(fovRad) * dist;
+        var visW = visH * (window.innerWidth / window.innerHeight);
+        var aspect = window.innerWidth / window.innerHeight;
+        if (aspect >= 1) return visW * 0.88;
+        return visH * 0.75;
     }
 
     function getOrbitRadius(index, total) {
         var maxR = computeMaxVisibleRadius();
-        var minR = maxR * 0.22;
-        if (total <= 1) return (minR + maxR) / 2;
-        return minR + (maxR - minR) * (index / (total - 1));
+        var minR = 5.0;
+        if (total <= 1) return maxR * 0.5;
+        var t = index / (total - 1);
+        var curve = t + 0.3 * t * t;
+        return minR + (maxR - minR) * (curve / 1.3);
     }
 
     function getOrbitSpeed(index) {
-        return 0.15 / (1 + index * 0.35);
+        return 0.18 / (1 + index * 0.4);
     }
 
     function getInclination(index) {
@@ -206,9 +210,12 @@
         return vals[index % vals.length];
     }
 
-    function getPlanetSize(el) {
-        if (el.classList.contains('icon-planet')) return 0.65;
-        return 0.85;
+    function getPlanetSize(index, total) {
+        var maxR = computeMaxVisibleRadius();
+        var avgSpacing = (maxR - 5.0) / Math.max(1, total - 1);
+        var baseSize = Math.min(2.0, Math.max(0.7, avgSpacing * 0.4));
+        var t = total <= 1 ? 0.5 : index / (total - 1);
+        return baseSize * (0.85 + t * 0.3);
     }
 
     // ─── SPRING ────────────────────────────────────────────────
@@ -260,7 +267,7 @@
             var speed = getOrbitSpeed(i);
             var angle = (i / total) * Math.PI * 2;
             var incl = getInclination(i);
-            var size = getPlanetSize(el);
+            var size = getPlanetSize(i, total);
 
             var mesh = createPlanetMesh(i, size);
             scene.add(mesh);
@@ -422,6 +429,23 @@
             var labelScale = 1.0 - t * 0.2;   // 1.0 near → 0.8 far
             var labelOpacity = 1.0 - t * 0.3;  // 1.0 near → 0.7 far
 
+            // Dynamic label sizing — match apparent planet diameter
+            var appR = apparentSize(p.planetSize, p.mesh.position);
+            var diam = Math.max(55, Math.min(180, appR * 2.2));
+            p.label.style.width = diam + 'px';
+            p.label.style.height = diam + 'px';
+
+            var svg = p.label.querySelector('svg');
+            if (svg) {
+                var svgSz = Math.round(diam * 0.45);
+                svg.setAttribute('width', svgSz);
+                svg.setAttribute('height', svgSz);
+            }
+            if (!p.label.classList.contains('icon-planet')) {
+                p.label.style.fontSize = Math.max(8, Math.min(13, diam * 0.11)) + 'px';
+                p.label.style.letterSpacing = Math.max(1, Math.min(3, diam * 0.025)) + 'px';
+            }
+
             var ew = p.label.offsetWidth;
             var eh = p.label.offsetHeight;
             // Center label on projected planet position
@@ -483,7 +507,7 @@
                 var speed = getOrbitSpeed(idx);
                 var angle = (idx / totalNew) * Math.PI * 2;
                 var incl = getInclination(idx);
-                var size = getPlanetSize(el);
+                var size = getPlanetSize(idx, totalNew);
 
                 var mesh = createPlanetMesh(i + aC, size);
 
