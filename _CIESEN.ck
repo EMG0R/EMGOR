@@ -810,7 +810,7 @@ fun void rainLoop() {
         } else {
             0.0 => rainHissGain.gain;
         }
-        10::ms => now;
+        20::ms => now;
     }
 }
 
@@ -861,7 +861,7 @@ fun void pluckLoop() {
         } else if( m <= 0.0 ) {
             now + 50::ms => pkNextNote;
         }
-        5::ms => now;
+        15::ms => now;
     }
 }
 

@@ -151,6 +151,12 @@
         const tapOverlay = document.getElementById('tap-overlay');
         const bgAudio    = document.getElementById('bg-audio');
 
+        // iOS Safari's MediaStreamDestination has a buffer-size mismatch with
+        // AudioContext that causes constant crackling — route directly to
+        // ctx.destination instead and skip the <audio> element trick entirely.
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
         let dotCount = 0;
         const dotInterval = setInterval(() => {
             dotCount = (dotCount + 1) % 4;
@@ -213,37 +219,46 @@
         function setupBackgroundAudio(ctx) {
             if (bgAudioReady) return;
             try {
-                mediaStreamDest = ctx.createMediaStreamDestination();
-
-                // Near-silent oscillator: keeps the MediaStream "active" even
-                // if ChucK goes briefly silent. iOS will not keep an <audio>
-                // element alive if the stream has no audio content.
-                // 1 Hz at gain 0.001 = inaudible but non-zero samples.
+                // 1 Hz at gain 0.001 — inaudible keepalive oscillator
                 silentOsc = ctx.createOscillator();
                 const silentGain = ctx.createGain();
                 silentGain.gain.value = 0.001;
                 silentOsc.frequency.value = 1;
                 silentOsc.connect(silentGain);
-                silentGain.connect(mediaStreamDest);
-                silentOsc.start();
 
-                bgAudio.srcObject = mediaStreamDest.stream;
+                if (!isIOS) {
+                    // Non-iOS: route through <audio> element so the OS treats
+                    // this page as a media player and keeps audio alive in background
+                    mediaStreamDest = ctx.createMediaStreamDestination();
+                    silentGain.connect(mediaStreamDest);
+                    bgAudio.srcObject = mediaStreamDest.stream;
+                } else {
+                    // iOS: skip MediaStreamDestination — its buffer-size mismatch
+                    // with AudioContext causes constant crackling on iPhones
+                    silentGain.connect(ctx.destination);
+                }
+
+                silentOsc.start();
                 bgAudioReady = true;
             } catch(e) {
-                console.warn('[CIESEN] MediaStreamDestination setup failed:', e);
+                console.warn('[CIESEN] Audio setup failed:', e);
             }
         }
 
         function playBgAudio() {
-            if (!bgAudioReady) return;
+            if (!bgAudioReady || isIOS) return;
             bgAudio.play().catch(() => {});
         }
 
         function routeNodeThroughAudioElement(node, ctx) {
-            // Disconnect from ctx.destination if WebChuGL auto-connected it —
-            // we want audio ONLY through the <audio> element
+            if (isIOS) {
+                // iOS: stay on ctx.destination — clean and crackle-free
+                try { node.connect(ctx.destination); } catch(e) {}
+                return;
+            }
+            // Non-iOS: disconnect from ctx.destination and route through
+            // MediaStreamDestination → <audio> element for background persistence
             try { node.disconnect(ctx.destination); } catch(e) {}
-            // Connect to MediaStreamDestination → <audio> element
             if (mediaStreamDest) {
                 try { node.connect(mediaStreamDest); } catch(e) {}
             }
