@@ -13,8 +13,8 @@
 // stereo master bus, everything routes here before hitting dac
 Gain masterL => dac.left;
 Gain masterR => dac.right;
-3 => masterL.gain;
-3 => masterR.gain;
+1.8 => masterL.gain;
+1.8 => masterR.gain;
 
 // each instrument has its own gain bus into the master
 Gain kickOut => masterL;
