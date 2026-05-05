@@ -9,7 +9,7 @@
  * happens on first fetch regardless of deployment layout.
  */
 
-var CACHE_NAME = 'webchugl-v21';
+var CACHE_NAME = 'webchugl-v22';
 
 // ── Install ─────────────────────────────────────────────────────────
 self.addEventListener('install', function() { self.skipWaiting(); });
@@ -74,7 +74,7 @@ self.addEventListener('fetch', function(event) {
                         });
                     }
                 }).catch(function() {});
-                return addCoiHeaders(cached);
+                return addCoiHeaders(cached, r);
             }
 
             // Not cached — fetch, cache, serve
@@ -85,7 +85,7 @@ self.addEventListener('fetch', function(event) {
                         cache.put(r, clone);
                     });
                 }
-                return addCoiHeaders(response);
+                return addCoiHeaders(response, r);
             });
         })
     );
@@ -93,8 +93,15 @@ self.addEventListener('fetch', function(event) {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function addCoiHeaders(response) {
+function addCoiHeaders(response, request) {
     if (response.type === 'opaque' || response.type === 'opaqueredirect' || !response.headers) {
+        return response;
+    }
+
+    // COEP/COOP are only needed by ciesen (WebChuGL needs SharedArrayBuffer).
+    // Other pages (NEPTR, etc.) must NOT get these headers — COEP require-corp
+    // would block the RNBO CDN script which has no Cross-Origin-Resource-Policy.
+    if (!request || !request.url.includes('ciesen')) {
         return response;
     }
 
