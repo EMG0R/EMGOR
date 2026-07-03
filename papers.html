@@ -40,7 +40,7 @@
         <section class="paper" id="paper-1">
             <p class="paper-num">PAPER 1</p>
             <h2>Integrating Neural Amp Modeling Into Csound: A Native, Hot-Swappable Real-Time Opcode</h2>
-            <p class="paper-deadline">Deadline &mdash; June 11 (ICSC 2026)</p>
+            <p class="paper-deadline">Deadline &mdash; July 11 (ICSC 2026)</p>
 
             <p class="field-label">Abstract</p>
             <p class="field-body">Csound's existing nonlinear-processing opcodes are static waveshapers, not learned models &mdash; this paper introduces a native opcode wrapping a neural amp-modeling engine to bring real-time, trained-model guitar and bass amp emulation directly into Csound for the first time. A background-loading thread hot-swaps trained profiles with no audio dropout, letting a performer switch amps live. Beyond the working opcode, the paper documents three non-obvious bugs found while porting stateful neural inference into a block-based DSP host &mdash; an opcode-scheduling thread-flag bug, a shared-instance statefulness bug that silently corrupts stereo channel history, and a loudness-calibration problem across community-sourced captures varying by up to 29&nbsp;dB &mdash; each with a diagnosed root cause and fix. To the best of our knowledge, no prior published Csound integration of neural amp modeling exists.</p>
