@@ -95,6 +95,20 @@ body {
     margin-bottom: clamp(8px, 1.2vh, 14px);
 }
 
+.paper-deadline {
+    display: inline-block;
+    font-size: clamp(0.8rem, 0.6vw + 0.55rem, 0.95rem);
+    letter-spacing: 2px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #FFD9D9;
+    background: rgba(239, 12, 0, 0.14);
+    border: 1px solid rgba(239, 12, 0, 0.45);
+    border-radius: 4px;
+    padding: 4px 10px;
+    margin-bottom: clamp(8px, 1.2vh, 14px);
+}
+
 .field-label {
     font-size: clamp(0.9rem, 0.65vw + 0.65rem, 1.05rem);
     letter-spacing: 2px;

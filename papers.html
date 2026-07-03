@@ -24,13 +24,14 @@
 
         <nav class="toc">
             <ol>
-                <li><a href="#paper-1">Unified System for Streaming Realtime Data</a></li>
-                <li><a href="#paper-2">NeuralGrid</a></li>
-                <li><a href="#paper-3">Open-Pedal</a></li>
-                <li><a href="#paper-4">DemiurgeOS</a></li>
-                <li><a href="#paper-5">NEPTR</a></li>
-                <li><a href="#paper-6">BOUBA</a></li>
-                <li><a href="#paper-7">Workflow of a Modern Digital Luthier</a></li>
+                <li><a href="#paper-1">Integrating Neural Amp Modeling Into Csound</a></li>
+                <li><a href="#paper-2">Unified System for Streaming Realtime Data</a></li>
+                <li><a href="#paper-3">NeuralGrid</a></li>
+                <li><a href="#paper-4">Open-Pedal</a></li>
+                <li><a href="#paper-5">DemiurgeOS</a></li>
+                <li><a href="#paper-6">NEPTR</a></li>
+                <li><a href="#paper-7">BOUBA</a></li>
+                <li><a href="#paper-8">Workflow of a Modern Digital Luthier</a></li>
             </ol>
         </nav>
 
@@ -38,6 +39,31 @@
 
         <section class="paper" id="paper-1">
             <p class="paper-num">PAPER 1</p>
+            <h2>Integrating Neural Amp Modeling Into Csound: A Native, Hot-Swappable Real-Time Opcode</h2>
+            <p class="paper-deadline">Deadline &mdash; June 11 (ICSC 2026)</p>
+
+            <p class="field-label">Abstract</p>
+            <p class="field-body">Csound's existing nonlinear-processing opcodes are static waveshapers, not learned models &mdash; this paper introduces a native opcode wrapping a neural amp-modeling engine to bring real-time, trained-model guitar and bass amp emulation directly into Csound for the first time. A background-loading thread hot-swaps trained profiles with no audio dropout, letting a performer switch amps live. Beyond the working opcode, the paper documents three non-obvious bugs found while porting stateful neural inference into a block-based DSP host &mdash; an opcode-scheduling thread-flag bug, a shared-instance statefulness bug that silently corrupts stereo channel history, and a loudness-calibration problem across community-sourced captures varying by up to 29&nbsp;dB &mdash; each with a diagnosed root cause and fix. To the best of our knowledge, no prior published Csound integration of neural amp modeling exists.</p>
+
+            <p class="field-label">Summary</p>
+            <p class="field-body">NAM already solved the hard part &mdash; training and capturing amp models from real hardware &mdash; nobody had plugged it into Csound as a first-class opcode yet, so I built one for the NEPTR/DemiurgeOS chain. Runs live on the Pi, hot-swaps between calibrated profiles without dropping audio, and along the way I hit three genuinely non-obvious bugs worth documenting on their own: a Csound thread-flag scheduling bug that silently produced zero output, a shared-model-instance bug that pollutes each channel's convolution history in stereo, and a loudness-calibration problem across ToneHunt/Tone3000 captures that vary by up to 29&nbsp;dB in reported loudness. 10 calibrated guitar-amp profiles are converging and working end to end; still want to add a reference-NAM correctness diff and a real latency measurement before this goes out.</p>
+
+            <div class="meta-row">
+                <div class="meta-block">
+                    <p class="field-label">Co-authors</p>
+                    <p class="field-body">Emory Smith (primary), Dr. Boulanger</p>
+                </div>
+                <div class="meta-block">
+                    <p class="field-label">Publication</p>
+                    <p class="field-body">ICSC 2026 (International Csound Conference)</p>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <section class="paper" id="paper-2">
+            <p class="paper-num">PAPER 2</p>
             <h2>Unified System for Streaming Realtime Data</h2>
 
             <p class="field-label">Abstract</p>
@@ -60,8 +86,8 @@
 
         <hr class="divider">
 
-        <section class="paper" id="paper-2">
-            <p class="paper-num">PAPER 2</p>
+        <section class="paper" id="paper-3">
+            <p class="paper-num">PAPER 3</p>
             <h2>NeuralGrid: A Physical Interface for Live Sequencing and Improvisation Using Adaptive Neural Models</h2>
 
             <p class="field-label">Abstract</p>
@@ -84,8 +110,8 @@
 
         <hr class="divider">
 
-        <section class="paper" id="paper-3">
-            <p class="paper-num">PAPER 3</p>
+        <section class="paper" id="paper-4">
+            <p class="paper-num">PAPER 4</p>
             <h2>Open-Pedal: An Accessible System for Modularly Creating Guitar Pedals and Synthesizers</h2>
 
             <p class="field-label">Abstract</p>
@@ -108,8 +134,8 @@
 
         <hr class="divider">
 
-        <section class="paper" id="paper-4">
-            <p class="paper-num">PAPER 4</p>
+        <section class="paper" id="paper-5">
+            <p class="paper-num">PAPER 5</p>
             <h2>DemiurgeOS: A Thoughtfully Designed System for DSP on the Raspberry Pi</h2>
 
             <p class="field-label">Abstract</p>
@@ -132,8 +158,8 @@
 
         <hr class="divider">
 
-        <section class="paper" id="paper-5">
-            <p class="paper-num">PAPER 5</p>
+        <section class="paper" id="paper-6">
+            <p class="paper-num">PAPER 6</p>
             <h2>NEPTR: A System for Performance and Improvisation</h2>
 
             <p class="field-label">Abstract</p>
@@ -156,8 +182,8 @@
 
         <hr class="divider">
 
-        <section class="paper" id="paper-6">
-            <p class="paper-num">PAPER 6</p>
+        <section class="paper" id="paper-7">
+            <p class="paper-num">PAPER 7</p>
             <h2>BOUBA: An Intuitive System for Accessing the Benefits of Music Therapy</h2>
 
             <p class="field-label">Abstract</p>
@@ -180,8 +206,8 @@
 
         <hr class="divider">
 
-        <section class="paper" id="paper-7">
-            <p class="paper-num">PAPER 7</p>
+        <section class="paper" id="paper-8">
+            <p class="paper-num">PAPER 8</p>
             <h2>Workflow of a Modern Digital Luthier: Unifying Embedded Audio and Graphics Computing, Digital Fabrication, and Purposeful Interaction Design</h2>
 
             <p class="field-label">Abstract</p>
