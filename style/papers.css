@@ -119,15 +119,14 @@ body {
 }
 
 .meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: clamp(20px, 4vw, 48px);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: clamp(8px, 1.2vh, 14px) clamp(20px, 4vw, 48px);
     margin-top: clamp(8px, 1.2vh, 14px);
 }
 
 .meta-block {
-    flex: 1 1 220px;
-    min-width: 180px;
+    min-width: 0;
 }
 
 .meta-block .field-label {
@@ -154,9 +153,3 @@ body {
     }
 }
 
-@media (max-width: 480px) {
-    .meta-row {
-        flex-direction: column;
-        gap: 14px;
-    }
-}
