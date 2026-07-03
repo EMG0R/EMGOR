@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="style/base.css">
+    <link rel="stylesheet" href="style/papers.css">
+    <title>2026–2027 Papers — Emory Smith</title>
+</head>
+<body>
+    <div id="background-layer"></div>
+    <canvas id="lavaCanvas"></canvas>
+
+    <a href="index.html" class="home-button">&#8962;</a>
+
+    <div class="papers-container">
+        <header class="papers-header">
+            <h1>2026&ndash;2027 PAPERS</h1>
+            <p class="subtitle">Emory Smith &mdash; CalArts Creative Computing</p>
+        </header>
+
+        <hr class="divider">
+
+        <nav class="toc">
+            <ol>
+                <li><a href="#paper-1">Unified System for Streaming Realtime Data</a></li>
+                <li><a href="#paper-2">NeuralGrid</a></li>
+                <li><a href="#paper-3">Open-Pedal</a></li>
+                <li><a href="#paper-4">DemiurgeOS</a></li>
+                <li><a href="#paper-5">NEPTR</a></li>
+                <li><a href="#paper-6">BOUBA</a></li>
+                <li><a href="#paper-7">Workflow of a Modern Digital Luthier</a></li>
+            </ol>
+        </nav>
+
+        <hr class="divider">
+
+        <section class="paper" id="paper-1">
+            <p class="paper-num">PAPER 1</p>
+            <h2>Unified System for Streaming Realtime Data</h2>
+
+            <p class="field-label">Abstract</p>
+            <p class="field-body">Adapters and converters are widely used when a single USB-C cable would be more efficient. The goal of this paper is to provide a unified system for the streaming of multiple forms of data over common cables like USB-A/B/C and Ethernet, while interfacing with one's machine in a way that allows for maximum accessibility of data being transferred and received. Through an intuitive UI and backend, multiple devices can be networked to stream a high bandwidth of audio, visual and control data at extremely low latency.</p>
+
+            <p class="field-label">Summary</p>
+            <p class="field-body">I get annoyed using audio interfaces and video capture cards when we are all using devices with USB-C &mdash; let's just go USB-C to USB-C and stop doing all this unnecessary ADC and DAC. Frontend allows devices to decide in-network who will send audio or video signals while defining virtual audio interfaces / video signals on the host machine &mdash; the system installs low-level OS drivers so the host sees the stream as a native audio/video device without additional configuration. Graphically visualizes the bandwidth of the cable and which data is taking up how much bandwidth. Implication of implementing the system over the internet, but prioritizing lowest-latency streaming over cables for now.</p>
+
+            <div class="meta-row">
+                <div class="meta-block">
+                    <p class="field-label">Co-authors</p>
+                    <p class="field-body">Emory Smith (primary), Ilai, Jake?, Ajay?</p>
+                </div>
+                <div class="meta-block">
+                    <p class="field-label">Publication</p>
+                    <p class="field-body">NIME, ACM CHI, ACM Multimedia or IEEE RTSS</p>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <section class="paper" id="paper-2">
+            <p class="paper-num">PAPER 2</p>
+            <h2>NeuralGrid: A Physical Interface for Live Sequencing and Improvisation Using Adaptive Neural Models</h2>
+
+            <p class="field-label">Abstract</p>
+            <p class="field-body">NeuralGrid offers a tactile interface rich with sensors to interact with an adaptive neural model. The model is pre-trained and runs locally on a Raspberry Pi, with a secondary layer of real-time adaptation that dynamically adjusts the sequencer and MIDI effects to match the inputs and reactions of the user. The model can feed into internal synthesis or operate purely as a sequencer. Allows for parameter mapping across OSC and MIDI to control complex interfaces and mechanical instruments (the Machine Lab).</p>
+
+            <p class="field-label">Summary</p>
+            <p class="field-body">When I reflect on the state of the Machine Lab system, I think a universal controller is a logical next step &mdash; something that is pre-mapped to the OSC addresses around the room and can manage basic aspects of the server. Allows for instant demos of the entire room to new people by turning NeuralGrid on (which launches the server), then people can just directly interact with it and intuitively play all the instruments around the room. Will allow for new ways to perform and sequence with the room as an instrument rather than a composition platform. So far, I think NeuralGrid should feature 4&times;(4&times;4) NeoTrellis pads for 64 fully assignable LED pads, 4&times; lidar sensors on corners, FSRs below the pads for velocity sensitivity, 4&times; ribbon sensors along the edges, and contact mics inside functioning as sensors. Interface is sized for single or multiple users with a default mode that is extremely intuitive. Using a Raspberry Pi would support only lighter models but at a more accessible access-point for recreation. NeuralGrid provides an ever-shifting sequencer and "MIDI effect" system for artists to access a generative pool of expressive potential with systems like the Machine Lab &mdash; could offer onboard synthesis options too and hopefully integrate with AI timbre transfer models / RAVE-kinda stuff.</p>
+
+            <div class="meta-row">
+                <div class="meta-block">
+                    <p class="field-label">Co-authors</p>
+                    <p class="field-body">Emory Smith (primary), Colton, Ajay?</p>
+                </div>
+                <div class="meta-block">
+                    <p class="field-label">Publication</p>
+                    <p class="field-body">NIME, SMC</p>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <section class="paper" id="paper-3">
+            <p class="paper-num">PAPER 3</p>
+            <h2>Open-Pedal: An Accessible System for Modularly Creating Guitar Pedals and Synthesizers</h2>
+
+            <p class="field-label">Abstract</p>
+            <p class="field-body">The goal of this project is to support disruption of the hold capitalism has on digital instruments and DSP through an open-source, DIY framework for creating powerful instruments and effect processors. The modularity of the system allows people to pay for only the sensors and compute they need while providing a simple path toward making powerful digital interfaces with our thoughtfully designed PCBs, software (Arduino IDE fork with example programs and preinstalled libraries) and interactive guides.</p>
+
+            <p class="field-label">Summary</p>
+            <p class="field-body">With the rising accessibility in coding, engineering and technology overall, this framework contributes to bridging the gap between high-value electronics and the general population. Custom PCBs and 3D-printed components allow for accessible swapping of components and microcontrollers to build custom devices. Custom UI forked from Arduino handles all required libraries and microcontroller profiles to allow users to experiment with an interactive library of DSP to program their devices. Full, comprehensive system that allows for future improvement.</p>
+
+            <div class="meta-row">
+                <div class="meta-block">
+                    <p class="field-label">Co-authors</p>
+                    <p class="field-body">Emory Smith (primary), Nina (MIT), Andrew (hopefully)?, Ajay?, Todd?</p>
+                </div>
+                <div class="meta-block">
+                    <p class="field-label">Publication</p>
+                    <p class="field-body">NIME, TEI, ACM CHI or ICMC</p>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <section class="paper" id="paper-4">
+            <p class="paper-num">PAPER 4</p>
+            <h2>DemiurgeOS: A Thoughtfully Designed System for DSP on the Raspberry Pi</h2>
+
+            <p class="field-label">Abstract</p>
+            <p class="field-body tbd">TBD</p>
+
+            <p class="field-label">Summary</p>
+            <p class="field-body">DemiurgeOS provides a unified interface for managing a Raspberry Pi for DSP. This includes a terminal UI, local web GUI, and local Python UI for high-level control of the system. Luisa and I both learned a lot from the struggles people had with the Pis in her class &mdash; this is an integrated solution for many common DSP Pi situations which would have increased that class' productivity by at least a factor of 2. These manage things like the <strong>sync layer</strong> &mdash; which allows for modular patching between audio interfaces and audio code &mdash; a <strong>MIDI pool</strong> for managing MIDI I/O, OSC I/O, and clock/CV signals between different programs and physical interfaces, and things like intentional power throttling, presets, behavior/auto-run programs on boot, all controlled through a paired bash GUI, Python GUI, or local web GUI. Inspired by Satellite CCRMA and RNBO. Comes preinstalled with every major audio language.</p>
+
+            <div class="meta-row">
+                <div class="meta-block">
+                    <p class="field-label">Co-authors</p>
+                    <p class="field-body">Emory Smith (primary), Primrose (Stanford), Ajay?, Ge?</p>
+                </div>
+                <div class="meta-block">
+                    <p class="field-label">Publication</p>
+                    <p class="field-body">Linux Audio Developer Conference (definitely)</p>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <section class="paper" id="paper-5">
+            <p class="paper-num">PAPER 5</p>
+            <h2>NEPTR: A System for Performance and Improvisation</h2>
+
+            <p class="field-label">Abstract</p>
+            <p class="field-body tbd">TBD</p>
+
+            <p class="field-label">Summary</p>
+            <p class="field-body">NEPTR is the brain at the center of my performance system, linking together audio interfaces, DIY controllers and hyper-instruments with internal DSP and GUI. Replaces the laptop, synthesizer and pedalboard onstage. Dense sensors and controls onboard with exposed USB ports (&times;3), Ethernet port and micro-HDMI port. I perform with it using only DIY controllers and DIY hyper-instruments. Included in the NEPTR performance system: hyper-trumpet, hyper-guitar, hemi speaker(s), WE remote, DIY audio interface. I plan on performing with this at NIME and ICMC this year, hopefully presenting it as well at NIME or ICMC.</p>
+
+            <div class="meta-row">
+                <div class="meta-block">
+                    <p class="field-label">Co-authors</p>
+                    <p class="field-body">Emory Smith (primary), Dr. Boulanger?, Ajay?</p>
+                </div>
+                <div class="meta-block">
+                    <p class="field-label">Publication</p>
+                    <p class="field-body">NIME, ICMC</p>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <section class="paper" id="paper-6">
+            <p class="paper-num">PAPER 6</p>
+            <h2>BOUBA: An Intuitive System for Accessing the Benefits of Music Therapy</h2>
+
+            <p class="field-label">Abstract</p>
+            <p class="field-body">BOUBA is a system providing tactile interaction with therapeutic generative synthesis. Designed for the non-musician seeking a psychologically beneficial relationship with sound, BOUBA targets four pillars of human experience: sleep, mood, productivity, and autonomic regulation. At reproduction price, its physical controls and self-contained state foster an intimate and unique relationship with the user, grounded in empirical research linking ambient consonance, rhythmic entrainment, and generative soundscapes to measurable physiological and psychological benefit.</p>
+
+            <p class="field-label">Summary</p>
+            <p class="field-body">BOUBA runs on a Teensy 4.0 (subject to change) with no external connections besides power, with a joystick as primary control for selecting and interpolating between generative presets. One internal speaker sits onboard, with battery for standalone / portable use while a physical aux output allows for connection to high-fidelity speaker systems. An open-source web version mirrors the physical system, with both unified under ChucK for exact parity between online and physical. The research baseline draws from all four pillars: white noise and sine-based music for sleep, natural soundscapes and consonant harmonics for mood, stochastic resonance and rhythmic entrainment for productivity, and ambient consonance for autonomic regulation.</p>
+
+            <div class="meta-row">
+                <div class="meta-block">
+                    <p class="field-label">Co-authors</p>
+                    <p class="field-body">Emory Smith (primary), Yahezkul (Berklee Music Therapy)?, Ajay?</p>
+                </div>
+                <div class="meta-block">
+                    <p class="field-label">Publication</p>
+                    <p class="field-body">AMTA, music therapy targets</p>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <section class="paper" id="paper-7">
+            <p class="paper-num">PAPER 7</p>
+            <h2>Workflow of a Modern Digital Luthier: Unifying Embedded Audio and Graphics Computing, Digital Fabrication, and Purposeful Interaction Design</h2>
+
+            <p class="field-label">Abstract</p>
+            <p class="field-body">The parallel maturation of single-board computers, microcontrollers, audio-visual programming languages, fabrication techniques, and access to information has created an environment where form emerges as a coherent system rather than in sequential layers. This convergence enables individuals to rapidly develop self-contained interfaces where gesture, sound, graphics, and physical structure are implemented as direct extensions of artistic intention. This paper presents a few case studies demonstrating this methodology. These examples illustrate how story-driven design across integrated domains produces coherent interactive identity and indicate where this practice is heading as these tools continue to mature.</p>
+
+            <p class="field-label">Summary</p>
+            <p class="field-body">Because of the conceptual nature of my previous paper, this stands better as a master's thesis &mdash; can write it how I want without having to adhere to NIME or ICMC social standards.</p>
+
+            <div class="meta-row">
+                <div class="meta-block">
+                    <p class="field-label">Co-authors</p>
+                    <p class="field-body">Emory Smith (primary), Ajay?</p>
+                </div>
+                <div class="meta-block">
+                    <p class="field-label">Publication</p>
+                    <p class="field-body">CalArts Thesis</p>
+                </div>
+            </div>
+        </section>
+
+        <footer class="papers-footer">
+            <a href="#top" class="back-to-top">&uarr; back to top</a>
+        </footer>
+    </div>
+
+    <canvas id="spaceCanvas"></canvas>
+
+    <script src="js/lava.js"></script>
+    <script src="js/space.js"></script>
+</body>
+</html>
