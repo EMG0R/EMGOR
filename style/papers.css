@@ -3,10 +3,14 @@ body {
     overflow-x: hidden;
 }
 
+.black-hole-overlay {
+    display: none !important;
+}
+
 .papers-container {
     width: min(90vw, 780px);
     margin: 0 auto;
-    padding: clamp(56px, 10vh, 96px) 0 64px;
+    padding: clamp(32px, 5vh, 56px) 0 40px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -15,7 +19,7 @@ body {
 
 .papers-header {
     text-align: center;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .papers-header h1 {
@@ -27,9 +31,9 @@ body {
 
 .subtitle {
     font-size: clamp(0.85rem, 1.2vw + 0.4rem, 1.15rem);
-    color: var(--lavender);
-    opacity: 0.85;
-    margin-top: 8px;
+    color: #F3E8FF;
+    opacity: 1;
+    margin-top: 4px;
 }
 
 .divider {
@@ -38,7 +42,7 @@ body {
     border: none;
     background: linear-gradient(90deg, transparent, var(--purple-bright) 50%, transparent);
     opacity: 0.6;
-    margin: clamp(20px, 4vh, 36px) 0;
+    margin: clamp(14px, 2vh, 22px) 0;
 }
 
 .toc {
@@ -50,13 +54,14 @@ body {
     padding-left: clamp(1.1rem, 3vw, 1.6rem);
     display: flex;
     flex-direction: column;
-    gap: clamp(6px, 1vh, 10px);
+    gap: clamp(4px, 0.6vh, 8px);
 }
 
 .toc a {
-    color: var(--pale);
+    color: #F3E8FF;
     text-decoration: none;
-    font-size: clamp(0.85rem, 1vw + 0.5rem, 1.05rem);
+    font-size: clamp(0.95rem, 1.1vw + 0.55rem, 1.15rem);
+    font-weight: 600;
     border-bottom: 1px solid transparent;
     transition: color 0.2s ease, border-color 0.2s ease;
 }
@@ -74,36 +79,38 @@ body {
 }
 
 .paper-num {
-    font-size: clamp(0.7rem, 0.6vw + 0.5rem, 0.85rem);
+    font-size: clamp(0.85rem, 0.7vw + 0.6rem, 1rem);
     letter-spacing: 3px;
+    font-weight: 700;
     color: var(--violet);
-    opacity: 0.8;
+    opacity: 1;
     margin-bottom: 6px;
 }
 
 .paper h2 {
     font-size: clamp(1.15rem, 1.6vw + 0.7rem, 1.7rem);
     line-height: 1.3;
-    color: var(--pale);
+    color: #F9F0FF;
     text-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
-    margin-bottom: clamp(14px, 2.5vh, 22px);
+    margin-bottom: clamp(8px, 1.2vh, 14px);
 }
 
 .field-label {
-    font-size: clamp(0.7rem, 0.5vw + 0.55rem, 0.8rem);
+    font-size: clamp(0.9rem, 0.65vw + 0.65rem, 1.05rem);
     letter-spacing: 2px;
+    font-weight: 700;
     text-transform: uppercase;
     color: var(--cyan);
-    opacity: 0.75;
-    margin-top: clamp(14px, 2.5vh, 20px);
-    margin-bottom: 6px;
+    opacity: 1;
+    margin-top: clamp(8px, 1.2vh, 14px);
+    margin-bottom: 4px;
 }
 
 .field-body {
     font-size: clamp(0.85rem, 0.5vw + 0.65rem, 1rem);
     line-height: 1.65;
-    color: var(--pale);
-    opacity: 0.92;
+    color: #F3E8FF;
+    opacity: 1;
 }
 
 .field-body.tbd {
@@ -115,7 +122,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: clamp(20px, 4vw, 48px);
-    margin-top: clamp(14px, 2.5vh, 20px);
+    margin-top: clamp(8px, 1.2vh, 14px);
 }
 
 .meta-block {
@@ -128,7 +135,7 @@ body {
 }
 
 .papers-footer {
-    margin-top: clamp(24px, 5vh, 48px);
+    margin-top: clamp(16px, 3vh, 32px);
 }
 
 .back-to-top {
