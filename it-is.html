@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en" style="background-color:#0D0221;">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0D0221">
+    <title>EMGOR — It Is</title>
+    <meta property="og:title" content="EMGOR — It Is">
+    <meta property="og:description" content="Stream &quot;It Is&quot; on your platform of choice.">
+    <meta property="og:image" content="downloads/covers/it-is.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <style>
+        :root {
+            --void: #0D0221;
+            --nebula-dark: #0F0A3C;
+            --space-blue: #150E56;
+            --amethyst: #3D1D8E;
+            --purple-bright: #7B2FBE;
+            --violet: #A855F7;
+            --lavender: #C084FC;
+            --pale: #E0AAFF;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            min-height: 100%;
+            background-color: var(--void);
+            color: var(--pale);
+            font-family: 'Courier New', Courier, monospace;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100dvh;
+            padding: max(24px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom));
+        }
+
+        /* waving background (noise only — no black hole) */
+        #wave {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            z-index: -1;
+            display: block;
+        }
+        #wave-fallback {
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+            background:
+                radial-gradient(120% 90% at 50% 0%, #1E0F5C 0%, #150E56 35%, #0D0221 75%);
+        }
+
+        .card {
+            width: 100%;
+            max-width: 420px;
+            margin: auto 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .cover {
+            width: 220px;
+            height: 220px;
+            max-width: 62vw;
+            max-height: 62vw;
+            border-radius: 18px;
+            object-fit: cover;
+            box-shadow:
+                0 0 0 1px rgba(168, 85, 247, 0.30),
+                0 18px 50px -12px rgba(0, 0, 0, 0.85),
+                0 0 60px -8px rgba(123, 47, 190, 0.55);
+        }
+
+        .meta { text-align: center; margin: 20px 0 6px; }
+
+        .artist {
+            font-size: 0.72rem;
+            letter-spacing: 4px;
+            font-weight: 700;
+            color: var(--lavender);
+            text-transform: uppercase;
+            text-shadow: 0 0 14px rgba(168, 85, 247, 0.5);
+        }
+
+        .title {
+            font-size: 1.9rem;
+            font-weight: 700;
+            margin-top: 6px;
+            color: #F3E4FF;
+            text-shadow: 0 0 18px rgba(168, 85, 247, 0.55), 0 2px 6px rgba(0,0,0,0.8);
+        }
+
+        .prompt {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(224, 170, 255, 0.55);
+            margin: 14px 0 18px;
+        }
+
+        .services {
+            width: 100%;
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .service {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            width: 100%;
+            padding: 11px 14px;
+            text-decoration: none;
+            color: var(--pale);
+            background: rgba(30, 15, 92, 0.42);
+            border: 1px solid rgba(168, 85, 247, 0.22);
+            border-radius: 14px;
+            backdrop-filter: blur(9px);
+            -webkit-backdrop-filter: blur(9px);
+            transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+            animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .service .ico {
+            flex: 0 0 34px;
+            width: 34px;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--pale);
+        }
+        .service .ico svg { width: 30px; height: 30px; display: block; }
+
+        .service .name {
+            flex: 1 1 auto;
+            text-align: left;
+            font-size: 0.98rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .service .cta {
+            flex: 0 0 auto;
+            font-size: 0.62rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 7px 15px;
+            border-radius: 999px;
+            color: #F3E4FF;
+            background: rgba(123, 47, 190, 0.55);
+            border: 1px solid rgba(192, 132, 252, 0.4);
+            transition: background 0.18s ease;
+        }
+
+        @media (hover: hover) {
+            .service:hover {
+                transform: translateY(-2px);
+                background: rgba(61, 29, 142, 0.6);
+                border-color: rgba(192, 132, 252, 0.55);
+                box-shadow: 0 10px 30px -10px rgba(123, 47, 190, 0.7);
+            }
+            .service:hover .cta { background: var(--purple-bright); }
+        }
+        .service:active { transform: translateY(0) scale(0.99); }
+
+        .footer {
+            margin-top: 26px;
+            font-size: 0.6rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(224, 170, 255, 0.4);
+        }
+        .footer a { color: rgba(224, 170, 255, 0.6); text-decoration: none; }
+        .footer a:hover { color: var(--pale); }
+
+        @media (max-width: 420px) {
+            .title { font-size: 1.7rem; }
+            .service { padding: 10px 12px; gap: 12px; }
+            .service .name { font-size: 0.92rem; }
+        }
+    </style>
+</head>
+<body>
+    <div id="wave-fallback"></div>
+    <canvas id="wave"></canvas>
+
+    <main class="card">
+        <img class="cover" src="downloads/covers/it-is.jpg" alt="It Is — album cover" width="640" height="640">
+
+        <div class="meta">
+            <div class="artist">EMGOR</div>
+            <h1 class="title">It Is</h1>
+        </div>
+
+        <p class="prompt">Choose your platform</p>
+
+        <ul class="services" id="services"></ul>
+
+        <p class="footer">&copy; EMGOR &middot; <a href="index.html">it-is-emgor</a></p>
+    </main>
+
+    <script>
+    /* ---- service links (destinations decoded from the smart link) ---- */
+    const SERVICES = [
+        { name: 'Spotify',       url: 'https://open.spotify.com/album/0oLQnAK0ceBWjXphGdJwb1', icon: 'spotify' },
+        { name: 'Apple Music',   url: 'https://geo.music.apple.com/au/album/it-is-ep/6787853777?app=music&ls=1&ct=FFM_8f5fa828ed63d1e7c59889bb78d9a32c&at=1001lwQy', icon: 'apple' },
+        { name: 'YouTube Music', url: 'https://music.youtube.com/playlist?list=OLAK5uy_mMSkVTrYxtP3jM-32JqlbE0yFg-Ff7VFQ', icon: 'ytmusic' },
+        { name: 'YouTube',       url: 'https://www.youtube.com/playlist?list=OLAK5uy_mMSkVTrYxtP3jM-32JqlbE0yFg-Ff7VFQ', icon: 'youtube' },
+        { name: 'Amazon Music',  url: 'https://music.amazon.com/albums/B0H7RB1GST?ref=dm_ff_amazonmusic_3p&tag=featurefm-20', icon: 'amazon' },
+        { name: 'iTunes',        url: 'https://geo.itunes.apple.co/au/album/it-is-ep/6787853777?app=itunes&ls=1&ct=FFM_6074c3253f2b540a7516d3ec6519deea&at=1001lwQy', icon: 'apple', cta: 'Download' },
+        { name: 'Deezer',        url: 'https://www.deezer.com/album/1022084741', icon: 'deezer' },
+        { name: 'Tidal',         url: 'https://tidal.com/album/540382729', icon: 'tidal' },
+        { name: 'Pandora',       url: 'https://pandora.app.link/?$desktop_url=https%3A%2F%2Fwww.pandora.com%2Fartist%2Femgor%2Fit-is%2FALmZ9vb62kr6cZc&$ios_deeplink_path=pandorav4%3A%2F%2Fbackstage%2Falbum%3Ftoken%3DAL%3A67978368&$android_deeplink_path=pandorav4%3A%2F%2Fbackstage%2Falbum%3Ftoken%3DAL%3A67978368&~channel=Partner%20Catalog%20Search%20API', icon: 'pandora' },
+        { name: 'iHeartRadio',   url: 'https://www.iheart.com/artist/342399542/albums/414599627/?sc=feature_fm&ffm=FFM_82f2a9a0d160bdf36061b2be98910ef5', icon: 'iheart', cta: 'Go To' },
+    ];
+
+    const ICONS = {
+        spotify: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.59 14.44a.75.75 0 0 1-1.03.25c-2.82-1.72-6.37-2.11-10.55-1.16a.75.75 0 1 1-.33-1.46c4.57-1.04 8.5-.59 11.66 1.34.35.22.46.68.25 1.03zm1.22-2.72a.94.94 0 0 1-1.29.31c-3.23-1.98-8.15-2.56-11.97-1.4a.94.94 0 0 1-.55-1.8c4.37-1.33 9.79-.68 13.5 1.6.44.27.58.85.31 1.29zm.1-2.83C14.13 8.6 7.94 8.39 4.44 9.45a1.12 1.12 0 1 1-.65-2.15c4.02-1.22 10.86-.98 15.14 1.57a1.12 1.12 0 1 1-1.15 1.93z"/></svg>',
+        apple: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.36 12.6c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.83-.81-3.01-.79-1.55.02-2.98.9-3.78 2.29-1.61 2.8-.41 6.94 1.16 9.21.77 1.11 1.68 2.36 2.88 2.31 1.16-.05 1.6-.75 3-.75 1.39 0 1.79.75 3.01.72 1.24-.02 2.03-1.13 2.79-2.25.88-1.29 1.24-2.54 1.26-2.6-.03-.01-2.41-.93-2.43-3.7zM14.13 5.3c.64-.78 1.07-1.85.95-2.93-.92.04-2.03.61-2.69 1.38-.59.68-1.11 1.78-.97 2.83 1.03.08 2.07-.52 2.71-1.28z"/></svg>',
+        ytmusic: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 16.2a6.2 6.2 0 1 1 0-12.4 6.2 6.2 0 0 1 0 12.4zM9.75 8.9v6.2L15.2 12 9.75 8.9z"/></svg>',
+        youtube: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12.03c0-1.7-.14-2.94-.32-3.83-.2-.99-.85-1.66-1.8-1.9C19.1 6 12 6 12 6s-7.1 0-8.88.3c-.95.24-1.6.91-1.8 1.9C1.14 9.09 1 10.33 1 12.03c0 1.7.14 2.94.32 3.83.2.99.85 1.66 1.8 1.9C4.9 18 12 18 12 18s7.1 0 8.88-.24c.95-.24 1.6-.91 1.8-1.9.18-.89.32-2.13.32-3.83zM9.75 15V9l5.5 3-5.5 3z"/></svg>',
+        amazon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 3a5.5 5.5 0 0 0-5.5 5.5v7a3 3 0 1 1-1.6-2.65V8.5a7.1 7.1 0 1 1 14.2 0v.5h-1.6v-.5A5.5 5.5 0 0 0 13.5 3zM19 18.7c-2 1.5-4.9 2.3-7.4 2.3-3.5 0-6.6-1.3-9-3.45-.19-.17-.02-.4.2-.27 2.56 1.49 5.73 2.39 9 2.39 2.2 0 4.62-.46 6.85-1.4.33-.14.61.22.35.43zm.65 1.2c-.24.19-.47.09-.36-.18.35-.85.63-1.9.5-2.06-.13-.16-1.13-.2-1.72-.13-.18.02-.21-.13-.05-.24.79-.55 2.08-.39 2.23-.21.15.19-.04 1.5-.6 2.82z"/></svg>',
+        deezer: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 6h4v2.4h-4V6zM17 9.6h4V12h-4V9.6zM12 9.6h4V12h-4V9.6zM17 13.2h4v2.4h-4v-2.4zM12 13.2h4v2.4h-4v-2.4zM7 13.2h4v2.4H7v-2.4zM2 13.2h4v2.4H2v-2.4zM17 16.8h4v2.4h-4v-2.4zM12 16.8h4v2.4h-4v-2.4zM7 16.8h4v2.4H7v-2.4zM2 16.8h4v2.4H2v-2.4z"/></svg>',
+        tidal: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 6.67 4.67 10 8 13.33 11.33 10 8 6.67zM16 6.67 12.67 10 16 13.33 19.33 10 16 6.67zM12 10.67 8.67 14 12 17.33 15.33 14 12 10.67z"/></svg>',
+        pandora: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h7.5a5.5 5.5 0 0 1 0 11H9v7H5V3zm4 3.4v4.2h3.2a2.1 2.1 0 0 0 0-4.2H9z"/></svg>',
+        iheart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.7-10-9.2C.3 8.6 1.7 5 5 5c2 0 3.3 1.1 4 2.3C9.7 6.1 11 5 13 5c3.3 0 4.7 3.6 3 6.8C20.5 16.3 12 21 12 21z"/></svg>',
+    };
+
+    const list = document.getElementById('services');
+    SERVICES.forEach((s, i) => {
+        const a = document.createElement('a');
+        a.className = 'service';
+        a.href = s.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.style.animationDelay = (0.05 + i * 0.045) + 's';
+        a.innerHTML =
+            '<span class="ico">' + (ICONS[s.icon] || '') + '</span>' +
+            '<span class="name">' + s.name + '</span>' +
+            '<span class="cta">' + (s.cta || 'Play') + '</span>';
+        list.appendChild(a);
+    });
+
+    /* ---- waving webgl background (noise field, no black hole) ---- */
+    (function () {
+        const canvas = document.getElementById('wave');
+        const gl = canvas.getContext('webgl');
+        if (!gl) return; // fallback gradient stays
+
+        function resize() {
+            canvas.width = Math.floor(window.innerWidth * (window.devicePixelRatio > 1 ? 1 : 1));
+            canvas.height = Math.floor(window.innerHeight * 1);
+        }
+        resize();
+
+        const vs = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.0,1.0); }`;
+        const fs = `
+        precision mediump float;
+        uniform float u_time;
+        uniform vec2 u_res;
+
+        float random(vec2 st){ return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123); }
+        float noise(vec2 st){
+            vec2 i = floor(st); vec2 f = fract(st);
+            float a = random(i);
+            float b = random(i + vec2(1.0,0.0));
+            float c = random(i + vec2(0.0,1.0));
+            float d = random(i + vec2(1.0,1.0));
+            vec2 u = f*f*(3.0-2.0*f);
+            return mix(a,b,u.x) + (c-a)*u.y*(1.0-u.x) + (d-b)*u.x*u.y;
+        }
+        float fbm(vec2 st){
+            float v = 0.0; float amp = 0.5;
+            for(int k=0;k<5;k++){ v += amp*noise(st); st *= 2.0; amp *= 0.5; }
+            return v;
+        }
+
+        void main(){
+            vec2 st = gl_FragCoord.xy / u_res.xy;
+            float aspect = u_res.x / u_res.y;
+            st.x *= aspect;
+
+            vec2 q = st * 2.4;
+            // domain-warped flowing / waving field
+            vec2 warp = vec2(
+                fbm(q + vec2(0.0, u_time * 0.10)),
+                fbm(q + vec2(5.2, u_time * 0.13 + 1.7))
+            );
+            float n = fbm(q + warp * 1.8 + vec2(sin(u_time*0.15), cos(u_time*0.12)));
+
+            vec3 base  = vec3(0.051, 0.008, 0.129);   // #0D0221 void
+            vec3 mid   = vec3(0.082, 0.055, 0.337);   // deep indigo
+            vec3 glow  = vec3(0.28, 0.13, 0.60);       // amethyst/violet
+            vec3 color = mix(base, mid, smoothstep(0.15, 0.75, n));
+            color = mix(color, glow, pow(smoothstep(0.55, 1.0, n), 1.6) * 0.7);
+
+            // soft top vignette so the card reads clearly
+            float vig = smoothstep(1.15, 0.15, length((st/vec2(aspect,1.0)) - vec2(0.5, 0.42)));
+            color *= 0.72 + 0.28 * vig;
+
+            gl_FragColor = vec4(color, 1.0);
+        }`;
+
+        function sh(type, src){
+            const s = gl.createShader(type);
+            gl.shaderSource(s, src); gl.compileShader(s);
+            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+            return s;
+        }
+        const prog = gl.createProgram();
+        gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs));
+        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+        gl.linkProgram(prog);
+        gl.useProgram(prog);
+
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+        const loc = gl.getAttribLocation(prog, 'p');
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+        const uTime = gl.getUniformLocation(prog, 'u_time');
+        const uRes  = gl.getUniformLocation(prog, 'u_res');
+
+        window.addEventListener('resize', resize);
+
+        function frame(t){
+            t *= 0.001;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.uniform1f(uTime, t);
+            gl.uniform2f(uRes, canvas.width, canvas.height);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+    })();
+    </script>
+</body>
+</html>
