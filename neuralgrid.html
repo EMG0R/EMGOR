@@ -496,7 +496,7 @@
         <p class="field-body center">The interface is defined by <strong>dimensional classes</strong>, not hardware. Any rig declaring the same sensor manifest &mdash; same classes, same arrangement &mdash; is compatible with the same trained model.</p>
 
         <figure>
-            <svg viewBox="0 0 520 560" xmlns="http://www.w3.org/2000/svg" aria-label="G1 interaction rig top-down diagram">
+            <svg viewBox="0 0 730 560" xmlns="http://www.w3.org/2000/svg" aria-label="G1 interaction rig top-down diagram, with external control surface">
                 <defs>
                     <pattern id="padgrid" width="16" height="16" patternUnits="userSpaceOnUse">
                         <path d="M16 0H0V16" fill="none" stroke="#E0AAFF" stroke-width="0.6" opacity="0.6"/>
@@ -549,6 +549,26 @@
                 <text x="450" y="482" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
 
                 <text x="250" y="545" text-anchor="middle" fill="#C084FC" font-size="9">lidar &times;4 (corners) &mdash; anchored-3D: which lidar = known (x, y); reading = height z</text>
+
+                <!-- external control surface: separate USB device, never on the playing surface -->
+                <g>
+                    <rect x="500" y="200" width="200" height="190" rx="10" fill="none" stroke="#E0AAFF" stroke-width="1.2" stroke-dasharray="4,4" opacity="0.85"/>
+                    <text x="600" y="222" text-anchor="middle" fill="#E0AAFF" font-size="9" letter-spacing="1">EXTERNAL CONTROL</text>
+                    <text x="600" y="234" text-anchor="middle" fill="#E0AAFF" font-size="9" letter-spacing="1">SURFACE</text>
+                    <text x="600" y="248" text-anchor="middle" fill="#C084FC" font-size="8" font-style="italic">(rate / snapshots)</text>
+
+                    <path d="M572,290 A28,28 0 0 1 628,290" fill="none" stroke="#7B2FBE" stroke-width="1.6"/>
+                    <line x1="600" y1="290" x2="585" y2="270" stroke="#00F0FF" stroke-width="1.6"/>
+                    <circle cx="600" cy="290" r="2.5" fill="#00F0FF"/>
+                    <text x="600" y="306" text-anchor="middle" fill="#C084FC" font-size="7" font-style="italic">rate knob</text>
+
+                    <rect x="530" y="330" width="30" height="22" rx="3" fill="rgba(61,29,142,0.35)" stroke="#C084FC" stroke-width="1"/>
+                    <rect x="568" y="330" width="30" height="22" rx="3" fill="rgba(61,29,142,0.35)" stroke="#C084FC" stroke-width="1"/>
+                    <rect x="606" y="330" width="30" height="22" rx="3" fill="none" stroke="#C084FC" stroke-width="1" stroke-dasharray="2,2"/>
+                    <text x="600" y="368" text-anchor="middle" fill="#C084FC" font-size="7" font-style="italic">save / recall / morph</text>
+
+                    <text x="600" y="382" text-anchor="middle" fill="#E0AAFF" font-size="7" font-style="italic" opacity="0.65">separate USB device &mdash; not on the board</text>
+                </g>
             </svg>
             <figcaption>+ time &mdash; every channel samples continuously: 3 spatial classes plus 1 temporal.</figcaption>
         </figure>
@@ -559,6 +579,8 @@
             <div class="legend-item"><span class="swatch" style="background:#E0AAFF"></span>2D-lattice &mdash; discrete grid</div>
             <div class="legend-item"><span class="swatch" style="background:#C084FC"></span>anchored-3D &mdash; known (x,y), read z</div>
         </div>
+
+        <p class="callout">control-surface split: the playing surface is <strong>only</strong> for playing &mdash; no reserved softpot, all four are playable. Meta-controls (adaptation-rate, snapshot save / recall / morph) live on a separate external USB control device, never on the instrument surface.</p>
     </section>
 
     <hr class="divider">
@@ -822,6 +844,64 @@
             </svg>
             <figcaption>play &rarr; predict &rarr; collapse &rarr; log &rarr; adapt (on the downbeat) &rarr; play. the rate dial throttles how fast <em>adapt</em> moves; the shelf freezes states out of the loop entirely.</figcaption>
         </figure>
+    </section>
+
+    <div class="g-connector">
+        <div class="g-connector-arrow">&darr;</div>
+        <p class="g-connector-text">nothing above proceeds on vibes &mdash; each stage gates the next.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ================= TRAINING PYRAMID ================= -->
+    <section id="training-pyramid">
+        <p class="sec-num">Training Pyramid</p>
+        <h2>Seven Stages, Seven Gates</h2>
+        <p class="sec-sub">an ascending staircase &mdash; each stage has a hard gate before the next</p>
+
+        <figure class="wide">
+            <svg viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg" aria-label="Training pyramid: seven staircase stages with gates">
+                <g id="pyramid-diagram"></g>
+            </svg>
+        </figure>
+
+        <div class="decision-table" style="margin-top:10px;">
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">STAGE 0 &middot; FOUNDATION</div>
+                <div class="decision-desc">logging + sensor manifest + schema <strong>frozen</strong>. <strong>Gate:</strong> a session replays bit-perfect.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#A855F7;">
+                <div class="decision-name">STAGE 1 &middot; ARCHETYPES</div>
+                <div class="decision-desc">build the suite. <strong>Gate:</strong> every DSP axis swept by &ge;1 archetype, and each is genuinely fun to play &mdash; &ldquo;you&rsquo;d play it for its own sake.&rdquo;</div>
+            </div>
+            <div class="decision-row" style="--row-color:#C084FC;">
+                <div class="decision-name">STAGE 2 &middot; CORPUS</div>
+                <div class="decision-desc">the player plays, a lot; everything logged raw. <strong>Gate:</strong> coverage numbers &mdash; hours target, all archetypes, all sensors, tempo range.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#E0AAFF;">
+                <div class="decision-name">STAGE 3 &middot; PREDICTOR v1</div>
+                <div class="decision-desc">overnight training. <strong>Gate:</strong> beats dumb baselines by a set margin on held-out sessions; inferred tempo within tolerance of the player's actual timing.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">STAGE 4 &middot; SHADOW</div>
+                <div class="decision-desc">runs live, renders the fan, changes <strong>nothing</strong>. <strong>Gate:</strong> latency holds, and predictions feel sane to the player &mdash; explicitly a subjective human gate.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#A855F7;">
+                <div class="decision-name">STAGE 5 &middot; INFLUENCE</div>
+                <div class="decision-desc">downbeat swaps live, rate control active. <strong>Gate:</strong> a full session, nothing feels broken, freeze always works.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#C084FC;">
+                <div class="decision-name">STAGE 6 &middot; TARGETS</div>
+                <div class="decision-desc">artistic map &rarr; NEPTR OSC / Machine Orchestra MIDI. <strong>Gate:</strong> per-target sign-off.</div>
+            </div>
+        </div>
+
+        <div class="lift-principle" style="border-color: rgba(0,240,255,0.4); box-shadow: 0 0 24px rgba(0,240,255,0.12); margin-top:22px;">
+            <p><strong>RAW LOGS NEVER EXPIRE.</strong> Every future model retrains from the same corpus; only a sensor or schema change could invalidate it &mdash; hence Stage 0 freezes first.</p>
+        </div>
+        <div class="lift-principle" style="margin-top:14px;">
+            <p><strong>THE PINNED 12D SPACE IS THE FIREWALL.</strong> The predictor and the artistic map meet only through it; retraining one never cascades into the other.</p>
+        </div>
     </section>
 
     <footer class="ng-footer">neuralGrid &middot; dimensional architecture &middot; this page tracks the locked architecture as it evolves</footer>
@@ -1177,6 +1257,56 @@
         el('text', { x: (mx1 + mx2) / 2, y: y - 30, 'text-anchor': 'middle', fill: '#00F0FF', 'font-size': 8, 'font-style': 'italic' }, g).textContent = 'morph';
 
         el('text', { x: startX + (4 * slotW + 3 * gap) / 2, y: y + slotH + 22, 'text-anchor': 'middle', fill: '#C084FC', 'font-size': 8, 'font-style': 'italic', opacity: 0.75 }, g).textContent = 'frozen out of the loop — recalled or morphed on demand';
+    })();
+
+    /* ---------------- Training pyramid: seven staircase stages ---------------- */
+    (function buildPyramid() {
+        var g = document.getElementById('pyramid-diagram');
+        if (!g) return;
+
+        var defs = el('defs', {}, g.ownerSVGElement);
+        var marker = el('marker', { id: 'arrowPyr', markerWidth: 8, markerHeight: 8, refX: 6, refY: 3, orient: 'auto' }, defs);
+        el('path', { d: 'M0,0 L6,3 L0,6 Z', fill: '#E0AAFF', opacity: 0.7 }, marker);
+
+        var stages = [
+            ['STAGE 0', 'FOUNDATION'],
+            ['STAGE 1', 'ARCHETYPES'],
+            ['STAGE 2', 'CORPUS'],
+            ['STAGE 3', 'PREDICTOR v1'],
+            ['STAGE 4', 'SHADOW'],
+            ['STAGE 5', 'INFLUENCE'],
+            ['STAGE 6', 'TARGETS']
+        ];
+        var colors = ['#00F0FF', '#A855F7', '#C084FC', '#E0AAFF', '#00F0FF', '#A855F7', '#C084FC'];
+
+        var stepW = 108, gap = 16, boxH = 52, baseY = 430, riseUnit = 42;
+        var positions = stages.map(function (s, i) {
+            return { x: 24 + i * (stepW + gap), yTop: baseY - boxH - i * riseUnit };
+        });
+
+        // ground line
+        var lastX = positions[positions.length - 1].x + stepW;
+        el('line', { x1: 14, y1: baseY, x2: lastX + 10, y2: baseY, stroke: '#7B2FBE', 'stroke-width': 1, opacity: 0.4 }, g);
+
+        stages.forEach(function (s, i) {
+            var p = positions[i];
+            var color = colors[i];
+
+            // gate marker + connector, before every stage after the first
+            if (i > 0) {
+                var prev = positions[i - 1];
+                var gx = (prev.x + stepW + p.x) / 2;
+                var gy = (prev.yTop + (p.yTop + boxH)) / 2;
+                el('path', { d: 'M' + (prev.x + stepW) + ',' + prev.yTop + ' L' + gx + ',' + gy + ' L' + p.x + ',' + (p.yTop + boxH), fill: 'none', stroke: '#E0AAFF', 'stroke-width': 1, 'stroke-dasharray': '3,3', opacity: 0.6, 'marker-end': 'url(#arrowPyr)' }, g);
+                el('path', { d: 'M' + (gx - 7) + ',' + gy + ' L' + gx + ',' + (gy - 7) + ' L' + (gx + 7) + ',' + gy + ' L' + gx + ',' + (gy + 7) + ' Z', fill: '#150E56', stroke: '#E0AAFF', 'stroke-width': 1.2 }, g);
+            }
+
+            el('rect', { x: p.x, y: p.yTop, width: stepW, height: boxH, rx: 7, fill: '#150E56', stroke: color, 'stroke-width': 1.4 }, g);
+            el('text', { x: p.x + stepW / 2, y: p.yTop + 21, 'text-anchor': 'middle', fill: color, 'font-size': 9, 'font-weight': 700, 'letter-spacing': 0.5 }, g).textContent = s[0];
+            el('text', { x: p.x + stepW / 2, y: p.yTop + 37, 'text-anchor': 'middle', fill: '#F3E8FF', 'font-size': 8.5 }, g).textContent = s[1];
+        });
+
+        el('text', { x: 14, y: baseY + 18, 'text-anchor': 'start', fill: '#E0AAFF', 'font-size': 8, 'font-style': 'italic', opacity: 0.55 }, g).textContent = 'diamonds = hard gates — see the table below for each condition';
     })();
 })();
 </script>
