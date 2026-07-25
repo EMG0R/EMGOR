@@ -855,6 +855,29 @@
             </div>
         </div>
 
+        <p class="lift-label">Corpus Strategy</p>
+        <div class="lift-principle">
+            <p><strong>MINIMUM VIABLE CORPUS, THEN LIFETIME ACCRETION.</strong> Bootstrap the predictor on the least data that beats baseline (&sim;2&ndash;4h) &mdash; then the corpus keeps accruing through ordinary armed use, for months.</p>
+        </div>
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">CHAMPION / CHALLENGER</div>
+                <div class="decision-desc">the model is <strong>forward-only</strong> &mdash; no time-travel, no recalling model versions from months ago. Retrain any time, between sessions or nightly; a challenger ships to live <strong>only if</strong> it beats the current champion on held-out data. Bad retrains never go live &mdash; quality ratchets one direction, and there's nothing to roll back to because nothing worse ever ships. (Performance snapshots for DJ mode are a separate, unrelated feature &mdash; save / recall / morph of instrument-states, not model versions &mdash; and stay exactly as documented above.)</div>
+            </div>
+            <div class="decision-row" style="--row-color:#A855F7;">
+                <div class="decision-name">QUALITY FILTERS</div>
+                <div class="decision-desc">every corpus segment is scored &mdash; decision-density, rhythmic consistency, armed-intentionality, raw-session purity &mdash; and training weights segments by that score: the best playing teaches hardest. Recency-weighted, with slow, deliberate forgetting.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#C084FC;">
+                <div class="decision-name">ANTI-ECHO-CHAMBER</div>
+                <div class="decision-desc">periodic <strong>raw sessions</strong> &mdash; adaptation rate pinned at zero, tagged in the logs &mdash; keep the corpus anchored to uninfluenced playing, unshaped by the model's own prior suggestions.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#E0AAFF;">
+                <div class="decision-name">CAPACITY BUMPS</div>
+                <div class="decision-desc">when the corpus outgrows the current model, capacity bumps to a larger one. The corpus is forever &mdash; retrains, and re-sizes, are free.</div>
+            </div>
+        </div>
+
         <p class="lift-label">Jazz Mode vs. DJ Mode</p>
         <div class="temporal-companions">
             <div class="temporal-card" style="--row-color:#A855F7;">
@@ -1065,6 +1088,28 @@
         </div>
 
         <p class="callout">deliberate, two-handed, off the playing flow: an unseasoned player never stumbles into it. The expert just memorizes four pinches.</p>
+    </section>
+
+    <div class="g-connector">
+        <div class="g-connector-arrow">&darr;</div>
+        <p class="g-connector-text">the hardware rig is one instance. the framework doesn't need it.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ================= REFERENCE IMPLEMENTATION ================= -->
+    <section id="reference-implementation">
+        <p class="sec-num">Reference Implementation</p>
+        <h2>Runs On Any Laptop &mdash; Zero Custom Hardware</h2>
+        <p class="sec-sub">the sensor manifest compiles commodity input just as readily as the rig</p>
+
+        <p class="field-body center">The dimensional classes don't care what they're sensed by. A laptop's own inputs satisfy the same sensor manifest: keyboard = 2D event lattice, trackpad = free-2D field with Force Touch standing in as the sprung &minus;Z, time = time. Same 12D lift, same predictor, same DSP graph &mdash; out as MIDI / OSC to any softsynth.</p>
+
+        <div class="lift-principle">
+            <p>The framework and the training system are <strong>general</strong> &mdash; like RAVE: anyone can train it and get their own result. The hardware prototype is the flagship instance, not a requirement. emgor is <em>choosing</em> to train his on himself.</p>
+        </div>
+
+        <p class="callout">all software is developed on the laptop build first; the hardware rig is a plug-in peripheral, not a dependency.</p>
     </section>
 
     <hr class="divider">
