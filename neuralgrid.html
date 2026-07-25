@@ -291,6 +291,43 @@
         opacity: 0.85;
     }
 
+    .decision-table {
+        width: 100%;
+        max-width: 780px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .decision-row {
+        display: grid;
+        grid-template-columns: 210px 1fr;
+        align-items: start;
+        gap: 14px;
+        padding: 12px 14px;
+        border: 1px solid rgba(224, 170, 255, 0.18);
+        border-left: 3px solid var(--row-color, #A855F7);
+        border-radius: 6px;
+        background: rgba(15, 10, 60, 0.4);
+        text-align: left;
+    }
+
+    .decision-name {
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        color: var(--row-color, #A855F7);
+        line-height: 1.4;
+    }
+
+    .decision-desc {
+        font-size: 0.76rem;
+        line-height: 1.55;
+        color: #F3E8FF;
+        opacity: 0.85;
+    }
+
     .temporal-companions {
         display: flex;
         flex-wrap: wrap;
@@ -717,7 +754,7 @@
         <p class="sec-sub">capture is sacred, training is disposable</p>
 
         <figure class="wide">
-            <svg viewBox="0 0 1300 220" xmlns="http://www.w3.org/2000/svg" aria-label="Training pipeline diagram">
+            <svg viewBox="0 0 1180 220" xmlns="http://www.w3.org/2000/svg" aria-label="Training pipeline diagram">
                 <g id="training-pipeline"></g>
             </svg>
         </figure>
@@ -725,8 +762,66 @@
         <p class="field-body center">the future is the label: next-state prediction, where surprisal = tension.</p>
 
         <p class="callout">replicability: build any rig &rarr; write its sensor manifest &rarr; play the suite &rarr; sleep &rarr; meet your model.</p>
+    </section>
 
-        <p class="footnote-line">a deeper breakdown of how training actually happens &mdash; loss, architecture, shadow-mode gating &mdash; is coming in the next revision.</p>
+    <div class="g-connector">
+        <div class="g-connector-arrow">&darr;</div>
+        <p class="g-connector-text"><strong>the five decisions</strong> locking how this loop actually runs, live.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ================= TRAINING MECHANICS ================= -->
+    <section id="training-mechanics">
+        <p class="sec-num">Training Mechanics</p>
+        <h2>Five Locked Decisions</h2>
+        <p class="sec-sub">jazz, not just data collection</p>
+
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">1 &middot; LIVE RECURSIVE LOOP</div>
+                <div class="decision-desc">the default mode. The model and the interface redesign themselves <strong>constantly, mid-performance</strong> &mdash; not between sessions. All changes land on downbeats.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#A855F7;">
+                <div class="decision-name">2 &middot; INFERRED TIME</div>
+                <div class="decision-desc">tempo and downbeats are inferred from the player's own timing consistency (gesture onsets), not only an external clock. Rule: the model's timing consistency must <strong>match or exceed</strong> the player's &mdash; it leans toward consistency.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#C084FC;">
+                <div class="decision-name">3 &middot; SNAPSHOTS</div>
+                <div class="decision-desc">&ldquo;save as&rdquo; freezes the current instrument-state; recall any snapshot later; morph between saved snapshots. A secondary interface exposes an <strong>adaptation-rate</strong> control &mdash; continuously slows or speeds the model's evolution, from frozen to full-speed.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#E0AAFF;">
+                <div class="decision-name">4 &middot; PREDICTION LOGGING</div>
+                <div class="decision-desc">every tick logs predicted-vs-actual &mdash; what the model thought the player would do vs. what they did. This stream is <strong>both</strong> the training corpus and a real-time signal (tension / surprisal). Events are tagged by author: human vs. model.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">5 &middot; ARCHETYPES ARE REAL INSTRUMENTS</div>
+                <div class="decision-desc">no boring data-collection instruments &mdash; every archetype must be worth playing for its own sake. Initial suite, timbrally diverse under one theme: a sampler-feel instrument, bells / gamelan (with gamelan tuning), a drum kit, a harmonic instrument. The list will grow.</div>
+            </div>
+        </div>
+
+        <p class="lift-label">Jazz Mode vs. DJ Mode</p>
+        <div class="temporal-companions">
+            <div class="temporal-card" style="--row-color:#A855F7;">
+                <div class="lift-name" style="font-size:0.78rem;">JAZZ MODE</div>
+                <div class="lift-desc">full live exploration &mdash; the recursive loop runs free, the model adapts continuously, mid-performance.</div>
+            </div>
+            <div class="temporal-card" style="--row-color:#00F0FF;">
+                <div class="lift-name" style="font-size:0.78rem;">DJ MODE</div>
+                <div class="lift-desc">playing predefined instruments &mdash; snapshots recalled and played straight, or morphed between. Both modes are first-class.</div>
+            </div>
+        </div>
+
+        <p class="lift-label">The Loop, Live</p>
+
+        <figure class="wide">
+            <svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" aria-label="Live recursive training loop, rate dial, and snapshot shelf">
+                <g id="training-loop"></g>
+                <g id="rate-dial"></g>
+                <g id="snapshot-shelf"></g>
+            </svg>
+            <figcaption>play &rarr; predict &rarr; collapse &rarr; log &rarr; adapt (on the downbeat) &rarr; play. the rate dial throttles how fast <em>adapt</em> moves; the shelf freezes states out of the loop entirely.</figcaption>
+        </figure>
     </section>
 
     <footer class="ng-footer">neuralGrid &middot; dimensional architecture &middot; this page tracks the locked architecture as it evolves</footer>
@@ -938,7 +1033,7 @@
         var n = steps.length;
         var boxW = 168, boxH = 76, gap = 26;
         var totalW = n * boxW + (n - 1) * gap;
-        var startX = (1300 - totalW) / 2 - 40;
+        var startX = (1180 - totalW) / 2;
         var y = 70;
 
         steps.forEach(function (lines, i) {
@@ -960,16 +1055,6 @@
         var marker = el('marker', { id: 'arrow', markerWidth: 10, markerHeight: 10, refX: 8, refY: 3, orient: 'auto' }, defs);
         el('path', { d: 'M0,0 L8,3 L0,6 Z', fill: '#C084FC' }, marker);
 
-        // extensibility marker — the pipeline continues; a deeper training breakdown is coming
-        var lastX = startX + (n - 1) * (boxW + gap) + boxW;
-        var midY = y + boxH / 2;
-        el('line', { x1: lastX, y1: midY, x2: lastX + 34, y2: midY, stroke: '#7B2FBE', 'stroke-width': 1.2, 'stroke-dasharray': '3,4' }, g);
-        el('circle', { cx: lastX + 52, cy: midY, r: 12, fill: 'none', stroke: '#7B2FBE', 'stroke-width': 1.2, 'stroke-dasharray': '2,3' }, g);
-        el('text', { x: lastX + 52, y: midY + 4, 'text-anchor': 'middle', fill: '#7B2FBE', 'font-size': 13 }, g).textContent = '+';
-        el('text', { x: lastX + 52, y: y + boxH + 22, 'text-anchor': 'middle', fill: '#7B2FBE', 'font-size': 8, 'font-style': 'italic' }, g).textContent = 'training';
-        el('text', { x: lastX + 52, y: y + boxH + 34, 'text-anchor': 'middle', fill: '#7B2FBE', 'font-size': 8, 'font-style': 'italic' }, g).textContent = 'mechanics';
-        el('text', { x: lastX + 52, y: y + boxH + 46, 'text-anchor': 'middle', fill: '#7B2FBE', 'font-size': 8, 'font-style': 'italic' }, g).textContent = 'next rev.';
-
         // annotation under overnight-training box
         var trainX = startX + 3 * (boxW + gap) + boxW / 2;
         el('text', { x: trainX, y: y + boxH + 22, 'text-anchor': 'middle', fill: '#00F0FF', 'font-size': 9, 'font-style': 'italic' }, g).textContent = 'next-state prediction';
@@ -983,6 +1068,115 @@
         var captX = startX + 2 * (boxW + gap) + boxW / 2;
         el('text', { x: captX, y: y + boxH + 22, 'text-anchor': 'middle', fill: '#A855F7', 'font-size': 9, 'font-style': 'italic' }, g).textContent = 'capture is sacred,';
         el('text', { x: captX, y: y + boxH + 36, 'text-anchor': 'middle', fill: '#A855F7', 'font-size': 9, 'font-style': 'italic' }, g).textContent = 'training is disposable';
+    })();
+
+    /* ---------------- Training mechanics: the live loop ---------------- */
+    (function buildTrainingLoop() {
+        var g = document.getElementById('training-loop');
+        if (!g) return;
+
+        var defs = el('defs', {}, g.ownerSVGElement);
+        var marker = el('marker', { id: 'arrowMech', markerWidth: 9, markerHeight: 9, refX: 7, refY: 3, orient: 'auto' }, defs);
+        el('path', { d: 'M0,0 L7,3 L0,6 Z', fill: '#F3E8FF', opacity: 0.7 }, marker);
+
+        var cx = 220, cy = 200, R = 140;
+        var nodes = [
+            { label: 'play', sub: '(sensor frame)', color: '#00F0FF' },
+            { label: 'predict', sub: '(cloud spreads)', color: '#A855F7' },
+            { label: 'collapse', sub: '(posterior)', color: '#E0AAFF' },
+            { label: 'log', sub: '(pred vs actual)', color: '#C084FC' },
+            { label: 'adapt', sub: '(on the downbeat)', color: '#00F0FF', emphasize: true }
+        ];
+        var n = nodes.length;
+        var pts = nodes.map(function (node, i) {
+            var a = deg2rad(-90 + i * (360 / n));
+            return { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a: a };
+        });
+
+        // curved edges around the circle, play -> predict -> collapse -> log -> adapt -> play
+        for (var i = 0; i < n; i++) {
+            var a = pts[i], b = pts[(i + 1) % n];
+            var d = 'M' + a.x.toFixed(1) + ',' + a.y.toFixed(1) + ' A' + R + ',' + R + ' 0 0 1 ' + b.x.toFixed(1) + ',' + b.y.toFixed(1);
+            el('path', { d: d, fill: 'none', stroke: '#F3E8FF', 'stroke-width': 1, opacity: 0.45, 'marker-end': 'url(#arrowMech)' }, g);
+        }
+
+        el('text', { x: cx, y: cy - 4, 'text-anchor': 'middle', fill: '#E0AAFF', 'font-size': 9, opacity: 0.4, 'letter-spacing': 2 }, g).textContent = 'LIVE';
+        el('text', { x: cx, y: cy + 10, 'text-anchor': 'middle', fill: '#E0AAFF', 'font-size': 9, opacity: 0.4, 'letter-spacing': 2 }, g).textContent = 'LOOP';
+
+        nodes.forEach(function (node, i) {
+            var p = pts[i];
+            var r = node.emphasize ? 11 : 8;
+            if (node.emphasize) {
+                el('circle', { cx: p.x, cy: p.y, r: 18, fill: 'none', stroke: node.color, 'stroke-width': 1, 'stroke-dasharray': '2,3', opacity: 0.6 }, g);
+            }
+            el('circle', { cx: p.x, cy: p.y, r: r, fill: '#150E56', stroke: node.color, 'stroke-width': node.emphasize ? 2 : 1.3 }, g);
+
+            var anchor = Math.cos(p.a) > 0.3 ? 'start' : (Math.cos(p.a) < -0.3 ? 'end' : 'middle');
+            var lx = cx + (R + 30) * Math.cos(p.a), ly = cy + (R + 30) * Math.sin(p.a);
+            el('text', { x: lx, y: ly, 'text-anchor': anchor, fill: node.color, 'font-size': 11, 'font-weight': 700 }, g).textContent = node.label;
+            el('text', { x: lx, y: ly + 13, 'text-anchor': anchor, fill: node.color, 'font-size': 8, 'font-style': 'italic', opacity: 0.75 }, g).textContent = node.sub;
+        });
+    })();
+
+    /* ---------------- Training mechanics: adaptation-rate dial ---------------- */
+    (function buildRateDial() {
+        var g = document.getElementById('rate-dial');
+        if (!g) return;
+        var cx = 650, cy = 150, R = 68;
+
+        el('text', { x: cx, y: cy - R - 24, 'text-anchor': 'middle', fill: '#E0AAFF', 'font-size': 10, 'letter-spacing': 1.5 }, g).textContent = 'ADAPTATION RATE';
+        el('text', { x: cx, y: cy - R - 12, 'text-anchor': 'middle', fill: '#C084FC', 'font-size': 8, 'font-style': 'italic', opacity: 0.75 }, g).textContent = 'secondary interface';
+
+        el('path', { d: 'M' + (cx - R) + ',' + cy + ' A' + R + ',' + R + ' 0 0 1 ' + (cx + R) + ',' + cy, fill: 'none', stroke: '#7B2FBE', 'stroke-width': 2 }, g);
+
+        [0, 0.25, 0.5, 0.75, 1].forEach(function (f) {
+            var ang = deg2rad(180 * (1 - f));
+            var x1 = cx + (R - 6) * Math.cos(ang), y1 = cy - (R - 6) * Math.sin(ang);
+            var x2 = cx + (R + 6) * Math.cos(ang), y2 = cy - (R + 6) * Math.sin(ang);
+            el('line', { x1: x1, y1: y1, x2: x2, y2: y2, stroke: '#C084FC', 'stroke-width': 1, opacity: 0.6 }, g);
+        });
+
+        // needle — illustrative position, leaning toward consistency rather than full-speed
+        var needleF = 0.4;
+        var nAng = deg2rad(180 * (1 - needleF));
+        var nx = cx + (R - 10) * Math.cos(nAng), ny = cy - (R - 10) * Math.sin(nAng);
+        el('line', { x1: cx, y1: cy, x2: nx, y2: ny, stroke: '#00F0FF', 'stroke-width': 2 }, g);
+        el('circle', { cx: cx, cy: cy, r: 4, fill: '#00F0FF' }, g);
+
+        el('text', { x: cx - R - 6, y: cy + 18, 'text-anchor': 'end', fill: '#F3E8FF', 'font-size': 8.5, opacity: 0.8 }, g).textContent = 'frozen';
+        el('text', { x: cx + R + 6, y: cy + 18, 'text-anchor': 'start', fill: '#F3E8FF', 'font-size': 8.5, opacity: 0.8 }, g).textContent = 'full-speed';
+    })();
+
+    /* ---------------- Training mechanics: snapshot shelf ---------------- */
+    (function buildSnapshotShelf() {
+        var g = document.getElementById('snapshot-shelf');
+        if (!g) return;
+        var slotW = 68, slotH = 50, gap = 16, startX = 560, y = 280;
+        var labels = ['snap A', 'snap B', 'snap C', '+ save'];
+        var centers = [];
+
+        el('text', { x: startX + (4 * slotW + 3 * gap) / 2, y: y - 16, 'text-anchor': 'middle', fill: '#E0AAFF', 'font-size': 10, 'letter-spacing': 1.5 }, g).textContent = 'SNAPSHOT SHELF';
+
+        labels.forEach(function (label, i) {
+            var x = startX + i * (slotW + gap);
+            var isAdd = (i === labels.length - 1);
+            el('rect', {
+                x: x, y: y, width: slotW, height: slotH, rx: 6,
+                fill: isAdd ? 'none' : 'rgba(61,29,142,0.35)',
+                stroke: '#C084FC', 'stroke-width': 1.2,
+                'stroke-dasharray': isAdd ? '3,3' : 'none'
+            }, g);
+            el('text', { x: x + slotW / 2, y: y + slotH / 2 + 4, 'text-anchor': 'middle', fill: '#F3E8FF', 'font-size': isAdd ? 14 : 9.5, opacity: 0.85 }, g).textContent = isAdd ? '+' : label;
+            centers.push(x + slotW / 2);
+        });
+
+        // morph arrow between the first two saved snapshots
+        var mx1 = centers[0], mx2 = centers[1];
+        var d = 'M' + mx1 + ',' + y + ' C ' + mx1 + ',' + (y - 26) + ' ' + mx2 + ',' + (y - 26) + ' ' + mx2 + ',' + y;
+        el('path', { d: d, fill: 'none', stroke: '#00F0FF', 'stroke-width': 1.1, 'stroke-dasharray': '2,3', 'marker-end': 'url(#arrowMech)' }, g);
+        el('text', { x: (mx1 + mx2) / 2, y: y - 30, 'text-anchor': 'middle', fill: '#00F0FF', 'font-size': 8, 'font-style': 'italic' }, g).textContent = 'morph';
+
+        el('text', { x: startX + (4 * slotW + 3 * gap) / 2, y: y + slotH + 22, 'text-anchor': 'middle', fill: '#C084FC', 'font-size': 8, 'font-style': 'italic', opacity: 0.75 }, g).textContent = 'frozen out of the loop — recalled or morphed on demand';
     })();
 })();
 </script>
