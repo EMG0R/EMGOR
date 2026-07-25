@@ -539,25 +539,25 @@
                 <text x="250" y="492" text-anchor="middle" fill="#A855F7" font-size="8" font-style="italic">4ch &rarr; blurry centroid (x, y) + depth</text>
                 <text x="250" y="504" text-anchor="middle" fill="#A855F7" font-size="8" font-style="italic">the negative dimension: lidar reads +Z above, FSR field reads &minus;Z into the surface</text>
 
-                <!-- lidar: anchored-3D at 4 corners -->
+                <!-- lidar: anchored-3D at 4 side midpoints (N/S/E/W), beams up (+Z) -->
                 <g fill="none" stroke="#C084FC" stroke-width="1.3">
-                    <circle cx="50" cy="50" r="9"/>
-                    <circle cx="450" cy="50" r="9"/>
-                    <circle cx="50" cy="450" r="9"/>
-                    <circle cx="450" cy="450" r="9"/>
+                    <circle cx="250" cy="50" r="9"/>
+                    <circle cx="250" cy="450" r="9"/>
+                    <circle cx="50" cy="250" r="9"/>
+                    <circle cx="450" cy="250" r="9"/>
                 </g>
                 <g stroke="#C084FC" stroke-width="1">
-                    <line x1="50" y1="50" x2="50" y2="34" marker-end="url(#arrow)"/>
-                    <line x1="450" y1="50" x2="450" y2="34" marker-end="url(#arrow)"/>
-                    <line x1="50" y1="450" x2="50" y2="466" marker-end="url(#arrow)"/>
-                    <line x1="450" y1="450" x2="450" y2="466" marker-end="url(#arrow)"/>
+                    <line x1="250" y1="50" x2="250" y2="34" marker-end="url(#arrow)"/>
+                    <line x1="250" y1="450" x2="250" y2="466" marker-end="url(#arrow)"/>
+                    <line x1="50" y1="250" x2="34" y2="250" marker-end="url(#arrow)"/>
+                    <line x1="450" y1="250" x2="466" y2="250" marker-end="url(#arrow)"/>
                 </g>
-                <text x="50" y="24" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
-                <text x="450" y="24" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
-                <text x="50" y="482" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
-                <text x="450" y="482" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
+                <text x="250" y="24" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
+                <text x="250" y="482" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
+                <text x="18" y="253" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
+                <text x="482" y="253" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
 
-                <text x="250" y="545" text-anchor="middle" fill="#C084FC" font-size="9">lidar &times;4 (corners) &mdash; anchored-3D: which lidar = known (x, y); reading = height z</text>
+                <text x="250" y="545" text-anchor="middle" fill="#C084FC" font-size="9">lidar &times;4 (side midpoints, N/S/E/W) &mdash; anchored-3D: which lidar = known (x, y); reading = height z</text>
 
                 <!-- external control surface: optional separate USB device, gig convenience only -->
                 <g>
@@ -579,7 +579,7 @@
                     <text x="600" y="382" text-anchor="middle" fill="#E0AAFF" font-size="7" font-style="italic" opacity="0.65">optional USB device &mdash; gig convenience, not required</text>
                 </g>
             </svg>
-            <figcaption>+ time &mdash; every channel samples continuously: 3 spatial classes plus 1 temporal.</figcaption>
+            <figcaption>+ time &mdash; every channel samples continuously: 3 spatial classes plus 1 temporal. per-side symmetry: each of the 4 sides carries a softpot along its edge and a lidar at that side's midpoint, beam pointed up.</figcaption>
         </figure>
 
         <div class="legend-row">
@@ -958,6 +958,103 @@
         <div class="lift-principle" style="margin-top:14px;">
             <p><strong>THE PINNED 12D SPACE IS THE FIREWALL.</strong> The predictor and the artistic map meet only through it; retraining one never cascades into the other.</p>
         </div>
+    </section>
+
+    <div class="g-connector">
+        <div class="g-connector-arrow">&darr;</div>
+        <p class="g-connector-text">stage 1 builds the suite. here is the suite it builds.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ================= ARCHETYPES ================= -->
+    <section id="archetypes">
+        <p class="sec-num">Archetypes</p>
+        <h2>The Archetype Suite &mdash; Five Combo Instruments</h2>
+        <p class="sec-sub">one vibe each &mdash; every session trains rhythm and harmony at once</p>
+
+        <div class="lift-principle">
+            <p><strong>EVERY ARCHETYPE IS A COMBO.</strong> Drums + harmony, in one instrument, one vibe each &mdash; never a rhythm-only toy or a harmony-only toy. Every session simultaneously trains the predictor on rhythm <strong>and</strong> harmony.</p>
+        </div>
+
+        <p class="lift-label">Standard Layout</p>
+
+        <figure class="wide">
+            <svg viewBox="0 0 640 400" xmlns="http://www.w3.org/2000/svg" aria-label="Standard combo-archetype layout: harmony zone, rhythm zone, shared FSR depth, softpots, lidar">
+                <defs>
+                    <pattern id="archpadgrid" width="14" height="14" patternUnits="userSpaceOnUse">
+                        <path d="M14 0H0V14" fill="none" stroke="#E0AAFF" stroke-width="0.6" opacity="0.6"/>
+                    </pattern>
+                </defs>
+
+                <!-- zone tints -->
+                <rect x="210" y="70" width="200" height="150" fill="#A855F7" fill-opacity="0.14"/>
+                <rect x="210" y="220" width="200" height="50" fill="#00F0FF" fill-opacity="0.14"/>
+                <rect x="210" y="70" width="200" height="200" fill="url(#archpadgrid)" stroke="#E0AAFF" stroke-width="1.3"/>
+                <line x1="210" y1="220" x2="410" y2="220" stroke="#E0AAFF" stroke-width="1.4" stroke-dasharray="4,3"/>
+
+                <text x="310" y="110" text-anchor="middle" fill="#A855F7" font-size="10" font-weight="700">HARMONY ZONE</text>
+                <text x="310" y="124" text-anchor="middle" fill="#A855F7" font-size="8" font-style="italic">top 6 rows</text>
+                <text x="310" y="250" text-anchor="middle" fill="#00F0FF" font-size="10" font-weight="700">RHYTHM ZONE</text>
+                <text x="310" y="263" text-anchor="middle" fill="#00F0FF" font-size="8" font-style="italic">bottom 2 rows</text>
+
+                <!-- 2 harmonic softpots: top + right -->
+                <line x1="210" y1="52" x2="410" y2="52" stroke="#A855F7" stroke-width="4" stroke-linecap="round"/>
+                <text x="310" y="40" text-anchor="middle" fill="#A855F7" font-size="9">harmonic softpot</text>
+                <line x1="428" y1="70" x2="428" y2="270" stroke="#A855F7" stroke-width="4" stroke-linecap="round"/>
+                <text x="463" y="174" text-anchor="middle" fill="#A855F7" font-size="9" transform="rotate(90 463,174)">harmonic softpot</text>
+
+                <!-- 2 groove softpots: bottom + left -->
+                <line x1="210" y1="288" x2="410" y2="288" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
+                <text x="310" y="304" text-anchor="middle" fill="#00F0FF" font-size="9">groove softpot</text>
+                <line x1="192" y1="70" x2="192" y2="270" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
+                <text x="160" y="174" text-anchor="middle" fill="#00F0FF" font-size="9" transform="rotate(-90 160,174)">groove softpot</text>
+
+                <!-- shared FSR depth, serving both zones -->
+                <circle cx="310" cy="340" r="12" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
+                <text x="310" y="344" text-anchor="middle" fill="#A855F7" font-size="8" font-weight="700">FSR</text>
+                <path d="M310,328 L310,275" fill="none" stroke="#A855F7" stroke-width="1" stroke-dasharray="2,3" marker-end="url(#arrow)"/>
+                <path d="M310,352 L310,225" fill="none" stroke="#00F0FF" stroke-width="1" stroke-dasharray="2,3" marker-end="url(#arrow)"/>
+                <text x="440" y="340" text-anchor="start" fill="#A855F7" font-size="8" font-style="italic">pressure / bend &rarr; harmony (above)</text>
+                <text x="440" y="354" text-anchor="start" fill="#00F0FF" font-size="8" font-style="italic">velocity / choke &rarr; rhythm (below)</text>
+                <text x="310" y="378" text-anchor="middle" fill="#C084FC" font-size="8" font-style="italic">FSR depth serves both zones</text>
+
+                <!-- lidar: the vibe's expression axis -->
+                <g fill="none" stroke="#C084FC" stroke-width="1.3">
+                    <circle cx="90" cy="330" r="9"/>
+                </g>
+                <line x1="90" y1="330" x2="90" y2="314" stroke="#C084FC" stroke-width="1" marker-end="url(#arrow)"/>
+                <text x="90" y="352" text-anchor="middle" fill="#C084FC" font-size="8">lidar</text>
+                <text x="90" y="365" text-anchor="middle" fill="#C084FC" font-size="7" font-style="italic">the vibe's</text>
+                <text x="90" y="376" text-anchor="middle" fill="#C084FC" font-size="7" font-style="italic">expression axis</text>
+            </svg>
+            <figcaption>the fixed skeleton every combo archetype shares &mdash; only the sounds and the expression mapping change per vibe.</figcaption>
+        </figure>
+
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">1 &middot; COMBO <span style="opacity:0.7; font-weight:400;">(jazz-leaning)</span></div>
+                <div class="decision-desc">brush/kit rows in the rhythm zone + the common-tone engine with pitch-bend holds in the harmony zone. <strong>60 min to build</strong> &mdash; buildable first, since the grid and softpots already work.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#A855F7;">
+                <div class="decision-name">2 &middot; GAMELAN <span style="opacity:0.7; font-weight:400;">(gamelan tuning)</span></div>
+                <div class="decision-desc">kendang row in the rhythm zone + gong/metallophone choir with damping in the harmony zone. <strong>60 min to build.</strong></div>
+            </div>
+            <div class="decision-row" style="--row-color:#C084FC;">
+                <div class="decision-name">3 &middot; BEATS <span style="opacity:0.7; font-weight:400;">(sampler/chop)</span></div>
+                <div class="decision-desc">drum-machine rows in the rhythm zone + chopped harmonic slices in the harmony zone, scrub softpot. <strong>45 min to build.</strong></div>
+            </div>
+            <div class="decision-row" style="--row-color:#E0AAFF;">
+                <div class="decision-name">4 &middot; CLOUD <span style="opacity:0.7; font-weight:400;">(textural, lidar-forward)</span></div>
+                <div class="decision-desc">sparse pulse grains in the rhythm zone + granular harmonic wash in the harmony zone. <strong>45 min to build.</strong></div>
+            </div>
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">5 &middot; ORCHESTRA <span style="opacity:0.7; font-weight:400;">(Machine-Lab idiom)</span></div>
+                <div class="decision-desc">quantized robot percussion in the rhythm zone + quantized harmonic voices in the harmony zone. <strong>30 min to build</strong> &mdash; doubles as the target-flavored Machine Orchestra prep instrument.</div>
+            </div>
+        </div>
+
+        <p class="callout">bootstrap: &sim;4h total as 6 &times; &sim;40 min sessions across days &mdash; all 10 DSP axes swept across the suite. Build order follows the hardware: 1 now (grid + softpots already working); 2&ndash;3 once the FSRs are wired; 4 once the lidars land.</p>
     </section>
 
     <div class="g-connector">
