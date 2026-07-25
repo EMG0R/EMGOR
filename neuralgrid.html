@@ -1095,15 +1095,15 @@
                 <text x="310" y="250" text-anchor="middle" fill="#00F0FF" font-size="10" font-weight="700">RHYTHM ZONE</text>
                 <text x="310" y="263" text-anchor="middle" fill="#00F0FF" font-size="8" font-style="italic">bottom 2 rows</text>
 
-                <!-- 2 harmonic softpots: top + right -->
+                <!-- 2 harmonic softpots: N + S -->
                 <line x1="210" y1="52" x2="410" y2="52" stroke="#A855F7" stroke-width="4" stroke-linecap="round"/>
                 <text x="310" y="40" text-anchor="middle" fill="#A855F7" font-size="9">harmonic softpot</text>
-                <line x1="428" y1="70" x2="428" y2="270" stroke="#A855F7" stroke-width="4" stroke-linecap="round"/>
-                <text x="463" y="174" text-anchor="middle" fill="#A855F7" font-size="9" transform="rotate(90 463,174)">harmonic softpot</text>
+                <line x1="210" y1="288" x2="410" y2="288" stroke="#A855F7" stroke-width="4" stroke-linecap="round"/>
+                <text x="310" y="304" text-anchor="middle" fill="#A855F7" font-size="9">harmonic softpot</text>
 
-                <!-- 2 groove softpots: bottom + left -->
-                <line x1="210" y1="288" x2="410" y2="288" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
-                <text x="310" y="304" text-anchor="middle" fill="#00F0FF" font-size="9">groove softpot</text>
+                <!-- 2 groove softpots: E + W -->
+                <line x1="428" y1="70" x2="428" y2="270" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
+                <text x="463" y="174" text-anchor="middle" fill="#00F0FF" font-size="9" transform="rotate(90 463,174)">groove softpot</text>
                 <line x1="192" y1="70" x2="192" y2="270" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
                 <text x="160" y="174" text-anchor="middle" fill="#00F0FF" font-size="9" transform="rotate(-90 160,174)">groove softpot</text>
 
@@ -1152,6 +1152,81 @@
         </div>
 
         <p class="callout">bootstrap: &sim;4h total as 6 &times; &sim;40 min sessions across days &mdash; all 10 DSP axes swept across the suite. Build order follows the hardware: 1 now (grid + softpots already working); 2&ndash;3 once the FSRs are wired; 4 once the lidars land.</p>
+
+        <p class="lift-label">Control Maps</p>
+
+        <p class="callout"><strong>SHARED STANDARD</strong> (every archetype): bottom 2 rows = rhythm zone &middot; top 6 = harmony zone &middot; FSR depth (&minus;Z) = force meaning for whatever's above it &middot; softpots N+S harmonic, E+W groove &middot; lidars (mid-side) = the vibe's expression &middot; corner pinches = control layer &middot; archetype switching lives in the control layer, never the playing surface.</p>
+
+        <div class="lift-principle">
+            <p>Each vibe's drums and harmony are a <strong>matched pair</strong> from the same world &mdash; one instrument, two halves, always both present. The final interface moves fluidly between drum-weighted and harmony-weighted playing.</p>
+        </div>
+
+        <div class="temporal-companions">
+            <div class="temporal-card" style="--row-color:#00F0FF; flex:1 1 100%;">
+                <div class="lift-name" style="font-size:0.85rem;">1 &middot; COMBO <span style="opacity:0.7; font-weight:400;">(jazz &mdash; first build)</span></div>
+                <ul class="addr-list" style="margin-top:6px;">
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>harmony</strong> &mdash; the common-tone engine (LED grammar)</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>rhythm</strong> &mdash; kit voices + brush row</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>FSR</strong> &mdash; velocity / press-into-held-pitch = vibrato</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>softpots</strong> &mdash; N pitch-bend or tension &middot; S register &middot; E swing &middot; W quantize</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>lidar</strong> &mdash; S sustain-pedal hover &middot; N offer density &middot; E cymbal wash &middot; W dynamics ceiling</li>
+                </ul>
+            </div>
+            <div class="temporal-card" style="--row-color:#A855F7; flex:1 1 100%;">
+                <div class="lift-name" style="font-size:0.85rem;">2 &middot; GAMELAN <span style="opacity:0.7; font-weight:400;">(gamelan tuning)</span></div>
+                <ul class="addr-list" style="margin-top:6px;">
+                    <li><span class="dot" style="background:#A855F7"></span><strong>harmony</strong> &mdash; gong choir low &rarr; metallophones high</li>
+                    <li><span class="dot" style="background:#A855F7"></span><strong>rhythm</strong> &mdash; kendang + interlocking answer row (kotekan)</li>
+                    <li><span class="dot" style="background:#A855F7"></span><strong>FSR</strong> &mdash; mallet weight / press-hold = palm damp</li>
+                    <li><span class="dot" style="background:#A855F7"></span><strong>softpots</strong> &mdash; N damping &middot; S ombak (paired-detune shimmer) &middot; E interlock density &middot; W tempo bend</li>
+                    <li><span class="dot" style="background:#A855F7"></span><strong>lidar</strong> &mdash; raise a hand over a side &rarr; that register swells / rings</li>
+                </ul>
+            </div>
+            <div class="temporal-card" style="--row-color:#C084FC; flex:1 1 100%;">
+                <div class="lift-name" style="font-size:0.85rem;">3 &middot; BEATS <span style="opacity:0.7; font-weight:400;">(sampler/chop)</span></div>
+                <ul class="addr-list" style="margin-top:6px;">
+                    <li><span class="dot" style="background:#C084FC"></span><strong>harmony</strong> &mdash; chopped harmonic slices</li>
+                    <li><span class="dot" style="background:#C084FC"></span><strong>rhythm</strong> &mdash; drum machine + rolls row</li>
+                    <li><span class="dot" style="background:#C084FC"></span><strong>FSR</strong> &mdash; filter push / velocity</li>
+                    <li><span class="dot" style="background:#C084FC"></span><strong>softpots</strong> &mdash; N scrub &middot; S slice length &middot; E quantize &middot; W roll rate</li>
+                    <li><span class="dot" style="background:#C084FC"></span><strong>lidar</strong> &mdash; N pitch shift &middot; S rate &middot; E stutter &middot; W tape-stop</li>
+                </ul>
+            </div>
+            <div class="temporal-card" style="--row-color:#E0AAFF; flex:1 1 100%;">
+                <div class="lift-name" style="font-size:0.85rem;">4 &middot; CLOUD <span style="opacity:0.7; font-weight:400;">(textural, lidar showcase)</span></div>
+                <ul class="addr-list" style="margin-top:6px;">
+                    <li><span class="dot" style="background:#E0AAFF"></span><strong>lidars</strong> &mdash; the main voice: per-side grain-cloud height / density</li>
+                    <li><span class="dot" style="background:#E0AAFF"></span><strong>harmony</strong> &mdash; pads seed pitched grains</li>
+                    <li><span class="dot" style="background:#E0AAFF"></span><strong>rhythm</strong> &mdash; sparse pulse grains on subdivisions</li>
+                    <li><span class="dot" style="background:#E0AAFF"></span><strong>FSR</strong> &mdash; press = condense the cloud (literal &minus;Z)</li>
+                    <li><span class="dot" style="background:#E0AAFF"></span><strong>softpots</strong> &mdash; N spread &middot; S width &middot; E grain size &middot; W wet</li>
+                </ul>
+            </div>
+            <div class="temporal-card" style="--row-color:#00F0FF; flex:1 1 100%;">
+                <div class="lift-name" style="font-size:0.85rem;">5 &middot; ORCHESTRA <span style="opacity:0.7; font-weight:400;">(Machine-Lab idiom, all quantized)</span></div>
+                <ul class="addr-list" style="margin-top:6px;">
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>harmony</strong> &mdash; robot-playable voices, snapped</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>rhythm</strong> &mdash; robot percussion, per column</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>FSR</strong> &mdash; discrete dynamics tiers</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>softpots</strong> &mdash; N register &middot; S voice cap &middot; E quantize grid &middot; W humanize</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>lidar</strong> &mdash; conducting: hand over a side = that robot section swells</li>
+                </ul>
+            </div>
+        </div>
+
+        <p class="lift-label">Free-Time Training</p>
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#A855F7;">
+                <div class="decision-name">FREE-TIME TRAINING</div>
+                <div class="decision-desc">playing different zones / archetypes for different amounts of time is <strong>encouraged</strong> &mdash; the lopsidedness <em>is</em> the player, and the mirror should have it. Quality weighting (see &sect; Corpus Strategy) already handles the imbalance.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">COVERAGE FLOOR</div>
+                <div class="decision-desc">the one guardrail: every zone of every archetype needs &sim;10 min lifetime minimum, so no region is fiction. The system watches the coverage meter &mdash; not the player.</div>
+            </div>
+        </div>
+
+        <p class="callout">the curriculum point: the same softpot means bend in COMBO, shimmer in GAMELAN, scrub in BEATS, spread in CLOUD &mdash; the model learns the player's hands across different meanings.</p>
     </section>
 
     <div class="g-connector">
