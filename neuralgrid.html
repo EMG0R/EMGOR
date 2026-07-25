@@ -904,6 +904,103 @@
 
     <div class="g-connector">
         <div class="g-connector-arrow">&darr;</div>
+        <p class="g-connector-text">the five decisions above describe the loop; here is what's actually inside the model.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ================= TRAINING STRUCTURE ================= -->
+    <section id="training-structure">
+        <p class="sec-num">Training Structure</p>
+        <h2>The Training Structure &mdash; One Model, Three Heads, Three Timescales</h2>
+        <p class="sec-sub">one loss family: honest prediction &mdash; nothing else ever trains</p>
+
+        <p class="lift-label">What Trains vs. Never Trains</p>
+
+        <div class="temporal-companions" style="align-items:stretch;">
+            <div class="temporal-card" style="--row-color:#00F0FF; flex:1 1 320px;">
+                <div class="lift-name" style="font-size:0.82rem;">TRAINS</div>
+                <div class="lift-desc">one model, one trunk, three output heads, sharing a representation:</div>
+                <ul class="addr-list" style="margin-top:6px;">
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>traversal</strong> &mdash; next 12D state, 50Hz, two horizons: +100ms feeds the fan / LEDs, +1 beat feeds reconfiguration</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>onset</strong> &mdash; time-to-next-onset, a fast event-rate inference path, latency-first</li>
+                    <li><span class="dot" style="background:#00F0FF"></span><strong>pads</strong> &mdash; which pads, categorical</li>
+                </ul>
+                <div class="lift-desc" style="margin-top:6px;">one loss = the sum of the three heads' NLLs. One training run, one champion / challenger.</div>
+            </div>
+            <div class="temporal-card" style="--row-color:#A855F7; flex:1 1 320px;">
+                <div class="lift-name" style="font-size:0.82rem;">NEVER TRAINS</div>
+                <ul class="addr-list" style="margin-top:6px;">
+                    <li><span class="dot" style="background:#A855F7"></span>the 12D lift &mdash; fixed code</li>
+                    <li><span class="dot" style="background:#A855F7"></span>the DSP graph</li>
+                    <li><span class="dot" style="background:#A855F7"></span>archetype mappings &mdash; authored</li>
+                    <li><span class="dot" style="background:#A855F7"></span>beat inference &mdash; <strong>algorithmic</strong>, autocorrelation over onsets; no ML in the clock, ever</li>
+                    <li><span class="dot" style="background:#A855F7"></span>anything aesthetic</li>
+                </ul>
+            </div>
+        </div>
+
+        <p class="callout">no reward for sounding good, no style scores, no RL &mdash; the only loss family is honest prediction.</p>
+
+        <div class="lift-principle" style="border-color: rgba(0,240,255,0.4); box-shadow: 0 0 24px rgba(0,240,255,0.12);">
+            <p><strong>NOT TWO BRAINS &mdash; ONE MODEL ANSWERING THREE QUESTIONS.</strong> Timing and motion inform each other in a shared representation, not in separate models bolted together.</p>
+        </div>
+
+        <p class="lift-label">The Third Hard Target: Calibration</p>
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#C084FC;">
+                <div class="decision-name">CALIBRATION</div>
+                <div class="decision-desc">the fan is displayed and drives decisions, so predicted uncertainty must match real error rates. A challenger that predicts well but is miscalibrated &mdash; confident when it shouldn't be, or vice versa &mdash; does not ship.</div>
+            </div>
+        </div>
+
+        <p class="lift-label">The Three Timescales</p>
+        <div class="temporal-companions">
+            <div class="temporal-card" style="--row-color:#00F0FF;">
+                <div class="lift-name" style="font-size:0.78rem;">EVERY TICK &middot; 20ms</div>
+                <div class="lift-desc">the hidden state adapts, live and free &mdash; no weight update, no cost.</div>
+            </div>
+            <div class="temporal-card" style="--row-color:#A855F7;">
+                <div class="lift-name" style="font-size:0.78rem;">EVERY DOWNBEAT</div>
+                <div class="lift-desc">the interface acts &mdash; configs, offers &mdash; the live recursive loop from &sect; Training Mechanics.</div>
+            </div>
+            <div class="temporal-card" style="--row-color:#C084FC;">
+                <div class="lift-name" style="font-size:0.78rem;">BETWEEN SESSIONS</div>
+                <div class="lift-desc">the <strong>weights</strong> learn. Never during play, ever.</div>
+            </div>
+        </div>
+
+        <p class="lift-label">The Training Run</p>
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">TRIGGER</div>
+                <div class="decision-desc">session end + &ge;20 min of new armed material &rarr; trains tonight; otherwise, nightly. Runs only once the Pi is idle and cool.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#A855F7;">
+                <div class="decision-name">PIPELINE</div>
+                <div class="decision-desc">segment &rarr; quality-score &rarr; corpus update &rarr; fine-tune the champion (recency- and quality-weighted), 1&ndash;3h on the Pi.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#C084FC;">
+                <div class="decision-name">SHIP TEST &mdash; ALL THREE OR NO SHIP</div>
+                <div class="decision-desc">(a) traversal NLL better on recent held-out data; (b) rhythm timing better or equal; (c) no regression on older slices (anti-forgetting).</div>
+            </div>
+            <div class="decision-row" style="--row-color:#E0AAFF;">
+                <div class="decision-name">FULL RETRAIN</div>
+                <div class="decision-desc">every &sim;10 new corpus-hours, or monthly &mdash; from scratch. Kills the drift a long chain of fine-tunes would otherwise accumulate.</div>
+            </div>
+        </div>
+
+        <p class="lift-label">Stage-3 Bootstrap Gates</p>
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">CONCRETE NUMBERS</div>
+                <div class="decision-desc">traversal NLL &ge;20% better than a persistence baseline; onset-time error beats a naive-quantize baseline; inferred tempo within &plusmn;2 BPM of a tapped reference.</div>
+            </div>
+        </div>
+    </section>
+
+    <div class="g-connector">
+        <div class="g-connector-arrow">&darr;</div>
         <p class="g-connector-text">nothing above proceeds on vibes &mdash; each stage gates the next.</p>
     </div>
 
