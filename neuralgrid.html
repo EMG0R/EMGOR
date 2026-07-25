@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en" style="background-color:#0D0221;">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0D0221">
+<meta name="robots" content="noindex, nofollow">
+<title>neuralGrid — dimensional architecture</title>
+<meta property="og:title" content="neuralGrid — dimensional architecture">
+<meta property="og:description" content="A visual map of the neuralGrid dimension spaces: interaction, state manifold, DSP graph, perception.">
+<style>
+    :root {
+        --void: #0D0221;
+        --nebula-dark: #0F0A3C;
+        --space-blue: #150E56;
+        --indigo: #1E0F5C;
+        --amethyst: #3D1D8E;
+        --purple-bright: #7B2FBE;
+        --violet: #A855F7;
+        --lavender: #C084FC;
+        --pale: #E0AAFF;
+        --cyan: #00F0FF;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+        min-height: 100%;
+        background-color: var(--void);
+        color: var(--pale);
+        font-family: 'Courier New', Courier, monospace;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100dvh;
+        padding: clamp(28px, 5vh, 56px) 18px 64px;
+        overflow-x: hidden;
+        background:
+            radial-gradient(ellipse 900px 500px at 50% -10%, rgba(123, 47, 190, 0.25), transparent 60%),
+            var(--void);
+    }
+
+    .ng-container {
+        width: min(94vw, 900px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    header.ng-header {
+        margin-bottom: 6px;
+    }
+
+    header.ng-header h1 {
+        font-size: clamp(1.5rem, 4vw + 0.5rem, 2.7rem);
+        letter-spacing: clamp(1px, 0.3vw, 4px);
+        text-shadow: 0 0 18px rgba(168, 85, 247, 0.45), 0 0 40px rgba(100, 50, 180, 0.2);
+        color: #F9F0FF;
+    }
+
+    header.ng-header .subtitle {
+        font-size: clamp(0.8rem, 1vw + 0.4rem, 1rem);
+        color: #F3E8FF;
+        opacity: 0.85;
+        margin-top: 8px;
+        letter-spacing: 1px;
+    }
+
+    header.ng-header .live-note {
+        font-size: 0.7rem;
+        color: var(--lavender);
+        opacity: 0.55;
+        margin-top: 14px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
+
+    .divider {
+        width: 100%;
+        height: 1px;
+        border: none;
+        background: linear-gradient(90deg, transparent, var(--purple-bright) 50%, transparent);
+        opacity: 0.6;
+        margin: clamp(18px, 3vh, 30px) 0;
+    }
+
+    section {
+        width: 100%;
+        scroll-margin-top: 24px;
+        margin-bottom: 6px;
+    }
+
+    .sec-num {
+        font-size: clamp(0.75rem, 0.6vw + 0.55rem, 0.9rem);
+        letter-spacing: 4px;
+        font-weight: 700;
+        color: var(--violet);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+    }
+
+    section h2 {
+        font-size: clamp(1.1rem, 1.4vw + 0.65rem, 1.55rem);
+        line-height: 1.3;
+        color: #F9F0FF;
+        text-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+        margin-bottom: 4px;
+    }
+
+    section .sec-sub {
+        font-size: clamp(0.78rem, 0.5vw + 0.55rem, 0.92rem);
+        color: var(--lavender);
+        opacity: 0.8;
+        font-style: italic;
+        margin-bottom: clamp(14px, 2vh, 22px);
+    }
+
+    .field-body {
+        font-size: clamp(0.82rem, 0.5vw + 0.62rem, 0.98rem);
+        line-height: 1.7;
+        color: #F3E8FF;
+        opacity: 0.92;
+        text-align: left;
+        max-width: 720px;
+        margin: 0 auto clamp(10px, 1.5vh, 16px);
+    }
+
+    .field-body.center { text-align: center; }
+
+    .callout {
+        text-align: center;
+        font-size: clamp(0.82rem, 0.5vw + 0.6rem, 0.95rem);
+        color: var(--cyan);
+        opacity: 0.9;
+        font-style: italic;
+        max-width: 640px;
+        margin: 10px auto 4px;
+        line-height: 1.6;
+    }
+
+    figure {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: clamp(10px, 2vh, 20px) 0;
+    }
+
+    figure svg {
+        width: 100%;
+        height: auto;
+        max-width: 720px;
+        overflow: visible;
+    }
+
+    figure.wide svg { max-width: 860px; }
+
+    figcaption {
+        font-size: 0.72rem;
+        color: var(--lavender);
+        opacity: 0.65;
+        margin-top: 10px;
+        letter-spacing: 0.5px;
+        text-align: center;
+        max-width: 640px;
+    }
+
+    .legend-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px 22px;
+        justify-content: center;
+        margin-top: 14px;
+        font-size: 0.72rem;
+        color: #F3E8FF;
+        opacity: 0.85;
+    }
+
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+
+    .swatch {
+        width: 10px; height: 10px;
+        border-radius: 2px;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+
+    .addr-list {
+        text-align: left;
+        max-width: 700px;
+        margin: 14px auto 0;
+        font-size: 0.76rem;
+        line-height: 1.9;
+        color: #F3E8FF;
+        opacity: 0.85;
+    }
+
+    .addr-list .dot {
+        display: inline-block;
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+
+    footer.ng-footer {
+        margin-top: clamp(24px, 4vh, 44px);
+        font-size: 0.7rem;
+        color: var(--lavender);
+        opacity: 0.5;
+        letter-spacing: 1px;
+        text-align: center;
+    }
+
+    text { font-family: 'Courier New', Courier, monospace; }
+</style>
+</head>
+<body>
+<div class="ng-container">
+
+    <header class="ng-header">
+        <h1>NEURALGRID &mdash; DIMENSIONAL ARCHITECTURE</h1>
+        <p class="subtitle">a map of the dimension spaces, not the hardware</p>
+        <p class="live-note">living document &middot; updated as the project evolves</p>
+    </header>
+
+    <hr class="divider">
+
+    <!-- ================= CHAIN ================= -->
+    <section id="chain">
+        <p class="sec-num">The Chain</p>
+        <h2>Four Graphs, One Signal Path</h2>
+        <p class="sec-sub">G1 &rarr; G2 &rarr; G3 &rarr; two clamps. G4 rides beside the chain as a ruler, not a link in it.</p>
+
+        <figure class="wide">
+            <svg viewBox="0 0 1000 380" xmlns="http://www.w3.org/2000/svg" aria-label="Four graph chain diagram">
+                <defs>
+                    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                        <path d="M0,0 L8,3 L0,6 Z" fill="#C084FC"/>
+                    </marker>
+                    <marker id="arrowCyan" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                        <path d="M0,0 L8,3 L0,6 Z" fill="#00F0FF"/>
+                    </marker>
+                    <marker id="arrowViolet" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                        <path d="M0,0 L8,3 L0,6 Z" fill="#A855F7"/>
+                    </marker>
+                </defs>
+
+                <!-- G1 -->
+                <rect x="20" y="140" width="150" height="80" rx="8" fill="#150E56" stroke="#00F0FF" stroke-width="1.4"/>
+                <text x="95" y="172" text-anchor="middle" fill="#00F0FF" font-size="13" font-weight="700">G1</text>
+                <text x="95" y="190" text-anchor="middle" fill="#F3E8FF" font-size="10">INTERACTION</text>
+                <text x="95" y="204" text-anchor="middle" fill="#C084FC" font-size="9" font-style="italic">sensed 3+1</text>
+
+                <line x1="170" y1="180" x2="255" y2="180" stroke="#C084FC" stroke-width="1.3" marker-end="url(#arrow)"/>
+                <text x="212" y="168" text-anchor="middle" fill="#C084FC" font-size="9">predictive</text>
+                <text x="212" y="179" text-anchor="middle" fill="#C084FC" font-size="9">encoder</text>
+
+                <!-- G2 -->
+                <rect x="255" y="128" width="170" height="104" rx="8" fill="#150E56" stroke="#A855F7" stroke-width="1.4"/>
+                <text x="340" y="163" text-anchor="middle" fill="#A855F7" font-size="13" font-weight="700">G2</text>
+                <text x="340" y="181" text-anchor="middle" fill="#F3E8FF" font-size="10">STATE MANIFOLD</text>
+                <text x="340" y="196" text-anchor="middle" fill="#C084FC" font-size="9" font-style="italic">12D (10 state + 2 time)</text>
+                <text x="340" y="211" text-anchor="middle" fill="#C084FC" font-size="8" font-style="italic">player moves ONLY here</text>
+
+                <line x1="425" y1="180" x2="550" y2="180" stroke="#C084FC" stroke-width="1.3" marker-end="url(#arrow)"/>
+                <text x="487" y="168" text-anchor="middle" fill="#C084FC" font-size="9">artistic map</text>
+
+                <!-- G4 beside the arrow, dashed drop, explicitly not in chain -->
+                <g opacity="0.9">
+                    <polygon points="487,55 512,73 502,102 472,102 462,73"
+                             fill="none" stroke="#E0AAFF" stroke-width="1.1"/>
+                    <text x="487" y="82" text-anchor="middle" fill="#E0AAFF" font-size="8" font-weight="700">G4</text>
+                    <line x1="487" y1="102" x2="487" y2="166" stroke="#E0AAFF" stroke-width="1" stroke-dasharray="3,4"/>
+                    <circle cx="487" cy="166" r="2.5" fill="#E0AAFF"/>
+                    <text x="487" y="34" text-anchor="middle" fill="#E0AAFF" font-size="9">PERCEPTION (5D)</text>
+                    <text x="487" y="118" text-anchor="middle" fill="#E0AAFF" font-size="8" font-style="italic">ruler, not a link</text>
+                    <text x="487" y="129" text-anchor="middle" fill="#E0AAFF" font-size="8" font-style="italic">(NOT in chain)</text>
+                </g>
+
+                <!-- G3 -->
+                <rect x="550" y="128" width="170" height="104" rx="8" fill="#150E56" stroke="#00F0FF" stroke-width="1.4"/>
+                <text x="635" y="163" text-anchor="middle" fill="#00F0FF" font-size="13" font-weight="700">G3</text>
+                <text x="635" y="181" text-anchor="middle" fill="#F3E8FF" font-size="10">DSP GRAPH</text>
+                <text x="635" y="196" text-anchor="middle" fill="#C084FC" font-size="9" font-style="italic">10 axes / 4 families</text>
+                <text x="635" y="211" text-anchor="middle" fill="#C084FC" font-size="8" font-style="italic">faders = pushforward shadow</text>
+
+                <!-- clamps -->
+                <path d="M720,150 C 770,150 770,90 815,80" fill="none" stroke="#00F0FF" stroke-width="1.3" marker-end="url(#arrowCyan)"/>
+                <rect x="818" y="52" width="158" height="56" rx="8" fill="#0F0A3C" stroke="#00F0FF" stroke-width="1.2"/>
+                <text x="897" y="74" text-anchor="middle" fill="#00F0FF" font-size="10" font-weight="700">OSC &rarr; NEPTR</text>
+                <text x="897" y="90" text-anchor="middle" fill="#C084FC" font-size="8" font-style="italic">continuous clamp</text>
+
+                <path d="M720,210 C 770,210 770,270 815,280" fill="none" stroke="#A855F7" stroke-width="1.3" marker-end="url(#arrowViolet)"/>
+                <rect x="818" y="252" width="158" height="56" rx="8" fill="#0F0A3C" stroke="#A855F7" stroke-width="1.2"/>
+                <text x="897" y="274" text-anchor="middle" fill="#A855F7" font-size="10" font-weight="700">MIDI &rarr; Machine</text>
+                <text x="897" y="288" text-anchor="middle" fill="#A855F7" font-size="10" font-weight="700">Orchestra</text>
+                <text x="897" y="301" text-anchor="middle" fill="#C084FC" font-size="8" font-style="italic">quantized clamp</text>
+            </svg>
+        </figure>
+        <p class="callout">two clamps, one graph: the same 10D DSP state renders as a continuous OSC stream to NEPTR and as quantized MIDI to the Machine Orchestra.</p>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ================= G1 ================= -->
+    <section id="g1">
+        <p class="sec-num">G1</p>
+        <h2>Interaction Space &mdash; the Physical Rig</h2>
+        <p class="sec-sub">top-down view &middot; 4-sided symmetric tabletop &middot; sensed 3 spatial + 1 temporal</p>
+
+        <p class="field-body center">The interface is defined by <strong>dimensional classes</strong>, not hardware part numbers. Any rig that declares the same sensor manifest &mdash; the same classes, in the same arrangement &mdash; is compatible with the same trained model.</p>
+
+        <figure>
+            <svg viewBox="0 0 520 560" xmlns="http://www.w3.org/2000/svg" aria-label="G1 interaction rig top-down diagram">
+                <defs>
+                    <pattern id="padgrid" width="16" height="16" patternUnits="userSpaceOnUse">
+                        <path d="M16 0H0V16" fill="none" stroke="#E0AAFF" stroke-width="0.6" opacity="0.6"/>
+                    </pattern>
+                </defs>
+
+                <!-- board -->
+                <rect x="50" y="50" width="400" height="400" rx="18" fill="#150E56" fill-opacity="0.35" stroke="#7B2FBE" stroke-width="1.4"/>
+
+                <!-- pad grid: 2D lattice -->
+                <rect x="186" y="186" width="128" height="128" fill="url(#padgrid)" stroke="#E0AAFF" stroke-width="1.3"/>
+                <text x="250" y="176" text-anchor="middle" fill="#E0AAFF" font-size="10">8&times;8 PAD GRID</text>
+                <text x="250" y="330" text-anchor="middle" fill="#E0AAFF" font-size="8" font-style="italic">2D-lattice &mdash; discrete event grid</text>
+
+                <!-- softpots: free-1D, 4 sides -->
+                <line x1="186" y1="90" x2="314" y2="90" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
+                <text x="250" y="76" text-anchor="middle" fill="#00F0FF" font-size="9">softpot &mdash; free-1D</text>
+
+                <line x1="186" y1="410" x2="314" y2="410" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
+                <text x="250" y="430" text-anchor="middle" fill="#00F0FF" font-size="9">softpot &mdash; free-1D</text>
+
+                <line x1="90" y1="186" x2="90" y2="314" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
+                <text x="90" y="170" text-anchor="middle" fill="#00F0FF" font-size="9">softpot</text>
+
+                <line x1="410" y1="186" x2="410" y2="314" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
+                <text x="410" y="170" text-anchor="middle" fill="#00F0FF" font-size="9">softpot</text>
+
+                <!-- FSR: sprung-1D -->
+                <circle cx="250" cy="480" r="15" fill="#3D1D8E" stroke="#A855F7" stroke-width="1.4" stroke-dasharray="3,2"/>
+                <path d="M244,480 l3,-6 l3,12 l3,-12 l3,12 l3,-6" fill="none" stroke="#A855F7" stroke-width="1"/>
+                <text x="250" y="510" text-anchor="middle" fill="#A855F7" font-size="9">FSR &mdash; sprung-1D</text>
+                <text x="250" y="522" text-anchor="middle" fill="#A855F7" font-size="8" font-style="italic">returns to zero, effort-priced</text>
+
+                <!-- lidar: anchored-3D at 4 corners -->
+                <g fill="none" stroke="#C084FC" stroke-width="1.3">
+                    <circle cx="50" cy="50" r="9"/>
+                    <circle cx="450" cy="50" r="9"/>
+                    <circle cx="50" cy="450" r="9"/>
+                    <circle cx="450" cy="450" r="9"/>
+                </g>
+                <g stroke="#C084FC" stroke-width="1">
+                    <line x1="50" y1="50" x2="50" y2="34" marker-end="url(#arrow)"/>
+                    <line x1="450" y1="50" x2="450" y2="34" marker-end="url(#arrow)"/>
+                    <line x1="50" y1="450" x2="50" y2="466" marker-end="url(#arrow)"/>
+                    <line x1="450" y1="450" x2="450" y2="466" marker-end="url(#arrow)"/>
+                </g>
+                <text x="50" y="24" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
+                <text x="450" y="24" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
+                <text x="50" y="482" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
+                <text x="450" y="482" text-anchor="middle" fill="#C084FC" font-size="8">z&uarr;</text>
+
+                <text x="250" y="545" text-anchor="middle" fill="#C084FC" font-size="9">lidar &times;4 (corners) &mdash; anchored-3D: which lidar = known (x, y); reading = height z</text>
+            </svg>
+            <figcaption>+ time &mdash; every channel above is sampled continuously; the rig is 3 spatial classes plus 1 temporal.</figcaption>
+        </figure>
+
+        <div class="legend-row">
+            <div class="legend-item"><span class="swatch" style="background:#00F0FF"></span>free-1D &mdash; dwell anywhere</div>
+            <div class="legend-item"><span class="swatch" style="background:#A855F7"></span>sprung-1D &mdash; springs to zero</div>
+            <div class="legend-item"><span class="swatch" style="background:#E0AAFF"></span>2D-lattice &mdash; discrete grid</div>
+            <div class="legend-item"><span class="swatch" style="background:#C084FC"></span>anchored-3D &mdash; known (x,y), read z</div>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ================= G2 ================= -->
+    <section id="g2">
+        <p class="sec-num">G2</p>
+        <h2>The 12D State Manifold</h2>
+        <p class="sec-sub">10 spatial-like dimensions + 2 temporal dimensions</p>
+
+        <figure>
+            <svg id="g2-starburst" viewBox="0 0 500 520" xmlns="http://www.w3.org/2000/svg" aria-label="G2 12D starburst diagram"></svg>
+        </figure>
+        <div class="legend-row">
+            <div class="legend-item"><span class="swatch" style="background:#C084FC"></span>state axes (10)</div>
+            <div class="legend-item"><span class="swatch" style="background:#00F0FF"></span>real time &mdash; flows</div>
+            <div class="legend-item"><span class="swatch" style="background:#A855F7"></span>probability-time &mdash; spreads</div>
+        </div>
+
+        <p class="field-body center" style="margin-top:20px;">Real time flows forward, one tick at a time. Probability-time <em>spreads</em>: it is the fan of possible next-moments, explored by prediction and collapsed by action.</p>
+
+        <figure>
+            <svg viewBox="0 0 460 190" xmlns="http://www.w3.org/2000/svg" aria-label="The collapse loop">
+                <text x="230" y="18" text-anchor="middle" fill="#E0AAFF" font-size="10" letter-spacing="2">THE COLLAPSE LOOP</text>
+
+                <!-- predict: top -->
+                <g>
+                    <circle cx="230" cy="46" r="6" fill="none" stroke="#A855F7"/>
+                    <circle cx="225" cy="42" r="5" fill="none" stroke="#A855F7" opacity="0.6"/>
+                    <circle cx="236" cy="42" r="5" fill="none" stroke="#A855F7" opacity="0.6"/>
+                    <text x="230" y="66" text-anchor="middle" fill="#A855F7" font-size="9">predict</text>
+                    <text x="230" y="77" text-anchor="middle" fill="#A855F7" font-size="7" font-style="italic">(cloud spreads)</text>
+                </g>
+
+                <!-- act: right -->
+                <g>
+                    <rect x="372" y="88" width="12" height="12" fill="none" stroke="#00F0FF"/>
+                    <circle cx="378" cy="94" r="2" fill="#00F0FF"/>
+                    <text x="378" y="118" text-anchor="middle" fill="#00F0FF" font-size="9">act</text>
+                    <text x="378" y="129" text-anchor="middle" fill="#00F0FF" font-size="7" font-style="italic">(sensor frame)</text>
+                </g>
+
+                <!-- collapse: bottom -->
+                <g>
+                    <path d="M224,155 L236,155 L232,167 L228,167 Z" fill="none" stroke="#E0AAFF"/>
+                    <text x="230" y="180" text-anchor="middle" fill="#E0AAFF" font-size="9">collapse</text>
+                </g>
+                <text x="230" y="150" text-anchor="middle" fill="#E0AAFF" font-size="7" font-style="italic">(posterior)</text>
+
+                <!-- measure: left -->
+                <g>
+                    <line x1="82" y1="88" x2="82" y2="100" stroke="#C084FC"/>
+                    <line x1="78" y1="91" x2="86" y2="91" stroke="#C084FC"/>
+                    <line x1="78" y1="97" x2="86" y2="97" stroke="#C084FC"/>
+                    <text x="82" y="118" text-anchor="middle" fill="#C084FC" font-size="9">measure</text>
+                    <text x="82" y="129" text-anchor="middle" fill="#C084FC" font-size="7" font-style="italic">pos / uncertainty</text>
+                    <text x="82" y="139" text-anchor="middle" fill="#C084FC" font-size="7" font-style="italic">/ surprisal</text>
+                </g>
+
+                <path d="M262,55 C 320,65 355,75 372,86" fill="none" stroke="#F3E8FF" stroke-width="1" opacity="0.5" marker-end="url(#arrow)"/>
+                <path d="M372,104 C 340,140 280,158 250,163" fill="none" stroke="#F3E8FF" stroke-width="1" opacity="0.5" marker-end="url(#arrow)"/>
+                <path d="M212,163 C 150,155 100,135 84,106" fill="none" stroke="#F3E8FF" stroke-width="1" opacity="0.5" marker-end="url(#arrow)"/>
+                <path d="M83,84 C 100,65 160,52 205,47" fill="none" stroke="#F3E8FF" stroke-width="1" opacity="0.5" marker-end="url(#arrow)"/>
+            </svg>
+        </figure>
+
+        <p class="callout">the player's actions are real-time collapses of probability space; the interface measures the collapse itself.</p>
+        <p class="callout" style="color:var(--lavender);">the player moves only here &mdash; DSP faders in G3 are the pushforward shadow of lawful 12D motion.</p>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ================= G3 ================= -->
+    <section id="g3">
+        <p class="sec-num">G3</p>
+        <h2>The DSP Graph &mdash; 10 Axes, 4 Families</h2>
+        <p class="sec-sub">spectrum &middot; excitation &middot; time &middot; space</p>
+
+        <figure class="wide">
+            <svg id="g3-spider" viewBox="0 0 640 660" xmlns="http://www.w3.org/2000/svg" aria-label="G3 DSP graph spider diagram"></svg>
+        </figure>
+
+        <div class="legend-row" id="g3-family-legend"></div>
+        <div class="legend-row" id="g3-example-legend" style="margin-top:6px;"></div>
+
+        <p class="field-body center" style="margin-top:18px;"><strong>Harmonicity is the anchor axis:</strong> within one note it reads as timbre, between notes it reads as harmony. Tuning is a runtime render table &mdash; never a dimension.</p>
+
+        <p class="field-body" style="margin-top:6px;">Example addresses (self-explanatory naming, illustrative not calibrated):</p>
+        <ul class="addr-list">
+            <li><span class="dot" style="background:#00F0FF"></span><strong>808 kick</strong> &mdash; harmonic, sparse, dark, struck, mild NL, continuous, dry, pitch-down motion, center, point</li>
+            <li><span class="dot" style="background:#A855F7"></span><strong>FM bell</strong> &mdash; inharmonic, mid-density, bright, struck-decay, heavy FM, continuous, some spread, slow motion, off-center, near-point</li>
+            <li><span class="dot" style="background:#C084FC"></span><strong>supersaw</strong> &mdash; harmonic-dense, saturated, bright, sustained, mild NL, continuous, smeared, audio-rate detune, wide, enveloping</li>
+            <li><span class="dot" style="background:#E0AAFF"></span><strong>granular cloud</strong> &mdash; inharmonic/noisy, variable density, mid tilt, sustained texture, low NL, grains, heavily smeared, audio-rate modulated, wide, enveloping</li>
+        </ul>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ================= G4 ================= -->
+    <section id="g4">
+        <p class="sec-num">G4</p>
+        <h2>Perception &mdash; the Ruler</h2>
+        <p class="sec-sub">5 psychoacoustic fundamentals &middot; not in the chain</p>
+
+        <figure>
+            <svg viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg" aria-label="G4 perception pentagon">
+                <g id="g4-pentagon"></g>
+            </svg>
+        </figure>
+
+        <p class="callout">the ruler, not the map &mdash; the metric on the artistic map, drawn from psychoacoustics (timbre-space lineage: Grey, Wessel, McAdams).</p>
+
+        <p class="field-body center">pitch (height + chroma) &middot; loudness &middot; timbre (brightness / attack / flux + roughness) &middot; duration / rhythm &middot; location</p>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ================= TRAINING ================= -->
+    <section id="training">
+        <p class="sec-num">Training</p>
+        <h2>From DSP Map to Archetypes to Model</h2>
+        <p class="sec-sub">capture is sacred, training is disposable</p>
+
+        <figure class="wide">
+            <svg viewBox="0 0 1180 220" xmlns="http://www.w3.org/2000/svg" aria-label="Training pipeline diagram">
+                <g id="training-pipeline"></g>
+            </svg>
+        </figure>
+
+        <p class="field-body center">the future is the label: next-state prediction, where surprisal = tension.</p>
+
+        <p class="callout">replicability: build any rig &rarr; write its sensor manifest &rarr; play the suite &rarr; sleep &rarr; meet your model.</p>
+    </section>
+
+    <footer class="ng-footer">neuralGrid &middot; dimensional architecture &middot; this page tracks the locked architecture as it evolves</footer>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    var NS = 'http://www.w3.org/2000/svg';
+    function el(tag, attrs, parent) {
+        var e = document.createElementNS(NS, tag);
+        for (var k in attrs) e.setAttribute(k, attrs[k]);
+        if (parent) parent.appendChild(e);
+        return e;
+    }
+    function deg2rad(d) { return d * Math.PI / 180; }
+
+    var COL = {
+        state: '#C084FC',
+        realtime: '#00F0FF',
+        probtime: '#A855F7',
+        pale: '#E0AAFF',
+        text: '#F3E8FF'
+    };
+
+    /* ---------------- G2 starburst: 12 axes ---------------- */
+    (function buildG2() {
+        var svg = document.getElementById('g2-starburst');
+        var cx = 250, cy = 250, R = 190;
+        var axes = [
+            's1', 's2', 's3', 's4', 's5',
+            's6', 's7', 's8', 's9', 's10'
+        ];
+
+        // background reference rings
+        [0.5, 1].forEach(function (f) {
+            el('circle', { cx: cx, cy: cy, r: R * f, fill: 'none', stroke: '#7B2FBE', 'stroke-width': 0.6, 'stroke-dasharray': '2,4', opacity: 0.4 }, svg);
+        });
+
+        // 10 state axes, evenly spaced across 300deg, leaving room for the 2 time axes together at bottom-ish
+        var stateStartDeg = -90;
+        var stateStepDeg = 300 / 10; // 0..9 across 300 degrees
+        for (var i = 0; i < 10; i++) {
+            var a = deg2rad(stateStartDeg + i * stateStepDeg);
+            var x2 = cx + R * Math.cos(a), y2 = cy + R * Math.sin(a);
+            el('line', { x1: cx, y1: cy, x2: x2, y2: y2, stroke: COL.state, 'stroke-width': 1, opacity: 0.55 }, svg);
+            el('circle', { cx: x2, cy: y2, r: 2.2, fill: COL.state }, svg);
+            var lx = cx + (R + 16) * Math.cos(a), ly = cy + (R + 16) * Math.sin(a);
+            var anchor = Math.cos(a) > 0.25 ? 'start' : (Math.cos(a) < -0.25 ? 'end' : 'middle');
+            el('text', { x: lx, y: ly + 3, 'text-anchor': anchor, fill: COL.state, 'font-size': 10 }, svg).textContent = axes[i];
+        }
+
+        // 2 time axes grouped at the remaining 60deg wedge (stateStartDeg - 60 .. stateStartDeg)
+        var tRealDeg = stateStartDeg - 20;
+        var tProbDeg = stateStartDeg - 42;
+
+        // real time: solid line with arrowhead, flows
+        var aR = deg2rad(tRealDeg);
+        var rx2 = cx + R * Math.cos(aR), ry2 = cy + R * Math.sin(aR);
+        el('line', { x1: cx, y1: cy, x2: rx2, y2: ry2, stroke: COL.realtime, 'stroke-width': 2.2 }, svg);
+        el('circle', { cx: rx2, cy: ry2, r: 3, fill: COL.realtime }, svg);
+        var rlx = cx + (R + 20) * Math.cos(aR), rly = cy + (R + 20) * Math.sin(aR);
+        var t1 = el('text', { x: rlx, y: rly, 'text-anchor': 'middle', fill: COL.realtime, 'font-size': 10, 'font-weight': 700 }, svg);
+        t1.textContent = 't';
+        var t1b = el('text', { x: rlx, y: rly + 12, 'text-anchor': 'middle', fill: COL.realtime, 'font-size': 8, 'font-style': 'italic' }, svg);
+        t1b.textContent = 'real time — flows';
+
+        // probability time: a spreading fan/wedge, dashed edges
+        var aP = deg2rad(tProbDeg);
+        var spread = deg2rad(13);
+        var p1x = cx + R * Math.cos(aP - spread), p1y = cy + R * Math.sin(aP - spread);
+        var p2x = cx + R * Math.cos(aP + spread), p2y = cy + R * Math.sin(aP + spread);
+        el('path', { d: 'M' + cx + ',' + cy + ' L' + p1x + ',' + p1y + ' A' + R + ',' + R + ' 0 0 1 ' + p2x + ',' + p2y + ' Z', fill: COL.probtime, opacity: 0.14, stroke: 'none' }, svg);
+        el('line', { x1: cx, y1: cy, x2: p1x, y2: p1y, stroke: COL.probtime, 'stroke-width': 1.1, 'stroke-dasharray': '3,3' }, svg);
+        el('line', { x1: cx, y1: cy, x2: p2x, y2: p2y, stroke: COL.probtime, 'stroke-width': 1.1, 'stroke-dasharray': '3,3' }, svg);
+        var plx = cx + (R + 20) * Math.cos(aP), ply = cy + (R + 20) * Math.sin(aP);
+        var t2 = el('text', { x: plx, y: ply, 'text-anchor': 'middle', fill: COL.probtime, 'font-size': 10, 'font-weight': 700 }, svg);
+        t2.textContent = 'τ';
+        var t2b = el('text', { x: plx, y: ply + 12, 'text-anchor': 'end', fill: COL.probtime, 'font-size': 8, 'font-style': 'italic' }, svg);
+        t2b.setAttribute('text-anchor', 'middle');
+        t2b.textContent = 'prob-time — spreads';
+
+        el('circle', { cx: cx, cy: cy, r: 3, fill: COL.pale }, svg);
+        el('text', { x: cx, y: cy + 505 - 490, 'text-anchor': 'middle' }, svg); // no-op guard
+        el('text', { x: 250, y: 505, 'text-anchor': 'middle', fill: '#E0AAFF', 'font-size': 9, opacity: 0.7 }, svg).textContent = '12D manifold — 10 neutral state axes + 2 distinct time axes';
+    })();
+
+    /* ---------------- G3 spider: 10 axes, 4 families ---------------- */
+    (function buildG3() {
+        var svg = document.getElementById('g3-spider');
+        var cx = 320, cy = 300, R = 220;
+
+        var FAMILY_COLOR = {
+            SPECTRUM: '#00F0FF',
+            EXCITATION: '#A855F7',
+            TIME: '#C084FC',
+            SPACE: '#E0AAFF'
+        };
+
+        var axes = [
+            { name: 'Harmonicity', low: 'harmonic', high: 'noise', family: 'SPECTRUM' },
+            { name: 'Spectral density', low: 'sparse', high: 'saturated', family: 'SPECTRUM' },
+            { name: 'Spectral tilt', low: 'dark', high: 'bright', family: 'SPECTRUM' },
+            { name: 'Continuity', low: 'struck', high: 'sustained', family: 'EXCITATION' },
+            { name: 'Nonlinearity', low: 'clean', high: 'folded/FM', family: 'EXCITATION' },
+            { name: 'Granularity', low: 'continuous', high: 'events', family: 'TIME' },
+            { name: 'Temporal spread', low: 'dry', high: 'smeared', family: 'TIME' },
+            { name: 'Motion', low: 'static', high: 'audio-rate', family: 'TIME' },
+            { name: 'Position', low: 'center', high: 'az + dist', family: 'SPACE' },
+            { name: 'Width', low: 'point', high: 'enveloping', family: 'SPACE' }
+        ];
+
+        var examples = [
+            { name: '808 kick', color: '#00F0FF', v: [0.12, 0.15, 0.15, 0.10, 0.30, 0.05, 0.10, 0.40, 0.10, 0.08] },
+            { name: 'FM bell', color: '#A855F7', v: [0.62, 0.42, 0.70, 0.22, 0.90, 0.10, 0.42, 0.30, 0.35, 0.22] },
+            { name: 'supersaw', color: '#C084FC', v: [0.32, 0.90, 0.80, 0.90, 0.30, 0.06, 0.70, 0.80, 0.50, 0.90] },
+            { name: 'granular cloud', color: '#E0AAFF', v: [0.72, 0.50, 0.50, 0.60, 0.20, 0.62, 0.90, 0.70, 0.55, 0.95] }
+        ];
+
+        function pt(i, frac) {
+            var a = deg2rad(-90 + i * 36);
+            return { x: cx + R * frac * Math.cos(a), y: cy + R * frac * Math.sin(a), a: a };
+        }
+
+        // reference rings
+        [0.25, 0.5, 0.75, 1].forEach(function (f) {
+            el('circle', { cx: cx, cy: cy, r: R * f, fill: 'none', stroke: '#7B2FBE', 'stroke-width': 0.5, 'stroke-dasharray': '2,4', opacity: 0.35 }, svg);
+        });
+
+        // family group arcs (subtle background wedges)
+        var famRanges = { SPECTRUM: [0, 3], EXCITATION: [3, 5], TIME: [5, 8], SPACE: [8, 10] };
+        Object.keys(famRanges).forEach(function (fam) {
+            var r0 = famRanges[fam][0], r1 = famRanges[fam][1];
+            var startA = -90 + r0 * 36 - 18;
+            var endA = -90 + (r1 - 1) * 36 + 18;
+            var large = (endA - startA) > 180 ? 1 : 0;
+            var p0 = { x: cx + (R + 34) * Math.cos(deg2rad(startA)), y: cy + (R + 34) * Math.sin(deg2rad(startA)) };
+            var p1 = { x: cx + (R + 34) * Math.cos(deg2rad(endA)), y: cy + (R + 34) * Math.sin(deg2rad(endA)) };
+            var midA = deg2rad((startA + endA) / 2);
+            var lx = cx + (R + 48) * Math.cos(midA), ly = cy + (R + 48) * Math.sin(midA);
+            var t = el('text', { x: lx, y: ly, 'text-anchor': 'middle', fill: FAMILY_COLOR[fam], 'font-size': 10, 'font-weight': 700, opacity: 0.85 }, svg);
+            t.textContent = fam;
+        });
+
+        // axes lines + pole labels + axis name
+        axes.forEach(function (ax, i) {
+            var outer = pt(i, 1);
+            var color = FAMILY_COLOR[ax.family];
+            el('line', { x1: cx, y1: cy, x2: outer.x, y2: outer.y, stroke: color, 'stroke-width': 1, opacity: 0.5 }, svg);
+
+            var anchorOuter = Math.cos(outer.a) > 0.3 ? 'start' : (Math.cos(outer.a) < -0.3 ? 'end' : 'middle');
+            var nameP = pt(i, 1.14);
+            var nameEl = el('text', { x: nameP.x, y: nameP.y, 'text-anchor': anchorOuter, fill: color, 'font-size': 9.5, 'font-weight': 700 }, svg);
+            nameEl.textContent = (i + 1) + '. ' + ax.name;
+
+            var highP = pt(i, 1.0);
+            var highOff = pt(i, 1.065);
+            var highEl = el('text', { x: highOff.x, y: highOff.y + 10, 'text-anchor': anchorOuter, fill: COL.text, 'font-size': 8, 'font-style': 'italic', opacity: 0.75 }, svg);
+            highEl.textContent = ax.high;
+
+            var lowP = pt(i, 0.22);
+            var lowEl = el('text', { x: lowP.x, y: lowP.y, 'text-anchor': 'middle', fill: COL.text, 'font-size': 7.5, 'font-style': 'italic', opacity: 0.7 }, svg);
+            lowEl.textContent = ax.low;
+        });
+
+        // example polygons
+        examples.forEach(function (ex) {
+            var d = '';
+            ex.v.forEach(function (val, i) {
+                var p = pt(i, val);
+                d += (i === 0 ? 'M' : 'L') + p.x + ',' + p.y + ' ';
+            });
+            d += 'Z';
+            el('path', { d: d, fill: ex.color, 'fill-opacity': 0.07, stroke: ex.color, 'stroke-width': 1.4 }, svg);
+            ex.v.forEach(function (val, i) {
+                var p = pt(i, val);
+                el('circle', { cx: p.x, cy: p.y, r: 2.2, fill: ex.color }, svg);
+            });
+        });
+
+        // build legends outside svg
+        var famLegend = document.getElementById('g3-family-legend');
+        Object.keys(FAMILY_COLOR).forEach(function (fam) {
+            var d = document.createElement('div');
+            d.className = 'legend-item';
+            d.innerHTML = '<span class="swatch" style="background:' + FAMILY_COLOR[fam] + '"></span>' + fam;
+            famLegend.appendChild(d);
+        });
+        var exLegend = document.getElementById('g3-example-legend');
+        examples.forEach(function (ex) {
+            var d = document.createElement('div');
+            d.className = 'legend-item';
+            d.innerHTML = '<span class="swatch" style="background:' + ex.color + '"></span>' + ex.name;
+            exLegend.appendChild(d);
+        });
+    })();
+
+    /* ---------------- G4 pentagon ---------------- */
+    (function buildG4() {
+        var g = document.getElementById('g4-pentagon');
+        var cx = 140, cy = 148, R = 92;
+        var labels = ['pitch', 'loudness', 'timbre', 'duration/\nrhythm', 'location'];
+        var pts = [];
+        for (var i = 0; i < 5; i++) {
+            var a = deg2rad(-90 + i * 72);
+            pts.push({ x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a: a });
+        }
+        var d = pts.map(function (p, i) { return (i === 0 ? 'M' : 'L') + p.x + ',' + p.y; }).join(' ') + ' Z';
+        el('path', { d: d, fill: '#E0AAFF', 'fill-opacity': 0.06, stroke: '#E0AAFF', 'stroke-width': 1.3 }, g);
+        pts.forEach(function (p, i) {
+            el('circle', { cx: p.x, cy: p.y, r: 3, fill: '#E0AAFF' }, g);
+            var lx = cx + (R + 26) * Math.cos(p.a), ly = cy + (R + 26) * Math.sin(p.a);
+            var anchor = Math.cos(p.a) > 0.3 ? 'start' : (Math.cos(p.a) < -0.3 ? 'end' : 'middle');
+            var lines = labels[i].split('\n');
+            lines.forEach(function (line, li) {
+                var t = el('text', { x: lx, y: ly + li * 11, 'text-anchor': anchor, fill: '#E0AAFF', 'font-size': 10 }, g);
+                t.textContent = line;
+            });
+        });
+    })();
+
+    /* ---------------- Training pipeline ---------------- */
+    (function buildTraining() {
+        var g = document.getElementById('training-pipeline');
+        var steps = [
+            ['complete', 'DSP map'],
+            ['design 12–16', 'archetypes'],
+            ['play the suite', '(raw logging)'],
+            ['overnight', 'training'],
+            ['shadow', 'mode'],
+            ['influence']
+        ];
+        var n = steps.length;
+        var boxW = 168, boxH = 76, gap = 26;
+        var totalW = n * boxW + (n - 1) * gap;
+        var startX = (1180 - totalW) / 2;
+        var y = 70;
+
+        steps.forEach(function (lines, i) {
+            var x = startX + i * (boxW + gap);
+            var color = (i === 3) ? '#00F0FF' : '#A855F7';
+            el('rect', { x: x, y: y, width: boxW, height: boxH, rx: 8, fill: '#150E56', stroke: color, 'stroke-width': 1.3 }, g);
+            lines.forEach(function (line, li) {
+                var t = el('text', { x: x + boxW / 2, y: y + boxH / 2 - (lines.length - 1) * 7 + li * 14 + 4, 'text-anchor': 'middle', fill: '#F3E8FF', 'font-size': 10.5 }, g);
+                t.textContent = line;
+            });
+            if (i < n - 1) {
+                var ax1 = x + boxW, ax2 = x + boxW + gap;
+                el('line', { x1: ax1, y1: y + boxH / 2, x2: ax2, y2: y + boxH / 2, stroke: '#C084FC', 'stroke-width': 1.3, 'marker-end': 'url(#arrow)' }, g);
+            }
+        });
+
+        // arrowhead marker (local defs since this is a separate svg root reuse)
+        var defs = el('defs', {}, g.ownerSVGElement);
+        var marker = el('marker', { id: 'arrow', markerWidth: 10, markerHeight: 10, refX: 8, refY: 3, orient: 'auto' }, defs);
+        el('path', { d: 'M0,0 L8,3 L0,6 Z', fill: '#C084FC' }, marker);
+
+        // annotation under overnight-training box
+        var trainX = startX + 3 * (boxW + gap) + boxW / 2;
+        el('text', { x: trainX, y: y + boxH + 22, 'text-anchor': 'middle', fill: '#00F0FF', 'font-size': 9, 'font-style': 'italic' }, g).textContent = 'next-state prediction';
+        el('text', { x: trainX, y: y + boxH + 36, 'text-anchor': 'middle', fill: '#00F0FF', 'font-size': 9, 'font-style': 'italic' }, g).textContent = 'surprisal = tension';
+
+        // annotation under archetypes box
+        var archX = startX + 1 * (boxW + gap) + boxW / 2;
+        el('text', { x: archX, y: y + boxH + 22, 'text-anchor': 'middle', fill: '#A855F7', 'font-size': 9, 'font-style': 'italic' }, g).textContent = 'axis-sweep coverage:';
+        el('text', { x: archX, y: y + boxH + 36, 'text-anchor': 'middle', fill: '#A855F7', 'font-size': 9, 'font-style': 'italic' }, g).textContent = 'every axis, ≥1 archetype';
+
+        var captX = startX + 2 * (boxW + gap) + boxW / 2;
+        el('text', { x: captX, y: y + boxH + 22, 'text-anchor': 'middle', fill: '#A855F7', 'font-size': 9, 'font-style': 'italic' }, g).textContent = 'capture is sacred,';
+        el('text', { x: captX, y: y + boxH + 36, 'text-anchor': 'middle', fill: '#A855F7', 'font-size': 9, 'font-style': 'italic' }, g).textContent = 'training is disposable';
+    })();
+})();
+</script>
+</body>
+</html>
