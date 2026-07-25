@@ -524,18 +524,18 @@
                 <line x1="410" y1="186" x2="410" y2="314" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
                 <text x="410" y="170" text-anchor="middle" fill="#00F0FF" font-size="9">softpot</text>
 
-                <!-- FSR field: sprung field x4, -Z, under the grid quadrants -->
+                <!-- FSR field: sprung field x4, -Z, corner-ward under the grid -->
                 <g opacity="0.92">
-                    <circle cx="250" cy="210" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
-                    <text x="250" y="213" text-anchor="middle" fill="#A855F7" font-size="8" font-weight="700">N</text>
-                    <circle cx="250" cy="290" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
-                    <text x="250" y="293" text-anchor="middle" fill="#A855F7" font-size="8" font-weight="700">S</text>
-                    <circle cx="210" cy="250" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
-                    <text x="210" y="253" text-anchor="middle" fill="#A855F7" font-size="8" font-weight="700">W</text>
-                    <circle cx="290" cy="250" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
-                    <text x="290" y="253" text-anchor="middle" fill="#A855F7" font-size="8" font-weight="700">E</text>
+                    <circle cx="212" cy="212" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
+                    <text x="212" y="215" text-anchor="middle" fill="#A855F7" font-size="7" font-weight="700">NW</text>
+                    <circle cx="288" cy="212" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
+                    <text x="288" y="215" text-anchor="middle" fill="#A855F7" font-size="7" font-weight="700">NE</text>
+                    <circle cx="212" cy="288" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
+                    <text x="212" y="291" text-anchor="middle" fill="#A855F7" font-size="7" font-weight="700">SW</text>
+                    <circle cx="288" cy="288" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
+                    <text x="288" y="291" text-anchor="middle" fill="#A855F7" font-size="7" font-weight="700">SE</text>
                 </g>
-                <text x="250" y="480" text-anchor="middle" fill="#A855F7" font-size="9">FSR field &times;4 &mdash; sprung, &minus;Z, under the grid</text>
+                <text x="250" y="480" text-anchor="middle" fill="#A855F7" font-size="9">FSR field &times;4 &mdash; sprung, &minus;Z, corner-ward under the grid</text>
                 <text x="250" y="492" text-anchor="middle" fill="#A855F7" font-size="8" font-style="italic">4ch &rarr; blurry centroid (x, y) + depth</text>
                 <text x="250" y="504" text-anchor="middle" fill="#A855F7" font-size="8" font-style="italic">the negative dimension: lidar reads +Z above, FSR field reads &minus;Z into the surface</text>
 
@@ -589,7 +589,7 @@
             <div class="legend-item"><span class="swatch" style="background:#C084FC"></span>anchored-3D &mdash; known (x,y), read z</div>
         </div>
 
-        <p class="callout">control-surface split: the playing surface is <strong>only</strong> for playing &mdash; no reserved softpot, all four are playable. Meta-controls (adaptation-rate, snapshot save / recall / morph) can live on a separate external USB control device &mdash; but it's <strong>optional</strong>, a gig convenience. The instrument is complete alone: the corner-pincer control layer (see &sect; Direct Control) reaches every meta-control from the playing surface itself.</p>
+        <p class="callout">control-surface split: the playing surface is <strong>only</strong> for playing &mdash; no reserved softpot, all four are playable. Meta-controls (adaptation-rate, snapshot save / recall / morph) can live on a separate external USB control device &mdash; but it's <strong>optional</strong>, a gig convenience. The instrument is complete alone: the edge-pinch control layer (see &sect; Direct Control) reaches every meta-control from the playing surface itself.</p>
     </section>
 
     <hr class="divider">
@@ -1155,7 +1155,7 @@
 
         <p class="lift-label">Control Maps</p>
 
-        <p class="callout"><strong>SHARED STANDARD</strong> (every archetype): bottom 2 rows = rhythm zone &middot; top 6 = harmony zone &middot; FSR depth (&minus;Z) = force meaning for whatever's above it &middot; softpots N+S harmonic, E+W groove &middot; lidars (mid-side) = the vibe's expression &middot; corner pinches = control layer &middot; archetype switching lives in the control layer, never the playing surface.</p>
+        <p class="callout"><strong>SHARED STANDARD</strong> (every archetype): bottom 2 rows = rhythm zone &middot; top 6 = harmony zone &middot; FSR depth (&minus;Z) = force meaning for whatever's above it &middot; softpots N+S harmonic, E+W groove &middot; lidars (mid-side) = the vibe's expression &middot; edge pinch (two adjacent corner FSRs) = control layer &middot; archetype switching lives in the control layer, never the playing surface.</p>
 
         <div class="lift-principle">
             <p>Each vibe's drums and harmony are a <strong>matched pair</strong> from the same world &mdash; one instrument, two halves, always both present. The final interface moves fluidly between drum-weighted and harmony-weighted playing.</p>
@@ -1312,7 +1312,7 @@
 
         <div class="temporal-companions" style="align-items:stretch;">
             <div class="temporal-card" style="--row-color:#00F0FF; flex:1 1 240px;">
-                <div class="lift-name" style="font-size:0.82rem;">HARMONIC &middot; SW corner</div>
+                <div class="lift-name" style="font-size:0.82rem;">HARMONIC &middot; S edge</div>
                 <ul class="addr-list" style="margin-top:4px;">
                     <li><span class="dot" style="background:#00F0FF"></span>1 &middot; key center (live)</li>
                     <li><span class="dot" style="background:#00F0FF"></span>2 &middot; tension (consonant &harr; spicy offers)</li>
@@ -1321,7 +1321,7 @@
                 </ul>
             </div>
             <div class="temporal-card" style="--row-color:#A855F7; flex:1 1 240px;">
-                <div class="lift-name" style="font-size:0.82rem;">TIME &middot; NW corner</div>
+                <div class="lift-name" style="font-size:0.82rem;">TIME &middot; N edge</div>
                 <ul class="addr-list" style="margin-top:4px;">
                     <li><span class="dot" style="background:#A855F7"></span>5 &middot; tempo</li>
                     <li><span class="dot" style="background:#A855F7"></span>6 &middot; rhythmic consistency (loose &harr; machine-tight)</li>
@@ -1330,7 +1330,7 @@
                 </ul>
             </div>
             <div class="temporal-card" style="--row-color:#C084FC; flex:1 1 240px;">
-                <div class="lift-name" style="font-size:0.82rem;">MODEL &middot; NE corner</div>
+                <div class="lift-name" style="font-size:0.82rem;">MODEL &middot; E edge</div>
                 <ul class="addr-list" style="margin-top:4px;">
                     <li><span class="dot" style="background:#C084FC"></span>9 &middot; adaptation rate (frozen &harr; full-speed)</li>
                     <li><span class="dot" style="background:#C084FC"></span>10 &middot; adventurousness</li>
@@ -1339,7 +1339,7 @@
                 </ul>
             </div>
             <div class="temporal-card" style="--row-color:#E0AAFF; flex:1 1 240px;">
-                <div class="lift-name" style="font-size:0.82rem;">SOUND &middot; SE corner</div>
+                <div class="lift-name" style="font-size:0.82rem;">SOUND &middot; W edge</div>
                 <ul class="addr-list" style="margin-top:4px;">
                     <li><span class="dot" style="background:#E0AAFF"></span>12 &middot; any DSP axis, via AXIS-GRAB</li>
                 </ul>
@@ -1353,7 +1353,7 @@
         </div>
 
         <div class="lift-principle">
-            <p><strong>CONTROL LAYER &middot; THE CORNER PINCER.</strong> Press two <em>adjacent</em> FSR field-quadrants at once &mdash; say, west + south &mdash; and hold for &sim;0.5s; an LED ripple confirms the press. The corner where those two quadrants meet (here, SW) opens its control family. Four corners, four families: SW harmonic, NW time, NE model, SE sound. The grid then becomes the control panel for that family &mdash; 10 pads light as the 10 DSP axes for AXIS-GRAB (a softpot rides whichever axis you grab, always through the perceptual axes, never raw synth parameters), other pads hold the snapshot shelf, softpots ride rate / tension / consistency / busyness. Release the pincer &mdash; instantly playing again.</p>
+            <p><strong>CONTROL LAYER &middot; THE EDGE PINCH.</strong> Press two <em>adjacent</em> corner FSRs at once &mdash; say, NW + SW &mdash; and hold for &sim;0.5s; an LED ripple confirms the press. The edge between those two corners (here, W) opens its control family. Four edges, four families: S harmonic, N time, E model, W sound. The grid then becomes the control panel for that family &mdash; 10 pads light as the 10 DSP axes for AXIS-GRAB (a softpot rides whichever axis you grab, always through the perceptual axes, never raw synth parameters), other pads hold the snapshot shelf, softpots ride rate / tension / consistency / busyness. Release the pinch &mdash; instantly playing again.</p>
         </div>
 
         <p class="callout">deliberate, two-handed, off the playing flow: an unseasoned player never stumbles into it. The expert just memorizes four pinches.</p>
