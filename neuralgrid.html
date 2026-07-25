@@ -550,11 +550,11 @@
 
                 <text x="250" y="545" text-anchor="middle" fill="#C084FC" font-size="9">lidar &times;4 (corners) &mdash; anchored-3D: which lidar = known (x, y); reading = height z</text>
 
-                <!-- external control surface: separate USB device, never on the playing surface -->
+                <!-- external control surface: optional separate USB device, gig convenience only -->
                 <g>
                     <rect x="500" y="200" width="200" height="190" rx="10" fill="none" stroke="#E0AAFF" stroke-width="1.2" stroke-dasharray="4,4" opacity="0.85"/>
-                    <text x="600" y="222" text-anchor="middle" fill="#E0AAFF" font-size="9" letter-spacing="1">EXTERNAL CONTROL</text>
-                    <text x="600" y="234" text-anchor="middle" fill="#E0AAFF" font-size="9" letter-spacing="1">SURFACE</text>
+                    <text x="600" y="222" text-anchor="middle" fill="#E0AAFF" font-size="9" letter-spacing="1">OPTIONAL EXTERNAL</text>
+                    <text x="600" y="234" text-anchor="middle" fill="#E0AAFF" font-size="9" letter-spacing="1">CONTROL SURFACE</text>
                     <text x="600" y="248" text-anchor="middle" fill="#C084FC" font-size="8" font-style="italic">(rate / snapshots)</text>
 
                     <path d="M572,290 A28,28 0 0 1 628,290" fill="none" stroke="#7B2FBE" stroke-width="1.6"/>
@@ -567,7 +567,7 @@
                     <rect x="606" y="330" width="30" height="22" rx="3" fill="none" stroke="#C084FC" stroke-width="1" stroke-dasharray="2,2"/>
                     <text x="600" y="368" text-anchor="middle" fill="#C084FC" font-size="7" font-style="italic">save / recall / morph</text>
 
-                    <text x="600" y="382" text-anchor="middle" fill="#E0AAFF" font-size="7" font-style="italic" opacity="0.65">separate USB device &mdash; not on the board</text>
+                    <text x="600" y="382" text-anchor="middle" fill="#E0AAFF" font-size="7" font-style="italic" opacity="0.65">optional USB device &mdash; gig convenience, not required</text>
                 </g>
             </svg>
             <figcaption>+ time &mdash; every channel samples continuously: 3 spatial classes plus 1 temporal.</figcaption>
@@ -580,7 +580,7 @@
             <div class="legend-item"><span class="swatch" style="background:#C084FC"></span>anchored-3D &mdash; known (x,y), read z</div>
         </div>
 
-        <p class="callout">control-surface split: the playing surface is <strong>only</strong> for playing &mdash; no reserved softpot, all four are playable. Meta-controls (adaptation-rate, snapshot save / recall / morph) live on a separate external USB control device, never on the instrument surface.</p>
+        <p class="callout">control-surface split: the playing surface is <strong>only</strong> for playing &mdash; no reserved softpot, all four are playable. Meta-controls (adaptation-rate, snapshot save / recall / morph) can live on a separate external USB control device &mdash; but it's <strong>optional</strong>, a gig convenience. The instrument is complete alone: the FSR-held control layer (see &sect; Direct Control) reaches every meta-control from the playing surface itself.</p>
     </section>
 
     <hr class="divider">
@@ -925,12 +925,16 @@
         <h2>Playing With Others &mdash; the Common-Tone Engine</h2>
         <p class="sec-sub">hand-coded, no ML &mdash; an early archetype, the suite's harmonic instrument</p>
 
-        <p class="field-body center">An improvising keyboardist moves through keys. The grid must always offer playable pitches, in real time, without ever surprising the player's own hand. There's no model here and nothing is trained &mdash; the engine is a fixed rule, running against a live estimate of the room's harmony.</p>
+        <p class="field-body center">An improvising keyboardist moves through keys. The grid must always offer playable pitches, in real time, without ever surprising the player's own hand. There's no model here and nothing is trained &mdash; the engine is a fixed rule, running against a live estimate of the player's own harmony.</p>
+
+        <div class="lift-principle" style="margin-bottom:26px;">
+            <p>The engine listens only to <strong>you</strong>. It has no ears on the ensemble &mdash; other musicians' harmony reaches it only secondhand, through your choices: what you land on, hold, and return to.</p>
+        </div>
 
         <div class="decision-table">
             <div class="decision-row" style="--row-color:#00F0FF;">
                 <div class="decision-name">1 &middot; CONTEXT IN</div>
-                <div class="decision-desc">ensemble MIDI arrives on the DEMIURGE bus. A decaying pitch-class histogram accumulates it &mdash; the live harmony estimate, always a few notes behind the room, always current.</div>
+                <div class="decision-desc">the harmonic context is a decaying histogram of <strong>the player's own note choices</strong> &mdash; not ensemble MIDI, not a bus feed. What you land on, hold, and return to accumulates into the live harmony estimate. Other musicians' harmony reaches the system only through your ears and your choices &mdash; <strong>you</strong> are the harmonic sensor.</div>
             </div>
             <div class="decision-row" style="--row-color:#A855F7;">
                 <div class="decision-name">2 &middot; RANKING</div>
@@ -972,6 +976,69 @@
         </figure>
 
         <p class="callout">the model's later role: it steers engine parameters &mdash; density, tension amount, re-voicing speed &mdash; it never overrides the ranking math above.</p>
+    </section>
+
+    <div class="g-connector">
+        <div class="g-connector-arrow">&darr;</div>
+        <p class="g-connector-text">everything above is automatic. the player can also reach in and drive it directly.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ================= CONTROLS ================= -->
+    <section id="controls">
+        <p class="sec-num">Direct Control</p>
+        <h2>Direct Control &mdash; Twelve Parameters, Two Tiers</h2>
+        <p class="sec-sub">everything hand-reachable, nothing that needs a menu to find</p>
+
+        <p class="field-body center">Twelve performance parameters are hard-controllable, in four families. They are always reachable &mdash; one tier for the flow of playing, one tier for deliberate control &mdash; never buried in a settings screen.</p>
+
+        <div class="temporal-companions" style="align-items:stretch;">
+            <div class="temporal-card" style="--row-color:#00F0FF; flex:1 1 240px;">
+                <div class="lift-name" style="font-size:0.82rem;">HARMONIC</div>
+                <ul class="addr-list" style="margin-top:4px;">
+                    <li><span class="dot" style="background:#00F0FF"></span>1 &middot; key center (live)</li>
+                    <li><span class="dot" style="background:#00F0FF"></span>2 &middot; tension (consonant &harr; spicy offers)</li>
+                    <li><span class="dot" style="background:#00F0FF"></span>3 &middot; pitch-bend a held note</li>
+                    <li><span class="dot" style="background:#00F0FF"></span>4 &middot; tuning table (12-EDO / JI / gamelan)</li>
+                </ul>
+            </div>
+            <div class="temporal-card" style="--row-color:#A855F7; flex:1 1 240px;">
+                <div class="lift-name" style="font-size:0.82rem;">TIME</div>
+                <ul class="addr-list" style="margin-top:4px;">
+                    <li><span class="dot" style="background:#A855F7"></span>5 &middot; tempo</li>
+                    <li><span class="dot" style="background:#A855F7"></span>6 &middot; rhythmic consistency (loose &harr; machine-tight)</li>
+                    <li><span class="dot" style="background:#A855F7"></span>7 &middot; busyness</li>
+                    <li><span class="dot" style="background:#A855F7"></span>8 &middot; swing</li>
+                </ul>
+            </div>
+            <div class="temporal-card" style="--row-color:#C084FC; flex:1 1 240px;">
+                <div class="lift-name" style="font-size:0.82rem;">MODEL</div>
+                <ul class="addr-list" style="margin-top:4px;">
+                    <li><span class="dot" style="background:#C084FC"></span>9 &middot; adaptation rate (frozen &harr; full-speed)</li>
+                    <li><span class="dot" style="background:#C084FC"></span>10 &middot; adventurousness</li>
+                    <li><span class="dot" style="background:#C084FC"></span>11 &middot; snapshots (save / recall / morph)</li>
+                </ul>
+            </div>
+            <div class="temporal-card" style="--row-color:#E0AAFF; flex:1 1 240px;">
+                <div class="lift-name" style="font-size:0.82rem;">SOUND</div>
+                <ul class="addr-list" style="margin-top:4px;">
+                    <li><span class="dot" style="background:#E0AAFF"></span>12 &middot; any DSP axis, via AXIS-GRAB</li>
+                </ul>
+            </div>
+        </div>
+
+        <p class="lift-label">Two Tiers</p>
+
+        <div class="lift-principle" style="border-color: rgba(0,240,255,0.4); box-shadow: 0 0 24px rgba(0,240,255,0.12);">
+            <p><strong>IN-FLOW &middot; NO MODE.</strong> Softpot meaning is contextual: holding a pad &rarr; that softpot bends the held pad's pitch. Holding nothing &rarr; the softpot takes its ordinary menu role. Key re-center = hold a tone + a re-center gesture &mdash; there is no separate mode to enter.</p>
+        </div>
+
+        <div class="lift-principle">
+            <p><strong>CONTROL LAYER &middot; HOLD THE FSR.</strong> The grid becomes the control panel: 10 pads light up as the 10 DSP axes &mdash; grab one and a softpot rides that axis directly, controlling any DSP thing manually through the perceptual axes, never raw synth parameters. Other pads become the snapshot shelf. The softpots become rate / tension / consistency / busyness faders. Release the FSR &mdash; instantly playing again.</p>
+        </div>
+
+        <p class="callout">the spring is the point: the control layer physically cannot stay stuck on. Meta-control costs effort; playing is free.</p>
     </section>
 
     <hr class="divider">
