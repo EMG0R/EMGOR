@@ -524,11 +524,20 @@
                 <line x1="410" y1="186" x2="410" y2="314" stroke="#00F0FF" stroke-width="4" stroke-linecap="round"/>
                 <text x="410" y="170" text-anchor="middle" fill="#00F0FF" font-size="9">softpot</text>
 
-                <!-- FSR: sprung-1D -->
-                <circle cx="250" cy="480" r="15" fill="#3D1D8E" stroke="#A855F7" stroke-width="1.4" stroke-dasharray="3,2"/>
-                <path d="M244,480 l3,-6 l3,12 l3,-12 l3,12 l3,-6" fill="none" stroke="#A855F7" stroke-width="1"/>
-                <text x="250" y="510" text-anchor="middle" fill="#A855F7" font-size="9">FSR &mdash; sprung-1D</text>
-                <text x="250" y="522" text-anchor="middle" fill="#A855F7" font-size="8" font-style="italic">returns to zero, effort-priced</text>
+                <!-- FSR field: sprung field x4, -Z, under the grid quadrants -->
+                <g opacity="0.92">
+                    <circle cx="250" cy="210" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
+                    <text x="250" y="213" text-anchor="middle" fill="#A855F7" font-size="8" font-weight="700">N</text>
+                    <circle cx="250" cy="290" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
+                    <text x="250" y="293" text-anchor="middle" fill="#A855F7" font-size="8" font-weight="700">S</text>
+                    <circle cx="210" cy="250" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
+                    <text x="210" y="253" text-anchor="middle" fill="#A855F7" font-size="8" font-weight="700">W</text>
+                    <circle cx="290" cy="250" r="11" fill="#3D1D8E" fill-opacity="0.55" stroke="#A855F7" stroke-width="1.3" stroke-dasharray="3,2"/>
+                    <text x="290" y="253" text-anchor="middle" fill="#A855F7" font-size="8" font-weight="700">E</text>
+                </g>
+                <text x="250" y="480" text-anchor="middle" fill="#A855F7" font-size="9">FSR field &times;4 &mdash; sprung, &minus;Z, under the grid</text>
+                <text x="250" y="492" text-anchor="middle" fill="#A855F7" font-size="8" font-style="italic">4ch &rarr; blurry centroid (x, y) + depth</text>
+                <text x="250" y="504" text-anchor="middle" fill="#A855F7" font-size="8" font-style="italic">the negative dimension: lidar reads +Z above, FSR field reads &minus;Z into the surface</text>
 
                 <!-- lidar: anchored-3D at 4 corners -->
                 <g fill="none" stroke="#C084FC" stroke-width="1.3">
@@ -575,12 +584,12 @@
 
         <div class="legend-row">
             <div class="legend-item"><span class="swatch" style="background:#00F0FF"></span>free-1D &mdash; dwell anywhere</div>
-            <div class="legend-item"><span class="swatch" style="background:#A855F7"></span>sprung-1D &mdash; springs to zero</div>
+            <div class="legend-item"><span class="swatch" style="background:#A855F7"></span>sprung field &mdash; 4ch: blurry (x,y) + depth</div>
             <div class="legend-item"><span class="swatch" style="background:#E0AAFF"></span>2D-lattice &mdash; discrete grid</div>
             <div class="legend-item"><span class="swatch" style="background:#C084FC"></span>anchored-3D &mdash; known (x,y), read z</div>
         </div>
 
-        <p class="callout">control-surface split: the playing surface is <strong>only</strong> for playing &mdash; no reserved softpot, all four are playable. Meta-controls (adaptation-rate, snapshot save / recall / morph) can live on a separate external USB control device &mdash; but it's <strong>optional</strong>, a gig convenience. The instrument is complete alone: the FSR-held control layer (see &sect; Direct Control) reaches every meta-control from the playing surface itself.</p>
+        <p class="callout">control-surface split: the playing surface is <strong>only</strong> for playing &mdash; no reserved softpot, all four are playable. Meta-controls (adaptation-rate, snapshot save / recall / morph) can live on a separate external USB control device &mdash; but it's <strong>optional</strong>, a gig convenience. The instrument is complete alone: the corner-pincer control layer (see &sect; Direct Control) reaches every meta-control from the playing surface itself.</p>
     </section>
 
     <hr class="divider">
@@ -830,6 +839,22 @@
             </div>
         </div>
 
+        <p class="lift-label">Training Ownership</p>
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">SOLE TRAINER</div>
+                <div class="decision-desc">only emgor's playing enters the corpus. The artifact is <strong>a mirror of one musician that others get to play</strong> &mdash; the <em>method</em> stays person-agnostic (anyone could train their own instance), the <em>artifact</em> is personally trained. When someone unlike the trainer plays it, surprisal runs visibly hot &mdash; the mirror shows them the difference. That's the concept, not a bug.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#A855F7;">
+                <div class="decision-name">ARMED CAPTURE</div>
+                <div class="decision-desc">training-logging is toggled deliberately &mdash; control layer, MODEL corner, a REC pad. Default <strong>off</strong>. Whenever armed, an unmistakable LED tell: a slow-breathing red pixel, so the instrument's learning state is never ambiguous. Chunked, low-priority writes to disk every few seconds &mdash; a power loss costs only the last seconds.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#C084FC;">
+                <div class="decision-name">OVERNIGHT ON-PI TRAINING</div>
+                <div class="decision-desc">the whole loop lives in the box: play, log, learn overnight &mdash; a 1&ndash;5M param model, several epochs a night on the Pi 5 (active cooling), never training while performing. The Mac is for experiments only &mdash; no cloud. <strong>Corpus v1 gate:</strong> &sim;4 hours total, in 30&ndash;45 min sessions across days, &ge;4 archetypes (gong / gamelan, drums, sampler, the common-tone harmonic instrument).</div>
+            </div>
+        </div>
+
         <p class="lift-label">Jazz Mode vs. DJ Mode</p>
         <div class="temporal-companions">
             <div class="temporal-card" style="--row-color:#A855F7;">
@@ -995,7 +1020,7 @@
 
         <div class="temporal-companions" style="align-items:stretch;">
             <div class="temporal-card" style="--row-color:#00F0FF; flex:1 1 240px;">
-                <div class="lift-name" style="font-size:0.82rem;">HARMONIC</div>
+                <div class="lift-name" style="font-size:0.82rem;">HARMONIC &middot; SW corner</div>
                 <ul class="addr-list" style="margin-top:4px;">
                     <li><span class="dot" style="background:#00F0FF"></span>1 &middot; key center (live)</li>
                     <li><span class="dot" style="background:#00F0FF"></span>2 &middot; tension (consonant &harr; spicy offers)</li>
@@ -1004,7 +1029,7 @@
                 </ul>
             </div>
             <div class="temporal-card" style="--row-color:#A855F7; flex:1 1 240px;">
-                <div class="lift-name" style="font-size:0.82rem;">TIME</div>
+                <div class="lift-name" style="font-size:0.82rem;">TIME &middot; NW corner</div>
                 <ul class="addr-list" style="margin-top:4px;">
                     <li><span class="dot" style="background:#A855F7"></span>5 &middot; tempo</li>
                     <li><span class="dot" style="background:#A855F7"></span>6 &middot; rhythmic consistency (loose &harr; machine-tight)</li>
@@ -1013,15 +1038,16 @@
                 </ul>
             </div>
             <div class="temporal-card" style="--row-color:#C084FC; flex:1 1 240px;">
-                <div class="lift-name" style="font-size:0.82rem;">MODEL</div>
+                <div class="lift-name" style="font-size:0.82rem;">MODEL &middot; NE corner</div>
                 <ul class="addr-list" style="margin-top:4px;">
                     <li><span class="dot" style="background:#C084FC"></span>9 &middot; adaptation rate (frozen &harr; full-speed)</li>
                     <li><span class="dot" style="background:#C084FC"></span>10 &middot; adventurousness</li>
                     <li><span class="dot" style="background:#C084FC"></span>11 &middot; snapshots (save / recall / morph)</li>
+                    <li><span class="dot" style="background:#C084FC"></span>REC &middot; armed-capture toggle (default off)</li>
                 </ul>
             </div>
             <div class="temporal-card" style="--row-color:#E0AAFF; flex:1 1 240px;">
-                <div class="lift-name" style="font-size:0.82rem;">SOUND</div>
+                <div class="lift-name" style="font-size:0.82rem;">SOUND &middot; SE corner</div>
                 <ul class="addr-list" style="margin-top:4px;">
                     <li><span class="dot" style="background:#E0AAFF"></span>12 &middot; any DSP axis, via AXIS-GRAB</li>
                 </ul>
@@ -1035,10 +1061,10 @@
         </div>
 
         <div class="lift-principle">
-            <p><strong>CONTROL LAYER &middot; HOLD THE FSR.</strong> The grid becomes the control panel: 10 pads light up as the 10 DSP axes &mdash; grab one and a softpot rides that axis directly, controlling any DSP thing manually through the perceptual axes, never raw synth parameters. Other pads become the snapshot shelf. The softpots become rate / tension / consistency / busyness faders. Release the FSR &mdash; instantly playing again.</p>
+            <p><strong>CONTROL LAYER &middot; THE CORNER PINCER.</strong> Press two <em>adjacent</em> FSR field-quadrants at once &mdash; say, west + south &mdash; and hold for &sim;0.5s; an LED ripple confirms the press. The corner where those two quadrants meet (here, SW) opens its control family. Four corners, four families: SW harmonic, NW time, NE model, SE sound. The grid then becomes the control panel for that family &mdash; 10 pads light as the 10 DSP axes for AXIS-GRAB (a softpot rides whichever axis you grab, always through the perceptual axes, never raw synth parameters), other pads hold the snapshot shelf, softpots ride rate / tension / consistency / busyness. Release the pincer &mdash; instantly playing again.</p>
         </div>
 
-        <p class="callout">the spring is the point: the control layer physically cannot stay stuck on. Meta-control costs effort; playing is free.</p>
+        <p class="callout">deliberate, two-handed, off the playing flow: an unseasoned player never stumbles into it. The expert just memorizes four pinches.</p>
     </section>
 
     <hr class="divider">
