@@ -822,6 +822,14 @@
             </div>
         </div>
 
+        <p class="lift-label">Raw Start Profiles</p>
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#E0AAFF;">
+                <div class="decision-name">PER-TARGET START POINT</div>
+                <div class="decision-desc">the adaptation-rate dial doesn't start in the same place for every archetype &mdash; each target instrument carries its own session profile setting where the dial <strong>begins</strong>. The Machine Orchestra profile starts at <strong>zero</strong>: a fully raw, unadapted instrument. It ramps up over the course of the session, or by hand on the secondary interface &mdash; never pre-adapted before the player has touched it.</div>
+            </div>
+        </div>
+
         <p class="lift-label">Jazz Mode vs. DJ Mode</p>
         <div class="temporal-companions">
             <div class="temporal-card" style="--row-color:#A855F7;">
@@ -876,7 +884,7 @@
             </div>
             <div class="decision-row" style="--row-color:#C084FC;">
                 <div class="decision-name">STAGE 2 &middot; CORPUS</div>
-                <div class="decision-desc">the player plays, a lot; everything logged raw. <strong>Gate:</strong> coverage numbers &mdash; hours target, all archetypes, all sensors, tempo range.</div>
+                <div class="decision-desc">logging rides <strong>all real playing</strong> &mdash; jams, rehearsals, gigs all count, not just dedicated sessions. Silence is auto-segmented out; phrase-rests are kept as data, not discarded. <strong>Gate:</strong> prediction quality beats baseline on held-out material &mdash; not an hours quota.</div>
             </div>
             <div class="decision-row" style="--row-color:#E0AAFF;">
                 <div class="decision-name">STAGE 3 &middot; PREDICTOR v1</div>
@@ -903,6 +911,70 @@
             <p><strong>THE PINNED 12D SPACE IS THE FIREWALL.</strong> The predictor and the artistic map meet only through it; retraining one never cascades into the other.</p>
         </div>
     </section>
+
+    <div class="g-connector">
+        <div class="g-connector-arrow">&darr;</div>
+        <p class="g-connector-text">an early archetype needs none of the above &mdash; no model, no logging, just a rule.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ================= ENSEMBLE ================= -->
+    <section id="ensemble">
+        <p class="sec-num">Ensemble</p>
+        <h2>Playing With Others &mdash; the Common-Tone Engine</h2>
+        <p class="sec-sub">hand-coded, no ML &mdash; an early archetype, the suite's harmonic instrument</p>
+
+        <p class="field-body center">An improvising keyboardist moves through keys. The grid must always offer playable pitches, in real time, without ever surprising the player's own hand. There's no model here and nothing is trained &mdash; the engine is a fixed rule, running against a live estimate of the room's harmony.</p>
+
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">1 &middot; CONTEXT IN</div>
+                <div class="decision-desc">ensemble MIDI arrives on the DEMIURGE bus. A decaying pitch-class histogram accumulates it &mdash; the live harmony estimate, always a few notes behind the room, always current.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#A855F7;">
+                <div class="decision-name">2 &middot; RANKING</div>
+                <div class="decision-desc">every pitch on the grid is scored on three axes: (a) common tone &mdash; overlap with the current context histogram; (b) harmonic-series alignment &mdash; low-integer ratios, the same harmonicity axis G3 uses between notes; (c) voice-leading distance &mdash; how far a re-voice would sit from the notes already held.</div>
+            </div>
+        </div>
+
+        <div class="lift-principle" style="border-color: rgba(0,240,255,0.4); box-shadow: 0 0 24px rgba(0,240,255,0.12);">
+            <p><strong>THE GOLDEN RULE.</strong> A held pad never re-pitches. Only unheld pads re-voice, and only on the downbeat. Common tones keep their pads. <em>Your finger is never lied to.</em></p>
+        </div>
+
+        <div class="decision-table">
+            <div class="decision-row" style="--row-color:#C084FC;">
+                <div class="decision-name">4 &middot; ANCHORS CASCADE</div>
+                <div class="decision-desc">a held common tone becomes an anchor. The system serves the next ring of common tones around anchor &cap; context &mdash; key changes flow around the player's own pivots, never against them.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#E0AAFF;">
+                <div class="decision-name">5 &middot; LED GRAMMAR</div>
+                <div class="decision-desc">bright = common tone &middot; mid = consonant new tone &middot; dim = tension tone &middot; glow = anchor. The pad grid reads its own harmony back at the player before a finger lands.</div>
+            </div>
+            <div class="decision-row" style="--row-color:#00F0FF;">
+                <div class="decision-name">6 &middot; SELF KEY-CHANGE</div>
+                <div class="decision-desc">the player can hold a tone and re-center the whole engine on it, at any moment &mdash; a self-initiated key change, not one waiting on the ensemble.</div>
+            </div>
+        </div>
+
+        <div class="legend-row">
+            <div class="legend-item"><span class="swatch" style="background:#00F0FF"></span>bright &mdash; common tone</div>
+            <div class="legend-item"><span class="swatch" style="background:#A855F7"></span>mid &mdash; consonant new tone</div>
+            <div class="legend-item"><span class="swatch" style="background:#C084FC; opacity:0.4;"></span>dim &mdash; tension tone</div>
+            <div class="legend-item"><span class="swatch" style="background:none; border:1.5px solid #E0AAFF;"></span>glow ring &mdash; anchor</div>
+        </div>
+
+        <figure class="wide">
+            <svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg" aria-label="Before and after 8 by 8 pad grids across a key change, common tones fixed in place">
+                <g id="ensemble-grids"></g>
+            </svg>
+            <figcaption>a key change, before &rarr; after: anchor and common-tone pads (glowing / bright) stay exactly where they were &mdash; only the unheld pads re-voice, each arrow marking a pad whose pitch moved.</figcaption>
+        </figure>
+
+        <p class="callout">the model's later role: it steers engine parameters &mdash; density, tension amount, re-voicing speed &mdash; it never overrides the ranking math above.</p>
+    </section>
+
+    <hr class="divider">
 
     <footer class="ng-footer">neuralGrid &middot; dimensional architecture &middot; this page tracks the locked architecture as it evolves</footer>
 </div>
@@ -1307,6 +1379,134 @@
         });
 
         el('text', { x: 14, y: baseY + 18, 'text-anchor': 'start', fill: '#E0AAFF', 'font-size': 8, 'font-style': 'italic', opacity: 0.55 }, g).textContent = 'diamonds = hard gates — see the table below for each condition';
+    })();
+
+    /* ---------------- Ensemble: common-tone engine, before/after grids ---------------- */
+    (function buildEnsembleGrids() {
+        var g = document.getElementById('ensemble-grids');
+        if (!g) return;
+
+        var defs = el('defs', {}, g.ownerSVGElement);
+        var marker = el('marker', { id: 'arrowVoice', markerWidth: 8, markerHeight: 8, refX: 6, refY: 3, orient: 'auto' }, defs);
+        el('path', { d: 'M0,0 L6,3 L0,6 Z', fill: '#E0AAFF', opacity: 0.85 }, marker);
+
+        var N = 8, cell = 26, gapCell = 4;
+        var gridW = N * cell + (N - 1) * gapCell;
+
+        // cell state grids: 'anchor' (fixed, glowing bright), 'common' (bright, fixed),
+        // 'mid' (consonant new tone), 'dim' (tension tone). anchor/common positions are
+        // IDENTICAL between before/after — only mid/dim cells swap.
+        var STATE_COLOR = { anchor: '#00F0FF', common: '#00F0FF', mid: '#A855F7', dim: '#C084FC' };
+        var STATE_OPACITY = { anchor: 0.95, common: 0.85, mid: 0.7, dim: 0.32 };
+
+        // fixed positions (row, col) — same for both grids
+        var anchors = [[2, 2], [5, 5]];
+        var commons = [[1, 5], [3, 1], [6, 3], [4, 6]];
+
+        function key(r, c) { return r + ',' + c; }
+        var fixedSet = {};
+        anchors.concat(commons).forEach(function (rc) { fixedSet[key(rc[0], rc[1])] = true; });
+
+        // deterministic pseudo-random generator
+        function makeRnd(seed) {
+            var s = seed;
+            return function () { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+        }
+
+        // base pattern for the "before" grid; "after" keeps most cells and only
+        // re-voices a minority (~30%) — a key change nudges the field, it doesn't reshuffle it
+        var rnd1 = makeRnd(17);
+        var rnd2 = makeRnd(59);
+        var beforePattern = [];
+        var afterPattern = [];
+        for (var r = 0; r < N; r++) {
+            for (var c = 0; c < N; c++) {
+                if (fixedSet[key(r, c)]) continue;
+                var baseState = rnd1() > 0.62 ? 'mid' : 'dim';
+                beforePattern.push({ r: r, c: c, state: baseState });
+                var flip = rnd2() < 0.3;
+                afterPattern.push({ r: r, c: c, state: flip ? (baseState === 'mid' ? 'dim' : 'mid') : baseState });
+            }
+        }
+
+        function drawGrid(originX, originY, pattern, label) {
+            var gg = el('g', {}, g);
+            el('text', { x: originX + gridW / 2, y: originY - 14, 'text-anchor': 'middle', fill: '#E0AAFF', 'font-size': 11, 'font-weight': 700, 'letter-spacing': 2 }, gg).textContent = label;
+
+            function cellXY(r, c) {
+                return { x: originX + c * (cell + gapCell), y: originY + r * (cell + gapCell) };
+            }
+
+            // base grid cells
+            for (var r = 0; r < N; r++) {
+                for (var c = 0; c < N; c++) {
+                    var p = cellXY(r, c);
+                    el('rect', { x: p.x, y: p.y, width: cell, height: cell, rx: 3, fill: '#150E56', stroke: 'rgba(224,170,255,0.25)', 'stroke-width': 1 }, gg);
+                }
+            }
+
+            // variable (mid/dim) cells
+            pattern.forEach(function (cellDef) {
+                var p = cellXY(cellDef.r, cellDef.c);
+                el('rect', {
+                    x: p.x + 1.5, y: p.y + 1.5, width: cell - 3, height: cell - 3, rx: 2,
+                    fill: STATE_COLOR[cellDef.state], 'fill-opacity': STATE_OPACITY[cellDef.state]
+                }, gg);
+            });
+
+            // common tones — bright, fixed
+            commons.forEach(function (rc) {
+                var p = cellXY(rc[0], rc[1]);
+                el('rect', {
+                    x: p.x + 1.5, y: p.y + 1.5, width: cell - 3, height: cell - 3, rx: 2,
+                    fill: STATE_COLOR.common, 'fill-opacity': STATE_OPACITY.common
+                }, gg);
+            });
+
+            // anchors — bright + glow ring, fixed
+            anchors.forEach(function (rc) {
+                var p = cellXY(rc[0], rc[1]);
+                el('rect', {
+                    x: p.x - 3, y: p.y - 3, width: cell + 6, height: cell + 6, rx: 5,
+                    fill: 'none', stroke: '#E0AAFF', 'stroke-width': 1.4, 'stroke-dasharray': '2,2', opacity: 0.85
+                }, gg);
+                el('rect', {
+                    x: p.x + 1.5, y: p.y + 1.5, width: cell - 3, height: cell - 3, rx: 2,
+                    fill: STATE_COLOR.anchor, 'fill-opacity': STATE_OPACITY.anchor
+                }, gg);
+            });
+
+            return cellXY;
+        }
+
+        var originYGrids = 40;
+        var beforeX = 40, afterX = beforeX + gridW + 260;
+        var cellXYBefore = drawGrid(beforeX, originYGrids, beforePattern, 'BEFORE  ·  KEY A');
+        var cellXYAfter = drawGrid(afterX, originYGrids, afterPattern, 'AFTER  ·  KEY B');
+
+        // key-change arrow between the two grids
+        var midY = originYGrids + gridW / 2;
+        el('line', { x1: beforeX + gridW + 30, y1: midY, x2: afterX - 30, y2: midY, stroke: '#F3E8FF', 'stroke-width': 1.2, opacity: 0.55, 'marker-end': 'url(#arrowVoice)' }, g);
+        el('text', { x: (beforeX + gridW + afterX) / 2, y: midY - 12, 'text-anchor': 'middle', fill: '#F3E8FF', 'font-size': 9, 'font-style': 'italic', opacity: 0.75 }, g).textContent = 'key change';
+
+        // movement arrows: cells whose state changed between before/after get a small
+        // arrow drawn on the AFTER grid, pointing up (toward brighter) or down (toward dimmer)
+        var beforeMap = {}, afterMap = {};
+        beforePattern.forEach(function (cd) { beforeMap[key(cd.r, cd.c)] = cd.state; });
+        afterPattern.forEach(function (cd) { afterMap[key(cd.r, cd.c)] = cd.state; });
+
+        Object.keys(afterMap).forEach(function (k) {
+            if (beforeMap[k] === afterMap[k]) return;
+            var parts = k.split(',');
+            var r = +parts[0], c = +parts[1];
+            var p = cellXYAfter(r, c);
+            var goingBrighter = afterMap[k] === 'mid' && beforeMap[k] === 'dim';
+            var ax = p.x + cell / 2, ay0 = p.y + cell + 8, ay1 = p.y - 2;
+            var d = goingBrighter ? ('M' + ax + ',' + ay0 + ' L' + ax + ',' + ay1) : ('M' + ax + ',' + ay1 + ' L' + ax + ',' + ay0);
+            el('path', { d: d, stroke: '#E0AAFF', 'stroke-width': 1.1, opacity: 0.8, 'marker-end': 'url(#arrowVoice)' }, g);
+        });
+
+        el('text', { x: (beforeX + afterX + gridW) / 2, y: originYGrids + gridW + 30, 'text-anchor': 'middle', fill: '#C084FC', 'font-size': 8.5, 'font-style': 'italic', opacity: 0.75 }, g).textContent = 'dashed rings = anchors · fixed pads = common tones · arrows = re-voiced pads';
     })();
 })();
 </script>
