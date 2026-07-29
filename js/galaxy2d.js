@@ -56,8 +56,8 @@
     var focus = null;               // node whose system fills the screen
     var trans = null;               // {from, to, t, sFrom, sTo}
     var cam = { x: 0, y: 0, scale: 1 };
-    var pan = { x: 0, y: 0 };       // persistent grab-pan offset (screen px)
-    var panVX = 0, panVY = 0;       // pan momentum (px/s)
+    var spin = 0;                   // grab-rotation: rad added to every orbital angle
+    var spinV = 0;                  // angular momentum (rad/s)
 
     var intro = null;               // big-bang state
     var overlayNode = null;
@@ -67,7 +67,7 @@
     var starN = 0;
     var starX, starY, starR, starPh, starLayer, starTint;
     var LAYER_PAR = [0.018, 0.05, 0.11];
-    var STAR_PAN = [0.1, 0.26, 0.52];   // per-layer pan parallax (depth grid feel)
+    var STAR_SPIN = [0.05, 0.13, 0.26]; // per-layer spin parallax (depth grid feel)
 
     // sprites
     var nebulaSprites = [];
@@ -366,6 +366,7 @@
     }
 
     var STAR_COLORS = ['rgba(235,225,255,', 'rgba(192,132,252,', 'rgba(110,235,255,'];
+    var LCOS = [1, 1, 1], LSIN = [0, 0, 0];   // per-layer spin rotation, per frame
 
     // ─── viewport ──────────────────────────────────────────────
     function resize() {
@@ -398,7 +399,7 @@
         for (var i = 0; i < drawOrder.length; i++) {
             var n = drawOrder[i];
             var p = n.parentNode;
-            var a = n.a0 + time * n.spd;
+            var a = n.a0 + time * n.spd + spin;
             var r = n.orbF * p.sysR;
             n.wx = p.wx + Math.cos(a) * r * stretchX;
             n.wy = p.wy + Math.sin(a) * r * stretchY;
@@ -752,11 +753,11 @@
         var n = nebulaSprites.length;
         var d = Math.max(W, H);
         for (var i = 0; i < n; i++) {
-            var ph = time * 0.012 + i * 2.1;
+            var ph = time * 0.012 + i * 2.1 + spin * 0.12;
             var bx = W * (0.18 + 0.64 * (0.5 + 0.5 * Math.sin(ph + i * 1.7)));
             var by = H * (0.2 + 0.6 * (0.5 + 0.5 * Math.cos(ph * 0.8 + i * 2.3)));
-            bx -= cam.x * 0.004 + pan.x * 0.05;
-            by -= cam.y * 0.004 + pan.y * 0.05;
+            bx -= cam.x * 0.004;
+            by -= cam.y * 0.004;
             var s = d * (0.7 + i * 0.22);
             ctx.drawImage(nebulaSprites[i], bx - s / 2, by - s / 2, s, s);
         }
@@ -764,11 +765,19 @@
 
     function drawStars() {
         var tw = reducedMotion ? 0 : time;
+        // star layers counter-rotate at different rates while the plane spins
+        for (var l = 0; l < 3; l++) {
+            LCOS[l] = Math.cos(-spin * STAR_SPIN[l]);
+            LSIN[l] = Math.sin(-spin * STAR_SPIN[l]);
+        }
+        var cx = W / 2, cy = H / 2;
         for (var i = 0; i < starN; i++) {
-            var par = LAYER_PAR[starLayer[i]];
-            var sp = STAR_PAN[starLayer[i]];
-            var x = starX[i] - (cam.x * par + pan.x * sp);
-            var y = starY[i] - (cam.y * par + pan.y * sp);
+            var ly = starLayer[i];
+            var par = LAYER_PAR[ly];
+            var x0 = starX[i] - cam.x * par - cx;
+            var y0 = starY[i] - cam.y * par - cy;
+            var x = x0 * LCOS[ly] - y0 * LSIN[ly] + cx;
+            var y = x0 * LSIN[ly] + y0 * LCOS[ly] + cy;
             x = ((x % W) + W) % W;
             y = ((y % H) + H) % H;
             var a = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(tw * (0.6 + starLayer[i] * 0.5) + starPh[i]));
@@ -779,8 +788,8 @@
     }
 
     function toScreen(n) {
-        n.sx = (n.wx - cam.x) * cam.scale + W / 2 + pan.x;
-        n.sy = (n.wy - cam.y) * cam.scale + H / 2 + pan.y;
+        n.sx = (n.wx - cam.x) * cam.scale + W / 2;
+        n.sy = (n.wy - cam.y) * cam.scale + H / 2;
         n.sr = n.bodyR * cam.scale;
     }
 
@@ -792,8 +801,8 @@
         var i, n;
 
         // black hole (root center)
-        var bx = (0 - cam.x) * cam.scale + W / 2 + pan.x;
-        var by = (0 - cam.y) * cam.scale + H / 2 + pan.y;
+        var bx = (0 - cam.x) * cam.scale + W / 2;
+        var by = (0 - cam.y) * cam.scale + H / 2;
         var bcore = ROOT_SYS_R * 0.075 * cam.scale;
         if (bcore < 2600 && bx > -W && bx < 2 * W && by > -H && by < 2 * H) {
             drawBlackHole(bx, by, bcore);
@@ -833,8 +842,8 @@
 
     function drawOrbitRings(f, alpha) {
         if (alpha <= 0.02) return;
-        var pxc = (f.wx - cam.x) * cam.scale + W / 2 + pan.x;
-        var pyc = (f.wy - cam.y) * cam.scale + H / 2 + pan.y;
+        var pxc = (f.wx - cam.x) * cam.scale + W / 2;
+        var pyc = (f.wy - cam.y) * cam.scale + H / 2;
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         ctx.setLineDash(DASH);
@@ -929,29 +938,11 @@
             cam.scale += (tScale - cam.scale) * Math.min(1, dt * 5);
         }
 
-        // grab-pan: persistent while idle, momentum on release,
-        // smoothly recentered whenever a fractal flight takes over
-        if (trans) {
-            var pk = Math.min(1, dt * 4.5);
-            pan.x -= pan.x * pk;
-            pan.y -= pan.y * pk;
-            panVX = 0; panVY = 0;
-        } else if (!dragging) {
-            if (panVX !== 0 || panVY !== 0) {
-                pan.x += panVX * dt;
-                pan.y += panVY * dt;
-                var fr = Math.pow(0.5, dt * 2.4);
-                panVX *= fr; panVY *= fr;
-                if (Math.abs(panVX) + Math.abs(panVY) < 5) { panVX = 0; panVY = 0; }
-            }
-            // rubber band so the system can never be flung out of reach
-            var lim = Math.max(W, H) * 0.8;
-            var mag = Math.hypot(pan.x, pan.y);
-            if (mag > lim) {
-                var pull = Math.min(1, dt * 2.5) * (mag - lim) / mag;
-                pan.x -= pan.x * pull;
-                pan.y -= pan.y * pull;
-            }
+        // grab-rotation momentum: fling keeps the plane spinning, friction slows it
+        if (!dragging && spinV !== 0) {
+            spin += spinV * dt;
+            spinV *= Math.pow(0.5, dt * 1.6);
+            if (Math.abs(spinV) < 0.01) spinV = 0;
         }
 
         draw(dt);
@@ -963,8 +954,18 @@
     var pointers = {};
     var pinchStart = 0, pinchFired = false;
     var dragSX = 0, dragSY = 0, dragMoved = false, dragConsumed = false;
-    var dragLX = 0, dragLY = 0, dragT = 0;
-    var V_MAX = 2800;
+    var dragA = 0, dragT = 0;
+    var SPIN_V_MAX = 7;             // rad/s fling cap
+    var DEAD_R = 44;                // px around center where the angle is unstable
+
+    function pointerAngle(x, y) {
+        return Math.atan2(y - H / 2, x - W / 2);
+    }
+    function normAngle(a) {
+        while (a > Math.PI) a -= TAU;
+        while (a < -Math.PI) a += TAU;
+        return a;
+    }
 
     function pointerCount() {
         var c = 0; for (var k in pointers) c++; return c;
@@ -984,9 +985,9 @@
             if (n === 1) {
                 dragging = true; dragMoved = false;
                 dragSX = e.clientX; dragSY = e.clientY;
-                dragLX = e.clientX; dragLY = e.clientY;
+                dragA = pointerAngle(e.clientX, e.clientY);
                 dragT = performance.now();
-                panVX = 0; panVY = 0;
+                spinV = 0;
                 document.body.classList.add('is-grabbing');
             } else if (n === 2) {
                 dragging = false;
@@ -1001,14 +1002,20 @@
             p.x = e.clientX; p.y = e.clientY;
             var n = pointerCount();
             if (n === 1 && dragging) {
-                var dx = e.clientX - dragLX, dy = e.clientY - dragLY;
-                pan.x += dx;
-                pan.y += dy;
-                var now = performance.now();
-                var dts = Math.max(0.008, (now - dragT) / 1000);
-                panVX = clamp(0.75 * (dx / dts) + 0.25 * panVX, -V_MAX, V_MAX);
-                panVY = clamp(0.75 * (dy / dts) + 0.25 * panVY, -V_MAX, V_MAX);
-                dragLX = e.clientX; dragLY = e.clientY; dragT = now;
+                // spin the plane: angular delta of the pointer's arc around center
+                if (Math.hypot(e.clientX - W / 2, e.clientY - H / 2) > DEAD_R) {
+                    var na = pointerAngle(e.clientX, e.clientY);
+                    var da = normAngle(na - dragA);
+                    dragA = na;
+                    spin += da;
+                    var now = performance.now();
+                    var dts = Math.max(0.008, (now - dragT) / 1000);
+                    spinV = clamp(0.75 * (da / dts) + 0.25 * spinV,
+                        -SPIN_V_MAX, SPIN_V_MAX);
+                    dragT = now;
+                } else {
+                    dragA = pointerAngle(e.clientX, e.clientY);
+                }
                 if (Math.abs(e.clientX - dragSX) + Math.abs(e.clientY - dragSY) > 6)
                     dragMoved = true;
             } else if (n === 2 && pinchStart > 0 && !pinchFired) {
