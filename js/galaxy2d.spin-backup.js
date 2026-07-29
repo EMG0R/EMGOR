@@ -1,3 +1,4 @@
+/* galaxy2d.spin-backup.js — BACKUP of the 2D orbit-spin drag mechanic (drag adds an angle offset that sweeps planets along their orbit rings). Saved 2026-07-28 before the 3D trackball rebuild. Not loaded by any page. */
 /* galaxy2d.js — EMGOR fractal galaxy engine.
    Dependency-free Canvas-2D. Renders galaxy.json (falls back to js/galaxy-stub.json).
    One continuous 2D camera; every node is a procedurally-seeded planet; every
@@ -56,16 +57,8 @@
     var focus = null;               // node whose system fills the screen
     var trans = null;               // {from, to, t, sFrom, sTo}
     var cam = { x: 0, y: 0, scale: 1 };
-
-    // 3D scene rotation (trackball): orbits live in the x,z plane (y up).
-    // yaw spins the model around the vertical axis, pitch tilts the plane.
-    var PITCH_REST = 0.62;          // rest pose ~35°: reads as 3D immediately
-    var PITCH_MIN = 0.12, PITCH_MAX = 1.15;   // keep labels legible, never edge-on
-    var PERSP = 0.35;               // perspective strength (normalized by view radius)
-    var yaw = 0, pitch = PITCH_REST;
-    var yawV = 0, pitchV = 0;       // trackball momentum (rad/s)
-    var cosYaw = 1, sinYaw = 0, cosPit = 1, sinPit = 0, perspK = 0;
-    var sortOrder = [];             // drawOrder clone, insertion-sorted by depth
+    var spin = 0;                   // grab-rotation: rad added to every orbital angle
+    var spinV = 0;                  // angular momentum (rad/s)
 
     var intro = null;               // big-bang state
     var overlayNode = null;
@@ -75,8 +68,7 @@
     var starN = 0;
     var starX, starY, starR, starPh, starLayer, starTint;
     var LAYER_PAR = [0.018, 0.05, 0.11];
-    var STAR_YAW = [10, 26, 54];    // px shift per rad of yaw, per layer (parallax)
-    var STAR_PIT = [7, 18, 38];     // px shift per rad of pitch, per layer
+    var STAR_SPIN = [0.05, 0.13, 0.26]; // per-layer spin parallax (depth grid feel)
 
     // sprites
     var nebulaSprites = [];
@@ -156,7 +148,6 @@
                 walk(k);
             }
         })(root);
-        sortOrder = drawOrder.slice();
     }
 
     // ─── procedural planet identity ────────────────────────────
@@ -376,6 +367,7 @@
     }
 
     var STAR_COLORS = ['rgba(235,225,255,', 'rgba(192,132,252,', 'rgba(110,235,255,'];
+    var LCOS = [1, 1, 1], LSIN = [0, 0, 0];   // per-layer spin rotation, per frame
 
     // ─── viewport ──────────────────────────────────────────────
     function resize() {
@@ -404,57 +396,15 @@
     }
 
     // ─── world positions (per-frame) ───────────────────────────
-    // wx/wy are world x/z on the flat orbital plane; drag never touches
-    // orbital angles — the whole scene is rotated at projection time.
     function computePositions() {
         for (var i = 0; i < drawOrder.length; i++) {
             var n = drawOrder[i];
             var p = n.parentNode;
-            var a = n.a0 + time * n.spd;
+            var a = n.a0 + time * n.spd + spin;
             var r = n.orbF * p.sysR;
-            n.wx = p.wx + Math.cos(a) * r;
-            n.wy = p.wy + Math.sin(a) * r;
+            n.wx = p.wx + Math.cos(a) * r * stretchX;
+            n.wy = p.wy + Math.sin(a) * r * stretchY;
         }
-    }
-
-    // rotate the scene (yaw then pitch) around the camera center and
-    // project with mild perspective; fills n.sx/sy/sr/sz/persp/dim
-    function projectAll() {
-        cosYaw = Math.cos(yaw); sinYaw = Math.sin(yaw);
-        cosPit = Math.cos(pitch); sinPit = Math.sin(pitch);
-        var viewR = availY / (stretchY * cam.scale);       // ~world radius on screen
-        perspK = PERSP / Math.max(1e-6, viewR);
-        for (var i = 0; i < drawOrder.length; i++) {
-            var n = drawOrder[i];
-            var rx = n.wx - cam.x, rz = n.wy - cam.y;
-            var x1 = rx * cosYaw + rz * sinYaw;
-            var z1 = -rx * sinYaw + rz * cosYaw;
-            var y2 = -z1 * sinPit;
-            var z2 = z1 * cosPit;
-            var pr = 1 / Math.max(0.3, 1 + z2 * perspK);
-            n.persp = pr;
-            n.sz = z2 * perspK;                            // normalized depth
-            n.dim = clamp(1 - n.sz * 1.05, 0.45, 1.22);    // far dimmer, near brighter
-            n.sx = W / 2 + x1 * stretchX * cam.scale * pr;
-            n.sy = H / 2 + y2 * stretchY * cam.scale * pr;
-            n.sr = n.bodyR * cam.scale * pr;
-        }
-    }
-
-    // project an arbitrary flat-plane world point (for rings, black hole)
-    var PROJ = { x: 0, y: 0, z: 0, p: 1 };
-    function projectPoint(wx, wz) {
-        var rx = wx - cam.x, rz = wz - cam.y;
-        var x1 = rx * cosYaw + rz * sinYaw;
-        var z1 = -rx * sinYaw + rz * cosYaw;
-        var y2 = -z1 * sinPit;
-        var z2 = z1 * cosPit;
-        var pr = 1 / Math.max(0.3, 1 + z2 * perspK);
-        PROJ.x = W / 2 + x1 * stretchX * cam.scale * pr;
-        PROJ.y = H / 2 + y2 * stretchY * cam.scale * pr;
-        PROJ.z = z2 * perspK;
-        PROJ.p = pr;
-        return PROJ;
     }
 
     // visual size boost by navigational role (planets are the main event)
@@ -697,10 +647,8 @@
             if (excludeIfIn && excludeIfIn.indexOf(n) !== -1) continue;
             var el = labelFor(n);
             el._keep = true;
-            var a = alpha * (intro ? n.rev : 1) * clamp(n.dim, 0.55, 1);
+            var a = alpha * (intro ? n.rev : 1);
             if (a <= 0.02) { el.style.display = 'none'; continue; }
-            var zi = n.sz < 0 ? 15 : 3;
-            if (el._zi !== zi) { el._zi = zi; el.style.zIndex = zi; }
             var d = clamp(n.sr * 2.7, 80, 250);
             var lw = clamp(d * 1.65, 122, 330);  // wider than tall: long names breathe
             var x = clamp(n.sx, lw / 2 + 6, W - lw / 2 - 6);
@@ -806,7 +754,7 @@
         var n = nebulaSprites.length;
         var d = Math.max(W, H);
         for (var i = 0; i < n; i++) {
-            var ph = time * 0.012 + i * 2.1 + yaw * 0.25;
+            var ph = time * 0.012 + i * 2.1 + spin * 0.12;
             var bx = W * (0.18 + 0.64 * (0.5 + 0.5 * Math.sin(ph + i * 1.7)));
             var by = H * (0.2 + 0.6 * (0.5 + 0.5 * Math.cos(ph * 0.8 + i * 2.3)));
             bx -= cam.x * 0.004;
@@ -818,12 +766,19 @@
 
     function drawStars() {
         var tw = reducedMotion ? 0 : time;
-        var tilt = pitch - PITCH_REST;
+        // star layers counter-rotate at different rates while the plane spins
+        for (var l = 0; l < 3; l++) {
+            LCOS[l] = Math.cos(-spin * STAR_SPIN[l]);
+            LSIN[l] = Math.sin(-spin * STAR_SPIN[l]);
+        }
+        var cx = W / 2, cy = H / 2;
         for (var i = 0; i < starN; i++) {
             var ly = starLayer[i];
             var par = LAYER_PAR[ly];
-            var x = starX[i] - cam.x * par - yaw * STAR_YAW[ly];
-            var y = starY[i] - cam.y * par - tilt * STAR_PIT[ly];
+            var x0 = starX[i] - cam.x * par - cx;
+            var y0 = starY[i] - cam.y * par - cy;
+            var x = x0 * LCOS[ly] - y0 * LSIN[ly] + cx;
+            var y = x0 * LSIN[ly] + y0 * LCOS[ly] + cy;
             x = ((x % W) + W) % W;
             y = ((y % H) + H) % H;
             var a = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(tw * (0.6 + starLayer[i] * 0.5) + starPh[i]));
@@ -833,30 +788,32 @@
         }
     }
 
+    function toScreen(n) {
+        n.sx = (n.wx - cam.x) * cam.scale + W / 2;
+        n.sy = (n.wy - cam.y) * cam.scale + H / 2;
+        n.sr = n.bodyR * cam.scale;
+    }
+
     var DASH = [6, 7];
     var NO_DASH = [];
-
-    // far bodies first; insertion sort — cheap on mostly-sorted data
-    function sortByDepth() {
-        for (var i = 1; i < sortOrder.length; i++) {
-            var n = sortOrder[i], j = i - 1;
-            while (j >= 0 && sortOrder[j].sz < n.sz) {
-                sortOrder[j + 1] = sortOrder[j];
-                j--;
-            }
-            sortOrder[j + 1] = n;
-        }
-    }
 
     function drawWorld() {
         var e = trans ? easeInOut(clamp(trans.t, 0, 1)) : 1;
         var i, n;
 
+        // black hole (root center)
+        var bx = (0 - cam.x) * cam.scale + W / 2;
+        var by = (0 - cam.y) * cam.scale + H / 2;
+        var bcore = ROOT_SYS_R * 0.075 * cam.scale;
+        if (bcore < 2600 && bx > -W && bx < 2 * W && by > -H && by < 2 * H) {
+            drawBlackHole(bx, by, bcore);
+        }
+
         // orbit rings for focus system (and previous during flight)
         drawOrbitRings(focus, trans ? e : 1);
         if (trans) drawOrbitRings(trans.from, 1 - e);
 
-        // pass 1: alpha + boosted size (drawing happens in depth order below)
+        // bodies, depth order (parents behind children)
         for (i = 0; i < drawOrder.length; i++) {
             n = drawOrder[i];
             var a = alphaFor(n, focus);
@@ -867,64 +824,41 @@
                 a *= anc.rev;
             }
             n.alpha = a;
+            if (a <= 0.01) continue;
+            toScreen(n);
             var b = boostFor(n, focus);
             if (trans) b = lerp(boostFor(n, trans.from), b, e);
-            n.sr = n.bodyR * cam.scale * n.persp * b;
+            n.sr *= b;
             if (intro && n.parentNode === root) {
                 // resolve out of the center during the big bang
                 n.sx = lerp(W / 2, n.sx, n.rev);
                 n.sy = lerp(H / 2, n.sy, n.rev);
             }
-        }
-
-        sortByDepth();
-
-        // the center (black hole) slots into the depth order at its own z
-        var bp = projectPoint(0, 0);
-        var bx = bp.x, by = bp.y, bz = bp.z;
-        var bcore = ROOT_SYS_R * 0.075 * cam.scale * bp.p;
-        var centerOK = bcore < 2600 && bx > -W && bx < 2 * W && by > -H && by < 2 * H;
-        var centerDrawn = !centerOK;
-
-        // pass 2: far → near
-        for (i = 0; i < sortOrder.length; i++) {
-            n = sortOrder[i];
-            if (!centerDrawn && n.sz < bz) {
-                drawBlackHole(bx, by, bcore);
-                centerDrawn = true;
-            }
-            var al = n.alpha;
-            if (al <= 0.01) continue;
             var r = n.sr;
             if (r < 0.5 || r > 6000) continue;
             if (n.sx < -r * 4 || n.sx > W + r * 4 || n.sy < -r * 4 || n.sy > H + r * 4) continue;
-            drawPlanet(n, al);
+            drawPlanet(n, a);
         }
-        if (!centerDrawn) drawBlackHole(bx, by, bcore);
     }
 
     function drawOrbitRings(f, alpha) {
         if (alpha <= 0.02) return;
+        var pxc = (f.wx - cam.x) * cam.scale + W / 2;
+        var pyc = (f.wy - cam.y) * cam.scale + H / 2;
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         ctx.setLineDash(DASH);
         ctx.lineWidth = 1;
-        var SEG = 56;
         for (var i = 0; i < f.kids.length; i++) {
             var k = f.kids[i];
-            var r = k.orbF * f.sysR;
-            var rpx = r * cam.scale;
-            if (rpx < 8 || rpx > W * 4) continue;
+            var rx = k.orbF * f.sysR * stretchX * cam.scale;
+            var ry = k.orbF * f.sysR * stretchY * cam.scale;
+            if (rx < 8 || rx > W * 4) continue;
             var a = alpha * 0.14 * (intro ? k.rev : 1);
             if (a <= 0.01) continue;
             ctx.strokeStyle = 'rgba(168,85,247,' + a.toFixed(3) + ')';
             ctx.beginPath();
-            for (var s = 0; s <= SEG; s++) {
-                var th = (s / SEG) * TAU;
-                var p = projectPoint(f.wx + Math.cos(th) * r, f.wy + Math.sin(th) * r);
-                if (s === 0) ctx.moveTo(p.x, p.y);
-                else ctx.lineTo(p.x, p.y);
-            }
+            ctx.ellipse(pxc, pyc, rx, ry, 0, 0, TAU);
             ctx.stroke();
         }
         ctx.setLineDash(NO_DASH);
@@ -967,15 +901,14 @@
         var t = reducedMotion ? 0 : time;
         var pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(t * n.pulseRate + n.pulsePhase);
         var r = n.sr;
-        var dim = n.dim;
         // glow (additive)
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = Math.min(1, alpha * dim * (0.5 + pulse * 0.45));
+        ctx.globalAlpha = alpha * (0.5 + pulse * 0.45);
         var gs = r * (5.2 + pulse * 1.1);
         ctx.drawImage(n.glow, n.sx - gs / 2, n.sy - gs / 2, gs, gs);
         // body sprite (ring included) — sprite body radius is spriteR of its size
         ctx.globalCompositeOperation = 'source-over';
-        ctx.globalAlpha = Math.min(1, alpha * Math.min(1.06, dim));
+        ctx.globalAlpha = alpha;
         var ss = r / n.spriteR;
         ctx.drawImage(n.sprite, n.sx - ss / 2, n.sy - ss / 2, ss, ss);
         ctx.globalAlpha = 1;
@@ -1006,17 +939,13 @@
             cam.scale += (tScale - cam.scale) * Math.min(1, dt * 5);
         }
 
-        // trackball momentum: fling keeps the model turning, friction slows it
-        if (!dragging && !reducedMotion && (yawV !== 0 || pitchV !== 0)) {
-            yaw += yawV * dt;
-            pitch = clamp(pitch + pitchV * dt, PITCH_MIN, PITCH_MAX);
-            if (pitch === PITCH_MIN || pitch === PITCH_MAX) pitchV = 0;
-            var sfr = Math.pow(0.5, dt * 1.6);
-            yawV *= sfr; pitchV *= sfr;
-            if (Math.abs(yawV) + Math.abs(pitchV) < 0.01) { yawV = 0; pitchV = 0; }
+        // grab-rotation momentum: fling keeps the plane spinning, friction slows it
+        if (!dragging && spinV !== 0) {
+            spin += spinV * dt;
+            spinV *= Math.pow(0.5, dt * 1.6);
+            if (Math.abs(spinV) < 0.01) spinV = 0;
         }
 
-        projectAll();
         draw(dt);
         syncLabels();
     }
@@ -1026,8 +955,18 @@
     var pointers = {};
     var pinchStart = 0, pinchFired = false;
     var dragSX = 0, dragSY = 0, dragMoved = false, dragConsumed = false;
-    var dragLX = 0, dragLY = 0, dragT = 0;
-    var ROT_V_MAX = 8;              // rad/s fling cap per axis
+    var dragA = 0, dragT = 0;
+    var SPIN_V_MAX = 7;             // rad/s fling cap
+    var DEAD_R = 44;                // px around center where the angle is unstable
+
+    function pointerAngle(x, y) {
+        return Math.atan2(y - H / 2, x - W / 2);
+    }
+    function normAngle(a) {
+        while (a > Math.PI) a -= TAU;
+        while (a < -Math.PI) a += TAU;
+        return a;
+    }
 
     function pointerCount() {
         var c = 0; for (var k in pointers) c++; return c;
@@ -1047,9 +986,9 @@
             if (n === 1) {
                 dragging = true; dragMoved = false;
                 dragSX = e.clientX; dragSY = e.clientY;
-                dragLX = e.clientX; dragLY = e.clientY;
+                dragA = pointerAngle(e.clientX, e.clientY);
                 dragT = performance.now();
-                yawV = 0; pitchV = 0;
+                spinV = 0;
                 document.body.classList.add('is-grabbing');
             } else if (n === 2) {
                 dragging = false;
@@ -1064,18 +1003,20 @@
             p.x = e.clientX; p.y = e.clientY;
             var n = pointerCount();
             if (n === 1 && dragging) {
-                // trackball: horizontal drag yaws the model, vertical drag
-                // tilts the orbital plane — orbital motion itself is untouched
-                var dx = e.clientX - dragLX, dy = e.clientY - dragLY;
-                var dYaw = -dx * (4.6 / Math.max(320, W));
-                var dPit = dy * (3.2 / Math.max(320, H));
-                yaw += dYaw;
-                pitch = clamp(pitch + dPit, PITCH_MIN, PITCH_MAX);
-                var now = performance.now();
-                var dts = Math.max(0.008, (now - dragT) / 1000);
-                yawV = clamp(0.75 * (dYaw / dts) + 0.25 * yawV, -ROT_V_MAX, ROT_V_MAX);
-                pitchV = clamp(0.75 * (dPit / dts) + 0.25 * pitchV, -ROT_V_MAX, ROT_V_MAX);
-                dragLX = e.clientX; dragLY = e.clientY; dragT = now;
+                // spin the plane: angular delta of the pointer's arc around center
+                if (Math.hypot(e.clientX - W / 2, e.clientY - H / 2) > DEAD_R) {
+                    var na = pointerAngle(e.clientX, e.clientY);
+                    var da = normAngle(na - dragA);
+                    dragA = na;
+                    spin += da;
+                    var now = performance.now();
+                    var dts = Math.max(0.008, (now - dragT) / 1000);
+                    spinV = clamp(0.75 * (da / dts) + 0.25 * spinV,
+                        -SPIN_V_MAX, SPIN_V_MAX);
+                    dragT = now;
+                } else {
+                    dragA = pointerAngle(e.clientX, e.clientY);
+                }
                 if (Math.abs(e.clientX - dragSX) + Math.abs(e.clientY - dragSY) > 6)
                     dragMoved = true;
             } else if (n === 2 && pinchStart > 0 && !pinchFired) {
