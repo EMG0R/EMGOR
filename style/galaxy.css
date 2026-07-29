@@ -32,8 +32,11 @@ html, body {
     z-index: 1;
     display: block;
     touch-action: none;
-    cursor: crosshair;
+    cursor: grab;
 }
+
+body.is-grabbing #galaxy,
+body.is-grabbing .planet-label { cursor: grabbing; }
 
 #labels {
     position: fixed;
@@ -60,7 +63,11 @@ html, body {
     text-transform: lowercase;
     will-change: transform, opacity;
     -webkit-tap-highlight-color: rgba(168, 85, 247, 0.25);
-    touch-action: manipulation;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+    cursor: grab;
     text-shadow:
         0 0 8px rgba(168, 85, 247, 0.75),
         0 0 22px rgba(123, 47, 190, 0.4),

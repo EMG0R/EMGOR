@@ -11,8 +11,9 @@
     var SHRINK = 0.2;               // child system radius = parent * SHRINK
     var BODY_F = 0.26;              // body radius = own system radius * BODY_F
     var ORBIT_MIN = 0.46, ORBIT_MAX = 1.0; // orbit radii as fraction of parent sysR
-    var MARGIN_X = 80, MARGIN_Y = 96;      // screen margin so labels never clip
+    var MARGIN_X = 44, MARGIN_Y = 76;      // screen margin so labels never clip
     var FLY_DUR = 1.15;             // seconds, fractal zoom flight
+    var CHILD_BOOST = 1.85;         // visual size boost for the focused nav ring
     var TAU = Math.PI * 2;
 
     var reducedMotion = window.matchMedia &&
@@ -55,7 +56,8 @@
     var focus = null;               // node whose system fills the screen
     var trans = null;               // {from, to, t, sFrom, sTo}
     var cam = { x: 0, y: 0, scale: 1 };
-    var pan = { x: 0, y: 0, tx: 0, ty: 0 }; // gentle drag parallax (screen px)
+    var pan = { x: 0, y: 0 };       // persistent grab-pan offset (screen px)
+    var panVX = 0, panVY = 0;       // pan momentum (px/s)
 
     var intro = null;               // big-bang state
     var overlayNode = null;
@@ -65,6 +67,7 @@
     var starN = 0;
     var starX, starY, starR, starPh, starLayer, starTint;
     var LAYER_PAR = [0.018, 0.05, 0.11];
+    var STAR_PAN = [0.1, 0.26, 0.52];   // per-layer pan parallax (depth grid feel)
 
     // sprites
     var nebulaSprites = [];
@@ -377,8 +380,8 @@
         availX = Math.max(120, W / 2 - MARGIN_X);
         availY = Math.max(120, H / 2 - MARGIN_Y);
         var base = Math.min(availX, availY);
-        stretchX = clamp(availX / base, 1, 1.5);
-        stretchY = clamp(availY / base, 1, 1.3);
+        stretchX = clamp(availX / base, 1, 2.2);
+        stretchY = clamp(availY / base, 1, 1.5);
 
         makeStars();
         vignette = makeVignette();
@@ -400,6 +403,15 @@
             n.wx = p.wx + Math.cos(a) * r * stretchX;
             n.wy = p.wy + Math.sin(a) * r * stretchY;
         }
+    }
+
+    // visual size boost by navigational role (planets are the main event)
+    function boostFor(n, f) {
+        if (n.parentNode === f)
+            return CHILD_BOOST / (1 + Math.max(0, f.kids.length - 5) * 0.045);
+        if (n === f) return 1.12;
+        if (n.parentNode && n.parentNode.parentNode === f) return 1.45;
+        return 1;
     }
 
     // relevance/alpha of a node for a given focus
@@ -595,6 +607,7 @@
         el = document.createElement('a');
         el.className = 'planet-label';
         el.href = '#' + node.route;
+        el.draggable = false;
         el.innerHTML =
             '<span class="pl-name">' + node.title.toLowerCase() + '</span>' +
             (node.kids.length
@@ -634,14 +647,14 @@
             el._keep = true;
             var a = alpha * (intro ? n.rev : 1);
             if (a <= 0.02) { el.style.display = 'none'; continue; }
-            var d = clamp(n.sr * 2.9, 68, 210);
-            var lw = clamp(d * 1.6, 104, 250);   // wider than tall: long names breathe
+            var d = clamp(n.sr * 2.7, 80, 250);
+            var lw = clamp(d * 1.65, 122, 330);  // wider than tall: long names breathe
             var x = clamp(n.sx, lw / 2 + 6, W - lw / 2 - 6);
             var y = clamp(n.sy, d / 2 + 6, H - d / 2 - 6);
             el.style.display = 'flex';
             el.style.width = lw + 'px';
             el.style.height = d + 'px';
-            el.style.fontSize = clamp(d * 0.105, 9.5, 15) + 'px';
+            el.style.fontSize = clamp(d * 0.115, 12, 19) + 'px';
             el.style.opacity = a.toFixed(3);
             el.style.transform = 'translate3d(' + (x - lw / 2) + 'px,' + (y - d / 2) + 'px,0)';
         }
@@ -742,8 +755,8 @@
             var ph = time * 0.012 + i * 2.1;
             var bx = W * (0.18 + 0.64 * (0.5 + 0.5 * Math.sin(ph + i * 1.7)));
             var by = H * (0.2 + 0.6 * (0.5 + 0.5 * Math.cos(ph * 0.8 + i * 2.3)));
-            bx -= cam.x * 0.004 + pan.x * 0.08;
-            by -= cam.y * 0.004 + pan.y * 0.08;
+            bx -= cam.x * 0.004 + pan.x * 0.05;
+            by -= cam.y * 0.004 + pan.y * 0.05;
             var s = d * (0.7 + i * 0.22);
             ctx.drawImage(nebulaSprites[i], bx - s / 2, by - s / 2, s, s);
         }
@@ -753,8 +766,9 @@
         var tw = reducedMotion ? 0 : time;
         for (var i = 0; i < starN; i++) {
             var par = LAYER_PAR[starLayer[i]];
-            var x = starX[i] - (cam.x * par + pan.x * par * 14);
-            var y = starY[i] - (cam.y * par + pan.y * par * 14);
+            var sp = STAR_PAN[starLayer[i]];
+            var x = starX[i] - (cam.x * par + pan.x * sp);
+            var y = starY[i] - (cam.y * par + pan.y * sp);
             x = ((x % W) + W) % W;
             y = ((y % H) + H) % H;
             var a = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(tw * (0.6 + starLayer[i] * 0.5) + starPh[i]));
@@ -802,6 +816,9 @@
             n.alpha = a;
             if (a <= 0.01) continue;
             toScreen(n);
+            var b = boostFor(n, focus);
+            if (trans) b = lerp(boostFor(n, trans.from), b, e);
+            n.sr *= b;
             if (intro && n.parentNode === root) {
                 // resolve out of the center during the big bang
                 n.sx = lerp(W / 2, n.sx, n.rev);
@@ -912,10 +929,30 @@
             cam.scale += (tScale - cam.scale) * Math.min(1, dt * 5);
         }
 
-        // gentle parallax pan spring
-        pan.x += (pan.tx - pan.x) * Math.min(1, dt * 6);
-        pan.y += (pan.ty - pan.y) * Math.min(1, dt * 6);
-        if (!dragging) { pan.tx *= Math.pow(0.5, dt * 1.4); pan.ty *= Math.pow(0.5, dt * 1.4); }
+        // grab-pan: persistent while idle, momentum on release,
+        // smoothly recentered whenever a fractal flight takes over
+        if (trans) {
+            var pk = Math.min(1, dt * 4.5);
+            pan.x -= pan.x * pk;
+            pan.y -= pan.y * pk;
+            panVX = 0; panVY = 0;
+        } else if (!dragging) {
+            if (panVX !== 0 || panVY !== 0) {
+                pan.x += panVX * dt;
+                pan.y += panVY * dt;
+                var fr = Math.pow(0.5, dt * 2.4);
+                panVX *= fr; panVY *= fr;
+                if (Math.abs(panVX) + Math.abs(panVY) < 5) { panVX = 0; panVY = 0; }
+            }
+            // rubber band so the system can never be flung out of reach
+            var lim = Math.max(W, H) * 0.8;
+            var mag = Math.hypot(pan.x, pan.y);
+            if (mag > lim) {
+                var pull = Math.min(1, dt * 2.5) * (mag - lim) / mag;
+                pan.x -= pan.x * pull;
+                pan.y -= pan.y * pull;
+            }
+        }
 
         draw(dt);
         syncLabels();
@@ -925,39 +962,55 @@
     var dragging = false;
     var pointers = {};
     var pinchStart = 0, pinchFired = false;
-    var dragSX = 0, dragSY = 0, dragPX = 0, dragPY = 0, dragMoved = false;
-    var PAN_LIMIT = 90;
+    var dragSX = 0, dragSY = 0, dragMoved = false, dragConsumed = false;
+    var dragLX = 0, dragLY = 0, dragT = 0;
+    var V_MAX = 2800;
 
     function pointerCount() {
         var c = 0; for (var k in pointers) c++; return c;
     }
 
+    function grabbable(t) {
+        if (t === canvas) return true;
+        return !!(t && t.closest && t.closest('.planet-label'));
+    }
+
     function setupInput() {
-        canvas.addEventListener('pointerdown', function (e) {
+        document.addEventListener('pointerdown', function (e) {
+            if (!grabbable(e.target)) return;
+            dragConsumed = false;   // stale guard must never eat a fresh tap
             pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
             var n = pointerCount();
             if (n === 1) {
                 dragging = true; dragMoved = false;
                 dragSX = e.clientX; dragSY = e.clientY;
-                dragPX = pan.tx; dragPY = pan.ty;
+                dragLX = e.clientX; dragLY = e.clientY;
+                dragT = performance.now();
+                panVX = 0; panVY = 0;
+                document.body.classList.add('is-grabbing');
             } else if (n === 2) {
                 dragging = false;
                 pinchStart = pinchDist();
                 pinchFired = false;
             }
-            canvas.setPointerCapture(e.pointerId);
         });
 
-        canvas.addEventListener('pointermove', function (e) {
+        window.addEventListener('pointermove', function (e) {
             var p = pointers[e.pointerId];
             if (!p) return;
             p.x = e.clientX; p.y = e.clientY;
             var n = pointerCount();
             if (n === 1 && dragging) {
-                var dx = e.clientX - dragSX, dy = e.clientY - dragSY;
-                if (Math.abs(dx) + Math.abs(dy) > 6) dragMoved = true;
-                pan.tx = clamp(dragPX + dx * 0.45, -PAN_LIMIT, PAN_LIMIT);
-                pan.ty = clamp(dragPY + dy * 0.45, -PAN_LIMIT, PAN_LIMIT);
+                var dx = e.clientX - dragLX, dy = e.clientY - dragLY;
+                pan.x += dx;
+                pan.y += dy;
+                var now = performance.now();
+                var dts = Math.max(0.008, (now - dragT) / 1000);
+                panVX = clamp(0.75 * (dx / dts) + 0.25 * panVX, -V_MAX, V_MAX);
+                panVY = clamp(0.75 * (dy / dts) + 0.25 * panVY, -V_MAX, V_MAX);
+                dragLX = e.clientX; dragLY = e.clientY; dragT = now;
+                if (Math.abs(e.clientX - dragSX) + Math.abs(e.clientY - dragSY) > 6)
+                    dragMoved = true;
             } else if (n === 2 && pinchStart > 0 && !pinchFired) {
                 var ratio = pinchDist() / pinchStart;
                 if (ratio < 0.72) { pinchFired = true; zoomOut(); }
@@ -966,11 +1019,25 @@
         });
 
         function endPointer(e) {
+            if (!pointers[e.pointerId]) return;
             delete pointers[e.pointerId];
-            if (pointerCount() === 0) { dragging = false; pinchStart = 0; }
+            if (pointerCount() === 0) {
+                if (dragMoved) dragConsumed = true;
+                dragging = false; pinchStart = 0;
+                document.body.classList.remove('is-grabbing');
+            }
         }
-        canvas.addEventListener('pointerup', endPointer);
-        canvas.addEventListener('pointercancel', endPointer);
+        window.addEventListener('pointerup', endPointer);
+        window.addEventListener('pointercancel', endPointer);
+
+        // a drag must never fire the link/canvas click underneath it
+        document.addEventListener('click', function (e) {
+            if (dragConsumed) {
+                e.preventDefault();
+                e.stopPropagation();
+                dragConsumed = false;
+            }
+        }, true);
 
         // wheel: down = zoom out, up = dive into nearest child under cursor
         var wheelAcc = 0, wheelCooldown = 0;
