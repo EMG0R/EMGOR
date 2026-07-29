@@ -1,0 +1,31 @@
+[Unit]
+Description=DEMIURGE Audio Launcher
+After=sound.target user@1000.service
+Wants=user@1000.service
+
+[Service]
+Type=simple
+# gorpi7 = (insert your name here, this is mine) — the Pi user set in
+# Raspberry Pi Imager. Replace every gorpi7 below if yours is different.
+User=gorpi7
+Group=gorpi7
+Environment=HOME=/home/gorpi7
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+LimitMEMLOCK=infinity
+LimitRTPRIO=99
+LimitNICE=-20
+ExecStart=/opt/demiurge/bin/demiurge-launcher
+Restart=on-failure
+RestartSec=3
+# Forward SIGTERM to the whole cgroup so wrapper scripts → child engines
+# (csound, chuck, …) tear down cleanly on stop, not just the launcher.
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

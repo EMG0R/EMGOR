@@ -65,6 +65,17 @@
         <select id="preset-select"></select>
     </div>
 
+    <script>
+    // Unregister legacy root-scoped COI service worker (it belongs to
+    // ciesen.html only; old versions controlled + cached the whole site).
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+            regs.forEach(function(reg) {
+                if (new URL(reg.scope).pathname.indexOf('ciesen') === -1) reg.unregister();
+            });
+        }).catch(function() {});
+    }
+    </script>
     <script type="text/javascript" src="js/guardrails.js"></script>
     <script type="text/javascript" src="js/app.js"></script>
     <script src="js/lava.js"></script>

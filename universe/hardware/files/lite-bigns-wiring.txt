@@ -1,0 +1,81 @@
+BIGNS TEENSY 4.1 WIRING GUIDE
+==============================
+
+All pin numbers refer to Teensy 4.1 pins.
+Solder everything to the NEW Teensy in the same positions.
+
+
+ENCODER (rotary)
+  Pin 6  --> Encoder A
+  Pin 8  --> Encoder B
+  Pin 2  --> Encoder Switch (button press)
+             Other side of switch to GND
+
+POTS (3 potentiometers)
+  Pin 14 --> Pot 0 wiper  (Pitch)
+  Pin 16 --> Pot 1 wiper  (Probability)
+  Pin 17 --> Pot 2 wiper  (Master Volume)
+             Each pot: one outer leg to 3.3V, other outer leg to GND
+
+JOYSTICK (analog 2-axis + button)
+  Pin 18 --> Joystick X axis
+  Pin 19 --> Joystick Y axis
+  Pin 3  --> Joystick Button
+             Joystick VCC to 3.3V, GND to GND
+
+ARCADE BUTTON
+  Pin 4  --> Arcade button
+             Other side to GND
+
+AUDIO (I2S Quad output - Teensy Audio Shield or DAC)
+  These are fixed Teensy 4.1 I2S pins:
+  Pin 7  --> I2S LRCLK (WS)
+  Pin 20 --> I2S BCLK (SCK)
+  Pin 21 --> I2S TX (data out 1, channels 1+2)
+  Pin 23 --> I2S TX (data out 2, channels 3+4)
+
+NEOPIXELS
+  Pin 5  --> 2x NeoPixel data (the small indicator LEDs)
+             VCC to 3.3V (or Teensy 3.3V), GND to GND
+
+  Pin 9  --> 25x NeoPixel strip data
+             Strip VCC to EXTERNAL 5V supply (not Teensy!)
+             Strip GND to EXTERNAL 5V supply GND
+             External 5V supply GND also connects to Teensy GND
+
+POWER
+  USB     --> Powers the Teensy (do NOT send more than 5V to the 5V pin)
+  GND     --> Common ground for everything (Teensy, pots, joystick,
+              encoder, buttons, external 5V supply, NeoPixels)
+  3.3V    --> Powers pots and joystick (comes from Teensy onboard reg)
+
+
+GROUND BUS SUMMARY
+  All these GNDs must be connected together:
+    - Teensy GND
+    - All pot legs (low side)
+    - Joystick GND
+    - Encoder switch
+    - Arcade button
+    - Small NeoPixel GND
+    - NeoPixel strip GND
+    - External 5V supply GND
+
+
+PIN QUICK REFERENCE
+  6   Encoder A
+  8   Encoder B
+  2   Encoder Switch
+  3   Joystick Button
+  4   Arcade Button
+  5   NeoPixel (2 indicator LEDs)
+  7   I2S LRCLK
+  9   NeoPixel strip (25 LEDs)
+  14  Pitch pot
+  16  Probability pot
+  17  Volume pot
+  18  Joystick X
+  19  Joystick Y
+  20  I2S BCLK
+  21  I2S TX1
+  23  I2S TX2

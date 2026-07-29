@@ -1,0 +1,14 @@
+# Cross-origin isolation for the WebChuGL synth ONLY.
+# ciesen.html needs SharedArrayBuffer (COOP+COEP). No other page may be
+# cross-origin isolated — COEP require-corp would break the RNBO CDN
+# script on NEPTR.html and Strudel's runtime sample fetches on livecode.html.
+/ciesen.html
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+# Never let browsers/CDN serve stale site data.
+/galaxy.json
+  Cache-Control: no-cache
+
+/universe/*
+  Cache-Control: no-cache

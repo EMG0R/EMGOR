@@ -1,0 +1,472 @@
+/* galaxy.css — styles for the Canvas-2D fractal galaxy (index.html). */
+
+:root {
+    --void: #0D0221;
+    --deep: #070113;
+    --indigo: #1E0F5C;
+    --amethyst: #3D1D8E;
+    --purple-bright: #7B2FBE;
+    --violet: #A855F7;
+    --lavender: #C084FC;
+    --pale: #E0AAFF;
+    --cyan: #00F0FF;
+    --mono: ui-monospace, 'SF Mono', Menlo, 'Courier New', Courier, monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    height: 100%;
+    background: var(--void);
+    color: var(--pale);
+    font-family: var(--mono);
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+/* ─── canvas + label plane ─────────────────────────────────── */
+
+#galaxy {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    display: block;
+    touch-action: none;
+    cursor: crosshair;
+}
+
+#labels {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.planet-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    pointer-events: auto;
+    text-decoration: none;
+    color: var(--pale);
+    border-radius: 999px;
+    text-align: center;
+    letter-spacing: 0.18em;
+    text-transform: lowercase;
+    will-change: transform, opacity;
+    -webkit-tap-highlight-color: rgba(168, 85, 247, 0.25);
+    touch-action: manipulation;
+    text-shadow:
+        0 0 8px rgba(168, 85, 247, 0.75),
+        0 0 22px rgba(123, 47, 190, 0.4),
+        0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+.planet-label .pl-name {
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 0 4px;
+    word-break: break-word;
+}
+
+.planet-label .pl-sub {
+    font-size: 0.62em;
+    letter-spacing: 0.28em;
+    color: rgba(192, 132, 252, 0.55);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    text-shadow: 0 0 6px rgba(168, 85, 247, 0.5);
+}
+
+.planet-label .pl-leaf { color: rgba(110, 235, 255, 0.55); }
+
+@media (hover: hover) {
+    .planet-label:hover .pl-name {
+        text-shadow:
+            0 0 16px rgba(168, 85, 247, 1),
+            0 0 40px rgba(168, 85, 247, 0.6),
+            0 0 6px rgba(255, 255, 255, 0.55);
+    }
+    .planet-label:hover .pl-sub { opacity: 1; }
+}
+
+.planet-label:focus-visible {
+    outline: 1px dashed var(--lavender);
+    outline-offset: 4px;
+}
+.planet-label:focus-visible .pl-sub { opacity: 1; }
+
+/* ─── HUD ──────────────────────────────────────────────────── */
+
+.hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    pointer-events: none;
+}
+
+#homeBtn {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: var(--pale);
+    font-size: 17px;
+    line-height: 1;
+    text-decoration: none;
+    background: rgba(61, 29, 142, 0.45);
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+    transition: opacity 0.3s ease, box-shadow 0.3s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+#homeBtn.is-dim { opacity: 0.35; }
+@media (hover: hover) {
+    #homeBtn:hover { box-shadow: 0 0 16px rgba(168, 85, 247, 0.6); opacity: 1; }
+}
+#homeBtn:focus-visible { outline: 1px dashed var(--lavender); outline-offset: 3px; }
+
+.crumb {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: rgba(192, 132, 252, 0.6);
+    text-shadow: 0 0 8px rgba(123, 47, 190, 0.5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ─── satellite social bodies ──────────────────────────────── */
+
+.satellites {
+    position: fixed;
+    right: 16px;
+    bottom: 18px;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.satellite {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: rgba(224, 170, 255, 0.85);
+    background: radial-gradient(circle at 32% 30%,
+        rgba(123, 47, 190, 0.55), rgba(30, 15, 92, 0.55) 70%);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    box-shadow:
+        0 0 10px rgba(168, 85, 247, 0.28),
+        inset 0 0 6px rgba(224, 170, 255, 0.12);
+    -webkit-tap-highlight-color: transparent;
+    animation: satDrift 7s ease-in-out infinite;
+}
+.satellite:nth-child(2) { animation-delay: -2.3s; }
+.satellite:nth-child(3) { animation-delay: -4.6s; }
+
+.satellite svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+    filter: drop-shadow(0 0 3px rgba(224, 170, 255, 0.4));
+}
+
+@keyframes satDrift {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+@media (hover: hover) {
+    .satellite:hover {
+        color: #fff;
+        box-shadow: 0 0 18px rgba(168, 85, 247, 0.65),
+            inset 0 0 8px rgba(224, 170, 255, 0.25);
+    }
+}
+.satellite:focus-visible { outline: 1px dashed var(--lavender); outline-offset: 3px; }
+
+/* ─── content overlay ──────────────────────────────────────── */
+
+#overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+}
+
+.ov-backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center,
+        rgba(13, 2, 33, 0.25), rgba(7, 1, 19, 0.78));
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.ov-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(560px, 100vw);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 56px 34px 60px;
+    background: linear-gradient(160deg,
+        rgba(20, 6, 48, 0.92), rgba(10, 2, 26, 0.95));
+    border-left: 1px solid rgba(168, 85, 247, 0.35);
+    box-shadow: -30px 0 80px rgba(5, 0, 15, 0.8),
+        inset 1px 0 0 rgba(224, 170, 255, 0.08);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transform: translateX(24px);
+    opacity: 0;
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease;
+}
+
+#overlay.is-open .ov-backdrop { opacity: 1; }
+#overlay.is-open .ov-panel { transform: translateX(0); opacity: 1; }
+
+.ov-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    background: rgba(61, 29, 142, 0.4);
+    color: var(--pale);
+    font-family: var(--mono);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+}
+@media (hover: hover) {
+    .ov-close:hover { box-shadow: 0 0 16px rgba(168, 85, 247, 0.6); }
+}
+.ov-close:focus-visible { outline: 1px dashed var(--lavender); outline-offset: 3px; }
+
+.ov-title {
+    font-size: 26px;
+    letter-spacing: 0.14em;
+    text-transform: lowercase;
+    color: #fff;
+    text-shadow: 0 0 14px rgba(168, 85, 247, 0.8), 0 0 40px rgba(123, 47, 190, 0.5);
+}
+
+.ov-blurb {
+    margin-top: 8px;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: var(--lavender);
+}
+
+.ov-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+}
+
+.ov-updated { color: rgba(110, 235, 255, 0.6); }
+
+.ov-tag {
+    color: rgba(192, 132, 252, 0.7);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 999px;
+    padding: 2px 9px;
+}
+
+.ov-downloads { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; }
+
+.ov-dl {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    color: #fff;
+    background: linear-gradient(120deg,
+        rgba(123, 47, 190, 0.55), rgba(61, 29, 142, 0.55));
+    border: 1px solid rgba(168, 85, 247, 0.6);
+    box-shadow: 0 0 14px rgba(168, 85, 247, 0.35),
+        inset 0 0 10px rgba(224, 170, 255, 0.08);
+    transition: box-shadow 0.25s ease, transform 0.15s ease;
+}
+.ov-dl-arrow { color: var(--cyan); text-shadow: 0 0 8px rgba(0, 240, 255, 0.7); }
+@media (hover: hover) {
+    .ov-dl:hover {
+        box-shadow: 0 0 24px rgba(168, 85, 247, 0.7),
+            inset 0 0 12px rgba(224, 170, 255, 0.15);
+        transform: translateY(-1px);
+    }
+}
+
+.ov-links { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+
+.ov-pill {
+    padding: 5px 14px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 11.5px;
+    letter-spacing: 0.12em;
+    color: var(--pale);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    background: rgba(30, 15, 92, 0.3);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+@media (hover: hover) {
+    .ov-pill:hover {
+        border-color: rgba(224, 170, 255, 0.8);
+        box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+    }
+}
+
+.ov-body { margin-top: 26px; }
+
+.ov-loading, .ov-missing {
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    color: rgba(192, 132, 252, 0.55);
+}
+.ov-loading { animation: ovPulse 1.4s ease-in-out infinite; }
+@keyframes ovPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+/* ─── markdown body ────────────────────────────────────────── */
+
+.md { font-size: 14px; line-height: 1.75; letter-spacing: 0.02em; color: #D9C4F5; }
+.md h2, .md h3, .md h4, .md h5, .md h6 {
+    margin: 1.6em 0 0.5em;
+    color: #fff;
+    letter-spacing: 0.1em;
+    text-transform: lowercase;
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
+}
+.md h2 { font-size: 18px; }
+.md h3 { font-size: 15px; }
+.md h4, .md h5, .md h6 { font-size: 13.5px; }
+.md p { margin: 0.8em 0; }
+.md a { color: var(--cyan); text-decoration: none; border-bottom: 1px dotted rgba(0, 240, 255, 0.5); }
+.md a:hover { text-shadow: 0 0 8px rgba(0, 240, 255, 0.6); }
+.md strong { color: #fff; }
+.md em { color: var(--lavender); }
+.md ul, .md ol { margin: 0.8em 0 0.8em 1.4em; }
+.md li { margin: 0.3em 0; }
+.md li::marker { color: var(--violet); }
+.md code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    color: var(--pale);
+    background: rgba(61, 29, 142, 0.35);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 4px;
+    padding: 1px 5px;
+}
+.md .md-code {
+    position: relative;
+    margin: 1em 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    background: rgba(7, 1, 19, 0.8);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 8px;
+    box-shadow: inset 0 0 20px rgba(30, 15, 92, 0.4);
+}
+.md .md-code code { background: none; border: none; padding: 0; font-size: 12.5px; }
+.md .md-code[data-lang]::before {
+    content: attr(data-lang);
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    font-size: 9.5px;
+    letter-spacing: 0.2em;
+    color: rgba(192, 132, 252, 0.5);
+}
+.md blockquote {
+    margin: 1em 0;
+    padding: 4px 16px;
+    border-left: 2px solid var(--violet);
+    color: var(--lavender);
+    background: rgba(61, 29, 142, 0.15);
+}
+.md hr {
+    margin: 1.6em 0;
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent,
+        rgba(168, 85, 247, 0.5), transparent);
+}
+.md img {
+    max-width: 100%;
+    border-radius: 8px;
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    box-shadow: 0 0 20px rgba(30, 15, 92, 0.6);
+}
+
+/* ─── fallback list (no-JS / no-canvas) ────────────────────── */
+
+.fallback {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    overflow-y: auto;
+    background: var(--void);
+    padding: 60px 24px;
+    text-align: center;
+}
+.fallback h1 {
+    font-size: 22px;
+    letter-spacing: 0.4em;
+    color: #fff;
+    text-shadow: 0 0 16px rgba(168, 85, 247, 0.8);
+    margin-bottom: 30px;
+}
+.fallback ul { list-style: none; }
+.fallback li { margin: 14px 0; }
+.fallback a {
+    color: var(--pale);
+    text-decoration: none;
+    letter-spacing: 0.25em;
+    font-size: 14px;
+    text-shadow: 0 0 8px rgba(168, 85, 247, 0.5);
+}
+.fallback a:hover { color: #fff; }
+
+/* ─── responsive / motion ──────────────────────────────────── */
+
+@media (max-width: 600px) {
+    .crumb { font-size: 9.5px; letter-spacing: 0.2em; }
+    .ov-panel { width: 100vw; padding: 56px 20px 48px; border-left: none; }
+    .satellites { right: 10px; bottom: 12px; gap: 10px; }
+    .satellite { width: 30px; height: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .satellite { animation: none; }
+    .ov-panel, .ov-backdrop, .planet-label .pl-sub { transition: none; }
+    .ov-loading { animation: none; }
+}

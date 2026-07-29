@@ -3,52 +3,75 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#000000">
-    <link rel="stylesheet" href="style/base.css">
-    <link rel="stylesheet" href="style/home.css">
+    <meta name="theme-color" content="#0D0221">
+    <meta name="description" content="EMGOR — a fractal galaxy of music, code, hardware, and research by Emory Smith.">
+    <link rel="stylesheet" href="style/galaxy.css">
     <title>Emory Smith</title>
 </head>
-<body style="overflow: hidden; height: 100vh; background-color: #0D0221;">
+<body>
 
-    <div id="background-layer"></div>
-    <canvas id="lavaCanvas"></canvas>
+    <canvas id="galaxy" aria-hidden="true"></canvas>
+    <nav id="labels" aria-label="galaxy navigation"></nav>
 
-    <a href="index.html" class="home-button" data-nav="home">&#8962;</a>
+    <header class="hud">
+        <a id="homeBtn" href="#/" title="zoom out to the galactic center" aria-label="zoom out">&#8962;</a>
+        <div id="crumb" class="crumb">emgor</div>
+    </header>
 
-    <a class="orbit-planet" data-orbit="planet" data-view="home" data-nav="synth">WEB SYNTH</a>
-    <a href="music.html" class="orbit-planet" data-orbit="planet" data-view="home">PORTFOLIO</a>
-    <a href="research.html" class="orbit-planet" data-orbit="planet" data-view="home">RESEARCH</a>
-    <a class="orbit-planet" data-orbit="planet" data-view="home" data-nav="resources">RESOURCES</a>
+    <nav class="satellites" aria-label="elsewhere">
+        <a href="https://www.instagram.com/the_emgor/" target="_blank" rel="noopener" class="satellite" title="instagram" aria-label="instagram">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2zm0 1.5A4.25 4.25 0 0 0 3.5 7.75v8.5A4.25 4.25 0 0 0 7.75 20.5h8.5A4.25 4.25 0 0 0 20.5 16.25v-8.5A4.25 4.25 0 0 0 16.25 3.5h-8.5zm8.75 2a.75.75 0 0 1 .743.648l.007.102v.004a.75.75 0 0 1-1.493.102l-.007-.102v-.004a.75.75 0 0 1 .75-.75zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 1.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/>
+            </svg>
+        </a>
+        <a href="https://untitled.stream/library/project/0qrDPDNdbBdeyXbaAZ1rQ" target="_blank" rel="noopener" class="satellite" title="untitled.stream" aria-label="untitled.stream">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 1a10 10 0 0 0-10 10v7a3 3 0 0 0 6 0v-4a3 3 0 0 0-3-3H4a8 8 0 0 1 16 0h-1a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0v-7A10 10 0 0 0 12 1z"/>
+            </svg>
+        </a>
+        <a href="https://distrokid.com/hyperfollow/fivemonthsinaday/five-months-in-a-day" target="_blank" rel="noopener" class="satellite" title="five months in a day" aria-label="five months in a day on distrokid">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M9 3v12.26a3.25 3.25 0 1 0 1.5 2.74V7.25l8-2V13.5a3.25 3.25 0 1 0 1.5 2.74V3l-11 3z"/>
+            </svg>
+        </a>
+    </nav>
 
-    <a href="https://www.instagram.com/the_emgor/" target="_blank" class="orbit-planet icon-planet" data-orbit="planet" data-view="home">
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2zm0 1.5A4.25 4.25 0 0 0 3.5 7.75v8.5A4.25 4.25 0 0 0 7.75 20.5h8.5A4.25 4.25 0 0 0 20.5 16.25v-8.5A4.25 4.25 0 0 0 16.25 3.5h-8.5zm8.75 2a.75.75 0 0 1 .743.648l.007.102v.004a.75.75 0 0 1-1.493.102l-.007-.102v-.004a.75.75 0 0 1 .75-.75zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 1.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/>
-        </svg>
-    </a>
-    <a href="https://untitled.stream/library/project/0qrDPDNdbBdeyXbaAZ1rQ" target="_blank" class="orbit-planet icon-planet" data-orbit="planet" data-view="home">
-        <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 1a10 10 0 0 0-10 10v7a3 3 0 0 0 6 0v-4a3 3 0 0 0-3-3H4a8 8 0 0 1 16 0h-1a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0v-7A10 10 0 0 0 12 1z"/>
-        </svg>
-    </a>
-    <a href="https://distrokid.com/hyperfollow/fivemonthsinaday/five-months-in-a-day" target="_blank" class="orbit-planet icon-planet" data-orbit="planet" data-view="home">
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M9 3v12.26a3.25 3.25 0 1 0 1.5 2.74V7.25l8-2V13.5a3.25 3.25 0 1 0 1.5 2.74V3l-11 3z"/>
-        </svg>
-    </a>
+    <div id="overlay" hidden></div>
 
-    <a href="ciesen.html" class="orbit-planet" data-orbit="planet" data-view="synth">CIESEN</a>
-    <a href="NEPTR.html" class="orbit-planet" data-orbit="planet" data-view="synth">NEPTR</a>
-    <a href="BMO.html" class="orbit-planet" data-orbit="planet" data-view="synth">BMO</a>
+    <noscript>
+        <div class="fallback">
+            <h1>EMGOR</h1>
+            <p>the galaxy needs javascript — here is the flat map:</p>
+            <ul>
+                <li><a href="music.html">music</a></li>
+                <li><a href="research.html">research</a></li>
+                <li><a href="papers.html">papers</a></li>
+                <li><a href="NEPTR.html">neptr</a></li>
+                <li><a href="ciesen.html">ciesen</a></li>
+                <li><a href="BMO.html">bmo</a></li>
+                <li><a href="resources.html">rnbo pi resources</a></li>
+                <li><a href="https://www.instagram.com/the_emgor/">instagram</a></li>
+                <li><a href="https://untitled.stream/library/project/0qrDPDNdbBdeyXbaAZ1rQ">untitled.stream</a></li>
+                <li><a href="https://distrokid.com/hyperfollow/fivemonthsinaday/five-months-in-a-day">five months in a day</a></li>
+            </ul>
+        </div>
+    </noscript>
 
-    <a href="resources.html" class="orbit-planet" data-orbit="planet" data-view="resources">RNBO PI</a>
-    <a href="coming-soon.html" class="orbit-planet" data-orbit="planet" data-view="resources">NEPTR</a>
-    <a href="coming-soon.html" class="orbit-planet" data-orbit="planet" data-view="resources">BOUBA</a>
-    <a href="coming-soon.html" class="orbit-planet" data-orbit="planet" data-view="resources">CIESEN</a>
+    <div id="fallback" class="fallback" hidden>
+        <h1>EMGOR</h1>
+        <p>this browser can't draw the galaxy — here is the flat map:</p>
+        <ul>
+            <li><a href="music.html">music</a></li>
+            <li><a href="research.html">research</a></li>
+            <li><a href="papers.html">papers</a></li>
+            <li><a href="NEPTR.html">neptr</a></li>
+            <li><a href="ciesen.html">ciesen</a></li>
+            <li><a href="BMO.html">bmo</a></li>
+            <li><a href="resources.html">rnbo pi resources</a></li>
+        </ul>
+    </div>
 
-    <canvas id="spaceCanvas"></canvas>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="js/lava.js"></script>
-    <script src="js/space.js"></script>
+    <script src="js/mdlite.js"></script>
+    <script src="js/galaxy2d.js"></script>
 </body>
 </html>

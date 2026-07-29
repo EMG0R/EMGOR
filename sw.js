@@ -9,7 +9,19 @@
  * happens on first fetch regardless of deployment layout.
  */
 
-var CACHE_NAME = 'webchugl-v22';
+var CACHE_NAME = 'webchugl-v23';
+
+// This worker must ONLY control /ciesen.html (registered with
+// { scope: './ciesen.html' }). Legacy versions were registered at root
+// scope and controlled the whole site; when such a registration updates
+// to this script, it unregisters itself.
+function isCiesenScope() {
+    try {
+        return new URL(self.registration.scope).pathname.indexOf('ciesen') !== -1;
+    } catch (e) {
+        return false;
+    }
+}
 
 // ── Install ─────────────────────────────────────────────────────────
 self.addEventListener('install', function() { self.skipWaiting(); });
@@ -23,6 +35,10 @@ self.addEventListener('activate', function(event) {
                     .map(function(k) { return caches.delete(k); })
             );
         }).then(function() {
+            // Legacy root-scope registration: self-destruct instead of claiming.
+            if (!isCiesenScope()) {
+                return self.registration.unregister();
+            }
             return self.clients.claim();
         })
     );
@@ -61,6 +77,29 @@ self.addEventListener('fetch', function(event) {
     // so dynamic import() (which uses CORS mode) works fine.
     // Don't intercept cross-origin — browser handles CORS natively.
     if (!isSameOrigin) return;
+
+    // Legacy root-scope registration: don't touch anything while the
+    // activate self-unregister is pending.
+    if (!isCiesenScope()) return;
+
+    var url = new URL(r.url);
+    var path = url.pathname;
+
+    // Site data files must never be served stale: galaxy.json, universe/**,
+    // and any markdown. Network-first, no cache writes.
+    if (path.indexOf('/universe/') !== -1 ||
+        /\/galaxy\.json$/.test(path) ||
+        /\.(json|md)$/.test(path)) {
+        event.respondWith(
+            fetch(r).catch(function() { return caches.match(r); })
+                .then(function(resp) { return resp || fetch(r); })
+        );
+        return;
+    }
+
+    // ChucK sources are fetched with a Date.now() cache-buster — caching
+    // them would grow the cache unboundedly. Pass through.
+    if (/\.ck$/.test(path)) return;
 
     // Same-origin: stale-while-revalidate cache + COI headers
     event.respondWith(

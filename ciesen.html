@@ -128,7 +128,18 @@
     <!-- Register service worker for COOP/COEP headers (required for SharedArrayBuffer) -->
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js');
+            // Narrow scope: this SW must only ever control ciesen.html.
+            // (Production COI headers come from Netlify _headers; the SW is
+            // the fallback for hosts that don't send them.)
+            navigator.serviceWorker.register('./sw.js', { scope: './ciesen.html' });
+
+            // Clean up legacy root-scoped registrations from older versions
+            // of this page — they intercepted/cached the whole site.
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+                regs.forEach(function(reg) {
+                    if (new URL(reg.scope).pathname.indexOf('ciesen') === -1) reg.unregister();
+                });
+            }).catch(function() {});
 
             navigator.serviceWorker.addEventListener('controllerchange', function() {
                 if (!self.crossOriginIsolated) {
