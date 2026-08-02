@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuralGrid — NIME draft</title>
+<link rel="stylesheet" href="nime.css">
+</head>
+<body>
+
+<nav class="paper-nav">
+  <a href="index.html">&larr; NIME drafts</a>
+  <a href="../../index.html#/papers/neuralgrid">View in the EMGOR universe</a>
+</nav>
+
+<article class="paper">
+
+  <header class="titleblock">
+    <h1>NeuralGrid: A Physical Interface for Live Sequencing and Improvisation Using Adaptive Neural Models</h1>
+    <p class="authors">Emory Smith</p>
+    <p class="affil">EMGOR / California Institute of the Arts</p>
+    <p class="draft-marker">Draft — NIME 2027 target</p>
+  </header>
+
+  <div class="paper-body">
+
+    <section class="abstract">
+      <h2>Abstract</h2>
+      <p>NeuralGrid offers a tactile interface rich with sensors to interact with an adaptive
+      neural model. The model is pre-trained and runs locally on a Raspberry Pi, with a secondary
+      layer of real-time adaptation that dynamically adjusts the sequencer and MIDI effects to
+      match the inputs and reactions of the user. The model can feed into internal synthesis or
+      operate purely as a sequencer. Allows for parameter mapping across OSC and MIDI to control
+      complex interfaces and mechanical instruments (the Machine Lab).</p>
+    </section>
+
+    <section>
+      <p class="keywords"><strong>Keywords:</strong> grid controller, adaptive interfaces, VAE,
+      Raspberry Pi, Machine Lab, sequencing</p>
+    </section>
+
+    <section class="flow">
+      <h2>1. Introduction</h2>
+      <p>Reflecting on the state of the Machine Lab system, a universal controller is the logical
+      next step: something pre-mapped to the OSC addresses around the room, able to manage basic
+      aspects of the server itself. Turning NeuralGrid on launches the server, and anyone new to
+      the room can immediately and intuitively play every instrument in it — the room as an
+      <em>instrument</em> rather than a composition platform.</p>
+      <p>The instrument built toward this is a monome-style grid on a Raspberry Pi 5 that
+      <em>rewrites its own interface on the beat</em>: a zero-latency live layer plays now, while
+      tiny local neural models watch how the player plays and author a new interface
+      configuration. The swap happens quantized to the global clock, so model latency is never
+      felt.</p>
+    </section>
+
+    <section class="flow">
+      <h2>2. System</h2>
+      <h3>2.1 Two-tier architecture</h3>
+      <p>The whole design turns on one rule: <em>the model never sits in the hot path.</em> A
+      real-time live layer, pinned to an isolated CPU core, reads pads and sensors, plays notes,
+      drives LEDs, and sends MIDI — it never blocks on anything. An asynchronous model layer,
+      off the isolated core, watches the performance and writes a schema-versioned parameter
+      vector. At the boundary, the live layer picks up the staged config and atomically swaps it
+      in on the downbeat: if the model takes 200 ms, it does not matter — the swap is always on
+      time. This is the hot-reload pattern of DEMIURGE_OS's <code>live.conf</code> applied to an
+      instrument's entire interface.</p>
+      <h3>2.2 Hardware</h3>
+      <p>Four Adafruit NeoTrellis 4&times;4 tiles arranged 2&times;2 give an 8&times;8 field of
+      64 RGB pads on a shared I2C bus; FSRs beneath the pads supply velocity. Four VL53L1X lidar
+      sensors sit in the corners on a second I2C bus, four SoftPot ribbons run along the edges,
+      and piezo contact mics inside the enclosure function as additional sensors — all analog
+      channels multiplexed through a 74HC4067 into a single ADC pin. The MCU is a deliberately
+      dumb ESP32 WROOM bridge speaking a COBS-framed binary protocol; all logic is Pi-side.</p>
+      <h3>2.3 Platform</h3>
+      <p>NeuralGrid runs on DEMIURGE_OS on a stock Pi 5 (16 GB, no AI accelerator), inheriting
+      the OS's MIDI bus, global clock (24 PPQN; BPM on ch16 CC119), hot-reloadable config,
+      PipeWire audio, and core isolation. The Raspberry Pi constrains model size but keeps the
+      access point recreatable for others.</p>
+      <h3>2.4 Modes and models</h3>
+      <p>Modes A (instrument), B (sequencer), and C (MIDI effects) are hand-coded and gig-ready —
+      the safety floor if every model is off. Mode D is the neural brain reconfiguring over
+      A/B/C. Three sub-1M-parameter models, all trained in-house and run off the isolated core:
+      an <em>Interface-VAE</em> (shipped: 4,561 parameters, pure numpy) that reconfigures the
+      interface as a supportive mirror rather than a director; a factorized melody/rhythm VQ-VAE
+      operating in scale-degree/contour space, making it tuning-agnostic; and a conditional VAE
+      for style conditioning. Hoped-for extensions include onboard synthesis and integration with
+      AI timbre-transfer models (RAVE-adjacent territory) via a latent-OSC stream.</p>
+    </section>
+
+    <section>
+      <h2>3. Current Status</h2>
+      <p>Phases 1–4 are complete and verified on hardware: the bidirectional binary protocol; the
+      live layer with instrument mode, clock-locked sequencer, and MIDI out; the schema-v1 config
+      boundary with atomic downbeat swap; and the trained Interface-VAE wired in as
+      <code>--brain {off, model, manual}</code> with <em>off</em> as the default safety floor.
+      The adaptive loop closes — that is the headline result. Musical and visual behavior of the
+      interface morphing still needs hands and ears on it. Phases 5–6 (live-capture VQ-VAE,
+      style conditioning, session logging and retraining, full sensor set) are open. A deep
+      design document — a map of the dimension spaces the instrument moves through — is linked
+      below as supplementary material.</p>
+    </section>
+
+    <section>
+      <h2>4. Future Work</h2>
+      <p>Complete phases 5–6; put the instrument in the Machine Lab and study first-contact
+      playability with new visitors; evaluate the adaptive layer against the static A–C modes in
+      performance. Planned collaboration with Colton, possibly Ajay. Target venues: NIME, SMC.</p>
+    </section>
+
+    <section class="refs">
+      <h2>References</h2>
+      <ol>
+        <li>E. Smith, "neuralGrid — Dimensional Architecture,"
+        <a href="../../neuralgrid.html">supplementary design document</a>, EMGOR, 2026.</li>
+        <li>E. Smith, "neuralGrid,"
+        <a href="../../index.html#/hardware/neuralgrid">EMGOR universe node
+        <code>emgor.hardware.neuralgrid</code></a> (build log, protocol spec, firmware), 2026.</li>
+        <li>E. Smith, "DEMIURGE_OS,"
+        <a href="../../index.html#/demiurge">EMGOR universe node <code>emgor.demiurge</code></a>,
+        2026.</li>
+        <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
+        <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
+      </ol>
+    </section>
+
+  </div>
+</article>
+
+<footer class="paper-footer">
+  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+</footer>
+
+</body>
+</html>

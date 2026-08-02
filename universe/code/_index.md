@@ -23,4 +23,6 @@ Everything is real, everything ran, and the sources are downloadable from their 
 - **supercollider** — GEN_COLIDER generative FM pieces, up to 8-channel
 - **juce** — C++/JUCE console-app generative synths
 - **vcv** — VCV Rack patch files
-- **web-synths** — the in-browser instruments already live on this site
+- **bmo** — a pure-WebGL shader scene: lava noise bending around a black hole
+
+The in-browser *instruments* — Strudel, RNBO, ChucK — now orbit their own planet: [WEB SYNTH](#/web-synth).

@@ -31,9 +31,13 @@ downloads:                             # files copied into ./files/, repo-relati
 links:                                 # external or in-site links
   - { label: "Live demo", url: "ciesen.html" }
 tags: [max-for-live, synth]
+size: 1.4                              # optional planet visual size multiplier (number, default 1)
 updated: 2025-03-17                    # YYYY-MM-DD
 draft: false                           # true = excluded from galaxy.json
 ```
+
+`size` scales the planet's rendered radius relative to its siblings. Optional; when absent
+or non-numeric the builder treats it as the default `1` and omits it from `galaxy.json`.
 
 Body: normal markdown — the planet's documentation page.
 
@@ -56,7 +60,8 @@ Built by `tools/build-galaxy.mjs` (zero-dependency Node ≥18). Written to site 
       "children": 4,
       "downloads": [{"name":"THE_PURP.amxd","url":"universe/m4l/emory-devices/files/THE_PURP.amxd"}],
       "links": [{"label":"...","url":"..."}],
-      "tags": [], "updated": "2026-07-28"
+      "tags": [], "updated": "2026-07-28",
+      "size": 1.4                      // only present when frontmatter sets a numeric size ≠ default
     }
   ]
 }

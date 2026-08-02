@@ -4,6 +4,8 @@ title: DemiurgeOS
 blurb: A thoughtfully designed operating layer for DSP on the Raspberry Pi. Planned.
 parent: emgor.papers
 source: ______2026NEW/__PAPERS/2026-2027 PAPERS.md
+links:
+  - { label: "Read as NIME draft", url: "papers/nime/demiurgeos.html" }
 tags: [planned, raspberry-pi, linux-audio, dsp, tooling]
 updated: 2026-07-28
 draft: false

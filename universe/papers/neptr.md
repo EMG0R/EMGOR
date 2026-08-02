@@ -5,6 +5,7 @@ blurb: The brain of the performance system — replaces laptop, synth, and pedal
 parent: emgor.papers
 source: ______2026NEW/__PAPERS/2026-2027 PAPERS.md
 links:
+  - { label: "Read as NIME draft", url: "papers/nime/neptr.html" }
   - { label: "NEPTR on the site", url: "NEPTR.html" }
 tags: [planned, performance, hyper-instruments, diy, nime, icmc]
 updated: 2026-07-28

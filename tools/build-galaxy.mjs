@@ -197,6 +197,16 @@ async function main() {
     const tags = Array.isArray(fm.tags) ? fm.tags.map(String) : fm.tags === undefined ? [] : null;
     if (tags === null) errors.push(`${repoRel}: "tags" must be a list`);
 
+    // Optional visual size multiplier (number, default 1). Non-numeric/absent => omitted.
+    let size;
+    if (fm.size !== undefined) {
+      if (typeof fm.size === 'number' && Number.isFinite(fm.size) && fm.size > 0) {
+        size = fm.size;
+      } else {
+        warnings.push(`${repoRel}: "size" must be a positive number (got ${JSON.stringify(fm.size)}) — ignored`);
+      }
+    }
+
     const node = {
       id: typeof fm.id === 'string' ? fm.id : String(fm.id ?? ''),
       title: fm.title !== undefined ? String(fm.title) : '',
@@ -210,6 +220,7 @@ async function main() {
       links,
       tags: tags ?? [],
       updated,
+      ...(size !== undefined ? { size } : {}),
     };
 
     if (node.id) {

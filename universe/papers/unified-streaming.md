@@ -4,6 +4,8 @@ title: Unified Streaming
 blurb: One USB-C cable for audio, video, and control — kill the adapter pile. Planned.
 parent: emgor.papers
 source: ______2026NEW/__PAPERS/2026-2027 PAPERS.md
+links:
+  - { label: "Read as NIME draft", url: "papers/nime/unified-streaming.html" }
 tags: [planned, usb-c, networking, low-latency, streaming]
 updated: 2026-07-28
 draft: false

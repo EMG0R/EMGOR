@@ -4,6 +4,8 @@ title: BOUBA
 blurb: Tactile generative synthesis for the four pillars of music therapy. Planned.
 parent: emgor.papers
 source: ______2026NEW/__PAPERS/2026-2027 PAPERS.md
+links:
+  - { label: "Read as NIME draft", url: "papers/nime/bouba.html" }
 tags: [planned, music-therapy, generative, chuck, teensy]
 updated: 2026-07-28
 draft: false

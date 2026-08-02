@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unified System for Streaming Realtime Data — NIME draft</title>
+<link rel="stylesheet" href="nime.css">
+</head>
+<body>
+
+<nav class="paper-nav">
+  <a href="index.html">&larr; NIME drafts</a>
+  <a href="../../index.html#/papers/unified-streaming">View in the EMGOR universe</a>
+</nav>
+
+<article class="paper">
+
+  <header class="titleblock">
+    <h1>Unified System for Streaming Realtime Data</h1>
+    <p class="authors">Emory Smith</p>
+    <p class="affil">EMGOR / California Institute of the Arts</p>
+    <p class="draft-marker">Draft — NIME 2027 target</p>
+  </header>
+
+  <div class="paper-body">
+
+    <section class="abstract">
+      <h2>Abstract</h2>
+      <p>Adapters and converters are widely used when a single USB-C cable would be more
+      efficient. The goal of this paper is to provide a unified system for the streaming of
+      multiple forms of data over common cables like USB-A/B/C and Ethernet, while interfacing
+      with one's machine in a way that allows for maximum accessibility of data being transferred
+      and received. Through an intuitive UI and backend, multiple devices can be networked to
+      stream a high bandwidth of audio, visual and control data at extremely low latency.</p>
+    </section>
+
+    <section>
+      <p class="keywords"><strong>Keywords:</strong> USB-C, low-latency streaming, virtual audio
+      devices, networked performance, protocol design</p>
+    </section>
+
+    <section class="flow">
+      <h2>1. Introduction</h2>
+      <p>Nearly every device on a modern stage or studio desk carries a USB-C port, and yet
+      signal still routes through audio interfaces and video capture cards — rounds of
+      unnecessary analog-to-digital and digital-to-analog conversion between machines that are
+      each already digital. The premise of this work is simple: go USB-C to USB-C and stop
+      converting. Rather than a pile of single-purpose adapters, one cable and one system should
+      carry audio, video, and control data between any two (or more) machines, with the stream
+      arriving on the host as if it were native hardware.</p>
+      <p>This positions the project alongside — and against — the current landscape of
+      class-compliant audio interfaces, NDI-style video-over-IP, and per-protocol control
+      transports (MIDI, OSC), each of which solves one slice of the problem with its own cable,
+      driver, and configuration story.</p>
+    </section>
+
+    <section class="flow">
+      <h2>2. System Design</h2>
+      <p>The proposed system has three layers:</p>
+      <ul>
+        <li><em>Negotiation.</em> A frontend lets the devices on the link or network decide, in
+        network, who will send audio or video signals — roles are elected rather than fixed by
+        which box owns the capture hardware.</li>
+        <li><em>Virtual devices.</em> The system defines virtual audio interfaces and video
+        signals on the host machine by installing low-level OS drivers, so the host sees each
+        incoming stream as a native audio or video device with no additional configuration —
+        any DAW, streaming tool, or video application can consume it immediately.</li>
+        <li><em>Bandwidth visibility.</em> The UI graphically visualizes the total bandwidth of
+        the cable and which data is occupying how much of it, making the invisible budget of a
+        USB-C or Ethernet link a first-class, inspectable object.</li>
+      </ul>
+      <p>Internet-scale streaming is an acknowledged implication of the architecture, but the
+      present priority is the lowest-latency path over a physical cable.</p>
+    </section>
+
+    <section>
+      <h2>3. Current Status</h2>
+      <p><em>Design stage.</em> This system exists as a written proposal: the abstract and design
+      summary above are drawn from the EMGOR 2026–2027 papers planning document, and no prototype
+      repository for it has yet been started in the EMGOR archive. The practical motivation is
+      well-rehearsed, however — the EMGOR performance systems (NEPTR, DEMIURGE_OS) already lean
+      on DIY audio interfaces and ad-hoc cabling that this system would replace, and the
+      4-i-Gor Teensy audio interface is the kind of single-purpose hardware the unified stream
+      is designed to make unnecessary.</p>
+    </section>
+
+    <section>
+      <h2>4. Future Work</h2>
+      <p>Next steps: benchmark raw USB-C host-to-host transports; prototype the virtual-device
+      driver layer on one OS; define the negotiation protocol; and only then extend toward
+      networked (Ethernet, then internet) operation. Planned collaboration with Ilai, and
+      possibly Jake and Ajay. Target venues: NIME, ACM CHI, ACM Multimedia, or IEEE RTSS.</p>
+    </section>
+
+    <section class="refs">
+      <h2>References</h2>
+      <ol>
+        <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
+        <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
+        <li>E. Smith, "Unified Streaming,"
+        <a href="../../index.html#/papers/unified-streaming">EMGOR universe node
+        <code>emgor.papers.unified-streaming</code></a>, 2026.</li>
+        <li>E. Smith, "4-i-Gor: Teensy 4.0 quad-in / quad-out USB audio interface,"
+        <a href="../../index.html#/hardware/4-i-gor">EMGOR universe node
+        <code>emgor.hardware.4-i-gor</code></a>, 2026.</li>
+      </ol>
+    </section>
+
+  </div>
+</article>
+
+<footer class="paper-footer">
+  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+</footer>
+
+</body>
+</html>

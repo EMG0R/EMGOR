@@ -5,6 +5,7 @@ blurb: A sensor-dense physical interface for live sequencing with adaptive neura
 parent: emgor.papers
 source: ______2026NEW/__PAPERS/2026-2027 PAPERS.md
 links:
+  - { label: "Read as NIME draft", url: "papers/nime/neuralgrid.html" }
   - { label: "NeuralGrid design document", url: "neuralgrid.html" }
 tags: [planned, neural-models, sequencer, machine-lab, raspberry-pi, nime]
 updated: 2026-07-28

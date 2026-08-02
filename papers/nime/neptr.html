@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEPTR Phase 4 — NIME draft</title>
+<link rel="stylesheet" href="nime.css">
+</head>
+<body>
+
+<nav class="paper-nav">
+  <a href="index.html">&larr; NIME drafts</a>
+  <a href="../../index.html#/papers/neptr">View in the EMGOR universe</a>
+</nav>
+
+<article class="paper">
+
+  <header class="titleblock">
+    <h1>NEPTR Phase 4 (DEMIURGE): A Laptop-Free System for Performance and Improvisation</h1>
+    <p class="authors">Emory Smith</p>
+    <p class="affil">EMGOR / California Institute of the Arts</p>
+    <p class="draft-marker">Draft — NIME 2027 target</p>
+  </header>
+
+  <div class="paper-body">
+
+    <section class="abstract">
+      <h2>Abstract</h2>
+      <p><span class="abstract-note">(Working abstract — formal abstract TBD.)</span>
+      NEPTR is the brain at the center of the performance system, linking together audio
+      interfaces, DIY controllers and hyper-instruments with internal DSP and GUI. It replaces
+      the laptop, synthesizer and pedalboard onstage. Dense sensors and controls onboard with
+      exposed USB ports (&times;3), Ethernet port and micro-HDMI port; performance happens
+      using only DIY controllers and DIY hyper-instruments. Included in the NEPTR performance
+      system: hyper-trumpet, hyper-guitar, hemi speaker(s), WE remote, DIY audio interface. The
+      plan is to perform with it at NIME and ICMC this year, and hopefully present it as well.</p>
+    </section>
+
+    <section>
+      <p class="keywords"><strong>Keywords:</strong> live performance, Csound, Raspberry Pi,
+      hyper-instruments, DIY controllers, guitar effects</p>
+    </section>
+
+    <section class="flow">
+      <h2>1. Introduction</h2>
+      <p>NEPTR has moved through four phases; Phase 4 — codenamed DEMIURGE, after the Pi that
+      runs it — is the instrument on stage right now. It is a guitar effects processor and
+      performance brain for surf rock and experimental performance, feeding a <em>real</em>
+      amplifier: everything is voiced as pedal or preamp, never cabinet simulation, because a
+      real amp is doing that job. The laptop, the synthesizer, and the pedalboard are gone;
+      what remains onstage is the Pi, a Teensy control surface, a touchscreen, and the DIY
+      hyper-instruments that feed it.</p>
+    </section>
+
+    <section class="flow">
+      <h2>2. System</h2>
+      <h3>2.1 Runtime</h3>
+      <p>Csound runs on a Raspberry Pi 5 over raw ALSA — no PipeWire, no JACK — at 48 kHz with a
+      128-sample period, for roughly 7 ms round trip: guitar &rarr; interface &rarr; Csound
+      &rarr; interface &rarr; amplifier. One <code>.csd</code> entry point
+      <code>#include</code>s ~36 effect files, a globals file, the signal chain, and a MIDI
+      handler; bypassed effects are <code>turnoff2</code>'d and cost zero CPU. A systemd
+      service boots the whole instrument from a single <code>live.conf</code>, on the
+      DEMIURGE_OS platform.</p>
+      <h3>2.2 Control surface</h3>
+      <p>A Teensy with seven encoders and an expression pedal drives everything. Physical CCs
+      are remapped to logical roles: two encoders page through <strong>19 menus</strong>
+      (PRESETS, VOLUME, SPECTRAL, PITCH, FILTERING, MOD, DRIVE, PREAMP, GRANULAR, DIGIVERB,
+      DELAY, BASS, SYNTH, AIR, LOOPER, CHASE BLISS, GLITCH, NAM, IR VERB), five toggleable
+      effect slots per menu, and every rotation drives the last-toggled effect's parameters.
+      The expression pedal follows a sticky last-toggled-wins rule. A pygame touchscreen UI is
+      mirrored over OSC, with a consistency test suite that fails the build if the UI tables,
+      the MIDI handler, and the reference documentation ever disagree.</p>
+      <h3>2.3 The effect roster</h3>
+      <p>Around 70 toggleable effects, every one hand-written Csound. Highlights: five
+      circuit-modeled drive pedals (Klon/TS morph, Marshall preamp, SLO&oplus;5150 dual
+      high-gain, RAT&times;Metal Zone, Big Muff) through shared 4&times;-oversampled clippers;
+      ports of three Chase Bliss pedals, including a 175-second echo collector and a granular
+      modifier of the looper's own loops; Neural Amp Modeler at the end of the chain via the
+      custom <code>NAMProcess</code> opcode; a 5-channel looper with a drum-sample master-grid
+      mode and a clocked GLITCH menu placed post-looper so it mangles loops too; spectral bin
+      crushers and codec-degradation processors; pitch-tracked synth voices; convolution IR
+      reverb; and CHAIN FB, which feeds the entire chain back into itself, bounded by
+      construction.</p>
+      <h3>2.4 The performance system</h3>
+      <p>Around the brain sit the DIY satellites: hyper-trumpet and hyper-guitar, hemispherical
+      speakers (Quadro Punch Packer), the We-Remote BLE controller, the 4-i-Gor DIY audio
+      interface, and the oFOOTS foot controller — all documented as hardware planets on this
+      site.</p>
+    </section>
+
+    <section>
+      <h2>3. Current Status</h2>
+      <p>Phase 4 is the current gigging instrument: deployed at ~7 ms round trip with the
+      19-menu surface, presets with per-preset output trim, and the NAM stage live. The looper
+      menu is in active development, and the authoritative internal reference document is kept
+      current as the system changes [2]. Latency work continues toward a 64-sample period
+      (~4 ms) pending a worst-preset soak test.</p>
+    </section>
+
+    <section>
+      <h2>4. Future Work</h2>
+      <p>Finish the looper; complete the hyper-instrument set; and take the system to the stage
+      at NIME and ICMC — performance first, presentation second. Possible collaboration with
+      Dr. Boulanger and Ajay.</p>
+    </section>
+
+    <section class="refs">
+      <h2>References</h2>
+      <ol>
+        <li>E. Smith, "Phase 4 — DEMIURGE,"
+        <a href="../../index.html#/neptr/phase-4">EMGOR universe node
+        <code>emgor.neptr.phase-4</code></a> (spine <code>.csd</code> and
+        <code>live.conf</code> downloadable), 2026.</li>
+        <li>E. Smith, "NEPTR Phase 4 — Full Reference," internal documentation,
+        <code>______2026NEW/NEPTR phase4/docs/neptr_full_reference.md</code>, 2026.</li>
+        <li>E. Smith, "DEMIURGE_OS,"
+        <a href="../../index.html#/demiurge">EMGOR universe node
+        <code>emgor.demiurge</code></a>, 2026.</li>
+        <li>E. Smith, "Integrating Neural Amp Modeling into Csound,"
+        <a href="../../universe/papers/files/nam-csound-icsc.pdf">ICSC 2026 submission
+        (PDF)</a>.</li>
+        <li>E. Smith, "NEPTR," <a href="../../NEPTR.html">project page</a>, EMGOR, 2026.</li>
+      </ol>
+    </section>
+
+  </div>
+</article>
+
+<footer class="paper-footer">
+  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+</footer>
+
+</body>
+</html>

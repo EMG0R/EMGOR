@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOUBA — NIME draft</title>
+<link rel="stylesheet" href="nime.css">
+</head>
+<body>
+
+<nav class="paper-nav">
+  <a href="index.html">&larr; NIME drafts</a>
+  <a href="../../index.html#/papers/bouba">View in the EMGOR universe</a>
+</nav>
+
+<article class="paper">
+
+  <header class="titleblock">
+    <h1>BOUBA: An Intuitive System for Accessing the Benefits of Music Therapy</h1>
+    <p class="authors">Emory Smith</p>
+    <p class="affil">EMGOR / California Institute of the Arts</p>
+    <p class="draft-marker">Draft — NIME 2027 target</p>
+  </header>
+
+  <div class="paper-body">
+
+    <section class="abstract">
+      <h2>Abstract</h2>
+      <p>BOUBA is a system providing tactile interaction with therapeutic generative synthesis.
+      Designed for the non-musician seeking a psychologically beneficial relationship with
+      sound, BOUBA targets four pillars of human experience: sleep, mood, productivity, and
+      autonomic regulation. At reproduction price, its physical controls and self-contained
+      state foster an intimate and unique relationship with the user, grounded in empirical
+      research linking ambient consonance, rhythmic entrainment, and generative soundscapes to
+      measurable physiological and psychological benefit.</p>
+    </section>
+
+    <section>
+      <p class="keywords"><strong>Keywords:</strong> music therapy, generative synthesis,
+      tangible interfaces, ChucK, Teensy, wellbeing</p>
+    </section>
+
+    <section class="flow">
+      <h2>1. Introduction</h2>
+      <p>Most therapeutic-sound products are apps: another screen, another subscription, another
+      stream. BOUBA takes the opposite position — a small, self-contained physical object whose
+      entire interface is a joystick, whose state lives nowhere but inside it, and whose sound
+      is generated rather than played back. The bet is that physicality and self-containment are
+      not packaging details but part of the therapeutic mechanism: an intimate, single-purpose
+      object invites a different relationship with sound than a phone does.</p>
+    </section>
+
+    <section class="flow">
+      <h2>2. Design</h2>
+      <p>BOUBA runs on a Teensy 4.0 (subject to change) with no external connections besides
+      power. A joystick is the primary control, selecting and interpolating between generative
+      presets. One internal speaker sits onboard, with a battery for standalone portable use,
+      while a physical aux output allows connection to high-fidelity speaker systems. An
+      open-source web version mirrors the physical system, with both unified under ChucK for
+      exact parity between online and physical.</p>
+      <p>The research baseline draws from all four pillars: white noise and sine-based music for
+      sleep, natural soundscapes and consonant harmonics for mood, stochastic resonance and
+      rhythmic entrainment for productivity, and ambient consonance for autonomic regulation.
+      Each generative preset is an operationalization of one of these findings, and the
+      joystick's interpolation space is the map between them.</p>
+    </section>
+
+    <section>
+      <h2>3. Current Status</h2>
+      <p><em>Design stage.</em> BOUBA exists as the design above; a search of the EMGOR working
+      archive found no dedicated BOUBA repository yet — its written sources are the 2026–2027
+      papers planning document and the site's papers overview. The ChucK-based generative
+      practice it builds on is established elsewhere in the EMGOR universe (the CIESEN web
+      instrument and the ChucK effect library in the code planets), and Teensy-based
+      self-contained instruments such as LITE demonstrate the intended hardware form factor.</p>
+    </section>
+
+    <section>
+      <h2>4. Future Work</h2>
+      <p>Prototype the Teensy + joystick + speaker object; implement two presets per pillar in
+      ChucK with the web mirror; then design a small user study around the four pillars with a
+      music-therapy collaborator. Planned collaboration with Yahezkul (Berklee Music Therapy)
+      and possibly Ajay. Target venues: AMTA and other music-therapy publications.</p>
+    </section>
+
+    <section class="refs">
+      <h2>References</h2>
+      <ol>
+        <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
+        <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
+        <li>E. Smith, "BOUBA,"
+        <a href="../../index.html#/papers/bouba">EMGOR universe node
+        <code>emgor.papers.bouba</code></a>, 2026.</li>
+        <li>E. Smith, "LITE: Teensy 4.1 light instrument,"
+        <a href="../../index.html#/hardware/lite">EMGOR universe node
+        <code>emgor.hardware.lite</code></a>, 2026.</li>
+        <li>E. Smith, "CIESEN," <a href="../../ciesen.html">ChucK web instrument</a>,
+        EMGOR, 2026.</li>
+      </ol>
+    </section>
+
+  </div>
+</article>
+
+<footer class="paper-footer">
+  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+</footer>
+
+</body>
+</html>

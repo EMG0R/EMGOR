@@ -4,6 +4,8 @@ title: Digital Luthier
 blurb: The masters thesis — embedded audio, fabrication, and interaction design as one workflow. Planned.
 parent: emgor.papers
 source: ______2026NEW/__PAPERS/2026-2027 PAPERS.md
+links:
+  - { label: "Read as NIME draft", url: "papers/nime/digital-luthier.html" }
 tags: [planned, thesis, digital-lutherie, fabrication, interaction-design]
 updated: 2026-07-28
 draft: false

@@ -9,12 +9,28 @@
     var VOID = '#0D0221';
     var ROOT_SYS_R = 1200;          // world radius of the root system
     var SHRINK = 0.2;               // child system radius = parent * SHRINK
-    var BODY_F = 0.26;              // body radius = own system radius * BODY_F
+    var BODY_F = 0.3;               // body radius = own system radius * BODY_F
     var ORBIT_MIN = 0.46, ORBIT_MAX = 1.0; // orbit radii as fraction of parent sysR
     var MARGIN_X = 44, MARGIN_Y = 76;      // screen margin so labels never clip
     var FLY_DUR = 1.15;             // seconds, fractal zoom flight
-    var CHILD_BOOST = 1.85;         // visual size boost for the focused nav ring
+    var CHILD_BOOST = 1.9;          // visual size boost for the focused nav ring
     var TAU = Math.PI * 2;
+
+    // per-node size multiplier fallback for galaxy.json snapshots without `size`
+    var SIZE_FALLBACK = {
+        'emgor.papers': 2.0,
+        'emgor.web-synth': 1.4
+    };
+
+    // dark, astronomy-photo palette families (hue range, sat range)
+    var FAMILIES = [
+        [8, 26, 42, 58],       // deep iron red
+        [28, 46, 38, 52],      // muted ochre gas giant
+        [206, 232, 24, 40],    // slate blue
+        [168, 192, 26, 40],    // dusty teal
+        [262, 288, 22, 38],    // charcoal purple
+        [190, 212, 12, 22]     // ashen grey-cyan
+    ];
 
     var reducedMotion = window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -104,7 +120,7 @@
     function buildTree(data) {
         root = {
             id: 'emgor', title: 'EMGOR', route: '/', depth: 0, kids: [],
-            parentNode: null, sysR: ROOT_SYS_R, wx: 0, wy: 0
+            parentNode: null, sysR: ROOT_SYS_R, wx: 0, wy: 0, sizeF: 1
         };
         byId = { emgor: root };
         byRoute = { '/': root };
@@ -128,6 +144,8 @@
                 tags: n.tags || [], updated: n.updated || '',
                 wx: 0, wy: 0, sx: 0, sy: 0, sr: 0, alpha: 0, rev: 1
             };
+            var sz = typeof n.size === 'number' ? n.size : (SIZE_FALLBACK[node.id] || 1);
+            node.sizeF = clamp(sz, 0.5, 2.5);
             byId[node.id] = node;
             byRoute[node.route] = node;
         });
@@ -143,15 +161,37 @@
         (function walk(node) {
             if (node !== root) drawOrder.push(node);
             node.sysR = node === root ? ROOT_SYS_R : node.parentNode.sysR * SHRINK;
-            node.bodyR = node.sysR * BODY_F;
+            node.bodyR = node.sysR * BODY_F * node.sizeF;
             var kids = node.kids;
-            for (var i = 0; i < kids.length; i++) {
-                var k = kids[i];
-                var rng = mulberry32(hash32(k.id));
-                var t = kids.length === 1 ? 0.6 : i / (kids.length - 1);
+            var N = kids.length;
+            var minGap = N ? TAU / N : 0;
+            var boostEff = CHILD_BOOST / (1 + Math.max(0, N - 5) * 0.045);
+            var sysRot = mulberry32(hash32(node.id + '::rot'))() * TAU;
+            var kBody = node.sysR * SHRINK * BODY_F;
+            var i, k;
+
+            // max-separation home slots: even angular spacing (+per-system twist),
+            // one ring each — min pairwise separation is TAU/N by construction
+            var maxHalf = 0;
+            for (i = 0; i < N; i++) {
+                k = kids[i];
+                var t = N === 1 ? 0.6 : i / (N - 1);
                 k.orbF = ORBIT_MIN + (ORBIT_MAX - ORBIT_MIN) * (t * 0.75 + t * t * 0.25);
-                k.a0 = (i / kids.length) * TAU + rng() * 0.9;
-                k.spd = (0.055 + 0.09 / (1 + i * 0.6)) * (rng() > 0.85 ? -1 : 1);
+                // angular half-extent of the body at a mean ring radius —
+                // bounds how far the vibrato may swing without any contact
+                k._half = (kBody * k.sizeF * boostEff) / (0.73 * node.sysR);
+                if (k._half > maxHalf) maxHalf = k._half;
+            }
+            for (i = 0; i < N; i++) {
+                k = kids[i];
+                var rng = mulberry32(hash32(k.id));
+                k.homeA = sysRot + (i / N) * TAU;
+                // vibrato: slow sinusoidal wander around the home slot; depth is
+                // capped so two neighbours plus their bodies can never touch
+                var depthCap = Math.max(0.015, 0.5 * (minGap - (maxHalf + k._half) * 1.15));
+                k.vibDepth = Math.min(minGap * (0.16 + rng() * 0.2), depthCap);
+                k.vibF = 0.35 + rng() * 0.45;       // period ~8–18 s
+                k.vibPh = rng() * TAU;
                 seedIdentity(k, rng);
                 walk(k);
             }
@@ -161,8 +201,9 @@
 
     // ─── procedural planet identity ────────────────────────────
     function seedIdentity(node, rng) {
-        node.hue = Math.floor(rng() * 360);
-        node.sat = 55 + rng() * 30;
+        var fam = FAMILIES[Math.floor(rng() * FAMILIES.length)];
+        node.hue = Math.floor(fam[0] + rng() * (fam[1] - fam[0]));
+        node.sat = fam[2] + rng() * (fam[3] - fam[2]);
         node.hasRing = rng() < 0.42;
         node.ringAngle = (rng() - 0.5) * 0.9;
         node.ringTilt = 0.22 + rng() * 0.2;
@@ -192,12 +233,12 @@
         g.arc(cx, cy, R, 0, TAU);
         g.clip();
 
-        // base sphere gradient, lit upper-left
+        // base sphere gradient, lit upper-left — dark, desaturated, real
         var lg = g.createRadialGradient(cx - R * 0.38, cy - R * 0.38, R * 0.08, cx, cy, R * 1.15);
-        lg.addColorStop(0, 'hsl(' + hue + ',' + sat + '%,72%)');
-        lg.addColorStop(0.45, 'hsl(' + hue + ',' + sat + '%,46%)');
-        lg.addColorStop(0.85, 'hsl(' + ((hue + 24) % 360) + ',' + sat + '%,20%)');
-        lg.addColorStop(1, 'hsl(' + ((hue + 30) % 360) + ',' + Math.min(90, sat + 10) + '%,10%)');
+        lg.addColorStop(0, 'hsl(' + hue + ',' + sat + '%,52%)');
+        lg.addColorStop(0.42, 'hsl(' + hue + ',' + sat + '%,34%)');
+        lg.addColorStop(0.8, 'hsl(' + ((hue + 14) % 360) + ',' + sat + '%,16%)');
+        lg.addColorStop(1, 'hsl(' + ((hue + 20) % 360) + ',' + Math.min(70, sat + 6) + '%,8%)');
         g.fillStyle = lg;
         g.fillRect(0, 0, S, S);
 
@@ -210,8 +251,9 @@
             for (var b = 0; b < bands; b++) {
                 var by = cy - R + rng() * R * 2;
                 var bh = R * (0.08 + rng() * 0.22);
-                g.fillStyle = 'hsla(' + ((hue + (rng() - 0.5) * 60 + 360) % 360) + ',' +
-                    sat + '%,' + (rng() < 0.5 ? 30 : 62) + '%,' + (0.08 + rng() * 0.14) + ')';
+                g.fillStyle = 'hsla(' + ((hue + (rng() - 0.5) * 26 + 360) % 360) + ',' +
+                    Math.max(10, sat - 8) + '%,' + (rng() < 0.55 ? 16 : 42) + '%,' +
+                    (0.1 + rng() * 0.14) + ')';
                 g.beginPath();
                 g.ellipse(cx, by, R * 1.3, bh, 0, 0, TAU);
                 g.fill();
@@ -223,8 +265,9 @@
                 var a = rng() * TAU, d = Math.sqrt(rng()) * R * 0.94;
                 var sx2 = cx + Math.cos(a) * d, sy2 = cy + Math.sin(a) * d;
                 var sr2 = R * (0.03 + rng() * 0.1);
-                g.fillStyle = 'hsla(' + ((hue + (rng() - 0.5) * 80 + 360) % 360) + ',' +
-                    sat + '%,' + (rng() < 0.6 ? 26 : 68) + '%,' + (0.1 + rng() * 0.16) + ')';
+                g.fillStyle = 'hsla(' + ((hue + (rng() - 0.5) * 32 + 360) % 360) + ',' +
+                    Math.max(10, sat - 6) + '%,' + (rng() < 0.62 ? 14 : 46) + '%,' +
+                    (0.1 + rng() * 0.16) + ')';
                 g.beginPath();
                 g.ellipse(sx2, sy2, sr2 * (0.7 + rng()), sr2, rng() * TAU, 0, TAU);
                 g.fill();
@@ -234,17 +277,23 @@
         // terminator shadow (lower-right)
         var sh = g.createRadialGradient(cx - R * 0.4, cy - R * 0.4, R * 0.3, cx, cy, R * 1.35);
         sh.addColorStop(0, 'rgba(0,0,0,0)');
-        sh.addColorStop(0.72, 'rgba(6,1,16,0.05)');
-        sh.addColorStop(1, 'rgba(6,1,16,0.72)');
+        sh.addColorStop(0.68, 'rgba(4,1,12,0.08)');
+        sh.addColorStop(1, 'rgba(4,1,12,0.82)');
         g.fillStyle = sh;
         g.fillRect(0, 0, S, S);
         g.restore();
 
-        // atmosphere rim
-        g.strokeStyle = 'hsla(' + hue + ',90%,72%,0.5)';
-        g.lineWidth = 1.6;
+        // limb light: thin bright outline, stronger on the lit side (backlit look)
+        g.strokeStyle = 'hsla(' + hue + ',22%,86%,0.55)';
+        g.lineWidth = 1.1;
         g.beginPath();
-        g.arc(cx, cy, R + 0.8, 0, TAU);
+        g.arc(cx, cy, R + 0.6, 0, TAU);
+        g.stroke();
+        g.lineCap = 'round';
+        g.strokeStyle = 'rgba(255,255,255,0.7)';
+        g.lineWidth = 1.8;
+        g.beginPath();
+        g.arc(cx, cy, R + 0.6, Math.PI * 0.92, Math.PI * 1.62);
         g.stroke();
 
         // ring front half
@@ -258,14 +307,14 @@
         g.save();
         g.translate(cx, cy);
         g.rotate(node.ringAngle);
-        g.strokeStyle = 'hsla(' + ((node.hue + 40) % 360) + ',80%,70%,' + (alpha * 0.5) + ')';
-        g.lineWidth = R * 0.13;
+        g.strokeStyle = 'hsla(' + ((node.hue + 24) % 360) + ',30%,58%,' + (alpha * 0.32) + ')';
+        g.lineWidth = R * 0.11;
         g.beginPath();
         g.ellipse(0, 0, R * 1.5, R * 1.5 * node.ringTilt, 0,
             behind ? Math.PI : 0, behind ? TAU : Math.PI);
         g.stroke();
-        g.strokeStyle = 'hsla(' + ((node.hue + 40) % 360) + ',90%,80%,' + (alpha * 0.35) + ')';
-        g.lineWidth = R * 0.04;
+        g.strokeStyle = 'hsla(' + ((node.hue + 24) % 360) + ',34%,72%,' + (alpha * 0.24) + ')';
+        g.lineWidth = R * 0.035;
         g.beginPath();
         g.ellipse(0, 0, R * 1.72, R * 1.72 * node.ringTilt, 0,
             behind ? Math.PI : 0, behind ? TAU : Math.PI);
@@ -279,9 +328,9 @@
         c.width = c.height = S;
         var g = c.getContext('2d');
         var gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-        gr.addColorStop(0, 'hsla(' + hue + ',' + Math.min(95, sat + 25) + '%,68%,0.5)');
-        gr.addColorStop(0.35, 'hsla(' + hue + ',' + sat + '%,55%,0.18)');
-        gr.addColorStop(1, 'hsla(' + hue + ',' + sat + '%,50%,0)');
+        gr.addColorStop(0, 'hsla(' + hue + ',' + Math.min(60, sat + 12) + '%,62%,0.22)');
+        gr.addColorStop(0.35, 'hsla(' + hue + ',' + sat + '%,48%,0.08)');
+        gr.addColorStop(1, 'hsla(' + hue + ',' + sat + '%,45%,0)');
         g.fillStyle = gr;
         g.fillRect(0, 0, S, S);
         return c;
@@ -410,7 +459,9 @@
         for (var i = 0; i < drawOrder.length; i++) {
             var n = drawOrder[i];
             var p = n.parentNode;
-            var a = n.a0 + time * n.spd;
+            // vibrato: each body wanders around its home slot at its own pace,
+            // reversing naturally at the sine extremes — no full-circle orbiting
+            var a = n.homeA + Math.sin(time * n.vibF + n.vibPh) * n.vibDepth;
             var r = n.orbF * p.sysR;
             n.wx = p.wx + Math.cos(a) * r;
             n.wy = p.wy + Math.sin(a) * r;
@@ -439,6 +490,9 @@
             n.sy = H / 2 + y2 * stretchY * cam.scale * pr;
             n.sr = n.bodyR * cam.scale * pr;
         }
+        // root's projected position (label radial math needs every parent's)
+        var rp = projectPoint(root.wx, root.wy);
+        root.sx = rp.x; root.sy = rp.y;
     }
 
     // project an arbitrary flat-plane world point (for rings, black hole)
@@ -676,14 +730,18 @@
         return el;
     }
 
+    var labArr = [];                // visible labels this frame (reused)
+
     function syncLabels() {
         // labeled set: children of focus (+ children of trans.from while flying)
         var id;
         for (id in labelPool) labelPool[id]._keep = false;
 
+        labArr.length = 0;
         var e = trans ? easeInOut(clamp(trans.t, 0, 1)) : 1;
-        placeLabels(focus.kids, trans ? e : 1);
-        if (trans) placeLabels(trans.from.kids, 1 - e, focus.kids);
+        collectLabels(focus.kids, trans ? e : 1);
+        if (trans) collectLabels(trans.from.kids, 1 - e, focus.kids);
+        layoutLabels();
 
         for (id in labelPool) {
             var el = labelPool[id];
@@ -691,26 +749,88 @@
         }
     }
 
-    function placeLabels(kids, alpha, excludeIfIn) {
+    function collectLabels(kids, alpha, excludeIfIn) {
         for (var i = 0; i < kids.length; i++) {
             var n = kids[i];
             if (excludeIfIn && excludeIfIn.indexOf(n) !== -1) continue;
             var el = labelFor(n);
             el._keep = true;
-            var a = alpha * (intro ? n.rev : 1) * clamp(n.dim, 0.55, 1);
+            var a = alpha * (intro ? n.rev : 1) * clamp(n.dim, 0.6, 1);
             if (a <= 0.02) { el.style.display = 'none'; continue; }
-            var zi = n.sz < 0 ? 15 : 3;
+
+            var fs = clamp(n.sr * 0.3, 13, 22);
+            var lw = n.title.length * fs * 0.66 + 22;
+            var lh = fs * 2.15;
+
+            // far-side placement: offset outward along the radial from the
+            // projected system center so text never crowds the sun/black hole
+            var p = n.parentNode;
+            var dx = n.sx - p.sx, dy = n.sy - p.sy;
+            var L = Math.sqrt(dx * dx + dy * dy);
+            var ux = L < 1 ? 0 : dx / L, uy = L < 1 ? -1 : dy / L;
+            var off = n.sr + lh * 0.62 + 6;
+            n._lx = clamp(n.sx + ux * off, lw / 2 + 6, W - lw / 2 - 6);
+            n._ly = clamp(n.sy + uy * off, lh / 2 + 6, H - lh / 2 - 6);
+            n._lw = lw; n._lh = lh; n._fs = fs; n._la = a; n._el = el;
+            labArr.push(n);
+        }
+    }
+
+    // light relaxation: labels never overlap each other, other planets,
+    // or leave the viewport — layout is near-collision-free by construction,
+    // this is the per-frame guarantee
+    function layoutLabels() {
+        var i, j, a, b;
+        for (var it = 0; it < 2; it++) {
+            for (i = 0; i < labArr.length; i++) {
+                a = labArr[i];
+                // vs other labels (AABB, 4px pad)
+                for (j = i + 1; j < labArr.length; j++) {
+                    b = labArr[j];
+                    var ox = (a._lw + b._lw) / 2 + 4 - Math.abs(a._lx - b._lx);
+                    var oy = (a._lh + b._lh) / 2 + 4 - Math.abs(a._ly - b._ly);
+                    if (ox > 0 && oy > 0) {
+                        if (ox < oy) {
+                            var sx = a._lx < b._lx ? -1 : 1;
+                            a._lx += sx * ox / 2; b._lx -= sx * ox / 2;
+                        } else {
+                            var sy = a._ly < b._ly ? -1 : 1;
+                            a._ly += sy * oy / 2; b._ly -= sy * oy / 2;
+                        }
+                    }
+                }
+                // vs other planets' discs
+                for (j = 0; j < labArr.length; j++) {
+                    b = labArr[j];
+                    if (b === a) continue;
+                    var cx2 = clamp(b.sx, a._lx - a._lw / 2, a._lx + a._lw / 2);
+                    var cy2 = clamp(b.sy, a._ly - a._lh / 2, a._ly + a._lh / 2);
+                    var ddx = cx2 - b.sx, ddy = cy2 - b.sy;
+                    var dd = Math.sqrt(ddx * ddx + ddy * ddy);
+                    var need = b.sr + 4;
+                    if (dd < need) {
+                        var pdx = a._lx - b.sx, pdy = a._ly - b.sy;
+                        var pl = Math.sqrt(pdx * pdx + pdy * pdy) || 1;
+                        a._lx += (pdx / pl) * (need - dd);
+                        a._ly += (pdy / pl) * (need - dd);
+                    }
+                }
+                a._lx = clamp(a._lx, a._lw / 2 + 6, W - a._lw / 2 - 6);
+                a._ly = clamp(a._ly, a._lh / 2 + 6, H - a._lh / 2 - 6);
+            }
+        }
+        for (i = 0; i < labArr.length; i++) {
+            a = labArr[i];
+            var el = a._el;
+            var zi = a.sz < 0 ? 15 : 3;
             if (el._zi !== zi) { el._zi = zi; el.style.zIndex = zi; }
-            var d = clamp(n.sr * 2.7, 80, 250);
-            var lw = clamp(d * 1.65, 122, 330);  // wider than tall: long names breathe
-            var x = clamp(n.sx, lw / 2 + 6, W - lw / 2 - 6);
-            var y = clamp(n.sy, d / 2 + 6, H - d / 2 - 6);
             el.style.display = 'flex';
-            el.style.width = lw + 'px';
-            el.style.height = d + 'px';
-            el.style.fontSize = clamp(d * 0.115, 12, 19) + 'px';
-            el.style.opacity = a.toFixed(3);
-            el.style.transform = 'translate3d(' + (x - lw / 2) + 'px,' + (y - d / 2) + 'px,0)';
+            el.style.width = a._lw + 'px';
+            el.style.height = a._lh + 'px';
+            el.style.fontSize = a._fs + 'px';
+            el.style.opacity = a._la.toFixed(3);
+            el.style.transform = 'translate3d(' + (a._lx - a._lw / 2) + 'px,' +
+                (a._ly - a._lh / 2) + 'px,0)';
         }
     }
 
@@ -970,8 +1090,8 @@
         var dim = n.dim;
         // glow (additive)
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = Math.min(1, alpha * dim * (0.5 + pulse * 0.45));
-        var gs = r * (5.2 + pulse * 1.1);
+        ctx.globalAlpha = Math.min(1, alpha * dim * (0.4 + pulse * 0.3));
+        var gs = r * (3.3 + pulse * 0.5);
         ctx.drawImage(n.glow, n.sx - gs / 2, n.sy - gs / 2, gs, gs);
         // body sprite (ring included) — sprite body radius is spriteR of its size
         ctx.globalCompositeOperation = 'source-over';
@@ -1222,6 +1342,9 @@
 
     // debug/inspection hook (read-only)
     window.EMGOR_GALAXY = {
+        // debug: advance the animation clock (vibrato etc.) by s seconds —
+        // lets throttled tabs (automation, background) inspect motion
+        nudge: function (s) { if (!reducedMotion) time += +s || 0; },
         get state() {
             return {
                 focus: focus && focus.id, kids: focus && focus.kids.length,

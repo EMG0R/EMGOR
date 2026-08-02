@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-02",
+  "generated": "2026-07-29",
   "nodes": [
     {
       "id": "emgor",
@@ -9,7 +9,7 @@
       "path": "universe/_index.md",
       "route": "/",
       "depth": 0,
-      "children": 9,
+      "children": 8,
       "downloads": [],
       "links": [],
       "tags": [
@@ -35,30 +35,6 @@
         "code"
       ],
       "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.code.bmo",
-      "title": "BMO",
-      "blurb": "Pure-WebGL shader scene — lava noise lensed around a black hole",
-      "parent": "emgor.code",
-      "path": "universe/code/bmo.md",
-      "route": "/code/bmo",
-      "depth": 2,
-      "children": 0,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Open BMO",
-          "url": "BMO.html"
-        }
-      ],
-      "tags": [
-        "webgl",
-        "glsl",
-        "shader",
-        "visual"
-      ],
-      "updated": "2026-08-02"
     },
     {
       "id": "emgor.code.cheese",
@@ -365,6 +341,104 @@
         "vcv-rack",
         "modular",
         "patch"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.code.web-synths",
+      "title": "WEB SYNTHS",
+      "blurb": "Instruments that run in the browser tab you already have open",
+      "parent": "emgor.code",
+      "path": "universe/code/web-synths/_index.md",
+      "route": "/code/web-synths",
+      "depth": 2,
+      "children": 3,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "webaudio",
+        "browser",
+        "chuck",
+        "rnbo",
+        "webgl"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.code.web-synths.bmo",
+      "title": "BMO",
+      "blurb": "Pure-WebGL shader scene — lava noise lensed around a black hole",
+      "parent": "emgor.code.web-synths",
+      "path": "universe/code/web-synths/bmo.md",
+      "route": "/code/web-synths/bmo",
+      "depth": 3,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Open BMO",
+          "url": "BMO.html"
+        }
+      ],
+      "tags": [
+        "webgl",
+        "glsl",
+        "shader",
+        "visual"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.code.web-synths.ciesen",
+      "title": "CIESEN",
+      "blurb": "Generative ambient ChucK synth with WebGPU visuals, live in-browser",
+      "parent": "emgor.code.web-synths",
+      "path": "universe/code/web-synths/ciesen.md",
+      "route": "/code/web-synths/ciesen",
+      "depth": 3,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "_CIESEN.ck",
+          "url": "universe/code/web-synths/files/_CIESEN.ck"
+        }
+      ],
+      "links": [
+        {
+          "label": "Play CIESEN",
+          "url": "ciesen.html"
+        }
+      ],
+      "tags": [
+        "chuck",
+        "webchugl",
+        "webgpu",
+        "generative",
+        "ambient"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.code.web-synths.neptr",
+      "title": "NEPTR",
+      "blurb": "Max/RNBO synth exported to WebAssembly — play it in the page",
+      "parent": "emgor.code.web-synths",
+      "path": "universe/code/web-synths/neptr.md",
+      "route": "/code/web-synths/neptr",
+      "depth": 3,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Play NEPTR",
+          "url": "NEPTR.html"
+        }
+      ],
+      "tags": [
+        "rnbo",
+        "max",
+        "webassembly",
+        "synth"
       ],
       "updated": "2026-07-28"
     },
@@ -915,10 +989,6 @@
         {
           "label": "Open the REPL",
           "url": "livecode.html"
-        },
-        {
-          "label": "WEB SYNTH planet",
-          "url": "#/web-synth"
         }
       ],
       "tags": [
@@ -1809,7 +1879,7 @@
     },
     {
       "id": "emgor.papers",
-      "title": "2026-2027 PAPERS",
+      "title": "PAPERS",
       "blurb": "Research & writing — one paper shipped, seven in orbit",
       "parent": "emgor",
       "path": "universe/papers/_index.md",
@@ -1830,8 +1900,7 @@
         "icmc",
         "csound"
       ],
-      "updated": "2026-07-28",
-      "size": 2
+      "updated": "2026-07-28"
     },
     {
       "id": "emgor.papers.bouba",
@@ -1843,12 +1912,7 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as NIME draft",
-          "url": "papers/nime/bouba.html"
-        }
-      ],
+      "links": [],
       "tags": [
         "planned",
         "music-therapy",
@@ -1868,12 +1932,7 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as NIME draft",
-          "url": "papers/nime/demiurgeos.html"
-        }
-      ],
+      "links": [],
       "tags": [
         "planned",
         "raspberry-pi",
@@ -1893,12 +1952,7 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as NIME draft",
-          "url": "papers/nime/digital-luthier.html"
-        }
-      ],
+      "links": [],
       "tags": [
         "planned",
         "thesis",
@@ -1946,10 +2000,6 @@
       "downloads": [],
       "links": [
         {
-          "label": "Read as NIME draft",
-          "url": "papers/nime/neptr.html"
-        },
-        {
           "label": "NEPTR on the site",
           "url": "NEPTR.html"
         }
@@ -1976,10 +2026,6 @@
       "downloads": [],
       "links": [
         {
-          "label": "Read as NIME draft",
-          "url": "papers/nime/neuralgrid.html"
-        },
-        {
           "label": "NeuralGrid design document",
           "url": "neuralgrid.html"
         }
@@ -2004,12 +2050,7 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as NIME draft",
-          "url": "papers/nime/open-pedal.html"
-        }
-      ],
+      "links": [],
       "tags": [
         "planned",
         "open-source",
@@ -2030,12 +2071,7 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as NIME draft",
-          "url": "papers/nime/unified-streaming.html"
-        }
-      ],
+      "links": [],
       "tags": [
         "planned",
         "usb-c",
@@ -2044,110 +2080,6 @@
         "streaming"
       ],
       "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.web-synth",
-      "title": "WEB SYNTH",
-      "blurb": "Instruments that run entirely in the browser — three languages, zero installs",
-      "parent": "emgor",
-      "path": "universe/web-synth/_index.md",
-      "route": "/web-synth",
-      "depth": 1,
-      "children": 3,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "webaudio",
-        "browser",
-        "strudel",
-        "rnbo",
-        "chuck"
-      ],
-      "updated": "2026-08-02",
-      "size": 1.4
-    },
-    {
-      "id": "emgor.web-synth.ciesen",
-      "title": "CIESEN",
-      "blurb": "Generative ambient ChucK synth with WebGPU visuals, live in-browser",
-      "parent": "emgor.web-synth",
-      "path": "universe/web-synth/ciesen.md",
-      "route": "/web-synth/ciesen",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "_CIESEN.ck",
-          "url": "universe/web-synth/files/_CIESEN.ck"
-        }
-      ],
-      "links": [
-        {
-          "label": "Play CIESEN",
-          "url": "ciesen.html"
-        }
-      ],
-      "tags": [
-        "chuck",
-        "webchuck",
-        "chugl",
-        "webgpu",
-        "generative",
-        "ambient"
-      ],
-      "updated": "2026-08-02"
-    },
-    {
-      "id": "emgor.web-synth.neptr",
-      "title": "NEPTR",
-      "blurb": "Max/RNBO synth exported to WebAssembly — play it in the page",
-      "parent": "emgor.web-synth",
-      "path": "universe/web-synth/neptr.md",
-      "route": "/web-synth/neptr",
-      "depth": 2,
-      "children": 0,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Play NEPTR",
-          "url": "NEPTR.html"
-        }
-      ],
-      "tags": [
-        "rnbo",
-        "max",
-        "webassembly",
-        "synth"
-      ],
-      "updated": "2026-08-02"
-    },
-    {
-      "id": "emgor.web-synth.strudel",
-      "title": "STRUDEL",
-      "blurb": "TidalCycles patterns as JavaScript — live-coded music in the tab",
-      "parent": "emgor.web-synth",
-      "path": "universe/web-synth/strudel.md",
-      "route": "/web-synth/strudel",
-      "depth": 2,
-      "children": 0,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Open the REPL",
-          "url": "livecode.html"
-        },
-        {
-          "label": "strudel.cc",
-          "url": "https://strudel.cc"
-        }
-      ],
-      "tags": [
-        "strudel",
-        "javascript",
-        "live-coding",
-        "web-audio"
-      ],
-      "updated": "2026-08-02"
     }
   ]
 }

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DemiurgeOS — NIME draft</title>
+<link rel="stylesheet" href="nime.css">
+</head>
+<body>
+
+<nav class="paper-nav">
+  <a href="index.html">&larr; NIME drafts</a>
+  <a href="../../index.html#/papers/demiurgeos">View in the EMGOR universe</a>
+</nav>
+
+<article class="paper">
+
+  <header class="titleblock">
+    <h1>DemiurgeOS: A Thoughtfully Designed System for DSP on the Raspberry Pi</h1>
+    <p class="authors">Emory Smith</p>
+    <p class="affil">EMGOR / California Institute of the Arts</p>
+    <p class="draft-marker">Draft — NIME 2027 target</p>
+  </header>
+
+  <div class="paper-body">
+
+    <section class="abstract">
+      <h2>Abstract</h2>
+      <p><span class="abstract-note">(Working abstract — formal abstract TBD.)</span>
+      DemiurgeOS provides a unified interface for managing a Raspberry Pi for DSP. This includes
+      a terminal UI, local web GUI, and local Python UI for high-level control of the system.
+      These manage things like the sync layer — which allows for modular patching between audio
+      interfaces and audio code — a MIDI pool for managing MIDI I/O, OSC I/O, and clock/CV
+      signals between different programs and physical interfaces, and things like intentional
+      power throttling, presets, and behavior/auto-run programs on boot, all controlled through
+      a paired bash GUI, Python GUI, or local web GUI. Inspired by Satellite CCRMA and RNBO.
+      Comes preinstalled with every major audio language.</p>
+    </section>
+
+    <section>
+      <p class="keywords"><strong>Keywords:</strong> Raspberry Pi, Linux audio, PipeWire,
+      embedded DSP, live performance infrastructure</p>
+    </section>
+
+    <section class="flow">
+      <h2>1. Introduction</h2>
+      <p>The project was born from watching a class full of people fight their Pis: an
+      integrated solution to the common DSP-on-Pi situations that would have at least doubled
+      that class's productivity. The result is a flashable, audio-first operating system for
+      the Raspberry Pi 5 — a modern successor to Stanford CCRMA's Satellite. Every major audio
+      language ships pre-installed and pre-wired: Csound, Pure Data, SuperCollider, ChucK,
+      Faust, Strudel, C++, Python, plus RNBO and Neural Amp Modeler profiles as first-class
+      stages. The workflow reduces to: edit one file, reboot, perform.</p>
+    </section>
+
+    <section class="flow">
+      <h2>2. System</h2>
+      <h3>2.1 The sync layer</h3>
+      <p>Programs never see hardware. Everything routes through a unified PipeWire abstraction:
+      one virtual sink (<code>demiurge-sink</code>, created with <code>node.linger</code> so it
+      exists whether or not hardware does), one shared ALSA-seq MIDI bus, and a small C++ clock
+      daemon fanning MIDI realtime <code>0xF8</code> at 24 PPQN to every language, with BPM
+      broadcast on ch16 CC119 and optional Ableton Link. Hot-plug is invisible: audio plays into
+      the void when nothing is connected and resumes when something is; a second USB interface
+      aggregates automatically.</p>
+      <h3>2.2 One config surface</h3>
+      <p>The whole system is driven from <code>live.conf</code> — the only file the user edits.
+      An ordered <code>chain =</code> list of source files; language inferred from the
+      extension; <code>.dsp</code> and <code>.cpp</code> compiled on demand. A zero-dependency
+      Rust launcher (~460 KB, stdlib only) parses the file into a patch graph, launches each
+      stage through per-language wrappers, links audio and MIDI, and hot-reloads on save in
+      under a second: untouched stages keep their PIDs, dead ones are routed around — the graph
+      is directed and self-healing.</p>
+      <h3>2.3 Control surfaces</h3>
+      <p>High-level control is mirrored across a terminal companion and a stdlib-only Python web
+      GUI (<code>demiurge.local:8080</code>): temperature, throttle-register decode, xrun
+      counts, patch tiles, power presets (intentional throttling), and start/stop of the audio
+      service — deliberately independent of the audio process so the UI survives it. A
+      performance pack pins audio to an isolated core at a 128-sample quantum, applies RT
+      limits and a safe overclock, and reproduces the whole system from a fresh flash via an
+      idempotent ten-phase installer.</p>
+    </section>
+
+    <section>
+      <h2>3. Current Status</h2>
+      <p>Unlike several sibling proposals, DemiurgeOS is running today. Seven languages are
+      verified bidirectionally (MIDI in/out, BPM sync, audio in/out) on the Pi 5, on an isolated
+      core at quantum 128 without xruns. It is the platform under NEPTR, EMGOR's live
+      performance instrument, and hosts the NAM chain stage built on the
+      <code>NAMProcess</code> Csound opcode. The full source tree, configs, launcher, and web
+      UI are documented across the DEMIURGE planets of this site.</p>
+    </section>
+
+    <section>
+      <h2>4. Future Work</h2>
+      <p>Packaging as a public flashable image; the paired bash/Python/web GUIs unified into one
+      release; formal latency and reliability benchmarks across languages; classroom deployment
+      to test the productivity claim that motivated it. Planned collaboration with Primrose
+      (Stanford); Ajay and Ge possible. Target venue: Linux Audio Developer Conference.</p>
+    </section>
+
+    <section class="refs">
+      <h2>References</h2>
+      <ol>
+        <li>E. Smith, "DEMIURGE_OS,"
+        <a href="../../index.html#/demiurge">EMGOR universe node <code>emgor.demiurge</code></a>
+        — with sub-nodes <a href="../../index.html#/demiurge/os">OS Core</a>,
+        <a href="../../index.html#/demiurge/launcher">Launcher</a>,
+        <a href="../../index.html#/demiurge/nam">NAM</a>, and
+        <a href="../../index.html#/demiurge/web">Web Control</a>, 2026.</li>
+        <li>E. Smith, "Integrating Neural Amp Modeling into Csound,"
+        <a href="../../universe/papers/files/nam-csound-icsc.pdf">ICSC 2026 submission (PDF)</a>.</li>
+        <li>E. Berdahl and W. Ju, "Satellite CCRMA: A Musical Interaction and Sound Synthesis
+        Platform," NIME 2011.</li>
+        <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
+        <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
+      </ol>
+    </section>
+
+  </div>
+</article>
+
+<footer class="paper-footer">
+  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+</footer>
+
+</body>
+</html>

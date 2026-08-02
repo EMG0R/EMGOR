@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-Pedal — NIME draft</title>
+<link rel="stylesheet" href="nime.css">
+</head>
+<body>
+
+<nav class="paper-nav">
+  <a href="index.html">&larr; NIME drafts</a>
+  <a href="../../index.html#/papers/open-pedal">View in the EMGOR universe</a>
+</nav>
+
+<article class="paper">
+
+  <header class="titleblock">
+    <h1>Open-Pedal: An Accessible System for Modularly Creating Guitar Pedals and Synthesizers</h1>
+    <p class="authors">Emory Smith</p>
+    <p class="affil">EMGOR / California Institute of the Arts</p>
+    <p class="draft-marker">Draft — NIME 2027 target</p>
+  </header>
+
+  <div class="paper-body">
+
+    <section class="abstract">
+      <h2>Abstract</h2>
+      <p>The goal of this project is to support disruption of the hold capitalism has on digital
+      instruments and DSP through an open-source, DIY framework for creating powerful
+      instruments and effect processors. The modularity of the system allows people to pay for
+      only the sensors and compute they need while providing a simple path toward making
+      powerful digital interfaces with our thoughtfully designed PCBs, software (Arduino IDE
+      fork with example programs and preinstalled libraries) and interactive guides.</p>
+    </section>
+
+    <section>
+      <p class="keywords"><strong>Keywords:</strong> open source hardware, DIY, guitar pedals,
+      PCB design, accessibility, DSP education</p>
+    </section>
+
+    <section class="flow">
+      <h2>1. Introduction</h2>
+      <p>With the rising accessibility of coding, engineering, and technology overall, this
+      framework contributes to bridging the gap between high-value electronics and the general
+      population. Commercial digital pedals and synthesizers bundle sensors, compute, and DSP
+      behind a fixed price and a closed enclosure; Open-Pedal unbundles them, so a builder pays
+      only for the parts their instrument actually needs and owns the whole stack from
+      schematic to firmware.</p>
+    </section>
+
+    <section class="flow">
+      <h2>2. Design</h2>
+      <ul>
+        <li><em>Hardware.</em> Custom PCBs and 3D-printed components allow accessible swapping
+        of components and microcontrollers to build custom devices — the same board family
+        underlies a fuzz pedal, a granular sampler, or a standalone synth.</li>
+        <li><em>Software.</em> A custom IDE forked from Arduino handles all required libraries
+        and microcontroller profiles, so users can experiment with an interactive library of DSP
+        while programming their devices, without toolchain setup.</li>
+        <li><em>Guides.</em> Interactive build and DSP guides walk newcomers from a bare board
+        to a playable device, treating each example program as a teaching object.</li>
+      </ul>
+      <p>The intent is a full, comprehensive system built for future improvement — a platform
+      others can extend rather than a one-off product.</p>
+    </section>
+
+    <section>
+      <h2>3. Current Status</h2>
+      <p><em>Design stage.</em> Open-Pedal currently exists as the proposal above; a search of
+      the EMGOR working archive found no dedicated Open-Pedal repository yet — its only written
+      sources are the 2026–2027 papers planning document and the site's papers overview. The
+      practice it formalizes, however, is already live across the EMGOR hardware planets: DIY
+      PCB-based instruments such as the Pocket OpGorator (Daisy), 4-i-Gor (Teensy audio
+      interface), and oFOOTS (Teensy foot controller) are effectively pre-Open-Pedal case
+      studies, and their build files are public on this site.</p>
+    </section>
+
+    <section>
+      <h2>4. Future Work</h2>
+      <p>First milestones: define the core PCB family and its swappable sensor/compute modules;
+      fork and strip the IDE; port one existing EMGOR device onto the framework as a reference
+      build; then run the guides with first-time builders. Planned collaboration with Nina
+      (MIT); Andrew, Ajay, and Todd possible. Target venues: NIME, TEI, ACM CHI, or ICMC.</p>
+    </section>
+
+    <section class="refs">
+      <h2>References</h2>
+      <ol>
+        <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
+        <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
+        <li>E. Smith, "Pocket OpGorator,"
+        <a href="../../index.html#/hardware/pocket-opgorator">EMGOR universe node
+        <code>emgor.hardware.pocket-opgorator</code></a>, 2026.</li>
+        <li>E. Smith, "4-i-Gor,"
+        <a href="../../index.html#/hardware/4-i-gor">EMGOR universe node
+        <code>emgor.hardware.4-i-gor</code></a>, 2026.</li>
+        <li>E. Smith, "oFOOTS,"
+        <a href="../../index.html#/hardware/ofoots">EMGOR universe node
+        <code>emgor.hardware.ofoots</code></a>, 2026.</li>
+      </ol>
+    </section>
+
+  </div>
+</article>
+
+<footer class="paper-footer">
+  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+</footer>
+
+</body>
+</html>

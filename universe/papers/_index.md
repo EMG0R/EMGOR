@@ -1,9 +1,10 @@
 ---
 id: emgor.papers
-title: PAPERS
+title: 2026-2027 PAPERS
 blurb: Research & writing — one paper shipped, seven in orbit
 parent: emgor
 source: ______2026NEW/__PAPERS
+size: 2
 links:
   - { label: "Papers page", url: "papers.html" }
 tags: [research, writing, nime, icmc, csound]

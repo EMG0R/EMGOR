@@ -56,10 +56,10 @@ body.is-grabbing .planet-label { cursor: grabbing; }
     gap: 2px;
     pointer-events: auto;
     text-decoration: none;
-    color: var(--pale);
-    border-radius: 999px;
+    color: #fff;
+    border-radius: 12px;
     text-align: center;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.14em;
     text-transform: lowercase;
     will-change: transform, opacity;
     -webkit-tap-highlight-color: rgba(168, 85, 247, 0.25);
@@ -69,22 +69,22 @@ body.is-grabbing .planet-label { cursor: grabbing; }
     -webkit-user-drag: none;
     cursor: grab;
     text-shadow:
-        0 0 8px rgba(168, 85, 247, 0.75),
-        0 0 22px rgba(123, 47, 190, 0.4),
-        0 1px 3px rgba(0, 0, 0, 0.95);
+        0 1px 2px rgba(2, 0, 8, 0.95),
+        0 0 10px rgba(2, 0, 8, 0.85),
+        0 0 22px rgba(168, 85, 247, 0.35);
 }
 
 .planet-label .pl-name {
     font-weight: 700;
     line-height: 1.2;
     padding: 0 4px;
-    word-break: break-word;
+    white-space: nowrap;
 }
 
 .planet-label .pl-sub {
-    font-size: 0.62em;
+    font-size: 0.58em;
     letter-spacing: 0.28em;
-    color: rgba(192, 132, 252, 0.55);
+    color: rgba(216, 196, 245, 0.75);
     opacity: 0;
     transition: opacity 0.25s ease;
     text-shadow: 0 0 6px rgba(168, 85, 247, 0.5);
@@ -95,9 +95,9 @@ body.is-grabbing .planet-label { cursor: grabbing; }
 @media (hover: hover) {
     .planet-label:hover .pl-name {
         text-shadow:
-            0 0 16px rgba(168, 85, 247, 1),
-            0 0 40px rgba(168, 85, 247, 0.6),
-            0 0 6px rgba(255, 255, 255, 0.55);
+            0 1px 2px rgba(2, 0, 8, 0.95),
+            0 0 14px rgba(168, 85, 247, 0.9),
+            0 0 34px rgba(168, 85, 247, 0.5);
     }
     .planet-label:hover .pl-sub { opacity: 1; }
 }

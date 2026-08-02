@@ -4,6 +4,8 @@ title: Open-Pedal
 blurb: An open-source, modular framework for building guitar pedals and synths. Planned.
 parent: emgor.papers
 source: ______2026NEW/__PAPERS/2026-2027 PAPERS.md
+links:
+  - { label: "Read as NIME draft", url: "papers/nime/open-pedal.html" }
 tags: [planned, open-source, diy, pcb, dsp, guitar-pedal]
 updated: 2026-07-28
 draft: false
