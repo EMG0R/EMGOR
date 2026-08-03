@@ -236,6 +236,11 @@
 
         const STORAGE_KEY = 'gorcave_token';
 
+        // Backend passphrase auth is currently disabled (reversible on the
+        // server via SERVER_AUTH_ENABLED). Flip this back to true (and
+        // re-enable SERVER_AUTH_ENABLED on the Pi) to restore the gate.
+        const AUTH_REQUIRED = false;
+
         const gateEl      = document.getElementById('gate');
         const chatEl      = document.getElementById('chat');
         const tokenInput  = document.getElementById('token-input');
@@ -291,12 +296,17 @@
             e.preventDefault();
             const text = msgInput.value.trim();
             if (!text) return;
-            const token = localStorage.getItem(STORAGE_KEY);
-            if (!token) {
-                showChat();
-                gateEl.classList.remove('hidden');
-                chatEl.classList.add('hidden');
-                return;
+
+            const headers = { 'Content-Type': 'application/json' };
+            if (AUTH_REQUIRED) {
+                const token = localStorage.getItem(STORAGE_KEY);
+                if (!token) {
+                    showChat();
+                    gateEl.classList.remove('hidden');
+                    chatEl.classList.add('hidden');
+                    return;
+                }
+                headers['Authorization'] = 'Bearer ' + token;
             }
 
             addMessage(text, 'me');
@@ -305,10 +315,7 @@
             try {
                 const res = await fetch(BACKEND_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
-                    },
+                    headers: headers,
                     body: JSON.stringify({ message: text })
                 });
 
@@ -329,7 +336,13 @@
         });
 
         // Auto-enter if a passphrase is already stored from a previous visit.
+        // When AUTH_REQUIRED is false, skip the passphrase gate entirely and
+        // go straight to the chat interface.
         (function init() {
+            if (!AUTH_REQUIRED) {
+                showChat();
+                return;
+            }
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
                 showChat();
