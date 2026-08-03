@@ -7,6 +7,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <title>GORCAVE SERVER</title>
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
@@ -214,7 +217,7 @@
         <div class="sub">a chat line into the machine watching the room</div>
     </header>
 
-    <div id="gate">
+    <div id="gate" class="hidden">
         <label for="token-input">passphrase</label>
         <input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="enter passphrase">
         <button id="gate-submit">Enter</button>
@@ -226,7 +229,7 @@
         </div>
     </div>
 
-    <div id="chat" class="hidden">
+    <div id="chat">
         <div id="history"></div>
         <form id="composer" autocomplete="off">
             <input id="msg-input" type="text" placeholder="say something to gorcave" autocomplete="off">
@@ -295,13 +298,20 @@
             if (e.key === 'Enter') tryEnter();
         });
 
-        forgetBtn.addEventListener('click', () => {
-            localStorage.removeItem(STORAGE_KEY);
-            tokenInput.value = '';
-            chatEl.classList.add('hidden');
-            gateEl.classList.remove('hidden');
-            gateError.textContent = '';
-        });
+        // Only wired up (and only visible) when auth is actually required —
+        // while AUTH_REQUIRED is false this button must never be able to
+        // bring the gate back, accidental tap or otherwise.
+        if (AUTH_REQUIRED) {
+            forgetBtn.addEventListener('click', () => {
+                localStorage.removeItem(STORAGE_KEY);
+                tokenInput.value = '';
+                chatEl.classList.add('hidden');
+                gateEl.classList.remove('hidden');
+                gateError.textContent = '';
+            });
+        } else {
+            forgetBtn.style.display = 'none';
+        }
 
         composer.addEventListener('submit', async (e) => {
             e.preventDefault();
