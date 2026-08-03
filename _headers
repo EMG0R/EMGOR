@@ -12,3 +12,8 @@
 
 /universe/*
   Cache-Control: no-cache
+
+# gorcave-chat.html changes frequently during active development —
+# never let a stale cached copy show an outdated auth/UI state.
+/gorcave-chat.html
+  Cache-Control: no-cache

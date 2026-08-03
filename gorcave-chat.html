@@ -157,6 +157,17 @@
             font-size: 0.65rem;
             text-align: center;
         }
+        .msg.thinking {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.4);
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.35; }
+            50% { opacity: 0.9; }
+        }
 
         #composer {
             flex: 0 0 auto;
@@ -312,12 +323,20 @@
             addMessage(text, 'me');
             msgInput.value = '';
 
+            const thinkingEl = document.createElement('div');
+            thinkingEl.className = 'msg thinking';
+            thinkingEl.textContent = '...';
+            historyEl.appendChild(thinkingEl);
+            historyEl.scrollTop = historyEl.scrollHeight;
+
             try {
                 const res = await fetch(BACKEND_URL, {
                     method: 'POST',
                     headers: headers,
                     body: JSON.stringify({ message: text })
                 });
+
+                thinkingEl.remove();
 
                 if (!res.ok) {
                     addMessage("can't reach the agent right now", 'system');
@@ -331,6 +350,7 @@
                     addMessage("can't reach the agent right now", 'system');
                 }
             } catch (err) {
+                thinkingEl.remove();
                 addMessage("can't reach the agent right now", 'system');
             }
         });
