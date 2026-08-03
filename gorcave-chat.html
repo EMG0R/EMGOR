@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <title>GORCAVE SERVER</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            color: rgba(255,255,255,0.85);
+            display: flex;
+            flex-direction: column;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .home-button {
+            position: fixed;
+            top: max(16px, env(safe-area-inset-top));
+            left: max(16px, env(safe-area-inset-left));
+            z-index: 100;
+            font-size: 1.8rem;
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .home-button:hover { color: rgba(255,255,255,0.95); }
+
+        header {
+            padding: max(16px, env(safe-area-inset-top)) 16px 12px 60px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            flex: 0 0 auto;
+        }
+        header h1 {
+            font-size: 0.85rem;
+            letter-spacing: 3px;
+            font-weight: normal;
+            color: rgba(255,255,255,0.7);
+        }
+        header .sub {
+            margin-top: 4px;
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.25);
+        }
+
+        /* ---- Passphrase gate ---- */
+        #gate {
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            padding: 24px;
+            text-align: center;
+        }
+        #gate.hidden { display: none; }
+        #gate label {
+            font-size: 0.62rem;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.35);
+            text-transform: uppercase;
+        }
+        #gate input {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.9);
+            font-family: inherit;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            padding: 10px 12px;
+            width: min(320px, 80vw);
+            outline: none;
+            border-radius: 2px;
+        }
+        #gate input:focus { border-color: rgba(255,255,255,0.4); }
+        #gate button, .send-btn {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.25);
+            color: rgba(255,255,255,0.75);
+            font-family: inherit;
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 10px 18px;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        #gate button:hover, .send-btn:hover {
+            border-color: rgba(255,255,255,0.6);
+            color: rgba(255,255,255,0.95);
+        }
+        #gate .note {
+            max-width: 320px;
+            font-size: 0.6rem;
+            line-height: 1.5;
+            color: rgba(255,255,255,0.22);
+        }
+        #gate-error {
+            font-size: 0.6rem;
+            color: rgba(239,80,60,0.8);
+            min-height: 1em;
+        }
+
+        /* ---- Chat UI ---- */
+        #chat {
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        #chat.hidden { display: none; }
+
+        #history {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .msg {
+            max-width: 78%;
+            font-size: 0.78rem;
+            line-height: 1.5;
+            padding: 8px 12px;
+            border-radius: 3px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .msg.me {
+            align-self: flex-end;
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.9);
+        }
+        .msg.them {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.75);
+        }
+        .msg.system {
+            align-self: center;
+            background: none;
+            color: rgba(239,80,60,0.7);
+            font-size: 0.65rem;
+            text-align: center;
+        }
+
+        #composer {
+            flex: 0 0 auto;
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        #composer input {
+            flex: 1 1 auto;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.9);
+            font-family: inherit;
+            font-size: 0.8rem;
+            padding: 10px 12px;
+            outline: none;
+            border-radius: 2px;
+            min-width: 0;
+        }
+        #composer input:focus { border-color: rgba(255,255,255,0.4); }
+
+        #forget {
+            position: fixed;
+            bottom: max(8px, env(safe-area-inset-bottom));
+            right: max(10px, env(safe-area-inset-right));
+            font-size: 0.55rem;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.15);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+        }
+        #forget:hover { color: rgba(255,255,255,0.4); }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="home-button">&#8962;</a>
+
+    <header>
+        <h1>GORCAVE SERVER</h1>
+        <div class="sub">a chat line into the machine watching the room</div>
+    </header>
+
+    <div id="gate">
+        <label for="token-input">passphrase</label>
+        <input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="enter passphrase">
+        <button id="gate-submit">Enter</button>
+        <div id="gate-error"></div>
+        <div class="note">
+            Stored locally in this browser only — never sent anywhere but the
+            gorcave backend, and never put in a URL. gorcave isn't publicly
+            reachable yet, so this gate is here before there's a door behind it.
+        </div>
+    </div>
+
+    <div id="chat" class="hidden">
+        <div id="history"></div>
+        <form id="composer" autocomplete="off">
+            <input id="msg-input" type="text" placeholder="say something to gorcave" autocomplete="off">
+            <button type="submit" class="send-btn">Send</button>
+        </form>
+    </div>
+
+    <button id="forget" title="Clear stored passphrase">forget passphrase</button>
+
+    <script>
+        // ---------------------------------------------------------------
+        // Live Tailscale Funnel endpoint on the gorcave Pi (public HTTPS
+        // ingress via Tailscale's edge -> tailnet -> local FastAPI chat
+        // endpoint). Per SERVER_SECURITY_PLAN.md: only /api/chat and
+        // /api/health are exposed; everything else on the Pi stays private.
+        const BACKEND_URL = "https://gorcave.taila85593.ts.net/api/chat";
+        // ---------------------------------------------------------------
+
+        const STORAGE_KEY = 'gorcave_token';
+
+        const gateEl      = document.getElementById('gate');
+        const chatEl      = document.getElementById('chat');
+        const tokenInput  = document.getElementById('token-input');
+        const gateSubmit  = document.getElementById('gate-submit');
+        const gateError   = document.getElementById('gate-error');
+        const historyEl   = document.getElementById('history');
+        const composer    = document.getElementById('composer');
+        const msgInput    = document.getElementById('msg-input');
+        const forgetBtn   = document.getElementById('forget');
+
+        function addMessage(text, cls) {
+            const div = document.createElement('div');
+            div.className = 'msg ' + cls;
+            div.textContent = text;
+            historyEl.appendChild(div);
+            historyEl.scrollTop = historyEl.scrollHeight;
+        }
+
+        function showChat() {
+            gateEl.classList.add('hidden');
+            chatEl.classList.remove('hidden');
+            msgInput.focus();
+            if (!historyEl.hasChildNodes()) {
+                addMessage('Connected to the gate. gorcave itself may or may not be listening yet.', 'system');
+            }
+        }
+
+        function tryEnter() {
+            const val = tokenInput.value.trim();
+            if (!val) {
+                gateError.textContent = 'enter a passphrase first';
+                return;
+            }
+            localStorage.setItem(STORAGE_KEY, val);
+            gateError.textContent = '';
+            showChat();
+        }
+
+        gateSubmit.addEventListener('click', tryEnter);
+        tokenInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') tryEnter();
+        });
+
+        forgetBtn.addEventListener('click', () => {
+            localStorage.removeItem(STORAGE_KEY);
+            tokenInput.value = '';
+            chatEl.classList.add('hidden');
+            gateEl.classList.remove('hidden');
+            gateError.textContent = '';
+        });
+
+        composer.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = msgInput.value.trim();
+            if (!text) return;
+            const token = localStorage.getItem(STORAGE_KEY);
+            if (!token) {
+                showChat();
+                gateEl.classList.remove('hidden');
+                chatEl.classList.add('hidden');
+                return;
+            }
+
+            addMessage(text, 'me');
+            msgInput.value = '';
+
+            try {
+                const res = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ message: text })
+                });
+
+                if (!res.ok) {
+                    addMessage("can't reach the agent right now", 'system');
+                    return;
+                }
+
+                const data = await res.json();
+                if (data && typeof data.reply === 'string') {
+                    addMessage(data.reply, 'them');
+                } else {
+                    addMessage("can't reach the agent right now", 'system');
+                }
+            } catch (err) {
+                addMessage("can't reach the agent right now", 'system');
+            }
+        });
+
+        // Auto-enter if a passphrase is already stored from a previous visit.
+        (function init() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                showChat();
+            }
+        })();
+    </script>
+</body>
+</html>
