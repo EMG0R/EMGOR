@@ -9,7 +9,7 @@
       "path": "universe/_index.md",
       "route": "/",
       "depth": 0,
-      "children": 8,
+      "children": 9,
       "downloads": [],
       "links": [],
       "tags": [
@@ -291,6 +291,28 @@
         "patch"
       ],
       "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.gorcave",
+      "title": "GORCAVE SERVER",
+      "blurb": "A chat line into the machine watching the room",
+      "parent": "emgor",
+      "path": "universe/gorcave/_index.md",
+      "route": "/gorcave",
+      "depth": 1,
+      "children": 0,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "raspberry-pi",
+        "home-automation",
+        "agent",
+        "chat",
+        "server",
+        "gorcave"
+      ],
+      "updated": "2026-08-03",
+      "launch": "gorcave-chat.html"
     },
     {
       "id": "emgor.hardware",
