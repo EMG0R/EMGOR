@@ -207,6 +207,17 @@ async function main() {
       }
     }
 
+    // Optional direct-launch URL (string). Clicking the planet navigates straight
+    // there instead of opening the doc overlay.
+    let launch;
+    if (fm.launch !== undefined) {
+      if (typeof fm.launch === 'string' && fm.launch.trim()) {
+        launch = fm.launch.trim();
+      } else {
+        warnings.push(`${repoRel}: "launch" must be a non-empty string — ignored`);
+      }
+    }
+
     const node = {
       id: typeof fm.id === 'string' ? fm.id : String(fm.id ?? ''),
       title: fm.title !== undefined ? String(fm.title) : '',
@@ -221,6 +232,7 @@ async function main() {
       tags: tags ?? [],
       updated,
       ...(size !== undefined ? { size } : {}),
+      ...(launch !== undefined ? { launch } : {}),
     };
 
     if (node.id) {

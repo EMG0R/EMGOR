@@ -22,14 +22,16 @@
         'emgor.web-synth': 1.4
     };
 
-    // dark, astronomy-photo palette families (hue range, sat range)
+    var BASE_ROT = 0.022;           // rad/s — slow chill shared orbital drift
+
+    // vivid-but-dark jewel palette families (hue range, sat range)
     var FAMILIES = [
-        [8, 26, 42, 58],       // deep iron red
-        [28, 46, 38, 52],      // muted ochre gas giant
-        [206, 232, 24, 40],    // slate blue
-        [168, 192, 26, 40],    // dusty teal
-        [262, 288, 22, 38],    // charcoal purple
-        [190, 212, 12, 22]     // ashen grey-cyan
+        [352, 372, 60, 80],    // deep crimson
+        [24, 42, 55, 75],      // burnt amber
+        [214, 236, 52, 72],    // cobalt
+        [164, 186, 50, 68],    // emerald teal
+        [262, 286, 50, 68],    // royal violet
+        [196, 214, 34, 50]     // sapphire slate
     ];
 
     var reducedMotion = window.matchMedia &&
@@ -142,6 +144,7 @@
                 depth: n.depth || 1, kids: [],
                 downloads: n.downloads || [], links: n.links || [],
                 tags: n.tags || [], updated: n.updated || '',
+                launch: typeof n.launch === 'string' ? n.launch : '',
                 wx: 0, wy: 0, sx: 0, sy: 0, sr: 0, alpha: 0, rev: 1
             };
             var sz = typeof n.size === 'number' ? n.size : (SIZE_FALLBACK[node.id] || 1);
@@ -189,7 +192,7 @@
                 // vibrato: slow sinusoidal wander around the home slot; depth is
                 // capped so two neighbours plus their bodies can never touch
                 var depthCap = Math.max(0.015, 0.5 * (minGap - (maxHalf + k._half) * 1.15));
-                k.vibDepth = Math.min(minGap * (0.16 + rng() * 0.2), depthCap);
+                k.vibDepth = Math.min(minGap * (0.08 + rng() * 0.1), depthCap);
                 k.vibF = 0.35 + rng() * 0.45;       // period ~8–18 s
                 k.vibPh = rng() * TAU;
                 seedIdentity(k, rng);
@@ -233,12 +236,12 @@
         g.arc(cx, cy, R, 0, TAU);
         g.clip();
 
-        // base sphere gradient, lit upper-left — dark, desaturated, real
+        // base sphere gradient, lit upper-left — vivid jewel tones, kept dark
         var lg = g.createRadialGradient(cx - R * 0.38, cy - R * 0.38, R * 0.08, cx, cy, R * 1.15);
-        lg.addColorStop(0, 'hsl(' + hue + ',' + sat + '%,52%)');
-        lg.addColorStop(0.42, 'hsl(' + hue + ',' + sat + '%,34%)');
-        lg.addColorStop(0.8, 'hsl(' + ((hue + 14) % 360) + ',' + sat + '%,16%)');
-        lg.addColorStop(1, 'hsl(' + ((hue + 20) % 360) + ',' + Math.min(70, sat + 6) + '%,8%)');
+        lg.addColorStop(0, 'hsl(' + hue + ',' + sat + '%,55%)');
+        lg.addColorStop(0.42, 'hsl(' + hue + ',' + sat + '%,37%)');
+        lg.addColorStop(0.8, 'hsl(' + ((hue + 14) % 360) + ',' + sat + '%,18%)');
+        lg.addColorStop(1, 'hsl(' + ((hue + 20) % 360) + ',' + Math.min(85, sat + 8) + '%,9%)');
         g.fillStyle = lg;
         g.fillRect(0, 0, S, S);
 
@@ -459,9 +462,10 @@
         for (var i = 0; i < drawOrder.length; i++) {
             var n = drawOrder[i];
             var p = n.parentNode;
-            // vibrato: each body wanders around its home slot at its own pace,
-            // reversing naturally at the sine extremes — no full-circle orbiting
-            var a = n.homeA + Math.sin(time * n.vibF + n.vibPh) * n.vibDepth;
+            // slow shared orbital rotation + per-body vibrato wander on top;
+            // same base rate for all siblings keeps the separation guarantee
+            var a = n.homeA + time * BASE_ROT +
+                Math.sin(time * n.vibF + n.vibPh) * n.vibDepth;
             var r = n.orbF * p.sysR;
             n.wx = p.wx + Math.cos(a) * r;
             n.wy = p.wy + Math.sin(a) * r;
@@ -555,6 +559,15 @@
         homeBtn.classList.toggle('is-dim', focus === root && !overlayNode);
     }
 
+    // direct launch: fade to black, then jump straight to the node's page
+    var warpEl = null;
+    function launchTo(node) {
+        if (!node.launch) return;
+        if (warpEl) warpEl.classList.add('is-on');
+        setTimeout(function () { window.location.href = node.launch; },
+            reducedMotion || !warpEl ? 0 : 320);
+    }
+
     function go(route) {
         var target = '#' + route;
         if (location.hash === target) { applyRoute(route, true); return; }
@@ -570,6 +583,11 @@
         if (node === root || node.kids.length > 0) {
             closeOverlay(false);
             focusTo(node, animate);
+        } else if (node.launch) {
+            // deep-linked launch node: show its system, never auto-redirect
+            // (would trap the back button); the click is what launches
+            closeOverlay(false);
+            focusTo(node.parentNode, animate);
         } else {
             focusTo(node.parentNode, animate);
             openOverlay(node);
@@ -712,17 +730,21 @@
         if (el) return el;
         el = document.createElement('a');
         el.className = 'planet-label';
-        el.href = '#' + node.route;
+        // launch nodes link straight at their destination (crawler/middle-click safe)
+        el.href = node.launch ? node.launch : '#' + node.route;
         el.draggable = false;
         el.innerHTML =
             '<span class="pl-name">' + node.title.toLowerCase() + '</span>' +
             (node.kids.length
                 ? '<span class="pl-sub">' + node.kids.length + ' bodies</span>'
-                : '<span class="pl-sub pl-leaf">landing</span>');
+                : (node.launch
+                    ? '<span class="pl-sub pl-leaf">launch ↗</span>'
+                    : '<span class="pl-sub pl-leaf">landing</span>'));
         el.title = node.blurb;
         el.addEventListener('click', function (e) {
             if (e.metaKey || e.ctrlKey || e.shiftKey) return;
             e.preventDefault();
+            if (node.launch) { launchTo(node); return; }
             go(node.route);
         });
         labelsEl.appendChild(el);
@@ -1248,7 +1270,10 @@
             var n = nearestChild(e.clientX, e.clientY);
             if (n) {
                 var d = Math.hypot(n.sx - e.clientX, n.sy - e.clientY);
-                if (d < Math.max(34, n.sr * 1.6)) go(n.route);
+                if (d < Math.max(34, n.sr * 1.6)) {
+                    if (n.launch) launchTo(n);
+                    else go(n.route);
+                }
             }
         });
 
@@ -1307,6 +1332,13 @@
         }
 
         buildOverlay();
+        warpEl = document.createElement('div');
+        warpEl.className = 'warp';
+        document.body.appendChild(warpEl);
+        // returning via bfcache must never leave the fade stuck on
+        window.addEventListener('pageshow', function () {
+            warpEl.classList.remove('is-on');
+        });
         makeNebulaSprites();
         accretionSprite = makeAccretionSprite();
         resize();

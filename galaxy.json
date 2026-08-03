@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-02",
+  "generated": "2026-08-03",
   "nodes": [
     {
       "id": "emgor",
@@ -2095,7 +2095,8 @@
         "generative",
         "ambient"
       ],
-      "updated": "2026-08-02"
+      "updated": "2026-08-02",
+      "launch": "ciesen.html"
     },
     {
       "id": "emgor.web-synth.neptr",
@@ -2119,7 +2120,8 @@
         "webassembly",
         "synth"
       ],
-      "updated": "2026-08-02"
+      "updated": "2026-08-02",
+      "launch": "NEPTR.html"
     },
     {
       "id": "emgor.web-synth.strudel",
@@ -2147,7 +2149,8 @@
         "live-coding",
         "web-audio"
       ],
-      "updated": "2026-08-02"
+      "updated": "2026-08-02",
+      "launch": "livecode.html"
     }
   ]
 }

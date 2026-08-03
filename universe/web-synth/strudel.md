@@ -1,5 +1,6 @@
 ---
 id: emgor.web-synth.strudel
+launch: livecode.html
 title: STRUDEL
 blurb: TidalCycles patterns as JavaScript — live-coded music in the tab
 parent: emgor.web-synth

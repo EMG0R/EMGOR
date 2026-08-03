@@ -1,5 +1,6 @@
 ---
 id: emgor.web-synth.ciesen
+launch: ciesen.html
 title: CIESEN
 blurb: Generative ambient ChucK synth with WebGPU visuals, live in-browser
 parent: emgor.web-synth

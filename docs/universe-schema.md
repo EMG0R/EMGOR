@@ -39,6 +39,10 @@ draft: false                           # true = excluded from galaxy.json
 `size` scales the planet's rendered radius relative to its siblings. Optional; when absent
 or non-numeric the builder treats it as the default `1` and omits it from `galaxy.json`.
 
+`launch` (optional string URL): clicking the planet navigates straight to this URL —
+no doc overlay. Used for live instruments (e.g. `launch: ciesen.html`). Emitted on the
+galaxy.json node verbatim.
+
 Body: normal markdown — the planet's documentation page.
 
 ## galaxy.json

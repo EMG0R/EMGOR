@@ -1,5 +1,6 @@
 ---
 id: emgor.web-synth.neptr
+launch: NEPTR.html
 title: NEPTR
 blurb: Max/RNBO synth exported to WebAssembly — play it in the page
 parent: emgor.web-synth
