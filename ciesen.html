@@ -338,7 +338,7 @@
             (async () => {
                 try {
                     const { default: ChuGL } = await withTimeout(
-                        import('https://cdn.jsdelivr.net/npm/webchugl/+esm'),
+                        import('https://cdn.jsdelivr.net/npm/webchugl@0.3.0/+esm'),
                         15000,
                         'CDN import timed out — check network connection'
                     );
