@@ -89,12 +89,10 @@
     var overlayNode = null;
     var suppressHash = false;
 
-    // stars
+    // stars — anchored background, fully decoupled from scene rotation/zoom;
+    // they shimmer in place instead of moving
     var starN = 0;
-    var starX, starY, starR, starPh, starLayer, starTint;
-    var LAYER_PAR = [0.018, 0.05, 0.11];
-    var STAR_YAW = [10, 26, 54];    // px shift per rad of yaw, per layer (parallax)
-    var STAR_PIT = [7, 18, 38];     // px shift per rad of pitch, per layer
+    var starX, starY, starR, starPh, starW, starTw, starLayer, starTint;
 
     // sprites
     var nebulaSprites = [];
@@ -412,16 +410,27 @@
         starY = new Float32Array(starN);
         starR = new Float32Array(starN);
         starPh = new Float32Array(starN);
+        starW = new Float32Array(starN);
+        starTw = new Uint8Array(starN);
         starLayer = new Uint8Array(starN);
         starTint = new Uint8Array(starN);
         var rng = mulberry32(hash32('emgor::stars'));
+        var cx = W / 2, cy = H / 2;
+        var clearR = Math.min(W, H) * 0.36;   // keep the planet zone clearer
         for (var i = 0; i < starN; i++) {
-            starX[i] = rng() * W;
-            starY[i] = rng() * H;
+            var x = rng() * W, y = rng() * H, tries = 0;
+            while (tries < 3 && Math.hypot(x - cx, y - cy) < clearR && rng() < 0.68) {
+                x = rng() * W; y = rng() * H; tries++;
+            }
+            starX[i] = x;
+            starY[i] = y;
             var l = rng();
             starLayer[i] = l < 0.5 ? 0 : (l < 0.83 ? 1 : 2);
             starR[i] = 0.4 + starLayer[i] * 0.45 + rng() * 0.7;
+            // shimmer: long fade-in/out cycles, 6–20 s, staggered phases
             starPh[i] = rng() * TAU;
+            starW[i] = TAU / (6 + rng() * 14);
+            starTw[i] = rng() < 0.3 ? 1 : 0;   // subset twinkles subtly faster
             var t = rng();
             starTint[i] = t < 0.07 ? 2 : (t < 0.26 ? 1 : 0); // white / violet / cyan
         }
@@ -948,30 +957,31 @@
         var n = nebulaSprites.length;
         var d = Math.max(W, H);
         for (var i = 0; i < n; i++) {
-            var ph = time * 0.012 + i * 2.1 + yaw * 0.25;
+            // anchored like the stars — only an extremely faint autonomous drift
+            var ph = time * 0.012 + i * 2.1;
             var bx = W * (0.18 + 0.64 * (0.5 + 0.5 * Math.sin(ph + i * 1.7)));
             var by = H * (0.2 + 0.6 * (0.5 + 0.5 * Math.cos(ph * 0.8 + i * 2.3)));
-            bx -= cam.x * 0.004;
-            by -= cam.y * 0.004;
             var s = d * (0.7 + i * 0.22);
             ctx.drawImage(nebulaSprites[i], bx - s / 2, by - s / 2, s, s);
         }
     }
 
     function drawStars() {
-        var tw = reducedMotion ? 0 : time;
-        var tilt = pitch - PITCH_REST;
+        // anchored: fixed positions, no rotation/zoom coupling — the distant
+        // universe. Stars shimmer in and out of existence on long cycles.
         for (var i = 0; i < starN; i++) {
-            var ly = starLayer[i];
-            var par = LAYER_PAR[ly];
-            var x = starX[i] - cam.x * par - yaw * STAR_YAW[ly];
-            var y = starY[i] - cam.y * par - tilt * STAR_PIT[ly];
-            x = ((x % W) + W) % W;
-            y = ((y % H) + H) % H;
-            var a = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(tw * (0.6 + starLayer[i] * 0.5) + starPh[i]));
+            var a;
+            if (reducedMotion) {
+                a = 0.4;
+            } else {
+                var s = 0.5 + 0.5 * Math.sin(time * starW[i] + starPh[i]);
+                a = Math.pow(s, 1.6) * (0.55 + starLayer[i] * 0.15);
+                if (starTw[i]) a *= 0.82 + 0.18 * Math.sin(time * 2.7 + starPh[i] * 3.1);
+            }
+            if (a <= 0.015) continue;
             ctx.fillStyle = STAR_COLORS[starTint[i]] + a.toFixed(3) + ')';
             var r = starR[i];
-            ctx.fillRect(x - r, y - r, r * 2, r * 2);
+            ctx.fillRect(starX[i] - r, starY[i] - r, r * 2, r * 2);
         }
     }
 

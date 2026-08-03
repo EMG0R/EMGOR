@@ -1,8 +1,8 @@
 ---
-id: emgor.demiurge.pi-experiments
+id: emgor.papers.demiurgeos.pi-experiments
 title: Pi Experiments
 blurb: Small satellites — the Pi music sketches that led to DEMIURGE
-parent: emgor.demiurge
+parent: emgor.papers.demiurgeos
 tags: [raspberry-pi, sketches, max, csound]
 updated: 2026-07-28
 draft: false

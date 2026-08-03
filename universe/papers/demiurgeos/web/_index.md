@@ -1,8 +1,8 @@
 ---
-id: emgor.demiurge.web
+id: emgor.papers.demiurgeos.web
 title: Web Control
 blurb: The companion TUI in a browser — telemetry, patches, power, transport
-parent: emgor.demiurge
+parent: emgor.papers.demiurgeos
 source: ______2026NEW/DEMIURGE_OS/web
 downloads:
   - files/demiurge_web.py

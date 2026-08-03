@@ -7,8 +7,6 @@ source: ______PHASE3/
 downloads:
   - files/neptrSYNTH1.ck
   - files/ChuckTer_v1.2_noGL.ck
-links:
-  - { label: "cheese — the ChucK FX library born here", url: "#/code/cheese" }
 tags: [chuck, teensy, 3d-print, synthesis, live-coding]
 updated: 2026-07-28
 draft: false
@@ -27,7 +25,7 @@ Phase 2's weak spot was timing. ChucK's whole premise is timing. Phase 3 rebuilt
 
 ## cheese
 
-The **cheese** ChucK FX library grew directly out of this era's effect experiments and became its own project — it has its own planet. Follow the link above rather than expecting its docs here.
+The **cheese** ChucK FX library grew directly out of this era's effect experiments. It now orbits here directly as its own node — nine stereo effects behind one global-state hub, downloadable from its own planet.
 
 ## Why it ended
 

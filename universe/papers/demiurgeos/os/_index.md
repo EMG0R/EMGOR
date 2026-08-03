@@ -1,8 +1,8 @@
 ---
-id: emgor.demiurge.os
+id: emgor.papers.demiurgeos.os
 title: OS Core
 blurb: PipeWire abstraction layer, global clock, one-file config
-parent: emgor.demiurge
+parent: emgor.papers.demiurgeos
 source: ______2026NEW/DEMIURGE_OS/config
 downloads:
   - files/demiurge-virtual.conf

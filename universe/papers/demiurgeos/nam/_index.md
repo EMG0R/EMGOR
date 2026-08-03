@@ -1,8 +1,8 @@
 ---
-id: emgor.demiurge.nam
+id: emgor.papers.demiurgeos.nam
 title: NAM
 blurb: Neural Amp Modeler as a chain stage — drop a .nam file in, done
-parent: emgor.demiurge
+parent: emgor.papers.demiurgeos
 source: ______2026NEW/DEMIURGE_OS/nam
 downloads:
   - files/nam_stage.csd

@@ -9,7 +9,7 @@
       "path": "universe/_index.md",
       "route": "/",
       "depth": 0,
-      "children": 9,
+      "children": 8,
       "downloads": [],
       "links": [],
       "tags": [
@@ -26,7 +26,7 @@
       "path": "universe/code/_index.md",
       "route": "/code",
       "depth": 1,
-      "children": 7,
+      "children": 5,
       "downloads": [],
       "links": [],
       "tags": [
@@ -59,62 +59,6 @@
         "visual"
       ],
       "updated": "2026-08-02"
-    },
-    {
-      "id": "emgor.code.cheese",
-      "title": "CHEESE",
-      "blurb": "Modular ChucK FX library — nine stereo effects, one shared brain",
-      "parent": "emgor.code",
-      "path": "universe/code/cheese.md",
-      "route": "/code/cheese",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "chorus.ck",
-          "url": "universe/code/files/chorus.ck"
-        },
-        {
-          "name": "delay1.ck",
-          "url": "universe/code/files/delay1.ck"
-        },
-        {
-          "name": "phaser.ck",
-          "url": "universe/code/files/phaser.ck"
-        },
-        {
-          "name": "reverb1.ck",
-          "url": "universe/code/files/reverb1.ck"
-        },
-        {
-          "name": "ringmod.ck",
-          "url": "universe/code/files/ringmod.ck"
-        },
-        {
-          "name": "spectralWah.ck",
-          "url": "universe/code/files/spectralWah.ck"
-        },
-        {
-          "name": "pitchShifter.ck",
-          "url": "universe/code/files/pitchShifter.ck"
-        },
-        {
-          "name": "vibrato.ck",
-          "url": "universe/code/files/vibrato.ck"
-        },
-        {
-          "name": "ANALYSIS.md",
-          "url": "universe/code/files/ANALYSIS.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "chuck",
-        "fx",
-        "modular",
-        "midi"
-      ],
-      "updated": "2026-07-28"
     },
     {
       "id": "emgor.code.csound-suite",
@@ -286,26 +230,6 @@
       "updated": "2026-07-28"
     },
     {
-      "id": "emgor.code.omniplex",
-      "title": "OMNIPLEX",
-      "blurb": "One cable, every art signal — Rust multiplexed real-time transport",
-      "parent": "emgor.code",
-      "path": "universe/code/omniplex.md",
-      "route": "/code/omniplex",
-      "depth": 2,
-      "children": 0,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "rust",
-        "protocol",
-        "usb",
-        "quic",
-        "systems"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
       "id": "emgor.code.supercollider",
       "title": "SUPERCOLLIDER",
       "blurb": "GEN_COLIDER — generative FM pieces, mono to 8-channel",
@@ -365,234 +289,6 @@
         "vcv-rack",
         "modular",
         "patch"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.demiurge",
-      "title": "DEMIURGE_OS",
-      "blurb": "Flashable audio-first OS for Raspberry Pi 5 — successor to CCRMA Satellite",
-      "parent": "emgor",
-      "path": "universe/demiurge/_index.md",
-      "route": "/demiurge",
-      "depth": 1,
-      "children": 5,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Full source: DEMIURGE_OS git repo (local for now)",
-          "url": "file:///Users/emgor/Documents/_EMGOR_SYNTH/______2026NEW/DEMIURGE_OS"
-        }
-      ],
-      "tags": [
-        "raspberry-pi",
-        "linux-audio",
-        "pipewire",
-        "os",
-        "live-performance"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.demiurge.launcher",
-      "title": "Launcher",
-      "blurb": "Zero-dependency Rust patch-graph engine — 460 KB, event-driven",
-      "parent": "emgor.demiurge",
-      "path": "universe/demiurge/launcher/_index.md",
-      "route": "/demiurge/launcher",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "live.rs",
-          "url": "universe/demiurge/launcher/files/live.rs"
-        },
-        {
-          "name": "Cargo.toml",
-          "url": "universe/demiurge/launcher/files/Cargo.toml"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "rust",
-        "supervisor",
-        "patch-graph",
-        "hot-reload"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.demiurge.nam",
-      "title": "NAM",
-      "blurb": "Neural Amp Modeler as a chain stage — drop a .nam file in, done",
-      "parent": "emgor.demiurge",
-      "path": "universe/demiurge/nam/_index.md",
-      "route": "/demiurge/nam",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "nam_stage.csd",
-          "url": "universe/demiurge/nam/files/nam_stage.csd"
-        },
-        {
-          "name": "demiurge-run-nam",
-          "url": "universe/demiurge/nam/files/demiurge-run-nam"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "nam",
-        "neural-amp-modeler",
-        "csound",
-        "opcode",
-        "guitar"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.demiurge.os",
-      "title": "OS Core",
-      "blurb": "PipeWire abstraction layer, global clock, one-file config",
-      "parent": "emgor.demiurge",
-      "path": "universe/demiurge/os/_index.md",
-      "route": "/demiurge/os",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "demiurge-virtual.conf",
-          "url": "universe/demiurge/os/files/demiurge-virtual.conf"
-        },
-        {
-          "name": "50-demiurge.conf",
-          "url": "universe/demiurge/os/files/50-demiurge.conf"
-        },
-        {
-          "name": "demiurge.service",
-          "url": "universe/demiurge/os/files/demiurge.service"
-        },
-        {
-          "name": "demiurge.conf.default",
-          "url": "universe/demiurge/os/files/demiurge.conf.default"
-        },
-        {
-          "name": "live.conf",
-          "url": "universe/demiurge/os/files/live.conf"
-        },
-        {
-          "name": "demiurge-clock.cpp",
-          "url": "universe/demiurge/os/files/demiurge-clock.cpp"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "pipewire",
-        "wireplumber",
-        "alsa",
-        "clock",
-        "systemd",
-        "realtime"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.demiurge.pi-experiments",
-      "title": "Pi Experiments",
-      "blurb": "Small satellites — the Pi music sketches that led to DEMIURGE",
-      "parent": "emgor.demiurge",
-      "path": "universe/demiurge/pi-experiments/_index.md",
-      "route": "/demiurge/pi-experiments",
-      "depth": 2,
-      "children": 2,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "raspberry-pi",
-        "sketches",
-        "max",
-        "csound"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.demiurge.pi-experiments.csound-pi",
-      "title": "Csound on Pi",
-      "blurb": "Headless Csound sketches — generative drums and nonlinear reverb",
-      "parent": "emgor.demiurge.pi-experiments",
-      "path": "universe/demiurge/pi-experiments/csound-pi.md",
-      "route": "/demiurge/pi-experiments/csound-pi",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "drums1.csd",
-          "url": "universe/demiurge/pi-experiments/files/drums1.csd"
-        },
-        {
-          "name": "Nonlinear_Daylight-EMGOR.csd",
-          "url": "universe/demiurge/pi-experiments/files/Nonlinear_Daylight-EMGOR.csd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "csound",
-        "generative",
-        "raspberry-pi",
-        "headless"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.demiurge.pi-experiments.lilith-pi",
-      "title": "LILITH_PI",
-      "blurb": "Pi drum machine in one Max patch",
-      "parent": "emgor.demiurge.pi-experiments",
-      "path": "universe/demiurge/pi-experiments/lilith-pi.md",
-      "route": "/demiurge/pi-experiments/lilith-pi",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "lilithPI.maxpat",
-          "url": "universe/demiurge/pi-experiments/files/lilithPI.maxpat"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max",
-        "drum-machine",
-        "sampler",
-        "raspberry-pi"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.demiurge.web",
-      "title": "Web Control",
-      "blurb": "The companion TUI in a browser — telemetry, patches, power, transport",
-      "parent": "emgor.demiurge",
-      "path": "universe/demiurge/web/_index.md",
-      "route": "/demiurge/web",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "demiurge_web.py",
-          "url": "universe/demiurge/web/files/demiurge_web.py"
-        },
-        {
-          "name": "demiurge-web.service",
-          "url": "universe/demiurge/web/files/demiurge-web.service"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "python",
-        "web-ui",
-        "sse",
-        "telemetry",
-        "control-surface"
       ],
       "updated": "2026-07-28"
     },
@@ -1724,7 +1420,7 @@
       "path": "universe/neptr/phase-3/_index.md",
       "route": "/neptr/phase-3",
       "depth": 2,
-      "children": 0,
+      "children": 1,
       "downloads": [
         {
           "name": "neptrSYNTH1.ck",
@@ -1735,18 +1431,69 @@
           "url": "universe/neptr/phase-3/files/ChuckTer_v1.2_noGL.ck"
         }
       ],
-      "links": [
-        {
-          "label": "cheese — the ChucK FX library born here",
-          "url": "#/code/cheese"
-        }
-      ],
+      "links": [],
       "tags": [
         "chuck",
         "teensy",
         "3d-print",
         "synthesis",
         "live-coding"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.neptr.phase-3.cheese",
+      "title": "CHEESE",
+      "blurb": "Modular ChucK FX library — nine stereo effects, one shared brain",
+      "parent": "emgor.neptr.phase-3",
+      "path": "universe/neptr/phase-3/cheese.md",
+      "route": "/neptr/phase-3/cheese",
+      "depth": 3,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "chorus.ck",
+          "url": "universe/neptr/phase-3/files/chorus.ck"
+        },
+        {
+          "name": "delay1.ck",
+          "url": "universe/neptr/phase-3/files/delay1.ck"
+        },
+        {
+          "name": "phaser.ck",
+          "url": "universe/neptr/phase-3/files/phaser.ck"
+        },
+        {
+          "name": "reverb1.ck",
+          "url": "universe/neptr/phase-3/files/reverb1.ck"
+        },
+        {
+          "name": "ringmod.ck",
+          "url": "universe/neptr/phase-3/files/ringmod.ck"
+        },
+        {
+          "name": "spectralWah.ck",
+          "url": "universe/neptr/phase-3/files/spectralWah.ck"
+        },
+        {
+          "name": "pitchShifter.ck",
+          "url": "universe/neptr/phase-3/files/pitchShifter.ck"
+        },
+        {
+          "name": "vibrato.ck",
+          "url": "universe/neptr/phase-3/files/vibrato.ck"
+        },
+        {
+          "name": "ANALYSIS.md",
+          "url": "universe/neptr/phase-3/files/ANALYSIS.md"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "chuck",
+        "fx",
+        "modular",
+        "midi"
       ],
       "updated": "2026-07-28"
     },
@@ -1861,25 +1608,234 @@
     {
       "id": "emgor.papers.demiurgeos",
       "title": "DemiurgeOS",
-      "blurb": "A thoughtfully designed operating layer for DSP on the Raspberry Pi. Planned.",
+      "blurb": "Flashable audio-first OS for Raspberry Pi 5 — successor to CCRMA Satellite, and the NIME paper about it",
       "parent": "emgor.papers",
-      "path": "universe/papers/demiurgeos.md",
+      "path": "universe/papers/demiurgeos/_index.md",
       "route": "/papers/demiurgeos",
       "depth": 2,
-      "children": 0,
+      "children": 5,
       "downloads": [],
       "links": [
         {
           "label": "Read as NIME draft",
           "url": "papers/nime/demiurgeos.html"
+        },
+        {
+          "label": "Full source: DEMIURGE_OS git repo (local for now)",
+          "url": "file:///Users/emgor/Documents/_EMGOR_SYNTH/______2026NEW/DEMIURGE_OS"
         }
       ],
       "tags": [
-        "planned",
         "raspberry-pi",
         "linux-audio",
+        "pipewire",
+        "os",
+        "live-performance",
         "dsp",
         "tooling"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.demiurgeos.launcher",
+      "title": "Launcher",
+      "blurb": "Zero-dependency Rust patch-graph engine — 460 KB, event-driven",
+      "parent": "emgor.papers.demiurgeos",
+      "path": "universe/papers/demiurgeos/launcher/_index.md",
+      "route": "/papers/demiurgeos/launcher",
+      "depth": 3,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "live.rs",
+          "url": "universe/papers/demiurgeos/launcher/files/live.rs"
+        },
+        {
+          "name": "Cargo.toml",
+          "url": "universe/papers/demiurgeos/launcher/files/Cargo.toml"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "rust",
+        "supervisor",
+        "patch-graph",
+        "hot-reload"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.demiurgeos.nam",
+      "title": "NAM",
+      "blurb": "Neural Amp Modeler as a chain stage — drop a .nam file in, done",
+      "parent": "emgor.papers.demiurgeos",
+      "path": "universe/papers/demiurgeos/nam/_index.md",
+      "route": "/papers/demiurgeos/nam",
+      "depth": 3,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "nam_stage.csd",
+          "url": "universe/papers/demiurgeos/nam/files/nam_stage.csd"
+        },
+        {
+          "name": "demiurge-run-nam",
+          "url": "universe/papers/demiurgeos/nam/files/demiurge-run-nam"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "nam",
+        "neural-amp-modeler",
+        "csound",
+        "opcode",
+        "guitar"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.demiurgeos.os",
+      "title": "OS Core",
+      "blurb": "PipeWire abstraction layer, global clock, one-file config",
+      "parent": "emgor.papers.demiurgeos",
+      "path": "universe/papers/demiurgeos/os/_index.md",
+      "route": "/papers/demiurgeos/os",
+      "depth": 3,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "demiurge-virtual.conf",
+          "url": "universe/papers/demiurgeos/os/files/demiurge-virtual.conf"
+        },
+        {
+          "name": "50-demiurge.conf",
+          "url": "universe/papers/demiurgeos/os/files/50-demiurge.conf"
+        },
+        {
+          "name": "demiurge.service",
+          "url": "universe/papers/demiurgeos/os/files/demiurge.service"
+        },
+        {
+          "name": "demiurge.conf.default",
+          "url": "universe/papers/demiurgeos/os/files/demiurge.conf.default"
+        },
+        {
+          "name": "live.conf",
+          "url": "universe/papers/demiurgeos/os/files/live.conf"
+        },
+        {
+          "name": "demiurge-clock.cpp",
+          "url": "universe/papers/demiurgeos/os/files/demiurge-clock.cpp"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "pipewire",
+        "wireplumber",
+        "alsa",
+        "clock",
+        "systemd",
+        "realtime"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.demiurgeos.pi-experiments",
+      "title": "Pi Experiments",
+      "blurb": "Small satellites — the Pi music sketches that led to DEMIURGE",
+      "parent": "emgor.papers.demiurgeos",
+      "path": "universe/papers/demiurgeos/pi-experiments/_index.md",
+      "route": "/papers/demiurgeos/pi-experiments",
+      "depth": 3,
+      "children": 2,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "raspberry-pi",
+        "sketches",
+        "max",
+        "csound"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.demiurgeos.pi-experiments.csound-pi",
+      "title": "Csound on Pi",
+      "blurb": "Headless Csound sketches — generative drums and nonlinear reverb",
+      "parent": "emgor.papers.demiurgeos.pi-experiments",
+      "path": "universe/papers/demiurgeos/pi-experiments/csound-pi.md",
+      "route": "/papers/demiurgeos/pi-experiments/csound-pi",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "drums1.csd",
+          "url": "universe/papers/demiurgeos/pi-experiments/files/drums1.csd"
+        },
+        {
+          "name": "Nonlinear_Daylight-EMGOR.csd",
+          "url": "universe/papers/demiurgeos/pi-experiments/files/Nonlinear_Daylight-EMGOR.csd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "csound",
+        "generative",
+        "raspberry-pi",
+        "headless"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.demiurgeos.pi-experiments.lilith-pi",
+      "title": "LILITH_PI",
+      "blurb": "Pi drum machine in one Max patch",
+      "parent": "emgor.papers.demiurgeos.pi-experiments",
+      "path": "universe/papers/demiurgeos/pi-experiments/lilith-pi.md",
+      "route": "/papers/demiurgeos/pi-experiments/lilith-pi",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "lilithPI.maxpat",
+          "url": "universe/papers/demiurgeos/pi-experiments/files/lilithPI.maxpat"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max",
+        "drum-machine",
+        "sampler",
+        "raspberry-pi"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.demiurgeos.web",
+      "title": "Web Control",
+      "blurb": "The companion TUI in a browser — telemetry, patches, power, transport",
+      "parent": "emgor.papers.demiurgeos",
+      "path": "universe/papers/demiurgeos/web/_index.md",
+      "route": "/papers/demiurgeos/web",
+      "depth": 3,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "demiurge_web.py",
+          "url": "universe/papers/demiurgeos/web/files/demiurge_web.py"
+        },
+        {
+          "name": "demiurge-web.service",
+          "url": "universe/papers/demiurgeos/web/files/demiurge-web.service"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "python",
+        "web-ui",
+        "sse",
+        "telemetry",
+        "control-surface"
       ],
       "updated": "2026-07-28"
     },
@@ -2023,7 +1979,7 @@
     {
       "id": "emgor.papers.unified-streaming",
       "title": "Unified Streaming",
-      "blurb": "One USB-C cable for audio, video, and control — kill the adapter pile. Planned.",
+      "blurb": "OMNIPLEX — one cable, every art signal. Rust multiplexed real-time transport.",
       "parent": "emgor.papers",
       "path": "universe/papers/unified-streaming.md",
       "route": "/papers/unified-streaming",
@@ -2037,7 +1993,11 @@
         }
       ],
       "tags": [
-        "planned",
+        "rust",
+        "protocol",
+        "usb",
+        "quic",
+        "systems",
         "usb-c",
         "networking",
         "low-latency",

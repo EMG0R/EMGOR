@@ -1,8 +1,8 @@
 ---
-id: emgor.demiurge.launcher
+id: emgor.papers.demiurgeos.launcher
 title: Launcher
 blurb: Zero-dependency Rust patch-graph engine — 460 KB, event-driven
-parent: emgor.demiurge
+parent: emgor.papers.demiurgeos
 source: ______2026NEW/DEMIURGE_OS/src/demiurge-launcher-rs
 downloads:
   - files/live.rs

@@ -1,8 +1,8 @@
 ---
-id: emgor.demiurge.pi-experiments.csound-pi
+id: emgor.papers.demiurgeos.pi-experiments.csound-pi
 title: Csound on Pi
 blurb: Headless Csound sketches — generative drums and nonlinear reverb
-parent: emgor.demiurge.pi-experiments
+parent: emgor.papers.demiurgeos.pi-experiments
 source: __csound_PI
 downloads:
   - files/drums1.csd

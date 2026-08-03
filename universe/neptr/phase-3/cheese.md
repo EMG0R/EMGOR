@@ -1,8 +1,8 @@
 ---
-id: emgor.code.cheese
+id: emgor.neptr.phase-3.cheese
 title: CHEESE
 blurb: Modular ChucK FX library — nine stereo effects, one shared brain
-parent: emgor.code
+parent: emgor.neptr.phase-3
 source: ______PHASE3/cheese/
 downloads:
   - files/chorus.ck
@@ -21,7 +21,7 @@ draft: false
 
 # CHEESE
 
-A ChucK-based synth-and-FX system built like a modular rack in code. Live input (ADC) and an internal 4-mode synth feed a serial stereo chain of nine effects, all coordinated through one static global-state class `G` — every effect reads its own `gk*` parameters from the hub, and a MIDI listener maps controller CCs onto those fields (with OSC out to an external UI).
+The ChucK FX library built for NEPTR's ChucK stage (Phase 3) — a synth-and-FX system built like a modular rack in code. Live input (ADC) and an internal 4-mode synth feed a serial stereo chain of nine effects, all coordinated through one static global-state class `G` — every effect reads its own `gk*` parameters from the hub, and a MIDI listener maps controller CCs onto those fields (with OSC out to an external UI).
 
 The chain, in order:
 

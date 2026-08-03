@@ -1,8 +1,8 @@
 ---
-id: emgor.demiurge.pi-experiments.lilith-pi
+id: emgor.papers.demiurgeos.pi-experiments.lilith-pi
 title: LILITH_PI
 blurb: Pi drum machine in one Max patch
-parent: emgor.demiurge.pi-experiments
+parent: emgor.papers.demiurgeos.pi-experiments
 source: LILITH_PI/lilithPI.maxpat
 downloads:
   - files/lilithPI.maxpat
