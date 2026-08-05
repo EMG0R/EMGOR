@@ -877,12 +877,10 @@
 
             var fd = new FormData();
             var name = 'speech.' + extFor(type);
-            // Field name isn't pinned down in the contract yet — send the same
-            // blob under the three plausible names so whichever one the Pi's
-            // handler declares, it finds it. Harmless duplication of a small file.
-            fd.append('audio', blob, name);
+            // Field name is pinned: the Pi's server/app.py declares
+            // `file: UploadFile = File(...)` on /api/voice/chat (and
+            // /api/voice/transcribe), so send the blob once under 'file'.
             fd.append('file', blob, name);
-            fd.append('audio_file', blob, name);
 
             try {
                 var res = await fetch(VOICE_CHAT, { method: 'POST', body: fd });
