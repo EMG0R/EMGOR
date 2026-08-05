@@ -82,21 +82,47 @@
         }
         .home-button:hover, .home-button:active { color: var(--text); }
 
-        .text-link {
+        /* ---- Mode toggle: mirrors the home button in the top-right corner.
+           The icon shows what you would BECOME, not what you are — this is
+           the voice page, so it shows a text/message glyph and goes to the
+           text chat. Keep in sync with gorcave-chat.html (which shows the
+           microphone icon and points back here). ---- */
+        .mode-toggle {
             position: absolute;
             top: max(14px, env(safe-area-inset-top));
             right: max(14px, env(safe-area-inset-right));
             z-index: 100;
-            min-height: 44px;
+            width: 46px;
+            height: 46px;
             display: flex;
             align-items: center;
-            font-size: 0.62rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: var(--text-faint);
+            justify-content: center;
+            border: 1px solid var(--line-strong);
+            border-radius: 13px;
+            background: var(--surface-2);
+            color: var(--lavender);
             text-decoration: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: color 0.2s, border-color 0.2s, background 0.2s, transform 0.12s;
         }
-        .text-link:hover, .text-link:active { color: var(--text-dim); }
+        /* Stroked, not filled: a solid bubble would swallow the three text
+           lines drawn inside it. */
+        .mode-toggle svg {
+            width: 27px;
+            height: 27px;
+            display: block;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.7;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .mode-toggle:hover, .mode-toggle:focus-visible {
+            color: rgba(240, 236, 252, 0.96);
+            border-color: rgba(196, 178, 240, 0.6);
+            background: rgba(168, 146, 214, 0.16);
+        }
+        .mode-toggle:active { transform: scale(0.94); }
 
         header {
             padding: max(16px, env(safe-area-inset-top)) 64px 10px 64px;
@@ -124,6 +150,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            flex-wrap: wrap;
             gap: 8px;
             padding: 8px 10px;
             border-bottom: 1px solid var(--line);
@@ -146,6 +173,18 @@
             color: rgba(236, 231, 247, 0.88);
             border-color: var(--line-strong);
             background: var(--surface-2);
+        }
+        /* Visually distinct from the three voice-mode chips (dotted, no
+           fill) so it never reads as one of the primary controls, and it
+           takes two taps — see the JS. */
+        .chip.erase {
+            border-style: dotted;
+            color: rgba(198, 188, 226, 0.22);
+        }
+        .chip.erase.armed {
+            border-style: solid;
+            border-color: var(--line-strong);
+            color: var(--lavender);
         }
 
         /* ---- transcript (secondary: this is a voice-first app) ---- */
@@ -176,6 +215,16 @@
             background: rgba(150, 122, 208, 0.16);
             border: 1px solid rgba(178, 158, 222, 0.16);
             color: rgba(240, 236, 250, 0.94);
+        }
+        /* Turns that were spoken rather than typed get a very faint mic mark
+           in the corner of the bubble. Understated on purpose — it is a hint
+           about provenance, not a badge. Keep in sync with gorcave-chat.html. */
+        .msg.me.via-voice {
+            padding-right: 22px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23c6bce2' fill-opacity='.42'%3E%3Cpath d='M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z'/%3E%3Cpath d='M18 11a1 1 0 0 0-2 0 4 4 0 0 1-8 0 1 1 0 0 0-2 0 6 6 0 0 0 5 5.9V20h2v-3.1A6 6 0 0 0 18 11z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 6px bottom 5px;
+            background-size: 10px 10px;
         }
         .msg.them {
             align-self: flex-start;
@@ -254,6 +303,37 @@
             will-change: transform;
         }
         body.listening #halo { opacity: 1; }
+
+        /* ---- auto-send countdown ring ----
+           A thin lavender arc just outside the mic button that drains away
+           over the silence window. It only appears once the silence timer is
+           actually running, so it reads as "this is about to send" rather
+           than as permanent chrome. Same palette as the halo, one weight
+           lighter. Under prefers-reduced-motion the ring is hidden entirely
+           and the hint line's "sending in 3 / 2 / 1" carries the message. */
+        #countdown {
+            position: absolute;
+            inset: 8px;
+            transform: rotate(-90deg);   /* start the arc at 12 o'clock */
+            opacity: 0;
+            transition: opacity 0.18s;
+            pointer-events: none;
+            overflow: visible;
+        }
+        #countdown circle {
+            fill: none;
+            stroke-linecap: round;
+        }
+        #countdown .track { stroke: rgba(178, 158, 222, 0.10); stroke-width: 2; }
+        #countdown .arc   { stroke: rgba(198, 180, 244, 0.72); stroke-width: 2.5; }
+        body.counting #countdown { opacity: 1; }
+        /* two classes so this beats `body.latched #mic`'s dashed border,
+           which is otherwise declared later in this sheet */
+        body.counting.listening #mic { border-style: dotted; }
+
+        @media (prefers-reduced-motion: reduce) {
+            #countdown { display: none; }
+        }
 
         #mic {
             position: relative;
@@ -374,7 +454,12 @@
 </head>
 <body>
     <a href="index.html" class="home-button" aria-label="home">&#8962;</a>
-    <a href="gorcave-chat.html" class="text-link">text</a>
+    <a href="gorcave-chat.html" class="mode-toggle" aria-label="switch to text" title="switch to text">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20.4 4.4H3.6A1.6 1.6 0 0 0 2 6v9a1.6 1.6 0 0 0 1.6 1.6h2.6v3.3l4.2-3.3h10A1.6 1.6 0 0 0 22 15V6a1.6 1.6 0 0 0-1.6-1.6z"/>
+            <path d="M6.4 8.4h11.2M6.4 11.8h11.2M6.4 15.2h6.2"/>
+        </svg>
+    </a>
 
     <header>
         <h1>GORCAVE VOICE</h1>
@@ -385,6 +470,8 @@
         <button id="voice-server" class="chip" type="button" aria-pressed="true">server voice</button>
         <button id="voice-device" class="chip" type="button" aria-pressed="false">device voice</button>
         <button id="voice-mute" class="chip" type="button" aria-pressed="false">mute</button>
+        <button id="auto-send" class="chip" type="button" aria-pressed="true">auto-send</button>
+        <button id="clear-convo" class="chip erase" type="button">clear</button>
     </div>
 
     <div id="history"></div>
@@ -394,6 +481,11 @@
 
         <div id="mic-wrap">
             <div id="halo"></div>
+            <svg id="countdown" viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="track" cx="50" cy="50" r="47"></circle>
+                <circle class="arc" cx="50" cy="50" r="47"
+                        stroke-dasharray="295.31" stroke-dashoffset="0"></circle>
+            </svg>
             <button id="mic" type="button" aria-label="hold to talk">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path class="glyph" d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15z"/>
@@ -440,6 +532,20 @@
         var TAP_LATCH_MS = 400;     // press shorter than this latches instead of sending
         var STREAM_IDLE_MS = 45000; // release the mic after this long unused
 
+        // ---- auto-send (voice activity detection) tuning ----------------
+        // All of these are read by vadTick() below. See the long comment on
+        // the VAD block for the reasoning; these are the knobs worth turning.
+        var AUTOSEND_KEY  = 'gorcave_autosend';
+        var SILENCE_MS    = 3000;   // continuous silence before we auto-send.
+                                    // 1200–2000 usually feels snappier in real
+                                    // use; 3000 is the forgiving default so a
+                                    // mid-sentence think-pause never cuts you
+                                    // off. Change this one number to retune.
+        var SPEECH_ARM_MS = 300;    // continuous speech required before the
+                                    // silence timer is allowed to fire at all
+        var CALIBRATE_MS  = 420;    // ambient-noise sampling window at mic open
+        var MAX_RECORD_MS = 60000;  // hard cap on any single clip
+
         var historyEl = document.getElementById('history');
         var micBtn    = document.getElementById('mic');
         var haloEl    = document.getElementById('halo');
@@ -453,18 +559,135 @@
         var chipServer= document.getElementById('voice-server');
         var chipDevice= document.getElementById('voice-device');
         var chipMute  = document.getElementById('voice-mute');
+        var clearBtn  = document.getElementById('clear-convo');
+        var chipAuto  = document.getElementById('auto-send');
+        var countdownEl = document.getElementById('countdown');
+        var countdownArc = countdownEl.querySelector('.arc');
+
+        // =================================================================
+        // SHARED CONVERSATION LOG — KEEP IN SYNC WITH gorcave-chat.html
+        //
+        // Both pages read and write the same localStorage key so one
+        // conversation reads continuously whether a given turn was spoken
+        // here or typed over there. Duplicated on purpose: these files are
+        // deliberately self-contained, no external script.
+        //
+        // Schema: [{ role:'me'|'them', text:String, ts:Number,
+        //            mode:'text'|'voice' }, ...]  oldest first.
+        // System notices are NOT stored — they describe this session only.
+        // =================================================================
+        var CONVO_KEY = 'gorcave_convo';
+        var CONVO_MAX = 100;       // turns kept; oldest trimmed first
+        var PAGE_MODE = 'voice';   // 'text' on gorcave-chat.html
+
+        var convo = [];            // in-memory mirror; the store if disk fails
+        var convoStore = true;     // flipped off if localStorage misbehaves
+
+        function convoLoad() {
+            var raw = null;
+            try {
+                raw = localStorage.getItem(CONVO_KEY);
+            } catch (e) {
+                // private browsing / storage disabled: in-memory only
+                convoStore = false;
+                return [];
+            }
+            if (!raw) return [];
+            try {
+                var arr = JSON.parse(raw);
+                if (!Array.isArray(arr)) throw new Error('bad shape');
+                return arr.filter(function (t) {
+                    return t && typeof t.text === 'string' &&
+                           (t.role === 'me' || t.role === 'them');
+                }).slice(-CONVO_MAX);
+            } catch (e) {
+                // Corrupt value — drop it and start clean rather than
+                // giving up on storage for the rest of the session.
+                try { localStorage.removeItem(CONVO_KEY); } catch (e2) {}
+                return [];
+            }
+        }
+
+        function convoSave() {
+            if (!convoStore) return;
+            try {
+                localStorage.setItem(CONVO_KEY, JSON.stringify(convo));
+            } catch (e) {
+                // Quota: try once at half length. Only commit the trim if it
+                // actually lands — otherwise keep the full log in memory and
+                // stop writing. Never throw into a send path.
+                try {
+                    var trimmed = convo.slice(-Math.floor(CONVO_MAX / 2));
+                    localStorage.setItem(CONVO_KEY, JSON.stringify(trimmed));
+                    convo = trimmed;
+                } catch (e2) {
+                    convoStore = false;
+                }
+            }
+        }
+
+        function convoPush(role, text, mode) {
+            convo.push({ role: role, text: text, ts: Date.now(), mode: mode || PAGE_MODE });
+            if (convo.length > CONVO_MAX) convo = convo.slice(-CONVO_MAX);
+            convoSave();
+        }
+
+        function convoClear() {
+            convo = [];
+            try { localStorage.removeItem(CONVO_KEY); } catch (e) {}
+        }
+        // =================================================================
 
         // ---------- transcript ----------
         function scrollToLatest() { historyEl.scrollTop = historyEl.scrollHeight; }
 
-        function addMessage(text, cls) {
+        function addMessage(text, cls, mode) {
             var div = document.createElement('div');
-            div.className = 'msg ' + cls;
+            div.className = 'msg ' + cls + (cls === 'me' && mode === 'voice' ? ' via-voice' : '');
             div.textContent = text;
             historyEl.appendChild(div);
             scrollToLatest();
             return div;
         }
+
+        // Render + persist one real turn. Everything that isn't a system
+        // notice goes through here.
+        function say(role, text, mode) {
+            convoPush(role, text, mode);
+            return addMessage(text, role, mode || PAGE_MODE);
+        }
+
+        function renderConvo() {
+            for (var i = 0; i < convo.length; i++) {
+                addMessage(convo[i].text, convo[i].role, convo[i].mode);
+            }
+        }
+
+        // Two-tap erase: the first tap only arms the chip (and says so), a
+        // second tap within 4s actually clears. Dotted and unfilled so it
+        // never reads as one of the three voice-mode chips beside it.
+        var clearArmedAt = 0;
+        function disarmClear() {
+            clearArmedAt = 0;
+            clearBtn.textContent = 'clear';
+            clearBtn.classList.remove('armed');
+        }
+        clearBtn.addEventListener('click', function () {
+            var now = Date.now();
+            if (now - clearArmedAt > 4000) {
+                clearArmedAt = now;
+                clearBtn.textContent = 'erase?';
+                clearBtn.classList.add('armed');
+                setTimeout(function () {
+                    if (clearArmedAt && Date.now() - clearArmedAt >= 4000) disarmClear();
+                }, 4100);
+                return;
+            }
+            disarmClear();
+            convoClear();
+            historyEl.innerHTML = '';
+            addMessage('conversation cleared', 'system');
+        });
 
         function setHint(t) { hintEl.textContent = t; }
 
@@ -474,7 +697,8 @@
         var voiceAvailable = hasGUM && hasRecorder && window.isSecureContext !== false;
 
         // ---------- speech-output mode ----------
-        var voiceMode = localStorage.getItem(VOICE_MODE_KEY) || 'server';
+        var voiceMode = 'server';
+        try { voiceMode = localStorage.getItem(VOICE_MODE_KEY) || 'server'; } catch (e) {}
         if (voiceMode !== 'server' && voiceMode !== 'device' && voiceMode !== 'off') {
             voiceMode = 'server';
         }
@@ -499,6 +723,34 @@
         });
         paintVoiceChips();
         if (!hasSynth && voiceMode === 'device') setVoiceMode('server');
+
+        // ---------- auto-send preference ----------
+        // Default ON: hands-free is the point of the latched mode. Turning it
+        // off restores the old behaviour exactly — latch stays open until you
+        // tap it again, hold-to-talk is unaffected either way.
+        var autoSend = true;
+        try {
+            var storedAuto = localStorage.getItem(AUTOSEND_KEY);
+            if (storedAuto === 'off') autoSend = false;
+        } catch (e) {}
+
+        function paintAutoChip() {
+            chipAuto.setAttribute('aria-pressed', String(autoSend));
+            chipAuto.title = autoSend
+                ? 'hands-free: sends after ' + Math.round(SILENCE_MS / 1000) + 's of silence'
+                : 'auto-send off: tap the circle to send';
+        }
+        chipAuto.addEventListener('click', function () {
+            unlockAudio();
+            autoSend = !autoSend;
+            try { localStorage.setItem(AUTOSEND_KEY, autoSend ? 'on' : 'off'); } catch (e) {}
+            paintAutoChip();
+            // Turning it off mid-session must kill any countdown already
+            // running, and turning it on must not inherit stale VAD state.
+            resetVad();
+            if (recording && latched) setHint(latchedHint());
+        });
+        paintAutoChip();
 
         // -----------------------------------------------------------------
         // AudioContext. Mobile browsers create it suspended and block any
@@ -557,11 +809,179 @@
             analyser = null;
             analyserData = null;
             level = 0;
+            resetVad();
+        }
+
+        // -----------------------------------------------------------------
+        // Voice activity detection — auto-send on sustained silence.
+        //
+        // Runs off the SAME rms value the meter above just computed, once per
+        // animation frame. There is no timer of its own: every decision is
+        // made by comparing wall-clock timestamps, so a throttled rAF (tab in
+        // the background, low-power mode) can't skew the window, and there is
+        // nothing to leak on teardown — resetVad() zeroes the whole state.
+        //
+        // Threshold derivation
+        //   A fixed rms cutoff is useless: a quiet bedroom sits near 0.002
+        //   while a room with a fan sits near 0.03, which would read as
+        //   permanent speech. So the first CALIBRATE_MS after the mic opens
+        //   is spent sampling the room. We take the 25th PERCENTILE of those
+        //   samples rather than the mean, because the mean is wrecked if the
+        //   user starts talking immediately — a low percentile still lands on
+        //   the gaps between the first syllables. The result is then clamped
+        //   to FLOOR_CLAMP so even a completely poisoned calibration can only
+        //   push the threshold so high.
+        //
+        //   speechThresh = clamp(floor * FLOOR_MARGIN + FLOOR_BIAS,
+        //                        ABS_MIN_SPEECH, ABS_MAX_SPEECH)
+        //
+        //   A second, lower threshold (silenceThresh, 60% of the speech one)
+        //   gives hysteresis: once you are talking you have to drop well
+        //   below the trigger before the silence clock starts, so the natural
+        //   dips between words don't restart the countdown, and a value in
+        //   the band between the two simply holds the current state.
+        // -----------------------------------------------------------------
+        var FLOOR_MARGIN    = 3.0;    // speech must be this many x the floor
+        var FLOOR_BIAS      = 0.006;  // ...plus a fixed cushion
+        var FLOOR_CLAMP     = 0.045;  // ceiling on a measured noise floor
+        var ABS_MIN_SPEECH  = 0.014;  // never hair-trigger in a dead room
+        var ABS_MAX_SPEECH  = 0.150;  // never demand a shout
+        var VAD_SMOOTH      = 0.25;   // ~65ms envelope, symmetric
+        var COUNT_CIRC      = 295.31; // 2*PI*47, matches the #countdown radius
+
+        var vadRms = 0;
+        var vadSamples = [];        // ambient rms samples during calibration
+        var vadCalibrated = false;
+        var speechThresh = ABS_MIN_SPEECH;
+        var silenceThresh = ABS_MIN_SPEECH * 0.6;
+        var vadArmed = false;       // has the user actually spoken yet?
+        var speechRunStart = 0;     // start of the current above-threshold run
+        var silenceStart = 0;       // start of the current below-threshold run
+        var counting = false;       // countdown ring is showing
+        var lastCountShown = -1;
+        var capStopped = false;     // MAX_RECORD_MS fired; suppress pendingStop
+
+        function resetVad() {
+            vadRms = 0;
+            vadSamples.length = 0;
+            vadCalibrated = false;
+            vadArmed = false;
+            speechRunStart = 0;
+            silenceStart = 0;
+            speechThresh = ABS_MIN_SPEECH;
+            silenceThresh = ABS_MIN_SPEECH * 0.6;
+            hideCountdown();
+        }
+
+        function hideCountdown() {
+            if (!counting) return;
+            counting = false;
+            lastCountShown = -1;
+            document.body.classList.remove('counting');
+            countdownArc.setAttribute('stroke-dashoffset', '0');
+            if (recording) setHint(latched ? latchedHint() : 'listening · release to send');
+        }
+
+        function latchedHint() {
+            return autoSend ? 'listening · pause to send' : 'listening · tap to send';
+        }
+
+        function calibrate() {
+            vadCalibrated = true;
+            var floor = ABS_MIN_SPEECH / FLOOR_MARGIN;   // fallback if we got nothing
+            if (vadSamples.length >= 4) {
+                var sorted = vadSamples.slice().sort(function (a, b) { return a - b; });
+                floor = sorted[Math.floor(sorted.length * 0.25)];
+            }
+            if (!(floor >= 0)) floor = 0;                // NaN guard
+            if (floor > FLOOR_CLAMP) floor = FLOOR_CLAMP;
+            var t = floor * FLOOR_MARGIN + FLOOR_BIAS;
+            if (t < ABS_MIN_SPEECH) t = ABS_MIN_SPEECH;
+            if (t > ABS_MAX_SPEECH) t = ABS_MAX_SPEECH;
+            speechThresh = t;
+            silenceThresh = t * 0.6;
+            vadSamples.length = 0;
+        }
+
+        function vadTick(rms) {
+            if (!recording) { hideCountdown(); return; }
+
+            var now = Date.now();
+            var elapsed = now - startedAt;
+
+            // Hard cap applies to every mode, toggle or not: a mic that got
+            // stuck open must not record forever.
+            if (elapsed >= MAX_RECORD_MS) {
+                capStopped = true;
+                var secs = Math.round(MAX_RECORD_MS / 1000);
+                // Hands-free and nobody ever crossed the speech threshold:
+                // that is a mic left open in an empty room, not a long
+                // answer. Close it quietly instead of uploading a minute of
+                // nothing. Any other case gets sent — it contains real audio.
+                var hadSpeech = !(autoSend && latched) || vadArmed;
+                if (hadSpeech) {
+                    addMessage('That ran to the ' + secs +
+                               '-second limit — sending what I have.', 'system');
+                } else {
+                    addMessage('The mic was open ' + secs +
+                               ' seconds without hearing anything — closed it.', 'system');
+                }
+                stopRecording(hadSpeech);
+                return;
+            }
+
+            // Auto-send is a hands-free affordance only. While a finger is on
+            // the button the finger IS the signal, so we never pre-empt it.
+            if (!autoSend || !latched || pressActive) { hideCountdown(); return; }
+
+            vadRms += (rms - vadRms) * VAD_SMOOTH;
+
+            if (!vadCalibrated) {
+                if (elapsed < CALIBRATE_MS) { vadSamples.push(rms); return; }
+                calibrate();
+            }
+
+            if (vadRms >= speechThresh) {
+                if (!speechRunStart) speechRunStart = now;
+                silenceStart = 0;
+                if (!vadArmed && now - speechRunStart >= SPEECH_ARM_MS) vadArmed = true;
+                hideCountdown();
+                return;
+            }
+            if (vadRms >= silenceThresh) return;   // hysteresis band: hold
+
+            speechRunStart = 0;
+            if (!vadArmed) { hideCountdown(); return; }   // nobody has spoken yet
+
+            if (!silenceStart) silenceStart = now;
+            var quiet = now - silenceStart;
+
+            if (quiet >= SILENCE_MS) {
+                hideCountdown();
+                stopRecording(true);
+                return;
+            }
+
+            // Show the countdown for the whole window — a cue that only
+            // appears in the last second reads as the app cutting you off.
+            var progress = quiet / SILENCE_MS;
+            if (!counting) {
+                counting = true;
+                document.body.classList.add('counting');
+            }
+            countdownArc.setAttribute('stroke-dashoffset',
+                                      (COUNT_CIRC * progress).toFixed(1));
+            var left = Math.ceil((SILENCE_MS - quiet) / 1000);
+            if (left !== lastCountShown) {
+                lastCountShown = left;
+                setHint('silence · sending in ' + left);
+            }
         }
 
         function drawFrame() {
             rafId = requestAnimationFrame(drawFrame);
 
+            var rms = 0;
             if (analyser && analyserData) {
                 analyser.getByteTimeDomainData(analyserData);
                 var sum = 0;
@@ -569,12 +989,16 @@
                     var v = (analyserData[i] - 128) / 128;
                     sum += v * v;
                 }
-                var rms = Math.sqrt(sum / analyserData.length);
+                rms = Math.sqrt(sum / analyserData.length);
                 // perceptual-ish curve; speech at arm's length lands mid-range
                 level = Math.min(1, Math.pow(rms * 3.6, 0.7));
             } else {
                 level = 0;
             }
+
+            // Silence detection rides on the very same RMS reading — no second
+            // AudioContext, no second rAF loop.
+            vadTick(rms);
 
             // fast attack, slow release
             levelSmooth += (level - levelSmooth) * (level > levelSmooth ? 0.45 : 0.10);
@@ -681,6 +1105,8 @@
             permissionDenied = true;
             latched = false;
             pendingStop = false;
+            capStopped = false;
+            resetVad();
             document.body.classList.remove('listening', 'latched');
             var name = (err && err.name) || '';
             if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
@@ -741,12 +1167,17 @@
             };
             recorder.onstop = function () { finishRecording(); };
 
+            // Fresh VAD state for every clip: the noise floor is measured
+            // again each time, so moving between rooms just works.
+            resetVad();
+            capStopped = false;
+
             recorder.start();
             recording = true;
             startedAt = Date.now();
             document.body.classList.add('listening');
             startVisualizer(s);
-            setHint(latched ? 'listening · tap to send' : 'listening · release to send');
+            setHint(latched ? latchedHint() : 'listening · release to send');
 
             // Released the button while getUserMedia was still resolving.
             if (pendingStop) {
@@ -826,13 +1257,15 @@
                 // `latched` when it finally opens the stream.
                 latched = true;
                 document.body.classList.add('latched');
-                setHint('listening · tap to send');
+                setHint(latchedHint());
                 return;
             }
             if (recording) {
                 stopRecording(true);
-            } else {
-                // getUserMedia hadn't resolved yet
+            } else if (!capStopped) {
+                // getUserMedia hadn't resolved yet. (If the 60s cap already
+                // stopped us out from under the finger, there is nothing
+                // pending — arming pendingStop here would kill the next clip.)
                 pendingStop = true;
             }
         }
@@ -899,12 +1332,12 @@
                 }
 
                 var transcript = typeof data.transcript === 'string' ? data.transcript.trim() : '';
-                if (transcript) addMessage(transcript, 'me');
+                if (transcript) say('me', transcript, 'voice');
                 else addMessage("didn't catch that — try again, closer to the mic", 'system');
 
                 var reply = typeof data.reply === 'string' ? data.reply.trim() : '';
                 if (reply) {
-                    addMessage(reply, 'them');
+                    say('them', reply, 'voice');
                     setBusy(false);
                     speak(reply);
                 } else {
@@ -929,7 +1362,7 @@
 
         async function sendText(text) {
             setBusy(true, 'thinking…');
-            addMessage(text, 'me');
+            say('me', text, 'text');
             var bubble = thinkingBubble();
             try {
                 var res = await fetch(TEXT_CHAT, {
@@ -942,7 +1375,7 @@
                 var data = await res.json();
                 var reply = (data && typeof data.reply === 'string') ? data.reply : '';
                 if (reply) {
-                    addMessage(reply, 'them');
+                    say('them', reply, 'text');
                     setBusy(false);
                     speak(reply);
                 } else {
@@ -1117,7 +1550,11 @@
             releaseStream();
         });
         document.addEventListener('visibilitychange', function () {
-            if (document.hidden && recording) stopRecording(false);
+            if (!document.hidden) return;
+            if (recording) stopRecording(false);
+            // Backgrounded with a countdown on screen: drop the VAD state so
+            // coming back never resumes a half-elapsed silence window.
+            resetVad();
         });
 
         // ---------- boot ----------
@@ -1130,6 +1567,14 @@
                 meterEl.height = Math.round(rect.height * dpr);
             }
 
+            // Shared history renders BEFORE any session notice and before
+            // the first scroll-to-bottom, so switching modes mid-conversation
+            // drops you exactly where you left off. This only writes into
+            // #history's own scroller — it never touches the body shell the
+            // visualViewport logic owns.
+            convo = convoLoad();
+            renderConvo();
+
             if (!voiceAvailable) {
                 var why = (window.isSecureContext === false)
                     ? 'Voice needs a secure (https) connection. Typing still works.'
@@ -1139,9 +1584,20 @@
                 micBtn.style.opacity = '0.35';
                 setHint('voice unavailable');
                 openComposer();
-            } else {
-                addMessage('Hold the circle and talk. Release to send.', 'system');
+            } else if (!convo.length) {
+                addMessage(
+                    autoSend
+                        ? 'Hold the circle and talk, release to send — or tap it once for ' +
+                          'hands-free: it sends on its own after ' +
+                          Math.round(SILENCE_MS / 1000) + ' seconds of quiet.'
+                        : 'Hold the circle and talk. Release to send.',
+                    'system'
+                );
             }
+
+            scrollToLatest();
+            requestAnimationFrame(scrollToLatest);
+            window.addEventListener('load', scrollToLatest, { once: true });
 
             // Populate the synthesis voice list early (Chrome loads it async).
             if (hasSynth) {
