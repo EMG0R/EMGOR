@@ -3,60 +3,98 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#0a0512">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>GORCAVE SERVER</title>
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body {
-            width: 100%; height: 100%;
-            background: #000;
-            overflow: hidden;
+        :root {
+            /* near-black purple base, layered upward for gentle depth */
+            --bg:          #0a0512;
+            --bg-glow:     #150b26;
+            --surface:     rgba(168, 146, 214, 0.05);
+            --surface-2:   rgba(168, 146, 214, 0.09);
+            --line:        rgba(178, 158, 222, 0.12);
+            --line-strong: rgba(178, 158, 222, 0.30);
+            --text:        rgba(236, 231, 247, 0.90);
+            --text-dim:    rgba(214, 205, 235, 0.55);
+            --text-faint:  rgba(198, 188, 226, 0.28);
+            --lavender:    rgba(178, 163, 214, 0.78);  /* calm notice tone, never red */
         }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html {
+            height: 100%;
+            background: var(--bg);
+        }
+
         body {
+            /* Pinned shell: prevents whole-page rubber-band scrolling on iOS
+               while #history keeps its own momentum scroll. JS resizes this
+               shell to window.visualViewport when the keyboard opens. */
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            width: 100%;
+            height: 100vh;   /* fallback for old iOS */
+            height: 100dvh;  /* dynamic viewport baseline */
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            background:
+                radial-gradient(120% 70% at 50% 0%, var(--bg-glow) 0%, var(--bg) 62%),
+                var(--bg);
             font-family: 'Courier New', Courier, monospace;
-            color: rgba(255,255,255,0.85);
+            color: var(--text);
             display: flex;
             flex-direction: column;
             -webkit-tap-highlight-color: transparent;
+            -webkit-text-size-adjust: 100%;
+            /* short, non-janky settle when the keyboard opens/closes */
+            transition: height 0.14s ease-out, transform 0.14s ease-out;
         }
 
         .home-button {
-            position: fixed;
-            top: max(16px, env(safe-area-inset-top));
-            left: max(16px, env(safe-area-inset-left));
+            position: absolute;
+            top: max(14px, env(safe-area-inset-top));
+            left: max(14px, env(safe-area-inset-left));
             z-index: 100;
-            font-size: 1.8rem;
-            color: rgba(255,255,255,0.6);
+            font-size: 2rem;
+            line-height: 1;
+            min-width: 44px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            color: var(--text-dim);
             text-decoration: none;
             transition: color 0.2s;
         }
-        .home-button:hover { color: rgba(255,255,255,0.95); }
+        .home-button:hover, .home-button:active { color: var(--text); }
 
         header {
-            padding: max(16px, env(safe-area-inset-top)) 16px 12px 60px;
+            padding: max(16px, env(safe-area-inset-top)) 16px 12px 64px;
             text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
+            border-bottom: 1px solid var(--line);
+            background: var(--surface);
             flex: 0 0 auto;
         }
         header h1 {
-            font-size: 0.85rem;
+            font-size: 0.95rem;
             letter-spacing: 3px;
             font-weight: normal;
-            color: rgba(255,255,255,0.7);
+            color: rgba(232, 226, 246, 0.82);
         }
         header .sub {
-            margin-top: 4px;
-            font-size: 0.6rem;
+            margin-top: 5px;
+            font-size: 0.7rem;
             letter-spacing: 1px;
-            color: rgba(255,255,255,0.25);
+            color: var(--text-faint);
         }
 
-        /* ---- Passphrase gate ---- */
+        /* ---- Passphrase gate (kept intact; bypassed while AUTH_REQUIRED is false) ---- */
         #gate {
             flex: 1 1 auto;
             display: flex;
@@ -66,53 +104,59 @@
             gap: 18px;
             padding: 24px;
             text-align: center;
+            min-height: 0;
         }
         #gate.hidden { display: none; }
         #gate label {
-            font-size: 0.62rem;
+            font-size: 0.72rem;
             letter-spacing: 2px;
-            color: rgba(255,255,255,0.35);
+            color: var(--text-faint);
             text-transform: uppercase;
         }
         #gate input {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.15);
-            color: rgba(255,255,255,0.9);
+            background: var(--surface-2);
+            border: 1px solid var(--line-strong);
+            color: var(--text);
             font-family: inherit;
-            font-size: 0.85rem;
+            font-size: 16px; /* >=16px: stops iOS Safari auto-zoom on focus */
             letter-spacing: 1px;
-            padding: 10px 12px;
-            width: min(320px, 80vw);
+            padding: 12px 14px;
+            width: min(320px, 82vw);
             outline: none;
-            border-radius: 2px;
+            border-radius: 6px;
+            -webkit-appearance: none;
         }
-        #gate input:focus { border-color: rgba(255,255,255,0.4); }
+        #gate input:focus { border-color: rgba(190, 172, 235, 0.55); }
         #gate button, .send-btn {
-            background: transparent;
-            border: 1px solid rgba(255,255,255,0.25);
-            color: rgba(255,255,255,0.75);
+            background: var(--surface-2);
+            border: 1px solid var(--line-strong);
+            color: var(--text);
             font-family: inherit;
-            font-size: 0.65rem;
+            font-size: 0.78rem;
             letter-spacing: 2px;
             text-transform: uppercase;
-            padding: 10px 18px;
+            padding: 12px 20px;
+            min-height: 44px;   /* Apple HIG minimum touch target */
+            min-width: 72px;
             cursor: pointer;
-            border-radius: 2px;
-            transition: border-color 0.2s, color 0.2s;
+            border-radius: 6px;
+            transition: border-color 0.2s, color 0.2s, background 0.2s;
         }
-        #gate button:hover, .send-btn:hover {
-            border-color: rgba(255,255,255,0.6);
-            color: rgba(255,255,255,0.95);
+        #gate button:hover, .send-btn:hover,
+        #gate button:active, .send-btn:active {
+            border-color: rgba(196, 178, 240, 0.6);
+            background: rgba(168, 146, 214, 0.14);
         }
         #gate .note {
-            max-width: 320px;
-            font-size: 0.6rem;
-            line-height: 1.5;
-            color: rgba(255,255,255,0.22);
+            max-width: 330px;
+            font-size: 0.72rem;
+            line-height: 1.55;
+            color: var(--text-faint);
         }
         #gate-error {
-            font-size: 0.6rem;
-            color: rgba(239,80,60,0.8);
+            font-size: 0.72rem;
+            letter-spacing: 0.5px;
+            color: var(--lavender);   /* was red; calm lavender now */
             min-height: 1em;
         }
 
@@ -128,43 +172,50 @@
         #history {
             flex: 1 1 auto;
             overflow-y: auto;
-            padding: 16px;
+            -webkit-overflow-scrolling: touch;  /* momentum scroll */
+            overscroll-behavior: contain;       /* don't chain to the page */
+            padding: 16px 14px 20px;
             display: flex;
             flex-direction: column;
             gap: 12px;
         }
         .msg {
-            max-width: 78%;
-            font-size: 0.78rem;
-            line-height: 1.5;
-            padding: 8px 12px;
-            border-radius: 3px;
+            max-width: 82%;
+            font-size: 1rem;
+            line-height: 1.55;
+            padding: 10px 14px;
+            border-radius: 10px;
             white-space: pre-wrap;
             word-break: break-word;
         }
         .msg.me {
             align-self: flex-end;
-            background: rgba(255,255,255,0.08);
-            color: rgba(255,255,255,0.9);
+            background: rgba(150, 122, 208, 0.16);
+            border: 1px solid rgba(178, 158, 222, 0.16);
+            color: rgba(240, 236, 250, 0.94);
         }
         .msg.them {
             align-self: flex-start;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.08);
-            color: rgba(255,255,255,0.75);
+            background: rgba(168, 146, 214, 0.06);
+            border: 1px solid var(--line);
+            color: rgba(228, 222, 243, 0.82);
         }
         .msg.system {
             align-self: center;
+            max-width: 90%;
             background: none;
-            color: rgba(239,80,60,0.7);
-            font-size: 0.65rem;
+            border: none;
+            color: var(--lavender);   /* was red; calm lavender now */
+            font-size: 0.82rem;
+            letter-spacing: 0.3px;
             text-align: center;
         }
         .msg.thinking {
             align-self: flex-start;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.08);
-            color: rgba(255,255,255,0.4);
+            background: rgba(168, 146, 214, 0.06);
+            border: 1px solid var(--line);
+            color: var(--text-dim);
+            letter-spacing: 2px;
             animation: pulse 1.2s ease-in-out infinite;
         }
         @keyframes pulse {
@@ -175,38 +226,48 @@
         #composer {
             flex: 0 0 auto;
             display: flex;
-            gap: 8px;
-            padding: 12px;
-            padding-bottom: max(12px, env(safe-area-inset-bottom));
-            border-top: 1px solid rgba(255,255,255,0.08);
+            gap: 10px;
+            align-items: center;
+            padding: 10px 12px;
+            padding-left: max(12px, env(safe-area-inset-left));
+            padding-right: max(12px, env(safe-area-inset-right));
+            /* home-indicator inset only matters when the keyboard is closed;
+               JS drops --kb-pad to 0 while the keyboard is up */
+            padding-bottom: calc(10px + var(--kb-pad, env(safe-area-inset-bottom)));
+            border-top: 1px solid var(--line);
+            background: rgba(168, 146, 214, 0.045);
         }
         #composer input {
             flex: 1 1 auto;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.15);
-            color: rgba(255,255,255,0.9);
+            background: rgba(168, 146, 214, 0.09);
+            border: 1px solid var(--line-strong);
+            color: var(--text);
             font-family: inherit;
-            font-size: 0.8rem;
-            padding: 10px 12px;
+            font-size: 16px;   /* >=16px: prevents iOS focus auto-zoom */
+            line-height: 1.3;
+            padding: 12px 14px;
+            min-height: 44px;
             outline: none;
-            border-radius: 2px;
+            border-radius: 10px;
             min-width: 0;
+            -webkit-appearance: none;
         }
-        #composer input:focus { border-color: rgba(255,255,255,0.4); }
+        #composer input::placeholder { color: var(--text-faint); }
+        #composer input:focus { border-color: rgba(190, 172, 235, 0.55); }
 
         #forget {
-            position: fixed;
+            position: absolute;
             bottom: max(8px, env(safe-area-inset-bottom));
             right: max(10px, env(safe-area-inset-right));
-            font-size: 0.55rem;
+            font-size: 0.65rem;
             letter-spacing: 1px;
-            color: rgba(255,255,255,0.15);
+            color: var(--text-faint);
             background: none;
             border: none;
             cursor: pointer;
-            padding: 6px;
+            padding: 8px;
         }
-        #forget:hover { color: rgba(255,255,255,0.4); }
+        #forget:hover { color: var(--text-dim); }
     </style>
 </head>
 <body>
@@ -219,7 +280,7 @@
 
     <div id="gate" class="hidden">
         <label for="token-input">passphrase</label>
-        <input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="enter passphrase">
+        <input id="token-input" type="password" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="enter passphrase">
         <button id="gate-submit">Enter</button>
         <div id="gate-error"></div>
         <div class="note">
@@ -232,7 +293,9 @@
     <div id="chat">
         <div id="history"></div>
         <form id="composer" autocomplete="off">
-            <input id="msg-input" type="text" placeholder="say something to gorcave" autocomplete="off">
+            <input id="msg-input" type="text" placeholder="say something to gorcave"
+                   autocomplete="off" autocorrect="on" autocapitalize="sentences"
+                   spellcheck="true" enterkeyhint="send">
             <button type="submit" class="send-btn">Send</button>
         </form>
     </div>
@@ -264,19 +327,23 @@
         const composer    = document.getElementById('composer');
         const msgInput    = document.getElementById('msg-input');
         const forgetBtn   = document.getElementById('forget');
+        const sendBtn     = composer.querySelector('.send-btn');
+
+        function scrollToLatest() {
+            historyEl.scrollTop = historyEl.scrollHeight;
+        }
 
         function addMessage(text, cls) {
             const div = document.createElement('div');
             div.className = 'msg ' + cls;
             div.textContent = text;
             historyEl.appendChild(div);
-            historyEl.scrollTop = historyEl.scrollHeight;
+            scrollToLatest();
         }
 
         function showChat() {
             gateEl.classList.add('hidden');
             chatEl.classList.remove('hidden');
-            msgInput.focus();
             if (!historyEl.hasChildNodes()) {
                 addMessage('Connected to the gate. gorcave itself may or may not be listening yet.', 'system');
             }
@@ -291,6 +358,7 @@
             localStorage.setItem(STORAGE_KEY, val);
             gateError.textContent = '';
             showChat();
+            msgInput.focus();
         }
 
         gateSubmit.addEventListener('click', tryEnter);
@@ -313,6 +381,71 @@
             forgetBtn.style.display = 'none';
         }
 
+        // ---------------------------------------------------------------
+        // iOS keyboard handling via the visualViewport API.
+        //
+        // On iOS Safari the *layout* viewport does not shrink when the
+        // software keyboard appears — only the visual viewport does. So a
+        // 100vh / position:fixed bottom bar ends up underneath the keyboard.
+        // The fix: size the pinned body shell to visualViewport.height and
+        // translate it down by visualViewport.offsetTop (Safari scrolls the
+        // layout viewport when focusing an input near the bottom).
+        // ---------------------------------------------------------------
+        const vv = window.visualViewport;
+
+        function applyViewport() {
+            if (!vv) return;
+            const h = Math.round(vv.height);
+            const top = Math.round(vv.offsetTop);
+            document.body.style.height = h + 'px';
+            document.body.style.transform = top ? 'translateY(' + top + 'px)' : 'none';
+
+            // Keyboard up? The home-indicator inset is meaningless then —
+            // the keyboard already occupies that space.
+            const kbUp = (window.innerHeight - vv.height) > 120;
+            document.documentElement.style.setProperty(
+                '--kb-pad', kbUp ? '0px' : 'env(safe-area-inset-bottom)'
+            );
+        }
+
+        let vvFrame = null;
+        function scheduleViewport(keepAtBottom) {
+            if (vvFrame) cancelAnimationFrame(vvFrame);
+            vvFrame = requestAnimationFrame(() => {
+                vvFrame = null;
+                applyViewport();
+                if (keepAtBottom) scrollToLatest();
+            });
+        }
+
+        if (vv) {
+            vv.addEventListener('resize', () => scheduleViewport(true));
+            vv.addEventListener('scroll', () => scheduleViewport(false));
+            applyViewport();
+        }
+
+        // The pinned shell means the window itself should never scroll; if
+        // iOS nudges it (focus scroll-into-view), snap it back to 0.
+        window.addEventListener('scroll', () => {
+            if (window.scrollY !== 0) window.scrollTo(0, 0);
+        }, { passive: true });
+
+        // Focusing the input: let Safari finish opening the keyboard, then
+        // re-measure and keep the newest message in view.
+        msgInput.addEventListener('focus', () => {
+            setTimeout(() => scheduleViewport(true), 60);
+            setTimeout(() => scheduleViewport(true), 320);
+        });
+
+        // Tapping Send must not blur the input — a blur would dismiss the
+        // keyboard and immediately re-show it (the classic iOS flicker).
+        ['mousedown', 'touchstart', 'pointerdown'].forEach((evt) => {
+            sendBtn.addEventListener(evt, (e) => { e.preventDefault(); }, { passive: false });
+        });
+        sendBtn.addEventListener('click', () => {
+            if (document.activeElement !== msgInput) msgInput.focus();
+        });
+
         composer.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = msgInput.value.trim();
@@ -332,12 +465,14 @@
 
             addMessage(text, 'me');
             msgInput.value = '';
+            // Keep the keyboard up across a send.
+            msgInput.focus();
 
             const thinkingEl = document.createElement('div');
             thinkingEl.className = 'msg thinking';
             thinkingEl.textContent = '...';
             historyEl.appendChild(thinkingEl);
-            historyEl.scrollTop = historyEl.scrollHeight;
+            scrollToLatest();
 
             try {
                 const res = await fetch(BACKEND_URL, {
