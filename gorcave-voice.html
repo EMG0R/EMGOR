@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0512">
+    <title>GORCAVE VOICE</title>
+
+    <!-- Installable PWA. Deliberately NO service worker: the existing sw.js in
+         this repo is scoped only to ciesen.html, and this app is useless
+         offline anyway (it needs the Pi). Cache-control meta tags instead,
+         same as gorcave-chat.html. -->
+    <link rel="manifest" href="gorcave-manifest.json">
+    <link rel="icon" href="gorcave-icon-192.png" type="image/png">
+    <link rel="apple-touch-icon" href="gorcave-icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="GORCAVE">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        :root {
+            /* same near-black purple base as gorcave-chat.html */
+            --bg:          #0a0512;
+            --bg-glow:     #150b26;
+            --surface:     rgba(168, 146, 214, 0.05);
+            --surface-2:   rgba(168, 146, 214, 0.09);
+            --line:        rgba(178, 158, 222, 0.12);
+            --line-strong: rgba(178, 158, 222, 0.30);
+            --text:        rgba(236, 231, 247, 0.90);
+            --text-dim:    rgba(214, 205, 235, 0.55);
+            --text-faint:  rgba(198, 188, 226, 0.28);
+            --lavender:    rgba(178, 163, 214, 0.78);  /* calm notice tone, never red */
+            --level:       0;   /* 0..1, written by the analyser loop */
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { height: 100%; background: var(--bg); }
+
+        body {
+            /* Pinned shell (same approach as the text chat): no whole-page
+               rubber-banding; the transcript keeps its own momentum scroll.
+               JS resizes this shell to visualViewport when a keyboard opens. */
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            background:
+                radial-gradient(120% 70% at 50% 0%, var(--bg-glow) 0%, var(--bg) 62%),
+                var(--bg);
+            font-family: 'Courier New', Courier, monospace;
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-text-size-adjust: 100%;
+            transition: height 0.14s ease-out, transform 0.14s ease-out;
+        }
+
+        .home-button {
+            position: absolute;
+            top: max(14px, env(safe-area-inset-top));
+            left: max(14px, env(safe-area-inset-left));
+            z-index: 100;
+            font-size: 2rem;
+            line-height: 1;
+            min-width: 44px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .home-button:hover, .home-button:active { color: var(--text); }
+
+        .text-link {
+            position: absolute;
+            top: max(14px, env(safe-area-inset-top));
+            right: max(14px, env(safe-area-inset-right));
+            z-index: 100;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            font-size: 0.62rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-faint);
+            text-decoration: none;
+        }
+        .text-link:hover, .text-link:active { color: var(--text-dim); }
+
+        header {
+            padding: max(16px, env(safe-area-inset-top)) 64px 10px 64px;
+            text-align: center;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface);
+            flex: 0 0 auto;
+        }
+        header h1 {
+            font-size: 0.95rem;
+            letter-spacing: 3px;
+            font-weight: normal;
+            color: rgba(232, 226, 246, 0.82);
+        }
+        header .sub {
+            margin-top: 5px;
+            font-size: 0.66rem;
+            letter-spacing: 1px;
+            color: var(--text-faint);
+        }
+
+        /* ---- settings strip ---- */
+        #settings {
+            flex: 0 0 auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--line);
+        }
+        .chip {
+            background: none;
+            border: 1px solid var(--line);
+            color: var(--text-faint);
+            font-family: inherit;
+            font-size: 0.6rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 8px 11px;
+            min-height: 34px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s, background 0.2s;
+        }
+        .chip[aria-pressed="true"], .chip.on {
+            color: rgba(236, 231, 247, 0.88);
+            border-color: var(--line-strong);
+            background: var(--surface-2);
+        }
+
+        /* ---- transcript (secondary: this is a voice-first app) ---- */
+        #history {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding: 14px 14px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+            mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
+        }
+        .msg {
+            max-width: 84%;
+            font-size: 0.92rem;
+            line-height: 1.55;
+            padding: 9px 13px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .msg.me {
+            align-self: flex-end;
+            background: rgba(150, 122, 208, 0.16);
+            border: 1px solid rgba(178, 158, 222, 0.16);
+            color: rgba(240, 236, 250, 0.94);
+        }
+        .msg.them {
+            align-self: flex-start;
+            background: rgba(168, 146, 214, 0.06);
+            border: 1px solid var(--line);
+            color: rgba(228, 222, 243, 0.82);
+        }
+        .msg.system {
+            align-self: center;
+            max-width: 92%;
+            background: none;
+            border: none;
+            color: var(--lavender);
+            font-size: 0.76rem;
+            line-height: 1.6;
+            letter-spacing: 0.3px;
+            text-align: center;
+        }
+        .msg.thinking {
+            align-self: flex-start;
+            background: rgba(168, 146, 214, 0.06);
+            border: 1px solid var(--line);
+            color: var(--text-dim);
+            letter-spacing: 2px;
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.35; }
+            50% { opacity: 0.9; }
+        }
+
+        /* ---- voice console ---- */
+        #console {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px calc(12px + var(--kb-pad, env(safe-area-inset-bottom)));
+            border-top: 1px solid var(--line);
+            background: rgba(168, 146, 214, 0.045);
+        }
+
+        #meter {
+            width: min(300px, 78vw);
+            height: 34px;
+            display: block;
+            opacity: 0.35;
+            transition: opacity 0.25s;
+        }
+        body.listening #meter { opacity: 1; }
+
+        #mic-wrap {
+            position: relative;
+            width: 148px;
+            height: 148px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* halo: scaled every frame by the smoothed mic level — the primary
+           "your voice is registering" cue */
+        #halo {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 1px solid rgba(178, 158, 222, 0.25);
+            background: radial-gradient(circle at 50% 50%,
+                        rgba(168, 146, 214, 0.16) 0%,
+                        rgba(168, 146, 214, 0.0) 68%);
+            transform: scale(0.72);
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            will-change: transform;
+        }
+        body.listening #halo { opacity: 1; }
+
+        #mic {
+            position: relative;
+            width: 116px;
+            height: 116px;
+            border-radius: 50%;
+            border: 1px solid var(--line-strong);
+            background: rgba(168, 146, 214, 0.08);
+            color: var(--text);
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* long-press on Android must not select text or open a callout */
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            transition: border-color 0.18s, background 0.18s, box-shadow 0.25s, transform 0.12s;
+        }
+        #mic svg { width: 46px; height: 46px; display: block; }
+        #mic .glyph { fill: rgba(214, 205, 235, 0.72); transition: fill 0.18s; }
+
+        body.listening #mic {
+            border-color: rgba(206, 188, 248, 0.75);
+            background: rgba(150, 122, 208, 0.18);
+            box-shadow: 0 0 26px rgba(150, 122, 208, 0.30);
+        }
+        body.listening #mic .glyph { fill: rgba(240, 236, 252, 0.96); }
+        body.latched #mic {
+            border-style: dashed;
+        }
+        body.busy #mic {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        #mic:active { transform: scale(0.97); }
+
+        #hint {
+            font-size: 0.64rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-faint);
+            min-height: 1.1em;
+            text-align: center;
+            transition: color 0.2s;
+        }
+        body.listening #hint { color: rgba(214, 205, 235, 0.75); }
+
+        /* ---- text fallback ---- */
+        #type-toggle {
+            background: none;
+            border: none;
+            color: var(--text-faint);
+            font-family: inherit;
+            font-size: 0.62rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 6px 10px;
+            min-height: 32px;
+            cursor: pointer;
+        }
+        #type-toggle:hover { color: var(--text-dim); }
+
+        #composer {
+            display: none;
+            width: 100%;
+            gap: 10px;
+            align-items: center;
+        }
+        #composer.open { display: flex; }
+        #composer input {
+            flex: 1 1 auto;
+            background: rgba(168, 146, 214, 0.09);
+            border: 1px solid var(--line-strong);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 16px;   /* >=16px: prevents mobile focus auto-zoom */
+            line-height: 1.3;
+            padding: 11px 13px;
+            min-height: 44px;
+            outline: none;
+            border-radius: 10px;
+            min-width: 0;
+            -webkit-appearance: none;
+        }
+        #composer input::placeholder { color: var(--text-faint); }
+        #composer input:focus { border-color: rgba(190, 172, 235, 0.55); }
+        .send-btn {
+            background: var(--surface-2);
+            border: 1px solid var(--line-strong);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 12px 16px;
+            min-height: 44px;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .send-btn:hover, .send-btn:active {
+            border-color: rgba(196, 178, 240, 0.6);
+            background: rgba(168, 146, 214, 0.14);
+        }
+
+        /* narrow / short phones: keep the mic reachable */
+        @media (max-height: 620px) {
+            #mic-wrap { width: 120px; height: 120px; }
+            #mic { width: 94px; height: 94px; }
+            #mic svg { width: 38px; height: 38px; }
+            #meter { height: 26px; }
+            header .sub { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="home-button" aria-label="home">&#8962;</a>
+    <a href="gorcave-chat.html" class="text-link">text</a>
+
+    <header>
+        <h1>GORCAVE VOICE</h1>
+        <div class="sub">a voice line into the machine watching the room</div>
+    </header>
+
+    <div id="settings">
+        <button id="voice-server" class="chip" type="button" aria-pressed="true">server voice</button>
+        <button id="voice-device" class="chip" type="button" aria-pressed="false">device voice</button>
+        <button id="voice-mute" class="chip" type="button" aria-pressed="false">mute</button>
+    </div>
+
+    <div id="history"></div>
+
+    <div id="console">
+        <canvas id="meter" width="600" height="68" aria-hidden="true"></canvas>
+
+        <div id="mic-wrap">
+            <div id="halo"></div>
+            <button id="mic" type="button" aria-label="hold to talk">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path class="glyph" d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15z"/>
+                    <path class="glyph" d="M18.5 11.2a.9.9 0 0 0-1.8 0 4.7 4.7 0 0 1-9.4 0 .9.9 0 0 0-1.8 0 6.5 6.5 0 0 0 5.6 6.4V20H8.9a.9.9 0 0 0 0 1.8h6.2a.9.9 0 0 0 0-1.8h-2.2v-2.4a6.5 6.5 0 0 0 5.6-6.4z"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="hint">hold to talk &middot; tap to latch</div>
+
+        <button id="type-toggle" type="button">type instead</button>
+
+        <form id="composer" autocomplete="off">
+            <input id="msg-input" type="text" placeholder="type to gorcave"
+                   autocomplete="off" autocorrect="on" autocapitalize="sentences"
+                   spellcheck="true" enterkeyhint="send">
+            <button type="submit" class="send-btn">Send</button>
+        </form>
+    </div>
+
+    <audio id="tts" playsinline preload="none"></audio>
+
+    <script>
+        // -----------------------------------------------------------------
+        // gorcave voice console.
+        //
+        // Backend: the Pi, reachable over a Tailscale Funnel HTTPS ingress.
+        //   POST /api/voice/chat   multipart audio -> { transcript, reply }
+        //   POST /api/voice/speak  { text }        -> audio bytes (wav)
+        //   POST /api/chat         { message }     -> { reply }   (text path)
+        //
+        // The backend transcodes whatever we upload with ffmpeg and resamples
+        // to 16 kHz mono for STT, so we don't negotiate formats hard here —
+        // we just pick the best MediaRecorder mimeType available (Android
+        // Chrome: audio/webm;codecs=opus) and send it as-is.
+        // -----------------------------------------------------------------
+        var API_BASE   = 'https://gorcave.taila85593.ts.net';
+        var VOICE_CHAT = API_BASE + '/api/voice/chat';
+        var VOICE_SPEAK= API_BASE + '/api/voice/speak';
+        var TEXT_CHAT  = API_BASE + '/api/chat';
+
+        var VOICE_MODE_KEY = 'gorcave_voice_mode';   // 'server' | 'device' | 'off'
+        var MIN_CLIP_MS = 350;      // shorter than this is almost always a mis-tap
+        var TAP_LATCH_MS = 400;     // press shorter than this latches instead of sending
+        var STREAM_IDLE_MS = 45000; // release the mic after this long unused
+
+        var historyEl = document.getElementById('history');
+        var micBtn    = document.getElementById('mic');
+        var haloEl    = document.getElementById('halo');
+        var hintEl    = document.getElementById('hint');
+        var meterEl   = document.getElementById('meter');
+        var ttsEl     = document.getElementById('tts');
+        var composer  = document.getElementById('composer');
+        var msgInput  = document.getElementById('msg-input');
+        var typeToggle= document.getElementById('type-toggle');
+        var sendBtn   = composer.querySelector('.send-btn');
+        var chipServer= document.getElementById('voice-server');
+        var chipDevice= document.getElementById('voice-device');
+        var chipMute  = document.getElementById('voice-mute');
+
+        // ---------- transcript ----------
+        function scrollToLatest() { historyEl.scrollTop = historyEl.scrollHeight; }
+
+        function addMessage(text, cls) {
+            var div = document.createElement('div');
+            div.className = 'msg ' + cls;
+            div.textContent = text;
+            historyEl.appendChild(div);
+            scrollToLatest();
+            return div;
+        }
+
+        function setHint(t) { hintEl.textContent = t; }
+
+        // ---------- capability detection ----------
+        var hasGUM = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        var hasRecorder = (typeof window.MediaRecorder !== 'undefined');
+        var voiceAvailable = hasGUM && hasRecorder && window.isSecureContext !== false;
+
+        // ---------- speech-output mode ----------
+        var voiceMode = localStorage.getItem(VOICE_MODE_KEY) || 'server';
+        if (voiceMode !== 'server' && voiceMode !== 'device' && voiceMode !== 'off') {
+            voiceMode = 'server';
+        }
+        var hasSynth = ('speechSynthesis' in window);
+
+        function paintVoiceChips() {
+            chipServer.setAttribute('aria-pressed', String(voiceMode === 'server'));
+            chipDevice.setAttribute('aria-pressed', String(voiceMode === 'device'));
+            chipMute.setAttribute('aria-pressed', String(voiceMode === 'off'));
+        }
+        function setVoiceMode(mode) {
+            voiceMode = mode;
+            try { localStorage.setItem(VOICE_MODE_KEY, mode); } catch (e) {}
+            if (mode === 'off') stopSpeaking();
+            paintVoiceChips();
+        }
+        chipServer.addEventListener('click', function () { unlockAudio(); setVoiceMode('server'); });
+        chipDevice.addEventListener('click', function () { unlockAudio(); setVoiceMode('device'); });
+        chipMute.addEventListener('click', function () {
+            unlockAudio();
+            setVoiceMode(voiceMode === 'off' ? 'server' : 'off');
+        });
+        paintVoiceChips();
+        if (!hasSynth && voiceMode === 'device') setVoiceMode('server');
+
+        // -----------------------------------------------------------------
+        // AudioContext. Mobile browsers create it suspended and block any
+        // playback that isn't tied to a user gesture — so we resume it on the
+        // first touch/click anywhere. Everything that plays audio here follows
+        // a button press already, but unlocking early keeps the very first
+        // reply from being swallowed.
+        // -----------------------------------------------------------------
+        var audioCtx = null;
+        function unlockAudio() {
+            try {
+                var Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return null;
+                if (!audioCtx) audioCtx = new Ctx();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+            } catch (e) { audioCtx = null; }
+            return audioCtx;
+        }
+        ['pointerdown', 'touchstart', 'click'].forEach(function (evt) {
+            window.addEventListener(evt, unlockAudio, { once: true, passive: true });
+        });
+
+        // -----------------------------------------------------------------
+        // Mic level visualisation.
+        //
+        // An AnalyserNode taps the *same* MediaStream the recorder is using,
+        // so the bars move only when audio really is reaching the recorder.
+        // A rAF loop reads the time-domain buffer, computes RMS, smooths it
+        // with an asymmetric filter (fast attack / slow release) so speech
+        // reads as motion rather than flicker, then drives:
+        //   - the halo ring scale behind the mic button
+        //   - a mirrored bar strip on the canvas
+        // -----------------------------------------------------------------
+        var analyser = null, analyserData = null, rafId = null;
+        var level = 0, levelSmooth = 0;
+        var BARS = 28;
+        var barVals = new Array(BARS).fill(0);
+        var mctx = meterEl.getContext('2d');
+
+        function startVisualizer(stream) {
+            var ctx = unlockAudio();
+            if (!ctx) return;
+            try {
+                var src = ctx.createMediaStreamSource(stream);
+                analyser = ctx.createAnalyser();
+                analyser.fftSize = 1024;
+                analyser.smoothingTimeConstant = 0.6;
+                src.connect(analyser);   // analyser is NOT connected to the
+                                         // destination: no monitoring, no feedback
+                analyserData = new Uint8Array(analyser.fftSize);
+            } catch (e) { analyser = null; }
+            if (!rafId) rafId = requestAnimationFrame(drawFrame);
+        }
+
+        function stopVisualizer() {
+            analyser = null;
+            analyserData = null;
+            level = 0;
+        }
+
+        function drawFrame() {
+            rafId = requestAnimationFrame(drawFrame);
+
+            if (analyser && analyserData) {
+                analyser.getByteTimeDomainData(analyserData);
+                var sum = 0;
+                for (var i = 0; i < analyserData.length; i++) {
+                    var v = (analyserData[i] - 128) / 128;
+                    sum += v * v;
+                }
+                var rms = Math.sqrt(sum / analyserData.length);
+                // perceptual-ish curve; speech at arm's length lands mid-range
+                level = Math.min(1, Math.pow(rms * 3.6, 0.7));
+            } else {
+                level = 0;
+            }
+
+            // fast attack, slow release
+            levelSmooth += (level - levelSmooth) * (level > levelSmooth ? 0.45 : 0.10);
+
+            haloEl.style.transform = 'scale(' + (0.72 + levelSmooth * 0.36).toFixed(3) + ')';
+
+            // bars: newest value pushed in the middle, rippling outward
+            for (var b = BARS - 1; b > 0; b--) barVals[b] = barVals[b - 1] * 0.965;
+            barVals[0] = levelSmooth;
+
+            var W = meterEl.width, H = meterEl.height;
+            mctx.clearRect(0, 0, W, H);
+            var half = BARS;
+            var bw = W / (half * 2);
+            for (var k = 0; k < half; k++) {
+                var val = barVals[k];
+                var h = Math.max(2, val * (H - 6));
+                var alpha = 0.16 + val * 0.72;
+                mctx.fillStyle = 'rgba(198, 180, 244, ' + alpha.toFixed(3) + ')';
+                var y = (H - h) / 2;
+                // mirrored around centre
+                mctx.fillRect(W / 2 + k * bw + 1, y, bw - 2, h);
+                mctx.fillRect(W / 2 - (k + 1) * bw + 1, y, bw - 2, h);
+            }
+
+            // idle: park the loop once everything has decayed away
+            if (!recording && levelSmooth < 0.002 && barVals[BARS - 1] < 0.002) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+                mctx.clearRect(0, 0, W, H);
+                haloEl.style.transform = 'scale(0.72)';
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // Microphone stream + recorder.
+        //
+        // Constraints below are the ones that actually help speech-to-text.
+        // channelCount:1 keeps the upload small; the backend resamples to
+        // 16 kHz mono regardless.
+        // -----------------------------------------------------------------
+        var CONSTRAINTS = {
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1
+            }
+        };
+
+        var stream = null;
+        var recorder = null;
+        var chunks = [];
+        var recording = false;
+        var latched = false;
+        var busy = false;
+        var startedAt = 0;
+        var idleTimer = null;
+        var permissionDenied = false;
+        var pendingStop = false;   // released the button before the mic opened
+
+        function pickMimeType() {
+            var candidates = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/ogg;codecs=opus',
+                'audio/mp4;codecs=opus',
+                'audio/mp4',
+                'audio/aac'
+            ];
+            if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+            for (var i = 0; i < candidates.length; i++) {
+                try {
+                    if (MediaRecorder.isTypeSupported(candidates[i])) return candidates[i];
+                } catch (e) {}
+            }
+            return '';   // let the browser choose
+        }
+        var MIME = pickMimeType();
+
+        function extFor(mime) {
+            if (!mime) return 'webm';
+            if (mime.indexOf('webm') !== -1) return 'webm';
+            if (mime.indexOf('ogg') !== -1) return 'ogg';
+            if (mime.indexOf('mp4') !== -1) return 'm4a';
+            if (mime.indexOf('aac') !== -1) return 'aac';
+            return 'bin';
+        }
+
+        function armIdleRelease() {
+            if (idleTimer) clearTimeout(idleTimer);
+            idleTimer = setTimeout(releaseStream, STREAM_IDLE_MS);
+        }
+
+        function releaseStream() {
+            if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+            if (!stream) return;
+            try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+            stream = null;
+            stopVisualizer();
+        }
+
+        function micDeniedNotice(err) {
+            permissionDenied = true;
+            latched = false;
+            pendingStop = false;
+            document.body.classList.remove('listening', 'latched');
+            var name = (err && err.name) || '';
+            if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+                addMessage('No microphone found on this device. You can still type below.', 'system');
+            } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+                addMessage('Another app is holding the microphone. Close it and try again — or type below.', 'system');
+            } else {
+                addMessage(
+                    'Microphone access is blocked. In Chrome, tap the icon left of the ' +
+                    'address bar → Permissions → Microphone → Allow, then reload. ' +
+                    'If this is installed as an app, it lives in Android Settings → Apps ' +
+                    '→ GORCAVE → Permissions. You can type below in the meantime.',
+                    'system'
+                );
+            }
+            openComposer();
+            setHint('microphone unavailable');
+        }
+
+        async function ensureStream() {
+            if (stream && stream.getAudioTracks().some(function (t) { return t.readyState === 'live'; })) {
+                return stream;
+            }
+            stream = await navigator.mediaDevices.getUserMedia(CONSTRAINTS);
+            return stream;
+        }
+
+        async function startRecording() {
+            if (recording || busy || !voiceAvailable) return;
+            unlockAudio();
+            stopSpeaking();          // never talk over the user
+            setHint('opening microphone…');
+            var s;
+            try {
+                s = await ensureStream();
+            } catch (err) {
+                setHint('hold to talk · tap to latch');
+                micDeniedNotice(err);
+                return;
+            }
+            permissionDenied = false;   // a retry after "mic busy" can succeed
+            if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+
+            try {
+                recorder = MIME ? new MediaRecorder(s, { mimeType: MIME }) : new MediaRecorder(s);
+            } catch (e) {
+                try { recorder = new MediaRecorder(s); } catch (e2) {
+                    addMessage('This browser cannot record audio. You can type below.', 'system');
+                    voiceAvailable = false;
+                    openComposer();
+                    return;
+                }
+            }
+
+            chunks = [];
+            recorder.ondataavailable = function (e) {
+                if (e.data && e.data.size > 0) chunks.push(e.data);
+            };
+            recorder.onstop = function () { finishRecording(); };
+
+            recorder.start();
+            recording = true;
+            startedAt = Date.now();
+            document.body.classList.add('listening');
+            startVisualizer(s);
+            setHint(latched ? 'listening · tap to send' : 'listening · release to send');
+
+            // Released the button while getUserMedia was still resolving.
+            if (pendingStop) {
+                pendingStop = false;
+                setTimeout(function () { stopRecording(true); }, MIN_CLIP_MS);
+            }
+        }
+
+        function stopRecording(send) {
+            if (!recording) {
+                if (!recorder) pendingStop = false;
+                return;
+            }
+            recording = false;
+            document.body.classList.remove('listening', 'latched');
+            latched = false;
+            sendAfterStop = !!send;
+            try { recorder.stop(); } catch (e) { finishRecording(); }
+        }
+
+        var sendAfterStop = true;
+
+        function finishRecording() {
+            var elapsed = Date.now() - startedAt;
+            stopVisualizer();
+            armIdleRelease();
+            setHint('hold to talk · tap to latch');
+
+            if (!sendAfterStop) { chunks = []; return; }
+
+            var type = (recorder && recorder.mimeType) || MIME || 'audio/webm';
+            var blob = new Blob(chunks, { type: type });
+            chunks = [];
+
+            if (elapsed < MIN_CLIP_MS || blob.size < 1200) {
+                addMessage('Too short to hear — hold the button while you speak.', 'system');
+                return;
+            }
+            sendAudio(blob, type);
+        }
+
+        // ---------- mic button: hold-to-talk, with a tap-to-latch fallback ----------
+        //
+        // Press and hold  -> record while held, send on release.
+        // Quick tap       -> latch on; the next tap stops and sends.
+        // The body class ('listening' / 'latched') plus the hint line make the
+        // current state unmistakable.
+        var pressStart = 0;
+        var pressActive = false;
+
+        micBtn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+        micBtn.addEventListener('pointerdown', function (e) {
+            e.preventDefault();
+            if (busy) return;
+            try { micBtn.setPointerCapture(e.pointerId); } catch (err) {}
+
+            if (latched && recording) {   // second tap of a latched session
+                stopRecording(true);
+                pressActive = false;
+                return;
+            }
+            pressActive = true;
+            pressStart = Date.now();
+            startRecording();
+        });
+
+        function endPress(e) {
+            if (!pressActive) return;
+            pressActive = false;
+            if (e) { try { micBtn.releasePointerCapture(e.pointerId); } catch (err) {} }
+
+            var held = Date.now() - pressStart;
+            if (held < TAP_LATCH_MS && !permissionDenied) {
+                // Treat as a tap: latch on and keep listening. Works whether or
+                // not getUserMedia has resolved yet — startRecording() reads
+                // `latched` when it finally opens the stream.
+                latched = true;
+                document.body.classList.add('latched');
+                setHint('listening · tap to send');
+                return;
+            }
+            if (recording) {
+                stopRecording(true);
+            } else {
+                // getUserMedia hadn't resolved yet
+                pendingStop = true;
+            }
+        }
+
+        micBtn.addEventListener('pointerup', endPress);
+        micBtn.addEventListener('pointercancel', function (e) {
+            if (!pressActive) return;
+            pressActive = false;
+            if (recording && !latched) stopRecording(false);
+        });
+
+        // Keyboard/accessibility: space or enter toggles a latched session.
+        micBtn.addEventListener('keydown', function (e) {
+            if (e.key !== ' ' && e.key !== 'Enter') return;
+            e.preventDefault();
+            if (recording) { stopRecording(true); return; }
+            latched = true;
+            document.body.classList.add('latched');
+            startRecording();
+        });
+
+        // ---------- network ----------
+        function setBusy(on, label) {
+            busy = on;
+            document.body.classList.toggle('busy', on);
+            if (on) setHint(label || 'thinking…');
+            else setHint('hold to talk · tap to latch');
+        }
+
+        function thinkingBubble() {
+            var el = document.createElement('div');
+            el.className = 'msg thinking';
+            el.textContent = '...';
+            historyEl.appendChild(el);
+            scrollToLatest();
+            return el;
+        }
+
+        async function sendAudio(blob, type) {
+            setBusy(true, 'sending…');
+            var bubble = thinkingBubble();
+
+            var fd = new FormData();
+            var name = 'speech.' + extFor(type);
+            // Field name isn't pinned down in the contract yet — send the same
+            // blob under the three plausible names so whichever one the Pi's
+            // handler declares, it finds it. Harmless duplication of a small file.
+            fd.append('audio', blob, name);
+            fd.append('file', blob, name);
+            fd.append('audio_file', blob, name);
+
+            try {
+                var res = await fetch(VOICE_CHAT, { method: 'POST', body: fd });
+                bubble.remove();
+                if (!res.ok) {
+                    addMessage(unreachableText(res.status), 'system');
+                    setBusy(false);
+                    return;
+                }
+                var data = null;
+                try { data = await res.json(); } catch (e) { data = null; }
+                if (!data) {
+                    addMessage("gorcave answered with something unreadable.", 'system');
+                    setBusy(false);
+                    return;
+                }
+
+                var transcript = typeof data.transcript === 'string' ? data.transcript.trim() : '';
+                if (transcript) addMessage(transcript, 'me');
+                else addMessage("didn't catch that — try again, closer to the mic", 'system');
+
+                var reply = typeof data.reply === 'string' ? data.reply.trim() : '';
+                if (reply) {
+                    addMessage(reply, 'them');
+                    setBusy(false);
+                    speak(reply);
+                } else {
+                    setBusy(false);
+                }
+            } catch (err) {
+                bubble.remove();
+                addMessage(unreachableText(null), 'system');
+                setBusy(false);
+            }
+        }
+
+        function unreachableText(status) {
+            if (status === 404 || status === 501) {
+                return 'the voice endpoints are not up on gorcave yet — typing still works';
+            }
+            if (status) {
+                return "gorcave couldn't handle that (" + status + ')';
+            }
+            return "can't reach gorcave right now — check the tailnet and try again";
+        }
+
+        async function sendText(text) {
+            setBusy(true, 'thinking…');
+            addMessage(text, 'me');
+            var bubble = thinkingBubble();
+            try {
+                var res = await fetch(TEXT_CHAT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                bubble.remove();
+                if (!res.ok) { addMessage(unreachableText(res.status), 'system'); setBusy(false); return; }
+                var data = await res.json();
+                var reply = (data && typeof data.reply === 'string') ? data.reply : '';
+                if (reply) {
+                    addMessage(reply, 'them');
+                    setBusy(false);
+                    speak(reply);
+                } else {
+                    addMessage(unreachableText(null), 'system');
+                    setBusy(false);
+                }
+            } catch (err) {
+                bubble.remove();
+                addMessage(unreachableText(null), 'system');
+                setBusy(false);
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // Speech output.
+        //
+        // server voice : POST the reply to /api/voice/speak, play the returned
+        //                bytes — this is the agent's own retro-robotic voice.
+        // device voice : Web Speech API speechSynthesis. Offline, instant, no
+        //                network, but a generic system voice.
+        //
+        // Server is the default; ANY failure on that path (endpoint down,
+        // non-OK, undecodable audio, blocked playback) silently falls through
+        // to the device voice so the reply is never simply lost. The stored
+        // preference is not changed by a fallback — the next reply tries the
+        // server again.
+        // -----------------------------------------------------------------
+        var currentObjectUrl = null;
+        var ttsFallbackNoticed = false;
+
+        function stopSpeaking() {
+            try { ttsEl.pause(); } catch (e) {}
+            if (hasSynth) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+        }
+
+        function revokeCurrent() {
+            if (currentObjectUrl) {
+                URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = null;
+            }
+        }
+
+        function speak(text) {
+            if (!text || voiceMode === 'off') return;
+            if (voiceMode === 'device') { speakDevice(text); return; }
+            speakServer(text);
+        }
+
+        async function speakServer(text) {
+            try {
+                var res = await fetch(VOICE_SPEAK, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+                if (!res.ok) throw new Error('speak ' + res.status);
+                var blob = await res.blob();
+                if (!blob || blob.size < 64) throw new Error('empty audio');
+
+                revokeCurrent();
+                currentObjectUrl = URL.createObjectURL(blob);
+                ttsEl.src = currentObjectUrl;
+                ttsEl.onended = revokeCurrent;
+                // Playback follows the mic press, so the autoplay gate is
+                // already satisfied — but if the browser still refuses, the
+                // rejected promise routes us to the device voice.
+                await ttsEl.play();
+            } catch (err) {
+                if (!ttsFallbackNoticed && hasSynth) {
+                    ttsFallbackNoticed = true;
+                    addMessage("gorcave's own voice is unavailable — using this device's voice", 'system');
+                }
+                speakDevice(text);
+            }
+        }
+
+        function speakDevice(text) {
+            if (!hasSynth) return;
+            try {
+                window.speechSynthesis.cancel();
+                var u = new SpeechSynthesisUtterance(text);
+                u.rate = 1.0;
+                u.pitch = 0.9;
+                var voices = window.speechSynthesis.getVoices() || [];
+                for (var i = 0; i < voices.length; i++) {
+                    if (/^en/i.test(voices[i].lang)) { u.voice = voices[i]; break; }
+                }
+                window.speechSynthesis.speak(u);
+            } catch (e) {}
+        }
+
+        // ---------- text fallback ----------
+        function openComposer() {
+            composer.classList.add('open');
+            typeToggle.textContent = 'hide keyboard';
+        }
+        function closeComposer() {
+            composer.classList.remove('open');
+            typeToggle.textContent = 'type instead';
+        }
+        typeToggle.addEventListener('click', function () {
+            if (composer.classList.contains('open')) { msgInput.blur(); closeComposer(); }
+            else { openComposer(); msgInput.focus(); }
+        });
+
+        // Tapping Send must not blur the input (that would bounce the keyboard).
+        ['mousedown', 'touchstart', 'pointerdown'].forEach(function (evt) {
+            sendBtn.addEventListener(evt, function (e) { e.preventDefault(); }, { passive: false });
+        });
+        sendBtn.addEventListener('click', function () {
+            if (document.activeElement !== msgInput) msgInput.focus();
+        });
+
+        composer.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var text = msgInput.value.trim();
+            if (!text || busy) return;
+            msgInput.value = '';
+            msgInput.focus();
+            unlockAudio();
+            sendText(text);
+        });
+
+        // -----------------------------------------------------------------
+        // Keyboard handling — same visualViewport approach as the text chat.
+        // The layout viewport doesn't shrink when the software keyboard opens,
+        // so a pinned shell would sit underneath it; resize the shell to the
+        // visual viewport instead and translate by its offsetTop.
+        // -----------------------------------------------------------------
+        var vv = window.visualViewport;
+
+        function applyViewport() {
+            if (!vv) return;
+            document.body.style.height = Math.round(vv.height) + 'px';
+            var top = Math.round(vv.offsetTop);
+            document.body.style.transform = top ? 'translateY(' + top + 'px)' : 'none';
+            var kbUp = (window.innerHeight - vv.height) > 120;
+            document.documentElement.style.setProperty(
+                '--kb-pad', kbUp ? '0px' : 'env(safe-area-inset-bottom)'
+            );
+        }
+
+        var vvFrame = null;
+        function scheduleViewport(keepAtBottom) {
+            if (vvFrame) cancelAnimationFrame(vvFrame);
+            vvFrame = requestAnimationFrame(function () {
+                vvFrame = null;
+                applyViewport();
+                if (keepAtBottom) scrollToLatest();
+            });
+        }
+
+        if (vv) {
+            vv.addEventListener('resize', function () { scheduleViewport(true); });
+            vv.addEventListener('scroll', function () { scheduleViewport(false); });
+            applyViewport();
+        }
+
+        window.addEventListener('scroll', function () {
+            if (window.scrollY !== 0) window.scrollTo(0, 0);
+        }, { passive: true });
+
+        msgInput.addEventListener('focus', function () {
+            setTimeout(function () { scheduleViewport(true); }, 60);
+            setTimeout(function () { scheduleViewport(true); }, 320);
+        });
+
+        // Leaving the page shouldn't leave the mic open or a voice talking.
+        window.addEventListener('pagehide', function () {
+            stopSpeaking();
+            if (recording) stopRecording(false);
+            releaseStream();
+        });
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden && recording) stopRecording(false);
+        });
+
+        // ---------- boot ----------
+        (function init() {
+            // Canvas is drawn at 2x the CSS box for crispness on phones.
+            var rect = meterEl.getBoundingClientRect();
+            var dpr = Math.min(window.devicePixelRatio || 1, 2);
+            if (rect.width) {
+                meterEl.width = Math.round(rect.width * dpr);
+                meterEl.height = Math.round(rect.height * dpr);
+            }
+
+            if (!voiceAvailable) {
+                var why = (window.isSecureContext === false)
+                    ? 'Voice needs a secure (https) connection. Typing still works.'
+                    : 'This browser has no microphone recording support. Typing still works.';
+                addMessage(why, 'system');
+                micBtn.disabled = true;
+                micBtn.style.opacity = '0.35';
+                setHint('voice unavailable');
+                openComposer();
+            } else {
+                addMessage('Hold the circle and talk. Release to send.', 'system');
+            }
+
+            // Populate the synthesis voice list early (Chrome loads it async).
+            if (hasSynth) {
+                try { window.speechSynthesis.getVoices(); } catch (e) {}
+            }
+        })();
+    </script>
+</body>
+</html>
