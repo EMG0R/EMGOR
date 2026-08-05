@@ -172,6 +172,7 @@
         #history {
             flex: 1 1 auto;
             overflow-y: auto;
+            overflow-x: hidden;                 /* particle layer can never widen the scroller */
             -webkit-overflow-scrolling: touch;  /* momentum scroll */
             overscroll-behavior: contain;       /* don't chain to the page */
             padding: 16px 14px 20px;
@@ -211,16 +212,45 @@
             text-align: center;
         }
         .msg.thinking {
+            position: relative;   /* containing block for the particle canvas */
             align-self: flex-start;
             background: rgba(168, 146, 214, 0.06);
             border: 1px solid var(--line);
             color: var(--text-dim);
             letter-spacing: 2px;
+        }
+        /* The pulse lives on the dots, not the bubble, so it can't also
+           modulate the opacity of the particle canvas sitting inside it.
+           This is the reduced-motion / no-canvas fallback indicator. */
+        .msg.thinking .dots {
             animation: pulse 1.2s ease-in-out infinite;
         }
         @keyframes pulse {
             0%, 100% { opacity: 0.35; }
             50% { opacity: 0.9; }
+        }
+        /* Ambient particle layer: extends up and to the right of the
+           bubble. Fixed 200x118 box so it can never widen #history, and
+           pointer-events:none so it is invisible to touch/scroll. */
+        .think-particles {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 200px;
+            height: 118px;
+            pointer-events: none;
+        }
+        /* Graceful exit: the bubble collapses out of the flow (so the real
+           reply lands underneath it without a layout jump) while the frozen
+           particle layer dissipates on its own timer. */
+        .msg.thinking.settling {
+            opacity: 0;
+            overflow: hidden;
+            transition: opacity 0.30s ease-out,
+                        height 0.30s ease-out,
+                        padding 0.30s ease-out,
+                        margin 0.30s ease-out,
+                        border-width 0.30s ease-out;
         }
 
         #composer {
@@ -446,6 +476,250 @@
             if (document.activeElement !== msgInput) msgInput.focus();
         });
 
+        // ---------------------------------------------------------------
+        // Ambient "thinking" particles.
+        //
+        // CANVAS, not DOM nodes. With ~15 bodies alive and every one of them
+        // moving each frame, DOM would mean ~15 style recalcs + composited
+        // layers per frame inside #history — the same scroll container the
+        // visualViewport keyboard logic is fighting to keep smooth on a
+        // phone. A single <canvas> is one element, one composited layer, and
+        // zero layout work no matter how many particles are drawn. The only
+        // thing DOM would have bought us (free glyph rendering) canvas gives
+        // us anyway via fillText with the same monospace stack.
+        // ---------------------------------------------------------------
+
+        const REDUCED_MOTION = !!(window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+        // Feature gate — if any of this is missing we silently fall back to
+        // the plain pulsing "..." indicator.
+        const PARTICLES_OK = !REDUCED_MOTION &&
+            typeof window.requestAnimationFrame === 'function' &&
+            !!(document.createElement('canvas').getContext);
+
+        // === THE SINGLE SOURCE OF PARTICLE CONTENT =======================
+        // These are deliberately abstract marks, NOT words. The backend does
+        // not stream intermediate generation, so any "thinking words" shown
+        // here would be invented by the front end and would misrepresent the
+        // machine — so we don't.
+        //
+        // FUTURE HOOK: if /api/chat ever grows a streaming response that
+        // emits real token fragments, this function is the one place to
+        // change. Buffer the incoming fragments somewhere and return the
+        // next real fragment here instead of a glyph; everything downstream
+        // (spawning, physics, fading, recycling) already treats the return
+        // value as opaque text and needs no edits. Keep fragments short —
+        // the layer is sized for 1–3 characters.
+        const AMBIENT_GLYPHS = ['·', '·', '·', '∙', '∙', '◦', '˙', '°', ':', '×', '⟡'];
+        function nextParticleGlyph() {
+            return AMBIENT_GLYPHS[(Math.random() * AMBIENT_GLYPHS.length) | 0];
+        }
+        // =================================================================
+
+        // Motion constants. Everything here is tuned slow on purpose: peak
+        // speed is ~35 px/s, i.e. about half a pixel per frame at 60fps.
+        const P_MAX        = 20;    // hard cap on live particles
+        const P_SPAWN_MIN  = 140;   // ms between spawns (jittered)
+        const P_SPAWN_MAX  = 280;   // avg ~210ms -> ~14 alive at steady state
+        const P_LIFE_MIN   = 2400;  // ms
+        const P_LIFE_MAX   = 3600;  // ms
+        const P_GRAVITY    = 7;     // px/s^2 down: enough to arc a rise, not to drop
+        const P_DRAG       = 0.35;  // fraction of velocity shed per second
+        const P_BOUNCE     = 0.5;   // restitution off the layer bounds
+        const P_SWAY       = 4;     // px/s^2 sinusoidal horizontal sway
+        const P_DISSIPATE  = 520;   // ms fade-out once the reply lands
+        const P_COLORS     = ['178,163,214', '196,178,240', '150,122,208'];
+
+        /**
+         * Builds the thinking bubble and (when allowed) starts its particle
+         * loop. Returns { el, finish } — call finish() exactly once when the
+         * reply arrives or the request fails.
+         */
+        function createThinkingIndicator() {
+            const el = document.createElement('div');
+            el.className = 'msg thinking';
+            const dots = document.createElement('span');
+            dots.className = 'dots';
+            dots.textContent = '...';
+            el.appendChild(dots);
+
+            let canvas = null, ctx = null;
+            let raf = 0, last = 0, tick = 0;
+            let w = 0, h = 0, dpr = 1;
+            let originX = 24, originY = 96;
+            let spawnTimer = 0;
+            let dying = false, dieAt = 0;
+            let finished = false;
+            const parts = [];
+
+            function measure() {
+                if (!canvas) return false;
+                const cr = canvas.getBoundingClientRect();
+                if (!cr.width || !cr.height) return false;
+                const d = Math.min(window.devicePixelRatio || 1, 2);
+                if (cr.width !== w || cr.height !== h || d !== dpr) {
+                    w = cr.width; h = cr.height; dpr = d;
+                    canvas.width  = Math.round(w * dpr);
+                    canvas.height = Math.round(h * dpr);
+                    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                }
+                // Spawn from wherever the "..." actually sits, so the
+                // particles read as sprouting out of the bubble's own text.
+                const dr = dots.getBoundingClientRect();
+                if (dr.width) {
+                    originX = (dr.left + dr.width / 2) - cr.left;
+                    originY = (dr.top + dr.height / 2) - cr.top;
+                }
+                return true;
+            }
+
+            function makeParticle() {
+                return {
+                    glyph: nextParticleGlyph(),
+                    x: originX + (Math.random() * 10 - 5),
+                    y: originY + (Math.random() * 6 - 3),
+                    vx: -6 + Math.random() * 32,    // biased rightward, away from the bubble
+                    vy: -34 + Math.random() * 20,   // always upward to start
+                    size: 7 + Math.random() * 5,
+                    peak: 0.22 + Math.random() * 0.22,
+                    life: P_LIFE_MIN + Math.random() * (P_LIFE_MAX - P_LIFE_MIN),
+                    age: 0,
+                    phase: Math.random() * 6.283,
+                    color: P_COLORS[(Math.random() * P_COLORS.length) | 0]
+                };
+            }
+
+            function stop() {
+                if (raf) { cancelAnimationFrame(raf); raf = 0; }
+                if (canvas && canvas.parentNode) canvas.parentNode.removeChild(canvas);
+                canvas = null; ctx = null;
+                parts.length = 0;
+            }
+
+            function frame(ts) {
+                raf = requestAnimationFrame(frame);
+
+                if (!last) last = ts;
+                let dt = (ts - last) / 1000;
+                last = ts;
+                if (dt > 0.05) dt = 0.05;   // backgrounded-tab / jank guard
+
+                // Re-measuring every frame would be a layout read per frame;
+                // 3x/sec is plenty for a bubble that barely moves.
+                if ((tick % 20) === 0 && !measure()) { tick = 0; return; }
+                tick++;
+                if (!ctx) { stop(); return; }
+
+                let fade = 1;
+                if (dying) {
+                    fade = 1 - (ts - dieAt) / P_DISSIPATE;
+                    if (fade <= 0) { stop(); return; }
+                } else {
+                    spawnTimer -= dt * 1000;
+                    if (spawnTimer <= 0) {
+                        if (parts.length < P_MAX) parts.push(makeParticle());
+                        spawnTimer = P_SPAWN_MIN + Math.random() * (P_SPAWN_MAX - P_SPAWN_MIN);
+                    }
+                }
+
+                ctx.clearRect(0, 0, w, h);
+
+                for (let i = parts.length - 1; i >= 0; i--) {
+                    const p = parts[i];
+                    p.age += dt * 1000;
+                    if (p.age >= p.life) { parts.splice(i, 1); continue; }   // recycled
+
+                    p.vy += P_GRAVITY * dt;
+                    p.vx += Math.sin(p.age * 0.0012 + p.phase) * P_SWAY * dt;
+                    const keep = 1 - P_DRAG * dt;
+                    p.vx *= keep; p.vy *= keep;
+                    p.x += p.vx * dt;
+                    p.y += p.vy * dt;
+
+                    // Soft, lossy walls — a nudge back inside, not a ping-pong.
+                    if (p.x < 3)     { p.x = 3;     p.vx = -p.vx * P_BOUNCE; }
+                    if (p.x > w - 3) { p.x = w - 3; p.vx = -p.vx * P_BOUNCE; }
+                    if (p.y < 3)     { p.y = 3;     p.vy = -p.vy * P_BOUNCE; }
+                    if (p.y > h - 3) { p.y = h - 3; p.vy = -p.vy * P_BOUNCE; }
+
+                    const t = p.age / p.life;
+                    let a = t < 0.14 ? (t / 0.14) : (t > 0.55 ? (1 - t) / 0.45 : 1);
+                    a *= p.peak * fade;
+                    if (a <= 0.004) continue;
+
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = 'rgb(' + p.color + ')';
+                    ctx.font = p.size.toFixed(1) + 'px "Courier New", Courier, monospace';
+                    ctx.fillText(p.glyph, p.x, p.y);
+                }
+                ctx.globalAlpha = 1;
+
+                // Nothing left to draw and nothing more coming: tear the
+                // loop down rather than idling a rAF on a phone battery.
+                if (dying && !parts.length) stop();
+            }
+
+            if (PARTICLES_OK) {
+                try {
+                    canvas = document.createElement('canvas');
+                    canvas.className = 'think-particles';
+                    canvas.setAttribute('aria-hidden', 'true');
+                    ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        el.appendChild(canvas);
+                        raf = requestAnimationFrame(frame);
+                    } else {
+                        canvas = null;
+                    }
+                } catch (err) {
+                    canvas = null; ctx = null;
+                }
+            }
+
+            function finish() {
+                if (finished) return;
+                finished = true;
+
+                if (canvas && ctx) {
+                    // Freeze the particle layer in viewport space so the
+                    // bubble can collapse beneath it without dragging the
+                    // particles down with it.
+                    const r = canvas.getBoundingClientRect();
+                    canvas.style.position = 'fixed';
+                    canvas.style.left = r.left + 'px';
+                    canvas.style.top = r.top + 'px';
+                    canvas.style.bottom = 'auto';
+                    document.body.appendChild(canvas);
+                    dying = true;
+                    dieAt = (window.performance && performance.now)
+                        ? performance.now() : last;
+                } else {
+                    stop();
+                }
+
+                // Collapse the bubble out of the flow. The negative margin
+                // cancels #history's 12px flex gap so the incoming reply
+                // slides up without a jump.
+                el.style.height = el.offsetHeight + 'px';
+                el.classList.add('settling');
+                requestAnimationFrame(() => {
+                    el.style.height = '0px';
+                    el.style.paddingTop = '0px';
+                    el.style.paddingBottom = '0px';
+                    el.style.borderWidth = '0px';
+                    el.style.marginBottom = '-12px';
+                });
+                setTimeout(() => {
+                    if (el.parentNode) el.parentNode.removeChild(el);
+                }, 340);
+            }
+
+            return { el: el, finish: finish };
+        }
+
         composer.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = msgInput.value.trim();
@@ -468,10 +742,8 @@
             // Keep the keyboard up across a send.
             msgInput.focus();
 
-            const thinkingEl = document.createElement('div');
-            thinkingEl.className = 'msg thinking';
-            thinkingEl.textContent = '...';
-            historyEl.appendChild(thinkingEl);
+            const thinking = createThinkingIndicator();
+            historyEl.appendChild(thinking.el);
             scrollToLatest();
 
             try {
@@ -481,7 +753,7 @@
                     body: JSON.stringify({ message: text })
                 });
 
-                thinkingEl.remove();
+                thinking.finish();
 
                 if (!res.ok) {
                     addMessage("can't reach the agent right now", 'system');
@@ -495,7 +767,7 @@
                     addMessage("can't reach the agent right now", 'system');
                 }
             } catch (err) {
-                thinkingEl.remove();
+                thinking.finish();
                 addMessage("can't reach the agent right now", 'system');
             }
         });
