@@ -553,6 +553,203 @@
             background: rgba(168, 146, 214, 0.14);
         }
 
+        /* ===============================================================
+           ARCHIVE PANEL — KEEP IN SYNC WITH gorcave-chat.html
+           The permanent record of every past session.
+
+           Absolutely positioned INSIDE the pinned body shell (body is
+           position:fixed, so this is measured against it) — that way it
+           inherits whatever height the visualViewport logic has given the
+           shell and can never end up under a software keyboard. z-index
+           200 clears the corner chrome (100) and the word-particle layer
+           (90); display:none while closed removes it from hit-testing
+           entirely, so the mic underneath keeps every one of its taps.
+           =============================================================== */
+        #archive {
+            position: absolute;
+            inset: 0;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            background:
+                radial-gradient(120% 60% at 50% 0%, #170d29 0%, var(--bg) 60%),
+                var(--bg);
+        }
+        #archive.hidden { display: none; }
+        #archive.entering { opacity: 0; transform: translateY(16px); }
+        #archive.settled {
+            opacity: 1;
+            transform: none;
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #archive.entering { opacity: 1; transform: none; }
+            #archive.settled { transition: none; }
+        }
+
+        .ar-bar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: max(12px, env(safe-area-inset-top)) 12px 10px;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface);
+        }
+        #ar-title {
+            flex: 1 1 auto;
+            text-align: center;
+            font-size: 0.68rem;
+            letter-spacing: 2.4px;
+            text-transform: uppercase;
+            color: rgba(232, 226, 246, 0.78);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .ar-btn {
+            flex: 0 0 auto;
+            min-width: 44px;
+            min-height: 38px;
+            padding: 6px 10px;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            color: var(--text-dim);
+            font-family: inherit;
+            font-size: 0.62rem;
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .ar-btn:hover { color: var(--text); border-color: var(--line-strong); }
+        .ar-btn[hidden] { display: none; }
+
+        #ar-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding: 12px 12px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+
+        .ar-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            padding: 11px 13px;
+            color: var(--text);
+            font-family: inherit;
+            cursor: pointer;
+            transition: border-color 0.18s, background 0.18s;
+        }
+        .ar-item:hover, .ar-item:active {
+            border-color: var(--line-strong);
+            background: var(--surface-2);
+        }
+        .ar-when {
+            font-size: 0.6rem;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            color: var(--lavender);
+        }
+        .ar-prev {
+            margin-top: 5px;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: rgba(228, 222, 243, 0.72);
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+        .ar-count {
+            margin-top: 6px;
+            font-size: 0.58rem;
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            color: var(--text-faint);
+        }
+        .ar-empty {
+            margin: 26px auto;
+            max-width: 300px;
+            text-align: center;
+            font-size: 0.76rem;
+            line-height: 1.7;
+            color: var(--text-faint);
+        }
+
+        /* Read-only transcript rows: the same language as a live bubble,
+           one notch quieter, and never interactive. */
+        .ar-msg {
+            max-width: 86%;
+            font-size: 0.86rem;
+            line-height: 1.55;
+            padding: 9px 12px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .ar-msg.me {
+            align-self: flex-end;
+            background: rgba(150, 122, 208, 0.14);
+            border: 1px solid rgba(178, 158, 222, 0.14);
+            color: rgba(240, 236, 250, 0.90);
+        }
+        .ar-msg.them {
+            align-self: flex-start;
+            background: rgba(168, 146, 214, 0.05);
+            border: 1px solid var(--line);
+            color: rgba(228, 222, 243, 0.78);
+        }
+        /* same faint provenance mark the live bubbles use */
+        .ar-msg.me.via-voice {
+            padding-right: 22px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23c6bce2' fill-opacity='.42'%3E%3Cpath d='M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z'/%3E%3Cpath d='M18 11a1 1 0 0 0-2 0 4 4 0 0 1-8 0 1 1 0 0 0-2 0 6 6 0 0 0 5 5.9V20h2v-3.1A6 6 0 0 0 18 11z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 6px bottom 5px;
+            background-size: 10px 10px;
+        }
+
+        .ar-foot {
+            flex: 0 0 auto;
+            display: flex;
+            justify-content: center;
+            padding: 10px 12px calc(10px + var(--kb-pad, env(safe-area-inset-bottom)));
+            border-top: 1px solid var(--line);
+        }
+        /* The quietest control anywhere in the app, and it sits behind a
+           panel you have to open on purpose. It erases EVERYTHING, so it
+           takes two taps and the second label says exactly that. */
+        #ar-wipe {
+            background: none;
+            border: 1px dotted rgba(198, 188, 226, 0.20);
+            border-radius: 999px;
+            color: rgba(198, 188, 226, 0.24);
+            font-family: inherit;
+            font-size: 0.56rem;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            padding: 9px 14px;
+            min-height: 34px;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        #ar-wipe.armed {
+            border-style: solid;
+            border-color: var(--line-strong);
+            color: var(--lavender);
+        }
+
         /* narrow / short phones: keep the mic reachable */
         @media (max-height: 620px) {
             #mic-wrap { width: 120px; height: 120px; }
@@ -595,7 +792,8 @@
         <button id="voice-device" class="chip" type="button" aria-pressed="false">device voice</button>
         <button id="voice-mute" class="chip" type="button" aria-pressed="false">mute</button>
         <button id="auto-send" class="chip" type="button" aria-pressed="true">auto-send</button>
-        <button id="clear-convo" class="chip erase" type="button">clear</button>
+        <button id="open-archive" class="chip" type="button">archive</button>
+        <button id="clear-convo" class="chip erase" type="button">clear session</button>
     </div>
 
     <div id="history"></div>
@@ -628,6 +826,20 @@
                    spellcheck="true" enterkeyhint="send">
             <button type="submit" class="send-btn">Send</button>
         </form>
+    </div>
+
+    <!-- Archive browser. Direct child of the pinned body shell on purpose —
+         see the #archive CSS. Starts hidden, so it is invisible to touch. -->
+    <div id="archive" class="hidden" role="dialog" aria-modal="true" aria-label="past conversations">
+        <div class="ar-bar">
+            <button id="ar-back" class="ar-btn" type="button" hidden>&larr; all</button>
+            <div id="ar-title">past conversations</div>
+            <button id="ar-close" class="ar-btn" type="button" aria-label="back to the live conversation">&#10005;</button>
+        </div>
+        <div id="ar-body"></div>
+        <div class="ar-foot">
+            <button id="ar-wipe" type="button">erase every past conversation</button>
+        </div>
     </div>
 
     <audio id="tts" playsinline preload="none"></audio>
@@ -695,65 +907,97 @@
         var countdownArc = countdownEl.querySelector('.arc');
 
         // =================================================================
-        // SHARED CONVERSATION LOG — KEEP IN SYNC WITH gorcave-chat.html
+        // SESSIONS + PERMANENT ARCHIVE — KEEP IN SYNC WITH gorcave-chat.html
         //
-        // Both pages read and write the same localStorage key so one
-        // conversation reads continuously whether a given turn was spoken
-        // here or typed over there. Duplicated on purpose: these files are
-        // deliberately self-contained, no external script.
+        // Storage model
+        //   gorcave_convo   (local)   the CURRENT session's turns.
+        //                             [{role,text,ts,mode}] oldest first.
+        //   gorcave_session (local)   {id, startedAt} owning those turns.
+        //   gorcave_archive (local)   [{id,startedAt,endedAt,turns:[...]}]
+        //                             every session ever, oldest first.
+        //   gorcave_nav     (session) one-shot token written by the
+        //                             mode-toggle link before it navigates.
         //
-        // Schema: [{ role:'me'|'them', text:String, ts:Number,
-        //            mode:'text'|'voice' }, ...]  oldest first.
-        // System notices are NOT stored — they describe this session only.
+        // Every page load starts a NEW session: the visible transcript comes
+        // up empty and whatever the previous session left behind is rolled
+        // into the archive first. The single exception is a hop between
+        // gorcave-chat.html and gorcave-voice.html — that link writes the nav
+        // token, and a load which consumes a FRESH token continues the
+        // session instead of ending it, so one conversation still reads
+        // continuously across the two pages.
+        //
+        // Why sessionStorage for the token: it is per-tab, it survives a
+        // same-tab navigation, and it does NOT survive a new tab, a relaunch
+        // of the installed PWA, or a restored session in a new process — the
+        // exact shape of "this is still the same visit". It does survive a
+        // plain reload, which is why the token is time-boxed AND deleted the
+        // instant it is read: a reload finds nothing to consume and correctly
+        // reads as a new session.
+        //
+        // System notices are NOT stored — they describe one session only.
         // =================================================================
-        var CONVO_KEY = 'gorcave_convo';
-        var CONVO_MAX = 100;       // turns kept; oldest trimmed first
-        var PAGE_MODE = 'voice';   // 'text' on gorcave-chat.html
+        var CONVO_KEY   = 'gorcave_convo';     // current session's turns
+        var SESSION_KEY = 'gorcave_session';   // {id, startedAt} for those turns
+        var ARCHIVE_KEY = 'gorcave_archive';   // every past session, oldest first
+        var NAV_KEY     = 'gorcave_nav';       // sessionStorage one-shot token
+        var NAV_WINDOW_MS = 15000;  // an older token is not a page-to-page hop
+        var CONVO_MAX   = 300;      // turns in ONE session; a safety valve, not
+                                    // a history limit — the archive is the
+                                    // master reference and is capped by size.
+        var ARCHIVE_MAX_SESSIONS = 400;
+        var ARCHIVE_MAX_BYTES    = 1500000;   // ~1.5MB of a ~5MB origin budget
+        var PAGE_MODE   = 'voice';   // 'text' on gorcave-chat.html
 
-        var convo = [];            // in-memory mirror; the store if disk fails
-        var convoStore = true;     // flipped off if localStorage misbehaves
+        var convo = [];             // current session; in-memory mirror
+        var convoStore = true;      // flipped off if localStorage misbehaves
+        var archive = [];           // past sessions, oldest first
+        var SESSION = { id: 's' + Date.now(), startedAt: Date.now() };
+
+        // Every storage touch goes through these three. Nothing below can
+        // throw into a send path, a render path or the boot path.
+        function lsGet(k) {
+            try { return localStorage.getItem(k); }
+            catch (e) { convoStore = false; return null; }
+        }
+        function lsSet(k, v) {
+            try { localStorage.setItem(k, v); return true; }
+            catch (e) { return false; }
+        }
+        function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+        function validTurns(arr) {
+            if (!Array.isArray(arr)) return [];
+            return arr.filter(function (t) {
+                return t && typeof t.text === 'string' &&
+                       (t.role === 'me' || t.role === 'them');
+            });
+        }
 
         function convoLoad() {
-            var raw = null;
-            try {
-                raw = localStorage.getItem(CONVO_KEY);
-            } catch (e) {
-                // private browsing / storage disabled: in-memory only
-                convoStore = false;
-                return [];
-            }
+            var raw = lsGet(CONVO_KEY);
             if (!raw) return [];
             try {
                 var arr = JSON.parse(raw);
                 if (!Array.isArray(arr)) throw new Error('bad shape');
-                return arr.filter(function (t) {
-                    return t && typeof t.text === 'string' &&
-                           (t.role === 'me' || t.role === 'them');
-                }).slice(-CONVO_MAX);
+                return validTurns(arr).slice(-CONVO_MAX);
             } catch (e) {
-                // Corrupt value — drop it and start clean rather than
-                // giving up on storage for the rest of the session.
-                try { localStorage.removeItem(CONVO_KEY); } catch (e2) {}
+                // Corrupt value — drop it and start clean rather than giving
+                // up on storage for the rest of the session.
+                lsDel(CONVO_KEY);
                 return [];
             }
         }
 
         function convoSave() {
             if (!convoStore) return;
-            try {
-                localStorage.setItem(CONVO_KEY, JSON.stringify(convo));
-            } catch (e) {
-                // Quota: try once at half length. Only commit the trim if it
-                // actually lands — otherwise keep the full log in memory and
-                // stop writing. Never throw into a send path.
-                try {
-                    var trimmed = convo.slice(-Math.floor(CONVO_MAX / 2));
-                    localStorage.setItem(CONVO_KEY, JSON.stringify(trimmed));
-                    convo = trimmed;
-                } catch (e2) {
-                    convoStore = false;
-                }
-            }
+            if (lsSet(CONVO_KEY, JSON.stringify(convo))) return;
+            // Out of quota. The archive is by far the biggest object here, so
+            // make room there first — a live turn matters more than the
+            // oldest sessions on record.
+            if (archiveTrim(0.5) && lsSet(CONVO_KEY, JSON.stringify(convo))) return;
+            var trimmed = convo.slice(-Math.floor(CONVO_MAX / 2));
+            if (lsSet(CONVO_KEY, JSON.stringify(trimmed))) { convo = trimmed; return; }
+            convoStore = false;   // keep the full log in memory, stop writing
         }
 
         function convoPush(role, text, mode) {
@@ -762,9 +1006,162 @@
             convoSave();
         }
 
+        // Clears the CURRENT session only. The archive is untouched — see
+        // archiveClear() for the deliberate, two-tap way to erase that.
         function convoClear() {
             convo = [];
-            try { localStorage.removeItem(CONVO_KEY); } catch (e) {}
+            lsDel(CONVO_KEY);
+        }
+
+        function sessionMetaLoad() {
+            var raw = lsGet(SESSION_KEY);
+            if (!raw) return null;
+            try {
+                var m = JSON.parse(raw);
+                if (m && typeof m.id === 'string' && m.id) {
+                    return { id: m.id, startedAt: Number(m.startedAt) || Date.now() };
+                }
+            } catch (e) {}
+            lsDel(SESSION_KEY);
+            return null;
+        }
+        function sessionMetaSave() { lsSet(SESSION_KEY, JSON.stringify(SESSION)); }
+
+        function archiveLoad() {
+            var raw = lsGet(ARCHIVE_KEY);
+            if (!raw) return [];
+            try {
+                var arr = JSON.parse(raw);
+                if (!Array.isArray(arr)) throw new Error('bad shape');
+                var out = [];
+                for (var i = 0; i < arr.length; i++) {
+                    var s = arr[i];
+                    if (!s || typeof s !== 'object') continue;
+                    var turns = validTurns(s.turns);
+                    if (!turns.length) continue;          // empty is not history
+                    out.push({
+                        id: (typeof s.id === 'string' && s.id) ? s.id : ('s' + i + '-' + (turns[0].ts || 0)),
+                        startedAt: Number(s.startedAt) || turns[0].ts || Date.now(),
+                        endedAt: Number(s.endedAt) || turns[turns.length - 1].ts || Date.now(),
+                        turns: turns
+                    });
+                }
+                return out;
+            } catch (e) {
+                lsDel(ARCHIVE_KEY);
+                return [];
+            }
+        }
+
+        // Drops the oldest `frac` of the archive and writes it out. Used to
+        // free room for a live turn.
+        function archiveTrim(frac) {
+            if (!archive.length) return false;
+            var drop = Math.max(1, Math.floor(archive.length * frac));
+            archive = archive.slice(drop);
+            lsSet(ARCHIVE_KEY, JSON.stringify(archive));
+            return true;
+        }
+
+        // Never throws. Estimates size before writing, trims the OLDEST
+        // sessions until it fits, and if the browser still refuses it keeps
+        // the in-memory copy and gives up quietly.
+        function archiveSave() {
+            if (!convoStore) return;
+            if (archive.length > ARCHIVE_MAX_SESSIONS) {
+                archive = archive.slice(-ARCHIVE_MAX_SESSIONS);
+            }
+            var body = JSON.stringify(archive);
+            var guard = 0;
+            while (body.length > ARCHIVE_MAX_BYTES && archive.length > 1 && guard++ < 64) {
+                archive = archive.slice(Math.max(1, Math.ceil(archive.length * 0.1)));
+                body = JSON.stringify(archive);
+            }
+            guard = 0;
+            while (guard++ < 24) {
+                if (lsSet(ARCHIVE_KEY, body)) return;
+                if (archive.length <= 1) { lsDel(ARCHIVE_KEY); return; }
+                archive = archive.slice(Math.max(1, Math.ceil(archive.length * 0.25)));
+                body = JSON.stringify(archive);
+            }
+        }
+
+        // Appending is idempotent per session id: re-filing a session already
+        // on record replaces it in place instead of duplicating it.
+        function archivePush(entry) {
+            if (!entry || !entry.turns || !entry.turns.length) return;
+            for (var i = archive.length - 1; i >= 0; i--) {
+                if (archive[i].id === entry.id) { archive[i] = entry; archiveSave(); return; }
+            }
+            archive.push(entry);
+            archiveSave();
+        }
+
+        function archiveClear() {
+            archive = [];
+            lsDel(ARCHIVE_KEY);
+        }
+
+        // Written by the mode-toggle link's click handler, an instant before
+        // the browser leaves for the sibling page.
+        function markNavigating() {
+            try { sessionStorage.setItem(NAV_KEY, String(Date.now())); } catch (e) {}
+        }
+
+        // Consumed exactly once, whatever the answer — a token can never
+        // survive into a later load.
+        function takeNavToken() {
+            var v = null;
+            try {
+                v = sessionStorage.getItem(NAV_KEY);
+                sessionStorage.removeItem(NAV_KEY);
+            } catch (e) { return false; }
+            if (!v) return false;
+            var age = Date.now() - Number(v);
+            return age >= -5000 && age < NAV_WINDOW_MS;   // clock-skew tolerant
+        }
+
+        /**
+         * Boot the storage layer. Returns true when this load CONTINUES the
+         * previous session (a hop between the two pages), false when it
+         * starts a fresh one and files the old one away.
+         *
+         * A session is archived exactly once: the live store is deleted in
+         * the same breath, so a second reload finds nothing to file, and
+         * archivePush() is keyed on session id so even a double call would
+         * overwrite rather than duplicate.
+         */
+        function startSession() {
+            archive = archiveLoad();
+            var continuing = takeNavToken();
+            var meta = sessionMetaLoad();
+            var stored = convoLoad();
+
+            if (continuing && meta) {
+                SESSION = meta;
+                convo = stored;
+                return true;
+            }
+
+            if (stored.length) {
+                archivePush({
+                    // A log left by a build older than this one has no meta;
+                    // derive a stable id from its first turn so it also files
+                    // exactly once.
+                    id: (meta && meta.id) || ('s' + (stored[0].ts || Date.now())),
+                    startedAt: (meta && meta.startedAt) || stored[0].ts || Date.now(),
+                    endedAt: stored[stored.length - 1].ts || Date.now(),
+                    turns: stored
+                });
+            }
+            convo = [];
+            lsDel(CONVO_KEY);
+            SESSION = {
+                id: 's' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+                startedAt: Date.now()
+            };
+            sessionMetaSave();
+            return false;
         }
         // =================================================================
 
@@ -796,17 +1193,20 @@
         // Two-tap erase: the first tap only arms the chip (and says so), a
         // second tap within 4s actually clears. Dotted and unfilled so it
         // never reads as one of the three voice-mode chips beside it.
+        //
+        // This clears THIS SESSION only — the labels say so, and the archive
+        // has its own, quieter, harder-to-reach erase inside the panel.
         var clearArmedAt = 0;
         function disarmClear() {
             clearArmedAt = 0;
-            clearBtn.textContent = 'clear';
+            clearBtn.textContent = 'clear session';
             clearBtn.classList.remove('armed');
         }
         clearBtn.addEventListener('click', function () {
             var now = Date.now();
             if (now - clearArmedAt > 4000) {
                 clearArmedAt = now;
-                clearBtn.textContent = 'erase?';
+                clearBtn.textContent = 'clear session?';
                 clearBtn.classList.add('armed');
                 setTimeout(function () {
                     if (clearArmedAt && Date.now() - clearArmedAt >= 4000) disarmClear();
@@ -816,8 +1216,157 @@
             disarmClear();
             convoClear();
             historyEl.innerHTML = '';
-            addMessage('conversation cleared', 'system');
+            addMessage('this session cleared — past conversations are still in the archive', 'system');
         });
+
+        // =================================================================
+        // ARCHIVE BROWSER — KEEP IN SYNC WITH gorcave-chat.html
+        //
+        // A slide-over over the whole shell listing every past session,
+        // newest first; tap one to read its transcript, tap "all" to come
+        // back, tap the cross to return to the live conversation. It is
+        // display:none while closed, so the mic keeps every tap.
+        // =================================================================
+        var archiveEl = document.getElementById('archive');
+        var arBody    = document.getElementById('ar-body');
+        var arTitle   = document.getElementById('ar-title');
+        var arBack    = document.getElementById('ar-back');
+        var arClose   = document.getElementById('ar-close');
+        var arWipe    = document.getElementById('ar-wipe');
+        var openArchiveBtn = document.getElementById('open-archive');
+
+        function arWhen(ts) {
+            var d = new Date(ts);
+            if (isNaN(d.getTime())) return 'undated';
+            try {
+                return d.toLocaleString(undefined, {
+                    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+                });
+            } catch (e) { return d.toDateString(); }
+        }
+
+        // The first thing the user said is the most useful handle on a
+        // session — falling back to whatever the first turn was.
+        function arPreview(turns) {
+            for (var i = 0; i < turns.length; i++) {
+                if (turns[i].role === 'me' && turns[i].text) return turns[i].text;
+            }
+            return (turns[0] && turns[0].text) || '';
+        }
+
+        function arList() {
+            arBack.hidden = true;
+            arTitle.textContent = 'past conversations';
+            arBody.innerHTML = '';
+            arBody.scrollTop = 0;
+            if (!archive.length) {
+                var p = document.createElement('div');
+                p.className = 'ar-empty';
+                p.textContent = 'Nothing filed yet. Every page load starts a new ' +
+                    'session, and the one you are in right now is archived here the ' +
+                    'next time this page opens.';
+                arBody.appendChild(p);
+                return;
+            }
+            for (var i = archive.length - 1; i >= 0; i--) {   // newest first
+                arBody.appendChild(arRow(archive[i]));
+            }
+        }
+
+        function arRow(entry) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'ar-item';
+            var w = document.createElement('div');
+            w.className = 'ar-when';
+            w.textContent = arWhen(entry.startedAt);
+            var pv = document.createElement('div');
+            pv.className = 'ar-prev';
+            pv.textContent = arPreview(entry.turns);
+            var c = document.createElement('div');
+            c.className = 'ar-count';
+            c.textContent = entry.turns.length +
+                (entry.turns.length === 1 ? ' turn' : ' turns');
+            b.appendChild(w); b.appendChild(pv); b.appendChild(c);
+            b.addEventListener('click', function () { arShow(entry); });
+            return b;
+        }
+
+        function arShow(entry) {
+            arBack.hidden = false;
+            arTitle.textContent = arWhen(entry.startedAt);
+            arBody.innerHTML = '';
+            arBody.scrollTop = 0;
+            for (var i = 0; i < entry.turns.length; i++) {
+                var t = entry.turns[i];
+                var d = document.createElement('div');
+                d.className = 'ar-msg ' + (t.role === 'me' ? 'me' : 'them') +
+                    (t.role === 'me' && t.mode === 'voice' ? ' via-voice' : '');
+                d.textContent = t.text;
+                arBody.appendChild(d);
+            }
+        }
+
+        function arOpen() {
+            // Never leave a software keyboard standing behind the panel —
+            // it would resize the shell the panel is measured against.
+            if (document.activeElement && document.activeElement.blur) {
+                try { document.activeElement.blur(); } catch (e) {}
+            }
+            arDisarmWipe();
+            arList();
+            archiveEl.classList.remove('hidden');
+            archiveEl.classList.add('entering');
+            requestAnimationFrame(function () {
+                archiveEl.classList.add('settled');
+                archiveEl.classList.remove('entering');
+            });
+        }
+
+        function arDismiss() {
+            archiveEl.classList.add('hidden');
+            archiveEl.classList.remove('settled', 'entering');
+            arDisarmWipe();
+            arBody.innerHTML = '';
+            scrollToLatest();
+        }
+
+        // Two taps, a longer window than the session clear, a different
+        // label, and it only exists inside a panel you opened on purpose.
+        var arWipeArmedAt = 0;
+        function arDisarmWipe() {
+            arWipeArmedAt = 0;
+            arWipe.textContent = 'erase every past conversation';
+            arWipe.classList.remove('armed');
+        }
+        arWipe.addEventListener('click', function () {
+            var now = Date.now();
+            if (now - arWipeArmedAt > 5000) {
+                arWipeArmedAt = now;
+                arWipe.textContent = 'tap again to delete all history';
+                arWipe.classList.add('armed');
+                setTimeout(function () {
+                    if (arWipeArmedAt && Date.now() - arWipeArmedAt >= 5000) arDisarmWipe();
+                }, 5100);
+                return;
+            }
+            archiveClear();
+            arDisarmWipe();
+            arList();
+        });
+
+        arClose.addEventListener('click', arDismiss);
+        arBack.addEventListener('click', arList);
+        openArchiveBtn.addEventListener('click', arOpen);
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !archiveEl.classList.contains('hidden')) arDismiss();
+        });
+        arDisarmWipe();
+
+        // A hop to the sibling page is a NAVIGATION, not a new session: the
+        // token this writes is what the destination page consumes.
+        var modeToggleEl = document.querySelector('.mode-toggle');
+        if (modeToggleEl) modeToggleEl.addEventListener('click', markNavigating);
 
         function setHint(t) { hintEl.textContent = t; }
 
@@ -845,7 +1394,18 @@
             if (mode === 'off') stopSpeaking();
             paintVoiceChips();
         }
-        chipServer.addEventListener('click', function () { unlockAudio(); setVoiceMode('server'); });
+        // The recovery hatch. If a run of failures pushed replies onto the
+        // device voice, this is the tap that clears the stuck state and tries
+        // gorcave's own voice again — and, being a real user gesture, it is
+        // also the moment iOS will let us unlock the players for good. No
+        // site data needs clearing to get back.
+        chipServer.addEventListener('click', function () {
+            unlockAudio();
+            primeTtsElement();
+            stopSpeaking();
+            setVoiceMode('server');
+            addMessage("server voice re-armed — gorcave's own voice next time", 'system');
+        });
         chipDevice.addEventListener('click', function () { unlockAudio(); setVoiceMode('device'); });
         chipMute.addEventListener('click', function () {
             unlockAudio();
@@ -899,8 +1459,13 @@
             } catch (e) { audioCtx = null; }
             return audioCtx;
         }
+        // First touch anywhere: resume the context AND start-then-stop the
+        // <audio> element on a scrap of silence. Without that second half,
+        // iOS refuses every later play() that isn't itself inside a gesture —
+        // which is every reply this page has ever spoken.
+        function unlockAll() { unlockAudio(); primeTtsElement(); }
         ['pointerdown', 'touchstart', 'click'].forEach(function (evt) {
-            window.addEventListener(evt, unlockAudio, { once: true, passive: true });
+            window.addEventListener(evt, unlockAll, { once: true, passive: true });
         });
 
         // -----------------------------------------------------------------
@@ -1147,27 +1712,34 @@
             typeof window.requestAnimationFrame === 'function' &&
             !!(document.createElement('canvas').getContext);
 
-        var W_MAX          = 9;      // hard cap on live words. Words are ~60px
-                                     // wide; more than this on a phone reads
-                                     // as clutter rather than as thought.
-        var W_SPAWN_MIN    = 200;    // ms between spawns (jittered)
-        var W_SPAWN_MAX    = 420;    // avg ~310ms -> ~8 alive at steady state
-        var W_SPAWN_WINDOW = 2800;   // ms of spawning per transcript, then stop
-        var W_LIFE_MIN     = 2800;   // ms
-        var W_LIFE_MAX     = 4200;   // ms
-        var W_SPEED_MIN    = 42;     // px/s initial, outward. With the drag
-        var W_SPEED_MAX    = 96;     // below this carries a word 75–180px out,
-                                     // enough that they never pile up.
-        var W_FAN          = 2.0;    // rad of spread around straight up
-        var W_GRAVITY      = 10;     // px/s^2: arcs the rise over, never drops
+        var W_MAX          = 14;     // hard cap on live words. At the new
+                                     // ~7px size a word is ~25px wide, so more
+                                     // of them read as texture, not clutter.
+        var W_SPAWN_MIN    = 70;     // ms between spawns (jittered)
+        var W_SPAWN_MAX    = 150;    // avg ~110ms: fast enough that the short
+                                     // lives below still overlap into a spray
+        var W_SPAWN_WINDOW = 2600;   // ms ceiling; in practice the word pool
+                                     // runs dry long before this (see below)
+        var W_LIFE_MIN     = 900;    // ms — quick and light, not a lingering
+        var W_LIFE_MAX     = 1600;   // drift
+        var W_SPEED_MIN    = 55;     // px/s initial, radial. With the drag
+        var W_SPEED_MAX    = 130;    // below this carries a word 60–150px out
+                                     // over its life: clears the bubble, stays
+                                     // on screen.
+        var W_GRAVITY      = 2;      // px/s^2. Near-zero on purpose: with 360°
+                                     // emission any real gravity would sag the
+                                     // whole burst downward and kill the
+                                     // radial read. 2 is just enough asymmetry
+                                     // to stop it looking like a machine ring.
         var W_DRAG         = 0.35;   // fraction of velocity shed per second
-        var W_SWAY         = 3;      // px/s^2 sinusoidal horizontal sway
+        var W_SWAY         = 2;      // px/s^2 sinusoidal horizontal sway
         var W_BOUNCE       = 0.45;   // restitution off the viewport bounds
-        var W_SIZE_MIN     = 12;     // px, matches the transcript's own scale
-        var W_SIZE_MAX     = 15;
+        var W_SIZE_MIN     = 6.5;    // px — fine particulate, roughly half the
+        var W_SIZE_MAX     = 8.5;    // old 12–15px transcript-matched scale
         var W_SCALE_END    = 0.40;   // shrink target at end of life
-        var W_PEAK_MIN     = 0.62;   // words have to be readable, not hinted at
-        var W_PEAK_MAX     = 0.80;
+        var W_PEAK_MIN     = 0.80;   // raised from 0.62–0.80: at 7px a word
+        var W_PEAK_MAX     = 0.96;   // needs near-full alpha to stay crisp
+                                     // rather than dissolving into the bg.
         var W_COLORS       = ['198,180,244', '178,163,214', '214,205,235'];
 
         // Deliberately tiny. This is a legibility filter, not linguistics —
@@ -1183,7 +1755,10 @@
         var wCanvas = null, wCtx = null;
         var wParts = [];
         var wPool = [];
-        var wLastWord = '';
+        var wCursor = 0;    // read head into the shuffled pool. Sampling is
+                            // WITHOUT replacement: each word gets thrown at
+                            // most once per event, and when the cursor reaches
+                            // the end we simply stop spawning.
         var wSrcEl = null;
         var wOriginX = 0, wOriginY = 0;
         var wSpawnTimer = 0, wSpawnLeft = 0;
@@ -1265,16 +1840,26 @@
             wOriginY = oy;
         }
 
-        function makeWordParticle() {
-            var word = wPool[(Math.random() * wPool.length) | 0];
-            // One reroll if we drew the same word twice running — cheap way
-            // to keep a two-word transcript from looking like a stutter.
-            if (wPool.length > 1 && word === wLastWord) {
-                word = wPool[(Math.random() * wPool.length) | 0];
+        // Fisher-Yates, in place. Shuffled once per event so drawing
+        // sequentially off the front is a uniform sample without replacement.
+        function shuffleWords(arr) {
+            for (var i = arr.length - 1; i > 0; i--) {
+                var j = (Math.random() * (i + 1)) | 0;
+                var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
             }
-            wLastWord = word;
+            return arr;
+        }
 
-            var ang = -Math.PI / 2 + (Math.random() - 0.5) * W_FAN;
+        // Returns null once the pool is spent — the caller reads that as
+        // "stop", not as "wrap around". A three-word message throws three
+        // words and is done; that is the intended behaviour.
+        function makeWordParticle() {
+            if (wCursor >= wPool.length) return null;
+            var word = wPool[wCursor++];
+
+            // Full 360°: every word leaves the bubble on its own bearing, so
+            // the event reads as radiating outward rather than as a plume.
+            var ang = Math.random() * 6.283185307;
             var sp  = W_SPEED_MIN + Math.random() * (W_SPEED_MAX - W_SPEED_MIN);
             var size = W_SIZE_MIN + Math.random() * (W_SIZE_MAX - W_SIZE_MIN);
 
@@ -1283,7 +1868,7 @@
                 x: wOriginX + (Math.random() * 18 - 9),
                 y: wOriginY + (Math.random() * 10 - 5),
                 vx: Math.cos(ang) * sp,
-                vy: Math.sin(ang) * sp,      // canvas y is down, so this rises
+                vy: Math.sin(ang) * sp,      // any bearing, up or down
                 size: size,
                 half: size * 0.6 * word.length * 0.5,   // Courier is ~0.6em/char
                 peak: W_PEAK_MIN + Math.random() * (W_PEAK_MAX - W_PEAK_MIN),
@@ -1298,6 +1883,7 @@
             wParts.length = 0;
             wSpawnLeft = 0;
             wSpawnTimer = 0;
+            wCursor = wPool.length;   // spent; nothing left to draw
             wSrcEl = null;
             if (wCanvas) {
                 try { if (wCtx) wCtx.clearRect(0, 0, wW, wH); } catch (e) {}
@@ -1318,16 +1904,21 @@
             if (!pool.length) return;
             if (!ensureWordCanvas()) return;
 
-            wPool = pool;
-            wLastWord = '';
+            wPool = shuffleWords(pool);
+            wCursor = 0;
             wSrcEl = el || null;
             wParts.length = 0;
             updateWordOrigin();
             wSpawnLeft = W_SPAWN_WINDOW;
             wSpawnTimer = 0;
             // Small opening burst so the effect is already alive on the frame
-            // the transcript appears, rather than trickling in.
-            for (var i = 0; i < 2; i++) wParts.push(makeWordParticle());
+            // the transcript appears, rather than trickling in. Guarded:
+            // a one-word transcript spends its whole pool on the first body.
+            for (var i = 0; i < 2; i++) {
+                var seed = makeWordParticle();
+                if (!seed) break;
+                wParts.push(seed);
+            }
             ensureFrameLoop();
         }
 
@@ -1340,7 +1931,12 @@
                 if (wSpawnTimer <= 0) {
                     if (wParts.length < W_MAX) {
                         updateWordOrigin();
-                        wParts.push(makeWordParticle());
+                        var np = makeWordParticle();
+                        // Pool spent: close the spawn window now. Each word
+                        // has been thrown once and there is nothing honest
+                        // left to throw, so we do not loop or pad.
+                        if (!np) wSpawnLeft = 0;
+                        else wParts.push(np);
                     }
                     wSpawnTimer = W_SPAWN_MIN + Math.random() * (W_SPAWN_MAX - W_SPAWN_MIN);
                 }
@@ -1762,6 +2358,11 @@
             // `file: UploadFile = File(...)` on /api/voice/chat (and
             // /api/voice/transcribe), so send the blob once under 'file'.
             fd.append('file', blob, name);
+            // Additive and optional on the backend: it keeps the agent's
+            // in-process short-term history aligned with the session you can
+            // actually see. Its long-term memory lives in facts.md / lore.md
+            // on the Pi, so a fresh session per page load loses nothing.
+            fd.append('session_id', SESSION.id);
 
             try {
                 var res = await fetch(VOICE_CHAT, { method: 'POST', body: fd });
@@ -1833,7 +2434,8 @@
                 var res = await fetch(TEXT_CHAT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
+                    // session_id: same additive contract as the audio path.
+                    body: JSON.stringify({ message: text, session_id: SESSION.id })
                 });
                 bubble.remove();
                 if (!res.ok) { addMessage(unreachableText(res.status), 'system'); setBusy(false); return; }
@@ -1865,19 +2467,60 @@
         //                network, but a generic system voice.
         //
         // Server is the default; ANY failure on that path (endpoint down,
-        // non-OK, undecodable audio, blocked playback) silently falls through
-        // to the device voice so the reply is never simply lost. The stored
-        // preference is not changed by a fallback — the next reply tries the
-        // server again.
+        // non-OK, undecodable audio, blocked playback) falls through to the
+        // device voice so the reply is never simply lost — but it now SAYS
+        // SO. The stored preference is never changed by a fallback: the next
+        // reply tries the server again.
+        //
+        // WHY THE PLAYER IS WEB AUDIO FIRST
+        //   The device voice was winning silently, so replies came out in the
+        //   system voice (Samantha on Apple hardware — the reported "female
+        //   voice") rather than in the Pi's own espeak+TI-LPC one. The server
+        //   path was reaching the network fine; it was PLAYBACK that failed.
+        //   An <audio> element that has never been started from inside a user
+        //   gesture is refused on iOS/Safari, and every reply here plays an
+        //   async beat after the gesture, so the element was never unlocked
+        //   and play() rejected straight into the fallback, every time.
+        //   decodeAudioData + an AudioBufferSourceNode goes through the
+        //   AudioContext this page already unlocks on the first touch, and it
+        //   is indifferent to sample rate — /api/voice/speak is 8 kHz mono
+        //   PCM_16 (TI-LPC output) and /api/voice/sing is 22050 Hz, both of
+        //   which some <audio> implementations are fussy about. The element
+        //   stays as a fallback, and is itself primed on the first gesture.
         // -----------------------------------------------------------------
         var currentObjectUrl = null;
-        var ttsFallbackNoticed = false;
+        var currentSource = null;   // live AudioBufferSourceNode, if any
+        var ttsElPrimed = false;
+
+        // 0.05s of silence. Played once inside a real user gesture, this
+        // teaches iOS that the element is allowed to make noise later.
+        var SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+
+        function primeTtsElement() {
+            if (ttsElPrimed) return;
+            ttsElPrimed = true;
+            try {
+                ttsEl.src = SILENT_WAV;
+                var p = ttsEl.play();
+                if (p && p.then) p.then(function () { try { ttsEl.pause(); } catch (e) {} },
+                                        function () {});
+            } catch (e) {}
+        }
+
+        function stopAudio() {
+            if (currentSource) {
+                try { currentSource.onended = null; currentSource.stop(0); } catch (e) {}
+                currentSource = null;
+            }
+            try { ttsEl.pause(); } catch (e) {}
+            revokeCurrent();
+        }
 
         function stopSpeaking() {
             // A song is speech too: pressing the mic, muting, or leaving the
             // page must silence it and cancel a render still in flight.
             stopSong();
-            try { ttsEl.pause(); } catch (e) {}
+            stopAudio();
             if (hasSynth) { try { window.speechSynthesis.cancel(); } catch (e) {} }
         }
 
@@ -1886,6 +2529,63 @@
                 URL.revokeObjectURL(currentObjectUrl);
                 currentObjectUrl = null;
             }
+        }
+
+        // Safari still hands back undefined from the callback form, so both
+        // shapes are handled.
+        function decodeBlob(ctx, blob) {
+            if (!blob.arrayBuffer) return Promise.reject(new Error('no arrayBuffer'));
+            return blob.arrayBuffer().then(function (ab) {
+                return new Promise(function (resolve, reject) {
+                    var p;
+                    try { p = ctx.decodeAudioData(ab, resolve, reject); }
+                    catch (e) { reject(e); return; }
+                    if (p && p.then) p.then(resolve, reject);
+                });
+            });
+        }
+
+        /**
+         * Play one blob of audio from the Pi. Resolves with the path that
+         * actually produced sound ('webaudio' | 'element') or rejects, in
+         * which case the caller decides what to fall back to.
+         */
+        async function playBlob(blob, onEnd) {
+            var ctx = unlockAudio();
+            if (ctx) {
+                try {
+                    if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (e) {} }
+                    var buf = await decodeBlob(ctx, blob);
+                    stopAudio();
+                    var src = ctx.createBufferSource();
+                    src.buffer = buf;
+                    src.connect(ctx.destination);
+                    src.onended = function () {
+                        if (currentSource === src) currentSource = null;
+                        if (onEnd) onEnd();
+                    };
+                    src.start(0);
+                    currentSource = src;
+                    return 'webaudio';
+                } catch (e) {
+                    console.warn('[gorcave] web audio path failed, trying the element', e);
+                }
+            }
+            stopAudio();
+            currentObjectUrl = URL.createObjectURL(blob);
+            ttsEl.src = currentObjectUrl;
+            ttsEl.onended = function () { revokeCurrent(); if (onEnd) onEnd(); };
+            await ttsEl.play();
+            return 'element';
+        }
+
+        // Visible, not silent. Repeated identically in a row would just be
+        // noise, so an unchanged notice already sitting at the bottom of the
+        // transcript is left alone.
+        function notice(text) {
+            var last = historyEl.lastElementChild;
+            if (last && last.classList.contains('system') && last.textContent === text) return;
+            addMessage(text, 'system');
         }
 
         function speak(text) {
@@ -1905,21 +2605,26 @@
                 var blob = await res.blob();
                 if (!blob || blob.size < 64) throw new Error('empty audio');
 
-                revokeCurrent();
-                currentObjectUrl = URL.createObjectURL(blob);
-                ttsEl.src = currentObjectUrl;
-                ttsEl.onended = revokeCurrent;
-                // Playback follows the mic press, so the autoplay gate is
-                // already satisfied — but if the browser still refuses, the
-                // rejected promise routes us to the device voice.
-                await ttsEl.play();
+                var how = await playBlob(blob, null);
+                console.log('[gorcave] spoke via ' + how + ' · server voice · ' +
+                            blob.size + ' bytes · ' + (blob.type || 'no type'));
             } catch (err) {
-                if (!ttsFallbackNoticed && hasSynth) {
-                    ttsFallbackNoticed = true;
-                    addMessage("gorcave's own voice is unavailable — using this device's voice", 'system');
-                }
-                speakDevice(text);
+                deviceFallback(text, err);
             }
+        }
+
+        // The one place the device voice can take over without being asked —
+        // and it announces itself now, because a silent swap is exactly how
+        // the system voice ended up impersonating gorcave.
+        function deviceFallback(text, err) {
+            console.warn('[gorcave] server voice failed — falling back to the device voice', err);
+            if (hasSynth) {
+                notice("gorcave's own voice didn't play — using this device's voice. " +
+                       'Tap SERVER VOICE to try again.');
+            } else {
+                notice("gorcave's own voice didn't play, and this device has no voice of its own.");
+            }
+            speakDevice(text);
         }
 
         function speakDevice(text) {
@@ -1943,13 +2648,19 @@
         //   POST /api/voice/sing  { song } -> wav bytes of the agent actually
         //   singing (MIDI melody + vocoder + Speak-and-Spell texture).
         //
-        // TRIGGER — the USER's own words, not the reply. The persona is told
-        // explicitly never to announce that it is about to sing, so the reply
-        // text carries no reliable signal; the request that provoked it does.
-        // /\bsing\b/ on the outgoing message is self-contained, testable
-        // today and needs no backend contract at all. A structured hint from
-        // the backend (data.sing / data.song) is honoured if one ever turns
-        // up, but nothing here depends on it existing.
+        // TRIGGER — two, in priority order.
+        //   1. The backend's own signal, and it is authoritative: /api/chat
+        //      and /api/voice/chat now return  sing: {song, substituted}  on
+        //      any turn where the agent decided to sing. The audio is fetched
+        //      out of band (a cold render would hold the reply open), so this
+        //      field is the whole handshake. It also tells us WHICH song the
+        //      agent settled on, including a substitution we'd never guess.
+        //   2. /\bsing\b/ on the outgoing message, as the fallback. The
+        //      persona is told never to announce that it is about to sing, so
+        //      the reply text carries no signal — but the request that
+        //      provoked it does. This keeps the feature working against a
+        //      backend that hasn't shipped the field yet, and it is the path
+        //      that can be tested without one.
         //
         // The song IS the reply for that turn, so the normal TTS path is
         // suppressed for it — we never speak the text and sing over it.
@@ -1992,12 +2703,19 @@
             return words.slice(0, 4).join(' ');
         }
 
-        // Optional and additive. If a future backend labels a turn as sung we
-        // take it; a missing field is the normal case, not an error.
+        // The backend's decision, in whichever shape it arrives:
+        //   sing: { song: 'daisy', substituted: false }   <- current contract
+        //   sing: 'daisy' | true                          <- tolerated
+        // Returns the song name, '' for "sing, song unspecified", or null for
+        // "the backend said nothing" — which is not an error, just silence.
         function singHint(data) {
             if (!data) return null;
-            if (typeof data.sing === 'string' && data.sing) return data.sing;
-            if (data.sing === true) return '';
+            var s = data.sing;
+            if (s && typeof s === 'object') {
+                return (typeof s.song === 'string' && s.song) ? s.song : '';
+            }
+            if (typeof s === 'string' && s) return s;
+            if (s === true) return '';
             if (typeof data.song === 'string' && data.song) return data.song;
             return null;
         }
@@ -2033,20 +2751,16 @@
             singEl = null;
         }
 
-        function onSingPause() { stopSong(); }
-
         function stopSong() {
             if (singAbort) {
                 try { singAbort.abort(); } catch (e) {}
                 singAbort = null;
             }
             singPending = false;
-            if (singPlaying) {
-                singPlaying = false;
-                try { ttsEl.pause(); } catch (e) {}
-            }
-            try { ttsEl.removeEventListener('pause', onSingPause); } catch (e) {}
-            revokeCurrent();
+            singPlaying = false;
+            // Unconditional: playback that was still starting when the user
+            // tapped stop must not begin a moment later into a dead notice.
+            stopAudio();
             clearSingNotice();
         }
 
@@ -2076,7 +2790,7 @@
             // The song still exists, it just waits behind one deliberate tap.
             if (voiceMode === 'off') {
                 singNotice('a song is waiting · tap to play', false, function () {
-                    unlockAudio();
+                    unlockAll();   // a real gesture: take the chance to unlock
                     startSong(song, reply, replyEl);
                 });
                 return;
@@ -2107,18 +2821,17 @@
                 if (!singPending) return;
                 if (!blob || blob.size < 64) { singFailed(null, reply); return; }
 
-                // Same object-URL handling as the speak path, same element:
-                // one player, so a song and a spoken reply can never overlap.
-                revokeCurrent();
-                currentObjectUrl = URL.createObjectURL(blob);
-                ttsEl.src = currentObjectUrl;
-                ttsEl.onended = function () { stopSong(); };
-                await ttsEl.play();
-                if (!singPending) { try { ttsEl.pause(); } catch (e) {} return; }
+                // Same player as the spoken replies — one player, so a song
+                // and a reply can never overlap, and the song gets the same
+                // sample-rate-agnostic Web Audio path (sing is 22050 Hz where
+                // speak is 8 kHz).
+                var how = await playBlob(blob, function () { stopSong(); });
+                if (!singPending) { stopAudio(); return; }
+                console.log('[gorcave] sang "' + (song || 'daisy') + '" via ' + how +
+                            ' · ' + blob.size + ' bytes');
 
                 singPlaying = true;
                 singPending = false;
-                ttsEl.addEventListener('pause', onSingPause);
                 if (singEl) {
                     singEl.classList.remove('loading');
                     singEl.textContent = 'singing · tap to stop';
@@ -2126,7 +2839,10 @@
                 markSung(replyEl, reply);
             } catch (err) {
                 if (err && err.name === 'AbortError') return;   // we cancelled
-                singFailed(err && err.status ? err.status : null, reply);
+                // stopSong() clears singPending, so anything that lands after
+                // a deliberate stop is that stop, not a failure. Say nothing.
+                if (!singPending) return;
+                singFailed(null, reply);
             }
         }
 
@@ -2251,12 +2967,14 @@
                 meterEl.height = Math.round(rect.height * dpr);
             }
 
-            // Shared history renders BEFORE any session notice and before
-            // the first scroll-to-bottom, so switching modes mid-conversation
-            // drops you exactly where you left off. This only writes into
-            // #history's own scroller — it never touches the body shell the
+            // Open the session store first: this either continues the session
+            // you were just in on the other page (and renders it, BEFORE any
+            // session notice and before the first scroll-to-bottom, so a mode
+            // switch drops you exactly where you left off) or files the last
+            // session into the archive and comes up empty. Either way it only
+            // writes into #history's own scroller — never the body shell the
             // visualViewport logic owns.
-            convo = convoLoad();
+            startSession();
             renderConvo();
 
             if (!voiceAvailable) {
