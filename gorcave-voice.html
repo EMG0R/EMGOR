@@ -143,6 +143,71 @@
             letter-spacing: 1px;
             color: var(--text-faint);
         }
+        /* Tiny build stamp so "which build am I actually looking at?" is
+           answerable at a glance while debugging. Filled in by the JS. */
+        header .build-stamp {
+            margin-top: 4px;
+            font-size: 0.5rem;
+            letter-spacing: 1.4px;
+            color: var(--text-faint);
+            opacity: 0.55;
+        }
+
+        /* ---- update / install notices ----
+           Both sit in normal flow directly under the header, so they push
+           content rather than float over it — they can never cover the mic,
+           the composer, or the send button. */
+        .banner {
+            flex: 0 0 auto;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 9px;
+            padding: 9px 12px;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface-2);
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            color: var(--lavender);
+            text-align: center;
+            animation: banner-in 0.28s ease-out;
+        }
+        .banner.show { display: flex; }
+        .banner-act {
+            background: none;
+            border: 1px solid var(--line-strong);
+            color: var(--lavender);
+            font-family: inherit;
+            font-size: 0.56rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 7px 12px;
+            min-height: 32px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .banner-act:hover { background: var(--surface); }
+        .banner-dismiss {
+            background: none;
+            border: none;
+            color: var(--text-faint);
+            font-family: inherit;
+            font-size: 0.85rem;
+            line-height: 1;
+            padding: 6px 8px;
+            min-width: 32px;
+            min-height: 32px;
+            cursor: pointer;
+        }
+        @keyframes banner-in {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .banner { animation: none; }
+        }
 
         /* ---- settings strip ---- */
         #settings {
@@ -256,6 +321,32 @@
             50% { opacity: 0.9; }
         }
 
+        /* ---- sung reply ----
+           Speaks the same calm lavender language as a system notice, but it
+           is a control, not a message: tap it to cancel a render in progress
+           or to stop a song that is already playing. Rendering on the Pi can
+           take many seconds, so the loading state has to look patient rather
+           than broken. */
+        .msg.singing {
+            align-self: center;
+            max-width: 92%;
+            background: none;
+            border: 1px dotted var(--line-strong);
+            border-radius: 999px;
+            color: var(--lavender);
+            font-family: inherit;
+            font-size: 0.62rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 8px 14px;
+            min-height: 34px;
+            cursor: pointer;
+        }
+        .msg.singing.loading { animation: pulse 1.4s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+            .msg.singing.loading { animation: none; opacity: 0.72; }
+        }
+
         /* ---- transcript word particles ----
            A single viewport-sized canvas, created only while words are in
            flight and removed the moment the last one dies. It sits under the
@@ -328,7 +419,9 @@
            actually running, so it reads as "this is about to send" rather
            than as permanent chrome. Same palette as the halo, one weight
            lighter. Under prefers-reduced-motion the ring is hidden entirely
-           and the hint line's "sending in 3 / 2 / 1" carries the message. */
+           and the hint line's "sending in 2 / 1" carries the message. Both
+           the arc and that count are derived from SILENCE_MS, so retuning
+           the window needs no changes here. */
         #countdown {
             position: absolute;
             inset: 8px;
@@ -482,7 +575,20 @@
     <header>
         <h1>GORCAVE VOICE</h1>
         <div class="sub">a voice line into the machine watching the room</div>
+        <div class="build-stamp" id="build-stamp"></div>
     </header>
+
+    <div id="update-banner" class="banner" role="status" aria-live="polite">
+        <span id="update-text">a newer version is available</span>
+        <button id="update-apply" class="banner-act" type="button">update</button>
+        <button id="update-dismiss" class="banner-dismiss" type="button" aria-label="dismiss update notice">&times;</button>
+    </div>
+
+    <div id="install-banner" class="banner" role="status">
+        <span>add gorcave to your home screen</span>
+        <button id="install-go" class="banner-act" type="button">install</button>
+        <button id="install-dismiss" class="banner-dismiss" type="button" aria-label="dismiss install notice">&times;</button>
+    </div>
 
     <div id="settings">
         <button id="voice-server" class="chip" type="button" aria-pressed="true">server voice</button>
@@ -543,6 +649,7 @@
         var API_BASE   = 'https://gorcave.taila85593.ts.net';
         var VOICE_CHAT = API_BASE + '/api/voice/chat';
         var VOICE_SPEAK= API_BASE + '/api/voice/speak';
+        var VOICE_SING = API_BASE + '/api/voice/sing';
         var TEXT_CHAT  = API_BASE + '/api/chat';
 
         var VOICE_MODE_KEY = 'gorcave_voice_mode';   // 'server' | 'device' | 'off'
@@ -554,11 +661,16 @@
         // All of these are read by vadTick() below. See the long comment on
         // the VAD block for the reasoning; these are the knobs worth turning.
         var AUTOSEND_KEY  = 'gorcave_autosend';
-        var SILENCE_MS    = 3000;   // continuous silence before we auto-send.
-                                    // 1200–2000 usually feels snappier in real
-                                    // use; 3000 is the forgiving default so a
-                                    // mid-sentence think-pause never cuts you
-                                    // off. Change this one number to retune.
+        var SILENCE_MS    = 2000;   // continuous silence before we auto-send.
+                                    // 3000 was the original forgiving value and
+                                    // felt too slow in real use — every turn had
+                                    // a dead beat at the end of it. 2000 is the
+                                    // chosen value: still long enough to ride
+                                    // out a mid-sentence think-pause, short
+                                    // enough that hands-free feels like a
+                                    // conversation. Change this one number to
+                                    // retune — the hint countdown and the ring
+                                    // both derive from it.
         var SPEECH_ARM_MS = 300;    // continuous speech required before the
                                     // silence timer is allowed to fire at all
         var CALIBRATE_MS  = 420;    // ambient-noise sampling window at mic open
@@ -1682,12 +1794,17 @@
                 }
 
                 var reply = typeof data.reply === 'string' ? data.reply.trim() : '';
+                // Asking to be sung to is a property of what was SAID, not of
+                // the reply — see the singing block below.
+                var song = singRequestFor(transcript, data);
                 if (reply) {
-                    say('them', reply, 'voice');
+                    var replyEl = say('them', reply, 'voice');
                     setBusy(false);
-                    speak(reply);
+                    if (song) singSong(song, reply, replyEl);
+                    else speak(reply);
                 } else {
                     setBusy(false);
+                    if (song) singSong(song, '', null);
                 }
             } catch (err) {
                 bubble.remove();
@@ -1722,10 +1839,12 @@
                 if (!res.ok) { addMessage(unreachableText(res.status), 'system'); setBusy(false); return; }
                 var data = await res.json();
                 var reply = (data && typeof data.reply === 'string') ? data.reply : '';
+                var song = singRequestFor(text, data);
                 if (reply) {
-                    say('them', reply, 'text');
+                    var replyEl = say('them', reply, 'text');
                     setBusy(false);
-                    speak(reply);
+                    if (song) singSong(song, reply, replyEl);
+                    else speak(reply);
                 } else {
                     addMessage(unreachableText(null), 'system');
                     setBusy(false);
@@ -1755,6 +1874,9 @@
         var ttsFallbackNoticed = false;
 
         function stopSpeaking() {
+            // A song is speech too: pressing the mic, muting, or leaving the
+            // page must silence it and cancel a render still in flight.
+            stopSong();
             try { ttsEl.pause(); } catch (e) {}
             if (hasSynth) { try { window.speechSynthesis.cancel(); } catch (e) {} }
         }
@@ -1813,6 +1935,216 @@
                 }
                 window.speechSynthesis.speak(u);
             } catch (e) {}
+        }
+
+        // -----------------------------------------------------------------
+        // Singing.
+        //
+        //   POST /api/voice/sing  { song } -> wav bytes of the agent actually
+        //   singing (MIDI melody + vocoder + Speak-and-Spell texture).
+        //
+        // TRIGGER — the USER's own words, not the reply. The persona is told
+        // explicitly never to announce that it is about to sing, so the reply
+        // text carries no reliable signal; the request that provoked it does.
+        // /\bsing\b/ on the outgoing message is self-contained, testable
+        // today and needs no backend contract at all. A structured hint from
+        // the backend (data.sing / data.song) is honoured if one ever turns
+        // up, but nothing here depends on it existing.
+        //
+        // The song IS the reply for that turn, so the normal TTS path is
+        // suppressed for it — we never speak the text and sing over it.
+        //
+        // Rendering happens on a Pi and can take many seconds on a cold
+        // cache, so this is a patient, cancellable state rather than a
+        // spinner that lies: the notice is a button the whole time, and it
+        // aborts the fetch just as readily as it stops playback.
+        // -----------------------------------------------------------------
+        var SING_RE = /\b(?:sing|serenade)\b/i;
+
+        // Everything between "sing" and the end of the clause, minus the
+        // filler that wraps a request. "sing me daisy" -> 'daisy';
+        // "can you sing?" / "sing me a song" -> '' -> the default, daisy.
+        // A wrong guess is harmless: the backend falls back to daisy too.
+        var SING_FILLER = {
+            me:1, us:1, a:1, an:1, the:1, some:1, one:1, another:1, your:1,
+            please:1, song:1, songs:1, tune:1, something:1, anything:1,
+            now:1, again:1, first:1, favourite:1, favorite:1, little:1,
+            old:1, called:1, named:1, titled:1
+        };
+        // If the first real word is one of these, the user described a song
+        // rather than named one ("sing about the rain") — take the default.
+        var SING_STOP = {
+            about:1, for:1, to:1, with:1, in:1, on:1, at:1, like:1, if:1,
+            when:1, while:1, and:1, but:1, or:1, that:1, this:1, it:1,
+            you:1, we:1, i:1, my:1, is:1, are:1, was:1, do:1, can:1,
+            will:1, would:1, could:1, something:1
+        };
+
+        function songFrom(text) {
+            var m = SING_RE.exec(String(text || ''));
+            if (!m) return '';
+            var rest = String(text).slice(m.index + m[0].length).split(/[.!?\n]/)[0];
+            rest = rest.toLowerCase().replace(/[^a-z0-9' -]+/g, ' ');
+            var words = rest.split(/\s+/).filter(Boolean);
+            while (words.length && SING_FILLER[words[0]]) words.shift();
+            while (words.length && SING_FILLER[words[words.length - 1]]) words.pop();
+            if (!words.length || SING_STOP[words[0]]) return '';
+            return words.slice(0, 4).join(' ');
+        }
+
+        // Optional and additive. If a future backend labels a turn as sung we
+        // take it; a missing field is the normal case, not an error.
+        function singHint(data) {
+            if (!data) return null;
+            if (typeof data.sing === 'string' && data.sing) return data.sing;
+            if (data.sing === true) return '';
+            if (typeof data.song === 'string' && data.song) return data.song;
+            return null;
+        }
+
+        /** -> song name to request, or null if this turn isn't a sung one. */
+        function singRequestFor(userText, data) {
+            var hint = singHint(data);
+            if (hint === null && !SING_RE.test(String(userText || ''))) return null;
+            return hint || songFrom(userText) || 'daisy';
+        }
+
+        var singEl = null;        // the notice/control, if one is on screen
+        var singPending = false;  // a render is in flight
+        var singPlaying = false;  // audio is actually running
+        var singAbort = null;
+        var singFellBack = false; // one "can't sing yet" notice per session
+
+        function singNotice(label, loading, onTap) {
+            clearSingNotice();
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'msg singing' + (loading ? ' loading' : '');
+            b.textContent = label;
+            b.addEventListener('click', onTap);
+            historyEl.appendChild(b);
+            scrollToLatest();
+            singEl = b;
+            return b;
+        }
+
+        function clearSingNotice() {
+            if (singEl && singEl.parentNode) singEl.parentNode.removeChild(singEl);
+            singEl = null;
+        }
+
+        function onSingPause() { stopSong(); }
+
+        function stopSong() {
+            if (singAbort) {
+                try { singAbort.abort(); } catch (e) {}
+                singAbort = null;
+            }
+            singPending = false;
+            if (singPlaying) {
+                singPlaying = false;
+                try { ttsEl.pause(); } catch (e) {}
+            }
+            try { ttsEl.removeEventListener('pause', onSingPause); } catch (e) {}
+            revokeCurrent();
+            clearSingNotice();
+        }
+
+        // Subtle, and only once the song is really playing: the stored turn
+        // keeps the machine's real reply text with a single note appended.
+        // No invented lyrics ever go into the log.
+        function markSung(el, replyText) {
+            if (!replyText) return;
+            var marked = replyText + ' ♪';
+            for (var i = convo.length - 1; i >= 0; i--) {
+                if (convo[i].role === 'them' && convo[i].text === replyText) {
+                    convo[i].text = marked;
+                    convoSave();
+                    break;
+                }
+            }
+            if (el) el.textContent = marked;
+        }
+
+        /**
+         * Entry point. `song` comes from singRequestFor(); `reply`/`replyEl`
+         * are the already-rendered reply turn, used only for the sung marker
+         * and for the speak() fallback if the endpoint can't sing yet.
+         */
+        function singSong(song, reply, replyEl) {
+            // An explicit mute is an explicit mute — never auto-play over it.
+            // The song still exists, it just waits behind one deliberate tap.
+            if (voiceMode === 'off') {
+                singNotice('a song is waiting · tap to play', false, function () {
+                    unlockAudio();
+                    startSong(song, reply, replyEl);
+                });
+                return;
+            }
+            startSong(song, reply, replyEl);
+        }
+
+        async function startSong(song, reply, replyEl) {
+            stopSpeaking();   // nothing talks over the song, including itself
+            singPending = true;
+            singNotice('singing… · tap to stop', true, stopSong);
+
+            try {
+                singAbort = (typeof AbortController === 'function')
+                    ? new AbortController() : null;
+                var opts = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ song: song || 'daisy' })
+                };
+                if (singAbort) opts.signal = singAbort.signal;
+
+                var res = await fetch(VOICE_SING, opts);
+                if (!singPending) return;            // cancelled while waiting
+                if (!res.ok) { singFailed(res.status, reply); return; }
+
+                var blob = await res.blob();
+                if (!singPending) return;
+                if (!blob || blob.size < 64) { singFailed(null, reply); return; }
+
+                // Same object-URL handling as the speak path, same element:
+                // one player, so a song and a spoken reply can never overlap.
+                revokeCurrent();
+                currentObjectUrl = URL.createObjectURL(blob);
+                ttsEl.src = currentObjectUrl;
+                ttsEl.onended = function () { stopSong(); };
+                await ttsEl.play();
+                if (!singPending) { try { ttsEl.pause(); } catch (e) {} return; }
+
+                singPlaying = true;
+                singPending = false;
+                ttsEl.addEventListener('pause', onSingPause);
+                if (singEl) {
+                    singEl.classList.remove('loading');
+                    singEl.textContent = 'singing · tap to stop';
+                }
+                markSung(replyEl, reply);
+            } catch (err) {
+                if (err && err.name === 'AbortError') return;   // we cancelled
+                singFailed(err && err.status ? err.status : null, reply);
+            }
+        }
+
+        // Calm lavender, never red, never a stack trace — and the reply is
+        // never simply lost: whatever went wrong, it gets spoken normally.
+        function singFailed(status, reply) {
+            stopSong();
+            if (!singFellBack) {
+                singFellBack = true;
+                if (status === 404 || status === 501) {
+                    addMessage("gorcave can't sing yet — that part isn't up on the Pi", 'system');
+                } else if (status) {
+                    addMessage('the song came back wrong (' + status + ')', 'system');
+                } else {
+                    addMessage(unreachableText(null), 'system');
+                }
+            }
+            if (reply) speak(reply);
         }
 
         // ---------- text fallback ----------
@@ -1955,6 +2287,230 @@
             if (hasSynth) {
                 try { window.speechSynthesis.getVoices(); } catch (e) {}
             }
+        })();
+
+        // =================================================================
+        // Build stamp, stale-build detection, and the install offer.
+        //
+        // There is no APK: the installed home-screen app IS this page, so
+        // the only way it can go stale is a cached copy. gorcave-version.json
+        // is the single source of truth for "what is deployed right now";
+        // APP_VERSION below is what THIS file shipped as. When they disagree,
+        // the copy running in this browser is old.
+        //
+        //   >>> BUMP ALL THREE TOGETHER ON EACH MEANINGFUL DEPLOY <<<
+        //         gorcave-version.json  ("version")
+        //         gorcave-voice.html    (APP_VERSION)
+        //         gorcave-chat.html     (APP_VERSION)
+        //       Format: YYYY-MM-DD.N   (N restarts at 1 each day)
+        //
+        // No service worker is registered here and none should be: sw.js in
+        // this repo is deliberately scoped to ciesen.html only. The cache
+        // purge below deletes ONLY gorcave-* caches, so ciesen's webchugl-*
+        // cache is never touched.
+        //
+        // Every failure path (404, malformed JSON, offline, blocked fetch)
+        // degrades to silence — a broken version check must never nag or
+        // throw.
+        // =================================================================
+        var APP_VERSION = '2026-08-05.1';
+
+        (function buildAndInstall() {
+            var VERSION_URL = 'gorcave-version.json';
+            var POLL_MS     = 15 * 60 * 1000;  // background re-check cadence
+            var MIN_GAP_MS  = 60 * 1000;       // floor between any two checks
+            var INSTALL_KEY = 'gorcave_install_dismissed';
+            var AUTO_KEY    = 'gorcave_auto_updated';
+
+            var stamp = document.getElementById('build-stamp');
+            if (stamp) stamp.textContent = 'build ' + APP_VERSION;
+
+            // ---- staleness ------------------------------------------------
+            var upBanner  = document.getElementById('update-banner');
+            var upText    = document.getElementById('update-text');
+            var upApply   = document.getElementById('update-apply');
+            var upDismiss = document.getElementById('update-dismiss');
+
+            var latest     = null;   // newest version the server admits to
+            var lastCheck  = 0;
+            var dismissed  = false;  // user said "not now" this session
+            var firstCheck = true;
+
+            // "Would reloading destroy something?" — anything in the shared
+            // transcript, or half-typed text, counts.
+            function conversationInProgress() {
+                try {
+                    if (typeof convo !== 'undefined' && convo && convo.length) return true;
+                } catch (e) {}
+                var input = document.getElementById('msg-input');
+                if (input && input.value && input.value.trim()) return true;
+                return false;
+            }
+
+            // Only ever delete caches we could plausibly own. ciesen.html's
+            // service worker owns webchugl-* — leave that, and anything else
+            // unrecognised, strictly alone.
+            function purgeOurCaches() {
+                try {
+                    if (!window.caches || !caches.keys) return Promise.resolve();
+                    return caches.keys().then(function (keys) {
+                        return Promise.all(keys.map(function (k) {
+                            return /^gorcave[-_.]/i.test(k) ? caches.delete(k) : null;
+                        }));
+                    })['catch'](function () {});
+                } catch (e) {
+                    return Promise.resolve();
+                }
+            }
+
+            function navigateFresh(v) {
+                // A plain location.reload() can still come out of the bfcache
+                // or an in-memory cache. A URL the browser has never seen
+                // cannot. pathname (not href) drops any previous ?v=, so this
+                // never accumulates query junk.
+                location.replace(location.pathname + '?v=' + encodeURIComponent(v));
+            }
+
+            function applyUpdate() {
+                var v = latest || String(Date.now());
+                var go = function () { navigateFresh(v); };
+                try { purgeOurCaches().then(go, go); } catch (e) { go(); }
+            }
+
+            function showUpdate(v) {
+                if (!upBanner || dismissed) return;
+                if (upText) upText.textContent = 'a newer version is available (' + v + ')';
+                upBanner.classList.add('show');
+            }
+
+            function autoAlreadyTried(v) {
+                try { return sessionStorage.getItem(AUTO_KEY) === v; } catch (e) { return false; }
+            }
+            function markAutoTried(v) {
+                try { sessionStorage.setItem(AUTO_KEY, v); } catch (e) {}
+            }
+
+            function checkVersion() {
+                var now = Date.now();
+                if (now - lastCheck < MIN_GAP_MS) return;
+                lastCheck = now;
+                var wasFirst = firstCheck;
+                firstCheck = false;
+
+                var req;
+                try {
+                    if (typeof fetch !== 'function') return;
+                    req = fetch(VERSION_URL + '?t=' + now, {
+                        cache: 'no-store',
+                        credentials: 'omit'
+                    });
+                } catch (e) { return; }
+                if (!req || typeof req.then !== 'function') return;
+
+                req.then(function (res) {
+                    if (!res || !res.ok) return null;          // 404 / 5xx -> silence
+                    return res.text();
+                }).then(function (body) {
+                    if (!body) return;
+                    var data = null;
+                    try { data = JSON.parse(body); } catch (e) { return; }  // malformed -> silence
+                    if (!data || typeof data.version !== 'string' || !data.version) return;
+                    if (data.version === APP_VERSION) { latest = null; return; }
+                    latest = data.version;
+                    // A fresh load with nothing to lose can just take the new
+                    // build. Mid-conversation we always ask first — an
+                    // unasked-for reload would wipe what you were doing.
+                    // autoAlreadyTried guards against a reload loop if the
+                    // HTML itself is somehow still being served stale.
+                    if (wasFirst && !conversationInProgress() && !autoAlreadyTried(latest)) {
+                        markAutoTried(latest);
+                        applyUpdate();
+                        return;
+                    }
+                    showUpdate(latest);
+                })['catch'](function () { /* offline / blocked: stay quiet */ });
+            }
+
+            if (upApply) {
+                upApply.addEventListener('click', applyUpdate);
+            }
+            if (upDismiss) {
+                upDismiss.addEventListener('click', function () {
+                    dismissed = true;
+                    if (upBanner) upBanner.classList.remove('show');
+                });
+            }
+
+            setTimeout(checkVersion, 4000);   // stay out of startup's way
+            setInterval(function () {
+                if (document.visibilityState === 'visible') checkVersion();
+            }, POLL_MS);
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') checkVersion();
+            });
+
+            // ---- install offer ---------------------------------------------
+            var inBanner  = document.getElementById('install-banner');
+            var inGo      = document.getElementById('install-go');
+            var inDismiss = document.getElementById('install-dismiss');
+            var deferred  = null;
+
+            function isInstalled() {
+                try {
+                    if (window.matchMedia &&
+                        window.matchMedia('(display-mode: standalone)').matches) return true;
+                } catch (e) {}
+                return navigator.standalone === true;
+            }
+            function installDismissed() {
+                try { return localStorage.getItem(INSTALL_KEY) === '1'; } catch (e) { return false; }
+            }
+            function hideInstall() {
+                if (inBanner) inBanner.classList.remove('show');
+            }
+            function rememberInstallDismissed() {
+                try { localStorage.setItem(INSTALL_KEY, '1'); } catch (e) {}
+            }
+
+            window.addEventListener('beforeinstallprompt', function (e) {
+                // Chrome's own mini-infobar is suppressed so we can offer it
+                // on our own terms, in palette, where it can't block anything.
+                try { e.preventDefault(); } catch (err) {}
+                deferred = e;
+                if (isInstalled() || installDismissed() || !inBanner) return;
+                inBanner.classList.add('show');
+            });
+
+            window.addEventListener('appinstalled', function () {
+                deferred = null;
+                hideInstall();
+                rememberInstallDismissed();
+            });
+
+            if (inGo) {
+                inGo.addEventListener('click', function () {
+                    hideInstall();
+                    if (!deferred) return;
+                    var p = deferred;
+                    deferred = null;      // a prompt event is single-use
+                    try { p.prompt(); } catch (e) { return; }
+                    try {
+                        if (p.userChoice && p.userChoice.then) {
+                            // Declining is not a dismissal: we simply say
+                            // nothing more this visit and may offer again later.
+                            p.userChoice['catch'](function () {});
+                        }
+                    } catch (e) {}
+                });
+            }
+            if (inDismiss) {
+                inDismiss.addEventListener('click', function () {
+                    hideInstall();
+                    rememberInstallDismissed();
+                });
+            }
+
+            if (isInstalled()) hideInstall();
         })();
     </script>
 </body>

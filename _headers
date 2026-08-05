@@ -13,7 +13,19 @@
 /universe/*
   Cache-Control: no-cache
 
-# gorcave-chat.html changes frequently during active development —
-# never let a stale cached copy show an outdated auth/UI state.
+# The gorcave pages ARE the installed app — there is no separate APK, so a
+# stale cached copy is the only way the home-screen app can go out of date.
+# no-cache (revalidate before use), NOT no-store: we still want cheap 304s.
+# gorcave-version.json is the staleness beacon both pages poll, so it above
+# all must never be served from cache.
 /gorcave-chat.html
+  Cache-Control: no-cache
+
+/gorcave-voice.html
+  Cache-Control: no-cache
+
+/gorcave-manifest.json
+  Cache-Control: no-cache
+
+/gorcave-version.json
   Cache-Control: no-cache

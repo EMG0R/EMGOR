@@ -7,6 +7,20 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>GORCAVE SERVER</title>
+
+    <!-- The manifest's scope is "/", which covers this page, so Chrome will
+         fire beforeinstallprompt here too. Linking it deliberately: the
+         manifest's start_url/id is gorcave-voice.html, so installing from
+         here yields exactly one home-screen entry — the voice app — rather
+         than a second, competing install target. The install banner below
+         says so plainly instead of implying this page is the app.
+         Still NO service worker: sw.js is scoped to ciesen.html only. -->
+    <link rel="manifest" href="gorcave-manifest.json">
+    <link rel="icon" href="gorcave-icon-192.png" type="image/png">
+    <link rel="apple-touch-icon" href="gorcave-icon-192.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="GORCAVE">
+
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -128,6 +142,71 @@
             font-size: 0.7rem;
             letter-spacing: 1px;
             color: var(--text-faint);
+        }
+        /* Tiny build stamp so "which build am I actually looking at?" is
+           answerable at a glance while debugging. Filled in by the JS. */
+        header .build-stamp {
+            margin-top: 4px;
+            font-size: 0.5rem;
+            letter-spacing: 1.4px;
+            color: var(--text-faint);
+            opacity: 0.55;
+        }
+
+        /* ---- update / install notices ----
+           Both sit in normal flow directly under the header, so they push
+           content rather than float over it — they can never cover the
+           composer or the send button. */
+        .banner {
+            flex: 0 0 auto;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 9px;
+            padding: 9px 12px;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface-2);
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            color: var(--lavender);
+            text-align: center;
+            animation: banner-in 0.28s ease-out;
+        }
+        .banner.show { display: flex; }
+        .banner-act {
+            background: none;
+            border: 1px solid var(--line-strong);
+            color: var(--lavender);
+            font-family: inherit;
+            font-size: 0.56rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 7px 12px;
+            min-height: 32px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .banner-act:hover { background: var(--surface); }
+        .banner-dismiss {
+            background: none;
+            border: none;
+            color: var(--text-faint);
+            font-family: inherit;
+            font-size: 0.85rem;
+            line-height: 1;
+            padding: 6px 8px;
+            min-width: 32px;
+            min-height: 32px;
+            cursor: pointer;
+        }
+        @keyframes banner-in {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .banner { animation: none; }
         }
 
         /* Deliberately in the header, centred, well away from Send and from
@@ -300,6 +379,31 @@
             0%, 100% { opacity: 0.35; }
             50% { opacity: 0.9; }
         }
+        /* ---- sung reply ----
+           Same calm lavender language as a system notice, but it is a
+           control: tap it to cancel a render still in flight or to stop a
+           song already playing. Rendering on the Pi can take many seconds,
+           so the waiting state has to look patient, not broken.
+           Keep in sync with gorcave-voice.html. */
+        .msg.singing {
+            align-self: center;
+            max-width: 90%;
+            background: none;
+            border: 1px dotted var(--line-strong);
+            border-radius: 999px;
+            color: var(--lavender);
+            font-family: inherit;
+            font-size: 0.66rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 9px 15px;
+            min-height: 36px;
+            cursor: pointer;
+        }
+        .msg.singing.loading { animation: pulse 1.4s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+            .msg.singing.loading { animation: none; opacity: 0.72; }
+        }
         /* Ambient particle layer: extends up and to the right of the
            bubble. Fixed box so it can never widen #history (which is
            overflow-x:hidden regardless), and pointer-events:none so it is
@@ -371,6 +475,230 @@
             padding: 8px;
         }
         #forget:hover { color: var(--text-dim); }
+
+        /* ===============================================================
+           ARCHIVE PANEL — KEEP IN SYNC WITH gorcave-voice.html
+           The permanent record of every past session.
+
+           Absolutely positioned INSIDE the pinned body shell (body is
+           position:fixed, so this is measured against it) — that way it
+           inherits whatever height the visualViewport logic has given the
+           shell and can never end up under a software keyboard. z-index
+           200 clears the corner chrome (100) and the particle layer (90);
+           display:none while closed removes it from hit-testing entirely,
+           so the composer underneath keeps every one of its taps.
+           =============================================================== */
+        .hdr-tools {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        /* Same quiet language as #clear-convo beside it — declared
+           separately rather than sharing a rule so the two labels can drift
+           independently. */
+        #open-archive {
+            margin-top: 7px;
+            background: none;
+            border: none;
+            border-bottom: 1px dotted rgba(198, 188, 226, 0.22);
+            color: var(--text-faint);
+            font-family: inherit;
+            font-size: 0.58rem;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            padding: 5px 6px;
+            min-height: 30px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        #open-archive:hover { color: var(--text-dim); }
+
+        #archive {
+            position: absolute;
+            inset: 0;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            background:
+                radial-gradient(120% 60% at 50% 0%, #170d29 0%, var(--bg) 60%),
+                var(--bg);
+        }
+        #archive.hidden { display: none; }
+        #archive.entering { opacity: 0; transform: translateY(16px); }
+        #archive.settled {
+            opacity: 1;
+            transform: none;
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #archive.entering { opacity: 1; transform: none; }
+            #archive.settled { transition: none; }
+        }
+
+        .ar-bar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: max(12px, env(safe-area-inset-top)) 12px 10px;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface);
+        }
+        #ar-title {
+            flex: 1 1 auto;
+            text-align: center;
+            font-size: 0.68rem;
+            letter-spacing: 2.4px;
+            text-transform: uppercase;
+            color: rgba(232, 226, 246, 0.78);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .ar-btn {
+            flex: 0 0 auto;
+            min-width: 44px;
+            min-height: 38px;
+            padding: 6px 10px;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            color: var(--text-dim);
+            font-family: inherit;
+            font-size: 0.62rem;
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .ar-btn:hover { color: var(--text); border-color: var(--line-strong); }
+        .ar-btn[hidden] { display: none; }
+
+        #ar-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding: 12px 12px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+
+        .ar-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            padding: 11px 13px;
+            color: var(--text);
+            font-family: inherit;
+            cursor: pointer;
+            transition: border-color 0.18s, background 0.18s;
+        }
+        .ar-item:hover, .ar-item:active {
+            border-color: var(--line-strong);
+            background: var(--surface-2);
+        }
+        .ar-when {
+            font-size: 0.6rem;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            color: var(--lavender);
+        }
+        .ar-prev {
+            margin-top: 5px;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: rgba(228, 222, 243, 0.72);
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+        .ar-count {
+            margin-top: 6px;
+            font-size: 0.58rem;
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            color: var(--text-faint);
+        }
+        .ar-empty {
+            margin: 26px auto;
+            max-width: 300px;
+            text-align: center;
+            font-size: 0.76rem;
+            line-height: 1.7;
+            color: var(--text-faint);
+        }
+
+        /* Read-only transcript rows: the same language as a live bubble,
+           one notch quieter, and never interactive. */
+        .ar-msg {
+            max-width: 86%;
+            font-size: 0.86rem;
+            line-height: 1.55;
+            padding: 9px 12px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .ar-msg.me {
+            align-self: flex-end;
+            background: rgba(150, 122, 208, 0.14);
+            border: 1px solid rgba(178, 158, 222, 0.14);
+            color: rgba(240, 236, 250, 0.90);
+        }
+        .ar-msg.them {
+            align-self: flex-start;
+            background: rgba(168, 146, 214, 0.05);
+            border: 1px solid var(--line);
+            color: rgba(228, 222, 243, 0.78);
+        }
+        /* same faint provenance mark the live bubbles use */
+        .ar-msg.me.via-voice {
+            padding-right: 22px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23c6bce2' fill-opacity='.42'%3E%3Cpath d='M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z'/%3E%3Cpath d='M18 11a1 1 0 0 0-2 0 4 4 0 0 1-8 0 1 1 0 0 0-2 0 6 6 0 0 0 5 5.9V20h2v-3.1A6 6 0 0 0 18 11z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 6px bottom 5px;
+            background-size: 10px 10px;
+        }
+
+        .ar-foot {
+            flex: 0 0 auto;
+            display: flex;
+            justify-content: center;
+            padding: 10px 12px calc(10px + var(--kb-pad, env(safe-area-inset-bottom)));
+            border-top: 1px solid var(--line);
+        }
+        /* The quietest control anywhere in the app, and it sits behind a
+           panel you have to open on purpose. It erases EVERYTHING, so it
+           takes two taps and the second label says exactly that. */
+        #ar-wipe {
+            background: none;
+            border: 1px dotted rgba(198, 188, 226, 0.20);
+            border-radius: 999px;
+            color: rgba(198, 188, 226, 0.24);
+            font-family: inherit;
+            font-size: 0.56rem;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            padding: 9px 14px;
+            min-height: 34px;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        #ar-wipe.armed {
+            border-style: solid;
+            border-color: var(--line-strong);
+            color: var(--lavender);
+        }
     </style>
 </head>
 <body>
@@ -386,7 +714,22 @@
         <h1>GORCAVE SERVER</h1>
         <div class="sub">a chat line into the machine watching the room</div>
         <button id="clear-convo" type="button">clear conversation</button>
+        <div class="build-stamp" id="build-stamp"></div>
     </header>
+
+    <div id="update-banner" class="banner" role="status" aria-live="polite">
+        <span id="update-text">a newer version is available</span>
+        <button id="update-apply" class="banner-act" type="button">update</button>
+        <button id="update-dismiss" class="banner-dismiss" type="button" aria-label="dismiss update notice">&times;</button>
+    </div>
+
+    <!-- Installing from here installs the voice console (the manifest's
+         start_url), not this page — say so rather than implying otherwise. -->
+    <div id="install-banner" class="banner" role="status">
+        <span>add the gorcave app to your home screen &mdash; it opens the voice console</span>
+        <button id="install-go" class="banner-act" type="button">install</button>
+        <button id="install-dismiss" class="banner-dismiss" type="button" aria-label="dismiss install notice">&times;</button>
+    </div>
 
     <div id="gate" class="hidden">
         <label for="token-input">passphrase</label>
@@ -411,6 +754,9 @@
     </div>
 
     <button id="forget" title="Clear stored passphrase">forget passphrase</button>
+
+    <!-- Only ever used for a sung reply — this page has no TTS of its own. -->
+    <audio id="song" playsinline preload="none"></audio>
 
     <script>
         // ---------------------------------------------------------------
@@ -974,6 +1320,219 @@
             return { el: el, finish: finish };
         }
 
+        // ---------------------------------------------------------------
+        // Singing.
+        //
+        //   POST /api/voice/sing  { song } -> wav bytes of the agent really
+        //   singing. Sibling of the voice page's speak endpoint; BACKEND_URL
+        //   above is untouched.
+        //
+        // TRIGGER — the USER's own words, not the reply. The persona is told
+        // explicitly never to announce that it is about to sing, so the reply
+        // text carries no reliable signal; the message that provoked it does.
+        // A structured hint from the backend (data.sing / data.song) is
+        // honoured if one ever appears, but nothing depends on it.
+        //
+        // Mirrors the block in gorcave-voice.html — same trigger, same song
+        // parsing, same notice — deliberately duplicated, since both files
+        // are self-contained by design.
+        // ---------------------------------------------------------------
+        const SING_URL = "https://gorcave.taila85593.ts.net/api/voice/sing";
+        const VOICE_MODE_KEY = 'gorcave_voice_mode';   // shared with the voice page
+        const songEl = document.getElementById('song');
+
+        const SING_RE = /\b(?:sing|serenade)\b/i;
+
+        // Filler that wraps a request rather than naming a song.
+        // "sing me daisy" -> 'daisy'; "sing me a song" -> '' -> daisy.
+        const SING_FILLER = {
+            me:1, us:1, a:1, an:1, the:1, some:1, one:1, another:1, your:1,
+            please:1, song:1, songs:1, tune:1, something:1, anything:1,
+            now:1, again:1, first:1, favourite:1, favorite:1, little:1,
+            old:1, called:1, named:1, titled:1
+        };
+        // A first word from this list means the song was described, not
+        // named ("sing about the rain") — take the default.
+        const SING_STOP = {
+            about:1, for:1, to:1, with:1, in:1, on:1, at:1, like:1, if:1,
+            when:1, while:1, and:1, but:1, or:1, that:1, this:1, it:1,
+            you:1, we:1, i:1, my:1, is:1, are:1, was:1, do:1, can:1,
+            will:1, would:1, could:1, something:1
+        };
+
+        function songFrom(text) {
+            const m = SING_RE.exec(String(text || ''));
+            if (!m) return '';
+            let rest = String(text).slice(m.index + m[0].length).split(/[.!?\n]/)[0];
+            rest = rest.toLowerCase().replace(/[^a-z0-9' -]+/g, ' ');
+            const words = rest.split(/\s+/).filter(Boolean);
+            while (words.length && SING_FILLER[words[0]]) words.shift();
+            while (words.length && SING_FILLER[words[words.length - 1]]) words.pop();
+            if (!words.length || SING_STOP[words[0]]) return '';
+            return words.slice(0, 4).join(' ');
+        }
+
+        function singHint(data) {
+            if (!data) return null;
+            if (typeof data.sing === 'string' && data.sing) return data.sing;
+            if (data.sing === true) return '';
+            if (typeof data.song === 'string' && data.song) return data.song;
+            return null;
+        }
+
+        /** -> song name to request, or null if this turn isn't a sung one. */
+        function singRequestFor(userText, data) {
+            const hint = singHint(data);
+            if (hint === null && !SING_RE.test(String(userText || ''))) return null;
+            return hint || songFrom(userText) || 'daisy';
+        }
+
+        // Read fresh every time: the setting lives on the voice page and may
+        // have been changed there since this tab loaded.
+        function voiceMuted() {
+            try { return localStorage.getItem(VOICE_MODE_KEY) === 'off'; }
+            catch (e) { return false; }
+        }
+
+        let singEl = null;         // the notice/control, if one is on screen
+        let singPending = false;   // a render is in flight
+        let singPlaying = false;   // audio is actually running
+        let singAbort = null;
+        let singObjectUrl = null;
+        let singFellBack = false;  // one "can't sing yet" notice per session
+
+        function singNotice(label, loading, onTap) {
+            clearSingNotice();
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'msg singing' + (loading ? ' loading' : '');
+            b.textContent = label;
+            b.addEventListener('click', onTap);
+            historyEl.appendChild(b);
+            scrollToLatest();
+            singEl = b;
+            return b;
+        }
+
+        function clearSingNotice() {
+            if (singEl && singEl.parentNode) singEl.parentNode.removeChild(singEl);
+            singEl = null;
+        }
+
+        function revokeSong() {
+            if (singObjectUrl) {
+                URL.revokeObjectURL(singObjectUrl);
+                singObjectUrl = null;
+            }
+        }
+
+        function onSingPause() { stopSong(); }
+
+        function stopSong() {
+            if (singAbort) {
+                try { singAbort.abort(); } catch (e) {}
+                singAbort = null;
+            }
+            singPending = false;
+            if (singPlaying) {
+                singPlaying = false;
+                try { songEl.pause(); } catch (e) {}
+            }
+            try { songEl.removeEventListener('pause', onSingPause); } catch (e) {}
+            revokeSong();
+            clearSingNotice();
+        }
+
+        // Subtle, and only once the song is really playing: the stored turn
+        // keeps the machine's real reply text with a single note appended.
+        // No invented lyrics ever go into the log.
+        function markSung(el, replyText) {
+            if (!replyText) return;
+            const marked = replyText + ' ♪';
+            for (let i = convo.length - 1; i >= 0; i--) {
+                if (convo[i].role === 'them' && convo[i].text === replyText) {
+                    convo[i].text = marked;
+                    convoSave();
+                    break;
+                }
+            }
+            if (el) el.textContent = marked;
+        }
+
+        function singSong(song, reply, replyEl) {
+            // An explicit mute is an explicit mute — never auto-play over it.
+            // The song still exists, it just waits behind one deliberate tap.
+            if (voiceMuted()) {
+                singNotice('a song is waiting · tap to play', false, () => {
+                    startSong(song, reply, replyEl);
+                });
+                return;
+            }
+            startSong(song, reply, replyEl);
+        }
+
+        async function startSong(song, reply, replyEl) {
+            stopSong();
+            singPending = true;
+            singNotice('singing… · tap to stop', true, stopSong);
+
+            try {
+                singAbort = (typeof AbortController === 'function')
+                    ? new AbortController() : null;
+                const opts = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ song: song || 'daisy' })
+                };
+                if (singAbort) opts.signal = singAbort.signal;
+
+                const res = await fetch(SING_URL, opts);
+                if (!singPending) return;            // cancelled while waiting
+                if (!res.ok) { singFailed(res.status); return; }
+
+                const blob = await res.blob();
+                if (!singPending) return;
+                if (!blob || blob.size < 64) { singFailed(null); return; }
+
+                revokeSong();
+                singObjectUrl = URL.createObjectURL(blob);
+                songEl.src = singObjectUrl;
+                songEl.onended = () => { stopSong(); };
+                await songEl.play();
+                if (!singPending) { try { songEl.pause(); } catch (e) {} return; }
+
+                singPlaying = true;
+                singPending = false;
+                songEl.addEventListener('pause', onSingPause);
+                if (singEl) {
+                    singEl.classList.remove('loading');
+                    singEl.textContent = 'singing · tap to stop';
+                }
+                markSung(replyEl, reply);
+            } catch (err) {
+                if (err && err.name === 'AbortError') return;   // we cancelled
+                singFailed(null);
+            }
+        }
+
+        // Calm lavender, never red, never a stack trace. The reply text is
+        // already on screen either way, so nothing is lost.
+        function singFailed(status) {
+            stopSong();
+            if (singFellBack) return;
+            singFellBack = true;
+            if (status === 404 || status === 501) {
+                addMessage("gorcave can't sing yet — that part isn't up on the Pi", 'system');
+            } else if (status) {
+                addMessage('the song came back wrong (' + status + ')', 'system');
+            } else {
+                addMessage("can't reach the agent right now", 'system');
+            }
+        }
+
+        // No orphaned player, timer or object URL when the page goes away.
+        window.addEventListener('pagehide', stopSong);
+
         composer.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = msgInput.value.trim();
@@ -1021,6 +1580,10 @@
                 const data = await res.json();
                 if (data && typeof data.reply === 'string') {
                     say('them', data.reply, 'text');
+                    // Asking to be sung to is a property of what was SENT,
+                    // not of the reply — see the singing block above.
+                    const song = singRequestFor(text, data);
+                    if (song) singSong(song, data.reply, historyEl.lastElementChild);
                 } else {
                     addMessage("can't reach the agent right now", 'system');
                 }
@@ -1056,6 +1619,230 @@
             scrollToLatest();
             requestAnimationFrame(scrollToLatest);
             window.addEventListener('load', scrollToLatest, { once: true });
+        })();
+
+        // =================================================================
+        // Build stamp, stale-build detection, and the install offer.
+        //
+        // There is no APK: the installed home-screen app IS this page, so
+        // the only way it can go stale is a cached copy. gorcave-version.json
+        // is the single source of truth for "what is deployed right now";
+        // APP_VERSION below is what THIS file shipped as. When they disagree,
+        // the copy running in this browser is old.
+        //
+        //   >>> BUMP ALL THREE TOGETHER ON EACH MEANINGFUL DEPLOY <<<
+        //         gorcave-version.json  ("version")
+        //         gorcave-voice.html    (APP_VERSION)
+        //         gorcave-chat.html     (APP_VERSION)
+        //       Format: YYYY-MM-DD.N   (N restarts at 1 each day)
+        //
+        // No service worker is registered here and none should be: sw.js in
+        // this repo is deliberately scoped to ciesen.html only. The cache
+        // purge below deletes ONLY gorcave-* caches, so ciesen's webchugl-*
+        // cache is never touched.
+        //
+        // Every failure path (404, malformed JSON, offline, blocked fetch)
+        // degrades to silence — a broken version check must never nag or
+        // throw.
+        // =================================================================
+        var APP_VERSION = '2026-08-05.1';
+
+        (function buildAndInstall() {
+            var VERSION_URL = 'gorcave-version.json';
+            var POLL_MS     = 15 * 60 * 1000;  // background re-check cadence
+            var MIN_GAP_MS  = 60 * 1000;       // floor between any two checks
+            var INSTALL_KEY = 'gorcave_install_dismissed';
+            var AUTO_KEY    = 'gorcave_auto_updated';
+
+            var stamp = document.getElementById('build-stamp');
+            if (stamp) stamp.textContent = 'build ' + APP_VERSION;
+
+            // ---- staleness ------------------------------------------------
+            var upBanner  = document.getElementById('update-banner');
+            var upText    = document.getElementById('update-text');
+            var upApply   = document.getElementById('update-apply');
+            var upDismiss = document.getElementById('update-dismiss');
+
+            var latest     = null;   // newest version the server admits to
+            var lastCheck  = 0;
+            var dismissed  = false;  // user said "not now" this session
+            var firstCheck = true;
+
+            // "Would reloading destroy something?" — anything in the shared
+            // transcript, or half-typed text, counts.
+            function conversationInProgress() {
+                try {
+                    if (typeof convo !== 'undefined' && convo && convo.length) return true;
+                } catch (e) {}
+                var input = document.getElementById('msg-input');
+                if (input && input.value && input.value.trim()) return true;
+                return false;
+            }
+
+            // Only ever delete caches we could plausibly own. ciesen.html's
+            // service worker owns webchugl-* — leave that, and anything else
+            // unrecognised, strictly alone.
+            function purgeOurCaches() {
+                try {
+                    if (!window.caches || !caches.keys) return Promise.resolve();
+                    return caches.keys().then(function (keys) {
+                        return Promise.all(keys.map(function (k) {
+                            return /^gorcave[-_.]/i.test(k) ? caches.delete(k) : null;
+                        }));
+                    })['catch'](function () {});
+                } catch (e) {
+                    return Promise.resolve();
+                }
+            }
+
+            function navigateFresh(v) {
+                // A plain location.reload() can still come out of the bfcache
+                // or an in-memory cache. A URL the browser has never seen
+                // cannot. pathname (not href) drops any previous ?v=, so this
+                // never accumulates query junk.
+                location.replace(location.pathname + '?v=' + encodeURIComponent(v));
+            }
+
+            function applyUpdate() {
+                var v = latest || String(Date.now());
+                var go = function () { navigateFresh(v); };
+                try { purgeOurCaches().then(go, go); } catch (e) { go(); }
+            }
+
+            function showUpdate(v) {
+                if (!upBanner || dismissed) return;
+                if (upText) upText.textContent = 'a newer version is available (' + v + ')';
+                upBanner.classList.add('show');
+            }
+
+            function autoAlreadyTried(v) {
+                try { return sessionStorage.getItem(AUTO_KEY) === v; } catch (e) { return false; }
+            }
+            function markAutoTried(v) {
+                try { sessionStorage.setItem(AUTO_KEY, v); } catch (e) {}
+            }
+
+            function checkVersion() {
+                var now = Date.now();
+                if (now - lastCheck < MIN_GAP_MS) return;
+                lastCheck = now;
+                var wasFirst = firstCheck;
+                firstCheck = false;
+
+                var req;
+                try {
+                    if (typeof fetch !== 'function') return;
+                    req = fetch(VERSION_URL + '?t=' + now, {
+                        cache: 'no-store',
+                        credentials: 'omit'
+                    });
+                } catch (e) { return; }
+                if (!req || typeof req.then !== 'function') return;
+
+                req.then(function (res) {
+                    if (!res || !res.ok) return null;          // 404 / 5xx -> silence
+                    return res.text();
+                }).then(function (body) {
+                    if (!body) return;
+                    var data = null;
+                    try { data = JSON.parse(body); } catch (e) { return; }  // malformed -> silence
+                    if (!data || typeof data.version !== 'string' || !data.version) return;
+                    if (data.version === APP_VERSION) { latest = null; return; }
+                    latest = data.version;
+                    // A fresh load with nothing to lose can just take the new
+                    // build. Mid-conversation we always ask first — an
+                    // unasked-for reload would wipe what you were doing.
+                    // autoAlreadyTried guards against a reload loop if the
+                    // HTML itself is somehow still being served stale.
+                    if (wasFirst && !conversationInProgress() && !autoAlreadyTried(latest)) {
+                        markAutoTried(latest);
+                        applyUpdate();
+                        return;
+                    }
+                    showUpdate(latest);
+                })['catch'](function () { /* offline / blocked: stay quiet */ });
+            }
+
+            if (upApply) {
+                upApply.addEventListener('click', applyUpdate);
+            }
+            if (upDismiss) {
+                upDismiss.addEventListener('click', function () {
+                    dismissed = true;
+                    if (upBanner) upBanner.classList.remove('show');
+                });
+            }
+
+            setTimeout(checkVersion, 4000);   // stay out of startup's way
+            setInterval(function () {
+                if (document.visibilityState === 'visible') checkVersion();
+            }, POLL_MS);
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') checkVersion();
+            });
+
+            // ---- install offer ---------------------------------------------
+            var inBanner  = document.getElementById('install-banner');
+            var inGo      = document.getElementById('install-go');
+            var inDismiss = document.getElementById('install-dismiss');
+            var deferred  = null;
+
+            function isInstalled() {
+                try {
+                    if (window.matchMedia &&
+                        window.matchMedia('(display-mode: standalone)').matches) return true;
+                } catch (e) {}
+                return navigator.standalone === true;
+            }
+            function installDismissed() {
+                try { return localStorage.getItem(INSTALL_KEY) === '1'; } catch (e) { return false; }
+            }
+            function hideInstall() {
+                if (inBanner) inBanner.classList.remove('show');
+            }
+            function rememberInstallDismissed() {
+                try { localStorage.setItem(INSTALL_KEY, '1'); } catch (e) {}
+            }
+
+            window.addEventListener('beforeinstallprompt', function (e) {
+                // Chrome's own mini-infobar is suppressed so we can offer it
+                // on our own terms, in palette, where it can't block anything.
+                try { e.preventDefault(); } catch (err) {}
+                deferred = e;
+                if (isInstalled() || installDismissed() || !inBanner) return;
+                inBanner.classList.add('show');
+            });
+
+            window.addEventListener('appinstalled', function () {
+                deferred = null;
+                hideInstall();
+                rememberInstallDismissed();
+            });
+
+            if (inGo) {
+                inGo.addEventListener('click', function () {
+                    hideInstall();
+                    if (!deferred) return;
+                    var p = deferred;
+                    deferred = null;      // a prompt event is single-use
+                    try { p.prompt(); } catch (e) { return; }
+                    try {
+                        if (p.userChoice && p.userChoice.then) {
+                            // Declining is not a dismissal: we simply say
+                            // nothing more this visit and may offer again later.
+                            p.userChoice['catch'](function () {});
+                        }
+                    } catch (e) {}
+                });
+            }
+            if (inDismiss) {
+                inDismiss.addEventListener('click', function () {
+                    hideInstall();
+                    rememberInstallDismissed();
+                });
+            }
+
+            if (isInstalled()) hideInstall();
         })();
     </script>
 </body>
