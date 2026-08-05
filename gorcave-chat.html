@@ -209,31 +209,6 @@
             .banner { animation: none; }
         }
 
-        /* Deliberately in the header, centred, well away from Send and from
-           either corner — an earlier corner button had an accidental-tap
-           problem. Two taps are required (see the JS). */
-        #clear-convo {
-            margin-top: 7px;
-            background: none;
-            border: none;
-            border-bottom: 1px dotted rgba(198, 188, 226, 0.22);
-            color: var(--text-faint);
-            font-family: inherit;
-            font-size: 0.58rem;
-            letter-spacing: 1.6px;
-            text-transform: uppercase;
-            padding: 5px 6px;
-            min-height: 30px;
-            cursor: pointer;
-            transition: color 0.2s, border-color 0.2s;
-        }
-        #clear-convo:hover { color: var(--text-dim); }
-        #clear-convo.armed {
-            color: var(--lavender);
-            border-bottom-style: solid;
-            border-bottom-color: var(--line-strong);
-        }
-
         /* ---- Passphrase gate (kept intact; bypassed while AUTH_REQUIRED is false) ---- */
         #gate {
             flex: 1 1 auto;
@@ -476,229 +451,6 @@
         }
         #forget:hover { color: var(--text-dim); }
 
-        /* ===============================================================
-           ARCHIVE PANEL — KEEP IN SYNC WITH gorcave-voice.html
-           The permanent record of every past session.
-
-           Absolutely positioned INSIDE the pinned body shell (body is
-           position:fixed, so this is measured against it) — that way it
-           inherits whatever height the visualViewport logic has given the
-           shell and can never end up under a software keyboard. z-index
-           200 clears the corner chrome (100) and the particle layer (90);
-           display:none while closed removes it from hit-testing entirely,
-           so the composer underneath keeps every one of its taps.
-           =============================================================== */
-        .hdr-tools {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        /* Same quiet language as #clear-convo beside it — declared
-           separately rather than sharing a rule so the two labels can drift
-           independently. */
-        #open-archive {
-            margin-top: 7px;
-            background: none;
-            border: none;
-            border-bottom: 1px dotted rgba(198, 188, 226, 0.22);
-            color: var(--text-faint);
-            font-family: inherit;
-            font-size: 0.58rem;
-            letter-spacing: 1.6px;
-            text-transform: uppercase;
-            padding: 5px 6px;
-            min-height: 30px;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-        #open-archive:hover { color: var(--text-dim); }
-
-        #archive {
-            position: absolute;
-            inset: 0;
-            z-index: 200;
-            display: flex;
-            flex-direction: column;
-            background:
-                radial-gradient(120% 60% at 50% 0%, #170d29 0%, var(--bg) 60%),
-                var(--bg);
-        }
-        #archive.hidden { display: none; }
-        #archive.entering { opacity: 0; transform: translateY(16px); }
-        #archive.settled {
-            opacity: 1;
-            transform: none;
-            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
-        }
-        @media (prefers-reduced-motion: reduce) {
-            #archive.entering { opacity: 1; transform: none; }
-            #archive.settled { transition: none; }
-        }
-
-        .ar-bar {
-            flex: 0 0 auto;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: max(12px, env(safe-area-inset-top)) 12px 10px;
-            border-bottom: 1px solid var(--line);
-            background: var(--surface);
-        }
-        #ar-title {
-            flex: 1 1 auto;
-            text-align: center;
-            font-size: 0.68rem;
-            letter-spacing: 2.4px;
-            text-transform: uppercase;
-            color: rgba(232, 226, 246, 0.78);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .ar-btn {
-            flex: 0 0 auto;
-            min-width: 44px;
-            min-height: 38px;
-            padding: 6px 10px;
-            background: var(--surface-2);
-            border: 1px solid var(--line);
-            border-radius: 9px;
-            color: var(--text-dim);
-            font-family: inherit;
-            font-size: 0.62rem;
-            letter-spacing: 1.4px;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: color 0.2s, border-color 0.2s;
-        }
-        .ar-btn:hover { color: var(--text); border-color: var(--line-strong); }
-        .ar-btn[hidden] { display: none; }
-
-        #ar-body {
-            flex: 1 1 auto;
-            min-height: 0;
-            overflow-y: auto;
-            overflow-x: hidden;
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
-            padding: 12px 12px 18px;
-            display: flex;
-            flex-direction: column;
-            gap: 9px;
-        }
-
-        .ar-item {
-            display: block;
-            width: 100%;
-            text-align: left;
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 11px;
-            padding: 11px 13px;
-            color: var(--text);
-            font-family: inherit;
-            cursor: pointer;
-            transition: border-color 0.18s, background 0.18s;
-        }
-        .ar-item:hover, .ar-item:active {
-            border-color: var(--line-strong);
-            background: var(--surface-2);
-        }
-        .ar-when {
-            font-size: 0.6rem;
-            letter-spacing: 1.6px;
-            text-transform: uppercase;
-            color: var(--lavender);
-        }
-        .ar-prev {
-            margin-top: 5px;
-            font-size: 0.8rem;
-            line-height: 1.5;
-            color: rgba(228, 222, 243, 0.72);
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-        }
-        .ar-count {
-            margin-top: 6px;
-            font-size: 0.58rem;
-            letter-spacing: 1.4px;
-            text-transform: uppercase;
-            color: var(--text-faint);
-        }
-        .ar-empty {
-            margin: 26px auto;
-            max-width: 300px;
-            text-align: center;
-            font-size: 0.76rem;
-            line-height: 1.7;
-            color: var(--text-faint);
-        }
-
-        /* Read-only transcript rows: the same language as a live bubble,
-           one notch quieter, and never interactive. */
-        .ar-msg {
-            max-width: 86%;
-            font-size: 0.86rem;
-            line-height: 1.55;
-            padding: 9px 12px;
-            border-radius: 10px;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-        .ar-msg.me {
-            align-self: flex-end;
-            background: rgba(150, 122, 208, 0.14);
-            border: 1px solid rgba(178, 158, 222, 0.14);
-            color: rgba(240, 236, 250, 0.90);
-        }
-        .ar-msg.them {
-            align-self: flex-start;
-            background: rgba(168, 146, 214, 0.05);
-            border: 1px solid var(--line);
-            color: rgba(228, 222, 243, 0.78);
-        }
-        /* same faint provenance mark the live bubbles use */
-        .ar-msg.me.via-voice {
-            padding-right: 22px;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23c6bce2' fill-opacity='.42'%3E%3Cpath d='M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z'/%3E%3Cpath d='M18 11a1 1 0 0 0-2 0 4 4 0 0 1-8 0 1 1 0 0 0-2 0 6 6 0 0 0 5 5.9V20h2v-3.1A6 6 0 0 0 18 11z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 6px bottom 5px;
-            background-size: 10px 10px;
-        }
-
-        .ar-foot {
-            flex: 0 0 auto;
-            display: flex;
-            justify-content: center;
-            padding: 10px 12px calc(10px + var(--kb-pad, env(safe-area-inset-bottom)));
-            border-top: 1px solid var(--line);
-        }
-        /* The quietest control anywhere in the app, and it sits behind a
-           panel you have to open on purpose. It erases EVERYTHING, so it
-           takes two taps and the second label says exactly that. */
-        #ar-wipe {
-            background: none;
-            border: 1px dotted rgba(198, 188, 226, 0.20);
-            border-radius: 999px;
-            color: rgba(198, 188, 226, 0.24);
-            font-family: inherit;
-            font-size: 0.56rem;
-            letter-spacing: 1.6px;
-            text-transform: uppercase;
-            padding: 9px 14px;
-            min-height: 34px;
-            cursor: pointer;
-            transition: color 0.2s, border-color 0.2s;
-        }
-        #ar-wipe.armed {
-            border-style: solid;
-            border-color: var(--line-strong);
-            color: var(--lavender);
-        }
     </style>
 </head>
 <body>
@@ -713,10 +465,6 @@
     <header>
         <h1>GORCAVE SERVER</h1>
         <div class="sub">a chat line into the machine watching the room</div>
-        <div class="hdr-tools">
-            <button id="clear-convo" type="button">clear this session</button>
-            <button id="open-archive" type="button">past conversations</button>
-        </div>
         <div class="build-stamp" id="build-stamp"></div>
     </header>
 
@@ -758,20 +506,6 @@
 
     <button id="forget" title="Clear stored passphrase">forget passphrase</button>
 
-    <!-- Archive browser. Direct child of the pinned body shell on purpose —
-         see the #archive CSS. Starts hidden, so it is invisible to touch. -->
-    <div id="archive" class="hidden" role="dialog" aria-modal="true" aria-label="past conversations">
-        <div class="ar-bar">
-            <button id="ar-back" class="ar-btn" type="button" hidden>&larr; all</button>
-            <div id="ar-title">past conversations</div>
-            <button id="ar-close" class="ar-btn" type="button" aria-label="back to the live conversation">&#10005;</button>
-        </div>
-        <div id="ar-body"></div>
-        <div class="ar-foot">
-            <button id="ar-wipe" type="button">erase every past conversation</button>
-        </div>
-    </div>
-
     <!-- Only ever used for a sung reply — this page has no TTS of its own. -->
     <audio id="song" playsinline preload="none"></audio>
 
@@ -801,7 +535,6 @@
         const msgInput    = document.getElementById('msg-input');
         const forgetBtn   = document.getElementById('forget');
         const sendBtn     = composer.querySelector('.send-btn');
-        const clearBtn    = document.getElementById('clear-convo');
 
         // ===============================================================
         // SESSIONS + PERMANENT ARCHIVE — KEEP IN SYNC WITH gorcave-voice.html
@@ -830,6 +563,10 @@
         // plain reload, which is why the token is time-boxed AND deleted the
         // instant it is read: a reload finds nothing to consume and correctly
         // reads as a new session.
+        //
+        // There is no in-app browser for any of this any more — the log is
+        // kept purely as a record to be read from outside the app (devtools,
+        // Claude Code, whatever). Collection is unchanged and deliberate.
         //
         // System notices are NOT stored — they describe one session only.
         // ===============================================================
@@ -901,13 +638,6 @@
             convo.push({ role: role, text: text, ts: Date.now(), mode: mode || PAGE_MODE });
             if (convo.length > CONVO_MAX) convo = convo.slice(-CONVO_MAX);
             convoSave();
-        }
-
-        // Clears the CURRENT session only. The archive is untouched — see
-        // archiveClear() for the deliberate, two-tap way to erase that.
-        function convoClear() {
-            convo = [];
-            lsDel(CONVO_KEY);
         }
 
         function sessionMetaLoad() {
@@ -992,11 +722,6 @@
             }
             archive.push(entry);
             archiveSave();
-        }
-
-        function archiveClear() {
-            archive = [];
-            lsDel(ARCHIVE_KEY);
         }
 
         // Written by the mode-toggle link's click handler, an instant before
@@ -1091,176 +816,6 @@
             gateEl.classList.add('hidden');
             chatEl.classList.remove('hidden');
         }
-
-        // Two-tap erase: the first tap only arms the button (and says so),
-        // a second tap within 4s actually clears. Placed in the header,
-        // not in a corner, so it can't be caught by a stray thumb.
-        //
-        // This clears THIS SESSION only — the labels say so, and the archive
-        // has its own, quieter, harder-to-reach erase inside the panel.
-        let clearArmedAt = 0;
-        function disarmClear() {
-            clearArmedAt = 0;
-            clearBtn.textContent = 'clear this session';
-            clearBtn.classList.remove('armed');
-        }
-        clearBtn.addEventListener('click', () => {
-            const now = Date.now();
-            if (now - clearArmedAt > 4000) {
-                clearArmedAt = now;
-                clearBtn.textContent = 'tap again to clear session';
-                clearBtn.classList.add('armed');
-                setTimeout(() => {
-                    if (clearArmedAt && Date.now() - clearArmedAt >= 4000) disarmClear();
-                }, 4100);
-                return;
-            }
-            disarmClear();
-            convoClear();
-            historyEl.innerHTML = '';
-            addMessage('this session cleared — past conversations are still in the archive', 'system');
-        });
-
-        // ===============================================================
-        // ARCHIVE BROWSER — KEEP IN SYNC WITH gorcave-voice.html
-        //
-        // A slide-over over the whole shell listing every past session,
-        // newest first; tap one to read its transcript, tap "all" to come
-        // back, tap the cross to return to the live conversation. It is
-        // display:none while closed, so the composer keeps every tap.
-        // ===============================================================
-        const archiveEl = document.getElementById('archive');
-        const arBody    = document.getElementById('ar-body');
-        const arTitle   = document.getElementById('ar-title');
-        const arBack    = document.getElementById('ar-back');
-        const arClose   = document.getElementById('ar-close');
-        const arWipe    = document.getElementById('ar-wipe');
-        const openArchiveBtn = document.getElementById('open-archive');
-
-        function arWhen(ts) {
-            const d = new Date(ts);
-            if (isNaN(d.getTime())) return 'undated';
-            try {
-                return d.toLocaleString(undefined, {
-                    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-                });
-            } catch (e) { return d.toDateString(); }
-        }
-
-        // The first thing the user said is the most useful handle on a
-        // session — falling back to whatever the first turn was.
-        function arPreview(turns) {
-            for (let i = 0; i < turns.length; i++) {
-                if (turns[i].role === 'me' && turns[i].text) return turns[i].text;
-            }
-            return (turns[0] && turns[0].text) || '';
-        }
-
-        function arList() {
-            arBack.hidden = true;
-            arTitle.textContent = 'past conversations';
-            arBody.innerHTML = '';
-            arBody.scrollTop = 0;
-            if (!archive.length) {
-                const p = document.createElement('div');
-                p.className = 'ar-empty';
-                p.textContent = 'Nothing filed yet. Every page load starts a new ' +
-                    'session, and the one you are in right now is archived here the ' +
-                    'next time this page opens.';
-                arBody.appendChild(p);
-                return;
-            }
-            for (let i = archive.length - 1; i >= 0; i--) {   // newest first
-                const entry = archive[i];
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'ar-item';
-                const w = document.createElement('div');
-                w.className = 'ar-when';
-                w.textContent = arWhen(entry.startedAt);
-                const pv = document.createElement('div');
-                pv.className = 'ar-prev';
-                pv.textContent = arPreview(entry.turns);
-                const c = document.createElement('div');
-                c.className = 'ar-count';
-                c.textContent = entry.turns.length +
-                    (entry.turns.length === 1 ? ' turn' : ' turns');
-                b.appendChild(w); b.appendChild(pv); b.appendChild(c);
-                b.addEventListener('click', () => arShow(entry));
-                arBody.appendChild(b);
-            }
-        }
-
-        function arShow(entry) {
-            arBack.hidden = false;
-            arTitle.textContent = arWhen(entry.startedAt);
-            arBody.innerHTML = '';
-            arBody.scrollTop = 0;
-            for (let i = 0; i < entry.turns.length; i++) {
-                const t = entry.turns[i];
-                const d = document.createElement('div');
-                d.className = 'ar-msg ' + (t.role === 'me' ? 'me' : 'them') +
-                    (t.role === 'me' && t.mode === 'voice' ? ' via-voice' : '');
-                d.textContent = t.text;
-                arBody.appendChild(d);
-            }
-        }
-
-        function arOpen() {
-            // Never leave a software keyboard standing behind the panel —
-            // it would resize the shell the panel is measured against.
-            if (document.activeElement && document.activeElement.blur) {
-                try { document.activeElement.blur(); } catch (e) {}
-            }
-            arDisarmWipe();
-            arList();
-            archiveEl.classList.remove('hidden');
-            archiveEl.classList.add('entering');
-            requestAnimationFrame(() => {
-                archiveEl.classList.add('settled');
-                archiveEl.classList.remove('entering');
-            });
-        }
-
-        function arDismiss() {
-            archiveEl.classList.add('hidden');
-            archiveEl.classList.remove('settled', 'entering');
-            arDisarmWipe();
-            arBody.innerHTML = '';
-            scrollToLatest();
-        }
-
-        // Two taps, a longer window than the session clear, a different
-        // label, and it only exists inside a panel you opened on purpose.
-        let arWipeArmedAt = 0;
-        function arDisarmWipe() {
-            arWipeArmedAt = 0;
-            arWipe.textContent = 'erase every past conversation';
-            arWipe.classList.remove('armed');
-        }
-        arWipe.addEventListener('click', () => {
-            const now = Date.now();
-            if (now - arWipeArmedAt > 5000) {
-                arWipeArmedAt = now;
-                arWipe.textContent = 'tap again to delete all history';
-                arWipe.classList.add('armed');
-                setTimeout(() => {
-                    if (arWipeArmedAt && Date.now() - arWipeArmedAt >= 5000) arDisarmWipe();
-                }, 5100);
-                return;
-            }
-            archiveClear();
-            arDisarmWipe();
-            arList();
-        });
-
-        arClose.addEventListener('click', arDismiss);
-        arBack.addEventListener('click', arList);
-        openArchiveBtn.addEventListener('click', arOpen);
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !archiveEl.classList.contains('hidden')) arDismiss();
-        });
-        arDisarmWipe();
 
         // A hop to the sibling page is a NAVIGATION, not a new session: the
         // token this writes is what the destination page consumes.
@@ -1727,7 +1282,6 @@
         // are self-contained by design.
         // ---------------------------------------------------------------
         const SING_URL = "https://gorcave.taila85593.ts.net/api/voice/sing";
-        const VOICE_MODE_KEY = 'gorcave_voice_mode';   // shared with the voice page
         const songEl = document.getElementById('song');
 
         const SING_RE = /\b(?:sing|serenade)\b/i;
@@ -1783,13 +1337,6 @@
             const hint = singHint(data);
             if (hint === null && !SING_RE.test(String(userText || ''))) return null;
             return hint || songFrom(userText) || 'daisy';
-        }
-
-        // Read fresh every time: the setting lives on the voice page and may
-        // have been changed there since this tab loaded.
-        function voiceMuted() {
-            try { return localStorage.getItem(VOICE_MODE_KEY) === 'off'; }
-            catch (e) { return false; }
         }
 
         let singEl = null;         // the notice/control, if one is on screen
@@ -1943,19 +1490,6 @@
             if (el) el.textContent = marked;
         }
 
-        function singSong(song, reply, replyEl) {
-            // An explicit mute is an explicit mute — never auto-play over it.
-            // The song still exists, it just waits behind one deliberate tap.
-            if (voiceMuted()) {
-                singNotice('a song is waiting · tap to play', false, () => {
-                    unlockAll();   // a real gesture: take the chance to unlock
-                    startSong(song, reply, replyEl);
-                });
-                return;
-            }
-            startSong(song, reply, replyEl);
-        }
-
         async function startSong(song, reply, replyEl) {
             stopSong();
             singPending = true;
@@ -2073,7 +1607,7 @@
                     // Asking to be sung to is a property of what was SENT,
                     // not of the reply — see the singing block above.
                     const song = singRequestFor(text, data);
-                    if (song) singSong(song, data.reply, historyEl.lastElementChild);
+                    if (song) startSong(song, data.reply, historyEl.lastElementChild);
                 } else {
                     addMessage("can't reach the agent right now", 'system');
                 }
