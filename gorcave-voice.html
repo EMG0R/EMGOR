@@ -256,6 +256,24 @@
             50% { opacity: 0.9; }
         }
 
+        /* ---- transcript word particles ----
+           A single viewport-sized canvas, created only while words are in
+           flight and removed the moment the last one dies. It sits under the
+           corner chrome (z 100) but over the transcript, and is invisible to
+           touch, so it can never affect scrolling, layout or hit-testing.
+           Hidden outright under reduced motion — the plain pulsing thinking
+           bubble stays as the indicator there. */
+        #word-particles {
+            position: fixed;
+            inset: 0;
+            z-index: 90;
+            display: block;
+            pointer-events: none;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #word-particles { display: none; }
+        }
+
         /* ---- voice console ---- */
         #console {
             flex: 0 0 auto;
@@ -802,6 +820,13 @@
                                          // destination: no monitoring, no feedback
                 analyserData = new Uint8Array(analyser.fftSize);
             } catch (e) { analyser = null; }
+            ensureFrameLoop();
+        }
+
+        // ONE rAF loop for the whole page. The meter, the VAD and the word
+        // particles all step inside drawFrame(); anything that needs frames
+        // calls this and the loop parks itself again when nobody does.
+        function ensureFrameLoop() {
             if (!rafId) rafId = requestAnimationFrame(drawFrame);
         }
 
@@ -978,8 +1003,299 @@
             }
         }
 
-        function drawFrame() {
+        // -----------------------------------------------------------------
+        // Transcript word particles.
+        //
+        // When /api/voice/chat resolves it hands back the transcript and the
+        // reply together, so the moment the request lands we already know
+        // exactly which words the machine heard. Those REAL words — no
+        // invented filler, no placeholder glyphs — are thrown off the user's
+        // own transcript bubble as physics bodies and left to drift, fade and
+        // shrink while the reply renders and speaks. It reads as the machine
+        // turning over what it just heard.
+        //
+        // CANVAS, not DOM: ~14 bodies moving every frame would otherwise be
+        // ~14 style recalcs per frame on top of a momentum-scrolling
+        // transcript on a phone. One canvas is one composited layer and zero
+        // layout work. It is created on demand and destroyed the instant the
+        // last word dies, so there is no permanent full-screen element.
+        //
+        // The step function is driven by the SAME rAF loop as the mic meter
+        // (drawFrame) — deliberately no second loop and no second
+        // AudioContext. In practice the meter has already parked by the time
+        // a reply comes back, so the particles restart the shared loop via
+        // ensureFrameLoop() and the loop's idle check now also waits on them.
+        // -----------------------------------------------------------------
+        var REDUCED_MOTION = !!(window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+        // If any of this is missing we simply never spawn — the pulsing
+        // thinking bubble remains the indicator.
+        var PARTICLES_OK = !REDUCED_MOTION &&
+            typeof window.requestAnimationFrame === 'function' &&
+            !!(document.createElement('canvas').getContext);
+
+        var W_MAX          = 9;      // hard cap on live words. Words are ~60px
+                                     // wide; more than this on a phone reads
+                                     // as clutter rather than as thought.
+        var W_SPAWN_MIN    = 200;    // ms between spawns (jittered)
+        var W_SPAWN_MAX    = 420;    // avg ~310ms -> ~8 alive at steady state
+        var W_SPAWN_WINDOW = 2800;   // ms of spawning per transcript, then stop
+        var W_LIFE_MIN     = 2800;   // ms
+        var W_LIFE_MAX     = 4200;   // ms
+        var W_SPEED_MIN    = 42;     // px/s initial, outward. With the drag
+        var W_SPEED_MAX    = 96;     // below this carries a word 75–180px out,
+                                     // enough that they never pile up.
+        var W_FAN          = 2.0;    // rad of spread around straight up
+        var W_GRAVITY      = 10;     // px/s^2: arcs the rise over, never drops
+        var W_DRAG         = 0.35;   // fraction of velocity shed per second
+        var W_SWAY         = 3;      // px/s^2 sinusoidal horizontal sway
+        var W_BOUNCE       = 0.45;   // restitution off the viewport bounds
+        var W_SIZE_MIN     = 12;     // px, matches the transcript's own scale
+        var W_SIZE_MAX     = 15;
+        var W_SCALE_END    = 0.40;   // shrink target at end of life
+        var W_PEAK_MIN     = 0.62;   // words have to be readable, not hinted at
+        var W_PEAK_MAX     = 0.80;
+        var W_COLORS       = ['198,180,244', '178,163,214', '214,205,235'];
+
+        // Deliberately tiny. This is a legibility filter, not linguistics —
+        // it just keeps the layer from filling up with "a the to um".
+        var W_SKIP = {
+            a:1, an:1, the:1, and:1, or:1, but:1, so:1, if:1, as:1, at:1,
+            of:1, in:1, on:1, to:1, is:1, it:1, be:1, do:1, am:1, are:1,
+            was:1, for:1, my:1, me:1, i:1, you:1, we:1, um:1, uh:1, uhh:1,
+            hm:1, hmm:1, er:1, ah:1, oh:1, ok:1, okay:1, yeah:1, like:1,
+            just:1, that:1, this:1, with:1
+        };
+
+        var wCanvas = null, wCtx = null;
+        var wParts = [];
+        var wPool = [];
+        var wLastWord = '';
+        var wSrcEl = null;
+        var wOriginX = 0, wOriginY = 0;
+        var wSpawnTimer = 0, wSpawnLeft = 0;
+        var wW = 0, wH = 0, wDpr = 1;
+
+        function wordParticlesActive() {
+            return wParts.length > 0 || wSpawnLeft > 0;
+        }
+
+        // Real text in, real words out. Punctuation is trimmed off the ends
+        // so "heard." doesn't render with a trailing dot; nothing is invented
+        // and nothing is reworded. If filtering leaves us empty (a very short
+        // transcript, all short words) we fall back to every word there is —
+        // better a real "no" than nothing.
+        function wordsFrom(text) {
+            var raw = String(text || '').split(/\s+/);
+            var kept = [], all = [];
+            for (var i = 0; i < raw.length; i++) {
+                var w = raw[i]
+                    .replace(/^[^0-9A-Za-zÀ-ɏ']+/, '')
+                    .replace(/[^0-9A-Za-zÀ-ɏ']+$/, '');
+                if (!w || w.length > 14) continue;   // long tokens won't stay legible
+                all.push(w);
+                if (w.length >= 3 && !W_SKIP[w.toLowerCase()]) kept.push(w);
+            }
+            return kept.length ? kept : all;
+        }
+
+        function ensureWordCanvas() {
+            try {
+                if (!wCanvas) {
+                    wCanvas = document.createElement('canvas');
+                    wCanvas.id = 'word-particles';
+                    wCanvas.setAttribute('aria-hidden', 'true');
+                    wCtx = wCanvas.getContext('2d');
+                    if (!wCtx) { wCanvas = null; return false; }
+                    document.body.appendChild(wCanvas);
+                }
+                var r = wCanvas.getBoundingClientRect();
+                var cw = Math.max(1, Math.round(r.width || window.innerWidth));
+                var ch = Math.max(1, Math.round(r.height || window.innerHeight));
+                var d = Math.min(window.devicePixelRatio || 1, 2);
+                if (cw !== wW || ch !== wH || d !== wDpr) {
+                    wW = cw; wH = ch; wDpr = d;
+                    wCanvas.width  = Math.round(cw * d);
+                    wCanvas.height = Math.round(ch * d);
+                    wCtx.setTransform(d, 0, 0, d, 0, 0);
+                }
+                // Resizing the backing store resets context state, so these
+                // go on after it, every time.
+                wCtx.textAlign = 'center';
+                wCtx.textBaseline = 'middle';
+                return true;
+            } catch (e) {
+                wCanvas = null; wCtx = null;
+                return false;
+            }
+        }
+
+        // Re-read the bubble each spawn rather than freezing one point: the
+        // reply lands a beat later and scrolls the transcript, and the words
+        // should keep coming out of the bubble they belong to.
+        function updateWordOrigin() {
+            var ox = wW * 0.6, oy = wH * 0.55;
+            if (wSrcEl && wSrcEl.parentNode) {
+                try {
+                    var r = wSrcEl.getBoundingClientRect();
+                    if (r.width && r.bottom > 0 && r.top < wH) {
+                        ox = r.left + r.width / 2;
+                        oy = r.top + r.height * 0.45;
+                    }
+                } catch (e) {}
+            }
+            if (ox < 30) ox = 30;
+            if (ox > wW - 30) ox = wW - 30;
+            if (oy < 30) oy = 30;
+            if (oy > wH - 30) oy = wH - 30;
+            wOriginX = ox;
+            wOriginY = oy;
+        }
+
+        function makeWordParticle() {
+            var word = wPool[(Math.random() * wPool.length) | 0];
+            // One reroll if we drew the same word twice running — cheap way
+            // to keep a two-word transcript from looking like a stutter.
+            if (wPool.length > 1 && word === wLastWord) {
+                word = wPool[(Math.random() * wPool.length) | 0];
+            }
+            wLastWord = word;
+
+            var ang = -Math.PI / 2 + (Math.random() - 0.5) * W_FAN;
+            var sp  = W_SPEED_MIN + Math.random() * (W_SPEED_MAX - W_SPEED_MIN);
+            var size = W_SIZE_MIN + Math.random() * (W_SIZE_MAX - W_SIZE_MIN);
+
+            return {
+                word: word,
+                x: wOriginX + (Math.random() * 18 - 9),
+                y: wOriginY + (Math.random() * 10 - 5),
+                vx: Math.cos(ang) * sp,
+                vy: Math.sin(ang) * sp,      // canvas y is down, so this rises
+                size: size,
+                half: size * 0.6 * word.length * 0.5,   // Courier is ~0.6em/char
+                peak: W_PEAK_MIN + Math.random() * (W_PEAK_MAX - W_PEAK_MIN),
+                life: W_LIFE_MIN + Math.random() * (W_LIFE_MAX - W_LIFE_MIN),
+                age: 0,
+                phase: Math.random() * 6.283,
+                color: W_COLORS[(Math.random() * W_COLORS.length) | 0]
+            };
+        }
+
+        function stopWordParticles() {
+            wParts.length = 0;
+            wSpawnLeft = 0;
+            wSpawnTimer = 0;
+            wSrcEl = null;
+            if (wCanvas) {
+                try { if (wCtx) wCtx.clearRect(0, 0, wW, wH); } catch (e) {}
+                if (wCanvas.parentNode) wCanvas.parentNode.removeChild(wCanvas);
+            }
+            wCanvas = null; wCtx = null;
+            wW = 0; wH = 0;   // force a re-measure on the next run
+        }
+
+        /**
+         * Start throwing words off `el` taken from `text`. Safe to call with
+         * anything — a missing element, an empty string, a browser with no
+         * canvas, or reduced motion, all just no-op.
+         */
+        function startWordParticles(el, text) {
+            if (!PARTICLES_OK) return;
+            var pool = wordsFrom(text);
+            if (!pool.length) return;
+            if (!ensureWordCanvas()) return;
+
+            wPool = pool;
+            wLastWord = '';
+            wSrcEl = el || null;
+            wParts.length = 0;
+            updateWordOrigin();
+            wSpawnLeft = W_SPAWN_WINDOW;
+            wSpawnTimer = 0;
+            // Small opening burst so the effect is already alive on the frame
+            // the transcript appears, rather than trickling in.
+            for (var i = 0; i < 2; i++) wParts.push(makeWordParticle());
+            ensureFrameLoop();
+        }
+
+        function wordStep(dt) {
+            if (!wCtx) return;
+
+            if (wSpawnLeft > 0) {
+                wSpawnLeft -= dt * 1000;
+                wSpawnTimer -= dt * 1000;
+                if (wSpawnTimer <= 0) {
+                    if (wParts.length < W_MAX) {
+                        updateWordOrigin();
+                        wParts.push(makeWordParticle());
+                    }
+                    wSpawnTimer = W_SPAWN_MIN + Math.random() * (W_SPAWN_MAX - W_SPAWN_MIN);
+                }
+                if (wSpawnLeft < 0) wSpawnLeft = 0;
+            }
+
+            wCtx.clearRect(0, 0, wW, wH);
+
+            for (var i = wParts.length - 1; i >= 0; i--) {
+                var p = wParts[i];
+                p.age += dt * 1000;
+                if (p.age >= p.life) { wParts.splice(i, 1); continue; }
+
+                p.vy += W_GRAVITY * dt;
+                p.vx += Math.sin(p.age * 0.0012 + p.phase) * W_SWAY * dt;
+                var keep = 1 - W_DRAG * dt;
+                p.vx *= keep; p.vy *= keep;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+
+                // Soft, lossy walls — a word that drifts to the edge is
+                // nudged back in rather than sliced in half by the viewport.
+                var m = p.half + 6;
+                if (m > wW / 2) m = wW / 2;
+                if (p.x < m)      { p.x = m;      p.vx = -p.vx * W_BOUNCE; }
+                if (p.x > wW - m) { p.x = wW - m; p.vx = -p.vx * W_BOUNCE; }
+                if (p.y < 14)      { p.y = 14;      p.vy = -p.vy * W_BOUNCE; }
+                if (p.y > wH - 14) { p.y = wH - 14; p.vy = -p.vy * W_BOUNCE; }
+
+                var t = p.age / p.life;
+                // in fast, hold readable, out slow
+                var a = t < 0.12 ? (t / 0.12) : (t > 0.45 ? (1 - t) / 0.55 : 1);
+                a *= p.peak;
+                if (a <= 0.004) continue;
+
+                // Shrink rides a cubic, not a linear ramp: back-loading it
+                // keeps the word at ~0.95x through the whole bright, readable
+                // stretch and collapses it only as the alpha is leaving.
+                // Linear would have it at 0.7x while still fully lit, which
+                // just reads as small text.
+                var e  = t * t * t;
+                var sc = 1 - (1 - W_SCALE_END) * e;
+
+                wCtx.globalAlpha = a;
+                wCtx.fillStyle = 'rgb(' + p.color + ')';
+                wCtx.font = (p.size * sc).toFixed(2) + 'px "Courier New", Courier, monospace';
+                wCtx.fillText(p.word, p.x, p.y);
+            }
+            wCtx.globalAlpha = 1;
+
+            // Nothing left and nothing coming: drop the canvas so the shared
+            // loop can park instead of idling a rAF on a phone battery.
+            if (!wParts.length && !wSpawnLeft) stopWordParticles();
+        }
+
+        var frameLast = 0;
+        var meterCleared = false;
+
+        function drawFrame(ts) {
             rafId = requestAnimationFrame(drawFrame);
+
+            if (typeof ts !== 'number') ts = 0;
+            if (!frameLast) frameLast = ts;
+            var dt = (ts - frameLast) / 1000;
+            frameLast = ts;
+            if (!(dt > 0)) dt = 0;
+            if (dt > 0.05) dt = 0.05;   // backgrounded-tab / jank guard
 
             var rms = 0;
             if (analyser && analyserData) {
@@ -1005,29 +1321,49 @@
 
             haloEl.style.transform = 'scale(' + (0.72 + levelSmooth * 0.36).toFixed(3) + ')';
 
-            // bars: newest value pushed in the middle, rippling outward
-            for (var b = BARS - 1; b > 0; b--) barVals[b] = barVals[b - 1] * 0.965;
-            barVals[0] = levelSmooth;
-
+            // The meter has its own idle state, separate from the loop's. The
+            // particles can hold the loop open long after the mic went quiet,
+            // and while they do the meter must look exactly as it does when
+            // parked — blank — not draw a flat row of minimum-height bars.
             var W = meterEl.width, H = meterEl.height;
-            mctx.clearRect(0, 0, W, H);
-            var half = BARS;
-            var bw = W / (half * 2);
-            for (var k = 0; k < half; k++) {
-                var val = barVals[k];
-                var h = Math.max(2, val * (H - 6));
-                var alpha = 0.16 + val * 0.72;
-                mctx.fillStyle = 'rgba(198, 180, 244, ' + alpha.toFixed(3) + ')';
-                var y = (H - h) / 2;
-                // mirrored around centre
-                mctx.fillRect(W / 2 + k * bw + 1, y, bw - 2, h);
-                mctx.fillRect(W / 2 - (k + 1) * bw + 1, y, bw - 2, h);
+            var meterIdle = !recording && levelSmooth < 0.002 && barVals[BARS - 1] < 0.002;
+
+            if (meterIdle) {
+                if (!meterCleared) {
+                    meterCleared = true;
+                    mctx.clearRect(0, 0, W, H);
+                    haloEl.style.transform = 'scale(0.72)';
+                }
+            } else {
+                meterCleared = false;
+
+                // bars: newest value pushed in the middle, rippling outward
+                for (var b = BARS - 1; b > 0; b--) barVals[b] = barVals[b - 1] * 0.965;
+                barVals[0] = levelSmooth;
+
+                mctx.clearRect(0, 0, W, H);
+                var half = BARS;
+                var bw = W / (half * 2);
+                for (var k = 0; k < half; k++) {
+                    var val = barVals[k];
+                    var h = Math.max(2, val * (H - 6));
+                    var alpha = 0.16 + val * 0.72;
+                    mctx.fillStyle = 'rgba(198, 180, 244, ' + alpha.toFixed(3) + ')';
+                    var y = (H - h) / 2;
+                    // mirrored around centre
+                    mctx.fillRect(W / 2 + k * bw + 1, y, bw - 2, h);
+                    mctx.fillRect(W / 2 - (k + 1) * bw + 1, y, bw - 2, h);
+                }
             }
 
-            // idle: park the loop once everything has decayed away
-            if (!recording && levelSmooth < 0.002 && barVals[BARS - 1] < 0.002) {
+            wordStep(dt);
+
+            // idle: park the loop once the meter has decayed away AND the
+            // last word particle is gone. Nobody needs frames — stop asking.
+            if (meterIdle && !wordParticlesActive()) {
                 cancelAnimationFrame(rafId);
                 rafId = null;
+                frameLast = 0;
                 mctx.clearRect(0, 0, W, H);
                 haloEl.style.transform = 'scale(0.72)';
             }
@@ -1332,8 +1668,18 @@
                 }
 
                 var transcript = typeof data.transcript === 'string' ? data.transcript.trim() : '';
-                if (transcript) say('me', transcript, 'voice');
-                else addMessage("didn't catch that — try again, closer to the mic", 'system');
+                if (transcript) {
+                    // Words first, reply second. /api/voice/chat hands both
+                    // back together, so the particles are already in the air
+                    // on the frame the transcript bubble appears — before the
+                    // reply bubble lands below it. That ordering is the whole
+                    // effect: it heard these words, and now it's chewing on
+                    // them.
+                    var meEl = say('me', transcript, 'voice');
+                    startWordParticles(meEl, transcript);
+                } else {
+                    addMessage("didn't catch that — try again, closer to the mic", 'system');
+                }
 
                 var reply = typeof data.reply === 'string' ? data.reply.trim() : '';
                 if (reply) {
@@ -1362,7 +1708,9 @@
 
         async function sendText(text) {
             setBusy(true, 'thinking…');
-            say('me', text, 'text');
+            // Typed words are real received words too — same treatment, just
+            // spawned at send time instead of at response time.
+            startWordParticles(say('me', text, 'text'), text);
             var bubble = thinkingBubble();
             try {
                 var res = await fetch(TEXT_CHAT, {
@@ -1548,10 +1896,14 @@
             stopSpeaking();
             if (recording) stopRecording(false);
             releaseStream();
+            stopWordParticles();
         });
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) return;
             if (recording) stopRecording(false);
+            // Backgrounded: drop the words rather than let a throttled rAF
+            // hold a canvas and a loop open behind a locked screen.
+            stopWordParticles();
             // Backgrounded with a countdown on screen: drop the VAD state so
             // coming back never resumes a half-elapsed silence window.
             resetVad();

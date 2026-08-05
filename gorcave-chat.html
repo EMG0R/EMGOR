@@ -301,14 +301,16 @@
             50% { opacity: 0.9; }
         }
         /* Ambient particle layer: extends up and to the right of the
-           bubble. Fixed 200x118 box so it can never widen #history, and
-           pointer-events:none so it is invisible to touch/scroll. */
+           bubble. Fixed box so it can never widen #history (which is
+           overflow-x:hidden regardless), and pointer-events:none so it is
+           invisible to touch/scroll. Sized for whole words rather than
+           single marks now that real text flies through it. */
         .think-particles {
             position: absolute;
             left: 0;
             bottom: 0;
-            width: 200px;
-            height: 118px;
+            width: 280px;
+            height: 132px;
             pointer-events: none;
         }
         /* Graceful exit: the bubble collapses out of the flow (so the real
@@ -688,20 +690,63 @@
             !!(document.createElement('canvas').getContext);
 
         // === THE SINGLE SOURCE OF PARTICLE CONTENT =======================
-        // These are deliberately abstract marks, NOT words. The backend does
-        // not stream intermediate generation, so any "thinking words" shown
-        // here would be invented by the front end and would misrepresent the
-        // machine — so we don't.
+        // The hook this file always described is now wired: the particles
+        // carry REAL words, drawn at random from the message the user just
+        // sent. That text is genuine data the system received — nothing here
+        // is invented, and the front end never puts words in the machine's
+        // mouth. The backend still doesn't stream intermediate generation, so
+        // if a streaming /api/chat ever arrives, buffer its fragments into
+        // PARTICLE_WORDS the same way and everything downstream (spawning,
+        // physics, fading, shrinking, recycling) needs no edits.
         //
-        // FUTURE HOOK: if /api/chat ever grows a streaming response that
-        // emits real token fragments, this function is the one place to
-        // change. Buffer the incoming fragments somewhere and return the
-        // next real fragment here instead of a glyph; everything downstream
-        // (spawning, physics, fading, recycling) already treats the return
-        // value as opaque text and needs no edits. Keep fragments short —
-        // the layer is sized for 1–3 characters.
+        // When there is no usable word source — an empty pool, all-filler
+        // input — we fall straight back to the abstract marks below, which
+        // are honest about being marks rather than language.
         const AMBIENT_GLYPHS = ['·', '·', '·', '∙', '∙', '◦', '˙', '°', ':', '×', '⟡'];
+
+        // Deliberately tiny. A legibility filter, not linguistics: it just
+        // keeps the layer from filling up with "a the to um".
+        const PARTICLE_SKIP = {
+            a:1, an:1, the:1, and:1, or:1, but:1, so:1, if:1, as:1, at:1,
+            of:1, in:1, on:1, to:1, is:1, it:1, be:1, do:1, am:1, are:1,
+            was:1, for:1, my:1, me:1, i:1, you:1, we:1, um:1, uh:1, uhh:1,
+            hm:1, hmm:1, er:1, ah:1, oh:1, ok:1, okay:1, yeah:1, like:1,
+            just:1, that:1, this:1, with:1
+        };
+
+        let PARTICLE_WORDS = [];
+        let lastParticleWord = '';
+
+        // Punctuation is trimmed off the ends so "there." doesn't render with
+        // a trailing dot. Long tokens are dropped: they can't stay legible in
+        // the layer. If filtering empties the pool we keep every word we saw
+        // rather than falling back to glyphs prematurely.
+        function setParticleWords(text) {
+            const raw = String(text || '').split(/\s+/);
+            const kept = [], all = [];
+            for (let i = 0; i < raw.length; i++) {
+                const w = raw[i]
+                    .replace(/^[^0-9A-Za-zÀ-ɏ']+/, '')
+                    .replace(/[^0-9A-Za-zÀ-ɏ']+$/, '');
+                if (!w || w.length > 12) continue;
+                all.push(w);
+                if (w.length >= 3 && !PARTICLE_SKIP[w.toLowerCase()]) kept.push(w);
+            }
+            PARTICLE_WORDS = kept.length ? kept : all;
+            lastParticleWord = '';
+        }
+
         function nextParticleGlyph() {
+            if (PARTICLE_WORDS.length) {
+                let w = PARTICLE_WORDS[(Math.random() * PARTICLE_WORDS.length) | 0];
+                // One reroll on an immediate repeat — a two-word message
+                // otherwise reads as a stutter.
+                if (PARTICLE_WORDS.length > 1 && w === lastParticleWord) {
+                    w = PARTICLE_WORDS[(Math.random() * PARTICLE_WORDS.length) | 0];
+                }
+                lastParticleWord = w;
+                return w;
+            }
             return AMBIENT_GLYPHS[(Math.random() * AMBIENT_GLYPHS.length) | 0];
         }
         // =================================================================
@@ -766,14 +811,23 @@
             }
 
             function makeParticle() {
+                const glyph = nextParticleGlyph();
+                // A word has to be readable or it is just noise; an abstract
+                // mark has to stay faint or it is just clutter. Same engine,
+                // two honest weights.
+                const isWord = glyph.length > 1;
+                const size = isWord ? (9.5 + Math.random() * 2.5)
+                                    : (7 + Math.random() * 5);
                 return {
-                    glyph: nextParticleGlyph(),
+                    glyph: glyph,
                     x: originX + (Math.random() * 10 - 5),
                     y: originY + (Math.random() * 6 - 3),
                     vx: -6 + Math.random() * 32,    // biased rightward, away from the bubble
                     vy: -34 + Math.random() * 20,   // always upward to start
-                    size: 7 + Math.random() * 5,
-                    peak: 0.22 + Math.random() * 0.22,
+                    size: size,
+                    half: size * 0.6 * glyph.length * 0.5,   // Courier ~0.6em/char
+                    peak: isWord ? (0.52 + Math.random() * 0.16)
+                                 : (0.22 + Math.random() * 0.22),
                     life: P_LIFE_MIN + Math.random() * (P_LIFE_MAX - P_LIFE_MIN),
                     age: 0,
                     phase: Math.random() * 6.283,
@@ -828,9 +882,13 @@
                     p.x += p.vx * dt;
                     p.y += p.vy * dt;
 
-                    // Soft, lossy walls — a nudge back inside, not a ping-pong.
-                    if (p.x < 3)     { p.x = 3;     p.vx = -p.vx * P_BOUNCE; }
-                    if (p.x > w - 3) { p.x = w - 3; p.vx = -p.vx * P_BOUNCE; }
+                    // Soft, lossy walls — a nudge back inside, not a
+                    // ping-pong. The margin follows the drawn width so a
+                    // whole word never gets sliced by the layer edge.
+                    let m = p.half + 3;
+                    if (m > w / 2) m = w / 2;
+                    if (p.x < m)     { p.x = m;     p.vx = -p.vx * P_BOUNCE; }
+                    if (p.x > w - m) { p.x = w - m; p.vx = -p.vx * P_BOUNCE; }
                     if (p.y < 3)     { p.y = 3;     p.vy = -p.vy * P_BOUNCE; }
                     if (p.y > h - 3) { p.y = h - 3; p.vy = -p.vy * P_BOUNCE; }
 
@@ -839,9 +897,16 @@
                     a *= p.peak * fade;
                     if (a <= 0.004) continue;
 
+                    // Shrink rides a cubic alongside the fade. Back-loading it
+                    // keeps a particle near full size through the bright,
+                    // readable stretch and collapses it to 0.4x only as the
+                    // alpha is leaving.
+                    const e = t * t * t;
+                    const sc = 1 - 0.6 * e;
+
                     ctx.globalAlpha = a;
                     ctx.fillStyle = 'rgb(' + p.color + ')';
-                    ctx.font = p.size.toFixed(1) + 'px "Courier New", Courier, monospace';
+                    ctx.font = (p.size * sc).toFixed(2) + 'px "Courier New", Courier, monospace';
                     ctx.fillText(p.glyph, p.x, p.y);
                 }
                 ctx.globalAlpha = 1;
@@ -930,6 +995,10 @@
             msgInput.value = '';
             // Keep the keyboard up across a send.
             msgInput.focus();
+
+            // Seed the particle layer from the words the machine just
+            // received, before the indicator that consumes them is built.
+            setParticleWords(text);
 
             const thinking = createThinkingIndicator();
             historyEl.appendChild(thinking.el);
