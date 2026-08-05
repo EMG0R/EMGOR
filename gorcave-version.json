@@ -1,4 +1,4 @@
 {
-  "version": "2026-08-05.2",
+  "version": "2026-08-05.3",
   "notes": "Single source of truth for the gorcave build. The pages poll this file (cache: no-store) and compare it against their own baked-in APP_VERSION constant. BUMP ALL THREE TOGETHER on each meaningful deploy: this file, gorcave-voice.html (APP_VERSION), gorcave-chat.html (APP_VERSION). Format: YYYY-MM-DD.N, N restarting at 1 each day. Served with Cache-Control: no-cache via _headers."
 }

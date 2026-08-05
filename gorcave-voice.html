@@ -209,37 +209,6 @@
             .banner { animation: none; }
         }
 
-        /* ---- settings strip ---- */
-        #settings {
-            flex: 0 0 auto;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
-            padding: 8px 10px;
-            border-bottom: 1px solid var(--line);
-        }
-        .chip {
-            background: none;
-            border: 1px solid var(--line);
-            color: var(--text-faint);
-            font-family: inherit;
-            font-size: 0.6rem;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            padding: 8px 11px;
-            min-height: 34px;
-            border-radius: 999px;
-            cursor: pointer;
-            transition: color 0.2s, border-color 0.2s, background 0.2s;
-        }
-        .chip[aria-pressed="true"], .chip.on {
-            color: rgba(236, 231, 247, 0.88);
-            border-color: var(--line-strong);
-            background: var(--surface-2);
-        }
-
         /* ---- transcript (secondary: this is a voice-first app) ---- */
         #history {
             flex: 1 1 auto;
@@ -578,10 +547,6 @@
         <button id="install-dismiss" class="banner-dismiss" type="button" aria-label="dismiss install notice">&times;</button>
     </div>
 
-    <div id="settings">
-        <button id="auto-send" class="chip" type="button" aria-pressed="true">auto-send</button>
-    </div>
-
     <div id="history"></div>
 
     <div id="console">
@@ -643,7 +608,6 @@
         // ---- auto-send (voice activity detection) tuning ----------------
         // All of these are read by vadTick() below. See the long comment on
         // the VAD block for the reasoning; these are the knobs worth turning.
-        var AUTOSEND_KEY  = 'gorcave_autosend';
         var SILENCE_MS    = 2000;   // continuous silence before we auto-send.
                                     // 3000 was the original forgiving value and
                                     // felt too slow in real use — every turn had
@@ -669,7 +633,6 @@
         var msgInput  = document.getElementById('msg-input');
         var typeToggle= document.getElementById('type-toggle');
         var sendBtn   = composer.querySelector('.send-btn');
-        var chipAuto  = document.getElementById('auto-send');
         var countdownEl = document.getElementById('countdown');
         var countdownArc = countdownEl.querySelector('.arc');
 
@@ -970,33 +933,14 @@
         // that no longer has a switch to unmute it.
         var hasSynth = ('speechSynthesis' in window);
 
-        // ---------- auto-send preference ----------
-        // Default ON: hands-free is the point of the latched mode. Turning it
-        // off restores the old behaviour exactly — latch stays open until you
-        // tap it again, hold-to-talk is unaffected either way.
+        // ---------- auto-send ----------
+        // Always on, and there is no control for it any more. Hands-free IS
+        // the latched mode: tap the circle, talk, and it sends itself after
+        // SILENCE_MS of quiet. Nothing reads a stored preference — an old
+        // 'off' value left in localStorage by an earlier build must never be
+        // able to disable a feature that no longer has a switch to re-enable
+        // it. (Same reasoning as the voice-mode preference above.)
         var autoSend = true;
-        try {
-            var storedAuto = localStorage.getItem(AUTOSEND_KEY);
-            if (storedAuto === 'off') autoSend = false;
-        } catch (e) {}
-
-        function paintAutoChip() {
-            chipAuto.setAttribute('aria-pressed', String(autoSend));
-            chipAuto.title = autoSend
-                ? 'hands-free: sends after ' + Math.round(SILENCE_MS / 1000) + 's of silence'
-                : 'auto-send off: tap the circle to send';
-        }
-        chipAuto.addEventListener('click', function () {
-            unlockAudio();
-            autoSend = !autoSend;
-            try { localStorage.setItem(AUTOSEND_KEY, autoSend ? 'on' : 'off'); } catch (e) {}
-            paintAutoChip();
-            // Turning it off mid-session must kill any countdown already
-            // running, and turning it on must not inherit stale VAD state.
-            resetVad();
-            if (recording && latched) setHint(latchedHint());
-        });
-        paintAutoChip();
 
         // -----------------------------------------------------------------
         // AudioContext. Mobile browsers create it suspended and block any
@@ -1141,7 +1085,7 @@
         }
 
         function latchedHint() {
-            return autoSend ? 'listening · pause to send' : 'listening · tap to send';
+            return 'listening · pause to send';
         }
 
         function calibrate() {
@@ -2532,11 +2476,9 @@
                 openComposer();
             } else if (!convo.length) {
                 addMessage(
-                    autoSend
-                        ? 'Hold the circle and talk, release to send — or tap it once for ' +
-                          'hands-free: it sends on its own after ' +
-                          Math.round(SILENCE_MS / 1000) + ' seconds of quiet.'
-                        : 'Hold the circle and talk. Release to send.',
+                    'Hold the circle and talk, release to send — or tap it once for ' +
+                    'hands-free: it sends on its own after ' +
+                    Math.round(SILENCE_MS / 1000) + ' seconds of quiet.',
                     'system'
                 );
             }
@@ -2575,7 +2517,7 @@
         // degrades to silence — a broken version check must never nag or
         // throw.
         // =================================================================
-        var APP_VERSION = '2026-08-05.2';
+        var APP_VERSION = '2026-08-05.3';
 
         (function buildAndInstall() {
             var VERSION_URL = 'gorcave-version.json';
