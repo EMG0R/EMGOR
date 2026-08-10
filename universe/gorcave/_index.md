@@ -7,6 +7,7 @@ source: gorcave (home Raspberry Pi)
 tags: [raspberry-pi, home-automation, agent, chat, server, gorcave]
 updated: 2026-08-03
 draft: false
+size: 1.6
 launch: gorcave-chat.html
 ---
 

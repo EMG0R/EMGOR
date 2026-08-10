@@ -234,12 +234,13 @@
         g.arc(cx, cy, R, 0, TAU);
         g.clip();
 
-        // base sphere gradient, lit upper-left — vivid jewel tones, kept dark
+        // base sphere gradient, lit upper-left — deep desaturated albedo, real-rock dark
+        var satA = Math.max(14, sat - 18);       // muted surface saturation, hue kept
         var lg = g.createRadialGradient(cx - R * 0.38, cy - R * 0.38, R * 0.08, cx, cy, R * 1.15);
-        lg.addColorStop(0, 'hsl(' + hue + ',' + sat + '%,55%)');
-        lg.addColorStop(0.42, 'hsl(' + hue + ',' + sat + '%,37%)');
-        lg.addColorStop(0.8, 'hsl(' + ((hue + 14) % 360) + ',' + sat + '%,18%)');
-        lg.addColorStop(1, 'hsl(' + ((hue + 20) % 360) + ',' + Math.min(85, sat + 8) + '%,9%)');
+        lg.addColorStop(0, 'hsl(' + hue + ',' + satA + '%,40%)');
+        lg.addColorStop(0.42, 'hsl(' + hue + ',' + satA + '%,26%)');
+        lg.addColorStop(0.8, 'hsl(' + ((hue + 14) % 360) + ',' + satA + '%,12%)');
+        lg.addColorStop(1, 'hsl(' + ((hue + 20) % 360) + ',' + Math.min(70, satA + 8) + '%,6%)');
         g.fillStyle = lg;
         g.fillRect(0, 0, S, S);
 
@@ -253,7 +254,7 @@
                 var by = cy - R + rng() * R * 2;
                 var bh = R * (0.08 + rng() * 0.22);
                 g.fillStyle = 'hsla(' + ((hue + (rng() - 0.5) * 26 + 360) % 360) + ',' +
-                    Math.max(10, sat - 8) + '%,' + (rng() < 0.55 ? 16 : 42) + '%,' +
+                    Math.max(8, sat - 24) + '%,' + (rng() < 0.55 ? 11 : 30) + '%,' +
                     (0.1 + rng() * 0.14) + ')';
                 g.beginPath();
                 g.ellipse(cx, by, R * 1.3, bh, 0, 0, TAU);
@@ -267,7 +268,7 @@
                 var sx2 = cx + Math.cos(a) * d, sy2 = cy + Math.sin(a) * d;
                 var sr2 = R * (0.03 + rng() * 0.1);
                 g.fillStyle = 'hsla(' + ((hue + (rng() - 0.5) * 32 + 360) % 360) + ',' +
-                    Math.max(10, sat - 6) + '%,' + (rng() < 0.62 ? 14 : 46) + '%,' +
+                    Math.max(8, sat - 22) + '%,' + (rng() < 0.62 ? 10 : 32) + '%,' +
                     (0.1 + rng() * 0.16) + ')';
                 g.beginPath();
                 g.ellipse(sx2, sy2, sr2 * (0.7 + rng()), sr2, rng() * TAU, 0, TAU);
@@ -275,26 +276,29 @@
             }
         }
 
-        // terminator shadow (lower-right)
-        var sh = g.createRadialGradient(cx - R * 0.4, cy - R * 0.4, R * 0.3, cx, cy, R * 1.35);
+        // terminator shadow (lower-right) — decisive night side, sun stays upper-left
+        var sh = g.createRadialGradient(cx - R * 0.4, cy - R * 0.4, R * 0.25, cx, cy, R * 1.3);
         sh.addColorStop(0, 'rgba(0,0,0,0)');
-        sh.addColorStop(0.68, 'rgba(4,1,12,0.08)');
-        sh.addColorStop(1, 'rgba(4,1,12,0.82)');
+        sh.addColorStop(0.55, 'rgba(3,1,10,0.16)');
+        sh.addColorStop(0.82, 'rgba(3,1,10,0.62)');
+        sh.addColorStop(1, 'rgba(2,0,8,0.94)');
         g.fillStyle = sh;
+        g.fillRect(0, 0, S, S);
+
+        // limb darkening — the whole disc edge falls off like a real photosphere
+        var ld = g.createRadialGradient(cx, cy, R * 0.78, cx, cy, R);
+        ld.addColorStop(0, 'rgba(0,0,4,0)');
+        ld.addColorStop(1, 'rgba(0,0,4,0.42)');
+        g.fillStyle = ld;
         g.fillRect(0, 0, S, S);
         g.restore();
 
-        // limb light: thin bright outline, stronger on the lit side (backlit look)
-        g.strokeStyle = 'hsla(' + hue + ',22%,86%,0.55)';
-        g.lineWidth = 1.1;
-        g.beginPath();
-        g.arc(cx, cy, R + 0.6, 0, TAU);
-        g.stroke();
+        // limb light: faint hue-tinted crescent on the lit side only
         g.lineCap = 'round';
-        g.strokeStyle = 'rgba(255,255,255,0.7)';
-        g.lineWidth = 1.8;
+        g.strokeStyle = 'hsla(' + hue + ',30%,72%,0.28)';
+        g.lineWidth = 1.4;
         g.beginPath();
-        g.arc(cx, cy, R + 0.6, Math.PI * 0.92, Math.PI * 1.62);
+        g.arc(cx, cy, R + 0.5, Math.PI * 0.88, Math.PI * 1.66);
         g.stroke();
 
         // ring front half
@@ -308,13 +312,13 @@
         g.save();
         g.translate(cx, cy);
         g.rotate(node.ringAngle);
-        g.strokeStyle = 'hsla(' + ((node.hue + 24) % 360) + ',30%,58%,' + (alpha * 0.32) + ')';
+        g.strokeStyle = 'hsla(' + ((node.hue + 24) % 360) + ',16%,44%,' + (alpha * 0.26) + ')';
         g.lineWidth = R * 0.11;
         g.beginPath();
         g.ellipse(0, 0, R * 1.5, R * 1.5 * node.ringTilt, 0,
             behind ? Math.PI : 0, behind ? TAU : Math.PI);
         g.stroke();
-        g.strokeStyle = 'hsla(' + ((node.hue + 24) % 360) + ',34%,72%,' + (alpha * 0.24) + ')';
+        g.strokeStyle = 'hsla(' + ((node.hue + 24) % 360) + ',18%,56%,' + (alpha * 0.18) + ')';
         g.lineWidth = R * 0.035;
         g.beginPath();
         g.ellipse(0, 0, R * 1.72, R * 1.72 * node.ringTilt, 0,
@@ -329,9 +333,9 @@
         c.width = c.height = S;
         var g = c.getContext('2d');
         var gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-        gr.addColorStop(0, 'hsla(' + hue + ',' + Math.min(60, sat + 12) + '%,62%,0.22)');
-        gr.addColorStop(0.35, 'hsla(' + hue + ',' + sat + '%,48%,0.08)');
-        gr.addColorStop(1, 'hsla(' + hue + ',' + sat + '%,45%,0)');
+        gr.addColorStop(0, 'hsla(' + hue + ',' + Math.max(20, sat - 12) + '%,54%,0.11)');
+        gr.addColorStop(0.35, 'hsla(' + hue + ',' + Math.max(16, sat - 18) + '%,44%,0.04)');
+        gr.addColorStop(1, 'hsla(' + hue + ',' + sat + '%,40%,0)');
         g.fillStyle = gr;
         g.fillRect(0, 0, S, S);
         return c;
@@ -1122,8 +1126,8 @@
         var dim = n.dim;
         // glow (additive)
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = Math.min(1, alpha * dim * (0.4 + pulse * 0.3));
-        var gs = r * (3.3 + pulse * 0.5);
+        ctx.globalAlpha = Math.min(1, alpha * dim * (0.26 + pulse * 0.16));
+        var gs = r * (2.9 + pulse * 0.35);
         ctx.drawImage(n.glow, n.sx - gs / 2, n.sy - gs / 2, gs, gs);
         // body sprite (ring included) — sprite body radius is spriteR of its size
         ctx.globalCompositeOperation = 'source-over';

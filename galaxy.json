@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-03",
+  "generated": "2026-08-09",
   "nodes": [
     {
       "id": "emgor",
@@ -312,6 +312,7 @@
         "gorcave"
       ],
       "updated": "2026-08-03",
+      "size": 1.6,
       "launch": "gorcave-chat.html"
     },
     {

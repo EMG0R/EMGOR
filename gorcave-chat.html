@@ -1831,12 +1831,10 @@
             }
 
             window.addEventListener('beforeinstallprompt', function (e) {
-                // Chrome's own mini-infobar is suppressed so we can offer it
-                // on our own terms, in palette, where it can't block anything.
+                // Install banner disabled 2026-08-09: suppress Chrome's
+                // mini-infobar and offer nothing of our own.
                 try { e.preventDefault(); } catch (err) {}
                 deferred = e;
-                if (isInstalled() || installDismissed() || !inBanner) return;
-                inBanner.classList.add('show');
             });
 
             window.addEventListener('appinstalled', function () {
