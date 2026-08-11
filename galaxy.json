@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-09",
+  "generated": "2026-08-11",
   "nodes": [
     {
       "id": "emgor",
@@ -9,7 +9,7 @@
       "path": "universe/_index.md",
       "route": "/",
       "depth": 0,
-      "children": 9,
+      "children": 10,
       "downloads": [],
       "links": [],
       "tags": [
@@ -619,6 +619,29 @@
         "3d-print"
       ],
       "updated": "2026-05-19"
+    },
+    {
+      "id": "emgor.latency-test",
+      "title": "LATENCY PERCEPTION TEST",
+      "blurb": "Find the smallest audio delay you can actually feel",
+      "parent": "emgor",
+      "path": "universe/latency-test/_index.md",
+      "route": "/latency-test",
+      "depth": 1,
+      "children": 0,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "latency",
+        "psychoacoustics",
+        "web-audio",
+        "perception",
+        "measurement",
+        "guitar"
+      ],
+      "updated": "2026-08-11",
+      "size": 1.4,
+      "launch": "latency-test.html"
     },
     {
       "id": "emgor.live-code",

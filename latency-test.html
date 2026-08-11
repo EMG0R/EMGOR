@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="theme-color" content="#000000">
+    <link rel="stylesheet" href="style/base.css">
+    <link rel="stylesheet" href="style/latency.css">
+    <title>LATENCY PERCEPTION TEST</title>
+</head>
+
+<body>
+
+    <div id="background-layer"></div>
+    <canvas id="lavaCanvas"></canvas>
+
+    <a href="index.html" class="home-button">&#8962;</a>
+
+<div id="lat-wrap">
+
+<!-- ══════════════════ INTRO ══════════════════ -->
+<section id="lat-intro" class="lat-screen on">
+    <div class="lat-title">LATENCY PERCEPTION TEST</div>
+    <div class="lat-kicker">two-interval forced choice &middot; adaptive staircase &middot; ~60 seconds</div>
+
+    <p>This measures <span class="em">the smallest audio delay you can actually detect</span> while playing. Not your
+    reaction time &mdash; that's around 200&nbsp;ms and has nothing to do with this. Not your rhythmic accuracy either.
+    Just the point where a delay between your hands and the sound stops being invisible to you.</p>
+
+    <p>It exists to settle one question: a guitar rig here measures <span class="em">8.02&nbsp;ms</span> round trip,
+    cable loopback, driven down from 29&nbsp;ms over one night. Is going lower still worth anything, or is it already
+    under the floor of human perception? You cannot answer that from the milliseconds alone. You have to measure the
+    listener.</p>
+
+    <h2>How it runs</h2>
+    <ul>
+        <li>Each trial gives you <span class="em">two takes</span>. Tap <kbd>space</kbd> four times in each, steady and
+        moderate &mdash; think eighth notes, two or three taps a second.</li>
+        <li>Every tap fires a click. In <span class="em">one</span> of the two takes that click is delayed. Which take,
+        and by how much, is randomised.</li>
+        <li>You say which one felt delayed &mdash; <kbd>&larr;</kbd> first, <kbd>&rarr;</kbd> second. You must pick.
+        Guess when you can't tell; guessing is what the maths is built to handle.</li>
+        <li>The delay chases you: it shrinks after two right in a row, grows after one wrong. It converges on the size
+        you catch about 71% of the time.</li>
+    </ul>
+
+    <h2>What to feel for</h2>
+    <p>Not an echo. The tell is that the click feels <span class="em">detached from your finger</span> &mdash; the note
+    lands a hair after the key and the groove drags behind you. Tap firmly and evenly. Sloppy tapping hides small
+    delays completely, and it will cost you a real result.</p>
+
+    <div class="lat-card">
+        <div class="lat-row"><span>Practice trials, not scored</span><span>2</span></div>
+        <div class="lat-row"><span>Scored trials</span><span>12 staircase + 3 attention checks</span></div>
+        <div class="lat-row"><span>Interaction time</span><span>&asymp; 57 s &mdash; 15 trials &times; ~3.8 s</span></div>
+        <div class="lat-row"><span>Audio engine</span><span id="lat-audio">not started</span></div>
+    </div>
+
+    <p class="lat-fine lat-touch-note">You're on a touch device, so tap the on-screen pad instead of the spacebar. That
+    works — screen latency sits under both takes equally and cancels out, exactly as a keyboard's does. But a finger on
+    glass is <span class="em">less steady</span> than a finger on a key, and that extra jitter inflates the result. Read
+    your number as an upper bound, and if the answer matters to you, run it again on a laptop with a real keyboard.</p>
+
+    <p class="lat-fine">Headphones or monitors, not laptop speakers if you can help it. Bluetooth is fine here &mdash; its
+    latency is constant across both takes, so it cancels. Close anything else making sound. This runs entirely in your
+    browser; nothing is recorded or sent anywhere.</p>
+
+    <div class="lat-actions"><button id="lat-b-start" class="lat-btn">Start audio &amp; begin</button></div>
+</section>
+
+<!-- ══════════════════ OWN LATENCY ══════════════════ -->
+<section id="lat-latency" class="lat-screen">
+    <div class="lat-title">THIS PAGE'S OWN LATENCY</div>
+    <div class="lat-kicker">read this before you trust the number</div>
+
+    <div class="lat-card" id="lat-latcard"></div>
+
+    <p>Underneath every measurement here sits a <span class="em">pedestal</span>: the fixed delay from keypress to sound
+    that exists before this test adds anything at all. Your keyboard, your OS, this browser and your output device all
+    put something into it.</p>
+
+    <p><span class="em">Why that doesn't wreck the result.</span> This is a <span class="em">difference</span>
+    measurement. Both takes in a trial ride on the identical pedestal; the only thing that differs between them is the
+    delay I add, and that is scheduled on the audio hardware clock to a fraction of a millisecond. The pedestal cancels.
+    It does not inflate the number the way it would in a "does this feel laggy to you?" test.</p>
+
+    <p><span class="em">The honest caveat.</span> Delay-detection thresholds do grow somewhat as the baseline delay
+    grows. Measured on a pedestal of roughly <span id="lat-ped">?</span>&nbsp;ms, your result is best read as a mild
+    <span class="em">over</span>estimate of what you would detect at near-zero baseline &mdash; not an underestimate.
+    I do not subtract the pedestal from the result, because subtracting a fixed offset from a difference threshold is
+    arithmetically meaningless. A number that looks precise and means the wrong thing is worse than an honest range.</p>
+
+    <p class="lat-fine">Unknown and unmeasurable from inside a browser: keyboard scan, USB/HID polling and OS input
+    latency, typically 5&ndash;25&nbsp;ms combined. No web API reports it. It is part of the pedestal, it is identical
+    across both takes, and so it too cancels from the comparison.</p>
+
+    <div class="lat-actions"><button id="lat-b-practice" class="lat-btn">Practice &mdash; 2 trials</button></div>
+</section>
+
+<!-- ══════════════════ TEST ══════════════════ -->
+<section id="lat-test" class="lat-screen">
+    <div class="lat-stage">
+        <div class="lat-take" id="lat-take">&nbsp;</div>
+        <div class="lat-prompt" id="lat-prompt">&nbsp;</div>
+        <div class="lat-dots" id="lat-dots"></div>
+        <div class="lat-pad" id="lat-pad">TAP HERE</div>
+        <div class="lat-hint" id="lat-hint">&nbsp;</div>
+        <div class="lat-choices" id="lat-choices" style="display:none">
+            <div class="lat-choice" data-c="1"><div class="ck">&larr; / 1</div><div class="cv">FIRST</div></div>
+            <div class="lat-choice" data-c="2"><div class="ck">2 / &rarr;</div><div class="cv">SECOND</div></div>
+        </div>
+        <div class="lat-fb" id="lat-fb">&nbsp;</div>
+    </div>
+    <div class="lat-prog">
+        <div class="lat-bar"><i id="lat-bar"></i></div>
+        <div class="lat-plabels"><span id="lat-pl">&mdash;</span><span id="lat-pr">&mdash;</span></div>
+    </div>
+</section>
+
+<!-- ══════════════════ RESULT ══════════════════ -->
+<section id="lat-result" class="lat-screen">
+    <div class="lat-title">RESULT</div>
+    <div class="lat-kicker">detection threshold vs. the 8.02 ms rig</div>
+    <div id="lat-resbody"></div>
+    <div class="lat-actions">
+        <button id="lat-b-again" class="lat-btn">Run again</button>
+        <button id="lat-b-long" class="lat-btn ghost">Long mode &mdash; ~105 s, tighter</button>
+        <button id="lat-b-raw" class="lat-btn ghost">Trial log</button>
+    </div>
+    <pre id="lat-raw"></pre>
+</section>
+
+</div>
+
+<script src="js/lava.js"></script>
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════
+   CORE-START  — pure logic, no DOM. The offline synthetic-responder test
+   harness evals exactly this block, so what is validated is what ships.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Transformed 1-up / 2-down adaptive staircase (Levitt 1971), run in log
+   space with a shrinking step. Converges on the 70.7%-correct point of the
+   psychometric function. Paired with 2AFC (chance = 50%), so 70.7% sits
+   comfortably above chance and the estimate is bias-free: the observer
+   never has to decide what "delayed enough to mention" means, only which
+   of two takes it was.
+
+   Chosen over a fixed ladder (biased and slow — it spends most of its
+   trials at levels that carry no information) and over method-of-adjustment
+   (dominated by the observer's criterion rather than their sensitivity).
+
+   Step schedule: coarse early for a fast approach from a deliberately
+   obvious start level, fine after the 2nd reversal where precision counts.
+   Threshold = geometric mean of the last even number of fine-phase
+   reversals — even, so that up- and down-going reversals cancel; geometric,
+   because delay discrimination is roughly Weber-like and log is its natural
+   metric.                                                                */
+
+function createStaircase(o){
+  o = o || {};
+  const S = {
+    level:      o.start      != null ? o.start      : 60,   // ms added delay
+    min:        o.min        != null ? o.min        : 0.5,
+    max:        o.max        != null ? o.max        : 250,
+    coarse:     o.coarse     != null ? o.coarse     : 2.0,  // × / ÷ per step
+    mid:        o.mid        != null ? o.mid        : 1.5,
+    fine:       o.fine       != null ? o.fine       : 1.26,
+    maxTrials:  o.maxTrials  != null ? o.maxTrials  : 12,
+    maxRev:     o.maxRev     != null ? o.maxRev     : 10,   // early stop
+    useRev:     o.useRev     != null ? o.useRev     : 6,    // avg last N
+    settleRev:  o.settleRev  != null ? o.settleRev  : 2,    // revs before fine
+    trials: [], reversals: [], revPhase: [],
+    nRev: 0, correctRun: 0, lastDir: 0, done: false,
+    railLow: 0, railHigh: 0
+  };
+
+  S.step = function(){
+    return S.nRev < 1 ? S.coarse : (S.nRev < S.settleRev ? S.mid : S.fine);
+  };
+
+  S.record = function(correct){
+    if (S.done) return;
+    const lvl = S.level;
+    S.trials.push({ level: lvl, correct: !!correct });
+    let dir = 0;                                   // -1 down (harder), +1 up
+    if (correct){
+      S.correctRun++;
+      if (S.correctRun >= 2){ dir = -1; S.correctRun = 0; }
+    } else {
+      S.correctRun = 0; dir = +1;
+    }
+    if (dir !== 0){
+      if (S.lastDir !== 0 && dir !== S.lastDir){
+        S.nRev++;
+        S.reversals.push(lvl);
+        S.revPhase.push(S.nRev > S.settleRev ? 'fine' : 'coarse');
+      }
+      S.lastDir = dir;
+      let next = dir < 0 ? lvl / S.step() : lvl * S.step();
+      if (next < S.min){ next = S.min; S.railLow++; }
+      if (next > S.max){ next = S.max; S.railHigh++; }
+      S.level = next;
+    }
+    if (S.trials.length >= S.maxTrials || S.nRev >= S.maxRev) S.done = true;
+  };
+
+  return S;
+}
+
+/* Small-sample t for 95% CI, df 1..12, then normal-ish. */
+const T95 = [12.71,4.303,3.182,2.776,2.571,2.447,2.365,2.306,2.262,2.228,2.201,2.179];
+function tcrit(df){ return df < 1 ? 12.71 : (df <= 12 ? T95[df-1] : 2.02); }
+
+/* One-sided binomial tail P(X >= k | n, p=0.5) — "could this whole run have
+   come from a coin?" This is the guard that stops us printing a threshold
+   for someone who was guessing. A heuristic is not good enough here: at
+   chance, a 1-up/2-down staircase still produces reversals and still yields
+   a number, and that number is pure noise. */
+function binomTailHalf(k, n){
+  if (k <= 0) return 1;
+  if (k > n) return 0;
+  let c = 1, s = 0;                       // c = C(n,i), starting at i = n
+  for (let i = n; i >= k; i--){ s += c; c = c * i / (n - i + 1); }
+  return s * Math.pow(0.5, n);
+}
+
+/* Threshold estimate plus honest quality flags. */
+function estimate(S, opts){
+  opts = opts || {};
+  const easyN = opts.easyN || 0, easyHit = opts.easyHit || 0;
+  const out = { flags: [] };
+
+  // Prefer fine-phase reversals; fall back progressively.
+  let revs = S.reversals.filter(function(v,i){ return S.revPhase[i] === 'fine'; });
+  let source = 'fine reversals';
+  if (revs.length < 4){ revs = S.reversals.slice(); source = 'all reversals'; }
+  if (revs.length >= 4){
+    let use = Math.min(opts.useRev || S.useRev, revs.length);
+    if (use % 2) use--;                       // even count cancels up/down bias
+    revs = revs.slice(revs.length - use);
+  } else {
+    revs = S.trials.slice(-6).map(function(t){ return t.level; });
+    source = 'final levels';
+    out.flags.push('few-reversals');
+  }
+  out.nRev = S.nRev;
+  out.source = source; out.revUsed = revs.slice();
+
+  const logs = revs.map(Math.log);
+  const m = logs.reduce(function(a,b){ return a+b; }, 0) / logs.length;
+  out.threshold = Math.exp(m);
+
+  let sd = 0;
+  if (logs.length > 1){
+    const v = logs.reduce(function(a,b){ return a + (b-m)*(b-m); }, 0) / (logs.length-1);
+    sd = Math.sqrt(v);
+  }
+  out.logSd = sd;
+  const se = logs.length > 1 ? sd/Math.sqrt(logs.length) : 0;
+  const t = tcrit(logs.length-1);
+  out.lo = Math.exp(m - t*se);
+  out.hi = Math.exp(m + t*se);
+
+  // --- is there evidence of ANY detection at all? ------------------------
+  const scK = S.trials.filter(function(t){ return t.correct; }).length,
+        scN = S.trials.length;
+  out.accuracy = scN ? scK/scN : 0;
+  out.easyRate = easyN ? easyHit/easyN : null;
+
+  // Pool staircase + attention-check trials: every one is a 2AFC coin flip
+  // under the null. p is the chance a non-detecting observer did this well.
+  const k = scK + easyHit, n = scN + easyN;
+  out.pGuess = binomTailHalf(k, n);
+  out.nCorrect = k; out.nTrials = n;
+
+  // Attention checks are blatant (~140 ms). Missing two is by itself
+  // disqualifying: it means the signal never reached the observer at all.
+  const easyFail = easyN >= 3 && easyHit <= easyN - 2;
+  if (easyFail)         out.flags.push('failed-easy');
+  if (sd > 0.75)        out.flags.push('noisy');
+  if (S.railHigh >= 2)  out.flags.push('rail-high');
+  if (S.railLow  >= 2)  out.flags.push('rail-low');
+  if (out.pGuess > 0.05 && out.pGuess <= 0.20) out.flags.push('weak-evidence');
+
+  // Zero reversals means the staircase never bracketed the threshold — it
+  // walked one direction the whole run. The "estimate" is then just wherever
+  // the walk stopped, which is not a threshold. Report it as out-of-range in
+  // the direction it was heading, never as a number.
+  if (S.nRev === 0 && S.trials.length >= 4){
+    out.flags.push(S.lastDir < 0 ? 'rail-low' : 'rail-high');
+  }
+
+  const guessing = easyFail || out.pGuess > 0.20;
+  out.verdict = guessing                                    ? 'guessing'
+              : out.flags.indexOf('rail-high')     !== -1   ? 'insensitive'
+              : out.flags.indexOf('rail-low')      !== -1   ? 'below-resolution'
+              : out.flags.indexOf('noisy')         !== -1   ? 'noisy'
+              : out.flags.indexOf('weak-evidence') !== -1   ? 'weak'
+              : 'ok';
+  return out;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CORE-END
+   ═══════════════════════════════════════════════════════════════════════ */
+
+if (typeof module !== 'undefined' && module.exports){
+  module.exports = { createStaircase: createStaircase, estimate: estimate };
+}
+</script>
+
+<script>
+"use strict";
+if (typeof document !== 'undefined') (function(){
+
+/* ─────────────── audio ─────────────── */
+var ctx = null, clickBuf = null;
+var GUARD = 0.006;                 // s of scheduling headroom (part of pedestal)
+var glitches = 0, keyLags = [];
+
+function makeClick(){
+  var sr = ctx.sampleRate, n = Math.ceil(sr*0.020),
+      b = ctx.createBuffer(1, n, sr), d = b.getChannelData(0);
+  for (var i=0; i<n; i++){
+    var t = i/sr;
+    var noise = (Math.random()*2-1) * Math.exp(-t*900);   // sharp transient
+    var body  = Math.sin(2*Math.PI*1800*t) * Math.exp(-t*160);
+    d[i] = (noise*0.65 + body*0.5) * 0.85;
+  }
+  clickBuf = b;
+}
+
+function initAudio(){
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint:'interactive' });
+  return ctx.resume().then(function(){
+    makeClick();
+    // prime the graph so the first real click isn't the one that wakes the device
+    var s = ctx.createBufferSource(), g = ctx.createGain();
+    s.buffer = clickBuf; g.gain.value = 0.0001;
+    s.connect(g); g.connect(ctx.destination); s.start();
+    return new Promise(function(r){ setTimeout(r, 140); });
+  });
+}
+
+function outLatency(){ return (ctx && ctx.outputLatency) || 0; }
+function baseLatency(){ return (ctx && ctx.baseLatency) || 0; }
+function outKnown(){ return !!(ctx && typeof ctx.outputLatency === 'number' && ctx.outputLatency > 0); }
+function pedestal(){ return (outKnown() ? outLatency() : baseLatency()*2) * 1000 + GUARD*1000; }
+
+/* Schedule a click `delayMs` after the KEYPRESS, on the audio clock.
+   Corrects for handler dispatch lag using the event's own hi-res timestamp,
+   so a busy main thread shifts nothing. Never setTimeout. */
+function clickAfterKey(evTimeMs, delayMs){
+  var lag = Math.max(0, performance.now() - evTimeMs) / 1000;
+  keyLags.push(lag*1000);
+  var when = ctx.currentTime - lag + GUARD + delayMs/1000;
+  if (when < ctx.currentTime){ when = ctx.currentTime; glitches++; }
+  var s = ctx.createBufferSource(), g = ctx.createGain();
+  s.buffer = clickBuf; g.gain.value = 0.9;
+  s.connect(g); g.connect(ctx.destination);
+  s.start(when);
+}
+
+/* The background is a full-screen WebGL shader on an unconditional rAF loop.
+   Harmless on the intro and result screens, but it competes for the main
+   thread during trials, so collapse it to 1x1 while measuring and restore
+   afterwards. Cheaper than fighting it, and keeps the page on-theme. */
+var lavaCv = document.getElementById('lavaCanvas'), lavaW = 0, lavaH = 0;
+function lavaPause(){
+  if (!lavaCv || lavaCv.width <= 1) return;
+  lavaW = lavaCv.width; lavaH = lavaCv.height;
+  lavaCv.width = 1; lavaCv.height = 1; lavaCv.style.opacity = '0';
+}
+function lavaResume(){
+  if (!lavaCv || !lavaW) return;
+  lavaCv.width = lavaW; lavaCv.height = lavaH; lavaCv.style.opacity = '';
+}
+
+/* ─────────────── config ─────────────── */
+var TAPS = 4, EASY = 140, PRACTICE_LEVEL = 130, RIG = 8.02;
+var SHORT = { maxTrials:12, easyAt:[4,8,11] };      // 15 trials ≈ 57 s
+var LONG  = { maxTrials:24, easyAt:[5,11,17,22] };  // 28 trials ≈ 106 s
+var CFG = SHORT;
+
+/* ─────────────── state ─────────────── */
+var S = null, est = null, phase = 'idle';
+var trialNo = 0, easyN = 0, easyHit = 0, isEasy = false;
+var isPractice = false, practiceLeft = 0;
+var curLevel = 0, delayedTake = 1, take = 1, taps = 0;
+var tStart = 0, log = [];
+
+function $(id){ return document.getElementById(id); }
+function show(id){
+  var all = document.querySelectorAll('.lat-screen');
+  for (var i=0;i<all.length;i++) all[i].classList.remove('on');
+  $(id).classList.add('on');
+  window.scrollTo(0,0);
+}
+function fmt(x,d){ return x.toFixed(d == null ? 1 : d); }
+function median(a){
+  if (!a.length) return 0;
+  var b = a.slice().sort(function(x,y){ return x-y; }), m = b.length>>1;
+  return b.length % 2 ? b[m] : (b[m-1]+b[m])/2;
+}
+function floorLevel(){
+  if (!S || !S.trials.length) return 0.5;
+  return Math.min.apply(null, S.trials.map(function(t){ return t.level; }));
+}
+
+/* ─────────────── flow ─────────────── */
+$('lat-b-start').onclick = function(){
+  var btn = $('lat-b-start');
+  btn.textContent = 'starting…';
+  initAudio().then(function(){
+    $('lat-audio').textContent = 'running @ ' + ctx.sampleRate + ' Hz';
+    renderLatency();
+    show('lat-latency');
+  }).catch(function(e){
+    $('lat-audio').textContent = 'FAILED — ' + e.message;
+    btn.textContent = 'retry';
+  });
+};
+
+function renderLatency(){
+  var bl = baseLatency()*1000, ol = outLatency()*1000, known = outKnown();
+  var rows = [
+    ['AudioContext.baseLatency',    fmt(bl,2) + ' ms &mdash; graph to device buffer'],
+    ['AudioContext.outputLatency',  known ? fmt(ol,2) + ' ms &mdash; buffer to speaker, reported'
+                                          : 'not reported by this browser'],
+    ['Scheduling guard I add',      fmt(GUARD*1000,1) + ' ms &mdash; constant, both takes'],
+    ['Keyboard / OS input latency', 'UNKNOWN &mdash; no web API exposes it (~5&ndash;25 ms)'],
+    ['Accounted pedestal',          fmt(pedestal(),1) + ' ms &plusmn; unknown input latency'],
+    ['Accuracy of the added delay', '&lt; 0.1 ms &mdash; sample-accurate on the audio clock']
+  ];
+  $('lat-latcard').innerHTML = rows.map(function(r){
+    return '<div class="lat-row"><span>' + r[0] + '</span><span>' + r[1] + '</span></div>';
+  }).join('');
+  $('lat-ped').textContent = fmt(pedestal(),0);
+}
+
+$('lat-b-practice').onclick = function(){ startPractice(); };
+$('lat-b-again').onclick    = function(){ CFG = SHORT; startPractice(); };
+$('lat-b-long').onclick     = function(){ CFG = LONG;  startPractice(); };
+$('lat-b-raw').onclick      = function(){
+  var p = $('lat-raw');
+  p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+};
+
+function startPractice(){
+  isPractice = true; practiceLeft = 2;
+  glitches = 0; keyLags = []; log = [];
+  lavaPause();
+  show('lat-test');
+  nextTrial();
+}
+
+function startMain(){
+  isPractice = false;
+  S = createStaircase({ start:60, min:0.5, max:250, maxTrials:CFG.maxTrials, useRev:6 });
+  trialNo = 0; easyN = 0; easyHit = 0;
+  tStart = performance.now();
+  nextTrial();
+}
+
+function nextTrial(){
+  $('lat-fb').innerHTML = '&nbsp;';
+  $('lat-choices').style.display = 'none';
+
+  if (isPractice){
+    if (practiceLeft <= 0){ startMain(); return; }
+    curLevel = PRACTICE_LEVEL; isEasy = false;
+  } else {
+    if (S.done){ finish(); return; }
+    trialNo++;
+    isEasy = CFG.easyAt.indexOf(trialNo) !== -1;
+    curLevel = isEasy ? EASY : S.level;
+  }
+
+  delayedTake = Math.random() < 0.5 ? 1 : 2;   // randomised every trial
+  take = 1; taps = 0;
+  updateProgress();
+  runTake();
+}
+
+function runTake(){
+  $('lat-take').innerHTML = (take === 1) ? 'TAKE <b>ONE</b>' : 'TAKE <b>TWO</b>';
+  $('lat-prompt').textContent = (isTouch ? 'TAP ×' : 'TAP SPACE ×') + TAPS;
+  $('lat-hint').textContent = (take === 1) ? 'steady, moderate tempo' : 'same tempo as take one';
+  drawDots(0);
+  phase = 'tapping';
+}
+
+function drawDots(n){
+  var h = '';
+  for (var i=0; i<TAPS; i++) h += '<div class="lat-dot' + (i<n ? ' lit' : '') + '"></div>';
+  $('lat-dots').innerHTML = h;
+}
+
+function onTap(ev){
+  if (phase !== 'tapping') return;
+  if (!ctx){                      // never silently swallow taps with no audio
+    $('lat-hint').textContent = 'audio not started — reload and press start';
+    return;
+  }
+  clickAfterKey(ev.timeStamp, (take === delayedTake) ? curLevel : 0);
+  taps++; drawDots(taps);
+  if (taps >= TAPS){
+    phase = 'gap';
+    setTimeout(function(){
+      if (take === 1){ take = 2; taps = 0; runTake(); }
+      else askChoice();
+    }, 420);
+  }
+}
+
+function askChoice(){
+  $('lat-take').innerHTML = '&nbsp;';
+  $('lat-prompt').textContent = 'WHICH TAKE FELT DELAYED?';
+  $('lat-hint').textContent = 'guess if unsure — you must pick one';
+  $('lat-dots').innerHTML = '';
+  $('lat-choices').style.display = 'flex';
+  phase = 'choice';
+}
+
+function answer(c){
+  if (phase !== 'choice') return;
+  phase = 'wait';
+  $('lat-choices').style.display = 'none';
+  var correct = (c === delayedTake);
+
+  if (isPractice){
+    $('lat-fb').innerHTML = correct
+      ? '<span style="color:var(--cyan)">correct — that’s the feel</span>'
+      : '<span style="color:var(--red-light)">no — it was take ' + delayedTake + '</span>';
+    practiceLeft--;
+    if (practiceLeft <= 0){
+      $('lat-prompt').textContent = 'PRACTICE DONE — REAL TRIALS NOW';
+      $('lat-hint').textContent = 'no more feedback from here';
+      setTimeout(function(){ $('lat-fb').innerHTML = '&nbsp;'; startMain(); }, 1500);
+      return;
+    }
+    setTimeout(nextTrial, 900);
+    return;
+  }
+
+  log.push({ n:trialNo, ms:+curLevel.toFixed(2), easy:isEasy,
+             delayed:delayedTake, said:c, ok:correct });
+  if (isEasy){ easyN++; if (correct) easyHit++; }
+  else S.record(correct);
+  setTimeout(nextTrial, 220);
+}
+
+function updateProgress(){
+  if (isPractice){
+    $('lat-bar').style.width = '0%';
+    $('lat-pl').textContent = 'practice';
+    $('lat-pr').textContent = practiceLeft + ' to go';
+    return;
+  }
+  var total = CFG.maxTrials + CFG.easyAt.length, done = trialNo - 1;
+  $('lat-bar').style.width = Math.min(100, 100*done/total) + '%';
+  $('lat-pl').textContent = 'trial ' + trialNo + ' / ~' + total;
+  $('lat-pr').textContent = '≈ ' + Math.max(0, Math.round((total-done)*3.8)) +
+                            ' s left · ' + S.nRev + ' reversals';
+}
+
+/* ─────────────── keyboard ─────────────── */
+/* Touch devices have no spacebar. A screen tap goes through the identical
+   code path and uses the same event timestamp, and screen-input latency is
+   just as constant across the two takes as keyboard latency is — so it
+   cancels the same way. What it is NOT is as *steady*: touch input jitters
+   more than a key, and jitter inflates the threshold. Say so rather than
+   pretending the two are equivalent. */
+var isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if (isTouch) document.body.classList.add('lat-touch');
+
+$('lat-pad').addEventListener('pointerdown', function(e){
+  e.preventDefault();
+  onTap(e);
+});
+
+window.addEventListener('keydown', function(e){
+  if (e.code === 'Space'){
+    e.preventDefault();
+    if (e.repeat) return;
+    onTap(e);                       // uses e.timeStamp, not handler time
+    return;
+  }
+  if (phase === 'choice'){
+    if (e.code === 'ArrowLeft'  || e.key === '1'){ e.preventDefault(); answer(1); }
+    if (e.code === 'ArrowRight' || e.key === '2'){ e.preventDefault(); answer(2); }
+  }
+});
+
+(function(){
+  var ch = document.querySelectorAll('.lat-choice');
+  for (var i=0; i<ch.length; i++){
+    (function(el){ el.onclick = function(){ answer(+el.getAttribute('data-c')); }; })(ch[i]);
+  }
+})();
+
+/* ─────────────── result ─────────────── */
+function finish(){
+  est = estimate(S, { easyN:easyN, easyHit:easyHit, useRev:6 });
+  lavaResume();
+  renderResult();
+  show('lat-result');
+
+  $('lat-raw').textContent =
+    'level(ms)  easy  delayed  said  ok\n' +
+    log.map(function(r){
+      return String(r.ms).padStart(8) + '  ' + (r.easy ? '  Y ' : '  . ') + '  ' +
+             String(r.delayed).padStart(6) + String(r.said).padStart(6) + '   ' + (r.ok ? '+' : '-');
+    }).join('\n') +
+    '\n\nreversals: [' + S.reversals.map(function(v){ return v.toFixed(1); }).join(', ') + ']' +
+    '\nphases:    [' + S.revPhase.join(', ') + ']' +
+    '\nused:      [' + est.revUsed.map(function(v){ return v.toFixed(1); }).join(', ') +
+                  ']  (' + est.source + ')' +
+    '\nlog-sd ' + fmt(est.logSd,3) + '   accuracy ' + est.nCorrect + '/' + est.nTrials +
+    '   p(guessing) ' + est.pGuess.toFixed(4) +
+    '\nmedian key-handler lag ' + fmt(median(keyLags),2) +
+                  ' ms, late-scheduled clicks ' + glitches;
+}
+
+function renderResult(){
+  var th = est.threshold, ped = pedestal(), html = '';
+  var secs = fmt((performance.now() - tStart)/1000, 0);
+
+  /* ---- degenerate: no evidence of detection ---- */
+  if (est.verdict === 'guessing'){
+    html += '<div class="lat-verdict warn"><h3>No usable threshold — the data can’t rule out guessing.</h3>' +
+      '<p>You got ' + est.nCorrect + '/' + est.nTrials + ' trials right. On a two-choice task pure guessing averages ' +
+      fmt(est.nTrials/2,1) + '/' + est.nTrials + ', and a run like yours would happen by coin-flip alone <span class="em">' +
+      (est.pGuess*100).toFixed(0) + '% of the time</span>. That is not evidence of detection. Attention checks, which used ' +
+      'a blatant ' + EASY + ' ms delay: ' + easyHit + '/' + easyN + '.</p>' +
+      '<p class="lat-fine">I am deliberately not printing a threshold. The staircase does produce a number here — around ' +
+      fmt(th,0) + ' ms — but it is an artefact of the ladder drifting upward on random answers, not a measurement of you. ' +
+      'Likely causes: the click never reached your ears, the tapping was uneven (uneven tapping masks small delays completely), ' +
+      'or the task hadn’t clicked yet. Check you can hear the click, tap metronomically, run it again.</p></div>';
+    $('lat-resbody').innerHTML = html;
+    return;
+  }
+
+  /* ---- degenerate: detects nothing even at the ceiling ---- */
+  if (est.verdict === 'insensitive'){
+    html += '<div class="lat-verdict warn"><h3>Your threshold is above ' + fmt(S.max,0) + ' ms — off the top of this test.</h3>' +
+      '<p>The staircase ran the delay up to its ceiling and you still weren’t reliably picking it out, but you did pass the ' +
+      'attention checks (' + easyHit + '/' + easyN + '), so you were engaged with the task.</p>' +
+      '<p>Practically: added latency is not something you detect in this tapping task at all. The 8.02 ms rig is emphatically ' +
+      'inaudible to you, and so would be a rig several times worse. Stop optimising, go and play.</p></div>';
+    $('lat-resbody').innerHTML = html;
+    return;
+  }
+
+  /* ---- the number ---- */
+  var belowRes = (est.verdict === 'below-resolution');
+  var weak = (est.verdict === 'weak');
+  html += '<div class="lat-res' + (weak ? ' weak' : '') + '">' +
+    '<div class="cap">' + (belowRes ? 'threshold at or below this test’s floor'
+                                    : '70.7% detection threshold · added delay') + '</div>' +
+    '<div class="num">' + (belowRes ? '&lt;&thinsp;' + fmt(floorLevel(),1) : fmt(th, th<10?1:0)) +
+      '<small>ms</small></div>' +
+    '<div class="ci">' +
+      (belowRes ? 'you were still detecting the delay at the smallest step the test offers'
+                : '95% CI ' + fmt(est.lo, est.lo<10?1:0) + ' – ' + fmt(est.hi, est.hi<10?1:0) + ' ms') +
+      '<br>' + est.revUsed.length + ' ' + est.source + ' · ' + est.nRev +
+      (est.nRev === 1 ? ' reversal' : ' reversals') + ' · checks ' + easyHit + '/' + easyN +
+      ' · p(guessing) ' + (est.pGuess < 0.001 ? '&lt; 0.001' : est.pGuess.toFixed(3)) +
+    '</div></div>';
+
+  /* ---- log scale ---- */
+  var pts = [1,2,5,10,20,50,100];
+  var lo = Math.log(1), hi = Math.log(120);
+  function pos(x){ return Math.max(0, Math.min(100, 100*(Math.log(x)-lo)/(hi-lo))); }
+  html += '<div class="lat-scale"><div class="track"></div>' +
+    pts.map(function(p){
+      return '<div class="lat-mk" style="left:' + pos(p) + '%"><i></i><u>' + p + '</u></div>';
+    }).join('') +
+    '<div class="lat-mk rig" style="left:' + pos(RIG) + '%"><i></i><u>rig 8.02</u></div>' +
+    (belowRes ? '' : '<div class="lat-mk you" style="left:' + pos(th) + '%"><i></i><u>you ' +
+                     fmt(th, th<10?1:0) + '</u></div>') +
+    '</div>';
+
+  /* ---- the actionable answer ---- */
+  html += '<h2>What this means for the rig</h2>';
+
+  if (weak){
+    /* Borderline evidence must NOT get a confident recommendation attached to
+       it. Withhold the advice entirely rather than hedging underneath it — a
+       hedge under a bold headline still reads as the headline. */
+    html += '<div class="lat-verdict warn"><h3>Not enough evidence to advise you either way.</h3>' +
+      '<p>You got ' + est.nCorrect + '/' + est.nTrials + ' trials right. A coin flip matches that ' +
+      (est.pGuess*100).toFixed(0) + '% of the time, so this run does not clear the bar for saying you detected anything. ' +
+      'The number above is what the staircase landed on, but it is resting on evidence too thin to carry a recommendation, ' +
+      'so I am not going to give you one.</p>' +
+      '<p>Most likely you were detecting something and the run was unlucky or the tapping drifted — the fix is more trials, ' +
+      'not more thinking. Run <span class="em">long mode</span> below. If it comes back with p &lt; 0.05 you will get a ' +
+      'real answer about the 8.02 ms rig; if it comes back like this again, the honest reading is that added delay at these ' +
+      'sizes is simply not something you detect.</p></div>';
+  } else if (belowRes){
+    html += '<div class="lat-verdict"><h3>You bottomed out the test.</h3>' +
+      '<p>You kept detecting the delay all the way down to ' + fmt(floorLevel(),1) + ' ms, so your threshold sits below that ' +
+      'and this test cannot resolve it — at that scale my own timing jitter and your tapping jitter dominate the signal.</p>' +
+      '<p>Taken at face value your threshold is under the 8.02 ms round trip, which would mean further latency work is ' +
+      'genuinely perceptible to you. This is the one outcome where chasing more milliseconds is defensible rather than ' +
+      'superstition.</p>' +
+      '<p class="lat-fine">Before you act on it, run it again. Bottoming out is also exactly what a lucky run looks like on a ' +
+      '12-trial staircase, and a single run agreeing with what you hoped to hear is the weakest kind of evidence there is. ' +
+      'Two runs agreeing is evidence. One is not.</p></div>';
+  } else {
+    var ratio = th / RIG;
+    if (ratio >= 3){
+      html += '<div class="lat-verdict"><h3>Stop optimising. You are already ' + fmt(ratio,1) + '× under your own threshold.</h3>' +
+        '<p>The rig’s 8.02 ms round trip sits well below the smallest delay change you can reliably detect (' +
+        fmt(th, th<10?1:0) + ' ms). Driving 8.02 down to 4 ms would buy 4 ms of improvement against a threshold of ' +
+        fmt(th,0) + ' ms. You would not be able to tell the two rigs apart in a blind comparison — and this test is ' +
+        'essentially that blind comparison, run on you.</p>' +
+        '<p>The honest remaining reasons to go lower are all non-perceptual: buffer headroom against dropouts, latency ' +
+        'stacking across several devices in series, or monitoring while tracking to a click. None of them are feel. ' +
+        'The feel question is answered, and the answer is no.</p></div>';
+    } else if (ratio >= 1.4){
+      html += '<div class="lat-verdict"><h3>You are under threshold, but not by much.</h3>' +
+        '<p>Threshold ' + fmt(th, th<10?1:0) + ' ms against a rig at 8.02 ms — a margin of ' + fmt(ratio,1) + '×. ' +
+        'The rig as it stands should feel clean to you. But the margin is not big enough to be careless with: another ' +
+        'buffered stage, a wireless link, or a plugin with lookahead could push the total past what you would notice.</p>' +
+        '<p>The useful number to take away is the budget, not the current figure. Keep total round trip under about ' +
+        fmt(th,0) + ' ms and you stay in the clear. Going below 8 ms buys you nothing you can hear.</p></div>';
+    } else {
+      html += '<div class="lat-verdict warn"><h3>Your threshold is in the same territory as your rig.</h3>' +
+        '<p>Threshold ' + fmt(th, th<10?1:0) + ' ms against a rig at 8.02 ms. That is close enough that the 8.02 ms may sit ' +
+        'right at the edge of detectable for you, and further reduction could genuinely be perceptible. This is the rare case ' +
+        'where more latency work is justified.</p>' +
+        '<p class="lat-fine">The caveat matters here more than anywhere: the confidence interval on this run is ' +
+        fmt(est.lo,1) + '–' + fmt(est.hi,1) + ' ms, which straddles the decision. Run long mode before you spend another ' +
+        'night on it. A borderline call deserves better data than a 60-second test.</p></div>';
+    }
+  }
+
+  if (est.verdict === 'noisy'){
+    html += '<div class="lat-verdict warn"><h3>Treat this number loosely.</h3>' +
+      '<p>The staircase never properly settled — the reversal points were scattered (log-sd ' + fmt(est.logSd,2) +
+      '), which usually means inconsistent tapping or fading attention rather than a bad ear. The point estimate is the ' +
+      'best available, but the confidence interval is the honest story.</p></div>';
+  }
+
+  /* ---- conditions ---- */
+  html += '<h2>Measurement conditions</h2><div class="lat-card">' +
+    '<div class="lat-row"><span>Method</span><span>2AFC · 1-up/2-down staircase · 70.7%</span></div>' +
+    '<div class="lat-row"><span>Staircase trials</span><span>' + S.trials.length + ' + ' + easyN + ' attention checks</span></div>' +
+    '<div class="lat-row"><span>Estimator</span><span>geometric mean of ' + est.revUsed.length + ' ' + est.source + '</span></div>' +
+    '<div class="lat-row"><span>Overall accuracy</span><span>' + est.nCorrect + '/' + est.nTrials + ' = ' +
+      fmt(100*est.nCorrect/est.nTrials, 0) + '% · chance is 50%</span></div>' +
+    '<div class="lat-row"><span>Could this be guessing?</span><span>p = ' +
+      (est.pGuess < 0.001 ? '&lt; 0.001' : est.pGuess.toFixed(3)) + (est.pGuess < 0.05 ? ' — no' : '') + '</span></div>' +
+    '<div class="lat-row"><span>Pedestal under both takes</span><span>&asymp; ' + fmt(ped,1) +
+      ' ms accounted + unknown input latency</span></div>' +
+    '<div class="lat-row"><span>Input</span><span>' + (isTouch ? 'touch pad — jitter inflates this result' : 'keyboard (spacebar)') + '</span></div>' +
+    '<div class="lat-row"><span>Median handler lag, corrected out</span><span>' + fmt(median(keyLags),2) + ' ms</span></div>' +
+    '<div class="lat-row"><span>Late-scheduled clicks</span><span>' + glitches +
+      (glitches > 2 ? ' — close other apps and re-run' : '') + '</span></div>' +
+    '<div class="lat-row"><span>Interaction time</span><span>' + secs + ' s</span></div>' +
+    '</div>' +
+    '<p class="lat-fine">This is a <span class="em">difference</span> threshold for added delay, measured on a pedestal of ' +
+    'roughly ' + fmt(ped,0) + ' ms plus your keyboard’s unknown input latency. Both takes carry the identical pedestal, so it ' +
+    'cancels from the comparison and is <span class="em">not</span> subtracted from the figure above — subtracting a fixed ' +
+    'offset from a difference threshold would be meaningless. Because detection thresholds tend to grow with baseline delay, ' +
+    'the true figure at near-zero baseline is likely equal to or a little smaller than what is shown.</p>' +
+    '<p class="lat-fine">' +
+    (est.flags.indexOf('few-reversals') !== -1
+      ? 'A 12-trial staircase usually ends with only two or three reversals — too few to average — so the estimate here is ' +
+        'the geometric mean of the final ' + est.revUsed.length + ' levels instead. That is a standard estimator for short ' +
+        'adaptive runs and simulation puts it within &plusmn;50% of the true threshold about three quarters of the time. ' +
+        'But those levels come from one descending walk, so they are correlated, and the confidence interval above is ' +
+        'therefore <span class="em">optimistically narrow</span> — the real spread is wider than it reads. '
+      : '') +
+    'Test–retest spread on 60-second staircases is real: expect &plusmn;25–40% between runs, and more than that near the ' +
+    'floor. Long mode roughly halves it. Run it twice before betting a night on it.</p>';
+
+  $('lat-resbody').innerHTML = html;
+}
+
+})();
+</script>
+</body>
+</html>

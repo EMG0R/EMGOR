@@ -1,0 +1,446 @@
+/* LATENCY PERCEPTION TEST — page styles, on top of base.css */
+
+/* base.css pins html,body to height:100%, which makes the document itself
+   non-scrolling — this page is long-form, so hand scrolling back to the
+   document element. */
+html, body {
+    height: auto;
+    min-height: 100%;
+}
+
+body {
+    justify-content: flex-start;
+    overflow-x: hidden;
+}
+
+#lat-wrap {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 64px 22px 72px;
+    text-align: left;
+}
+
+/* ── type ─────────────────────────────────────────────────────────── */
+.lat-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 5px;
+    color: var(--violet);
+    margin: 0 0 6px;
+    text-shadow: 0 0 14px rgba(168, 85, 247, 0.45);
+}
+
+.lat-kicker {
+    font-size: 0.72rem;
+    letter-spacing: 3px;
+    color: rgba(224, 170, 255, 0.42);
+    margin: 0 0 30px;
+    text-transform: uppercase;
+}
+
+#lat-wrap h2 {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(224, 170, 255, 0.45);
+    margin: 32px 0 12px;
+}
+
+#lat-wrap p {
+    margin: 0 0 14px;
+    font-size: 0.9rem;
+    line-height: 1.65;
+    color: rgba(224, 170, 255, 0.82);
+    max-width: 64ch;
+}
+
+#lat-wrap ul {
+    margin: 0 0 14px;
+    padding-left: 20px;
+    max-width: 64ch;
+}
+
+#lat-wrap li {
+    margin-bottom: 7px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: rgba(224, 170, 255, 0.82);
+}
+
+#lat-wrap .em {
+    color: var(--pale);
+    border-bottom: 1px solid rgba(168, 85, 247, 0.5);
+}
+
+.lat-fine {
+    font-size: 0.78rem !important;
+    line-height: 1.55 !important;
+    color: rgba(224, 170, 255, 0.45) !important;
+}
+
+kbd {
+    display: inline-block;
+    background: rgba(61, 29, 142, 0.5);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--pale);
+}
+
+/* ── panels ───────────────────────────────────────────────────────── */
+.lat-card {
+    background: rgba(21, 14, 86, 0.34);
+    border: 1px solid rgba(168, 85, 247, 0.22);
+    border-radius: 10px;
+    padding: 15px 18px;
+    margin: 0 0 18px;
+}
+
+.lat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 18px;
+    padding: 4px 0;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.lat-row span:first-child { color: rgba(224, 170, 255, 0.5); }
+.lat-row span:last-child  { color: var(--pale); text-align: right; }
+
+.lat-btn {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.78rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: rgba(61, 29, 142, 0.45);
+    color: var(--pale);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    border-radius: 8px;
+    padding: 12px 24px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.lat-btn:hover {
+    border-color: var(--violet);
+    background: rgba(123, 47, 190, 0.55);
+    box-shadow: 0 0 16px rgba(168, 85, 247, 0.3);
+}
+
+.lat-btn.ghost {
+    background: transparent;
+    color: rgba(224, 170, 255, 0.45);
+    border-color: rgba(168, 85, 247, 0.18);
+}
+
+.lat-btn.ghost:hover { color: var(--pale); box-shadow: none; }
+
+.lat-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 26px;
+}
+
+/* ── screens ──────────────────────────────────────────────────────── */
+.lat-screen { display: none; }
+.lat-screen.on { display: block; animation: fadeIn 0.35s ease; }
+
+/* ── test stage ───────────────────────────────────────────────────── */
+.lat-stage {
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.lat-take {
+    font-size: 0.72rem;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: rgba(224, 170, 255, 0.4);
+    margin-bottom: 26px;
+    height: 18px;
+}
+
+.lat-take b { color: var(--cyan); font-weight: 700; }
+
+.lat-prompt {
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    color: var(--pale);
+    min-height: 30px;
+    margin-bottom: 10px;
+}
+
+.lat-dots { display: flex; gap: 16px; margin: 10px 0 26px; height: 18px; }
+
+.lat-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    transition: all 0.07s ease;
+}
+
+.lat-dot.lit {
+    background: var(--cyan);
+    border-color: var(--cyan);
+    box-shadow: 0 0 16px 2px rgba(0, 240, 255, 0.55);
+}
+
+/* touch input pad — only on devices with no spacebar */
+.lat-pad {
+    display: none;
+    width: 240px;
+    height: 110px;
+    align-items: center;
+    justify-content: center;
+    margin: 4px 0 18px;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    border-radius: 14px;
+    background: rgba(61, 29, 142, 0.35);
+    color: rgba(224, 170, 255, 0.55);
+    font-size: 0.72rem;
+    letter-spacing: 3px;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+}
+
+.lat-pad:active {
+    background: rgba(0, 240, 255, 0.18);
+    border-color: var(--cyan);
+}
+
+body.lat-touch .lat-pad { display: flex; }
+
+.lat-touch-note { display: none; }
+body.lat-touch .lat-touch-note { display: block; }
+
+.lat-hint {
+    font-size: 0.8rem;
+    color: rgba(224, 170, 255, 0.45);
+    min-height: 22px;
+    letter-spacing: 1px;
+}
+
+.lat-choices { display: flex; gap: 16px; margin-top: 26px; }
+
+.lat-choice {
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    background: rgba(21, 14, 86, 0.3);
+    border-radius: 10px;
+    padding: 16px 34px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.lat-choice:hover {
+    border-color: var(--violet);
+    box-shadow: 0 0 16px rgba(168, 85, 247, 0.3);
+}
+
+.lat-choice .ck {
+    font-size: 0.66rem;
+    letter-spacing: 2px;
+    color: rgba(224, 170, 255, 0.4);
+}
+
+.lat-choice .cv {
+    font-size: 1.05rem;
+    letter-spacing: 2px;
+    margin-top: 5px;
+    color: var(--pale);
+}
+
+.lat-fb {
+    height: 24px;
+    margin-top: 20px;
+    font-size: 0.76rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+
+/* ── progress ─────────────────────────────────────────────────────── */
+.lat-prog { margin-top: 36px; }
+
+.lat-bar {
+    height: 3px;
+    background: rgba(168, 85, 247, 0.15);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.lat-bar i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--violet);
+    box-shadow: 0 0 10px var(--violet);
+    transition: width 0.35s ease;
+}
+
+.lat-plabels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 0.66rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(224, 170, 255, 0.38);
+}
+
+/* ── result ───────────────────────────────────────────────────────── */
+.lat-res { text-align: center; padding: 10px 0 22px; }
+
+.lat-res .cap {
+    font-size: 0.66rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(224, 170, 255, 0.4);
+    margin-bottom: 16px;
+}
+
+.lat-res .num {
+    font-size: 4.6rem;
+    line-height: 1;
+    letter-spacing: -2px;
+    color: var(--violet);
+    text-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
+}
+
+/* borderline evidence: the number stays visible but loses its authority */
+.lat-res.weak .num {
+    color: rgba(224, 170, 255, 0.4);
+    text-shadow: none;
+}
+
+.lat-res .num small {
+    font-size: 1.3rem;
+    letter-spacing: 0;
+    color: rgba(224, 170, 255, 0.5);
+    margin-left: 8px;
+}
+
+.lat-res .ci {
+    font-size: 0.76rem;
+    color: rgba(224, 170, 255, 0.5);
+    margin-top: 14px;
+    line-height: 1.6;
+}
+
+.lat-verdict {
+    border-left: 2px solid var(--violet);
+    padding: 2px 0 2px 16px;
+    margin: 0 0 20px;
+}
+
+.lat-verdict.warn { border-left-color: var(--red-light); }
+
+.lat-verdict h3 {
+    margin: 0 0 9px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--pale);
+}
+
+/* ── log scale ────────────────────────────────────────────────────── */
+.lat-scale { position: relative; height: 64px; margin: 42px 0 10px; }
+
+.lat-scale .track {
+    position: absolute;
+    top: 24px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(168, 85, 247, 0.25);
+}
+
+.lat-mk {
+    position: absolute;
+    top: 13px;
+    transform: translateX(-50%);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.lat-mk i {
+    display: block;
+    width: 1px;
+    height: 22px;
+    margin: 0 auto;
+    background: rgba(224, 170, 255, 0.35);
+}
+
+.lat-mk u {
+    display: block;
+    font-size: 0.62rem;
+    text-decoration: none;
+    color: rgba(224, 170, 255, 0.35);
+    margin-top: 6px;
+}
+
+/* The two callout markers carry their labels ABOVE the axis, so they can
+   never collide with the decade tick labels sitting below it. */
+.lat-mk.rig,
+.lat-mk.you {
+    top: -4px;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+}
+
+.lat-mk.rig u,
+.lat-mk.you u {
+    margin-top: 0;
+    margin-bottom: 5px;
+    font-size: 0.66rem;
+}
+
+.lat-mk.rig i { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.lat-mk.rig u { color: var(--cyan); }
+
+.lat-mk.you i {
+    background: var(--violet);
+    width: 2px;
+    height: 30px;
+    margin-top: -8px;
+    box-shadow: 0 0 10px var(--violet);
+}
+
+.lat-mk.you u { color: var(--violet); }
+
+#lat-raw {
+    display: none;
+    margin-top: 22px;
+    font-size: 0.68rem;
+    line-height: 1.5;
+    color: rgba(224, 170, 255, 0.45);
+    white-space: pre-wrap;
+    text-align: left;
+}
+
+@media (max-width: 600px) {
+    #lat-wrap { padding: 56px 16px 60px; }
+    .lat-res .num { font-size: 3.4rem; }
+    .lat-title { letter-spacing: 3px; }
+    .lat-choice { padding: 14px 22px; }
+}
