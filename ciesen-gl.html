@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+        body { font-family: 'Courier New', Courier, monospace; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+            position: fixed;
+            top: 0; left: 0;
+        }
+
+        .home-button {
+            position: fixed;
+            top: max(16px, env(safe-area-inset-top));
+            left: max(16px, env(safe-area-inset-left));
+            z-index: 100;
+            font-size: 1.8rem;
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            transition: color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .home-button:hover { color: rgba(255,255,255,0.95); }
+
+        #status {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.25);
+            text-align: center;
+            white-space: pre-wrap;
+            word-break: break-word;
+            transition: opacity 0.8s;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        #status.hidden { opacity: 0; pointer-events: none; }
+        #status.error { color: rgba(239,80,60,0.8); background: rgba(0,0,0,0.92); font-size: 0.65rem; }
+
+        #chuck-output {
+            position: fixed;
+            bottom: max(8px, env(safe-area-inset-bottom));
+            left: max(8px, env(safe-area-inset-left));
+            z-index: 100;
+            font-size: 0.58rem;
+            color: rgba(255,255,255,0.18);
+            max-width: 50vw;
+            max-height: 18vh;
+            overflow-y: auto;
+            pointer-events: none;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        #tap-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.85);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #tap-overlay.show { display: flex; }
+        #tap-overlay .tap-ring {
+            width: 100px; height: 100px;
+            border: 1.5px solid rgba(255,255,255,0.15);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            animation: tapPulse 2s ease-in-out infinite;
+        }
+        #tap-overlay .tap-icon {
+            font-size: 1.6rem;
+            color: rgba(255,255,255,0.5);
+            letter-spacing: 1px;
+        }
+        #tap-overlay .tap-label {
+            margin-top: 18px;
+            font-size: 0.6rem;
+            letter-spacing: 3px;
+            color: rgba(255,255,255,0.2);
+            text-transform: uppercase;
+        }
+        @keyframes tapPulse {
+            0%, 100% { transform: scale(1); border-color: rgba(255,255,255,0.15); }
+            50% { transform: scale(1.08); border-color: rgba(255,255,255,0.3); }
+        }
+    </style>
+    <title>CIESEN — chuGL</title>
+</head>
+<body>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <a href="index.html" class="home-button">&#8962;</a>
+    <a href="ciesen.html" class="home-button" style="left:auto;right:max(16px, env(safe-area-inset-right));font-size:1rem;letter-spacing:1px;">audio-only &#8594;</a>
+    <div id="status">Loading CIESEN (chuGL / WebGPU)</div>
+    <div id="tap-overlay">
+        <div class="tap-ring">
+            <span class="tap-icon">&#9654;</span>
+        </div>
+        <div class="tap-label">tap to start</div>
+    </div>
+    <div id="chuck-output"></div>
+
+    <!-- Hidden audio element — routes WebAudio through a media element so
+         the OS treats this page as a media player and keeps audio alive
+         when switching tabs, locking the phone, or leaving Safari. -->
+    <audio id="bg-audio" playsinline webkit-playsinline></audio>
+
+    <!-- Register service worker for COOP/COEP headers (required for SharedArrayBuffer).
+         This is the chuGL/WebGPU version — it is the ONLY page on the site that
+         still needs cross-origin isolation. The plain ciesen.html (audio-only,
+         webchuck/AudioWorklet, no SAB) does not register this worker at all. -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            // Narrow scope: this SW must only ever control ciesen-gl.html.
+            // (Production COI headers come from Netlify _headers; the SW is
+            // the fallback for hosts that don't send them.)
+            navigator.serviceWorker.register('./sw.js', { scope: './ciesen-gl.html' });
+
+            // Clean up legacy registrations from older versions of this page —
+            // root-scoped ones intercepted/cached the whole site, and a
+            // ./ciesen.html-scoped one is stale now that the plain page no
+            // longer uses a service worker at all.
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+                regs.forEach(function(reg) {
+                    var p = new URL(reg.scope).pathname;
+                    if (p.indexOf('ciesen-gl') === -1) reg.unregister();
+                });
+            }).catch(function() {});
+
+            navigator.serviceWorker.addEventListener('controllerchange', function() {
+                if (!self.crossOriginIsolated) {
+                    window.location.reload();
+                }
+            });
+
+            if (navigator.serviceWorker.controller && !self.crossOriginIsolated) {
+                if (!sessionStorage.getItem('coi-retry')) {
+                    sessionStorage.setItem('coi-retry', '1');
+                    window.location.reload();
+                }
+            }
+        }
+    </script>
+
+    <script type="module">
+        const statusEl   = document.getElementById('status');
+        const outputEl   = document.getElementById('chuck-output');
+        const tapOverlay = document.getElementById('tap-overlay');
+        const bgAudio    = document.getElementById('bg-audio');
+
+        let dotCount = 0;
+        const dotInterval = setInterval(() => {
+            dotCount = (dotCount + 1) % 4;
+            if (!statusEl.classList.contains('error') && !statusEl.classList.contains('hidden')) {
+                statusEl.textContent = 'Loading CIESEN' + '.'.repeat(dotCount);
+            }
+        }, 400);
+
+        function log(msg) {
+            outputEl.textContent += msg + '\n';
+            const lines = outputEl.textContent.split('\n');
+            if (lines.length > 40) outputEl.textContent = lines.slice(-40).join('\n');
+            outputEl.scrollTop = outputEl.scrollHeight;
+        }
+
+        function fail(msg) {
+            clearInterval(dotInterval);
+            statusEl.className = 'error';
+            statusEl.textContent = msg;
+        }
+
+        function withTimeout(promise, ms, msg) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), ms))
+            ]);
+        }
+
+        // ── Capture every AudioContext created on this page ──────────
+        const _allCtx = [];
+        const _OrigAC = window.AudioContext || window.webkitAudioContext;
+        if (_OrigAC) {
+            const P = function(...args) {
+                // Force large audio buffers on all platforms — default 'interactive'
+                // hint uses ~11ms buffers which drop out under any CPU load.
+                // 'playback' requests ~93ms buffers: trades imperceptible latency
+                // for crackle-free audio on both Mac and iOS.
+                const opts = (args[0] && typeof args[0] === 'object') ? args[0] : {};
+                const ctx = new _OrigAC({ latencyHint: 'playback', ...opts });
+                _allCtx.push(ctx);
+                return ctx;
+            };
+            P.prototype = _OrigAC.prototype;
+            if (window.AudioContext) window.AudioContext = P;
+            if (window.webkitAudioContext) window.webkitAudioContext = P;
+        }
+
+        // ── Background audio: route ALL audio through <audio> element ─
+        //
+        // iOS Safari keeps <audio> elements playing in the background
+        // (that's how Spotify/podcasts work). The trick: make ChucK's
+        // output flow through <audio> as the SOLE audio path, so iOS
+        // treats this page as a media player.
+        //
+        // Audio chain:
+        //   ChucK AudioWorklet → MediaStreamDestination → <audio>.srcObject → speakers
+        //   (silent oscillator also feeds the stream as keepalive insurance)
+        //
+        // We do NOT connect to ctx.destination — that would double the
+        // audio AND wouldn't survive backgrounding anyway.
+        let mediaStreamDest = null;
+        let bgAudioReady = false;
+        let silentOsc = null;
+
+        function setupBackgroundAudio(ctx) {
+            if (bgAudioReady) return;
+            try {
+                mediaStreamDest = ctx.createMediaStreamDestination();
+
+                // Near-silent oscillator: keeps the MediaStream "active" even
+                // if ChucK goes briefly silent. iOS will not keep an <audio>
+                // element alive if the stream has no audio content.
+                // 1 Hz at gain 0.001 = inaudible but non-zero samples.
+                silentOsc = ctx.createOscillator();
+                const silentGain = ctx.createGain();
+                silentGain.gain.value = 0.001;
+                silentOsc.frequency.value = 1;
+                silentOsc.connect(silentGain);
+                silentGain.connect(mediaStreamDest);
+                silentOsc.start();
+
+                bgAudio.srcObject = mediaStreamDest.stream;
+                bgAudioReady = true;
+            } catch(e) {
+                console.warn('[CIESEN] MediaStreamDestination setup failed:', e);
+            }
+        }
+
+        function playBgAudio() {
+            if (!bgAudioReady) return;
+            bgAudio.play().catch(() => {});
+        }
+
+        function routeNodeThroughAudioElement(node, ctx) {
+            // Disconnect from ctx.destination if WebChuGL auto-connected it —
+            // we want audio ONLY through the <audio> element
+            try { node.disconnect(ctx.destination); } catch(e) {}
+            // Connect to MediaStreamDestination → <audio> element
+            if (mediaStreamDest) {
+                try { node.connect(mediaStreamDest); } catch(e) {}
+            }
+        }
+
+        // ── Media Session API ───────────────────────────────────────
+        // Register as a media player with the OS — shows in lock screen,
+        // control center, notification bar. Prevents OS from killing audio.
+        function setupMediaSession() {
+            if (!('mediaSession' in navigator)) return;
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: 'CIESEN',
+                artist: 'EMGOR',
+                album: 'EMGOR.ONLINE'
+            });
+            // Handle play/pause from lock screen / headphone controls
+            navigator.mediaSession.setActionHandler('play', () => {
+                resumeAll();
+                playBgAudio();
+            });
+            navigator.mediaSession.setActionHandler('pause', () => {
+                // Don't actually pause — keep audio alive
+                // User can close the tab if they want to stop
+            });
+            // Prevent "stop" from killing audio
+            try { navigator.mediaSession.setActionHandler('stop', () => {}); } catch(e) {}
+        }
+
+        // ── Web Locks API — prevent page from being fully suspended ─
+        function acquireWakeLock() {
+            // Web Locks: keeps a lock that prevents the browser from
+            // fully freezing the page in background
+            if (navigator.locks) {
+                navigator.locks.request('ciesen-gl-audio-keepalive', { mode: 'exclusive' }, () => {
+                    // Return a promise that never resolves — holds the lock forever
+                    return new Promise(() => {});
+                }).catch(() => {});
+            }
+        }
+
+        // ── Resume all AudioContexts ────────────────────────────────
+        function resumeAll() {
+            for (const ctx of _allCtx) {
+                if (ctx.state !== 'running') ctx.resume().catch(() => {});
+            }
+        }
+
+        // ── Visibility change: aggressively resume on return ────────
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                resumeAll();
+                playBgAudio();
+            }
+        });
+
+        // ── Periodic keepalive: resume AudioContext every 3s ────────
+        // Some browsers suspend AudioContext after a delay in background.
+        // This timer fires even when throttled (browsers allow >=1s timers
+        // in background tabs) and re-resumes the context.
+        let keepaliveTimer = null;
+        function startKeepalive() {
+            if (keepaliveTimer) return;
+            keepaliveTimer = setInterval(() => {
+                for (const ctx of _allCtx) {
+                    if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+                        ctx.resume().catch(() => {});
+                    }
+                }
+            }, 3000);
+        }
+
+        // ── Main init ───────────────────────────────────────────────
+        if (location.protocol === 'file:') {
+            fail('requires HTTP server\n\nnpx serve .\nthen open http://localhost:PORT/ciesen-gl.html');
+        } else {
+            (async () => {
+                try {
+                    const { default: ChuGL } = await withTimeout(
+                        import('https://cdn.jsdelivr.net/npm/webchugl@0.3.0/+esm'),
+                        15000,
+                        'CDN import timed out — check network connection'
+                    );
+
+                    const ck = await withTimeout(
+                        ChuGL.init({
+                            canvas: document.getElementById('canvas'),
+                            onError: (msg) => {
+                                console.error('[WebChuGL]', msg);
+                                log('[error] ' + msg);
+                            }
+                        }),
+                        30000,
+                        'WebChuGL init timed out.\n\nThis usually means WebGPU is not available.\n\niOS: Settings > Safari > Feature Flags > WebGPU\nAndroid: use Chrome 113+\nDesktop: Chrome/Edge 113+'
+                    );
+
+                    ck.chuckPrint = (msg) => {
+                        console.log('[ChucK]', msg);
+                        log(msg);
+                    };
+
+                    const result = await withTimeout(
+                        ck.runFile('./_CIESEN.ck?v=' + Date.now()),
+                        20000,
+                        'Loading _CIESEN.ck timed out'
+                    );
+
+                    if (result && (result.error || result.shredId === 0)) {
+                        let err = result.error || 'unknown error';
+                        try { err = err || await ck.getLastError(); } catch(e) {}
+                        fail('compile error:\n\n' + err);
+                        return;
+                    }
+
+                    clearInterval(dotInterval);
+                    statusEl.classList.add('hidden');
+
+                    // Setup background audio on the AudioContext WebChuGL created
+                    if (_allCtx.length > 0) {
+                        setupBackgroundAudio(_allCtx[0]);
+                    }
+
+                    // Desktop: contexts may already be running
+                    const anyRunning = _allCtx.some(c => c.state === 'running');
+                    if (anyRunning) resumeAll();
+
+                    // Mobile / suspended: show tap overlay for user gesture unlock
+                    if (!anyRunning || _allCtx.length === 0) {
+                        tapOverlay.classList.add('show');
+                    }
+
+                    // On user gesture: wire everything up
+                    function onUnlock() {
+                        resumeAll();
+                        tapOverlay.classList.remove('show');
+
+                        // Ensure background audio infra exists
+                        if (_allCtx.length > 0 && !bgAudioReady) {
+                            setupBackgroundAudio(_allCtx[0]);
+                        }
+
+                        // Route ChucK audio ONLY through <audio> element
+                        const node = ck.audioNode;
+                        if (node && _allCtx.length > 0) {
+                            routeNodeThroughAudioElement(node, _allCtx[0]);
+                        }
+
+                        // Poll for audioNode if not ready yet (async addModule)
+                        if (!node) {
+                            let polls = 0;
+                            const poller = setInterval(() => {
+                                polls++;
+                                const n = ck.audioNode;
+                                if (n) {
+                                    clearInterval(poller);
+                                    if (_allCtx.length > 0) {
+                                        routeNodeThroughAudioElement(n, _allCtx[0]);
+                                    }
+                                }
+                                if (polls >= 30) clearInterval(poller);
+                            }, 100);
+                        }
+
+                        // Start the <audio> element — MUST happen inside user
+                        // gesture for iOS to honor background playback
+                        playBgAudio();
+
+                        // Register as media player with OS
+                        setupMediaSession();
+                        acquireWakeLock();
+                        startKeepalive();
+
+                        ['touchend', 'click', 'keydown'].forEach(ev =>
+                            document.removeEventListener(ev, onUnlock, true)
+                        );
+                    }
+                    ['touchend', 'click', 'keydown'].forEach(ev =>
+                        document.addEventListener(ev, onUnlock, { capture: true })
+                    );
+
+                    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+                } catch (err) {
+                    console.error('[CIESEN]', err);
+                    let detail = err.message || String(err);
+                    if (detail.includes('GPU') || detail.includes('gpu') || detail.includes('adapter')) {
+                        detail += '\n\niOS: Settings > Safari > Feature Flags > WebGPU';
+                    }
+                    fail(detail);
+                }
+            })();
+        }
+    </script>
+</body>
+</html>

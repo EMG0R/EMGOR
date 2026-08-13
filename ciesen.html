@@ -33,6 +33,58 @@
         }
         .home-button:hover { color: rgba(255,255,255,0.95); }
 
+        .opts-button {
+            position: fixed;
+            top: max(16px, env(safe-area-inset-top));
+            right: max(16px, env(safe-area-inset-right));
+            z-index: 100;
+            width: 34px; height: 34px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: color 0.2s;
+        }
+        .opts-button:hover, .opts-button.active { color: rgba(255,255,255,0.95); }
+
+        #opts-panel {
+            position: fixed;
+            top: max(54px, calc(env(safe-area-inset-top) + 38px));
+            right: max(16px, env(safe-area-inset-right));
+            z-index: 100;
+            min-width: 220px;
+            background: rgba(0,0,0,0.88);
+            border: 1px solid rgba(255,255,255,0.14);
+            padding: 10px;
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+        }
+        #opts-panel.show { display: flex; }
+        #opts-panel a, #opts-panel .opts-row {
+            display: block;
+            padding: 9px 8px;
+            font-size: 0.62rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.55);
+            text-decoration: none;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            transition: color 0.15s, background 0.15s;
+        }
+        #opts-panel a:last-child, #opts-panel .opts-row:last-child { border-bottom: none; }
+        #opts-panel a:hover { color: rgba(255,255,255,0.95); background: rgba(255,255,255,0.05); }
+        #opts-panel .opts-placeholder {
+            color: rgba(255,255,255,0.25);
+            cursor: default;
+            font-style: normal;
+        }
+        #opts-panel .opts-placeholder:hover { color: rgba(255,255,255,0.3); background: none; }
+
         #status {
             position: fixed;
             inset: 0;
@@ -111,6 +163,17 @@
 <body>
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     <a href="index.html" class="home-button">&#8962;</a>
+    <button id="opts-button" class="opts-button" aria-label="options">&#8943;</button>
+    <div id="opts-panel">
+        <a href="ciesen-gl.html">Full chuGL version&#10;(desktop, WebGPU)</a>
+        <a href="universe/web-synth/files/_CIESEN.ck" download>Download _CIESEN.ck</a>
+        <!-- VIDEO PLACEHOLDER — no capture of CIESEN exists in the archive yet.
+             Drop a file at e.g. universe/web-synth/files/ciesen-demo.mp4 and
+             replace this row with:
+             <a href="universe/web-synth/files/ciesen-demo.mp4" target="_blank">Watch a capture</a>
+        -->
+        <span class="opts-row opts-placeholder">Video capture — TBD</span>
+    </div>
     <div id="status">Loading CIESEN</div>
     <div id="tap-overlay">
         <div class="tap-ring">
@@ -125,34 +188,23 @@
          when switching tabs, locking the phone, or leaving Safari. -->
     <audio id="bg-audio" playsinline webkit-playsinline></audio>
 
-    <!-- Register service worker for COOP/COEP headers (required for SharedArrayBuffer) -->
+    <!-- This page is the maximally-compatible build: plain `webchuck`
+         (AudioWorklet-based, no SharedArrayBuffer) + Canvas2D visuals.
+         No service worker / COOP+COEP needed here — that's only required by
+         the WebGPU ChuGL build at ciesen-gl.html. If an old service worker
+         from a previous version of THIS page is still registered (it used
+         to require COI too), unregister it so this page isn't accidentally
+         cross-origin-isolated (which would break nothing here, but there's
+         no reason to keep a stale controller around). -->
     <script>
         if ('serviceWorker' in navigator) {
-            // Narrow scope: this SW must only ever control ciesen.html.
-            // (Production COI headers come from Netlify _headers; the SW is
-            // the fallback for hosts that don't send them.)
-            navigator.serviceWorker.register('./sw.js', { scope: './ciesen.html' });
-
-            // Clean up legacy root-scoped registrations from older versions
-            // of this page — they intercepted/cached the whole site.
             navigator.serviceWorker.getRegistrations().then(function(regs) {
                 regs.forEach(function(reg) {
-                    if (new URL(reg.scope).pathname.indexOf('ciesen') === -1) reg.unregister();
+                    var p;
+                    try { p = new URL(reg.scope).pathname; } catch (e) { return; }
+                    if (p.indexOf('ciesen.html') !== -1) reg.unregister();
                 });
             }).catch(function() {});
-
-            navigator.serviceWorker.addEventListener('controllerchange', function() {
-                if (!self.crossOriginIsolated) {
-                    window.location.reload();
-                }
-            });
-
-            if (navigator.serviceWorker.controller && !self.crossOriginIsolated) {
-                if (!sessionStorage.getItem('coi-retry')) {
-                    sessionStorage.setItem('coi-retry', '1');
-                    window.location.reload();
-                }
-            }
         }
     </script>
 
@@ -161,6 +213,21 @@
         const outputEl   = document.getElementById('chuck-output');
         const tapOverlay = document.getElementById('tap-overlay');
         const bgAudio    = document.getElementById('bg-audio');
+        const canvas     = document.getElementById('canvas');
+        const ctx        = canvas.getContext('2d');
+        const optsButton = document.getElementById('opts-button');
+        const optsPanel  = document.getElementById('opts-panel');
+
+        optsButton.addEventListener('click', () => {
+            optsPanel.classList.toggle('show');
+            optsButton.classList.toggle('active');
+        });
+        document.addEventListener('click', (e) => {
+            if (!optsPanel.contains(e.target) && e.target !== optsButton) {
+                optsPanel.classList.remove('show');
+                optsButton.classList.remove('active');
+            }
+        });
 
         let dotCount = 0;
         const dotInterval = setInterval(() => {
@@ -219,9 +286,6 @@
         // Audio chain:
         //   ChucK AudioWorklet → MediaStreamDestination → <audio>.srcObject → speakers
         //   (silent oscillator also feeds the stream as keepalive insurance)
-        //
-        // We do NOT connect to ctx.destination — that would double the
-        // audio AND wouldn't survive backgrounding anyway.
         let mediaStreamDest = null;
         let bgAudioReady = false;
         let silentOsc = null;
@@ -255,19 +319,7 @@
             bgAudio.play().catch(() => {});
         }
 
-        function routeNodeThroughAudioElement(node, ctx) {
-            // Disconnect from ctx.destination if WebChuGL auto-connected it —
-            // we want audio ONLY through the <audio> element
-            try { node.disconnect(ctx.destination); } catch(e) {}
-            // Connect to MediaStreamDestination → <audio> element
-            if (mediaStreamDest) {
-                try { node.connect(mediaStreamDest); } catch(e) {}
-            }
-        }
-
         // ── Media Session API ───────────────────────────────────────
-        // Register as a media player with the OS — shows in lock screen,
-        // control center, notification bar. Prevents OS from killing audio.
         function setupMediaSession() {
             if (!('mediaSession' in navigator)) return;
             navigator.mediaSession.metadata = new MediaMetadata({
@@ -275,26 +327,20 @@
                 artist: 'EMGOR',
                 album: 'EMGOR.ONLINE'
             });
-            // Handle play/pause from lock screen / headphone controls
             navigator.mediaSession.setActionHandler('play', () => {
                 resumeAll();
                 playBgAudio();
             });
             navigator.mediaSession.setActionHandler('pause', () => {
                 // Don't actually pause — keep audio alive
-                // User can close the tab if they want to stop
             });
-            // Prevent "stop" from killing audio
             try { navigator.mediaSession.setActionHandler('stop', () => {}); } catch(e) {}
         }
 
         // ── Web Locks API — prevent page from being fully suspended ─
         function acquireWakeLock() {
-            // Web Locks: keeps a lock that prevents the browser from
-            // fully freezing the page in background
             if (navigator.locks) {
                 navigator.locks.request('ciesen-audio-keepalive', { mode: 'exclusive' }, () => {
-                    // Return a promise that never resolves — holds the lock forever
                     return new Promise(() => {});
                 }).catch(() => {});
             }
@@ -307,7 +353,6 @@
             }
         }
 
-        // ── Visibility change: aggressively resume on return ────────
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 resumeAll();
@@ -315,10 +360,6 @@
             }
         });
 
-        // ── Periodic keepalive: resume AudioContext every 3s ────────
-        // Some browsers suspend AudioContext after a delay in background.
-        // This timer fires even when throttled (browsers allow >=1s timers
-        // in background tabs) and re-resumes the context.
         let keepaliveTimer = null;
         function startKeepalive() {
             if (keepaliveTimer) return;
@@ -331,106 +372,540 @@
             }, 3000);
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // Canvas2D visuals mimicking the ChuGL look: flat emissive
+        // shapes + a single glow pass (shadowBlur + 'lighter'), no
+        // lights/shadows/3D. See js/galaxy2d.js for the house sprite
+        // pattern this borrows from.
+        // ═══════════════════════════════════════════════════════════
+
+        const reducedMotion = window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function rand(a, b) { return a + Math.random() * (b - a); }
+        function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+        // HDR-ish scene colors (0..~1, mostly near-black) → visible SDR.
+        // The original ChuGL pipeline runs an unclamped bloom pass
+        // (threshold 0, intensity 2.2) over genuinely-dark linear color;
+        // a flat gamma lift is the SDR-canvas analog of that exposure lift.
+        // Calibrated by eye — see report for caveat.
+        const TONE_GAMMA = 0.5;
+        function tone(v) { return Math.pow(clamp(v, 0, 1), TONE_GAMMA); }
+        function col(r, g, b, a) {
+            const R = Math.round(tone(r) * 255), G = Math.round(tone(g) * 255), B = Math.round(tone(b) * 255);
+            return a === undefined ? `rgb(${R},${G},${B})` : `rgba(${R},${G},${B},${a})`;
+        }
+
+        // ── camera: matches original perspective cam (z=6, 45° FOV) ──
+        const CAM_Z = 6.0;
+        const HALF_H = CAM_Z * Math.tan(22.5 * Math.PI / 180.0); // world half-height
+
+        let W = 0, H = 0, DPR = 1, scale = 1, halfW = HALF_H, winScale = 1;
+
+        function worldToPx(wx, wy) {
+            return [W / 2 + wx * scale, H / 2 - wy * scale];
+        }
+
+        function resize() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = Math.round(W * DPR);
+            canvas.height = Math.round(H * DPR);
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            scale = H / (2 * HALF_H);
+            halfW = HALF_H * (W / H);
+            winScale = clamp(Math.min(W, H) / 700, 0.5, 1.5);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // ── control orbs: PITCH KICK WAVES SIN STORM BIRD ────────────
+        const CTRL_NAMES  = ['gCtrlPitch', 'gCtrlKick', 'gCtrlWaves', 'gCtrlSin', 'gCtrlStorm', 'gCtrlBird'];
+        const CTRL_LABELS = ['PITCH', 'KICK', 'WAVES', 'SIN', 'STORM', 'BIRD'];
+        const CTRL_DEFAULT = [0.458, 0.33, 0.80, 0.75, 0.25, 0.50];
+        const CTRL_COLOR = [
+            [0.15, 0.22, 0.70],
+            [0.30, 0.25, 0.60],
+            [0.20, 0.45, 0.55],
+            [0.40, 0.50, 0.35],
+            [0.65, 0.55, 0.25],
+            [0.85, 0.75, 0.10],
+        ];
+        const orbs = CTRL_NAMES.map((name, i) => ({
+            name, val: CTRL_DEFAULT[i],
+            swayPh: rand(0, 6.28), swayRt: rand(0.3, 0.8),
+        }));
+        let grabIdx = -1, grabOffsetNormY = 0;
+
+        // trail pool shared by all 6 orbs, matches original 12-slot ring buffer
+        const TRAIL_N = 12;
+        const trail = Array.from({ length: TRAIL_N }, () => ({ life: 0, maxLife: 0.6, x: 0, y: 0, sz: 0, r: 0, g: 0, b: 0 }));
+        let trailHead = 0;
+
+        // ── background drifting shapes (2 circles, 3 rects) ──────────
+        const BG_N = 5;
+        function freshBgShape(s, spawnAnywhere) {
+            s.x = spawnAnywhere ? rand(-halfW, halfW) : rand(-4.5, 4.5);
+            s.y = spawnAnywhere ? rand(-HALF_H, HALF_H) : rand(-3.5, 3.5);
+            s.vx = rand(-0.008, 0.008);
+            s.vy = rand(-0.006, 0.006);
+            s.phase = rand(0, 6.28);
+            s.rotSpd = rand(0.06, 0.2) * (Math.random() < 0.5 ? -1 : 1);
+            s.baseSca = rand(1.2, 3.5);
+            s.aspX = rand(0.4, 1.4);
+            s.aspY = rand(0.4, 1.4);
+            const hue = rand(0, 6.28);
+            s.r = 0.020 + 0.04 * Math.max(0, Math.sin(hue));
+            s.g = 0.015 + 0.035 * Math.max(0, Math.sin(hue + 2.09));
+            s.b = 0.020 + 0.045 * Math.max(0, Math.sin(hue + 4.19));
+            s.maxLife = rand(15, 40);
+            s.life = spawnAnywhere ? s.maxLife : rand(0, s.maxLife);
+            s.isCircle = s.kind === 'circle';
+            s.rot = rand(0, 6.28);
+        }
+        const bgShapes = Array.from({ length: BG_N }, (_, i) => {
+            const s = { kind: i < 2 ? 'circle' : 'rect' };
+            freshBgShape(s, true);
+            return s;
+        });
+
+        // ── kick: single dark-blue circle, the heartbeat ──────────────
+        const kick = { life: 0, maxLife: 0.32 };
+
+        // ── rain drop pool (32) ────────────────────────────────────────
+        const RAIN_N = 32;
+        const rain = Array.from({ length: RAIN_N }, () => ({ life: 0, maxLife: 1, x: 0, y: 0, vx: 0, vy: -2.5, sz: 0 }));
+        let rainHead = 0;
+        function spawnRain(pan) {
+            const d = rain[rainHead]; rainHead = (rainHead + 1) % RAIN_N;
+            const targetDist = HALF_H * 2.0 * 0.65;
+            const dist = rand(0.7, 1.0) * targetDist;
+            const speed = 2.5;
+            d.maxLife = dist / speed;
+            d.life = d.maxLife;
+            d.x = pan * halfW;
+            d.y = HALF_H * 0.95;
+            d.vx = rand(-0.15, 0.15);
+            d.vy = -speed;
+            d.sz = rand(0.02, 0.04);
+        }
+
+        // ── bird sliver pool (8), the only saturated color ────────────
+        const BIRD_N = 8;
+        const birds = Array.from({ length: BIRD_N }, () => ({ life: 0, maxLife: 0.5, x: 0, y: 0, rotBase: 0 }));
+        let birdHead = 0;
+        function spawnBird(pan) {
+            const b = birds[birdHead]; birdHead = (birdHead + 1) % BIRD_N;
+            b.life = 0.5; b.maxLife = 0.5;
+            b.x = pan * 0.85 * halfW;
+            b.y = rand(-0.2, 0.6) * HALF_H;
+            b.rotBase = rand(0, 6.28);
+        }
+
+        // ── continuous levels (smoothed locally from polled globals) ──
+        let kickPulse = 0;      // decaying "duck" analog driven by gKickIntensity events
+        let thunderLevel = 0;   // gThunderLevel, smoothed
+        let waveLevel = 0;      // gWaveLevel, smoothed (unused visually beyond bg warmth hook, kept for future use)
+        let padBright = 0;      // gPadBright, smoothed
+
+        let globalTime = 0, frameCount = 0, lastTs = 0;
+
+        function draw(dt) {
+            globalTime += dt;
+            frameCount++;
+
+            const thColorBoost = thunderLevel * 0.02;
+            const kickGrow = 1 + kickPulse * 0.08;
+
+            // background wash
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = col(
+                0.005 + kickPulse * 0.002 + thColorBoost * 0.08,
+                0.003 + kickPulse * 0.001 + thColorBoost * 0.012,
+                0.010 + kickPulse * 0.004 + thColorBoost * 0.12
+            );
+            ctx.fillRect(0, 0, W, H);
+
+            // Background shapes are large and overlap heavily, so they stay
+            // in normal (non-additive) compositing — 'lighter' here would
+            // stack overlapping dark shapes into a blown-out white wash.
+            // 'lighter' additive glow is reserved below for the sparse
+            // bright elements (kick/rain/birds/orbs/trails), which is what
+            // actually reads as "bloom" without the whole background
+            // flattening to white.
+            ctx.globalCompositeOperation = 'source-over';
+
+            // background drifting shapes
+            for (let i = 0; i < BG_N; i++) {
+                const s = bgShapes[i];
+                if (!reducedMotion) {
+                    s.life -= dt;
+                    if (s.life <= 0) { freshBgShape(s, false); }
+                    s.phase += dt * 0.2;
+                    s.x += s.vx * dt;
+                    s.y += s.vy * dt;
+                } else if (s.life <= 0) {
+                    freshBgShape(s, false);
+                    s.life = s.maxLife * 0.5;
+                }
+                const lifeRatio = s.life / s.maxLife;
+                const age = 1 - lifeRatio;
+                let fade = 1;
+                if (age < 0.15) fade = age / 0.15;
+                if (lifeRatio < 0.15) fade = lifeRatio / 0.15;
+
+                const cr = s.r * fade * 0.525 * (1 + padBright) + thColorBoost * 0.14 * fade;
+                const cg = s.g * fade * 0.525 * (1 + padBright) + Math.sin(s.phase + 2.0) * 0.004 * fade;
+                const cb = s.b * fade * 0.525 * (1 + padBright) + thColorBoost * 0.10 * fade;
+
+                const [px, py] = worldToPx(s.x, s.y);
+                const rot = reducedMotion ? s.rot : (globalTime * s.rotSpd + s.phase);
+                const sx = s.baseSca * s.aspX * kickGrow * scale;
+                const sy = s.baseSca * s.aspY * kickGrow * scale;
+
+                ctx.save();
+                ctx.translate(px, py);
+                ctx.rotate(-rot);
+                ctx.fillStyle = col(cr, cg, cb);
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.shadowBlur = 18;
+                if (s.isCircle) {
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, sx, sy, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(-sx, -sy, sx * 2, sy * 2);
+                }
+                ctx.restore();
+            }
+
+            ctx.globalCompositeOperation = 'lighter';
+
+            // kick: the heartbeat, one big dark-blue circle behind everything
+            if (kick.life > 0) {
+                if (!reducedMotion) kick.life -= dt;
+                if (kick.life <= 0) { kick.life = 0; }
+                else {
+                    const elapsed = kick.maxLife - kick.life;
+                    let env;
+                    if (elapsed < 0.015) env = elapsed / 0.015;
+                    else env = Math.max(0, 1 - (elapsed - 0.015) / 0.305);
+                    const sz = env * 9.0 * winScale * scale;
+                    const kbright = 0.06 + Math.pow(env, 0.8) * 0.06;
+                    const [px, py] = worldToPx(0, 0);
+                    ctx.fillStyle = col(0 * kbright, 0.015 * kbright, 0.12 * kbright);
+                    ctx.shadowColor = ctx.fillStyle;
+                    ctx.shadowBlur = 30;
+                    ctx.beginPath();
+                    ctx.arc(px, py, sz, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // rain: cool-white falling drops
+            ctx.shadowBlur = 8;
+            for (let i = 0; i < RAIN_N; i++) {
+                const d = rain[i];
+                if (d.life <= 0) continue;
+                d.life -= dt;
+                if (d.life <= 0) continue;
+                d.x += d.vx * dt;
+                d.y += d.vy * dt;
+                const lifeLeft = d.life / d.maxLife;
+                let alpha = 1;
+                if (lifeLeft < 0.15) alpha = lifeLeft / 0.15;
+                const rb = 0.9 * alpha;
+                const [px, py] = worldToPx(d.x, d.y);
+                ctx.fillStyle = col(0.78 * rb, 0.82 * rb, 0.93 * rb);
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.beginPath();
+                ctx.arc(px, py, d.sz * alpha * scale, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // birds: thin saturated-yellow slivers, the only saturated color
+            ctx.shadowBlur = 22;
+            for (let i = 0; i < BIRD_N; i++) {
+                const b = birds[i];
+                if (b.life <= 0) continue;
+                b.life -= dt;
+                if (b.life <= 0) continue;
+                const t = b.life / b.maxLife;
+                let env = t > 0.85 ? (1 - t) / 0.15 : t / 0.85;
+                const sz = 0.4 * winScale * env * scale;
+                const [px, py] = worldToPx(b.x, b.y);
+                ctx.save();
+                ctx.translate(px, py);
+                ctx.rotate(-(b.rotBase + rand(-0.06, 0.06)));
+                const bb = env * 0.8;
+                ctx.fillStyle = col(1.0 * bb, 0.92 * bb, 0.08 * bb, undefined);
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.fillRect(-sz * 0.4, -sz, sz * 0.8, sz * 2);
+                ctx.restore();
+            }
+
+            // orb trail (spawn every ~10 frames, matching original density)
+            if (frameCount % 10 === 0) {
+                for (let i = 0; i < orbs.length; i++) {
+                    const o = orbs[i];
+                    const [nx, ny] = orbScreenNorm(o, i);
+                    const dispX = (nx - 0.5) * 2 * halfW;
+                    const dispY = (0.5 - ny) * 2 * HALF_H;
+                    const tr = trail[trailHead]; trailHead = (trailHead + 1) % TRAIL_N;
+                    tr.life = 0.6; tr.maxLife = 0.6;
+                    tr.x = dispX; tr.y = dispY;
+                    tr.sz = 0.02 * winScale;
+                    [tr.r, tr.g, tr.b] = CTRL_COLOR[i];
+                }
+            }
+            ctx.shadowBlur = 10;
+            for (let i = 0; i < TRAIL_N; i++) {
+                const tr = trail[i];
+                if (tr.life <= 0) continue;
+                tr.life -= dt;
+                if (tr.life <= 0) continue;
+                const alpha = tr.life / tr.maxLife;
+                const fade = alpha * alpha;
+                const [px, py] = worldToPx(tr.x, tr.y);
+                const tb = fade * 0.08;
+                ctx.fillStyle = col(tr.r * tb, tr.g * tb, tr.b * tb);
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.beginPath();
+                ctx.arc(px, py, tr.sz * fade * scale, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // control orbs + labels
+            ctx.shadowBlur = 16;
+            for (let i = 0; i < orbs.length; i++) {
+                const o = orbs[i];
+                const [nx, ny] = orbScreenNorm(o, i);
+                const dispX = (nx - 0.5) * 2 * halfW;
+                const dispY = (0.5 - ny) * 2 * HALF_H;
+                const [cr, cg, cb] = CTRL_COLOR[i];
+                const obright = 0.5 + o.val * 0.5;
+                // ChuGL's GCircle mesh radius-per-sca-unit isn't something
+                // we can verify outside the WebGPU renderer; 0.12 world
+                // units is a by-eye pick that reads as a small draggable
+                // control dot rather than covering the screen.
+                const orbSz = 0.12 * winScale * scale;
+                const jx = reducedMotion ? 0 : rand(-0.006, 0.006) * halfW * 0.05;
+                const jy = reducedMotion ? 0 : rand(-0.006, 0.006) * HALF_H * 0.05;
+
+                const [px, py] = worldToPx(dispX, dispY);
+                const bodyPx = px + jx, bodyPy = py + jy;
+
+                ctx.fillStyle = col(cr * 0.45 * obright, cg * 0.45 * obright, cb * 0.45 * obright);
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.beginPath();
+                ctx.arc(bodyPx, bodyPy, orbSz, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = col((0.12 + cr * 0.3) * obright, (0.12 + cg * 0.3) * obright, (0.12 + cb * 0.3) * obright);
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.beginPath();
+                ctx.arc(bodyPx, bodyPy, orbSz * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // label — grey, at 92% of half-height (near bottom edge)
+                const [lx, ly] = worldToPx((0.08 + 0.84 * i / 5 - 0.5) * 2 * halfW, -HALF_H * 0.92);
+                ctx.save();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(217,217,217,0.85)';
+                const fsz = clamp(halfW * 0.06, 0, 0.27) * scale * 0.9;
+                ctx.font = `${Math.max(9, fsz)}px 'Courier New', monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(CTRL_LABELS[i], lx, ly);
+                ctx.restore();
+            }
+
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.shadowBlur = 0;
+        }
+
+        // screen-space normalized orb position (0..1, y-down), with sway
+        function orbScreenNorm(o, i) {
+            const sway = reducedMotion ? 0 :
+                Math.sin(globalTime * o.swayRt + o.swayPh) * 0.028 +
+                Math.sin(globalTime * o.swayRt * 2.3 + o.swayPh * 0.7) * 0.012;
+            const swayY = reducedMotion ? 0 :
+                Math.sin(globalTime * o.swayRt * 0.6 + o.swayPh + 1.5) * 0.015 +
+                Math.cos(globalTime * o.swayRt * 1.7 + o.swayPh * 1.3) * 0.008;
+            const nx = 0.08 + 0.84 * (i / 5) + sway;
+            const ny = 0.82 - o.val * 0.74 + swayY;
+            return [nx, ny];
+        }
+
+        // ── pointer drag (mouse + touch unified) ──────────────────────
+        function pointerNorm(e) {
+            const rect = canvas.getBoundingClientRect();
+            return [(e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height];
+        }
+        canvas.addEventListener('pointerdown', (e) => {
+            const [mx, my] = pointerNorm(e);
+            let closest = -1, closestDist = 999;
+            for (let i = 0; i < orbs.length; i++) {
+                const [nx, ny] = orbScreenNorm(orbs[i], i);
+                const dx = mx - nx, dy = (my - ny) * (W / H);
+                const dist = Math.hypot(dx, dy);
+                if (dist < 0.08 && dist < closestDist) { closestDist = dist; closest = i; }
+            }
+            if (closest >= 0) {
+                grabIdx = closest;
+                const [, ny] = orbScreenNorm(orbs[closest], closest);
+                grabOffsetNormY = my - ny;
+                canvas.setPointerCapture(e.pointerId);
+            }
+        });
+        canvas.addEventListener('pointermove', (e) => {
+            if (grabIdx < 0) return;
+            const [, my] = pointerNorm(e);
+            const dragNormY = my - grabOffsetNormY;
+            let norm = (0.82 - dragNormY) / 0.74;
+            norm = clamp(norm, 0, 1);
+            orbs[grabIdx].val = norm;
+            if (chuck) chuck.setFloat(orbs[grabIdx].name, norm);
+        });
+        function releasePointer() { grabIdx = -1; }
+        canvas.addEventListener('pointerup', releasePointer);
+        canvas.addEventListener('pointercancel', releasePointer);
+
+        function rafLoop(ts) {
+            requestAnimationFrame(rafLoop);
+            if (!lastTs) lastTs = ts;
+            let dt = (ts - lastTs) / 1000;
+            lastTs = ts;
+            dt = clamp(dt, 0, 0.05);
+            // kick pulse decay (analog of ChucK's scEnv sidechain envelope)
+            kickPulse *= Math.exp(-2.0 * dt);
+            if (kickPulse < 0.003) kickPulse = 0;
+            draw(dt);
+        }
+        requestAnimationFrame(rafLoop);
+
+        // ═══════════════════════════════════════════════════════════
+        // ChucK (webchuck — plain AudioWorklet, no SharedArrayBuffer)
+        // ═══════════════════════════════════════════════════════════
+        let chuck = null;
+        let lastKickCount = 0, lastBirdCount = 0, lastRainCount = 0;
+
+        async function pollLoop() {
+            while (true) {
+                try {
+                    const [kickCount, kickIntensity, birdCount, birdPanBuf, rainCount, rainPanBuf, thLevel, waLevel, pBright] =
+                        await Promise.all([
+                            chuck.getInt('gKickCount'),
+                            chuck.getFloat('gKickIntensity'),
+                            chuck.getInt('gBirdCount'),
+                            chuck.getFloatArray('gBirdPanBuf'),
+                            chuck.getInt('gRainCount'),
+                            chuck.getFloatArray('gRainPanBuf'),
+                            chuck.getFloat('gThunderLevel'),
+                            chuck.getFloat('gWaveLevel'),
+                            chuck.getFloat('gPadBright'),
+                        ]);
+
+                    if (kickCount > lastKickCount) {
+                        kick.life = kick.maxLife;
+                        kickPulse = kickIntensity;
+                        lastKickCount = kickCount;
+                    }
+                    if (birdCount > lastBirdCount) {
+                        const delta = Math.min(birdCount - lastBirdCount, BIRD_N);
+                        for (let k = delta; k >= 1; k--) {
+                            const idx = (birdCount - k) % BIRD_N;
+                            spawnBird(birdPanBuf[idx] || 0);
+                        }
+                        lastBirdCount = birdCount;
+                    }
+                    if (rainCount > lastRainCount) {
+                        const delta = Math.min(rainCount - lastRainCount, RAIN_N);
+                        for (let k = delta; k >= 1; k--) {
+                            const idx = (rainCount - k) % RAIN_N;
+                            spawnRain(rainPanBuf[idx] || 0);
+                        }
+                        lastRainCount = rainCount;
+                    }
+                    thunderLevel = thLevel;
+                    waveLevel = waLevel;
+                    padBright = pBright;
+                } catch (e) {
+                    // transient — keep polling
+                }
+                await new Promise(r => setTimeout(r, 16));
+            }
+        }
+
         // ── Main init ───────────────────────────────────────────────
         if (location.protocol === 'file:') {
             fail('requires HTTP server\n\nnpx serve .\nthen open http://localhost:PORT/ciesen.html');
         } else {
             (async () => {
                 try {
-                    const { default: ChuGL } = await withTimeout(
-                        import('https://cdn.jsdelivr.net/npm/webchugl@0.3.0/+esm'),
+                    const { Chuck } = await withTimeout(
+                        import('https://cdn.jsdelivr.net/npm/webchuck@1.2.11/+esm'),
                         15000,
                         'CDN import timed out — check network connection'
                     );
 
-                    const ck = await withTimeout(
-                        ChuGL.init({
-                            canvas: document.getElementById('canvas'),
-                            onError: (msg) => {
-                                console.error('[WebChuGL]', msg);
-                                log('[error] ' + msg);
-                            }
-                        }),
-                        30000,
-                        'WebChuGL init timed out.\n\nThis usually means WebGPU is not available.\n\niOS: Settings > Safari > Feature Flags > WebGPU\nAndroid: use Chrome 113+\nDesktop: Chrome/Edge 113+'
-                    );
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-                    ck.chuckPrint = (msg) => {
+                    chuck = await withTimeout(
+                        Chuck.init([], audioCtx),
+                        30000,
+                        'WebChucK init timed out.'
+                    );
+                    chuck.chuckPrint = (msg) => {
                         console.log('[ChucK]', msg);
                         log(msg);
                     };
 
-                    const result = await withTimeout(
-                        ck.runFile('./_CIESEN.ck?v=' + Date.now()),
+                    const src = await withTimeout(
+                        fetch('./_CIESEN_audio.ck?v=' + Date.now(), { cache: 'no-cache' }).then(r => {
+                            if (!r.ok) throw new Error('_CIESEN_audio.ck: HTTP ' + r.status);
+                            return r.text();
+                        }),
                         20000,
-                        'Loading _CIESEN.ck timed out'
+                        'Fetching _CIESEN_audio.ck timed out'
                     );
 
-                    if (result && (result.error || result.shredId === 0)) {
-                        let err = result.error || 'unknown error';
-                        try { err = err || await ck.getLastError(); } catch(e) {}
-                        fail('compile error:\n\n' + err);
+                    const shredId = await withTimeout(
+                        chuck.runCode(src),
+                        20000,
+                        'Compiling _CIESEN_audio.ck timed out'
+                    );
+
+                    if (!shredId) {
+                        fail('compile error — see console / output log');
                         return;
                     }
 
                     clearInterval(dotInterval);
                     statusEl.classList.add('hidden');
 
-                    // Setup background audio on the AudioContext WebChuGL created
-                    if (_allCtx.length > 0) {
-                        setupBackgroundAudio(_allCtx[0]);
-                    }
+                    setupBackgroundAudio(audioCtx);
+                    chuck.connect(mediaStreamDest);
 
-                    // Desktop: contexts may already be running
+                    pollLoop();
+
                     const anyRunning = _allCtx.some(c => c.state === 'running');
                     if (anyRunning) resumeAll();
-
-                    // Mobile / suspended: show tap overlay for user gesture unlock
                     if (!anyRunning || _allCtx.length === 0) {
                         tapOverlay.classList.add('show');
                     }
 
-                    // On user gesture: wire everything up
                     function onUnlock() {
                         resumeAll();
                         tapOverlay.classList.remove('show');
-
-                        // Ensure background audio infra exists
-                        if (_allCtx.length > 0 && !bgAudioReady) {
-                            setupBackgroundAudio(_allCtx[0]);
-                        }
-
-                        // Route ChucK audio ONLY through <audio> element
-                        const node = ck.audioNode;
-                        if (node && _allCtx.length > 0) {
-                            routeNodeThroughAudioElement(node, _allCtx[0]);
-                        }
-
-                        // Poll for audioNode if not ready yet (async addModule)
-                        if (!node) {
-                            let polls = 0;
-                            const poller = setInterval(() => {
-                                polls++;
-                                const n = ck.audioNode;
-                                if (n) {
-                                    clearInterval(poller);
-                                    if (_allCtx.length > 0) {
-                                        routeNodeThroughAudioElement(n, _allCtx[0]);
-                                    }
-                                }
-                                if (polls >= 30) clearInterval(poller);
-                            }, 100);
-                        }
-
-                        // Start the <audio> element — MUST happen inside user
-                        // gesture for iOS to honor background playback
                         playBgAudio();
-
-                        // Register as media player with OS
                         setupMediaSession();
                         acquireWakeLock();
                         startKeepalive();
-
                         ['touchend', 'click', 'keydown'].forEach(ev =>
                             document.removeEventListener(ev, onUnlock, true)
                         );
@@ -439,15 +914,9 @@
                         document.addEventListener(ev, onUnlock, { capture: true })
                     );
 
-                    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-
                 } catch (err) {
                     console.error('[CIESEN]', err);
-                    let detail = err.message || String(err);
-                    if (detail.includes('GPU') || detail.includes('gpu') || detail.includes('adapter')) {
-                        detail += '\n\niOS: Settings > Safari > Feature Flags > WebGPU';
-                    }
-                    fail(detail);
+                    fail(err.message || String(err));
                 }
             })();
         }

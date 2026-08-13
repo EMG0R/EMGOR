@@ -1,8 +1,10 @@
-# Cross-origin isolation for the WebChuGL synth ONLY.
-# ciesen.html needs SharedArrayBuffer (COOP+COEP). No other page may be
-# cross-origin isolated — COEP require-corp would break the RNBO CDN
-# script on NEPTR.html and Strudel's runtime sample fetches on livecode.html.
-/ciesen.html
+# Cross-origin isolation for the WebChuGL/WebGPU synth build ONLY.
+# ciesen-gl.html needs SharedArrayBuffer (COOP+COEP). The plain ciesen.html
+# (audio-only, webchuck/AudioWorklet) does NOT need this — no SAB required.
+# No other page may be cross-origin isolated — COEP require-corp would break
+# the RNBO CDN script on NEPTR.html and Strudel's runtime sample fetches on
+# livecode.html.
+/ciesen-gl.html
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
 

@@ -4,9 +4,79 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0D0221">
-    <meta name="description" content="EMGOR — a fractal galaxy of music, code, hardware, and research by Emory Smith.">
+    <meta name="description" content="Emory Smith's digital-luthier workshop: original instruments, Max for Live devices, Csound and ChucK pieces, DIY hardware, and NIME research, laid out as a navigable fractal galaxy.">
+    <link rel="canonical" href="https://emgor.online/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="EMGOR">
+    <meta property="og:title" content="EMGOR — Emory Smith">
+    <meta property="og:description" content="A working digital luthier's portfolio: instruments, Max for Live devices, Csound/ChucK pieces, hardware, and NIME research — navigable as a fractal galaxy.">
+    <meta property="og:image" content="https://emgor.online/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://emgor.online/">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="EMGOR — Emory Smith">
+    <meta name="twitter:description" content="A working digital luthier's portfolio: instruments, Max for Live devices, Csound/ChucK pieces, hardware, and NIME research — navigable as a fractal galaxy.">
+    <meta name="twitter:image" content="https://emgor.online/og-image.png">
+
+    <!-- Icons -->
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
     <link rel="stylesheet" href="style/galaxy.css">
     <title>Emory Smith</title>
+
+    <!-- JSON-LD structured data: the only crawlable description of the galaxy's
+         top-level structure, since the 80 real nodes live behind #/hash routes
+         that search engines do not index. See tools/build-seo.mjs. -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "Person",
+                "@id": "https://emgor.online/#person",
+                "name": "Emory Smith",
+                "alternateName": "EMGOR",
+                "url": "https://emgor.online/",
+                "sameAs": [
+                    "https://www.instagram.com/the_emgor/",
+                    "https://untitled.stream/library/project/0qrDPDNdbBdeyXbaAZ1rQ",
+                    "https://distrokid.com/hyperfollow/fivemonthsinaday/five-months-in-a-day"
+                ],
+                "jobTitle": "Digital luthier",
+                "description": "Builder of original instruments, Max for Live devices, Csound and ChucK pieces, DIY hardware, and NIME research."
+            },
+            {
+                "@type": "CreativeWork",
+                "@id": "https://emgor.online/#site",
+                "name": "EMGOR",
+                "url": "https://emgor.online/",
+                "author": { "@id": "https://emgor.online/#person" },
+                "description": "An open-source universe of instruments, machines, and sound, laid out as a navigable fractal galaxy.",
+                "hasPart": [
+                    { "@type": "CreativeWork", "name": "CODE", "description": "DSP source across seven languages — the lab notebook, open", "url": "https://emgor.online/#/code" },
+                    { "@type": "CreativeWork", "name": "GORCAVE SERVER", "description": "A chat line into the machine watching the room", "url": "https://emgor.online/#/gorcave" },
+                    { "@type": "CreativeWork", "name": "HARDWARE", "description": "Physical instruments, wearables, controllers — built by hand", "url": "https://emgor.online/#/hardware" },
+                    { "@type": "CreativeWork", "name": "LATENCY PERCEPTION TEST", "description": "Find the smallest audio delay you can actually feel", "url": "https://emgor.online/#/latency-test" },
+                    { "@type": "CreativeWork", "name": "M4L", "description": "Max for Live devices built in the EMGOR lab — synths, effects, robots, wearables", "url": "https://emgor.online/#/m4l" },
+                    { "@type": "CreativeWork", "name": "MUSIC", "description": "Released music, production portfolio, and sample packs", "url": "https://emgor.online/#/music" },
+                    { "@type": "CreativeWork", "name": "NEPTR", "description": "Flagship live guitar instrument — four generations of one machine", "url": "https://emgor.online/#/neptr" },
+                    { "@type": "CreativeWork", "name": "2026-2027 PAPERS", "description": "Research & writing — one paper shipped, seven in orbit", "url": "https://emgor.online/#/papers" },
+                    { "@type": "CreativeWork", "name": "SHIPPED", "description": "Seven things built, finished, and handed to other people to use", "url": "https://emgor.online/#/shipped" },
+                    { "@type": "CreativeWork", "name": "WEB SYNTH", "description": "Instruments that run entirely in the browser — three languages, zero installs", "url": "https://emgor.online/#/web-synth" }
+                ]
+            }
+        ]
+    }
+    </script>
 </head>
 <body>
 

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-11",
+  "generated": "2026-08-13",
   "nodes": [
     {
       "id": "emgor",
@@ -323,7 +323,7 @@
       "path": "universe/hardware/_index.md",
       "route": "/hardware",
       "depth": 1,
-      "children": 10,
+      "children": 11,
       "downloads": [],
       "links": [
         {
@@ -567,6 +567,29 @@
       "updated": "2026-05-08"
     },
     {
+      "id": "emgor.hardware.smartgor",
+      "title": "smartGOR",
+      "blurb": "A Raspberry Pi 4 room hub — 800-LED FCOB lighting, plant watering, BLE lamps, one MQTT broker",
+      "parent": "emgor.hardware",
+      "path": "universe/hardware/smartgor.md",
+      "route": "/hardware/smartgor",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "raspberry-pi",
+        "esp32",
+        "mqtt",
+        "ws2812b",
+        "home-automation",
+        "ble",
+        "plant-watering",
+        "iot"
+      ],
+      "updated": "2026-08-12"
+    },
+    {
       "id": "emgor.hardware.the-watch",
       "title": "THE WATCH",
       "blurb": "Forearm AMOLED smartwatch fused with an RF multitool and a sensor army",
@@ -642,65 +665,6 @@
       "updated": "2026-08-11",
       "size": 1.4,
       "launch": "latency-test.html"
-    },
-    {
-      "id": "emgor.live-code",
-      "title": "LIVE CODE",
-      "blurb": "Patterns as code — the browser is the instrument",
-      "parent": "emgor",
-      "path": "universe/live-code/_index.md",
-      "route": "/live-code",
-      "depth": 1,
-      "children": 1,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Open the REPL",
-          "url": "livecode.html"
-        },
-        {
-          "label": "WEB SYNTH planet",
-          "url": "#/web-synth"
-        }
-      ],
-      "tags": [
-        "live-coding",
-        "strudel",
-        "web-audio"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.live-code.strudel",
-      "title": "Strudel REPL",
-      "blurb": "TidalCycles patterns in the browser, AGPL and proud",
-      "parent": "emgor.live-code",
-      "path": "universe/live-code/strudel.md",
-      "route": "/live-code/strudel",
-      "depth": 2,
-      "children": 0,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Open the REPL",
-          "url": "livecode.html"
-        },
-        {
-          "label": "strudel.cc",
-          "url": "https://strudel.cc"
-        },
-        {
-          "label": "Source (Codeberg)",
-          "url": "https://codeberg.org/uzu/strudel"
-        }
-      ],
-      "tags": [
-        "live-coding",
-        "strudel",
-        "web-audio",
-        "agpl"
-      ],
-      "updated": "2026-07-28"
     },
     {
       "id": "emgor.m4l",
@@ -2052,6 +2016,208 @@
       "updated": "2026-07-28"
     },
     {
+      "id": "emgor.shipped",
+      "title": "SHIPPED",
+      "blurb": "Seven things built, finished, and handed to other people to use",
+      "parent": "emgor",
+      "path": "universe/shipped/_index.md",
+      "route": "/shipped",
+      "depth": 1,
+      "children": 7,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "contributions",
+        "portfolio",
+        "open-source",
+        "research"
+      ],
+      "updated": "2026-08-12",
+      "size": 1.8
+    },
+    {
+      "id": "emgor.shipped.ciesen",
+      "title": "CIESEN",
+      "blurb": "A generative ambient piece you can hear right now, in a browser tab, with no install",
+      "parent": "emgor.shipped",
+      "path": "universe/shipped/ciesen.md",
+      "route": "/shipped/ciesen",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Play CIESEN now",
+          "url": "ciesen.html"
+        }
+      ],
+      "tags": [
+        "chuck",
+        "webchuck",
+        "generative",
+        "ambient",
+        "browser"
+      ],
+      "updated": "2026-08-12"
+    },
+    {
+      "id": "emgor.shipped.demiurgeos",
+      "title": "DemiurgeOS",
+      "blurb": "An operating system for the Raspberry Pi built so audio code never has to fight the hardware",
+      "parent": "emgor.shipped",
+      "path": "universe/shipped/demiurgeos.md",
+      "route": "/shipped/demiurgeos",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Full technical writeup",
+          "url": "#/papers/demiurgeos"
+        }
+      ],
+      "tags": [
+        "raspberry-pi",
+        "linux-audio",
+        "pipewire",
+        "os",
+        "live-performance"
+      ],
+      "updated": "2026-08-12"
+    },
+    {
+      "id": "emgor.shipped.nam-csound",
+      "title": "NAM × Csound",
+      "blurb": "A neural network that models real guitar amps, running live inside a 30-year-old audio language",
+      "parent": "emgor.shipped",
+      "path": "universe/shipped/nam-csound.md",
+      "route": "/shipped/nam-csound",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Full paper, abstract, and PDF download",
+          "url": "#/papers/nam-csound"
+        }
+      ],
+      "tags": [
+        "csound",
+        "neural-amp-modeler",
+        "dsp",
+        "raspberry-pi",
+        "published"
+      ],
+      "updated": "2026-08-12"
+    },
+    {
+      "id": "emgor.shipped.neptr",
+      "title": "NEPTR",
+      "blurb": "A guitar effects computer built to replace the laptop on stage — four rebuilds since 2023",
+      "parent": "emgor.shipped",
+      "path": "universe/shipped/neptr.md",
+      "route": "/shipped/neptr",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Full lineage: all four phases",
+          "url": "#/neptr"
+        },
+        {
+          "label": "Play the web version",
+          "url": "NEPTR.html"
+        }
+      ],
+      "tags": [
+        "instrument",
+        "guitar",
+        "raspberry-pi",
+        "csound",
+        "live-performance"
+      ],
+      "updated": "2026-08-12"
+    },
+    {
+      "id": "emgor.shipped.neuralgrid",
+      "title": "neuralGrid",
+      "blurb": "A touch grid that redesigns its own layout mid-song, without ever adding latency to a note",
+      "parent": "emgor.shipped",
+      "path": "universe/shipped/neuralgrid.md",
+      "route": "/shipped/neuralgrid",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Full hardware + model writeup",
+          "url": "#/hardware/neuralgrid"
+        }
+      ],
+      "tags": [
+        "grid",
+        "neural",
+        "raspberry-pi",
+        "esp32",
+        "nime"
+      ],
+      "updated": "2026-08-12"
+    },
+    {
+      "id": "emgor.shipped.omniplex",
+      "title": "OMNIPLEX",
+      "blurb": "One cable carrying audio, video, MIDI, and lighting at once, instead of four separate boxes",
+      "parent": "emgor.shipped",
+      "path": "universe/shipped/omniplex.md",
+      "route": "/shipped/omniplex",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Full proposal and architecture",
+          "url": "#/papers/unified-streaming"
+        }
+      ],
+      "tags": [
+        "rust",
+        "protocol",
+        "usb",
+        "streaming",
+        "systems"
+      ],
+      "updated": "2026-08-12"
+    },
+    {
+      "id": "emgor.shipped.the-purp",
+      "title": "THE_PURP",
+      "blurb": "The main performance synth — two years and roughly 45 versions, played live throughout",
+      "parent": "emgor.shipped",
+      "path": "universe/shipped/the-purp.md",
+      "route": "/shipped/the-purp",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Download the device + full notes",
+          "url": "#/m4l/emory-devices/the-purp"
+        },
+        {
+          "label": "The other 20 Max for Live devices",
+          "url": "#/m4l"
+        }
+      ],
+      "tags": [
+        "max-for-live",
+        "instrument",
+        "synth",
+        "performance"
+      ],
+      "updated": "2026-08-12"
+    },
+    {
       "id": "emgor.web-synth",
       "title": "WEB SYNTH",
       "blurb": "Instruments that run entirely in the browser — three languages, zero installs",
@@ -2075,7 +2241,7 @@
     {
       "id": "emgor.web-synth.ciesen",
       "title": "CIESEN",
-      "blurb": "Generative ambient ChucK synth with WebGPU visuals, live in-browser",
+      "blurb": "Generative ambient ChucK synth, live in-browser — works on iPhone",
       "parent": "emgor.web-synth",
       "path": "universe/web-synth/ciesen.md",
       "route": "/web-synth/ciesen",
@@ -2091,6 +2257,10 @@
         {
           "label": "Play CIESEN",
           "url": "ciesen.html"
+        },
+        {
+          "label": "Full chuGL version (desktop, WebGPU)",
+          "url": "ciesen-gl.html"
         }
       ],
       "tags": [
@@ -2101,7 +2271,7 @@
         "generative",
         "ambient"
       ],
-      "updated": "2026-08-02",
+      "updated": "2026-08-12",
       "launch": "ciesen.html"
     },
     {
@@ -2131,8 +2301,8 @@
     },
     {
       "id": "emgor.web-synth.strudel",
-      "title": "STRUDEL",
-      "blurb": "TidalCycles patterns as JavaScript — live-coded music in the tab",
+      "title": "STRUDEL FORK",
+      "blurb": "A fork of Strudel (TidalCycles patterns as JavaScript) — live-coded music in the tab",
       "parent": "emgor.web-synth",
       "path": "universe/web-synth/strudel.md",
       "route": "/web-synth/strudel",
@@ -2153,7 +2323,8 @@
         "strudel",
         "javascript",
         "live-coding",
-        "web-audio"
+        "web-audio",
+        "agpl"
       ],
       "updated": "2026-08-02",
       "launch": "livecode.html"

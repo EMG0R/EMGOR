@@ -7,17 +7,21 @@
  * Also provides dynamic caching (stale-while-revalidate) for same-origin
  * assets for PWA / offline support. No hardcoded asset list — caching
  * happens on first fetch regardless of deployment layout.
+ *
+ * As of the audio-only rewrite, ciesen.html (plain webchuck, AudioWorklet,
+ * no SharedArrayBuffer) no longer registers this worker at all. Only the
+ * WebGPU ChuGL build at ciesen-gl.html still needs cross-origin isolation.
  */
 
-var CACHE_NAME = 'webchugl-v23';
+var CACHE_NAME = 'webchugl-v24';
 
-// This worker must ONLY control /ciesen.html (registered with
-// { scope: './ciesen.html' }). Legacy versions were registered at root
-// scope and controlled the whole site; when such a registration updates
-// to this script, it unregisters itself.
+// This worker must ONLY control /ciesen-gl.html (registered with
+// { scope: './ciesen-gl.html' }). Legacy versions were registered at root
+// scope, or at ./ciesen.html scope, and controlled more than they should;
+// when such a registration updates to this script, it unregisters itself.
 function isCiesenScope() {
     try {
-        return new URL(self.registration.scope).pathname.indexOf('ciesen') !== -1;
+        return new URL(self.registration.scope).pathname.indexOf('ciesen-gl') !== -1;
     } catch (e) {
         return false;
     }
@@ -137,10 +141,11 @@ function addCoiHeaders(response, request) {
         return response;
     }
 
-    // COEP/COOP are only needed by ciesen (WebChuGL needs SharedArrayBuffer).
-    // Other pages (NEPTR, etc.) must NOT get these headers — COEP require-corp
-    // would block the RNBO CDN script which has no Cross-Origin-Resource-Policy.
-    if (!request || !request.url.includes('ciesen')) {
+    // COEP/COOP are only needed by ciesen-gl (WebChuGL/WebGPU needs
+    // SharedArrayBuffer). Other pages (plain ciesen.html, NEPTR, etc.) must
+    // NOT get these headers — COEP require-corp would block the RNBO CDN
+    // script which has no Cross-Origin-Resource-Policy.
+    if (!request || !request.url.includes('ciesen-gl')) {
         return response;
     }
 

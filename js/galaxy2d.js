@@ -59,6 +59,14 @@
     function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
     function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
     function lerp(a, b, t) { return a + (b - a) * t; }
+    // keep free-spinning angles bounded to (-PI, PI] so they never lose
+    // float precision over a very long idle session
+    function wrapAngle(a) {
+        a = a % TAU;
+        if (a > Math.PI) a -= TAU;
+        else if (a < -Math.PI) a += TAU;
+        return a;
+    }
 
     // ─── state ─────────────────────────────────────────────────
     var canvas, ctx, labelsEl, crumbEl, homeBtn;
@@ -77,8 +85,11 @@
 
     // 3D scene rotation (trackball): orbits live in the x,z plane (y up).
     // yaw spins the model around the vertical axis, pitch tilts the plane.
+    // Both angles are full 360°: this is a genuine rotation-matrix composition
+    // (yaw about Y, then pitch about the yawed X axis), not a hacky 2D tilt, so
+    // depth (sz/z2) stays mathematically correct through every orientation,
+    // including tumbling fully over the top or underneath.
     var PITCH_REST = 0.62;          // rest pose ~35°: reads as 3D immediately
-    var PITCH_MIN = 0.12, PITCH_MAX = 1.15;   // keep labels legible, never edge-on
     var PERSP = 0.35;               // perspective strength (normalized by view radius)
     var yaw = 0, pitch = PITCH_REST;
     var yawV = 0, pitchV = 0;       // trackball momentum (rad/s)
@@ -96,7 +107,8 @@
 
     // sprites
     var nebulaSprites = [];
-    var accretionSprite = null;
+    var accretionSprite = null;    // base 512px tier
+    var accretionHi = null;        // lazily-baked 1024px tier, once, kept forever
     var vignette = null;
 
     // big-bang particles
@@ -201,6 +213,10 @@
     }
 
     // ─── procedural planet identity ────────────────────────────
+    // Sprites are baked at a base 192px tier here; the LOD system (below)
+    // lazily re-bakes the same deterministic art at higher tiers when a
+    // body's on-screen radius outgrows what's cached, so a fresh visit
+    // always starts cheap.
     function seedIdentity(node, rng) {
         var fam = FAMILIES[Math.floor(rng() * FAMILIES.length)];
         node.hue = Math.floor(fam[0] + rng() * (fam[1] - fam[0]));
@@ -212,19 +228,30 @@
         node.pulsePhase = rng() * TAU;
         node.noiseKind = rng() < 0.5 ? 'bands' : 'speckle';
         node.spriteSeed = hash32(node.id + '::surface');
-        node.sprite = makePlanetSprite(node);
-        node.glow = makeGlowSprite(node.hue, node.sat);
+        node.spriteRes = 192;
+        node._tiers = {};
+        node.sprite = node._tiers[192] = makePlanetSprite(node, 192);
+        node.glowRes = 256;
+        node._glowTiers = {};
+        node.glow = node._glowTiers[256] = makeGlowSprite(node.hue, node.sat, 256);
+        node._lodTouch = 0;
     }
 
-    function makePlanetSprite(node) {
-        var S = 192;                             // sprite canvas size
+    // consistent global light direction for every body (fraction of R,
+    // upper-left) — one light source, used for the base gradient, the
+    // terminator, the specular sheen and the rim glow alike
+    var LIGHT_X = -0.42, LIGHT_Y = -0.42;
+
+    function makePlanetSprite(node, S) {
+        S = S || 192;                             // sprite canvas size (LOD tier)
         var c = document.createElement('canvas');
         c.width = c.height = S;
         var g = c.getContext('2d');
         var cx = S / 2, cy = S / 2;
         var R = S * 0.30;                        // body radius, room left for ring
-        var rng = mulberry32(node.spriteSeed);
+        var rng = mulberry32(node.spriteSeed);   // same seed every tier -> identical art
         var hue = node.hue, sat = node.sat;
+        var lx = LIGHT_X, ly = LIGHT_Y;
 
         // ring behind
         if (node.hasRing) drawRing(g, cx, cy, R, node, 0.55, true);
@@ -234,101 +261,214 @@
         g.arc(cx, cy, R, 0, TAU);
         g.clip();
 
-        // base sphere gradient, lit upper-left — deep desaturated albedo, real-rock dark
+        // base sphere gradient, lit toward the global light — deep
+        // desaturated albedo, real-rock dark, with an extra mid stop for a
+        // softer Lambertian falloff instead of a hard band transition
         var satA = Math.max(14, sat - 18);       // muted surface saturation, hue kept
-        var lg = g.createRadialGradient(cx - R * 0.38, cy - R * 0.38, R * 0.08, cx, cy, R * 1.15);
-        lg.addColorStop(0, 'hsl(' + hue + ',' + satA + '%,40%)');
-        lg.addColorStop(0.42, 'hsl(' + hue + ',' + satA + '%,26%)');
-        lg.addColorStop(0.8, 'hsl(' + ((hue + 14) % 360) + ',' + satA + '%,12%)');
-        lg.addColorStop(1, 'hsl(' + ((hue + 20) % 360) + ',' + Math.min(70, satA + 8) + '%,6%)');
+        var lg = g.createRadialGradient(cx + lx * R, cy + ly * R, R * 0.06, cx, cy, R * 1.15);
+        lg.addColorStop(0, 'hsl(' + hue + ',' + satA + '%,43%)');
+        lg.addColorStop(0.3, 'hsl(' + hue + ',' + satA + '%,32%)');
+        lg.addColorStop(0.6, 'hsl(' + hue + ',' + satA + '%,21%)');
+        lg.addColorStop(0.85, 'hsl(' + ((hue + 14) % 360) + ',' + satA + '%,12%)');
+        lg.addColorStop(1, 'hsl(' + ((hue + 20) % 360) + ',' + Math.min(70, satA + 8) + '%,7%)');
         g.fillStyle = lg;
         g.fillRect(0, 0, S, S);
 
-        // surface noise
+        // multi-octave surface detail: more octaves unlock at higher LOD
+        // tiers so texture keeps reading as detail (not a smear) when the
+        // camera flies in close
+        var octaves = S >= 1200 ? 4 : (S >= 700 ? 3 : (S >= 350 ? 2 : 1));
         if (node.noiseKind === 'bands') {
-            var bands = 3 + Math.floor(rng() * 4);
-            var rot = (rng() - 0.5) * 0.8;
-            g.save();
-            g.translate(cx, cy); g.rotate(rot); g.translate(-cx, -cy);
-            for (var b = 0; b < bands; b++) {
-                var by = cy - R + rng() * R * 2;
-                var bh = R * (0.08 + rng() * 0.22);
-                g.fillStyle = 'hsla(' + ((hue + (rng() - 0.5) * 26 + 360) % 360) + ',' +
-                    Math.max(8, sat - 24) + '%,' + (rng() < 0.55 ? 11 : 30) + '%,' +
-                    (0.1 + rng() * 0.14) + ')';
-                g.beginPath();
-                g.ellipse(cx, by, R * 1.3, bh, 0, 0, TAU);
-                g.fill();
-            }
-            g.restore();
+            drawBandOctaves(g, cx, cy, R, rng, hue, sat, octaves);
         } else {
-            var n = 26 + Math.floor(rng() * 40);
-            for (var s = 0; s < n; s++) {
-                var a = rng() * TAU, d = Math.sqrt(rng()) * R * 0.94;
-                var sx2 = cx + Math.cos(a) * d, sy2 = cy + Math.sin(a) * d;
-                var sr2 = R * (0.03 + rng() * 0.1);
-                g.fillStyle = 'hsla(' + ((hue + (rng() - 0.5) * 32 + 360) % 360) + ',' +
-                    Math.max(8, sat - 22) + '%,' + (rng() < 0.62 ? 10 : 32) + '%,' +
-                    (0.1 + rng() * 0.16) + ')';
-                g.beginPath();
-                g.ellipse(sx2, sy2, sr2 * (0.7 + rng()), sr2, rng() * TAU, 0, TAU);
-                g.fill();
-            }
+            drawSpeckleOctaves(g, cx, cy, R, rng, hue, sat, octaves);
         }
 
-        // terminator shadow (lower-right) — decisive night side, sun stays upper-left
-        var sh = g.createRadialGradient(cx - R * 0.4, cy - R * 0.4, R * 0.25, cx, cy, R * 1.3);
+        // terminator — soft multi-stop falloff toward the night side; capped
+        // short of full black so the dark hemisphere never goes flat
+        var sh = g.createRadialGradient(cx + lx * R, cy + ly * R, R * 0.22, cx, cy, R * 1.3);
         sh.addColorStop(0, 'rgba(0,0,0,0)');
-        sh.addColorStop(0.55, 'rgba(3,1,10,0.16)');
-        sh.addColorStop(0.82, 'rgba(3,1,10,0.62)');
-        sh.addColorStop(1, 'rgba(2,0,8,0.94)');
+        sh.addColorStop(0.42, 'rgba(3,1,10,0.10)');
+        sh.addColorStop(0.65, 'rgba(3,1,10,0.32)');
+        sh.addColorStop(0.85, 'rgba(3,1,10,0.6)');
+        sh.addColorStop(1, 'rgba(2,0,10,0.84)');
         g.fillStyle = sh;
+        g.fillRect(0, 0, S, S);
+
+        // faint ambient bounce opposite the light — a low-sat hue tint so
+        // the night side reads as lit-by-starlight rather than a void
+        var ax = cx - lx * R * 0.85, ay = cy - ly * R * 0.85;
+        var amb = g.createRadialGradient(ax, ay, 0, ax, ay, R * 0.95);
+        var ambHue = (hue + 200) % 360;
+        amb.addColorStop(0, 'hsla(' + ambHue + ',' + Math.max(10, satA - 10) + '%,17%,0.16)');
+        amb.addColorStop(1, 'hsla(' + ambHue + ',' + Math.max(10, satA - 10) + '%,17%,0)');
+        g.fillStyle = amb;
         g.fillRect(0, 0, S, S);
 
         // limb darkening — the whole disc edge falls off like a real photosphere
         var ld = g.createRadialGradient(cx, cy, R * 0.78, cx, cy, R);
         ld.addColorStop(0, 'rgba(0,0,4,0)');
-        ld.addColorStop(1, 'rgba(0,0,4,0.42)');
+        ld.addColorStop(1, 'rgba(0,0,4,0.4)');
         g.fillStyle = ld;
         g.fillRect(0, 0, S, S);
+
+        // subtle specular sheen, offset toward the light and biased near the
+        // limb like a real curved surface — deliberately faint (additive,
+        // low alpha): a hint of gloss, not a glossy 3D render
+        g.globalCompositeOperation = 'lighter';
+        var specX = cx + lx * R * 1.05, specY = cy + ly * R * 1.05;
+        var sp = g.createRadialGradient(specX, specY, 0, specX, specY, R * 0.32);
+        sp.addColorStop(0, 'hsla(' + hue + ',18%,92%,0.15)');
+        sp.addColorStop(0.5, 'hsla(' + hue + ',28%,80%,0.05)');
+        sp.addColorStop(1, 'hsla(' + hue + ',28%,80%,0)');
+        g.fillStyle = sp;
+        g.fillRect(0, 0, S, S);
+        g.globalCompositeOperation = 'source-over';
+
+        // ring shadow cast on the planet, where the front ring band crosses
+        // the sphere — read together with the front ring it sells the 3D
+        if (node.hasRing) drawRingShadow(g, cx, cy, R, node);
+
         g.restore();
 
-        // limb light: faint hue-tinted crescent on the lit side only
+        // limb light: bright hue-tinted crescent on the lit side — a thin
+        // crisp core plus (at tiers that can afford it) a soft blurred
+        // outer halo, reading as thin scattered atmosphere
+        g.save();
         g.lineCap = 'round';
-        g.strokeStyle = 'hsla(' + hue + ',30%,72%,0.28)';
-        g.lineWidth = 1.4;
+        g.strokeStyle = 'hsla(' + hue + ',34%,76%,0.32)';
+        g.lineWidth = Math.max(1, R * 0.014);
         g.beginPath();
-        g.arc(cx, cy, R + 0.5, Math.PI * 0.88, Math.PI * 1.66);
+        g.arc(cx, cy, R + g.lineWidth * 0.5, Math.PI * 0.86, Math.PI * 1.68);
         g.stroke();
+        if (S >= 350) {
+            g.filter = 'blur(' + Math.max(1, R * 0.035) + 'px)';
+            g.strokeStyle = 'hsla(' + hue + ',40%,80%,0.20)';
+            g.lineWidth = Math.max(1.5, R * 0.05);
+            g.beginPath();
+            g.arc(cx, cy, R + g.lineWidth * 0.6, Math.PI * 0.82, Math.PI * 1.72);
+            g.stroke();
+            g.filter = 'none';
+        }
+        g.restore();
 
-        // ring front half
+        // ring front half — the planet occludes the far half purely by draw
+        // order (behind half was painted before the sphere clip above)
         if (node.hasRing) drawRing(g, cx, cy, R, node, 0.9, false);
 
-        node.spriteR = R / S;       // body radius as fraction of sprite size
+        node.spriteR = R / S;       // body radius as fraction of sprite size (tier-invariant)
         return c;
     }
 
+    // layered band noise for gas giants: each octave adds smaller, fainter
+    // belts; every belt is domain-warped (two summed sine waves) instead of
+    // a plain ellipse, so it drifts organically along its length
+    function drawBandOctaves(g, cx, cy, R, rng, hue, sat, octaves) {
+        var rot = (rng() - 0.5) * 0.8;
+        g.save();
+        g.translate(cx, cy); g.rotate(rot); g.translate(-cx, -cy);
+        var steps = 22;
+        for (var o = 0; o < octaves; o++) {
+            var bands = (3 + Math.floor(rng() * 4)) + o * 2;
+            for (var b = 0; b < bands; b++) {
+                var by = cy - R + rng() * R * 2;
+                var bh = R * (0.07 + rng() * 0.18) / (1 + o * 0.55);
+                var freqA = 1.5 + rng() * 2.5, freqB = 3 + rng() * 4;
+                var ampA = R * (0.05 + rng() * 0.05) / (o + 1);
+                var ampB = R * (0.02 + rng() * 0.03) / (o + 1);
+                var phA = rng() * TAU, phB = rng() * TAU;
+                var hueJ = (hue + (rng() - 0.5) * 26 + 360) % 360;
+                var lightness = rng() < 0.55 ? 11 : 30;
+                var alpha = (0.1 + rng() * 0.14) / (1 + o * 0.4);
+                g.fillStyle = 'hsla(' + hueJ + ',' + Math.max(8, sat - 24) + '%,' + lightness + '%,' + alpha + ')';
+                g.beginPath();
+                var s, t, x, warp;
+                for (s = 0; s <= steps; s++) {
+                    t = s / steps; x = cx - R * 1.3 + t * R * 2.6;
+                    warp = Math.sin(t * TAU * freqA + phA) * ampA + Math.sin(t * TAU * freqB + phB) * ampB;
+                    if (s === 0) g.moveTo(x, by - bh + warp); else g.lineTo(x, by - bh + warp);
+                }
+                for (s = steps; s >= 0; s--) {
+                    t = s / steps; x = cx - R * 1.3 + t * R * 2.6;
+                    warp = Math.sin(t * TAU * freqA + phA) * ampA + Math.sin(t * TAU * freqB + phB) * ampB;
+                    g.lineTo(x, by + bh + warp);
+                }
+                g.closePath();
+                g.fill();
+            }
+        }
+        g.restore();
+    }
+
+    // layered blotch noise for rocky bodies: octave 0 is a handful of large
+    // craters with a raised-relief highlight rim, later octaves add medium
+    // and fine speckle so detail holds up at high LOD tiers
+    function drawSpeckleOctaves(g, cx, cy, R, rng, hue, sat, octaves) {
+        for (var o = 0; o < octaves; o++) {
+            var scale = Math.pow(0.42, o);
+            var n = Math.floor((22 + rng() * 34) * (o === 0 ? 1 : 1.6 + o * 0.8));
+            for (var s = 0; s < n; s++) {
+                var a = rng() * TAU, d = Math.sqrt(rng()) * R * 0.94;
+                var sx2 = cx + Math.cos(a) * d, sy2 = cy + Math.sin(a) * d;
+                var sr2 = R * (0.03 + rng() * 0.1) * scale;
+                var hueJ = (hue + (rng() - 0.5) * 32 + 360) % 360;
+                var dark = rng() < 0.62;
+                g.fillStyle = 'hsla(' + hueJ + ',' + Math.max(8, sat - 22) + '%,' + (dark ? 10 : 32) + '%,' +
+                    (0.1 + rng() * 0.16) + ')';
+                g.beginPath();
+                g.ellipse(sx2, sy2, sr2 * (0.7 + rng()), sr2, rng() * TAU, 0, TAU);
+                g.fill();
+                if (o === 0 && dark && sr2 > R * 0.045) {
+                    g.strokeStyle = 'hsla(' + hueJ + ',' + Math.max(6, sat - 30) + '%,46%,0.14)';
+                    g.lineWidth = Math.max(0.6, sr2 * 0.22);
+                    g.beginPath();
+                    g.arc(sx2 - sr2 * 0.28, sy2 - sr2 * 0.28, sr2 * 0.82, Math.PI * 0.9, Math.PI * 1.7);
+                    g.stroke();
+                }
+            }
+        }
+    }
+
+    function drawRingShadow(g, cx, cy, R, node) {
+        g.save();
+        g.translate(cx, cy);
+        g.rotate(node.ringAngle);
+        g.fillStyle = 'rgba(2,0,8,0.28)';
+        g.beginPath();
+        g.ellipse(0, R * node.ringTilt * 0.05, R * 1.04, R * 0.15 * node.ringTilt + R * 0.03, 0, 0, TAU);
+        g.fill();
+        g.restore();
+    }
+
+    // gradient-banded ring: several concentric strokes of varying width /
+    // saturation instead of two flat bands, for a more believable particle
+    // disc; the planet occludes the far half purely by draw order (the
+    // caller paints "behind" before the sphere clip, "front" after)
     function drawRing(g, cx, cy, R, node, alpha, behind) {
         g.save();
         g.translate(cx, cy);
         g.rotate(node.ringAngle);
-        g.strokeStyle = 'hsla(' + ((node.hue + 24) % 360) + ',16%,44%,' + (alpha * 0.26) + ')';
-        g.lineWidth = R * 0.11;
-        g.beginPath();
-        g.ellipse(0, 0, R * 1.5, R * 1.5 * node.ringTilt, 0,
-            behind ? Math.PI : 0, behind ? TAU : Math.PI);
-        g.stroke();
-        g.strokeStyle = 'hsla(' + ((node.hue + 24) % 360) + ',18%,56%,' + (alpha * 0.18) + ')';
-        g.lineWidth = R * 0.035;
-        g.beginPath();
-        g.ellipse(0, 0, R * 1.72, R * 1.72 * node.ringTilt, 0,
-            behind ? Math.PI : 0, behind ? TAU : Math.PI);
-        g.stroke();
+        var hue2 = (node.hue + 24) % 360;
+        var bands = [
+            { rr: 1.40, w: 0.16, sat: 14, light: 38, a: 0.22 },
+            { rr: 1.56, w: 0.06, sat: 20, light: 56, a: 0.30 },
+            { rr: 1.68, w: 0.10, sat: 15, light: 38, a: 0.16 },
+            { rr: 1.80, w: 0.045, sat: 22, light: 60, a: 0.14 }
+        ];
+        for (var i = 0; i < bands.length; i++) {
+            var bd = bands[i];
+            g.strokeStyle = 'hsla(' + hue2 + ',' + bd.sat + '%,' + bd.light + '%,' + (alpha * bd.a) + ')';
+            g.lineWidth = R * bd.w;
+            g.beginPath();
+            g.ellipse(0, 0, R * bd.rr, R * bd.rr * node.ringTilt, 0,
+                behind ? Math.PI : 0, behind ? TAU : Math.PI);
+            g.stroke();
+        }
         g.restore();
     }
 
-    function makeGlowSprite(hue, sat) {
-        var S = 256;
+    function makeGlowSprite(hue, sat, S) {
+        S = S || 256;
         var c = document.createElement('canvas');
         c.width = c.height = S;
         var g = c.getContext('2d');
@@ -339,6 +479,87 @@
         g.fillStyle = gr;
         g.fillRect(0, 0, S, S);
         return c;
+    }
+
+    // ─── LOD (level-of-detail) sprite re-baking ─────────────────
+    var LOD_TIERS = [192, 384, 768, 1536];
+    var LOD_GLOW_TIERS = [256, 512, 1024];
+    var lodQueue = [];
+    var lodActive = {};
+    var hiResNodes = {};
+
+    function pickTier(tiers, px) {
+        for (var i = 0; i < tiers.length; i++) if (tiers[i] >= px) return tiers[i];
+        return tiers[tiers.length - 1];
+    }
+
+    // Scan only the handful of bodies that are actually large on screen
+    // right now — the focused nav ring, the sun body, and (mid-flight) the
+    // system being left — and queue a higher-res bake if the sprite would
+    // visibly upscale. At most one bake happens per frame, and never while
+    // a flight transition is still mid-flight, so FLY_DUR zooms never
+    // stutter. Anything that stops being large gets its extra tiers evicted
+    // after a short grace period so cached canvases can't grow unbounded.
+    function lodUpdate() {
+        var cands = [], i;
+        for (i = 0; i < focus.kids.length; i++) cands.push(focus.kids[i]);
+        if (focus !== root) cands.push(focus);
+        if (trans) {
+            for (i = 0; i < trans.from.kids.length; i++) cands.push(trans.from.kids[i]);
+            if (trans.from !== root) cands.push(trans.from);
+        }
+        for (i = 0; i < cands.length; i++) {
+            var n = cands[i];
+            n._lodTouch = frame;
+            var needPx = n.sr * DPR * 2.3;
+            if (pickTier(LOD_TIERS, needPx) > n.spriteRes && !lodActive[n.id]) {
+                lodActive[n.id] = true;
+                lodQueue.push(n);
+            }
+        }
+
+        var okToBake = !intro && !(trans && trans.t < 0.85);
+        if (okToBake && lodQueue.length) {
+            var job = lodQueue.shift();
+            lodActive[job.id] = false;
+            var needPx2 = job.sr * DPR * 2.3;
+            var tier = pickTier(LOD_TIERS, needPx2);
+            if (tier > job.spriteRes) bakeSpriteTier(job, tier);
+            var gTier = pickTier(LOD_GLOW_TIERS, needPx2 * 1.4);
+            if (gTier > job.glowRes) bakeGlowTier(job, gTier);
+        }
+
+        for (var id in hiResNodes) {
+            var hn = hiResNodes[id];
+            if (frame - hn._lodTouch > 90) {
+                evictTiers(hn);
+                delete hiResNodes[id];
+            }
+        }
+    }
+
+    function bakeSpriteTier(node, size) {
+        node.sprite = node._tiers[size] || (node._tiers[size] = makePlanetSprite(node, size));
+        node.spriteRes = size;
+        hiResNodes[node.id] = node;
+    }
+
+    function bakeGlowTier(node, size) {
+        node.glow = node._glowTiers[size] || (node._glowTiers[size] = makeGlowSprite(node.hue, node.sat, size));
+        node.glowRes = size;
+        hiResNodes[node.id] = node;
+    }
+
+    // drop everything above the base tier — memory reclaimed, next visit
+    // just re-bakes lazily again
+    function evictTiers(node) {
+        var sz;
+        for (sz in node._tiers) if (Number(sz) !== 192) delete node._tiers[sz];
+        for (sz in node._glowTiers) if (Number(sz) !== 256) delete node._glowTiers[sz];
+        node.sprite = node._tiers[192];
+        node.spriteRes = 192;
+        node.glow = node._glowTiers[256];
+        node.glowRes = 256;
     }
 
     // ─── ambient sprites ───────────────────────────────────────
@@ -360,8 +581,8 @@
         }
     }
 
-    function makeAccretionSprite() {
-        var S = 512;
+    function makeAccretionSprite(S) {
+        S = S || 512;
         var c = document.createElement('canvas');
         c.width = c.height = S;
         var g = c.getContext('2d');
@@ -1033,6 +1254,7 @@
             }
         }
 
+        lodUpdate();
         sortByDepth();
 
         // the center (black hole) slots into the depth order at its own z
@@ -1089,17 +1311,25 @@
 
     function drawBlackHole(x, y, core) {
         var t = reducedMotion ? 0 : time;
+        var ds = core * 7;
+        // lazily bake a 1024px tier once the disc genuinely outgrows the
+        // base 512px sprite; a single one-time asset, kept forever (never
+        // evicted — there is exactly one black hole), skipped mid-flight so
+        // the zoom transition doesn't stutter
+        if (!accretionHi && ds * DPR > 640 && !(trans && trans.t < 0.85)) {
+            accretionHi = makeAccretionSprite(1024);
+        }
+        var disk = accretionHi || accretionSprite;
         ctx.save();
         // accretion disk (rotating sprite, additive)
         ctx.globalCompositeOperation = 'lighter';
-        var ds = core * 7;
         ctx.translate(x, y);
         ctx.rotate(t * 0.12);
         ctx.globalAlpha = 0.85 + 0.15 * Math.sin(t * 1.7);
-        ctx.drawImage(accretionSprite, -ds / 2, -ds / 2, ds, ds);
+        ctx.drawImage(disk, -ds / 2, -ds / 2, ds, ds);
         ctx.rotate(-t * 0.26);
         ctx.globalAlpha = 0.4;
-        ctx.drawImage(accretionSprite, -ds * 0.35, -ds * 0.35, ds * 0.7, ds * 0.7);
+        ctx.drawImage(disk, -ds * 0.35, -ds * 0.35, ds * 0.7, ds * 0.7);
         ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
         ctx.globalAlpha = 1;
         // event horizon
@@ -1162,11 +1392,12 @@
             cam.scale += (tScale - cam.scale) * Math.min(1, dt * 5);
         }
 
-        // trackball momentum: fling keeps the model turning, friction slows it
+        // trackball momentum: fling keeps the model turning, friction slows it —
+        // full 360° now, so it wraps smoothly through the poles instead of
+        // hitting a clamp wall
         if (!dragging && !reducedMotion && (yawV !== 0 || pitchV !== 0)) {
-            yaw += yawV * dt;
-            pitch = clamp(pitch + pitchV * dt, PITCH_MIN, PITCH_MAX);
-            if (pitch === PITCH_MIN || pitch === PITCH_MAX) pitchV = 0;
+            yaw = wrapAngle(yaw + yawV * dt);
+            pitch = wrapAngle(pitch + pitchV * dt);
             var sfr = Math.pow(0.5, dt * 1.6);
             yawV *= sfr; pitchV *= sfr;
             if (Math.abs(yawV) + Math.abs(pitchV) < 0.01) { yawV = 0; pitchV = 0; }
@@ -1221,12 +1452,18 @@
             var n = pointerCount();
             if (n === 1 && dragging) {
                 // trackball: horizontal drag yaws the model, vertical drag
-                // tilts the orbital plane — orbital motion itself is untouched
+                // tilts the orbital plane — orbital motion itself is untouched.
+                // Past the pole (cosPit < 0, camera flipped upside-down) the
+                // near/far sides of the disc have swapped, so a horizontal
+                // drag needs its sign flipped to keep tracking the cursor —
+                // otherwise the model appears to spin backwards once you tip
+                // it past vertical.
                 var dx = e.clientX - dragLX, dy = e.clientY - dragLY;
-                var dYaw = -dx * (4.6 / Math.max(320, W));
+                var yawInv = cosPit < 0 ? -1 : 1;
+                var dYaw = -dx * (4.6 / Math.max(320, W)) * yawInv;
                 var dPit = dy * (3.2 / Math.max(320, H));
-                yaw += dYaw;
-                pitch = clamp(pitch + dPit, PITCH_MIN, PITCH_MAX);
+                yaw = wrapAngle(yaw + dYaw);
+                pitch = wrapAngle(pitch + dPit);
                 var now = performance.now();
                 var dts = Math.max(0.008, (now - dragT) / 1000);
                 yawV = clamp(0.75 * (dYaw / dts) + 0.25 * yawV, -ROT_V_MAX, ROT_V_MAX);

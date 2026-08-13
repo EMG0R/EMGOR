@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Deliberately kept out of search — see index.html / site intent.
+Disallow: /papers.html
+Disallow: /neuralgrid.html
+
+Sitemap: https://emgor.online/sitemap.xml

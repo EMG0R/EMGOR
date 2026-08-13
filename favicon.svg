@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="body" cx="38%" cy="36%" r="70%">
+      <stop offset="0%" stop-color="#E0AAFF"/>
+      <stop offset="42%" stop-color="#A855F7"/>
+      <stop offset="80%" stop-color="#7B2FBE"/>
+      <stop offset="100%" stop-color="#3D1D8E"/>
+    </radialGradient>
+    <radialGradient id="shadow" cx="38%" cy="36%" r="85%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="60%" stop-color="#0D0221" stop-opacity="0"/>
+      <stop offset="82%" stop-color="#0D0221" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#0D0221" stop-opacity="0.92"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="#0D0221"/>
+
+  <!-- ring, behind -->
+  <ellipse cx="32" cy="34" rx="27" ry="7.5" fill="none" stroke="#00F0FF" stroke-opacity="0.55" stroke-width="2.4"
+    transform="rotate(-14 32 34)" stroke-dasharray="0 84.8" pathLength="1"/>
+  <path d="M 6.5 37 A 27 7.5 0 0 1 57.5 31" fill="none" stroke="#C084FC" stroke-opacity="0.55" stroke-width="2.6"
+    transform="rotate(-14 32 34)"/>
+
+  <!-- planet body -->
+  <circle cx="32" cy="32" r="16" fill="url(#body)"/>
+  <circle cx="32" cy="32" r="16" fill="url(#shadow)"/>
+
+  <!-- limb light -->
+  <path d="M 18.5 22 A 16 16 0 0 1 40 17.5" fill="none" stroke="#E0AAFF" stroke-opacity="0.6" stroke-width="1.4" stroke-linecap="round"/>
+
+  <!-- ring, front -->
+  <path d="M 6.5 31 A 27 7.5 0 0 0 57.5 37" fill="none" stroke="#00F0FF" stroke-opacity="0.85" stroke-width="2.8"
+    transform="rotate(-14 32 34)"/>
+</svg>

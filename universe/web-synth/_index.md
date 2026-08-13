@@ -28,5 +28,4 @@ from source code to sound-in-a-tab, each with its own compiler story.
   WebChucK + ChuGL, with WebGPU visuals
 
 Click into a leaf for the live page, the language story, and the source where
-it's downloadable. The live-coding REPL experience has its own planet at
-[LIVE CODE](#/live-code).
+it's downloadable.
