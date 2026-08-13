@@ -1354,16 +1354,37 @@
         var pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(t * n.pulseRate + n.pulsePhase);
         var r = n.sr;
         var dim = n.dim;
-        // glow (additive)
+        // glow (additive) — radially symmetric, so it never needs rotation
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = Math.min(1, alpha * dim * (0.26 + pulse * 0.16));
         var gs = r * (2.9 + pulse * 0.35);
         ctx.drawImage(n.glow, n.sx - gs / 2, n.sy - gs / 2, gs, gs);
-        // body sprite (ring included) — sprite body radius is spriteR of its size
+        // body sprite (ring included) — sprite body radius is spriteR of its size.
+        // The sprite is a flat pre-baked raster (fixed light dir + fixed ring
+        // tilt), so on its own it would stay screen-locked as the camera orbits
+        // — most obvious on the focused/central body, whose screen position
+        // never moves at all. Apply a camera-driven screen-space spin so every
+        // body (central and orbiting alike, applied uniformly — no special
+        // casing) visibly turns with the scene instead of reading as a decal.
+        // Spin tracks yaw, scaled by sinPit: viewed edge-on (pitch≈0, ring
+        // edge-on) a yaw orbit produces no in-plane rotation of a flat disc —
+        // physically correct — while viewed from near-top (pitch≈π/2, ring
+        // reads circular) yaw maps ~1:1 onto screen rotation, exactly like
+        // watching a disc spin from above. This is a deliberate 2D approximation
+        // (no per-frame relight/re-bake — drawImage-only stays intact) but it's
+        // the natural yaw/pitch-only source of "spin" available without one.
+        // Driven directly by yaw/pitch state (set by drag, or by momentum which
+        // is itself gated off under prefers-reduced-motion), so this rotation
+        // automatically respects the existing reduced-motion convention.
+        var rot = yaw * sinPit;
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = Math.min(1, alpha * Math.min(1.06, dim));
         var ss = r / n.spriteR;
-        ctx.drawImage(n.sprite, n.sx - ss / 2, n.sy - ss / 2, ss, ss);
+        ctx.save();
+        ctx.translate(n.sx, n.sy);
+        ctx.rotate(rot);
+        ctx.drawImage(n.sprite, -ss / 2, -ss / 2, ss, ss);
+        ctx.restore();
         ctx.globalAlpha = 1;
     }
 
