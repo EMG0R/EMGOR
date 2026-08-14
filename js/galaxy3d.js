@@ -77,12 +77,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // body still reads as unmistakably colorful under real PBR lighting,
     // not as a near-black silhouette.
     var FAMILIES = [
-        { name: 'ruby',      h: [350, 368], s: [78, 94], l: [30, 40] }, // wraps past 360
-        { name: 'amber',     h: [26, 46],   s: [80, 96], l: [34, 44] },
-        { name: 'emerald',   h: [150, 172], s: [68, 86], l: [28, 37] },
-        { name: 'sapphire',  h: [208, 232], s: [70, 88], l: [30, 39] },
-        { name: 'amethyst',  h: [268, 292], s: [66, 84], l: [30, 40] },
-        { name: 'deep-teal', h: [186, 204], s: [60, 78], l: [26, 34] }
+        { name: 'ruby',      h: [350, 368], s: [46, 62], l: [27, 35] }, // wraps past 360
+        { name: 'amber',     h: [26, 46],   s: [50, 66], l: [29, 37] },
+        { name: 'emerald',   h: [150, 172], s: [38, 52], l: [25, 32] },
+        { name: 'sapphire',  h: [208, 232], s: [42, 56], l: [26, 34] },
+        { name: 'amethyst',  h: [268, 292], s: [38, 52], l: [26, 34] },
+        { name: 'deep-teal', h: [186, 204], s: [34, 46], l: [23, 30] }
     ];
 
     // ─── three.js state ────────────────────────────────────────
@@ -272,31 +272,82 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var g = c.getContext('2d');
         var rng = mulberry32(node.spriteSeed);
         var hue = node.hue, sat = node.sat, light = node.light;
+        var W2 = c.width, H2 = c.height;
 
-        g.fillStyle = hsl(hue, sat, light);
-        g.fillRect(0, 0, c.width, c.height);
+        // base: a two-tone "ocean/rock" ground, not a flat fill — real
+        // planets read as planets from a distance because of large-scale
+        // continent-vs-basin contrast, not fine detail (fine detail only
+        // matters up close, which is exactly when it's least visible on a
+        // tiny background world). This is the fix for "looks flat/orb-like
+        // at the default zoom": bigger shapes, higher contrast, so the
+        // read survives being shrunk to a few dozen screen pixels.
+        var baseDark = hsl(hue, sat, Math.max(8, light * 0.62));
+        var baseLight = hsl(hue, Math.min(70, sat + 6), Math.min(62, light * 1.35));
+        g.fillStyle = baseDark;
+        g.fillRect(0, 0, W2, H2);
 
-        if (node.noiseKind === 'bands') {
-            var bands = 5 + Math.floor(rng() * 6);
-            for (var b = 0; b < bands; b++) {
-                var by = rng() * c.height;
-                var bh = c.height * (0.04 + rng() * 0.09);
-                var hueJ = hue + (rng() - 0.5) * 22;
-                var darker = rng() < 0.55;
-                g.fillStyle = hsl(hueJ, Math.max(16, sat - 16), darker ? light * 0.45 : Math.min(58, light * 1.22), 0.32);
-                g.fillRect(0, by - bh / 2, c.width, bh);
-            }
-        } else {
-            var n = 60 + Math.floor(rng() * 90);
-            for (var s = 0; s < n; s++) {
-                var sx = rng() * c.width, sy = rng() * c.height;
-                var sr = 2 + rng() * (c.width * 0.03);
-                var hueJ2 = hue + (rng() - 0.5) * 28;
-                var dark = rng() < 0.62;
-                g.fillStyle = hsl(hueJ2, Math.max(14, sat - 14), dark ? light * 0.4 : Math.min(60, light * 1.28), 0.3);
-                g.beginPath(); g.ellipse(sx, sy, sr, sr * (0.6 + rng() * 0.5), rng() * TAU, 0, TAU); g.fill();
+        // layered continent-scale blobs (few, large) + mid-scale texture
+        // (more, smaller) — two octaves reads as real terrain, one octave
+        // reads as a blotch pattern.
+        function blobLayer(count, minR, maxR, alpha, lightBias, hueJitter) {
+            for (var i = 0; i < count; i++) {
+                var bx = rng() * W2, by = rng() * H2;
+                var br = minR + rng() * (maxR - minR);
+                var hueJ = hue + (rng() - 0.5) * hueJitter;
+                var lite = rng() < (0.5 + lightBias) ? baseLight : baseDark;
+                var col = lite === baseLight
+                    ? hsl(hueJ, Math.min(72, sat + 8), Math.min(64, light * (1.3 + rng() * 0.25)), alpha)
+                    : hsl(hueJ, Math.max(10, sat - 10), Math.max(6, light * (0.4 + rng() * 0.2)), alpha);
+                g.fillStyle = col;
+                g.beginPath();
+                g.ellipse(bx, by, br, br * (0.55 + rng() * 0.6), rng() * TAU, 0, TAU);
+                g.fill();
+                // wrap-around continuity at the seam so the equirect texture
+                // tiles cleanly around the sphere
+                if (bx < br) { g.beginPath(); g.ellipse(bx + W2, by, br, br * 0.8, 0, 0, TAU); g.fill(); }
+                if (bx > W2 - br) { g.beginPath(); g.ellipse(bx - W2, by, br, br * 0.8, 0, 0, TAU); g.fill(); }
             }
         }
+
+        if (node.noiseKind === 'bands') {
+            // gas-giant style: broad horizontal bands, strong contrast,
+            // plus a handful of storm-blob accents so it isn't perfectly
+            // striped (a real gas giant's bands are never uniform).
+            var bands = 6 + Math.floor(rng() * 7);
+            for (var b = 0; b < bands; b++) {
+                var by2 = (b / bands) * H2 + (rng() - 0.5) * (H2 / bands) * 0.6;
+                var bh = H2 * (0.05 + rng() * 0.1);
+                var hueJ2 = hue + (rng() - 0.5) * 20;
+                var darker = rng() < 0.5;
+                g.fillStyle = hsl(hueJ2, Math.max(14, sat - 8), darker ? Math.max(6, light * 0.5) : Math.min(64, light * 1.4), 0.55);
+                g.fillRect(0, by2 - bh / 2, W2, bh);
+            }
+            blobLayer(5 + Math.floor(rng() * 5), W2 * 0.03, W2 * 0.09, 0.4, 0.1, 18);
+        } else {
+            // rocky/terran style: continent-scale masses first, then
+            // smaller crater/texture detail on top.
+            blobLayer(4 + Math.floor(rng() * 4), W2 * 0.07, W2 * 0.16, 0.62, 0.15, 14);
+            blobLayer(40 + Math.floor(rng() * 60), 2, W2 * 0.025, 0.28, -0.1, 24);
+        }
+
+        // polar caps on a seeded minority — bright, desaturated bands at
+        // the top/bottom of the equirect map (= the poles once wrapped on
+        // the sphere). One of the strongest "real planet, not a ball" cues.
+        if (rng() < 0.4) {
+            var capH = H2 * (0.08 + rng() * 0.09);
+            var capCol = hsl(hue, Math.max(6, sat - 30), Math.min(80, light * 2.1), 0.75);
+            var gradN = g.createLinearGradient(0, 0, 0, capH * 1.6);
+            gradN.addColorStop(0, capCol);
+            gradN.addColorStop(1, 'rgba(0,0,0,0)');
+            g.fillStyle = gradN;
+            g.fillRect(0, 0, W2, capH * 1.6);
+            var gradS = g.createLinearGradient(0, H2 - capH * 1.6, 0, H2);
+            gradS.addColorStop(0, 'rgba(0,0,0,0)');
+            gradS.addColorStop(1, capCol);
+            g.fillStyle = gradS;
+            g.fillRect(0, H2 - capH * 1.6, W2, capH * 1.6);
+        }
+
         var tex = new THREE.CanvasTexture(c);
         tex.wrapS = THREE.RepeatWrapping;
         tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -365,11 +416,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var mat = new THREE.MeshStandardMaterial({
             map: surfaceTex,
             bumpMap: surfaceTex,
-            bumpScale: 0.018 * (0.6 + matRng() * 0.8),
+            bumpScale: 0.045 * (0.6 + matRng() * 0.8),
             roughness: roughness,
             metalness: 0.04,
-            emissive: new THREE.Color().setHSL(node.hue / 360, node.sat / 100, Math.min(0.24, node.light / 340)),
-            emissiveIntensity: 0.22
+            // emissive is ADDITIVE (unlike ambient/hemi, which multiply the
+            // surface's own albedo and so do nothing for a naturally dark
+            // texture) -- this is the actual floor under how dark any
+            // planet's shadow side can go, independent of its own rolled
+            // lightness/roughness. Without a real floor here, a dark-seeded
+            // planet's unlit hemisphere reads as a flat black hole with a
+            // bright rim around it instead of a dim but visible world.
+            emissive: new THREE.Color().setHSL(node.hue / 360, Math.min(70, node.sat / 100 * 90), Math.max(0.1, Math.min(0.22, node.light / 200))),
+            emissiveIntensity: 0.34
         });
         var mesh = new THREE.Mesh(sphereGeom(node.geomTier), mat);
         mesh.scale.setScalar(node.bodyR);
@@ -379,7 +437,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // atmosphere: a slightly larger shell, back-face lit by view-angle
         // (Fresnel) so it glows only at the limb — the single strongest
         // "this is a planet, not a ball" cue in real astrophotography.
-        var atmColor = new THREE.Color().setHSL(node.hue / 360, Math.min(1, node.sat / 100 + 0.15), Math.min(0.78, node.light / 100 + 0.42));
+        // rim brightness scales WITH the body's own tone instead of a flat
+        // boost — otherwise a dark-rolled planet gets a rim far brighter
+        // than its own surface and reads as a hollow ring/void rather than
+        // an atmosphere on a dark world.
+        var atmColor = new THREE.Color().setHSL(node.hue / 360, Math.min(1, node.sat / 100 + 0.12), clamp(node.light / 100 * 2.1 + 0.12, 0.22, 0.68));
         var atmMat = new THREE.ShaderMaterial({
             uniforms: { atmColor: { value: atmColor } },
             vertexShader:
@@ -401,8 +463,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 'uniform vec3 atmColor; varying vec3 vNormalV; varying vec3 vViewDir;\n' +
                 'void main() {\n' +
                 '  float rim = 1.0 - max(dot(vNormalV, vViewDir), 0.0);\n' +
-                '  float glow = pow(rim, 3.2);\n' +
-                '  gl_FragColor = vec4(atmColor, glow * 0.85);\n' +
+                '  float glow = pow(rim, 2.1);\n' +
+                '  gl_FragColor = vec4(atmColor, glow * 0.6);\n' +
                 '}',
             transparent: true,
             side: THREE.FrontSide,
@@ -410,7 +472,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             blending: THREE.AdditiveBlending
         });
         var atmosphere = new THREE.Mesh(sphereGeom(Math.min(node.geomTier, 24)), atmMat);
-        atmosphere.scale.setScalar(node.bodyR * 1.1);
+        atmosphere.scale.setScalar(node.bodyR * 1.16);
         anchor.add(atmosphere);
         node.atmosphere = atmosphere;
 
@@ -1536,7 +1598,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // flat — this is a large part of why real-time PBR reads as
         // "realistic" instead of "cartoony/plasticky" at these light levels.
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.55;
+        renderer.toneMappingExposure = 1.15;
         renderer.outputColorSpace = THREE.SRGBColorSpace;
 
         fxCanvas = document.createElement('canvas');
@@ -1552,8 +1614,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // every body's terminator/shading responds correctly because the
         // light direction never moves relative to the bodies, only the
         // viewpoint does. Kept subtle/moody to match the dark void aesthetic.
-        scene.add(new THREE.AmbientLight(0x2e2158, 0.55));
-        var hemi = new THREE.HemisphereLight(0x6a4fb0, 0x0a0620, 0.5);
+        scene.add(new THREE.AmbientLight(0x241a44, 0.48));
+        var hemi = new THREE.HemisphereLight(0x53397e, 0x0b0718, 0.44);
         scene.add(hemi);
         var key = new THREE.DirectionalLight(0xe9dcff, 2.1);
         key.position.set(-900, 700, 500);
