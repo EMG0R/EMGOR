@@ -21,8 +21,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var ROOT_SYS_R = 1200;          // world radius of the root system
     var SHRINK = 0.2;               // child system radius = parent * SHRINK
     var BODY_F = 0.3;               // body radius = own system radius * BODY_F
-    var ORBIT_MIN = 0.46, ORBIT_MAX = 1.0;
-    var MARGIN_X = 44, MARGIN_Y = 76;
+    var ORBIT_MIN = 0.58, ORBIT_MAX = 1.0;
+    var MARGIN_X = 20, MARGIN_Y = 36;
     var FLY_DUR = 1.15;             // seconds, fractal zoom flight
     var CHILD_BOOST = 1.9;          // visual size boost for the focused nav ring
     var TAU = Math.PI * 2;
@@ -195,7 +195,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             for (i = 0; i < N; i++) {
                 k = kids[i];
                 var t = N === 1 ? 0.6 : i / (N - 1);
-                k.orbF = ORBIT_MIN + (ORBIT_MAX - ORBIT_MIN) * (t * 0.75 + t * t * 0.25);
+                k.orbF = ORBIT_MIN + (ORBIT_MAX - ORBIT_MIN) * t;   // even spread, not center-bunched
                 k._half = (kBody * k.sizeF * boostEff) / (0.73 * node.sysR);
                 if (k._half > maxHalf) maxHalf = k._half;
             }
@@ -214,21 +214,15 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     }
 
     // ─── locked color + identity seeding ───────────────────────
-    // Palette selection is deterministic and *inherited down the tree*:
-    // top-level nodes (children of root) roll a palette from their own id;
-    // every descendant inherits its parent's palette FAMILY unchanged, but
-    // re-rolls hue jitter + all surface/detail seeds from its own id — so
-    // a subsystem reads as one coherent world-family while every body in
-    // it stays distinct. This rule is permanent (see report).
+    // Palette selection is deterministic but fully independent per node —
+    // every body (top-level or deeply nested) rolls its own palette family
+    // from its own id, completely decoupled from its parent's. Per Emory's
+    // note: max variety, no family relationship between a system and its
+    // sub-bodies.
     function familyIndexFor(node) {
         if (node._famIdx !== undefined) return node._famIdx;
-        var idx;
-        if (node.parentNode === root || !node.parentNode) {
-            var rng = mulberry32(hash32(node.id + '::family'));
-            idx = Math.floor(rng() * PALETTES.length);
-        } else {
-            idx = familyIndexFor(node.parentNode);
-        }
+        var rng = mulberry32(hash32(node.id + '::family'));
+        var idx = Math.floor(rng() * PALETTES.length);
         node._famIdx = idx;
         return idx;
     }
@@ -262,6 +256,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             acc: jitterColor(fam.acc, crng, 0.04, 0.06)
         };
         node.pal.ring = node.pal.atmo.clone().lerp(new THREE.Color(0xffffff), 0.35);
+        // seeded per-node size variance — real visual variety between
+        // siblings instead of a near-uniform blob of same-sized moons
+        node.sizeVar = 0.6 + rng() * 0.85;
         node.hasRing = rng() < 0.42;
         node.ringAngle = (rng() - 0.5) * 0.9;      // radial rotation of the ring plane
         node.ringTilt = 0.22 + rng() * 0.2;         // tilt off the orbital plane
@@ -992,19 +989,23 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // a system, with only a gentle nudge from a node's own `size` override —
     // the real sense of scale/depth now comes from orbit motion, self-spin
     // and camera framing instead of a dramatic size hierarchy.
-    var UNIFORM_MIX = 0.78;         // 0 = true hierarchy size, 1 = fully uniform by role
-    var CHILD_ROLE = 0.072;         // nav-ring children — deliberately small vs. the focused "sun"
+    var UNIFORM_MIX = 0.7;          // 0 = true hierarchy size, 1 = fully uniform by role
+    var CHILD_ROLE = 0.05;          // nav-ring children — small until you actually fly into them
     function uniformSizeFor(n, f) {
         var role;
         if (n === f) role = 0.20;                                        // focused body ("sun")
         else if (n.parentNode === f) role = CHILD_ROLE;                  // nav-ring children — main tier
-        else if (n.parentNode && n.parentNode.parentNode === f) role = 0.035; // hinted grandkids
+        else if (n.parentNode && n.parentNode.parentNode === f) role = 0.02; // hinted grandkids
         else if (f !== root && n === f.parentNode) role = 0.30;          // ambient background giant
         else if (f !== root && n.parentNode === f.parentNode) role = CHILD_ROLE; // siblings
         else role = n.bodyR / Math.max(1, f.sysR);
         var uniformR = f.sysR * role;
         var sizeFVar = clamp(0.85 + (n.sizeF - 1) * 0.15, 0.8, 1.2);     // gentle per-node variation only
-        return lerp(n.bodyR, uniformR, UNIFORM_MIX) * sizeFVar;
+        // the seeded sizeVar only applies to nav-ring/sibling children —
+        // the focused "sun" and the ambient background giant keep a
+        // predictable, stable size for framing/navigation clarity
+        var varMix = (n !== f && role === CHILD_ROLE) ? n.sizeVar : 1;
+        return lerp(n.bodyR, uniformR, UNIFORM_MIX) * sizeFVar * varMix;
     }
     function alphaFor(n, f) {
         if (n === f) return 0.95;
