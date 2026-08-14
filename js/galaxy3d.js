@@ -322,12 +322,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 g.fillStyle = hsl(hueJ2, Math.max(14, sat - 8), darker ? Math.max(6, light * 0.5) : Math.min(64, light * 1.4), 0.55);
                 g.fillRect(0, by2 - bh / 2, W2, bh);
             }
-            blobLayer(5 + Math.floor(rng() * 5), W2 * 0.03, W2 * 0.09, 0.4, 0.1, 18);
+            blobLayer(6 + Math.floor(rng() * 5), W2 * 0.04, W2 * 0.1, 0.55, 0.1, 18);
         } else {
             // rocky/terran style: continent-scale masses first, then
             // smaller crater/texture detail on top.
-            blobLayer(4 + Math.floor(rng() * 4), W2 * 0.07, W2 * 0.16, 0.62, 0.15, 14);
-            blobLayer(40 + Math.floor(rng() * 60), 2, W2 * 0.025, 0.28, -0.1, 24);
+            blobLayer(5 + Math.floor(rng() * 4), W2 * 0.08, W2 * 0.18, 0.82, 0.15, 14);
+            blobLayer(50 + Math.floor(rng() * 70), 2, W2 * 0.028, 0.4, -0.1, 24);
         }
 
         // polar caps on a seeded minority — bright, desaturated bands at
@@ -408,73 +408,34 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
         var surfaceTex = bakeSurfaceTexture(node);
         var matRng = mulberry32(node.spriteSeed ^ 0x9e3779b9);
-        // per-node material variety: most worlds are matte/rocky, a seeded
-        // minority read as icier/wetter with a subtle sheen — a single
-        // fixed roughness for every body is a big part of why they read
-        // as flat colored balls instead of distinct planets.
-        var roughness = 0.62 + matRng() * 0.34;
+        // Matte, real-world-material finish for every body — no glossy
+        // variety, no specular highlight. A tight bright specular dot is
+        // exactly what reads as "3D-rendered toy ball" instead of a real
+        // planet; real astrophotography of rock/gas worlds essentially
+        // never shows one (only liquid/ice does, and even that is a soft
+        // sheen, not a hot spot). Roughness pinned high and metalness at
+        // zero kills it outright; the tiny seeded variance is just enough
+        // that not every world is bit-identical in finish.
+        var roughness = 0.93 + matRng() * 0.06;
         var mat = new THREE.MeshStandardMaterial({
             map: surfaceTex,
             bumpMap: surfaceTex,
-            bumpScale: 0.045 * (0.6 + matRng() * 0.8),
+            bumpScale: 0.05 * (0.6 + matRng() * 0.8),
             roughness: roughness,
-            metalness: 0.04,
-            // emissive is ADDITIVE (unlike ambient/hemi, which multiply the
-            // surface's own albedo and so do nothing for a naturally dark
-            // texture) -- this is the actual floor under how dark any
-            // planet's shadow side can go, independent of its own rolled
-            // lightness/roughness. Without a real floor here, a dark-seeded
-            // planet's unlit hemisphere reads as a flat black hole with a
-            // bright rim around it instead of a dim but visible world.
-            emissive: new THREE.Color().setHSL(node.hue / 360, Math.min(70, node.sat / 100 * 90), Math.max(0.1, Math.min(0.22, node.light / 200))),
-            emissiveIntensity: 0.34
+            metalness: 0,
+            // emissive is ADDITIVE and deliberately modest: enough that a
+            // dark-rolled planet's unlit hemisphere never crushes to a
+            // black hole with a bright ring around it, but low enough that
+            // it doesn't flatten the texture's own contrast on properly
+            // lit planets (that washout is what made everything upstream
+            // of this read as smooth colored balls instead of terrain).
+            emissive: new THREE.Color().setHSL(node.hue / 360, Math.min(45, node.sat / 100 * 55), Math.max(0.05, Math.min(0.12, node.light / 340))),
+            emissiveIntensity: 0.16
         });
         var mesh = new THREE.Mesh(sphereGeom(node.geomTier), mat);
         mesh.scale.setScalar(node.bodyR);
         anchor.add(mesh);
         node.mesh = mesh;
-
-        // atmosphere: a slightly larger shell, back-face lit by view-angle
-        // (Fresnel) so it glows only at the limb — the single strongest
-        // "this is a planet, not a ball" cue in real astrophotography.
-        // rim brightness scales WITH the body's own tone instead of a flat
-        // boost — otherwise a dark-rolled planet gets a rim far brighter
-        // than its own surface and reads as a hollow ring/void rather than
-        // an atmosphere on a dark world.
-        var atmColor = new THREE.Color().setHSL(node.hue / 360, Math.min(1, node.sat / 100 + 0.12), clamp(node.light / 100 * 2.1 + 0.12, 0.22, 0.68));
-        var atmMat = new THREE.ShaderMaterial({
-            uniforms: { atmColor: { value: atmColor } },
-            vertexShader:
-                'varying vec3 vNormalV; varying vec3 vViewDir;\n' +
-                'void main() {\n' +
-                '  vec4 mv = modelViewMatrix * vec4(position, 1.0);\n' +
-                '  vNormalV = normalize(normalMatrix * normal);\n' +
-                '  vViewDir = normalize(-mv.xyz);\n' +
-                '  gl_Position = projectionMatrix * mv;\n' +
-                '}',
-            fragmentShader:
-                // front hemisphere only: normal faces the camera dead-on at
-                // the disc center (dot~1 -> rim~0, transparent) and grazes
-                // toward the silhouette edge (dot~0 -> rim~1, bright) — a
-                // proper limb-only halo. BackSide was wrong here: the far
-                // hemisphere's outward normals point away from the camera
-                // almost everywhere, so rim was ~1 (fully bright) across
-                // the whole disc instead of just its edge.
-                'uniform vec3 atmColor; varying vec3 vNormalV; varying vec3 vViewDir;\n' +
-                'void main() {\n' +
-                '  float rim = 1.0 - max(dot(vNormalV, vViewDir), 0.0);\n' +
-                '  float glow = pow(rim, 2.1);\n' +
-                '  gl_FragColor = vec4(atmColor, glow * 0.6);\n' +
-                '}',
-            transparent: true,
-            side: THREE.FrontSide,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-        });
-        var atmosphere = new THREE.Mesh(sphereGeom(Math.min(node.geomTier, 24)), atmMat);
-        atmosphere.scale.setScalar(node.bodyR * 1.16);
-        anchor.add(atmosphere);
-        node.atmosphere = atmosphere;
 
         if (node.hasRing) {
             var ringGeom = new THREE.RingGeometry(1.4, 1.9, 48);
@@ -1617,7 +1578,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         scene.add(new THREE.AmbientLight(0x241a44, 0.48));
         var hemi = new THREE.HemisphereLight(0x53397e, 0x0b0718, 0.44);
         scene.add(hemi);
-        var key = new THREE.DirectionalLight(0xe9dcff, 2.1);
+        var key = new THREE.DirectionalLight(0xe9dcff, 1.6);
         key.position.set(-900, 700, 500);
         scene.add(key);
 
