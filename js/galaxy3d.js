@@ -17,7 +17,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     'use strict';
 
     // ─── constants (ported 1:1 from galaxy2d.js — same galaxy shape) ──
-    var VOID = '#0D0221';
+    var VOID = '#060112';   // near-black, faint violet — deep cinematic void
     var ROOT_SYS_R = 1200;          // world radius of the root system
     var SHRINK = 0.2;               // child system radius = parent * SHRINK
     var BODY_F = 0.3;               // body radius = own system radius * BODY_F
@@ -64,29 +64,36 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         return a;
     }
 
-    // ─── LOCKED color scheme ───────────────────────────────────
-    // Six dark/bold/vivid jewel-tone "families" (hueMin, hueMax, satMin,
-    // satMax, lightMin, lightMax) in HSL percent. These are deliberately
-    // richer/darker than a pastel palette would be — high chroma so they
-    // read as *saturated* against --void (#0D0221) rather than washed out,
-    // moderate lightness (32–52%) so they stay dark/moody, not glossy.
-    // This becomes the PERMANENT palette going forward (see report).
-    // "dark bold vivid" = deep VALUE, high CHROMA — a ruby is dark but
-    // intensely saturated, not a muted brownish red. Keep lightness modest
-    // (this is a moody dark-void scene) but push saturation hard so every
-    // body still reads as unmistakably colorful under real PBR lighting,
-    // not as a near-black silhouette.
-    var FAMILIES = [
-        { name: 'ruby',      h: [350, 368], s: [46, 62], l: [27, 35] }, // wraps past 360
-        { name: 'amber',     h: [26, 46],   s: [50, 66], l: [29, 37] },
-        { name: 'emerald',   h: [150, 172], s: [38, 52], l: [25, 32] },
-        { name: 'sapphire',  h: [208, 232], s: [42, 56], l: [26, 34] },
-        { name: 'amethyst',  h: [268, 292], s: [38, 52], l: [26, 34] },
-        { name: 'deep-teal', h: [186, 204], s: [34, 46], l: [23, 30] }
+    // ─── LOCKED color scheme: curated NMS-style duotone/tritone palettes ─
+    // Ten hand-picked palettes, each a small world-recipe: two terrain
+    // tones (hi/lo), a contrasting sea/band color, an atmosphere glow
+    // (often deliberately CONTRASTING with the terrain — red world, cyan
+    // halo) and a bright accent for speckle/rings. Saturated but SOFT —
+    // pastel-leaning, never pure RGB primaries, never muddy dark. A node
+    // picks its palette deterministically from its id; children inherit
+    // the parent's palette FAMILY but re-roll hue/detail variation from
+    // their own id, so each subsystem reads coherent yet every body is
+    // distinct. This is the permanent look going forward.
+    var PALETTES = [
+        { name: 'coral-sea',   hi: 0xF4A28C, lo: 0xD96D5A, sea: 0x2E8C8C, atmo: 0x7DE8F0, acc: 0xFFE3C8 },
+        { name: 'gilded',      hi: 0xE8B84B, lo: 0xB7852F, sea: 0x6D4FA3, atmo: 0xF26BD8, acc: 0xFFE9A8 },
+        { name: 'mint-rose',   hi: 0x9FE6C5, lo: 0x5FBF9A, sea: 0xB5496B, atmo: 0xFFA7C4, acc: 0xEAFFF2 },
+        { name: 'tide-fire',   hi: 0xE08B4F, lo: 0xB25A33, sea: 0x2FB3A8, atmo: 0x63F2DC, acc: 0xFFC894 },
+        { name: 'lav-heath',   hi: 0xB9A5E3, lo: 0x8B6FC2, sea: 0x7FA893, atmo: 0xD9B8FF, acc: 0xF2E8FF },
+        { name: 'ember-ice',   hi: 0xD6455C, lo: 0xA32B44, sea: 0x3E6C99, atmo: 0xA8D8FF, acc: 0xFF9AA8 },
+        { name: 'absinthe',    hi: 0xC4E060, lo: 0x8FB03A, sea: 0x7A4A8C, atmo: 0xE0A8F2, acc: 0xF4FFB8 },
+        { name: 'orchard',     hi: 0xF2B98F, lo: 0xDB8E63, sea: 0x2F8C66, atmo: 0x8FF2C2, acc: 0xFFE0C2 },
+        { name: 'dune-sky',    hi: 0xE3C08F, lo: 0xC29455, sea: 0x3573B5, atmo: 0x7FB8FF, acc: 0xFFEFC4 },
+        { name: 'rose-quartz', hi: 0xE8A8B8, lo: 0xC97A94, sea: 0x5C6FA8, atmo: 0x93A8F2, acc: 0xFFD8E8 }
     ];
+
+    // one consistent, fixed world-space light direction for every planet
+    // shader — stylized in-shader lighting, deliberately NOT physical.
+    var LIGHT_DIR = new THREE.Vector3(-0.62, 0.52, 0.4).normalize();
 
     // ─── three.js state ────────────────────────────────────────
     var renderer, scene, camera;
+    var composer = null, bloomPass = null;  // post chain (null until addons load)
     var bgCanvas, bgCtx, fxCanvas, fxCtx;   // 2D backdrop / foreground fx layers
     var labelsEl, crumbEl, homeBtn;
     var W = 0, H = 0, DPR = 1;
@@ -207,36 +214,54 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     }
 
     // ─── locked color + identity seeding ───────────────────────
-    // Family selection is itself deterministic and *related to the parent*:
-    // a node inherits its parent's family 50% of the time (own id hash
-    // decides), otherwise shifts to a neighboring family in the list — so
-    // a subsystem's planets read as kin to their parent (same or adjacent
-    // jewel tone) while never being identical (hue/sat/light are always
-    // re-rolled from the child's own id). Top-level (children of root)
-    // roll a family independently. This rule is permanent (see report).
+    // Palette selection is deterministic and *inherited down the tree*:
+    // top-level nodes (children of root) roll a palette from their own id;
+    // every descendant inherits its parent's palette FAMILY unchanged, but
+    // re-rolls hue jitter + all surface/detail seeds from its own id — so
+    // a subsystem reads as one coherent world-family while every body in
+    // it stays distinct. This rule is permanent (see report).
     function familyIndexFor(node) {
         if (node._famIdx !== undefined) return node._famIdx;
-        var rng = mulberry32(hash32(node.id + '::family'));
         var idx;
         if (node.parentNode === root || !node.parentNode) {
-            idx = Math.floor(rng() * FAMILIES.length);
+            var rng = mulberry32(hash32(node.id + '::family'));
+            idx = Math.floor(rng() * PALETTES.length);
         } else {
-            var pIdx = familyIndexFor(node.parentNode);
-            var r = rng();
-            if (r < 0.5) idx = pIdx;
-            else idx = (pIdx + (r < 0.75 ? 1 : FAMILIES.length - 1)) % FAMILIES.length;
+            idx = familyIndexFor(node.parentNode);
         }
         node._famIdx = idx;
         return idx;
     }
 
+    // small seeded hue/lightness wobble around a palette color — enough
+    // that siblings sharing a palette never render bit-identical, small
+    // enough that the family read survives.
+    function jitterColor(hex, rng, hAmt, lAmt) {
+        var c = new THREE.Color(hex);
+        var o = { h: 0, s: 0, l: 0 };
+        c.getHSL(o);
+        c.setHSL(
+            ((o.h + (rng() - 0.5) * hAmt) % 1 + 1) % 1,
+            clamp(o.s + (rng() - 0.5) * 0.08, 0, 1),
+            clamp(o.l + (rng() - 0.5) * lAmt, 0.08, 0.92));
+        return c;
+    }
+
     function seedIdentity(node, rng) {
         var famIdx = familyIndexFor(node);
-        var fam = FAMILIES[famIdx];
+        var fam = PALETTES[famIdx];
         node.famIdx = famIdx;
-        node.hue = (fam.h[0] + rng() * (fam.h[1] - fam.h[0])) % 360;
-        node.sat = fam.s[0] + rng() * (fam.s[1] - fam.s[0]);
-        node.light = fam.l[0] + rng() * (fam.l[1] - fam.l[0]);
+        // per-node tint stream (own id) — inherits the FAMILY, re-rolls
+        // the exact hues, per the coherent-but-distinct subsystem rule.
+        var crng = mulberry32(hash32(node.id + '::tint'));
+        node.pal = {
+            hi: jitterColor(fam.hi, crng, 0.05, 0.10),
+            lo: jitterColor(fam.lo, crng, 0.05, 0.08),
+            sea: jitterColor(fam.sea, crng, 0.05, 0.08),
+            atmo: jitterColor(fam.atmo, crng, 0.03, 0.06),
+            acc: jitterColor(fam.acc, crng, 0.04, 0.06)
+        };
+        node.pal.ring = node.pal.atmo.clone().lerp(new THREE.Color(0xffffff), 0.35);
         node.hasRing = rng() < 0.42;
         node.ringAngle = (rng() - 0.5) * 0.9;      // radial rotation of the ring plane
         node.ringTilt = 0.22 + rng() * 0.2;         // tilt off the orbital plane
@@ -248,112 +273,204 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         node.spinRate = 0.045 + rng() * 0.09;
         node.spinPhase = rng() * TAU;
         node.spinTilt = (rng() - 0.5) * 0.5;
-        node.noiseKind = rng() < 0.5 ? 'bands' : 'speckle';
         node.spriteSeed = hash32(node.id + '::surface');
-        // texture/geometry LOD tier from navigational depth — shallow nodes
-        // are seen large & close (their own focused system fills the
-        // screen), so they get more texture and mesh detail; deep leaves
-        // are typically viewed small, so a coarser tier is plenty.
-        node.texRes = node.depth <= 1 ? 512 : (node.depth === 2 ? 320 : 192);
-        node.geomTier = node.depth <= 1 ? 40 : (node.depth === 2 ? 24 : 14);
+        // shader-surface seeds (own stream so tweaking one knob never
+        // reshuffles the others): biome mode, noise domain offset, scale,
+        // domain-warp strength, gas band count, sea level, accent speckle.
+        var srng = mulberry32(node.spriteSeed);
+        node.biome = srng() < 0.38 ? 'gas' : 'terra';
+        node.shSeed = new THREE.Vector3(srng() * 43.0, srng() * 43.0, srng() * 43.0);
+        node.shFreq = 2.1 + srng() * 1.7;
+        node.shWarp = 0.55 + srng() * 0.95;
+        node.shBands = 5.0 + srng() * 8.0;
+        node.shSea = 0.43 + srng() * 0.12;
+        node.shSpeckle = srng() < 0.3 ? 0.4 + srng() * 0.6 : 0.0;
+        // geometry LOD tier from navigational depth — shallow nodes are
+        // seen large & close, deep leaves small, so coarser is plenty.
+        node.geomTier = node.depth <= 1 ? 48 : (node.depth === 2 ? 32 : 20);
     }
 
-    function hsl(h, s, l, a) {
-        return 'hsla(' + ((h % 360) + 360) % 360 + ',' + s + '%,' + l + '%,' + (a === undefined ? 1 : a) + ')';
+    // ─── planet surface + atmosphere shaders (the NMS look) ────────────
+    // One ShaderMaterial per planet (~60 nodes — trivial). Fragment does
+    // 4-octave value-noise fbm with domain warping over the OBJECT-space
+    // sphere position (seeded offset per planet, so the pattern is welded
+    // to the surface and spins with the body), split into two biome modes:
+    // terra (chunky smoothstepped continents over a contrasting sea) and
+    // gas (flowing warped latitude bands). Lighting is stylized in-shader
+    // wrap diffuse — high-key like NMS, night side only mildly darkened —
+    // plus an inner Fresnel limb tint in the atmosphere color.
+    var PLANET_VERT = [
+        'varying vec3 vObjPos;',
+        'varying vec3 vWorldNormal;',
+        'varying vec3 vViewDir;',
+        'void main() {',
+        '    vObjPos = position;',
+        '    vec4 wp = modelMatrix * vec4(position, 1.0);',
+        '    vWorldNormal = normalize(mat3(modelMatrix) * normal);',
+        '    vViewDir = cameraPosition - wp.xyz;',
+        '    gl_Position = projectionMatrix * viewMatrix * wp;',
+        '}'
+    ].join('\n');
+
+    var PLANET_NOISE = [
+        'float nhash(vec3 p) {',
+        '    p = fract(p * 0.3183099 + 0.1);',
+        '    p *= 17.0;',
+        '    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));',
+        '}',
+        'float vnoise(vec3 x) {',
+        '    vec3 i = floor(x);',
+        '    vec3 f = fract(x);',
+        '    f = f * f * (3.0 - 2.0 * f);',
+        '    return mix(mix(mix(nhash(i + vec3(0.0, 0.0, 0.0)), nhash(i + vec3(1.0, 0.0, 0.0)), f.x),',
+        '                   mix(nhash(i + vec3(0.0, 1.0, 0.0)), nhash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),',
+        '               mix(mix(nhash(i + vec3(0.0, 0.0, 1.0)), nhash(i + vec3(1.0, 0.0, 1.0)), f.x),',
+        '                   mix(nhash(i + vec3(0.0, 1.0, 1.0)), nhash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);',
+        '}',
+        'float fbm(vec3 p) {',
+        '    float v = 0.0;',
+        '    float a = 0.5;',
+        '    for (int i = 0; i < 4; i++) {',
+        '        v += a * vnoise(p);',
+        '        p = p * 2.07 + vec3(11.3, 7.9, 5.1);',
+        '        a *= 0.5;',
+        '    }',
+        '    return v;',
+        '}'
+    ].join('\n');
+
+    var PLANET_FRAG = [
+        'uniform vec3 uSeed;',
+        'uniform vec3 uColHigh;',
+        'uniform vec3 uColLow;',
+        'uniform vec3 uColSea;',
+        'uniform vec3 uAtmo;',
+        'uniform vec3 uAccent;',
+        'uniform float uBiome;',
+        'uniform float uFreq;',
+        'uniform float uWarp;',
+        'uniform float uBandFreq;',
+        'uniform float uSeaLevel;',
+        'uniform float uSpeckle;',
+        'uniform vec3 uLightDir;',
+        'varying vec3 vObjPos;',
+        'varying vec3 vWorldNormal;',
+        'varying vec3 vViewDir;',
+        PLANET_NOISE,
+        'void main() {',
+        '    vec3 sp = normalize(vObjPos);',
+        '    vec3 p = sp * uFreq + uSeed;',
+        // domain warp field — this is what makes both biomes look
+        // "grown", flowing/organic instead of raw noise blotches
+        '    vec3 q = vec3(fbm(p + vec3(0.0, 3.1, 1.7)),',
+        '                  fbm(p + vec3(5.2, 1.3, 2.8)),',
+        '                  fbm(p + vec3(1.7, 9.2, 4.6)));',
+        '    vec3 col;',
+        '    if (uBiome < 0.5) {',
+        // terra: fbm smoothstepped into discrete sea / lowland / highland
+        // zones (chunky NMS landmasses), fine octave breaking the edges
+        '        float n = fbm(p + (q - 0.5) * uWarp);',
+        '        n += (fbm(p * 3.7 + q * 2.0) - 0.5) * 0.22;',
+        '        float land = smoothstep(uSeaLevel - 0.035, uSeaLevel + 0.035, n);',
+        '        float high = smoothstep(uSeaLevel + 0.12, uSeaLevel + 0.2, n);',
+        '        col = mix(uColSea, uColLow, land);',
+        '        col = mix(col, uColHigh, high);',
+        '        col += (fbm(p * 6.3) - 0.5) * 0.07;',
+        '    } else {',
+        // gas: latitude bands warped by the same field, plus storm patches
+        '        float lat = sp.y + (q.x - 0.5) * uWarp * 0.45 + (fbm(p * 2.3) - 0.5) * 0.3;',
+        '        float s = sin(lat * uBandFreq + q.y * 2.4);',
+        '        float band = smoothstep(-0.55, 0.55, s);',
+        '        float storm = smoothstep(0.58, 0.8, fbm(p * 2.6 + q));',
+        '        col = mix(uColLow, uColHigh, band);',
+        '        col = mix(col, uColSea, storm * 0.65);',
+        '        col += (fbm(p * 5.1) - 0.5) * 0.05;',
+        '    }',
+        // sparse glowing accent speckle on a seeded minority of worlds
+        '    if (uSpeckle > 0.0) {',
+        '        float spk = step(1.0 - uSpeckle * 0.012, vnoise(p * 26.0));',
+        '        col += uAccent * spk * 1.7;',
+        '    }',
+        // stylized wrap lighting: bright and readable everywhere, night
+        // side only mildly darkened, soft terminator — NOT physical
+        '    vec3 N = normalize(vWorldNormal);',
+        '    float ndl = dot(N, uLightDir) * 0.5 + 0.5;',
+        '    float lightAmt = mix(0.24, 0.96, smoothstep(0.08, 0.92, ndl));',
+        '    col *= lightAmt;',
+        // inner Fresnel — the limb brightens toward the atmosphere color
+        // (tight and modest now — a glowing edge, not a washed-out planet)
+        '    vec3 V = normalize(vViewDir);',
+        '    float fr = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.6);',
+        '    col += uAtmo * fr * 0.3;',
+        '    gl_FragColor = vec4(col, 1.0);',
+        '    #include <tonemapping_fragment>',
+        '    #include <colorspace_fragment>',
+        '}'
+    ].join('\n');
+
+    // atmosphere halo: a slightly larger BackSide shell. Back faces behind
+    // the planet are depth-occluded by the opaque planet mesh, so only the
+    // thin annulus outside the limb survives — where -dot(N, V) runs from
+    // ~0.36 at the planet's limb down to 0 at the shell's own silhouette.
+    // Remapped + pow'd, that's a soft additive glow hugging the limb that
+    // decays to nothing — no hard outline, no giant fog ball.
+    var ATMO_FRAG = [
+        'uniform vec3 uAtmo;',
+        'uniform float uAlpha;',
+        'varying vec3 vObjPos;',
+        'varying vec3 vWorldNormal;',
+        'varying vec3 vViewDir;',
+        'void main() {',
+        '    vec3 N = normalize(vWorldNormal);',
+        '    vec3 V = normalize(vViewDir);',
+        '    float d = clamp(-dot(N, V) * 2.9, 0.0, 1.0);',
+        '    float glow = pow(d, 1.7);',
+        '    gl_FragColor = vec4(uAtmo * glow * uAlpha, 1.0);',
+        '    #include <tonemapping_fragment>',
+        '    #include <colorspace_fragment>',
+        '}'
+    ].join('\n');
+
+    function makePlanetMaterial(node) {
+        return new THREE.ShaderMaterial({
+            uniforms: {
+                uSeed: { value: node.shSeed },
+                uColHigh: { value: node.pal.hi },
+                uColLow: { value: node.pal.lo },
+                uColSea: { value: node.pal.sea },
+                uAtmo: { value: node.pal.atmo },
+                uAccent: { value: node.pal.acc },
+                uBiome: { value: node.biome === 'gas' ? 1 : 0 },
+                uFreq: { value: node.shFreq },
+                uWarp: { value: node.shWarp },
+                uBandFreq: { value: node.shBands },
+                uSeaLevel: { value: node.shSea },
+                uSpeckle: { value: node.shSpeckle },
+                uLightDir: { value: LIGHT_DIR }
+            },
+            vertexShader: PLANET_VERT,
+            fragmentShader: PLANET_FRAG,
+            // tone mapping is handled once, at output time (OutputPass when
+            // bloom is live, renderer otherwise) — never inside materials,
+            // so the two render paths can't diverge or double-map.
+            toneMapped: false
+        });
     }
 
-    // ─── procedural surface texture (albedo only — real lighting does the
-    // shading now, so unlike the old canvas sprite this paints color/noise
-    // variation only, no fake gradient/terminator/specular baked in) ────
-    function bakeSurfaceTexture(node) {
-        var S = node.texRes;
-        var c = document.createElement('canvas');
-        c.width = S; c.height = Math.round(S * 0.6);
-        var g = c.getContext('2d');
-        var rng = mulberry32(node.spriteSeed);
-        var hue = node.hue, sat = node.sat, light = node.light;
-        var W2 = c.width, H2 = c.height;
-
-        // base: a two-tone "ocean/rock" ground, not a flat fill — real
-        // planets read as planets from a distance because of large-scale
-        // continent-vs-basin contrast, not fine detail (fine detail only
-        // matters up close, which is exactly when it's least visible on a
-        // tiny background world). This is the fix for "looks flat/orb-like
-        // at the default zoom": bigger shapes, higher contrast, so the
-        // read survives being shrunk to a few dozen screen pixels.
-        var baseDark = hsl(hue, sat, Math.max(8, light * 0.62));
-        var baseLight = hsl(hue, Math.min(70, sat + 6), Math.min(62, light * 1.35));
-        g.fillStyle = baseDark;
-        g.fillRect(0, 0, W2, H2);
-
-        // layered continent-scale blobs (few, large) + mid-scale texture
-        // (more, smaller) — two octaves reads as real terrain, one octave
-        // reads as a blotch pattern.
-        function blobLayer(count, minR, maxR, alpha, lightBias, hueJitter) {
-            for (var i = 0; i < count; i++) {
-                var bx = rng() * W2, by = rng() * H2;
-                var br = minR + rng() * (maxR - minR);
-                var hueJ = hue + (rng() - 0.5) * hueJitter;
-                var lite = rng() < (0.5 + lightBias) ? baseLight : baseDark;
-                var col = lite === baseLight
-                    ? hsl(hueJ, Math.min(72, sat + 8), Math.min(64, light * (1.3 + rng() * 0.25)), alpha)
-                    : hsl(hueJ, Math.max(10, sat - 10), Math.max(6, light * (0.4 + rng() * 0.2)), alpha);
-                g.fillStyle = col;
-                g.beginPath();
-                g.ellipse(bx, by, br, br * (0.55 + rng() * 0.6), rng() * TAU, 0, TAU);
-                g.fill();
-                // wrap-around continuity at the seam so the equirect texture
-                // tiles cleanly around the sphere
-                if (bx < br) { g.beginPath(); g.ellipse(bx + W2, by, br, br * 0.8, 0, 0, TAU); g.fill(); }
-                if (bx > W2 - br) { g.beginPath(); g.ellipse(bx - W2, by, br, br * 0.8, 0, 0, TAU); g.fill(); }
-            }
-        }
-
-        if (node.noiseKind === 'bands') {
-            // gas-giant style: broad horizontal bands, strong contrast,
-            // plus a handful of storm-blob accents so it isn't perfectly
-            // striped (a real gas giant's bands are never uniform).
-            var bands = 6 + Math.floor(rng() * 7);
-            for (var b = 0; b < bands; b++) {
-                var by2 = (b / bands) * H2 + (rng() - 0.5) * (H2 / bands) * 0.6;
-                var bh = H2 * (0.05 + rng() * 0.1);
-                var hueJ2 = hue + (rng() - 0.5) * 20;
-                var darker = rng() < 0.5;
-                g.fillStyle = hsl(hueJ2, Math.max(14, sat - 8), darker ? Math.max(6, light * 0.5) : Math.min(64, light * 1.4), 0.55);
-                g.fillRect(0, by2 - bh / 2, W2, bh);
-            }
-            blobLayer(6 + Math.floor(rng() * 5), W2 * 0.04, W2 * 0.1, 0.55, 0.1, 18);
-        } else {
-            // rocky/terran style: continent-scale masses first, then
-            // smaller crater/texture detail on top.
-            blobLayer(5 + Math.floor(rng() * 4), W2 * 0.08, W2 * 0.18, 0.82, 0.15, 14);
-            blobLayer(50 + Math.floor(rng() * 70), 2, W2 * 0.028, 0.4, -0.1, 24);
-        }
-
-        // polar caps on a seeded minority — bright, desaturated bands at
-        // the top/bottom of the equirect map (= the poles once wrapped on
-        // the sphere). One of the strongest "real planet, not a ball" cues.
-        if (rng() < 0.4) {
-            var capH = H2 * (0.08 + rng() * 0.09);
-            var capCol = hsl(hue, Math.max(6, sat - 30), Math.min(80, light * 2.1), 0.75);
-            var gradN = g.createLinearGradient(0, 0, 0, capH * 1.6);
-            gradN.addColorStop(0, capCol);
-            gradN.addColorStop(1, 'rgba(0,0,0,0)');
-            g.fillStyle = gradN;
-            g.fillRect(0, 0, W2, capH * 1.6);
-            var gradS = g.createLinearGradient(0, H2 - capH * 1.6, 0, H2);
-            gradS.addColorStop(0, 'rgba(0,0,0,0)');
-            gradS.addColorStop(1, capCol);
-            g.fillStyle = gradS;
-            g.fillRect(0, H2 - capH * 1.6, W2, capH * 1.6);
-        }
-
-        var tex = new THREE.CanvasTexture(c);
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.wrapT = THREE.ClampToEdgeWrapping;
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.anisotropy = 2;
-        return tex;
+    function makeAtmoMaterial(node) {
+        return new THREE.ShaderMaterial({
+            uniforms: {
+                uAtmo: { value: node.pal.atmo },
+                uAlpha: { value: 0.7 }
+            },
+            vertexShader: PLANET_VERT,
+            fragmentShader: ATMO_FRAG,
+            side: THREE.BackSide,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            toneMapped: false
+        });
     }
 
     function sphereGeom(tier) {
@@ -365,16 +482,24 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     }
 
     function buildRingTexture() {
-        var S = 128;
+        // three soft concentric bands separated by real gaps, baked as a
+        // white radial-alpha gradient and tinted per planet — reads as a
+        // translucent pastel ring system, not a single glowing washer.
+        var S = 256;
         var c = document.createElement('canvas');
         c.width = S; c.height = S;
         var g = c.getContext('2d');
         var grad = g.createRadialGradient(S / 2, S / 2, S * 0.30, S / 2, S / 2, S * 0.5);
-        grad.addColorStop(0, 'rgba(255,255,255,0)');
-        grad.addColorStop(0.25, 'rgba(255,255,255,0.55)');
-        grad.addColorStop(0.5, 'rgba(255,255,255,0.15)');
-        grad.addColorStop(0.75, 'rgba(255,255,255,0.4)');
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.00, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.06, 'rgba(255,255,255,0.5)');
+        grad.addColorStop(0.22, 'rgba(255,255,255,0.34)');
+        grad.addColorStop(0.30, 'rgba(255,255,255,0.04)');   // gap
+        grad.addColorStop(0.38, 'rgba(255,255,255,0.55)');
+        grad.addColorStop(0.58, 'rgba(255,255,255,0.4)');
+        grad.addColorStop(0.66, 'rgba(255,255,255,0.03)');   // gap
+        grad.addColorStop(0.74, 'rgba(255,255,255,0.3)');
+        grad.addColorStop(0.9, 'rgba(255,255,255,0.16)');
+        grad.addColorStop(1.00, 'rgba(255,255,255,0)');
         g.fillStyle = grad;
         g.fillRect(0, 0, S, S);
         var tex = new THREE.CanvasTexture(c);
@@ -406,36 +531,20 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var anchor = new THREE.Object3D();
         anchor.name = node.id;
 
-        var surfaceTex = bakeSurfaceTexture(node);
-        var matRng = mulberry32(node.spriteSeed ^ 0x9e3779b9);
-        // Matte, real-world-material finish for every body — no glossy
-        // variety, no specular highlight. A tight bright specular dot is
-        // exactly what reads as "3D-rendered toy ball" instead of a real
-        // planet; real astrophotography of rock/gas worlds essentially
-        // never shows one (only liquid/ice does, and even that is a soft
-        // sheen, not a hot spot). Roughness pinned high and metalness at
-        // zero kills it outright; the tiny seeded variance is just enough
-        // that not every world is bit-identical in finish.
-        var roughness = 0.93 + matRng() * 0.06;
-        var mat = new THREE.MeshStandardMaterial({
-            map: surfaceTex,
-            bumpMap: surfaceTex,
-            bumpScale: 0.05 * (0.6 + matRng() * 0.8),
-            roughness: roughness,
-            metalness: 0,
-            // emissive is ADDITIVE and deliberately modest: enough that a
-            // dark-rolled planet's unlit hemisphere never crushes to a
-            // black hole with a bright ring around it, but low enough that
-            // it doesn't flatten the texture's own contrast on properly
-            // lit planets (that washout is what made everything upstream
-            // of this read as smooth colored balls instead of terrain).
-            emissive: new THREE.Color().setHSL(node.hue / 360, Math.min(45, node.sat / 100 * 55), Math.max(0.05, Math.min(0.12, node.light / 340))),
-            emissiveIntensity: 0.16
-        });
+        var mat = makePlanetMaterial(node);
         var mesh = new THREE.Mesh(sphereGeom(node.geomTier), mat);
         mesh.scale.setScalar(node.bodyR);
         anchor.add(mesh);
         node.mesh = mesh;
+
+        // atmosphere halo shell — a child of the planet mesh, so the
+        // per-frame rendered-size scaling in updateBodies() (and the spin)
+        // carries it automatically. Slightly larger, BackSide, additive.
+        var atmoMat = makeAtmoMaterial(node);
+        var atmo = new THREE.Mesh(sphereGeom(node.geomTier), atmoMat);
+        atmo.scale.setScalar(1.07);
+        mesh.add(atmo);
+        node.atmoMat = atmoMat;
 
         if (node.hasRing) {
             var ringGeom = new THREE.RingGeometry(1.4, 1.9, 48);
@@ -443,9 +552,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             // matching the orbital plane) then apply the seeded tilt/angle.
             var ringMat = new THREE.MeshBasicMaterial({
                 map: RING_TEX,
-                color: new THREE.Color().setHSL(((node.hue + 24) % 360) / 360, Math.max(0.15, node.sat / 100 - 0.1), Math.min(0.5, node.light / 100 + 0.12)),
+                color: node.pal.ring,
                 transparent: true,
-                opacity: 0.32,
+                opacity: 0.3,
                 side: THREE.DoubleSide,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false
@@ -460,7 +569,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
         var glowMat = new THREE.SpriteMaterial({
             map: GLOW_TEX,
-            color: new THREE.Color().setHSL(node.hue / 360, Math.max(0.2, node.sat / 100 - 0.15), 0.4),
+            color: node.pal.atmo,
             transparent: true,
             opacity: 0.14,
             depthWrite: false,
@@ -485,6 +594,50 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // just in-plane), a photon-ring torus, and a big soft omnidirectional
     // glow sprite — together giving it genuine 3D bulk from any camera angle.
     var accretionMesh3 = null, accretionParticles = null, haloSprite = null;
+
+    // buckles a flat RingGeometry into a turbulent, non-planar disk — layered
+    // sine displacement along its own normal, seeded per ring, so it reads as
+    // real volume (a churning sheet of matter) from any camera angle instead
+    // of a perfect flat 2D annulus.
+    function warpRingGeometry(geom, amp, seed) {
+        var pos = geom.attributes.position;
+        var rng = mulberry32(hash32(seed));
+        var f1 = 3 + Math.floor(rng() * 3), f2 = 5 + Math.floor(rng() * 5);
+        var p1 = rng() * TAU, p2 = rng() * TAU;
+        for (var i = 0; i < pos.count; i++) {
+            var x = pos.getX(i), y = pos.getY(i);
+            var r = Math.sqrt(x * x + y * y);
+            var a = Math.atan2(y, x);
+            var z = (Math.sin(a * f1 + p1) * 0.6 + Math.sin(a * f2 + r * 0.02 + p2) * 0.4) * amp;
+            pos.setZ(i, z);
+        }
+        pos.needsUpdate = true;
+        geom.computeVertexNormals();
+        return geom;
+    }
+
+    // roughs up a TorusGeometry's tube along its own normal, seeded — turns
+    // a perfect CAD-smooth ring into an irregular, faintly turbulent band of
+    // plasma (used for the photon ring, which otherwise reads as a flat,
+    // too-crisp 2D outline right at the horizon).
+    function warpTorusGeometry(geom, amp, seed) {
+        var pos = geom.attributes.position;
+        var norm = geom.attributes.normal;
+        var rng = mulberry32(hash32(seed));
+        var f1 = 5 + Math.floor(rng() * 4), f2 = 9 + Math.floor(rng() * 6);
+        var p1 = rng() * TAU, p2 = rng() * TAU;
+        for (var i = 0; i < pos.count; i++) {
+            var x = pos.getX(i), z = pos.getZ(i);
+            var a = Math.atan2(z, x);
+            var n = Math.sin(a * f1 + p1) * 0.6 + Math.sin(a * f2 + p2) * 0.4;
+            pos.setXYZ(i, x + norm.getX(i) * n * amp,
+                pos.getY(i) + norm.getY(i) * n * amp, z + norm.getZ(i) * n * amp);
+        }
+        pos.needsUpdate = true;
+        geom.computeVertexNormals();
+        return geom;
+    }
+
     function buildBlackHole() {
         blackHole = new THREE.Object3D();
         blackHole.name = 'emgor';
@@ -498,9 +651,10 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         blackHole.add(horizon);
 
         var accTex = buildAccretionTexture();
-        var diskGeom = new THREE.RingGeometry(core * 1.08, core * 3.2, 72);
+        var diskGeom = warpRingGeometry(
+            new THREE.RingGeometry(core * 1.08, core * 3.2, 128, 3), core * 0.07, 'emgor::disk1');
         var diskMat = new THREE.MeshBasicMaterial({
-            map: accTex, transparent: true, opacity: 0.7, side: THREE.DoubleSide,
+            map: accTex, transparent: true, opacity: 0.6, side: THREE.DoubleSide,
             blending: THREE.AdditiveBlending, depthWrite: false
         });
         accretionMesh = new THREE.Mesh(diskGeom, diskMat);
@@ -511,25 +665,35 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // the main plane (each in its own pivot group) while independently
         // spinning about their own local normal — this is what reads as
         // genuine 3D structure instead of a single flat ring, since no two
-        // disks share an orientation and each still visibly turns.
+        // disks share an orientation and each still visibly turns. Each is
+        // also buckled off-plane (warpRingGeometry) so it never reads as a
+        // flat 2D annulus even face-on — it's a churning volume of matter.
         var disk2Mat = diskMat.clone();
-        disk2Mat.opacity = 0.32;
-        accretionMesh2 = new THREE.Mesh(new THREE.RingGeometry(core * 0.55, core * 1.5, 56), disk2Mat);
+        disk2Mat.opacity = 0.28;
+        var disk2Geom = warpRingGeometry(
+            new THREE.RingGeometry(core * 0.55, core * 1.5, 96, 2), core * 0.1, 'emgor::disk2');
+        accretionMesh2 = new THREE.Mesh(disk2Geom, disk2Mat);
         var pivot2 = new THREE.Object3D();
         pivot2.rotation.set(Math.PI / 2 + 0.62, 0, 0.9);
         pivot2.add(accretionMesh2);
         blackHole.add(pivot2);
 
         var disk3Mat = diskMat.clone();
-        disk3Mat.opacity = 0.22;
-        accretionMesh3 = new THREE.Mesh(new THREE.RingGeometry(core * 1.6, core * 4.4, 64), disk3Mat);
+        disk3Mat.opacity = 0.2;
+        var disk3Geom = warpRingGeometry(
+            new THREE.RingGeometry(core * 1.6, core * 4.4, 112, 2), core * 0.14, 'emgor::disk3');
+        accretionMesh3 = new THREE.Mesh(disk3Geom, disk3Mat);
         var pivot3 = new THREE.Object3D();
         pivot3.rotation.set(Math.PI / 2 - 0.4, 0, -1.3);
         pivot3.add(accretionMesh3);
         blackHole.add(pivot3);
 
-        var photonGeom = new THREE.TorusGeometry(core, core * 0.05, 10, 72);
-        var photonMat = new THREE.MeshBasicMaterial({ color: 0xd8b8ff, transparent: true, opacity: 0.6 });
+        // photon ring: the tight, bright lensed edge right at the horizon —
+        // deliberately warm violet rather than near-white so it reads as
+        // superheated matter, not a flat pale outline
+        var photonGeom = warpTorusGeometry(
+            new THREE.TorusGeometry(core * 1.01, core * 0.045, 12, 96), core * 0.018, 'emgor::photon');
+        var photonMat = new THREE.MeshBasicMaterial({ color: 0xb87cf0, transparent: true, opacity: 0.5 });
         photonRing = new THREE.Mesh(photonGeom, photonMat);
         photonRing.rotation.x = Math.PI / 2;
         blackHole.add(photonRing);
@@ -589,19 +753,20 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // with vertical jitter that grows with radius (a torus with real
     // thickness, not a flat sheet), so from any camera angle — including
     // straight down the pole — the swarm still reads as a 3D volume, not a
-    // 2D ring. Colored hot-white near the core fading to cool violet out.
+    // 2D ring. Hot magenta-violet near the core fading to deep violet out —
+    // deliberately no near-white, so it reads as superheated plasma, not fog.
     function buildAccretionParticles(core) {
-        var N = 900;
+        var N = 1500;
         var rng = mulberry32(hash32('emgor::accretion-particles'));
         var pos = new Float32Array(N * 3);
         var col = new Float32Array(N * 3);
-        var hotColor = new THREE.Color(0xfff2ff);
-        var coolColor = new THREE.Color(0x5a2fa8);
+        var hotColor = new THREE.Color(0xe8a8ff);
+        var coolColor = new THREE.Color(0x4a1f8c);
         for (var i = 0; i < N; i++) {
             var a = rng() * TAU;
             var t = Math.pow(rng(), 0.7);                 // bias toward inner radii
             var r = core * (1.15 + t * 4.2);
-            var thickness = core * (0.12 + t * 0.55);      // puffier further out
+            var thickness = core * (0.16 + t * 0.7);       // puffier further out
             var y = (rng() - 0.5) * 2 * thickness;
             pos[i * 3] = Math.cos(a) * r;
             pos[i * 3 + 1] = y;
@@ -613,7 +778,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
         var mat = new THREE.PointsMaterial({
-            size: core * 0.05, vertexColors: true, transparent: true, opacity: 0.75,
+            size: core * 0.055, vertexColors: true, transparent: true, opacity: 0.7,
             blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
         });
         return new THREE.Points(geom, mat);
@@ -627,16 +792,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var cx = S / 2, cy = S / 2;
         var rng = mulberry32(hash32('emgor::accretion'));
         g.globalCompositeOperation = 'lighter';
+        // hot core is rich magenta-violet, not white — a black hole's disk
+        // reads as superheated plasma, never a pale/washed glow
         var gr = g.createRadialGradient(cx, cy, S * 0.06, cx, cy, S * 0.5);
-        gr.addColorStop(0, 'rgba(224,170,255,0.55)');
-        gr.addColorStop(0.22, 'rgba(168,85,247,0.30)');
-        gr.addColorStop(0.5, 'rgba(123,47,190,0.12)');
-        gr.addColorStop(1, 'rgba(61,29,142,0)');
+        gr.addColorStop(0, 'rgba(203,110,255,0.5)');
+        gr.addColorStop(0.22, 'rgba(150,70,230,0.28)');
+        gr.addColorStop(0.5, 'rgba(105,40,170,0.12)');
+        gr.addColorStop(1, 'rgba(50,22,120,0)');
         g.fillStyle = gr; g.fillRect(0, 0, S, S);
         for (var i = 0; i < 46; i++) {
             var a0 = rng() * TAU, len = 0.5 + rng() * 1.6, r = S * (0.09 + rng() * 0.3);
             var hue = rng() < 0.16 ? 188 : 268 + rng() * 30;
-            g.strokeStyle = 'hsla(' + hue + ',90%,' + (60 + rng() * 25) + '%,' + (0.05 + rng() * 0.12) + ')';
+            g.strokeStyle = 'hsla(' + hue + ',85%,' + (52 + rng() * 20) + '%,' + (0.05 + rng() * 0.12) + ')';
             g.lineWidth = 1 + rng() * 3.2;
             g.beginPath(); g.arc(cx, cy, r, a0, a0 + len); g.stroke();
         }
@@ -661,9 +828,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             c.width = c.height = S;
             var g = c.getContext('2d');
             var gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-            gr.addColorStop(0, 'hsla(' + hues[i] + ',80%,42%,' + (i === 3 ? 0.05 : 0.1) + ')');
-            gr.addColorStop(0.55, 'hsla(' + hues[i] + ',75%,30%,' + (i === 3 ? 0.025 : 0.05) + ')');
-            gr.addColorStop(1, 'hsla(' + hues[i] + ',70%,25%,0)');
+            // moodier / subtler than before — the nebulae are an undertone
+            // now; the bright planets carry the color in the new grade.
+            gr.addColorStop(0, 'hsla(' + hues[i] + ',70%,34%,' + (i === 3 ? 0.03 : 0.06) + ')');
+            gr.addColorStop(0.55, 'hsla(' + hues[i] + ',65%,24%,' + (i === 3 ? 0.015 : 0.03) + ')');
+            gr.addColorStop(1, 'hsla(' + hues[i] + ',60%,20%,0)');
             g.fillStyle = gr; g.fillRect(0, 0, S, S);
             nebulaSprites.push(c);
         }
@@ -795,7 +964,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // draw — same visual effect, zero runtime overhead.
     function applyVignette() {
         fxCanvas.style.background =
-            'radial-gradient(ellipse at center, rgba(13,2,33,0) 45%, rgba(4,0,12,0.55) 100%)';
+            'radial-gradient(ellipse at center, rgba(6,1,18,0) 45%, rgba(2,0,8,0.6) 100%)';
     }
 
     // ─── world positions (per frame, ALL nodes, true absolute coords) ──
@@ -824,13 +993,14 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // the real sense of scale/depth now comes from orbit motion, self-spin
     // and camera framing instead of a dramatic size hierarchy.
     var UNIFORM_MIX = 0.78;         // 0 = true hierarchy size, 1 = fully uniform by role
+    var CHILD_ROLE = 0.072;         // nav-ring children — deliberately small vs. the focused "sun"
     function uniformSizeFor(n, f) {
         var role;
         if (n === f) role = 0.20;                                        // focused body ("sun")
-        else if (n.parentNode === f) role = 0.115;                       // nav-ring children — main tier
-        else if (n.parentNode && n.parentNode.parentNode === f) role = 0.05;  // hinted grandkids
+        else if (n.parentNode === f) role = CHILD_ROLE;                  // nav-ring children — main tier
+        else if (n.parentNode && n.parentNode.parentNode === f) role = 0.035; // hinted grandkids
         else if (f !== root && n === f.parentNode) role = 0.30;          // ambient background giant
-        else if (f !== root && n.parentNode === f.parentNode) role = 0.115; // siblings
+        else if (f !== root && n.parentNode === f.parentNode) role = CHILD_ROLE; // siblings
         else role = n.bodyR / Math.max(1, f.sysR);
         var uniformR = f.sysR * role;
         var sizeFVar = clamp(0.85 + (n.sizeF - 1) * 0.15, 0.8, 1.2);     // gentle per-node variation only
@@ -884,6 +1054,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
             var pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(time * n.pulseRate + n.pulsePhase);
             n.glowSprite.material.opacity = clamp(a * (0.09 + pulse * 0.06), 0, 1);
+            // atmosphere halo breathes very gently with the same pulse and
+            // fades with the node's role alpha like every other adornment
+            if (n.atmoMat) n.atmoMat.uniforms.uAlpha.value = clamp(a * (0.6 + pulse * 0.18), 0, 1);
             if (n.ringMesh) n.ringMesh.material.opacity = clamp(a * 0.32, 0, 1);
             n.mesh.visible = a > 0.04;
         }
@@ -1279,6 +1452,10 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
         renderer.setPixelRatio(DPR);
         renderer.setSize(W, H, true);
+        if (composer) {
+            composer.setPixelRatio(DPR);
+            composer.setSize(W, H);
+        }
         camera.aspect = W / H;
         camera.fov = FOV;
         camera.updateProjectionMatrix();
@@ -1391,7 +1568,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         drawBackdrop();
         if (intro) drawIntroFx(dt);
 
-        renderer.render(scene, camera);
+        if (composer) composer.render();
+        else renderer.render(scene, camera);
 
         projectAllBodies();
         syncLabels();
@@ -1570,21 +1748,58 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(FOV, 1, 0.05, 200000);
 
-        // one fixed key light + soft ambient/hemisphere fill, all in true
-        // world space (not attached to the camera) — as the camera orbits,
-        // every body's terminator/shading responds correctly because the
-        // light direction never moves relative to the bodies, only the
-        // viewpoint does. Kept subtle/moody to match the dark void aesthetic.
-        scene.add(new THREE.AmbientLight(0x241a44, 0.48));
-        var hemi = new THREE.HemisphereLight(0x53397e, 0x0b0718, 0.44);
-        scene.add(hemi);
-        var key = new THREE.DirectionalLight(0xe9dcff, 1.6);
-        key.position.set(-900, 700, 500);
-        scene.add(key);
+        // no scene lights: every planet is lit inside its own shader from
+        // the one shared world-space LIGHT_DIR (stylized wrap diffuse, NMS
+        // high-key), and the black hole is all Basic/emissive materials —
+        // so real THREE lights would be dead weight here.
 
         RING_TEX = buildRingTexture();
         GLOW_TEX = buildGlowTexture();
         buildBlackHole();
+        setupPost();
+    }
+
+    // ─── bloom post chain — loaded lazily from three's addons via the
+    // importmap in index.html. Everything renders fine without it (the
+    // additive atmosphere shells + glow sprites carry the look), so a CDN
+    // hiccup or an old browser without importmap support just means "no
+    // bloom", never a black page: frameStep falls back to a plain
+    // renderer.render whenever `composer` is null. ─────────────────────
+    function setupPost() {
+        Promise.all([
+            import('three/addons/postprocessing/EffectComposer.js'),
+            import('three/addons/postprocessing/RenderPass.js'),
+            import('three/addons/postprocessing/UnrealBloomPass.js'),
+            import('three/addons/postprocessing/OutputPass.js')
+        ]).then(function (mods) {
+            var c = new mods[0].EffectComposer(renderer);
+            c.setPixelRatio(DPR);
+            c.setSize(W, H);
+            c.addPass(new mods[1].RenderPass(scene, camera));
+            // threshold high enough that only atmosphere limbs, accent
+            // speckle and the accretion disk's hot core cross it — the
+            // bloom is a soft breath on the bright bits, not a smear.
+            bloomPass = new mods[2].UnrealBloomPass(new THREE.Vector2(W, H), 0.48, 0.45, 0.82);
+            // UnrealBloomPass's final additive composite hard-codes alpha
+            // 1.0 in its blur shaders, which would turn the whole canvas
+            // opaque and hide the DOM star/nebula backdrop layered beneath
+            // the WebGL canvas. Rewire that one blend to custom blending:
+            // rgb stays ONE/ONE additive (identical bloom), alpha becomes
+            // ZERO/ONE — i.e. "add the light, keep the scene's own
+            // coverage" — so the void stays see-through to the stars.
+            bloomPass.blendMaterial.blending = THREE.CustomBlending;
+            bloomPass.blendMaterial.blendEquation = THREE.AddEquation;
+            bloomPass.blendMaterial.blendSrc = THREE.OneFactor;
+            bloomPass.blendMaterial.blendDst = THREE.OneFactor;
+            bloomPass.blendMaterial.blendSrcAlpha = THREE.ZeroFactor;
+            bloomPass.blendMaterial.blendDstAlpha = THREE.OneFactor;
+            c.addPass(bloomPass);
+            c.addPass(new mods[3].OutputPass());
+            composer = c;
+        }).catch(function (err) {
+            composer = null;
+            if (window.console) console.warn('galaxy3d: bloom addons unavailable, rendering direct', err);
+        });
     }
 
     function boot() {
