@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a0f2e">
+<title>Cod Remote</title>
+
+<!-- Cod Remote is its own product on emgor.online, deliberately separate
+     from the galaxy site / ciesen / gorcave / neuralgrid etc: own /cod/
+     directory, own manifest, own icon (the actual Cod desktop-app mascot
+     icon, not a reused generic one), own purple theme lifted verbatim from
+     cod/src/theme.css in the Cod Tauri app so the phone and the Mac app
+     read as the same product. -->
+<link rel="manifest" href="remote-manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cod Remote">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
+<style>
+    /* Palette copied verbatim from ______2026NEW/cod/src/theme.css so the
+       phone page and the Mac app are unmistakably the same product. */
+    :root {
+        --cod-bg: #1a0f2e;
+        --cod-bg-elevated: #241640;
+        --cod-fg: #ffffff;
+        --cod-accent: #7c4dff;
+        --cod-border: #3a2a5c;
+
+        --cod-fg-dim: rgba(255, 255, 255, 0.55);
+        --cod-fg-faint: rgba(255, 255, 255, 0.30);
+        --cod-danger: #ff5c7a;
+        --cod-ok: #4dd68a;
+        --cod-warn: #ffb84d;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { height: 100%; background: var(--cod-bg); }
+
+    body {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: manipulation;
+        background:
+            radial-gradient(120% 70% at 50% 0%, var(--cod-bg-elevated) 0%, var(--cod-bg) 62%),
+            var(--cod-bg);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: var(--cod-fg);
+        display: flex;
+        flex-direction: column;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%;
+    }
+
+    header {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: max(14px, env(safe-area-inset-top)) 16px 12px 16px;
+        border-bottom: 1px solid var(--cod-border);
+    }
+
+    header img { width: 32px; height: 32px; border-radius: 8px; display: block; }
+
+    header .brand {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.15;
+    }
+
+    header .brand .name {
+        font-weight: 700;
+        font-size: 1.05rem;
+        letter-spacing: 0.02em;
+    }
+
+    header .brand .sub {
+        font-size: 0.68rem;
+        color: var(--cod-fg-dim);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    header .conn-dot {
+        margin-left: auto;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--cod-fg-faint);
+        box-shadow: 0 0 0 rgba(0,0,0,0);
+        transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+    header .conn-dot.ok { background: var(--cod-ok); box-shadow: 0 0 8px var(--cod-ok); }
+    header .conn-dot.err { background: var(--cod-danger); box-shadow: 0 0 8px var(--cod-danger); }
+
+    main {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 16px;
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+
+    section {
+        background: var(--cod-bg-elevated);
+        border: 1px solid var(--cod-border);
+        border-radius: 14px;
+        padding: 14px;
+    }
+
+    section h2 {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--cod-fg-dim);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .empty-note {
+        color: var(--cod-fg-faint);
+        font-size: 0.85rem;
+        padding: 6px 2px;
+    }
+
+    /* ---- approvals ------------------------------------------------- */
+    .approval-item {
+        border: 1px solid var(--cod-border);
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 8px;
+        background: rgba(124, 77, 255, 0.06);
+    }
+    .approval-item:last-child { margin-bottom: 0; }
+
+    .approval-item .label {
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        word-break: break-word;
+        white-space: pre-wrap;
+    }
+
+    .approval-actions { display: flex; gap: 8px; }
+
+    button {
+        font: inherit;
+        border: none;
+        border-radius: 9px;
+        padding: 10px 14px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        color: var(--cod-fg);
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-approve { background: var(--cod-ok); color: #0a2a18; flex: 1; }
+    .btn-deny { background: var(--cod-danger); color: #2a0a12; flex: 1; }
+    .btn-primary { background: var(--cod-accent); }
+    .btn-ghost {
+        background: transparent;
+        border: 1px solid var(--cod-border);
+        color: var(--cod-fg-dim);
+    }
+
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.5; cursor: default; }
+
+    /* ---- chat -------------------------------------------------------- */
+    #chat-log {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 10px;
+        max-height: 40vh;
+        overflow-y: auto;
+    }
+
+    .chat-row { display: flex; }
+    .chat-row.mine { justify-content: flex-end; }
+    .chat-bubble {
+        max-width: 82%;
+        padding: 8px 11px;
+        border-radius: 12px;
+        font-size: 0.87rem;
+        line-height: 1.35;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .chat-row.mine .chat-bubble { background: var(--cod-accent); color: #fff; border-bottom-right-radius: 3px; }
+    .chat-row.theirs .chat-bubble { background: rgba(255,255,255,0.06); border: 1px solid var(--cod-border); border-bottom-left-radius: 3px; }
+    .chat-row.pending .chat-bubble { opacity: 0.55; font-style: italic; }
+
+    .chat-input-row { display: flex; gap: 8px; }
+    #chat-input {
+        flex: 1;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--cod-border);
+        border-radius: 9px;
+        padding: 10px 12px;
+        color: var(--cod-fg);
+        font: inherit;
+        font-size: 0.9rem;
+    }
+    #chat-input:focus { outline: none; border-color: var(--cod-accent); }
+
+    /* ---- snapshot / status -------------------------------------------- */
+    .kv-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 5px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        font-size: 0.85rem;
+    }
+    .kv-row:last-child { border-bottom: none; }
+    .kv-row .k { color: var(--cod-fg-dim); }
+    .kv-row .v { text-align: right; word-break: break-word; }
+
+    .session-chip {
+        display: inline-block;
+        background: rgba(124, 77, 255, 0.15);
+        border: 1px solid var(--cod-border);
+        border-radius: 999px;
+        padding: 4px 10px;
+        margin: 3px 4px 0 0;
+        font-size: 0.78rem;
+    }
+
+    /* ---- pairing overlay ------------------------------------------- */
+    #pair-overlay {
+        position: fixed;
+        inset: 0;
+        background: var(--cod-bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        z-index: 200;
+    }
+    #pair-overlay.hidden { display: none; }
+    .pair-card {
+        width: 100%;
+        max-width: 360px;
+        background: var(--cod-bg-elevated);
+        border: 1px solid var(--cod-border);
+        border-radius: 16px;
+        padding: 22px;
+    }
+    .pair-card h1 {
+        font-size: 1.15rem;
+        margin-bottom: 4px;
+    }
+    .pair-card p {
+        font-size: 0.82rem;
+        color: var(--cod-fg-dim);
+        margin-bottom: 18px;
+        line-height: 1.4;
+    }
+    .pair-card label {
+        display: block;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--cod-fg-dim);
+        margin-bottom: 6px;
+        margin-top: 14px;
+    }
+    .pair-card input {
+        width: 100%;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--cod-border);
+        border-radius: 9px;
+        padding: 10px 12px;
+        color: var(--cod-fg);
+        font: inherit;
+        font-size: 0.9rem;
+    }
+    .pair-card input:focus { outline: none; border-color: var(--cod-accent); }
+    .pair-card button { width: 100%; margin-top: 20px; padding: 12px; }
+
+    /* ---- update banner (mirrors gorcave-voice.html's pattern) --------- */
+    #update-banner {
+        position: fixed;
+        left: 12px; right: 12px;
+        bottom: max(12px, env(safe-area-inset-bottom));
+        background: var(--cod-bg-elevated);
+        border: 1px solid var(--cod-accent);
+        border-radius: 12px;
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.82rem;
+        transform: translateY(140%);
+        transition: transform 0.2s ease;
+        z-index: 150;
+    }
+    #update-banner.show { transform: translateY(0); }
+    #update-banner button { padding: 8px 12px; font-size: 0.78rem; }
+
+    footer.build-stamp {
+        flex: 0 0 auto;
+        text-align: center;
+        font-size: 0.65rem;
+        color: var(--cod-fg-faint);
+        padding: 4px 0 max(8px, env(safe-area-inset-bottom));
+    }
+</style>
+</head>
+<body>
+
+<header>
+    <img src="icon-192.png" alt="Cod">
+    <div class="brand">
+        <div class="name">Cod Remote</div>
+        <div class="sub">relay control for the Cod desktop agent</div>
+    </div>
+    <div class="conn-dot" id="conn-dot" title="relay connection"></div>
+</header>
+
+<main>
+    <section id="approvals-section">
+        <h2>Pending approvals</h2>
+        <div id="approvals-list"><div class="empty-note">none pending</div></div>
+    </section>
+
+    <section id="chat-section">
+        <h2>Chat with Cod</h2>
+        <div id="chat-log"></div>
+        <div class="chat-input-row">
+            <input id="chat-input" type="text" placeholder="Message Cod…" autocomplete="off">
+            <button class="btn-primary" id="chat-send">Send</button>
+        </div>
+    </section>
+
+    <section id="status-section">
+        <h2>Status</h2>
+        <div id="status-body"><div class="empty-note">waiting for first snapshot…</div></div>
+    </section>
+
+    <section id="sessions-section">
+        <h2>Sessions</h2>
+        <div id="sessions-body"><div class="empty-note">none reported</div></div>
+    </section>
+
+    <section>
+        <h2>Pairing</h2>
+        <div class="kv-row"><div class="k">Device ID</div><div class="v" id="show-device-id">—</div></div>
+        <button class="btn-ghost" id="repair-btn" style="width:100%; margin-top:10px;">Re-pair / change device</button>
+    </section>
+</main>
+
+<footer class="build-stamp" id="build-stamp"></footer>
+
+<div id="update-banner">
+    <span id="update-text">a newer version is available</span>
+    <button class="btn-primary" id="update-apply">Reload</button>
+    <button class="btn-ghost" id="update-dismiss">Later</button>
+</div>
+
+<div id="pair-overlay">
+    <div class="pair-card">
+        <h1>Pair with your Mac</h1>
+        <p>Enter the device ID and secret shown by the Cod desktop app. This is a one-time setup — both are saved on this phone only.</p>
+        <label for="pair-device-id">Device ID</label>
+        <input id="pair-device-id" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. emorys-macbook">
+        <label for="pair-secret">Secret</label>
+        <input id="pair-secret" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="relay secret">
+        <button class="btn-primary" id="pair-save">Pair</button>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    // =========================================================================
+    // Wire format this page speaks — MUST match function/cod-sync.js and
+    // function/cod-command.js exactly (see those files' header comments).
+    //
+    //   GET  /.netlify/functions/cod-sync?deviceId=...&secret=...
+    //        -> { ok: true, snapshot: {...} | null }
+    //
+    //   POST /.netlify/functions/cod-command
+    //        body: { deviceId, secret, command: { type, ...fields } }
+    //        -> { ok: true }
+    //
+    // Command types this page sends:
+    //   { type: 'approve', id }
+    //   { type: 'deny',    id }
+    //   { type: 'chat',    message, targetSession? }
+    //
+    // NOTE on chat replies: this relay is async/polling, not a live socket.
+    // How the Mac-side agent echoes a reply back is not finalized yet — the
+    // assumption here is that a future snapshot will include something like
+    // snapshot.chat = [{ role: 'assistant'|'user', text, ts, id? }, ...] and
+    // this page will reconcile that array against messages it sent locally
+    // (matching by a locally-generated id it can also send as part of the
+    // chat command, once that lands). Until the Mac side defines the exact
+    // shape, we render whatever chat-like array we find defensively and keep
+    // locally-sent messages visible as "pending" until they either appear
+    // echoed back or we give up waiting.
+    // =========================================================================
+
+    var FN_SYNC = '/.netlify/functions/cod-sync';
+    var FN_COMMAND = '/.netlify/functions/cod-command';
+    var POLL_MS = 5000;
+
+    var LS_DEVICE = 'cod_remote_device_id';
+    var LS_SECRET = 'cod_remote_secret';
+
+    var deviceId = null;
+    var secret = null;
+
+    var pendingSent = []; // locally-sent chat messages not yet confirmed echoed back
+
+    // ---- pairing -----------------------------------------------------------
+    var overlay = document.getElementById('pair-overlay');
+    var inDeviceId = document.getElementById('pair-device-id');
+    var inSecret = document.getElementById('pair-secret');
+    var pairSave = document.getElementById('pair-save');
+    var showDeviceId = document.getElementById('show-device-id');
+    var repairBtn = document.getElementById('repair-btn');
+
+    function loadPairing() {
+        try {
+            deviceId = localStorage.getItem(LS_DEVICE);
+            secret = localStorage.getItem(LS_SECRET);
+        } catch (e) { deviceId = null; secret = null; }
+    }
+
+    function savePairing(id, sec) {
+        try {
+            localStorage.setItem(LS_DEVICE, id);
+            localStorage.setItem(LS_SECRET, sec);
+        } catch (e) {}
+        deviceId = id;
+        secret = sec;
+    }
+
+    function openPairOverlay() {
+        overlay.classList.remove('hidden');
+        if (inDeviceId) inDeviceId.value = deviceId || '';
+    }
+
+    function closePairOverlay() {
+        overlay.classList.add('hidden');
+    }
+
+    pairSave.addEventListener('click', function () {
+        var id = (inDeviceId.value || '').trim();
+        var sec = (inSecret.value || '').trim();
+        if (!id || !sec) return;
+        savePairing(id, sec);
+        showDeviceId.textContent = deviceId;
+        closePairOverlay();
+        startPolling();
+    });
+
+    repairBtn.addEventListener('click', openPairOverlay);
+
+    loadPairing();
+    if (deviceId && secret) {
+        showDeviceId.textContent = deviceId;
+        closePairOverlay();
+    } else {
+        openPairOverlay();
+    }
+
+    // ---- connection indicator ----------------------------------------------
+    var connDot = document.getElementById('conn-dot');
+    function setConn(state) {
+        connDot.classList.remove('ok', 'err');
+        if (state === 'ok') connDot.classList.add('ok');
+        else if (state === 'err') connDot.classList.add('err');
+    }
+
+    // ---- rendering: approvals ------------------------------------------------
+    var approvalsList = document.getElementById('approvals-list');
+
+    function sendCommand(command) {
+        if (!deviceId || !secret) return Promise.reject(new Error('not paired'));
+        return fetch(FN_COMMAND, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId: deviceId, secret: secret, command: command })
+        }).then(function (res) {
+            if (!res.ok) throw new Error('command failed: ' + res.status);
+            return res.json().catch(function () { return {}; });
+        });
+    }
+
+    function renderApprovals(snapshot) {
+        var items = null;
+        if (snapshot && Array.isArray(snapshot.pendingApprovals)) items = snapshot.pendingApprovals;
+        else if (snapshot && Array.isArray(snapshot.approvals)) items = snapshot.approvals;
+
+        approvalsList.innerHTML = '';
+        if (!items || items.length === 0) {
+            approvalsList.innerHTML = '<div class="empty-note">none pending</div>';
+            return;
+        }
+
+        items.forEach(function (item) {
+            if (!item || typeof item !== 'object') return;
+            var id = item.id != null ? item.id : JSON.stringify(item);
+            var label = item.label || item.summary || item.description || item.command || ('approval ' + id);
+
+            var row = document.createElement('div');
+            row.className = 'approval-item';
+
+            var labelEl = document.createElement('div');
+            labelEl.className = 'label';
+            labelEl.textContent = String(label);
+            row.appendChild(labelEl);
+
+            var actions = document.createElement('div');
+            actions.className = 'approval-actions';
+
+            var approveBtn = document.createElement('button');
+            approveBtn.className = 'btn-approve';
+            approveBtn.textContent = 'Approve';
+            approveBtn.addEventListener('click', function () {
+                approveBtn.disabled = true;
+                denyBtn.disabled = true;
+                sendCommand({ type: 'approve', id: id })
+                    .catch(function () {})
+                    .then(function () { approveBtn.disabled = false; denyBtn.disabled = false; });
+            });
+
+            var denyBtn = document.createElement('button');
+            denyBtn.className = 'btn-deny';
+            denyBtn.textContent = 'Deny';
+            denyBtn.addEventListener('click', function () {
+                approveBtn.disabled = true;
+                denyBtn.disabled = true;
+                sendCommand({ type: 'deny', id: id })
+                    .catch(function () {})
+                    .then(function () { approveBtn.disabled = false; denyBtn.disabled = false; });
+            });
+
+            actions.appendChild(approveBtn);
+            actions.appendChild(denyBtn);
+            row.appendChild(actions);
+            approvalsList.appendChild(row);
+        });
+    }
+
+    // ---- rendering: chat -----------------------------------------------------
+    var chatLog = document.getElementById('chat-log');
+    var chatInput = document.getElementById('chat-input');
+    var chatSend = document.getElementById('chat-send');
+
+    function renderChat(snapshot) {
+        var remoteMsgs = null;
+        if (snapshot && Array.isArray(snapshot.chat)) remoteMsgs = snapshot.chat;
+        else if (snapshot && Array.isArray(snapshot.chatLog)) remoteMsgs = snapshot.chatLog;
+
+        chatLog.innerHTML = '';
+
+        var remoteTexts = {};
+        if (remoteMsgs) {
+            remoteMsgs.forEach(function (m) {
+                if (!m || typeof m !== 'object') return;
+                var text = m.text || m.message || '';
+                var role = m.role === 'assistant' || m.from === 'cod' ? 'theirs' : 'mine';
+                remoteTexts[text] = true;
+
+                var row = document.createElement('div');
+                row.className = 'chat-row ' + role;
+                var bubble = document.createElement('div');
+                bubble.className = 'chat-bubble';
+                bubble.textContent = text;
+                row.appendChild(bubble);
+                chatLog.appendChild(row);
+            });
+        }
+
+        // Drop any locally-pending sends that have since shown up in the
+        // snapshot (best-effort match by exact text — see wire-format note
+        // above about why this is approximate for now).
+        pendingSent = pendingSent.filter(function (m) { return !remoteTexts[m]; });
+        pendingSent.forEach(function (text) {
+            var row = document.createElement('div');
+            row.className = 'chat-row mine pending';
+            var bubble = document.createElement('div');
+            bubble.className = 'chat-bubble';
+            bubble.textContent = text + '  (sent, waiting for Cod’s reply…)';
+            row.appendChild(bubble);
+            chatLog.appendChild(row);
+        });
+
+        chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function doSendChat() {
+        var msg = (chatInput.value || '').trim();
+        if (!msg) return;
+        chatInput.value = '';
+        pendingSent.push(msg);
+        renderChat(lastSnapshot);
+        sendCommand({ type: 'chat', message: msg }).catch(function () {
+            // leave it in pendingSent; it'll just keep showing as pending
+        });
+    }
+
+    chatSend.addEventListener('click', doSendChat);
+    chatInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doSendChat();
+    });
+
+    // ---- rendering: generic status / sessions ---------------------------------
+    var statusBody = document.getElementById('status-body');
+    var sessionsBody = document.getElementById('sessions-body');
+
+    function renderStatus(snapshot) {
+        statusBody.innerHTML = '';
+        if (!snapshot || typeof snapshot !== 'object') {
+            statusBody.innerHTML = '<div class="empty-note">waiting for first snapshot…</div>';
+            return;
+        }
+
+        // Render any top-level scalar fields generically (usage numbers,
+        // version strings, etc.) — whatever the Mac side happens to include.
+        // Arrays/objects are handled by their own sections (approvals,
+        // sessions, chat) or skipped here to avoid dumping raw JSON.
+        var skip = { pendingApprovals: 1, approvals: 1, chat: 1, chatLog: 1, sessions: 1 };
+        var any = false;
+        Object.keys(snapshot).forEach(function (key) {
+            if (skip[key]) return;
+            var val = snapshot[key];
+            if (val !== null && typeof val === 'object') return;
+            any = true;
+            var row = document.createElement('div');
+            row.className = 'kv-row';
+            var k = document.createElement('div');
+            k.className = 'k';
+            k.textContent = key;
+            var v = document.createElement('div');
+            v.className = 'v';
+            v.textContent = String(val);
+            row.appendChild(k);
+            row.appendChild(v);
+            statusBody.appendChild(row);
+        });
+        if (!any) statusBody.innerHTML = '<div class="empty-note">no status fields reported</div>';
+    }
+
+    function renderSessions(snapshot) {
+        sessionsBody.innerHTML = '';
+        var sessions = snapshot && Array.isArray(snapshot.sessions) ? snapshot.sessions : null;
+        if (!sessions || sessions.length === 0) {
+            sessionsBody.innerHTML = '<div class="empty-note">none reported</div>';
+            return;
+        }
+        sessions.forEach(function (s) {
+            var label = (s && typeof s === 'object') ? (s.name || s.id || JSON.stringify(s)) : String(s);
+            var chip = document.createElement('span');
+            chip.className = 'session-chip';
+            chip.textContent = label;
+            sessionsBody.appendChild(chip);
+        });
+    }
+
+    // ---- polling loop --------------------------------------------------------
+    var lastSnapshot = null;
+    var pollTimer = null;
+
+    function poll() {
+        if (!deviceId || !secret) return;
+        var url = FN_SYNC + '?deviceId=' + encodeURIComponent(deviceId) + '&secret=' + encodeURIComponent(secret);
+        fetch(url, { cache: 'no-store' })
+            .then(function (res) {
+                if (!res.ok) throw new Error('sync failed: ' + res.status);
+                return res.json();
+            })
+            .then(function (data) {
+                setConn('ok');
+                lastSnapshot = (data && data.snapshot) || null;
+                renderApprovals(lastSnapshot);
+                renderChat(lastSnapshot);
+                renderStatus(lastSnapshot);
+                renderSessions(lastSnapshot);
+            })
+            .catch(function () {
+                setConn('err');
+            });
+    }
+
+    function startPolling() {
+        if (pollTimer) return;
+        poll();
+        pollTimer = setInterval(function () {
+            if (document.visibilityState === 'visible') poll();
+        }, POLL_MS);
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') poll();
+    });
+
+    if (deviceId && secret) startPolling();
+
+    // =========================================================================
+    // Self-update via version poll — same pattern as gorcave-voice.html.
+    //   >>> BUMP BOTH TOGETHER ON EACH MEANINGFUL DEPLOY <<<
+    //         cod/remote-version.json  ("version")
+    //         cod/remote.html          (APP_VERSION)
+    //       Format: YYYY-MM-DD.N  (N restarts at 1 each day)
+    // =========================================================================
+    var APP_VERSION = '2026-08-15.1';
+
+    (function buildAndUpdate() {
+        var VERSION_URL = 'remote-version.json';
+        var POLL_VERSION_MS = 15 * 60 * 1000;
+        var MIN_GAP_MS = 60 * 1000;
+
+        var stamp = document.getElementById('build-stamp');
+        if (stamp) stamp.textContent = 'Cod Remote — build ' + APP_VERSION;
+
+        var upBanner = document.getElementById('update-banner');
+        var upText = document.getElementById('update-text');
+        var upApply = document.getElementById('update-apply');
+        var upDismiss = document.getElementById('update-dismiss');
+
+        var latest = null;
+        var lastCheck = 0;
+        var dismissed = false;
+
+        function conversationInProgress() {
+            return !!(chatInput && chatInput.value && chatInput.value.trim());
+        }
+
+        function navigateFresh(v) {
+            location.replace(location.pathname + '?v=' + encodeURIComponent(v));
+        }
+
+        function applyUpdate() {
+            navigateFresh(latest || String(Date.now()));
+        }
+
+        function showUpdate(v) {
+            if (!upBanner || dismissed) return;
+            if (upText) upText.textContent = 'a newer version is available (' + v + ')';
+            upBanner.classList.add('show');
+        }
+
+        function checkVersion() {
+            var now = Date.now();
+            if (now - lastCheck < MIN_GAP_MS) return;
+            lastCheck = now;
+
+            var req;
+            try {
+                req = fetch(VERSION_URL + '?t=' + now, { cache: 'no-store', credentials: 'omit' });
+            } catch (e) { return; }
+            if (!req || typeof req.then !== 'function') return;
+
+            req.then(function (res) {
+                if (!res || !res.ok) return null;
+                return res.text();
+            }).then(function (body) {
+                if (!body) return;
+                var data = null;
+                try { data = JSON.parse(body); } catch (e) { return; }
+                if (!data || typeof data.version !== 'string' || !data.version) return;
+                if (data.version === APP_VERSION) { latest = null; return; }
+                latest = data.version;
+                if (!conversationInProgress()) {
+                    showUpdate(latest);
+                } else {
+                    showUpdate(latest);
+                }
+            })['catch'](function () {});
+        }
+
+        if (upApply) upApply.addEventListener('click', applyUpdate);
+        if (upDismiss) upDismiss.addEventListener('click', function () {
+            dismissed = true;
+            if (upBanner) upBanner.classList.remove('show');
+        });
+
+        setTimeout(checkVersion, 4000);
+        setInterval(function () {
+            if (document.visibilityState === 'visible') checkVersion();
+        }, POLL_VERSION_MS);
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') checkVersion();
+        });
+    })();
+})();
+</script>
+</body>
+</html>

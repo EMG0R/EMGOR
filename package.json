@@ -1,0 +1,9 @@
+{
+  "name": "emgor-online",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Site root for emgor.online. Exists mainly so Netlify's build installs dependencies used by Netlify Functions (see function/).",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

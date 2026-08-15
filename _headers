@@ -31,3 +31,16 @@
 
 /gorcave-version.json
   Cache-Control: no-cache
+
+# Cod Remote is the installed home-screen app for the phone side of the Cod
+# desktop agent — same "no separate APK" situation as gorcave above, so the
+# same reasoning applies: no-cache (revalidate, allow cheap 304s), and
+# remote-version.json (the staleness beacon it polls) must never be cached.
+/cod/remote.html
+  Cache-Control: no-cache
+
+/cod/remote-manifest.json
+  Cache-Control: no-cache
+
+/cod/remote-version.json
+  Cache-Control: no-cache
