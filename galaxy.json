@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-13",
+  "generated": "2026-08-27",
   "nodes": [
     {
       "id": "emgor",
@@ -311,9 +311,9 @@
         "server",
         "gorcave"
       ],
-      "updated": "2026-08-03",
+      "updated": "2026-08-27",
       "size": 1.6,
-      "launch": "gorcave-chat.html"
+      "launch": "gorcave-dash.html"
     },
     {
       "id": "emgor.hardware",

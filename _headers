@@ -19,8 +19,13 @@
 # stale cached copy is the only way the home-screen app can go out of date.
 # no-cache (revalidate before use), NOT no-store: we still want cheap 304s.
 # gorcave-version.json is the staleness beacon both pages poll, so it above
-# all must never be served from cache.
+# all must never be served from cache. gorcave-dash.html is the galaxy entry
+# point (the control-room dashboard, chat embedded) and polls the same live
+# Pi API, so it gets the same treatment.
 /gorcave-chat.html
+  Cache-Control: no-cache
+
+/gorcave-dash.html
   Cache-Control: no-cache
 
 /gorcave-voice.html

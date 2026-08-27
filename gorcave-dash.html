@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0512">
+    <title>GORCAVE SERVER — dashboard</title>
+
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="icon" href="gorcave-icon-192.png" type="image/png">
+    <style>
+        :root {
+            /* Same palette family as gorcave-chat.html, kept in lockstep. */
+            --bg:          #0a0512;
+            --bg-glow:     #150b26;
+            --surface:     rgba(168, 146, 214, 0.05);
+            --surface-2:   rgba(168, 146, 214, 0.09);
+            --line:        rgba(178, 158, 222, 0.12);
+            --line-strong: rgba(178, 158, 222, 0.30);
+            --text:        rgba(236, 231, 247, 0.90);
+            --text-dim:    rgba(214, 205, 235, 0.55);
+            --text-faint:  rgba(198, 188, 226, 0.28);
+            --lavender:    rgba(178, 163, 214, 0.78);
+            --ok:          rgba(140, 214, 168, 0.85);
+            --bad:         rgba(224, 130, 140, 0.85);
+            --warn:        rgba(224, 186, 130, 0.85);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { height: 100%; background: var(--bg); }
+
+        body {
+            min-height: 100dvh;
+            background:
+                radial-gradient(120% 70% at 50% 0%, var(--bg-glow) 0%, var(--bg) 62%),
+                var(--bg);
+            font-family: 'Courier New', Courier, monospace;
+            color: var(--text);
+            -webkit-tap-highlight-color: transparent;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .home-button {
+            position: fixed;
+            top: max(14px, env(safe-area-inset-top));
+            left: max(14px, env(safe-area-inset-left));
+            z-index: 100;
+            font-size: 1.8rem;
+            line-height: 1;
+            min-width: 44px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .home-button:hover { color: var(--text); }
+
+        header {
+            padding: max(16px, env(safe-area-inset-top)) 20px 14px 64px;
+            text-align: center;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface);
+            flex: 0 0 auto;
+        }
+        header h1 {
+            font-size: 1rem;
+            letter-spacing: 3px;
+            font-weight: normal;
+            color: rgba(232, 226, 246, 0.86);
+        }
+        header .sub {
+            margin-top: 5px;
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+            color: var(--text-faint);
+        }
+        header .links {
+            margin-top: 8px;
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        header .links a {
+            font-size: 0.62rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--lavender);
+            text-decoration: none;
+            border-bottom: 1px dotted var(--line-strong);
+            padding-bottom: 1px;
+        }
+        header .links a:hover { color: var(--text); }
+
+        main {
+            flex: 1 1 auto;
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+            gap: 16px;
+            padding: 18px;
+            align-items: start;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        @media (max-width: 960px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stats-col {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            align-content: start;
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .panel h2 {
+            font-size: 0.68rem;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            color: var(--text-faint);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: normal;
+        }
+        .panel h2 .pill {
+            font-size: 0.55rem;
+            letter-spacing: 1px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--line-strong);
+            color: var(--text-dim);
+        }
+        .panel h2 .pill.offline { color: var(--bad); border-color: rgba(224,130,140,0.4); }
+        .panel h2 .pill.live { color: var(--ok); border-color: rgba(140,214,168,0.4); }
+
+        .row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 0.82rem;
+        }
+        .row .k { color: var(--text-dim); letter-spacing: 0.5px; }
+        .row .v { color: var(--text); font-variant-numeric: tabular-nums; }
+        .row .v.ok { color: var(--ok); }
+        .row .v.bad { color: var(--bad); }
+
+        .bar-wrap { display: flex; flex-direction: column; gap: 4px; }
+        .bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.72rem;
+            color: var(--text-dim);
+        }
+        .bar-track {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(178, 158, 222, 0.10);
+            overflow: hidden;
+            border: 1px solid var(--line);
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(150,122,208,0.65), rgba(178,163,214,0.85));
+            transition: width 0.4s ease-out;
+        }
+        .bar-fill.warn { background: linear-gradient(90deg, rgba(196,160,90,0.65), rgba(224,186,130,0.85)); }
+        .bar-fill.bad  { background: linear-gradient(90deg, rgba(196,90,100,0.65), rgba(224,130,140,0.85)); }
+
+        .dot {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--text-faint);
+            flex: 0 0 auto;
+        }
+        .dot.ok { background: var(--ok); box-shadow: 0 0 8px rgba(140,214,168,0.5); }
+        .dot.bad { background: var(--bad); box-shadow: 0 0 8px rgba(224,130,140,0.5); }
+
+        .svc-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 14px;
+        }
+        .svc-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+        }
+
+        .btn {
+            background: var(--surface-2);
+            border: 1px solid var(--line-strong);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.68rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 10px 14px;
+            min-height: 40px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: border-color 0.2s, color 0.2s, background 0.2s, opacity 0.2s;
+        }
+        .btn:hover:not(:disabled) {
+            border-color: rgba(196, 178, 240, 0.6);
+            background: rgba(168, 146, 214, 0.14);
+        }
+        .btn:disabled { opacity: 0.45; cursor: default; }
+        .btn.primary {
+            color: var(--lavender);
+            border-color: rgba(196, 178, 240, 0.5);
+        }
+
+        .skeleton {
+            color: var(--text-faint);
+            font-size: 0.78rem;
+            letter-spacing: 0.5px;
+            font-style: normal;
+        }
+
+        /* ---- Chat pane ---- */
+        .chat-col {
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            overflow: hidden;
+            height: min(78vh, 720px);
+            position: sticky;
+            top: 18px;
+        }
+        @media (max-width: 960px) {
+            .chat-col { height: 60vh; position: static; }
+        }
+        .chat-head {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface-2);
+        }
+        .chat-head .title {
+            font-size: 0.68rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+        .chat-head .expand {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--lavender);
+            text-decoration: none;
+            border: 1px solid var(--line-strong);
+            border-radius: 999px;
+            padding: 6px 10px;
+        }
+        .chat-head .expand:hover { background: var(--surface); color: var(--text); }
+        .chat-head .expand svg { width: 12px; height: 12px; fill: currentColor; }
+
+        #history {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .msg {
+            max-width: 86%;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            padding: 9px 12px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .msg.me {
+            align-self: flex-end;
+            background: rgba(150, 122, 208, 0.16);
+            border: 1px solid rgba(178, 158, 222, 0.16);
+            color: rgba(240, 236, 250, 0.94);
+        }
+        .msg.them {
+            align-self: flex-start;
+            background: rgba(168, 146, 214, 0.06);
+            border: 1px solid var(--line);
+            color: rgba(228, 222, 243, 0.82);
+        }
+        .msg.system {
+            align-self: center;
+            max-width: 92%;
+            background: none;
+            border: none;
+            color: var(--lavender);
+            font-size: 0.76rem;
+            text-align: center;
+        }
+        .msg.thinking {
+            align-self: flex-start;
+            background: rgba(168, 146, 214, 0.06);
+            border: 1px solid var(--line);
+            color: var(--text-dim);
+            letter-spacing: 2px;
+        }
+        .msg.thinking .dots { animation: pulse 1.2s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
+        @media (prefers-reduced-motion: reduce) { .msg.thinking .dots { animation: none; } }
+
+        #composer {
+            flex: 0 0 auto;
+            display: flex;
+            gap: 8px;
+            padding: 10px 12px;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            border-top: 1px solid var(--line);
+            background: rgba(168, 146, 214, 0.045);
+        }
+        #composer input {
+            flex: 1 1 auto;
+            background: rgba(168, 146, 214, 0.09);
+            border: 1px solid var(--line-strong);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 16px;
+            padding: 11px 13px;
+            min-height: 42px;
+            outline: none;
+            border-radius: 10px;
+            min-width: 0;
+            -webkit-appearance: none;
+        }
+        #composer input::placeholder { color: var(--text-faint); }
+        #composer input:focus { border-color: rgba(190, 172, 235, 0.55); }
+        .send-btn {
+            background: var(--surface-2);
+            border: 1px solid var(--line-strong);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.72rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 10px 16px;
+            min-height: 42px;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .send-btn:hover { border-color: rgba(196, 178, 240, 0.6); background: rgba(168, 146, 214, 0.14); }
+
+        footer {
+            flex: 0 0 auto;
+            text-align: center;
+            padding: 10px;
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            color: var(--text-faint);
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="home-button" aria-label="home">&#8962;</a>
+
+    <header>
+        <h1>GORCAVE SERVER</h1>
+        <div class="sub">control room — vitals, services, and a live line into the machine</div>
+        <div class="links">
+            <a href="gorcave-chat.html">open standalone chat &rarr;</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="stats-col">
+            <section class="panel" id="panel-vitals">
+                <h2>vitals <span class="pill" id="vitals-pill">connecting…</span></h2>
+                <div class="row"><span class="k">temp</span><span class="v" id="v-temp">—</span></div>
+                <div class="row"><span class="k">throttled</span><span class="v" id="v-throttled">—</span></div>
+                <div class="row"><span class="k">uptime</span><span class="v" id="v-uptime">—</span></div>
+                <div class="row"><span class="k">load (1/5/15m)</span><span class="v" id="v-load">—</span></div>
+                <div class="bar-wrap">
+                    <div class="bar-label"><span>memory</span><span id="v-mem-label">—</span></div>
+                    <div class="bar-track"><div class="bar-fill" id="v-mem-bar" style="width:0%"></div></div>
+                </div>
+                <div class="bar-wrap">
+                    <div class="bar-label"><span>root disk</span><span id="v-disk-label">—</span></div>
+                    <div class="bar-track"><div class="bar-fill" id="v-disk-bar" style="width:0%"></div></div>
+                </div>
+                <div class="bar-wrap">
+                    <div class="bar-label"><span>storage drive</span><span id="v-store-label">—</span></div>
+                    <div class="bar-track"><div class="bar-fill" id="v-store-bar" style="width:0%"></div></div>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-services">
+                <h2>services <span class="pill" id="services-pill">connecting…</span></h2>
+                <div class="svc-grid">
+                    <div class="svc-item"><span class="dot" id="dot-lightserver"></span>lightserver</div>
+                    <div class="svc-item"><span class="dot" id="dot-server_agent"></span>server agent</div>
+                    <div class="svc-item"><span class="dot" id="dot-smbd"></span>file share</div>
+                    <div class="svc-item"><span class="dot" id="dot-b2_backup_timer"></span>backup timer</div>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-lights">
+                <h2>lights <span class="pill" id="lights-pill">connecting…</span></h2>
+                <div class="row"><span class="k">scene</span><span class="v" id="l-scene">—</span></div>
+                <div class="row"><span class="k">fps</span><span class="v" id="l-fps">—</span></div>
+                <div class="row"><span class="k">nodes online</span><span class="v" id="l-nodes">—</span></div>
+            </section>
+
+            <section class="panel" id="panel-net">
+                <h2>network <span class="pill" id="net-pill">connecting…</span></h2>
+                <div class="row"><span class="k">rx / tx</span><span class="v" id="n-live">—</span></div>
+                <div class="row"><span class="k">last speed test</span><span class="v" id="n-speed">—</span></div>
+                <div class="row"><span class="k">ping</span><span class="v" id="n-ping">—</span></div>
+                <button class="btn" id="btn-speedtest" type="button">run speed test</button>
+            </section>
+
+            <section class="panel" id="panel-backup">
+                <h2>backup <span class="pill" id="backup-pill">connecting…</span></h2>
+                <div class="row"><span class="k">last run</span><span class="v" id="b-last">—</span></div>
+                <div class="row"><span class="k">result</span><span class="v" id="b-result">—</span></div>
+                <div class="row"><span class="k">next scheduled</span><span class="v" id="b-next">daily · noon</span></div>
+                <div class="row"><span class="k">transferred</span><span class="v" id="b-bytes">—</span></div>
+                <button class="btn primary" id="btn-backup" type="button">back up now</button>
+            </section>
+        </div>
+
+        <div class="chat-col">
+            <div class="chat-head">
+                <span class="title">gorcave agent</span>
+                <a href="gorcave-chat.html" class="expand" id="chat-expand" aria-label="open full chat">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7h-2V6.4l-8.3 8.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H5v12h12v-6h2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
+                    expand
+                </a>
+            </div>
+            <div id="history"></div>
+            <form id="composer" autocomplete="off">
+                <input id="msg-input" type="text" placeholder="say something to gorcave"
+                       autocomplete="off" autocorrect="on" autocapitalize="sentences"
+                       spellcheck="true" enterkeyhint="send">
+                <button type="submit" class="send-btn" id="send-btn">send</button>
+            </form>
+        </div>
+    </main>
+
+    <footer>gorcave dashboard &middot; polling every 15s (stats) / 60s (network + backup)</footer>
+
+    <script>
+        // =================================================================
+        // Dashboard data layer.
+        // Every panel degrades to an "offline" / skeleton state on failure —
+        // this page must keep working as a chat client even if the dash API
+        // (/api/dash/*) is down or not yet deployed on the Pi.
+        // =================================================================
+        const API_BASE = "https://gorcave.taila85593.ts.net";
+        const FETCH_TIMEOUT_MS = 8000;
+
+        async function fetchJSON(path, opts) {
+            const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+            const timer = ctrl ? setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS) : null;
+            try {
+                const res = await fetch(API_BASE + path, Object.assign({
+                    signal: ctrl ? ctrl.signal : undefined
+                }, opts || {}));
+                if (!res.ok) throw new Error('http ' + res.status);
+                return await res.json();
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
+        }
+
+        function setPill(id, state) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.className = 'pill' + (state === 'live' ? ' live' : state === 'offline' ? ' offline' : '');
+            el.textContent = state === 'live' ? 'live' : state === 'offline' ? 'offline' : 'connecting…';
+        }
+
+        function fmtBytes(gb) {
+            if (gb == null || isNaN(gb)) return '—';
+            return gb >= 1000 ? (gb / 1000).toFixed(2) + ' TB' : gb.toFixed(1) + ' GB';
+        }
+        function fmtBytesRaw(n) {
+            if (n == null || isNaN(n)) return '—';
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let i = 0, v = n;
+            while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+            return v.toFixed(v >= 10 || i === 0 ? 0 : 1) + ' ' + units[i];
+        }
+        function humanizeUptime(sec) {
+            if (sec == null || isNaN(sec)) return '—';
+            sec = Math.floor(sec);
+            const d = Math.floor(sec / 86400); sec -= d * 86400;
+            const h = Math.floor(sec / 3600); sec -= h * 3600;
+            const m = Math.floor(sec / 60);
+            const parts = [];
+            if (d) parts.push(d + 'd');
+            if (h || d) parts.push(h + 'h');
+            parts.push(m + 'm');
+            return parts.join(' ');
+        }
+        function humanizeAgo(ts) {
+            if (!ts) return '—';
+            let ms = typeof ts === 'number' ? (ts < 2e10 ? ts * 1000 : ts) : Date.parse(ts);
+            if (!ms || isNaN(ms)) return String(ts);
+            const diff = Date.now() - ms;
+            if (diff < 0) return 'just now';
+            const s = Math.floor(diff / 1000);
+            if (s < 60) return s + 's ago';
+            const m = Math.floor(s / 60);
+            if (m < 60) return m + 'm ago';
+            const h = Math.floor(m / 60);
+            if (h < 24) return h + 'h ago';
+            const d = Math.floor(h / 24);
+            return d + 'd ago';
+        }
+        function barClass(pct) {
+            if (pct >= 90) return 'bad';
+            if (pct >= 75) return 'warn';
+            return '';
+        }
+        function setBar(fillId, labelId, pct, label) {
+            const fill = document.getElementById(fillId);
+            const lbl = document.getElementById(labelId);
+            if (fill) {
+                const p = Math.max(0, Math.min(100, pct || 0));
+                fill.style.width = p + '%';
+                fill.className = 'bar-fill' + (barClass(p) ? ' ' + barClass(p) : '');
+            }
+            if (lbl) lbl.textContent = label;
+        }
+
+        // ---- vitals + services + lights (from /api/dash/stats) ----
+        async function pollStats() {
+            try {
+                const d = await fetchJSON('/api/dash/stats');
+                setPill('vitals-pill', 'live');
+                setPill('services-pill', 'live');
+                setPill('lights-pill', 'live');
+
+                document.getElementById('v-temp').textContent =
+                    (d.temp_c != null) ? d.temp_c.toFixed(1) + '°C' : '—';
+
+                const throttledEl = document.getElementById('v-throttled');
+                const th = d.throttled;
+                const clean = th === '0x0' || th === 0 || th === '0';
+                throttledEl.textContent = (th != null) ? String(th) : '—';
+                throttledEl.className = 'v' + (th != null ? (clean ? ' ok' : ' bad') : '');
+
+                document.getElementById('v-uptime').textContent = humanizeUptime(d.uptime_sec);
+                document.getElementById('v-load').textContent =
+                    Array.isArray(d.load) ? d.load.map(n => Number(n).toFixed(2)).join(' / ') : '—';
+
+                if (d.mem) {
+                    const pct = d.mem.total_mb ? (d.mem.used_mb / d.mem.total_mb * 100) : 0;
+                    setBar('v-mem-bar', 'v-mem-label', pct,
+                        Math.round(d.mem.used_mb) + ' / ' + Math.round(d.mem.total_mb) + ' MB');
+                } else {
+                    setBar('v-mem-bar', 'v-mem-label', 0, '—');
+                }
+
+                if (d.disk_root) {
+                    const pct = d.disk_root.pct != null ? d.disk_root.pct :
+                        (d.disk_root.total_gb ? (d.disk_root.used_gb / d.disk_root.total_gb * 100) : 0);
+                    setBar('v-disk-bar', 'v-disk-label', pct,
+                        fmtBytes(d.disk_root.used_gb) + ' / ' + fmtBytes(d.disk_root.total_gb));
+                } else {
+                    setBar('v-disk-bar', 'v-disk-label', 0, '—');
+                }
+
+                if (d.disk_storage && d.disk_storage.mounted) {
+                    const pct = d.disk_storage.pct != null ? d.disk_storage.pct :
+                        (d.disk_storage.total_gb ? (d.disk_storage.used_gb / d.disk_storage.total_gb * 100) : 0);
+                    setBar('v-store-bar', 'v-store-label', pct,
+                        fmtBytes(d.disk_storage.used_gb) + ' / ' + fmtBytes(d.disk_storage.total_gb));
+                } else {
+                    setBar('v-store-bar', 'v-store-label', 0, 'no drive attached');
+                }
+
+                if (d.services) {
+                    ['lightserver', 'server_agent', 'smbd', 'b2_backup_timer'].forEach(name => {
+                        const dot = document.getElementById('dot-' + name);
+                        if (!dot) return;
+                        const up = !!d.services[name];
+                        dot.className = 'dot ' + (up ? 'ok' : 'bad');
+                    });
+                }
+
+                if (d.lights) {
+                    document.getElementById('l-scene').textContent = d.lights.scene || '—';
+                    document.getElementById('l-fps').textContent = (d.lights.fps != null) ? d.lights.fps : '—';
+                    document.getElementById('l-nodes').textContent = (d.lights.nodes_online != null) ? d.lights.nodes_online : '—';
+                }
+
+                if (d.net) {
+                    document.getElementById('n-live').textContent =
+                        (d.net.rx_mbps != null && d.net.tx_mbps != null)
+                            ? d.net.rx_mbps.toFixed(1) + ' / ' + d.net.tx_mbps.toFixed(1) + ' Mbps'
+                            : '—';
+                    setPill('net-pill', 'live');
+                }
+            } catch (err) {
+                setPill('vitals-pill', 'offline');
+                setPill('services-pill', 'offline');
+                setPill('lights-pill', 'offline');
+                document.querySelectorAll('#panel-services .dot').forEach(d => d.className = 'dot');
+            }
+        }
+
+        // ---- speedtest (from /api/dash/speedtest) ----
+        let speedtestRunning = false;
+        async function pollSpeedtest() {
+            try {
+                const d = await fetchJSON('/api/dash/speedtest');
+                setPill('net-pill', 'live');
+                speedtestRunning = !!d.running;
+                const btn = document.getElementById('btn-speedtest');
+                btn.disabled = speedtestRunning;
+                btn.textContent = speedtestRunning ? 'running…' : 'run speed test';
+
+                if (d.down_mbps != null || d.up_mbps != null) {
+                    document.getElementById('n-speed').textContent =
+                        (d.down_mbps != null ? d.down_mbps.toFixed(1) : '—') + '↓ / ' +
+                        (d.up_mbps != null ? d.up_mbps.toFixed(1) : '—') + '↑ Mbps' +
+                        (d.last_run ? '  ·  ' + humanizeAgo(d.last_run) : '');
+                } else {
+                    document.getElementById('n-speed').textContent = 'no test run yet';
+                }
+                document.getElementById('n-ping').textContent = (d.ping_ms != null) ? d.ping_ms.toFixed(0) + ' ms' : '—';
+            } catch (err) {
+                // Keep whatever the last known-good stats-driven "live" pill
+                // says for net; only fall back if nothing else has set it.
+                if (document.getElementById('net-pill').textContent === 'connecting…') {
+                    setPill('net-pill', 'offline');
+                }
+                document.getElementById('n-speed').textContent = 'offline';
+            }
+        }
+
+        document.getElementById('btn-speedtest').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-speedtest');
+            btn.disabled = true;
+            btn.textContent = 'starting…';
+            try {
+                await fetchJSON('/api/dash/speedtest/run', { method: 'POST' });
+                btn.textContent = 'running…';
+            } catch (err) {
+                btn.textContent = 'run speed test';
+                btn.disabled = false;
+            }
+            setTimeout(pollSpeedtest, 1500);
+        });
+
+        // ---- backup (from /api/dash/backup) ----
+        async function pollBackup() {
+            try {
+                const d = await fetchJSON('/api/dash/backup');
+                setPill('backup-pill', 'live');
+                document.getElementById('b-last').textContent = d.last_run ? humanizeAgo(d.last_run) : '—';
+                const resultEl = document.getElementById('b-result');
+                resultEl.textContent = d.running ? 'running…' : (d.result || d.detail || '—');
+                resultEl.className = 'v' + (d.result === 'ok' || d.result === 'success' ? ' ok' :
+                    (d.result && d.result !== 'ok' ? ' bad' : ''));
+                document.getElementById('b-next').textContent = d.next_scheduled ? humanizeAgo(d.next_scheduled).replace(' ago', '') + ' out · daily noon' : 'daily · noon';
+                document.getElementById('b-bytes').textContent = (d.bytes_transferred != null) ? fmtBytesRaw(d.bytes_transferred) : '—';
+
+                const btn = document.getElementById('btn-backup');
+                btn.disabled = !!d.running;
+                btn.textContent = d.running ? 'backing up…' : 'back up now';
+            } catch (err) {
+                setPill('backup-pill', 'offline');
+                document.getElementById('b-last').textContent = 'offline';
+                document.getElementById('b-result').textContent = '—';
+            }
+        }
+
+        document.getElementById('btn-backup').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-backup');
+            btn.disabled = true;
+            btn.textContent = 'starting…';
+            try {
+                await fetchJSON('/api/dash/backup/run', { method: 'POST' });
+                btn.textContent = 'backing up…';
+            } catch (err) {
+                btn.textContent = 'back up now';
+                btn.disabled = false;
+            }
+            setTimeout(pollBackup, 1500);
+        });
+
+        // ---- polling cadence ----
+        pollStats();
+        pollSpeedtest();
+        pollBackup();
+        setInterval(pollStats, 15000);
+        setInterval(pollSpeedtest, 60000);
+        setInterval(pollBackup, 60000);
+
+        // =================================================================
+        // Embedded agent chat.
+        //
+        // Same wire contract as gorcave-chat.html's composer submit handler:
+        //   POST {BACKEND_URL} { message, session_id } -> { reply }
+        //
+        // Session/storage keys are deliberately the SAME ones gorcave-chat.html
+        // uses (gorcave_convo / gorcave_session / gorcave_archive / gorcave_nav)
+        // so that tapping "expand" here and landing on gorcave-chat.html
+        // continues the same conversation instead of starting a new one — the
+        // exact hop gorcave-chat.html already does between itself and
+        // gorcave-voice.html. Kept intentionally trimmed here: no singing, no
+        // particle animation, no PWA banners — this pane's job is a compact,
+        // functional line into the same agent, not a re-implementation of the
+        // whole standalone client.
+        // =================================================================
+        const BACKEND_URL = "https://gorcave.taila85593.ts.net/api/chat";
+        const CONVO_KEY = 'gorcave_convo';
+        const SESSION_KEY = 'gorcave_session';
+        const ARCHIVE_KEY = 'gorcave_archive';
+        const NAV_KEY = 'gorcave_nav';
+        const NAV_WINDOW_MS = 15000;
+        const CONVO_MAX = 300;
+        const ARCHIVE_MAX_SESSIONS = 400;
+        const ARCHIVE_MAX_BYTES = 1500000;
+
+        const historyEl = document.getElementById('history');
+        const composer = document.getElementById('composer');
+        const msgInput = document.getElementById('msg-input');
+        const sendBtn = document.getElementById('send-btn');
+        const expandLink = document.getElementById('chat-expand');
+
+        let convo = [];
+        let convoStore = true;
+        let archive = [];
+        let SESSION = { id: 's' + Date.now(), startedAt: Date.now() };
+
+        function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { convoStore = false; return null; } }
+        function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+        function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+        function validTurns(arr) {
+            if (!Array.isArray(arr)) return [];
+            return arr.filter(t => t && typeof t.text === 'string' && (t.role === 'me' || t.role === 'them'));
+        }
+
+        function convoLoad() {
+            const raw = lsGet(CONVO_KEY);
+            if (!raw) return [];
+            try {
+                const arr = JSON.parse(raw);
+                if (!Array.isArray(arr)) throw new Error('bad shape');
+                return validTurns(arr).slice(-CONVO_MAX);
+            } catch (e) { lsDel(CONVO_KEY); return []; }
+        }
+
+        function archiveLoad() {
+            const raw = lsGet(ARCHIVE_KEY);
+            if (!raw) return [];
+            try {
+                const arr = JSON.parse(raw);
+                if (!Array.isArray(arr)) throw new Error('bad shape');
+                const out = [];
+                for (let i = 0; i < arr.length; i++) {
+                    const s = arr[i];
+                    if (!s || typeof s !== 'object') continue;
+                    const turns = validTurns(s.turns);
+                    if (!turns.length) continue;
+                    out.push({
+                        id: (typeof s.id === 'string' && s.id) ? s.id : ('s' + i + '-' + (turns[0].ts || 0)),
+                        startedAt: Number(s.startedAt) || turns[0].ts || Date.now(),
+                        endedAt: Number(s.endedAt) || turns[turns.length - 1].ts || Date.now(),
+                        turns: turns
+                    });
+                }
+                return out;
+            } catch (e) { lsDel(ARCHIVE_KEY); return []; }
+        }
+
+        function archiveTrim(frac) {
+            if (!archive.length) return false;
+            const drop = Math.max(1, Math.floor(archive.length * frac));
+            archive = archive.slice(drop);
+            lsSet(ARCHIVE_KEY, JSON.stringify(archive));
+            return true;
+        }
+
+        function archiveSave() {
+            if (!convoStore) return;
+            if (archive.length > ARCHIVE_MAX_SESSIONS) archive = archive.slice(-ARCHIVE_MAX_SESSIONS);
+            let body = JSON.stringify(archive);
+            let guard = 0;
+            while (body.length > ARCHIVE_MAX_BYTES && archive.length > 1 && guard++ < 64) {
+                archive = archive.slice(Math.max(1, Math.ceil(archive.length * 0.1)));
+                body = JSON.stringify(archive);
+            }
+            guard = 0;
+            while (guard++ < 24) {
+                if (lsSet(ARCHIVE_KEY, body)) return;
+                if (archive.length <= 1) { lsDel(ARCHIVE_KEY); return; }
+                archive = archive.slice(Math.max(1, Math.ceil(archive.length * 0.25)));
+                body = JSON.stringify(archive);
+            }
+        }
+
+        function archivePush(entry) {
+            if (!entry || !entry.turns || !entry.turns.length) return;
+            for (let i = archive.length - 1; i >= 0; i--) {
+                if (archive[i].id === entry.id) { archive[i] = entry; archiveSave(); return; }
+            }
+            archive.push(entry);
+            archiveSave();
+        }
+
+        function convoSave() {
+            if (!convoStore) return;
+            if (lsSet(CONVO_KEY, JSON.stringify(convo))) return;
+            if (archiveTrim(0.5) && lsSet(CONVO_KEY, JSON.stringify(convo))) return;
+            const trimmed = convo.slice(-Math.floor(CONVO_MAX / 2));
+            if (lsSet(CONVO_KEY, JSON.stringify(trimmed))) { convo = trimmed; return; }
+            convoStore = false;
+        }
+
+        function convoPush(role, text) {
+            convo.push({ role: role, text: text, ts: Date.now(), mode: 'text' });
+            if (convo.length > CONVO_MAX) convo = convo.slice(-CONVO_MAX);
+            convoSave();
+        }
+
+        function sessionMetaLoad() {
+            const raw = lsGet(SESSION_KEY);
+            if (!raw) return null;
+            try {
+                const m = JSON.parse(raw);
+                if (m && typeof m.id === 'string' && m.id) return { id: m.id, startedAt: Number(m.startedAt) || Date.now() };
+            } catch (e) {}
+            lsDel(SESSION_KEY);
+            return null;
+        }
+        function sessionMetaSave() { lsSet(SESSION_KEY, JSON.stringify(SESSION)); }
+
+        // Written just before hopping to gorcave-chat.html via the expand
+        // link — the sibling page's own takeNavToken() consumes this.
+        function markNavigating() {
+            try { sessionStorage.setItem(NAV_KEY, String(Date.now())); } catch (e) {}
+        }
+        function takeNavToken() {
+            let v = null;
+            try { v = sessionStorage.getItem(NAV_KEY); sessionStorage.removeItem(NAV_KEY); }
+            catch (e) { return false; }
+            if (!v) return false;
+            const age = Date.now() - Number(v);
+            return age >= -5000 && age < NAV_WINDOW_MS;
+        }
+
+        function startSession() {
+            archive = archiveLoad();
+            const continuing = takeNavToken();
+            const meta = sessionMetaLoad();
+            const stored = convoLoad();
+
+            if (continuing && meta) {
+                SESSION = meta;
+                convo = stored;
+                return;
+            }
+
+            if (stored.length) {
+                archivePush({
+                    id: (meta && meta.id) || ('s' + (stored[0].ts || Date.now())),
+                    startedAt: (meta && meta.startedAt) || stored[0].ts || Date.now(),
+                    endedAt: stored[stored.length - 1].ts || Date.now(),
+                    turns: stored
+                });
+            }
+            convo = [];
+            lsDel(CONVO_KEY);
+            SESSION = { id: 's' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), startedAt: Date.now() };
+            sessionMetaSave();
+        }
+
+        function scrollToLatest() { historyEl.scrollTop = historyEl.scrollHeight; }
+
+        function addMessage(text, cls) {
+            const div = document.createElement('div');
+            div.className = 'msg ' + cls;
+            div.textContent = text;
+            historyEl.appendChild(div);
+            scrollToLatest();
+        }
+
+        function say(role, text) {
+            convoPush(role, text);
+            addMessage(text, role);
+        }
+
+        function renderConvo() {
+            for (let i = 0; i < convo.length; i++) addMessage(convo[i].text, convo[i].role);
+        }
+
+        function createThinkingIndicator() {
+            const el = document.createElement('div');
+            el.className = 'msg thinking';
+            const dots = document.createElement('span');
+            dots.className = 'dots';
+            dots.textContent = '...';
+            el.appendChild(dots);
+            historyEl.appendChild(el);
+            scrollToLatest();
+            return {
+                finish() { if (el.parentNode) el.parentNode.removeChild(el); }
+            };
+        }
+
+        expandLink.addEventListener('click', () => { markNavigating(); });
+
+        composer.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = msgInput.value.trim();
+            if (!text) return;
+
+            say('me', text);
+            msgInput.value = '';
+
+            const thinking = createThinkingIndicator();
+
+            try {
+                const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+                const timer = ctrl ? setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS) : null;
+                const res = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, session_id: SESSION.id }),
+                    signal: ctrl ? ctrl.signal : undefined
+                });
+                if (timer) clearTimeout(timer);
+
+                thinking.finish();
+
+                if (!res.ok) { addMessage("can't reach the agent right now", 'system'); return; }
+
+                const data = await res.json();
+                if (data && typeof data.reply === 'string') {
+                    say('them', data.reply);
+                } else {
+                    addMessage("can't reach the agent right now", 'system');
+                }
+            } catch (err) {
+                thinking.finish();
+                addMessage("can't reach the agent right now", 'system');
+            }
+        });
+
+        (function initChat() {
+            startSession();
+            renderConvo();
+            if (!convo.length) {
+                addMessage('Connected to the gate. gorcave itself may or may not be listening yet.', 'system');
+            }
+            scrollToLatest();
+        })();
+    </script>
+</body>
+</html>
