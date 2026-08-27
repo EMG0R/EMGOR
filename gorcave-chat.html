@@ -262,6 +262,29 @@
             border-color: rgba(196, 178, 240, 0.6);
             background: rgba(168, 146, 214, 0.14);
         }
+
+        /* ---- Send / mode-toggle dual button. With text typed it reads
+           "Send" like always; with the input empty it swaps to the same
+           mic glyph as the corner .mode-toggle and, on tap, takes you to
+           gorcave-voice.html instead of submitting nothing. ---- */
+        .send-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .send-btn .send-btn-icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            display: none;
+        }
+        .send-btn.voice-mode {
+            color: var(--lavender);
+            border-color: rgba(196, 178, 240, 0.6);
+            background: rgba(168, 146, 214, 0.14);
+        }
+        .send-btn.voice-mode .send-btn-label { display: none; }
+        .send-btn.voice-mode .send-btn-icon { display: block; }
         #gate .note {
             max-width: 330px;
             font-size: 0.72rem;
@@ -500,7 +523,13 @@
             <input id="msg-input" type="text" placeholder="say something to gorcave"
                    autocomplete="off" autocorrect="on" autocapitalize="sentences"
                    spellcheck="true" enterkeyhint="send">
-            <button type="submit" class="send-btn">Send</button>
+            <button type="submit" class="send-btn" id="send-btn" aria-label="send">
+                <span class="send-btn-label">Send</span>
+                <svg class="send-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15z"/>
+                    <path d="M18.5 11.2a.9.9 0 0 0-1.8 0 4.7 4.7 0 0 1-9.4 0 .9.9 0 0 0-1.8 0 6.5 6.5 0 0 0 5.6 6.4V20H8.9a.9.9 0 0 0 0 1.8h6.2a.9.9 0 0 0 0-1.8h-2.2v-2.4a6.5 6.5 0 0 0 5.6-6.4z"/>
+                </svg>
+            </button>
         </form>
     </div>
 
@@ -912,12 +941,31 @@
 
         // Tapping Send must not blur the input — a blur would dismiss the
         // keyboard and immediately re-show it (the classic iOS flicker).
-        ['mousedown', 'touchstart', 'pointerdown'].forEach((evt) => {
-            sendBtn.addEventListener(evt, (e) => { e.preventDefault(); }, { passive: false });
-        });
+        // IMPORTANT: only 'mousedown' gets preventDefault here. That's the
+        // event whose default action steals focus onto the button; touch
+        // devices fire it too (synthesized after touchend), so it's enough.
+        // preventDefault-ing 'touchstart' or 'pointerdown' looked equally
+        // safe but isn't: on a touch device, calling preventDefault() on
+        // the initial touch/pointer event suppresses the synthetic click
+        // that follows, which is exactly why Send did nothing on a phone.
+        sendBtn.addEventListener('mousedown', (e) => { e.preventDefault(); }, { passive: false });
         sendBtn.addEventListener('click', () => {
             if (document.activeElement !== msgInput) msgInput.focus();
         });
+
+        // The same button doubles as the voice-mode switch: with text typed
+        // it reads "Send" and submits as usual; empty, it shows the mic
+        // glyph and a tap (handled in the submit handler below, since an
+        // empty submit is otherwise a no-op) hands off to the voice console.
+        function updateSendMode() {
+            const hasText = msgInput.value.trim().length > 0;
+            sendBtn.classList.toggle('voice-mode', !hasText);
+            const label = hasText ? 'send' : 'switch to voice';
+            sendBtn.setAttribute('aria-label', label);
+            sendBtn.title = label;
+        }
+        msgInput.addEventListener('input', updateSendMode);
+        updateSendMode();
 
         // ---------------------------------------------------------------
         // Ambient "thinking" particles.
@@ -1555,7 +1603,15 @@
         composer.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = msgInput.value.trim();
-            if (!text) return;
+            if (!text) {
+                // Nothing typed: the button is in its mic/voice-mode guise
+                // (see updateSendMode) — tapping it there means "switch to
+                // voice", not "send nothing". Same hop the corner
+                // .mode-toggle uses, so the session continues unbroken.
+                markNavigating();
+                window.location.href = 'gorcave-voice.html';
+                return;
+            }
 
             const headers = { 'Content-Type': 'application/json' };
             if (AUTH_REQUIRED) {
