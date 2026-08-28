@@ -97,7 +97,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var bgCanvas, bgCtx, fxCanvas, fxCtx;   // 2D backdrop / foreground fx layers
     var labelsEl, crumbEl, homeBtn;
     var W = 0, H = 0, DPR = 1;
-    var availX = 0, availY = 0, stretchX = 1, stretchY = 1;
+    var availX = 0, availY = 0;
     var time = 0, lastTs = 0, frame = 0;
     var FOV = 42, fovRad = FOV * Math.PI / 180;
 
@@ -1082,19 +1082,88 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         camera.position.set(target.x + back.x, target.y + back.y, target.z + back.z);
     }
 
-    function targetScaleFor(node) {
-        return Math.min(
-            availX / (stretchX * node.sysR * ORBIT_MAX),
-            availY / (stretchY * node.sysR * ORBIT_MAX));
+    // Fit the composition as large as the viewport allows, directly against
+    // the true (aspect-ratio- AND pixel-size-aware) available budget —
+    // availX/availY come from resize() as actual CSS-pixel half-viewport
+    // space (minus margin), so a bigger window (bigger availX/availY)
+    // always yields a bigger fit distance-in-pixels, i.e. genuinely bigger
+    // on-screen orbits AND planets, not just a proportionally-identical
+    // frame regardless of window size.
+    //
+    // fitRadiusFor pads the outer-orbit radius so a body sitting at
+    // ORBIT_MAX with its own ring (which extends visibly past its center)
+    // still lands just inside the frame instead of clipping at the edge —
+    // computed from node's ACTUAL kids (their real orbit radius + real
+    // rendered size via uniformSizeFor, the same role/size math they're
+    // actually drawn with) rather than a blanket theoretical worst-case
+    // constant. A blanket constant has to assume every system might have
+    // a child with the max `size` override AND the max seeded size
+    // variance AND a ring all at once (~1.24x the bare orbit radius) —
+    // safe, but it pads every ordinary system that much too, leaving a
+    // lot of unused frame. Using the real numbers means an ordinary
+    // system (small/no size overrides) fits tight, while a system that
+    // genuinely does have an oversized ringed child automatically gets
+    // exactly the padding it needs, no more.
+    var FIT_SAFETY = 1.08;   // small fixed cushion: glow halo + rounding
+    function fitRadiusFor(node) {
+        var r = node.sysR * ORBIT_MAX;
+        for (var i = 0; i < node.kids.length; i++) {
+            var k = node.kids[i];
+            var bodyR = uniformSizeFor(k, node);
+            var reach = k.orbF * node.sysR + bodyR * (k.hasRing ? 1.9 : 1);
+            if (reach > r) r = reach;
+        }
+        return r * FIT_SAFETY;
     }
-    // Convert the old engine's "pixels per world unit" framing scale into a
-    // real perspective-camera distance that frames the same system: for a
-    // vertical FOV f at distance d, pixels-per-world-unit = (H/2)/(d*tan(f/2)).
-    // Solve for d.
-    function distanceForScale(scaleVal) {
-        return (H / 2) / (Math.max(1e-6, scaleVal) * Math.tan(fovRad / 2));
+    //
+    // The fit itself is solved with the EXACT perspective projection of
+    // the outer-orbit circle (see buildCameraTransform above for the same
+    // pitch/yaw convention), not the old 2D-canvas-ported approximation
+    // that just divided the flat world radius into the pixel budget. That
+    // approximation assumed R is negligible next to the camera distance —
+    // false here (R and d end up comparable at these framing distances),
+    // so it systematically mis-fit depending on window shape: a naive
+    // pitch-only correction (e.g. a fixed sin(pitch) squash factor) is
+    // ALSO wrong for the same reason — real perspective foreshortens the
+    // near/far edges of the tilted circle unevenly, not by one constant
+    // factor. Sampling the true projected circle and binary-searching the
+    // distance is cheap (only called per focus change / once per frame
+    // for the current focus) and stays correct however PITCH_REST, FOV,
+    // or ORBIT_MAX are tuned later — no re-derivation needed.
+    var FIT_SAMPLES = 48;
+    function fitExtents(R, d) {
+        var K = H / (2 * Math.tan(fovRad / 2));   // shared px-per-world-unit/dist factor (same for X and Y — see resize()/camera comments)
+        var c = Math.cos(PITCH_REST), s = Math.sin(PITCH_REST);
+        var mx = 0, my = 0;
+        for (var i = 0; i < FIT_SAMPLES; i++) {
+            var phi = (i / FIT_SAMPLES) * TAU;
+            var vz = d - R * c * Math.sin(phi);          // depth of this circle point from the camera
+            var xpx = Math.abs(R * Math.cos(phi) / vz) * K;
+            var ypx = Math.abs(R * s * Math.sin(phi) / vz) * K;
+            if (xpx > mx) mx = xpx;
+            if (ypx > my) my = ypx;
+        }
+        return { x: mx, y: my };
     }
-    function distanceFor(node) { return distanceForScale(targetScaleFor(node)); }
+    function fitDistance(R) {
+        // camera must stay outside the (pitch-projected) disk for every
+        // sample's depth to stay positive; start comfortably beyond that.
+        var lo = R + 1, hi = Math.max(lo * 1.5, 4000);
+        var tries = 0;
+        while (tries < 40) {
+            var e = fitExtents(R, hi);
+            if (e.x <= availX && e.y <= availY) break;
+            hi *= 1.5;
+            tries++;
+        }
+        for (var it = 0; it < 28; it++) {
+            var mid = (lo + hi) / 2;
+            var em = fitExtents(R, mid);
+            if (em.x <= availX && em.y <= availY) hi = mid; else lo = mid;
+        }
+        return hi;
+    }
+    function distanceFor(node) { return fitDistance(fitRadiusFor(node)); }
 
     // ─── navigation (unchanged contract vs galaxy2d.js) ────────────────
     function focusTo(node, animate) {
@@ -1439,9 +1508,6 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
         availX = Math.max(120, W / 2 - MARGIN_X);
         availY = Math.max(120, H / 2 - MARGIN_Y);
-        var base = Math.min(availX, availY);
-        stretchX = clamp(availX / base, 1, 2.2);
-        stretchY = clamp(availY / base, 1, 1.5);
 
         bgCanvas.width = Math.floor(W * DPR); bgCanvas.height = Math.floor(H * DPR);
         bgCanvas.style.width = W + 'px'; bgCanvas.style.height = H + 'px';

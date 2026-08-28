@@ -336,6 +336,15 @@
         .msg.thinking .dots { animation: pulse 1.2s ease-in-out infinite; }
         @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
         @media (prefers-reduced-motion: reduce) { .msg.thinking .dots { animation: none; } }
+        .msg.error {
+            align-self: center;
+            max-width: 92%;
+            background: rgba(224, 130, 140, 0.08);
+            border: 1px solid rgba(224, 130, 140, 0.35);
+            color: var(--bad);
+            font-size: 0.76rem;
+            text-align: center;
+        }
 
         #composer {
             flex: 0 0 auto;
@@ -485,6 +494,12 @@
         // =================================================================
         const API_BASE = "https://gorcave.taila85593.ts.net";
         const FETCH_TIMEOUT_MS = 8000;
+        // Chat replies are LLM-generated and can legitimately take
+        // 10-30s (occasionally up to ~120s) — must NOT share the short
+        // stats-polling timeout above, or the request gets aborted
+        // before the reply arrives (see gorcave-chat.html's chat fetch,
+        // which uses no timeout at all / relies on this same long budget).
+        const CHAT_FETCH_TIMEOUT_MS = 120000;
 
         async function fetchJSON(path, opts) {
             const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
@@ -955,7 +970,7 @@
 
             try {
                 const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
-                const timer = ctrl ? setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS) : null;
+                const timer = ctrl ? setTimeout(() => ctrl.abort(), CHAT_FETCH_TIMEOUT_MS) : null;
                 const res = await fetch(BACKEND_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -966,17 +981,17 @@
 
                 thinking.finish();
 
-                if (!res.ok) { addMessage("can't reach the agent right now", 'system'); return; }
+                if (!res.ok) { addMessage("can't reach the agent right now", 'error'); return; }
 
                 const data = await res.json();
                 if (data && typeof data.reply === 'string') {
                     say('them', data.reply);
                 } else {
-                    addMessage("can't reach the agent right now", 'system');
+                    addMessage("can't reach the agent right now", 'error');
                 }
             } catch (err) {
                 thinking.finish();
-                addMessage("can't reach the agent right now", 'system');
+                addMessage("can't reach the agent right now", 'error');
             }
         });
 
