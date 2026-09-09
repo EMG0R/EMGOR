@@ -49,3 +49,6 @@
 
 /cod/remote-version.json
   Cache-Control: no-cache
+
+/ajay_message_1.html
+  X-Robots-Tag: noindex, nofollow
