@@ -16,8 +16,11 @@
     justify-content: center;
   }
   video {
-    max-width: 100%;
-    width: 100%;
+    /* Fit entirely within the viewport in both axes — a portrait
+       video on a landscape screen letterboxes instead of overflowing. */
+    max-width: 100vw;
+    max-height: 100vh;
+    width: auto;
     height: auto;
     display: block;
   }
