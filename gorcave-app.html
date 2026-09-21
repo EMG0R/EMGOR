@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0512">
+<title>gorcave console</title>
+<link rel="manifest" href="gorcave-app-manifest.json">
+<link rel="icon" href="gorcave-icon-192.png">
+<link rel="apple-touch-icon" href="gorcave-icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  :root{--bg:#0a0512;--bg-glow:#150b26;--surface:rgba(168,146,214,0.05);--surface-2:rgba(168,146,214,0.09);
+    --line:rgba(178,158,222,0.12);--line-strong:rgba(178,158,222,0.30);--text:rgba(236,231,247,0.90);
+    --text-dim:rgba(214,205,235,0.55);--text-faint:rgba(198,188,226,0.28);--lavender:rgba(178,163,214,0.85);
+    --ok:rgba(140,214,168,0.90);--bad:rgba(224,130,140,0.90)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:'Courier New',Courier,monospace}
+  body{background:radial-gradient(120% 60% at 50% 0%,var(--bg-glow) 0%,var(--bg) 60%),var(--bg);
+    display:flex;flex-direction:column;overscroll-behavior:none;padding-top:env(safe-area-inset-top)}
+  .screen{flex:1;display:flex;flex-direction:column;min-height:0}
+  .hidden{display:none!important}
+  /* login / enroll */
+  .center{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px;text-align:center;gap:14px}
+  h1{font-size:16px;letter-spacing:.38em;margin:0 0 4px;color:var(--lavender);font-weight:400}
+  .tag{font-size:11px;color:var(--text-faint);letter-spacing:.2em;margin-bottom:14px}
+  input{width:100%;max-width:320px;background:rgba(0,0,0,.3);border:1px solid var(--line-strong);border-radius:11px;
+    color:var(--text);font-family:inherit;font-size:15px;padding:13px;text-align:center}
+  input:focus{outline:none;border-color:var(--lavender)}
+  button.go{width:100%;max-width:320px;background:linear-gradient(90deg,rgba(150,122,208,.7),rgba(178,163,214,.9));
+    border:none;border-radius:11px;color:#0a0512;font-weight:bold;font-family:inherit;font-size:15px;padding:14px;cursor:pointer}
+  button.go:active{transform:translateY(1px)} button.go:disabled{opacity:.5}
+  .link{background:none;border:none;color:var(--text-dim);font-family:inherit;font-size:12px;text-decoration:underline;cursor:pointer}
+  .msg{font-size:12px;min-height:16px;color:var(--text-dim)} .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
+  .code{font-size:44px;letter-spacing:.14em;color:var(--text);font-weight:bold}
+  .ring{width:100%;max-width:320px;height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+  .ring>i{display:block;height:100%;background:var(--lavender);transition:width 1s linear}
+  /* console */
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
+  header b{font-size:13px;letter-spacing:.3em;color:var(--lavender);font-weight:400}
+  .out{background:none;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:inherit;font-size:11px;padding:6px 10px;cursor:pointer}
+  .body{flex:1;min-height:0;position:relative}
+  .pane{position:absolute;inset:0;overflow:auto} .pane.hidden{display:none}
+  iframe{width:100%;height:100%;border:0;display:block;background:var(--bg)}
+  .tabs{display:flex;border-top:1px solid var(--line);background:rgba(10,5,18,.8);padding-bottom:env(safe-area-inset-bottom)}
+  .tabs button{flex:1;background:none;border:none;color:var(--text-faint);font-family:inherit;font-size:11px;letter-spacing:.12em;padding:12px 0;cursor:pointer}
+  .tabs button.on{color:var(--lavender)}
+  .card{margin:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .label{font-size:10px;letter-spacing:.22em;color:var(--text-faint);text-transform:uppercase;margin-bottom:8px}
+  .stat{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}
+  .stat b{color:var(--text-dim);font-weight:400}
+</style>
+</head>
+<body>
+
+<!-- ENROLL -->
+<div id="enroll" class="screen hidden"><div class="center">
+  <div><h1>G O R C A V E</h1><div class="tag">enroll this device</div></div>
+  <p style="font-size:12px;color:var(--text-dim);max-width:320px;margin:0">Paste your gorcave 2FA secret once. It stays on this phone only — this becomes your authenticator.</p>
+  <input id="secret" placeholder="TOTP secret" autocomplete="off" autocapitalize="characters">
+  <button class="go" id="enrollBtn">enroll</button>
+  <div class="msg" id="enrollMsg"></div>
+</div></div>
+
+<!-- LOGIN -->
+<div id="login" class="screen hidden"><div class="center">
+  <div><h1>G O R C A V E</h1><div class="tag">the machine watching the room</div></div>
+  <div class="code" id="liveCode">— — —</div>
+  <div class="ring"><i id="codeRing"></i></div>
+  <input id="pass" type="password" placeholder="passphrase" autocomplete="off">
+  <button class="go" id="loginBtn">enter</button>
+  <div class="msg" id="loginMsg"></div>
+  <button class="link" id="reEnroll">re-enroll device</button>
+</div></div>
+
+<!-- CONSOLE -->
+<div id="console" class="screen hidden">
+  <header><b id="hdr">LIGHTS</b><button class="out" id="logout">lock</button></header>
+  <div class="body">
+    <div class="pane" id="pane-lights"><iframe id="lightsFrame" src="about:blank"></iframe></div>
+    <div class="pane hidden" id="pane-term"><iframe id="termFrame" src="about:blank"></iframe></div>
+    <div class="pane hidden" id="pane-server">
+      <div class="card"><div class="label">server vitals</div><div id="vitals"><div class="stat"><b>loading…</b><span></span></div></div></div>
+    </div>
+    <div class="pane hidden" id="pane-auth">
+      <div class="card" style="text-align:center">
+        <div class="label">gorcave 2FA code</div>
+        <div class="code" id="authCode" style="margin:10px 0">— — —</div>
+        <div class="ring"><i id="authRing"></i></div>
+        <p style="font-size:11px;color:var(--text-faint);margin-top:14px">this device is your authenticator. keep it private.</p>
+        <button class="link" id="clearDevice">forget this device</button>
+      </div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button data-t="lights" class="on">LIGHTS</button>
+    <button data-t="term">TERMINAL</button>
+    <button data-t="server">SERVER</button>
+    <button data-t="auth">AUTH</button>
+  </div>
+</div>
+
+<script>
+const FUNNEL="https://gorcave.taila85593.ts.net";
+const $=s=>document.querySelector(s);
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},
+         set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+
+// ---------- TOTP (Web Crypto, RFC 6238) ----------
+function b32decode(s){s=(s||"").replace(/=+$/,"").toUpperCase().replace(/\s/g,"");
+  const A="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits="";const out=[];
+  for(const c of s){const v=A.indexOf(c);if(v<0)continue;bits+=v.toString(2).padStart(5,"0");}
+  for(let i=0;i+8<=bits.length;i+=8)out.push(parseInt(bits.substr(i,8),2));
+  return new Uint8Array(out);}
+async function totp(secret){
+  const key=await crypto.subtle.importKey("raw",b32decode(secret),{name:"HMAC",hash:"SHA-1"},false,["sign"]);
+  const ctr=Math.floor(Date.now()/1000/30);
+  const buf=new ArrayBuffer(8);new DataView(buf).setUint32(4,ctr);
+  const sig=new Uint8Array(await crypto.subtle.sign("HMAC",key,buf));
+  const o=sig[19]&0xf;const bin=((sig[o]&0x7f)<<24)|(sig[o+1]<<16)|(sig[o+2]<<8)|sig[o+3];
+  return (bin%1000000).toString().padStart(6,"0");}
+function secsLeft(){return 30-Math.floor(Date.now()/1000)%30;}
+
+// ---------- routing between screens ----------
+function show(id){["enroll","login","console"].forEach(s=>$("#"+s).classList.toggle("hidden",s!==id));}
+function tokenValid(){const t=LS.get("gorcave_token"),e=+LS.get("gorcave_token_exp")||0;return t&&e>Date.now()/1000;}
+
+function boot(){
+  if(!LS.get("gorcave_totp")){show("enroll");return;}
+  if(tokenValid()){openConsole();return;}
+  show("login");tickCodes();
+}
+
+// ---------- enroll ----------
+$("#enrollBtn").onclick=async()=>{
+  const s=$("#secret").value.trim().replace(/\s/g,"");
+  if(s.length<16){$("#enrollMsg").textContent="that secret looks too short";$("#enrollMsg").className="msg err";return;}
+  try{await totp(s);}catch(e){$("#enrollMsg").textContent="not a valid secret";$("#enrollMsg").className="msg err";return;}
+  LS.set("gorcave_totp",s);$("#enrollMsg").textContent="enrolled ✓";$("#enrollMsg").className="msg ok";
+  setTimeout(()=>{show("login");tickCodes();},600);
+};
+$("#reEnroll").onclick=()=>{show("enroll");};
+$("#clearDevice").onclick=()=>{LS.del("gorcave_totp");LS.del("gorcave_token");LS.del("gorcave_token_exp");boot();};
+
+// ---------- live code display ----------
+async function tickCodes(){
+  const secret=LS.get("gorcave_totp");if(!secret)return;
+  const code=await totp(secret);const left=secsLeft();const pct=(left/30*100);
+  const fmt=code.slice(0,3)+" "+code.slice(3);
+  if($("#liveCode"))$("#liveCode").textContent=fmt;
+  if($("#authCode"))$("#authCode").textContent=fmt;
+  if($("#codeRing"))$("#codeRing").style.width=pct+"%";
+  if($("#authRing"))$("#authRing").style.width=pct+"%";
+}
+setInterval(tickCodes,1000);
+
+// ---------- login ----------
+$("#loginBtn").onclick=async()=>{
+  const secret=LS.get("gorcave_totp");const pass=$("#pass").value;
+  if(!pass){$("#loginMsg").textContent="enter the passphrase";$("#loginMsg").className="msg err";return;}
+  $("#loginBtn").disabled=true;$("#loginMsg").textContent="checking…";$("#loginMsg").className="msg";
+  try{
+    const code=await totp(secret);
+    const r=await fetch(FUNNEL+"/api/gate/login",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({passphrase:pass,code})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||"denied");
+    LS.set("gorcave_token",d.token);LS.set("gorcave_token_exp",String(Math.floor(Date.now()/1000)+(d.ttl||43200)));
+    $("#pass").value="";openConsole();
+  }catch(e){$("#loginMsg").textContent="✗ "+e.message;$("#loginMsg").className="msg err";}
+  finally{$("#loginBtn").disabled=false;}
+};
+$("#pass").addEventListener("keydown",e=>{if(e.key==="Enter")$("#loginBtn").click();});
+
+// ---------- console ----------
+function openConsole(){
+  show("console");
+  $("#lightsFrame").src="gorcave-lights.html";          // same-origin; reads token from localStorage
+  $("#termFrame").src=FUNNEL+"/terminal?token="+encodeURIComponent(LS.get("gorcave_token")||"");
+  switchTab("lights");loadVitals();
+}
+function switchTab(t){
+  document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+  ["lights","term","server","auth"].forEach(p=>$("#pane-"+p).classList.toggle("hidden",p!==t));
+  $("#hdr").textContent={lights:"LIGHTS",term:"TERMINAL",server:"SERVER",auth:"AUTH"}[t];
+  if(t==="server")loadVitals();
+}
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>switchTab(b.dataset.t));
+$("#logout").onclick=()=>{LS.del("gorcave_token");LS.del("gorcave_token_exp");boot();};
+
+async function loadVitals(){
+  try{
+    const r=await fetch(FUNNEL+"/api/dash/stats",{headers:authHdr()});
+    const d=await r.json();
+    const rows=[["temp",(d.temp?.cpu??d.temp??"?")+"°C"],["uptime",d.uptime||"?"],
+      ["load",(d.load?.["1"]??d.load1??"?")],["mem",fmtPct(d.mem)],["disk",fmtPct(d.disk?.root||d.disk)],
+      ["lights",d.lightserver?.scene||"—"],["throttled",d.throttled||"0x0"]];
+    $("#vitals").innerHTML=rows.map(([k,v])=>`<div class="stat"><b>${k}</b><span>${v}</span></div>`).join("");
+  }catch(e){$("#vitals").innerHTML='<div class="stat"><b>offline</b><span>'+e.message+'</span></div>';}
+}
+function fmtPct(o){if(o==null)return"?";if(typeof o==="object")return(o.percent??o.used_percent??o.pct??"?")+"%";return o;}
+function authHdr(){const t=LS.get("gorcave_token");return t?{Authorization:"Bearer "+t}:{};}
+
+boot();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("gorcave-app-sw.js").catch(()=>{});
+</script>
+</body>
+</html>
