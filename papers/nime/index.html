@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EMGOR — Papers, NIME-format drafts</title>
+<meta name="robots" content="noindex, nofollow">
+<title>EMGOR — Papers</title>
 <link rel="stylesheet" href="nime.css">
 </head>
 <body>
@@ -13,65 +14,87 @@
   <a href="../../papers.html">Overview page</a>
 </nav>
 
-<div class="nime-index">
-  <h1>PAPERS — 2026&ndash;2027</h1>
-  <p class="index-sub">Emory Smith — EMGOR / California Institute of the Arts. One paper
-  shipped, seven rendered here as NIME-format drafts.</p>
+<article class="paper">
 
-  <ol>
-    <li>
-      <div class="idx-title"><a href="../../universe/papers/files/nam-csound-icsc.pdf">Integrating Neural Amp Modeling into Csound</a></div>
-      <div class="idx-meta">Complete — submitted to ICSC 2026 &middot; real PDF</div>
-      <div class="idx-blurb">NAMProcess — real-time Neural Amp Modeler inference as a Csound
-      opcode. The link is the actual submitted paper.</div>
-    </li>
-    <li>
-      <div class="idx-title"><a href="unified-streaming.html">Unified System for Streaming Realtime Data</a></div>
-      <div class="idx-meta">Draft — NIME 2027 target</div>
-      <div class="idx-blurb">One USB-C cable for audio, video, and control — kill the adapter
-      pile.</div>
-    </li>
-    <li>
-      <div class="idx-title"><a href="neuralgrid.html">NeuralGrid: A Physical Interface for Live Sequencing and Improvisation Using Adaptive Neural Models</a></div>
-      <div class="idx-meta">Draft — NIME 2027 target</div>
-      <div class="idx-blurb">A sensor-dense grid that rewrites its own interface on the
-      downbeat. Phases 1&ndash;4 verified on hardware.</div>
-    </li>
-    <li>
-      <div class="idx-title"><a href="open-pedal.html">Open-Pedal: An Accessible System for Modularly Creating Guitar Pedals and Synthesizers</a></div>
-      <div class="idx-meta">Draft — NIME 2027 target</div>
-      <div class="idx-blurb">An open-source, modular framework against the price of DSP.</div>
-    </li>
-    <li>
-      <div class="idx-title"><a href="demiurgeos.html">DemiurgeOS: A Thoughtfully Designed System for DSP on the Raspberry Pi</a></div>
-      <div class="idx-meta">Draft — NIME 2027 target</div>
-      <div class="idx-blurb">The audio-first Pi OS under NEPTR — sync layer, MIDI pool, one
-      config file. Running today.</div>
-    </li>
-    <li>
-      <div class="idx-title"><a href="neptr.html">NEPTR Phase 4 (DEMIURGE): A Laptop-Free System for Performance and Improvisation</a></div>
-      <div class="idx-meta">Draft — NIME 2027 target</div>
-      <div class="idx-blurb">The current instrument: Csound on a Pi 5, 19 menus, ~70 effects,
-      ~7 ms round trip.</div>
-    </li>
-    <li>
-      <div class="idx-title"><a href="bouba.html">BOUBA: An Intuitive System for Accessing the Benefits of Music Therapy</a></div>
-      <div class="idx-meta">Draft — NIME 2027 target</div>
-      <div class="idx-blurb">Tactile generative synthesis for sleep, mood, productivity, and
-      autonomic regulation.</div>
-    </li>
-    <li>
-      <div class="idx-title"><a href="digital-luthier.html">Workflow of a Modern Digital Luthier</a></div>
-      <div class="idx-meta">Draft — CalArts thesis</div>
-      <div class="idx-blurb">Embedded audio, digital fabrication, and interaction design as one
-      workflow — the thesis that binds the rest.</div>
-    </li>
-  </ol>
-</div>
+  <header class="titleblock">
+    <h1>PAPERS</h1>
+    <p class="authors">Emory Smith</p>
+    <p class="affil">EMGOR / California Institute of the Arts</p>
+    <p class="draft-marker">One season shipping, three deferred &mdash; rendered here in paper format</p>
+  </header>
+
+  <div class="paper-body">
+
+    <section>
+      <h2>2026&ndash;2027 Season</h2>
+      <ol class="idx-list">
+        <li>
+          <div class="idx-title"><a href="digital-luthier.html">Workflow of a Modern Digital Luthier</a></div>
+          <div class="idx-meta">In submission &mdash; ROTURA &middot; with Ajay Kapur</div>
+          <div class="idx-blurb">The methodology. Embedded audio, fabrication, and interaction
+          design as one workflow, argued through NEPTR and BOUBA.</div>
+        </li>
+        <li>
+          <div class="idx-title"><a href="demiurgeos.html">DemiurgeOS</a></div>
+          <div class="idx-meta">Running &mdash; Linux Audio Conference target &middot; with Ilai Gilbert, Ajay Kapur</div>
+          <div class="idx-blurb">The audio-first Pi OS under NEPTR &mdash; sync layer, MIDI pool,
+          global clock, one config file.</div>
+        </li>
+        <li>
+          <div class="idx-title"><a href="neptr-performance-system.html">Performance System of a Modern Digital Luthier</a></div>
+          <div class="idx-meta">Running &mdash; NIME / ICMC target</div>
+          <div class="idx-blurb">The instrument: Csound on a Pi 5, 63 effect modules across 20
+          menus, a Rust supervisor underneath, 6 ms string to amplifier.</div>
+        </li>
+        <li>
+          <div class="idx-title"><a href="thesis.html">Master&rsquo;s Thesis &mdash; untitled</a></div>
+          <div class="idx-meta">In development &mdash; CalArts &middot; with Ajay Kapur</div>
+          <div class="idx-blurb">The binding argument. What the OS, the instrument, and the
+          methodology mean together.</div>
+        </li>
+        <li>
+          <div class="idx-title"><a href="bouba.html">BOUBA</a></div>
+          <div class="idx-meta">Built &mdash; TEI / DIS target</div>
+          <div class="idx-blurb">A quadraphonic therapeutic sound object, roughly $80 to
+          reproduce, plus a second prototype and a free web version.</div>
+        </li>
+        <li>
+          <div class="idx-title"><a href="nam-csound.html">Integrating Neural Amp Modeling into Csound</a></div>
+          <div class="idx-meta">Complete &mdash; submitted &middot; PDF + opcode source</div>
+          <div class="idx-blurb">NAMProcess &mdash; real-time Neural Amp Modeler inference as a
+          Csound opcode, with live dry-referenced volume compensation.</div>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>2027+</h2>
+      <ol class="idx-list" start="7">
+        <li>
+          <div class="idx-title"><a href="neuralgrid.html">NeuralGrid</a></div>
+          <div class="idx-meta">Mid-build &mdash; NIME target &middot; with Ajay Kapur, Jake Cheng</div>
+          <div class="idx-blurb">A controller that speaks a symbolic vocabulary borrowed from
+          tabla bols before it speaks sound, then translates through seven perceptual axes.</div>
+        </li>
+        <li>
+          <div class="idx-title"><a href="omniplex.html">OMNIPLEX</a></div>
+          <div class="idx-meta">Deferred &mdash; folding into DemiurgeOS</div>
+          <div class="idx-blurb">One USB-C cable for audio, video, and control. A Rust
+          workspace; the transport is being absorbed into the OS.</div>
+        </li>
+        <li>
+          <div class="idx-title"><a href="open-pedal.html">Open-Pedal</a></div>
+          <div class="idx-meta">Concept &mdash; deferred</div>
+          <div class="idx-blurb">An open-source, modular framework against the price of DSP.</div>
+        </li>
+      </ol>
+    </section>
+
+  </div>
+</article>
 
 <footer class="paper-footer">
-  EMGOR — abstracts preserved from the 2026&ndash;2027 papers planning document; section
-  content distilled from the universe planets. Print any draft for the classic white NIME look.
+  EMGOR &mdash; drafts rendered in paper format. Print any of them for the classic white look.
 </footer>
 
 </body>

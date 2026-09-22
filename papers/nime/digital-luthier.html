@@ -3,23 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Workflow of a Modern Digital Luthier — NIME draft</title>
+<meta name="robots" content="noindex, nofollow">
+<title>Workflow of a Modern Digital Luthier — ROTURA submission</title>
 <link rel="stylesheet" href="nime.css">
 </head>
 <body>
 
 <nav class="paper-nav">
-  <a href="index.html">&larr; NIME drafts</a>
-  <a href="../../index.html#/papers/digital-luthier">View in the EMGOR universe</a>
+  <a href="index.html">&larr; Papers</a>
+  <a href="../../index.html#/papers/season-2026-27/digital-luthier">View in the EMGOR universe</a>
 </nav>
 
 <article class="paper">
 
   <header class="titleblock">
     <h1>Workflow of a Modern Digital Luthier: Unifying Embedded Audio and Graphics Computing, Digital Fabrication, and Purposeful Interaction Design</h1>
-    <p class="authors">Emory Smith</p>
-    <p class="affil">EMGOR / California Institute of the Arts</p>
-    <p class="draft-marker">Draft — NIME 2027 target</p>
+    <p class="authors">Emory Smith &middot; Ajay Kapur</p>
+    <p class="affil">California Institute of the Arts</p>
+    <p class="draft-marker">Process Report &mdash; in submission to <em>ROTURA: Revista de Comunica&ccedil;&atilde;o, Cultura e Artes</em>, special dossier on Advances in Digital and Interactive Arts</p>
   </header>
 
   <div class="paper-body">
@@ -31,64 +32,298 @@
       environment where form emerges as a coherent system rather than in sequential layers.
       This convergence enables individuals to rapidly develop self-contained interfaces where
       gesture, sound, graphics, and physical structure are implemented as direct extensions of
-      artistic intention. This paper presents a few case studies demonstrating this
-      methodology. These examples illustrate how story-driven design across integrated domains
-      produces coherent interactive identity and indicate where this practice is heading as
-      these tools continue to mature.</p>
-    </section>
-
-    <section class="flow">
-      <h2>Summary</h2>
-      <p>Because of the conceptual nature of my previous paper, this stands better as a
-      master's thesis &mdash; can write it how I want without having to adhere to NIME or ICMC
-      social standards.</p>
+      artistic intention. This paper presents two case studies demonstrating this methodology:
+      NEPTR, a handheld performance instrument with dense sensor input and synchronized
+      audiovisual feedback, along with BOUBA, a quadraphonic tactile sound object designed for
+      therapeutic ambient synthesis. These examples illustrate how story-driven design across
+      integrated domains produces coherent interactive identity and indicate where this
+      practice is heading as these tools continue to mature.</p>
+      <p class="keywords"><strong>Keywords:</strong> digital lutherie; rapid prototyping;
+      embedded audiovisual computing; story-driven design</p>
     </section>
 
     <section>
-      <h2>Co-authors</h2>
-      <p>Emory Smith (primary), Ajay?</p>
+      <h2>1. Introduction</h2>
+      <p>A threshold has been crossed in interactive system design, beyond the predictable
+      increase of Moore's Law. The convergence of embedded computing, new programming
+      environments, accessible fabrication, and open educational resources has lowered barriers
+      to such an extent that a qualitatively different approach to digital lutherie is
+      emerging &mdash; one where individuals can rapidly prototype and complete self-sufficient
+      instruments within an integrated workflow.</p>
+      <p>Ten years ago, building a self-contained digital instrument required significant
+      resources or compromise. Sensor-rich controllers depended on external computers and
+      self-contained devices sacrificed computational headroom or interface density. The
+      crossing of this threshold is causing the gap between commercial-quality and independent
+      projects to collapse. The following sections map this ecosystem, followed by two case
+      studies demonstrating this workflow's effectiveness and a reflection.</p>
     </section>
 
     <section>
-      <h2>Publication</h2>
-      <p>CalArts Thesis</p>
+      <h2>2. Approach</h2>
+      <p>This section is not focused on documenting exponential progress, but demonstrating how
+      individual practices now function as parts of an integrated workflow, rather than separate
+      domains requiring separate approaches.</p>
+
+      <h3>2.1 Design Context</h3>
+      <p>The design principles established by the NIME and ICMC communities have not been
+      outpaced by this convergence &mdash; they become more urgent because of it. Fels'
+      demonstration that intimacy emerges from mapping quality rather than parameter quantity
+      becomes a discipline given how trivially extensive controls can be implemented. Hunt and
+      Wanderley's finding that expressivity lives in gesture-sound relationships rather than
+      either element's sophistication informs modern builders of the need to constrain their
+      palettes deliberately. Jord&agrave;'s tension between flexibility and identity shows the
+      need for deliberate decision making in what to omit from a modern interface. Cook's
+      advocation that "some instruments are meant to be stupid," Zappi and McPherson's
+      demonstration that constrained instruments can produce richer performer engagement, and
+      Morreale and McPherson's study finding that design coherence can predict whether
+      performers continue engaging with new interfaces over time function as active design
+      constraints, distinguishing coherent instruments in an era where adding unnecessary
+      complexity is so accessible.</p>
+
+      <h3>2.2 Platform Ecosystem</h3>
+      <p>Single-board computers efficiently handle complex graphics, high-level languages and
+      autonomous tasks, made even more efficient with specialized Linux distributions like
+      Satellite CCRMA. Microcontrollers like Teensy handle local synthesis, DSP, and dense
+      sensor/audio I/O with USB class-compliance while platforms like Bela achieve
+      sub-millisecond latency for tight tactile coupling. These platforms' ability to operate
+      independently or interconnectedly based on an instrument's requirements represents a
+      modularity where needs dictate architecture. A Teensy can manage time-critical analog
+      sensing while a Pi runs computationally intensive tasks, or a custom PCB can link together
+      the exact components an instrument needs.</p>
+
+      <h3>2.3 Audio and Graphics Computing</h3>
+      <p>Integrated programs managing audio and graphics behavior means an instrument designer
+      can approach audiovisual behavior as a single problem rather than coordinating between
+      separate systems. An SBC can easily communicate between a network, microcontroller, and
+      multiple languages so interaction with audio and video output can be approached as one
+      multi-faceted interface. Tools like ChuGL point toward even tighter integration, unifying
+      lower-level audio and visual programming in approachable environments.</p>
+
+      <h3>2.4 Programming Environments</h3>
+      <p>Languages like Csound and ChucK run at high efficiency across laptops and SBCs, while
+      the Teensy Audio Library brings complex synthesis and DSP to the microcontrollers, and
+      RNBO offers a compelling prototyping process for exporting pseudo-code across web,
+      hardware, plugin, and standalone applications. WebChucK extends the power of ChuGL to
+      browsers via WebAssembly while Strudel brings Tidal Cycles' live coding to the browser
+      with no installation, demonstrating what Roberts and Wakefield identified as the web
+      browser's maturation into legitimate musical interface.</p>
+
+      <h3>2.5 Sensing and Output</h3>
+      <p>Modern microcontrollers can manage any open-source sensor through library
+      abstractions. I2C, SPI, and serial protocols can distribute sensor data across an
+      instrument while USB presents custom hardware as class-compliant audio devices, MIDI
+      controllers, or serial ports. Wanderley and Depalle's taxonomy of gestural control
+      strategies remains an essential contribution in this space, implying that control curation
+      is more consequential than ever when the cost of capturing so much becomes so little.</p>
+
+      <h3>2.6 Digital Fabrication</h3>
+      <p>Cook's advocacy for co-designing systems best represents why physical form should be
+      developed in sync with the rest of the lutherie process. With reliable 3D printers like
+      the Bambu Lab A1 mini costing less than $250 USD, and software like Blender making
+      professional-grade 3D modeling free to the public, electronics layout and physical form can
+      develop simultaneously throughout the prototyping process. Enclosure is shifting away from
+      housing and further towards interface from the first stages of design, which points towards
+      what Magnusson describes as the screenless turn: physical form carrying semantic weight
+      that has been unnecessarily delegated to the screen. &Ccedil;amc&#305; and Granzow
+      demonstrate that the traditional sequence of fabrication is collapsing into an iterative
+      loop that can start or end at any stage.</p>
+
+      <h3>2.7 Access to Information</h3>
+      <p>Free courses, conference proceedings, effective documentation and tutorial ecosystems
+      have made the broad sub-disciplines of digital lutherie accessible without financial
+      investment. While AI's place in this context will continue to be debated in more
+      appropriate settings, LLMs are already capable of hugely compressing the time between a
+      digital luthier encountering a broad range of problems and achieving a working solution.
+      The bottleneck of a builder's vision exceeding their access to information has been
+      largely eliminated.</p>
     </section>
 
-    <section class="working-additions">
-      <p class="marker">New material — not part of the source document</p>
-      <h2>Instrument Case Studies (working additions)</h2>
-      <p>Candidate case studies from the EMGOR hardware planets, each an instance of the
-      luthier workflow — embedded compute, fabricated body, and interaction design conceived as
-      one system:</p>
-      <ul>
-        <li><a href="../../index.html#/hardware/quadro-punch-packer">Quadro Punch Packer</a> —
-        10" printed hemisphere speaker — 4 coaxials at the cube-vertex angle plus a sub.</li>
-        <li><a href="../../index.html#/hardware/we-remote">We-Remote</a> — open-source Wii
-        remote — BLE gamepad, keyboard, and MIDI CC in one shell.</li>
-        <li><a href="../../index.html#/hardware/pocket-opgorator">Pocket OpGorator</a> —
-        Pocket-Operator-format Daisy sampler/synth with a velocity NeoTrellis grid.</li>
-        <li><a href="../../index.html#/hardware/4-i-gor">4-i-Gor</a> — Teensy 4.0 quad-in /
-        quad-out USB audio interface with MIDI.</li>
-        <li><a href="../../index.html#/hardware/the-watch">THE WATCH</a> — forearm AMOLED
-        smartwatch fused with an RF multitool and a sensor army.</li>
-        <li><a href="../../index.html#/hardware/lite">LITE</a> — Teensy 4.1 light instrument —
-        20-voice generative synth in a printed bowl.</li>
-        <li><a href="../../index.html#/hardware/ofoots">oFOOTS</a> — ten-encoder foot
-        controller — 8 pages, 64 CCs, one expression pedal.</li>
-      </ul>
+    <section>
+      <h2>3. Case Study: NEPTR</h2>
+      <p>NEPTR is a handheld performance instrument for synthesis, effects processing and
+      looping, supporting handheld and floor-based interaction.</p>
+
+      <h3>3.1 Purpose</h3>
+      <p>The vision behind NEPTR is to access a modern level of compute and high density of
+      sensor input without the distraction or unnecessary elements of a laptop. It provides two
+      distinct modes of interaction: handheld and foot-controlled. The OP-1 achieves much of the
+      desired multi-faceted independence but is limited in sensor input, programmability and
+      affordability. Monome's Norns provide extensive programmability and a powerful computer
+      but require a network of external controllers and sensors to unlock notable interactive
+      potential. This follows a pattern in mainstream hardware performance: to assemble
+      expensive ecosystems of gear, cables and power supplies which create unnecessary
+      complexity and barrier to entry. NEPTR is a response to this &mdash; an open-source,
+      programmable interface for musical expression independent of the laptop.</p>
+
+      <h3>3.2 Programming</h3>
+      <p>On boot, a Pi 5 launches Python and ChucK with optimized priority. ChucK handles
+      synthesis and effects processing while Python manages the GUI, communicating over OSC.
+      ChucK's "machine" mechanism loads synthesis and effects dynamically, utilizing
+      multi-threading while a layered menu system maps controls to parameters.</p>
+      <p>NEPTR combines acoustic input with onboard generative synthesis and modularly routes
+      these inputs through an expanding repository of ChucK DSP files. The top encoder-buttons
+      navigate between menus while the bottom encoder-buttons toggle effects depending on which
+      menu the user is in, while all encoders' rotation adjusts a variety of parameters
+      depending on the menu context.</p>
+      <p>Four NeoPixel LEDs provide stage-visible feedback with brightness reflecting expression
+      pedal state and color confirming encoder presses, following the type of visual feedback
+      present in guitar pedals. After enough time without input, NEPTR gets "bored" and starts
+      "making faces" until it receives more controller input, which personifies the instrument
+      further.</p>
+
+      <h3>3.3 Hardware</h3>
+      <p>NEPTR runs on a Raspberry Pi 5 with a Teensy 4.0 managing audio I/O and a Teensy 4.1
+      managing controls. The stereo line-in is normalled to the two contact microphones mounted
+      to NEPTR's inner sides, creating an inescapable acoustic relationship to the instrument.
+      NEPTR then provides the user with an external USB port, a stereo 1/8th inch input, a
+      stereo 1/8th inch output, an expression pedal input and a USB-C power input.</p>
+
+      <h3>3.4 Fabrication</h3>
+      <p>The 3D-printed enclosure was designed to integrate a variety of sensors while enabling
+      two distinct modes of interaction: handheld, game-controller ergonomics with rounded grips
+      and controls positioned for thumb and finger access; or foot-controlled, pedalboard-style
+      interaction which places the device flat on a floor and allows for comfortable control of
+      encoder buttons, joystick, ultrasonic sensor and an external expression pedal if the user
+      cannot interface with their hands. The layout was developed through an integrated approach
+      with iterative 3D modeling and print revision at a material cost of &lt;$30 USD.</p>
+
+      <h3>3.5 Evaluation</h3>
+      <p>Evaluating against O'Modhrain's framework: <em>Playability</em> is notably high. The
+      instrument responds well to gestural intent and the mapping of sensors to parameters has
+      been refined through iterative practice to feel natural. <em>Learnability</em> is low with
+      NEPTR's current programming, but the ease of reprogramming allows for this to be easily
+      improved upon based on the needs of a given user. <em>Sonic range</em> is wide, given the
+      variety of effects and modes of synthesis. <em>Robustness</em> has been tested and seen
+      issues with audio I/O, suggesting the need to use PCBs over dead-bug style connections
+      beyond the prototyping stage.</p>
+
+      <p class="editorial-note"><strong>Note for readers of this site:</strong> the NEPTR
+      documented above is an earlier instrument than the one described in
+      <a href="neptr-performance-system.html">Performance System of a Modern Digital
+      Luthier</a>, which runs Csound on DEMIURGE with a Rust supervisor underneath. The case
+      study documents the prototype at the moment it demonstrated the workflow; the
+      performance-system paper documents what that prototype became.</p>
+    </section>
+
+    <section>
+      <h2>4. Case Study: BOUBA</h2>
+      <p>BOUBA is a quadraphonic sound object providing tactile interaction with therapeutic
+      generative synthesis.</p>
+
+      <h3>4.1 Purpose</h3>
+      <p>BOUBA serves the non-musician seeking a psychologically beneficial relationship with
+      sound. It is a research-based tool for improving four pillars of human experience: sleep,
+      mood, productivity and autonomic regulation. It cost $80 USD to reproduce, and its
+      physical controls along with its spatialization foster an intimate and unique relationship
+      with the user.</p>
+
+      <h3>4.2 Programming</h3>
+      <p>BOUBA is programmed with the Teensy Audio Library, centered around a number of
+      generative compositions that are self-sufficient but interactive.</p>
+
+      <h3>4.3 Hardware</h3>
+      <p>BOUBA runs with no external connections besides power. Onboard controls select or
+      interpolate between presets, manually trigger notes, and adjust volume, probability or
+      pitch. Four speakers deliver quadraphonic output from two PCM5102 DACs amplified by four
+      LM386 amplifiers. The system is powered from a standard 9 V jack which is stepped down for
+      different components, allowing for use with common cables or batteries.</p>
+
+      <h3>4.4 Research Baseline</h3>
+      <p>For <em>sleep enhancement,</em> Farokhnezhad Afshar et al. demonstrated significant
+      improvements in coronary care patients exposed to white noise (p=0.01), while Gao et al.
+      reported a 38% reduction in sleep latency (p&lt;0.01) and increased delta power using
+      sine-based music in insomniacs. These inform BOUBA's adjustably filtered noise layers and
+      generative sine waves.</p>
+      <p>For <em>mood regulation,</em> Benfield et al. found natural soundscapes boosted positive
+      affect by 0.8 points post-stressor (p&lt;0.01), and Blood et al.'s PET data showed
+      consonant harmonic relationships engage paralimbic reward centers (F=42.49, p&lt;0.001)
+      while dissonant stimuli activate amygdala regions tied to negative valence. These findings
+      inform BOUBA's nature-sound presets and restriction of harmonic content to consonant
+      intervals.</p>
+      <p>For <em>productivity,</em> Awada et al. found 45 dB white noise increased attention and
+      creativity by 12% (p&lt;0.01) via stochastic resonance, while Karageorghis et al. showed
+      rhythmic entrainment at 120&ndash;140 BPM improves endurance and work output. These inform
+      BOUBA's noise synthesis and steady rhythmic patterns.</p>
+      <p>For <em>nervous system regulation,</em> Khalfa et al. found salivary cortisol halved
+      (p&lt;0.05) post-stressor with ambient music, and De Witte et al.'s meta-analysis
+      demonstrated significant physiological stress reduction (d=0.380) including lowered blood
+      pressure and cortisol across music intervention conditions. These inform BOUBA's priority
+      of ambient consonance and musicality.</p>
+      <p>BOUBA does not attempt to replicate the clinical conditions of any cited study, but the
+      relationship between these empirical findings and BOUBA's synthesis parameters is one of
+      informed design and further validates its conceptual choices.</p>
+
+      <h3>4.5 Fabrication</h3>
+      <p>BOUBA's enclosure positions speakers for quadraphonic imaging while centralizing
+      controls for single-handed operation. The form factor prioritizes stability and
+      simplicity, helping it sit naturally in a variety of situations.</p>
+
+      <h3>4.6 Evaluation</h3>
+      <p>Evaluating against O'Modhrain's framework: <em>Playability</em> is lower due to BOUBA's
+      deliberately minimal control surface but the overall usability is effective for its
+      purposes. <em>Learnability</em> is high due to the low number of controls and the
+      self-sufficient nature of each preset, requiring little instruction to achieve satisfying
+      results. <em>Sonic range</em> is intentionally constrained to consonant, ambient territory
+      informed by the cited research, though the variety of generative compositions and parameter
+      ranges provide a meaningful variety. <em>Robustness</em> has been high over two months of
+      consistent use.</p>
+    </section>
+
+    <section>
+      <h2>5. Conclusions</h2>
+      <p>NEPTR and BOUBA are not presented as finished or high-quality instruments; they stand
+      as evidence of the success that an inexperienced practitioner has found in this type of
+      integrated workflow. Both prototypes were completed in a combined timeline of under four
+      months at a combined cost of under $300 USD without institutional resources or commercial
+      software. They are proof that the emerging ecosystem and workflow described in Section 2
+      have transformed the context in which digital luthiers learn and work.</p>
+      <p>Several tensions remain with instruments like this. Morreale and McPherson's "demo
+      problem" shows why these could resist integration with new users. The accessibility
+      argument has serious limits, in that "free" software often requires hardware investment.
+      This workflow assumes investment of time in technical familiarity, design skill, and the
+      ability to use at least one programming language. But when the need is present, one can
+      learn these skills efficiently without formal instruction while the tools can be acquired
+      at relatively low cost.</p>
+      <p>As these tools reach optimal efficiency and begin competing across more axes, this
+      practice will continue pushing further into a world where interfaces can be synchronically
+      and nonlinearly realized. The effects of this transition will continue changing the face of
+      technological interaction through a globally rising density of immersive experience,
+      leaving more powerful tools and deeply outlined frameworks in the hands of the next
+      generations of digital luthiers.</p>
     </section>
 
     <section class="refs">
-      <h2>References</h2>
+      <h2>Bibliographic references</h2>
       <ol>
-        <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
-        <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
-        <li>E. Smith, "Digital Luthier,"
-        <a href="../../index.html#/papers/digital-luthier">EMGOR universe node
-        <code>emgor.papers.digital-luthier</code></a>, 2026.</li>
-        <li>E. Smith, "Hardware,"
-        <a href="../../index.html#/hardware">EMGOR universe node
-        <code>emgor.hardware</code></a> — the full instrument workshop, 2026.</li>
+        <li>Atherton, J., He, G., &amp; Wang, G. (2024). ChuGL: A strongly-timed audiovisual programming language. <em>Proceedings of NIME</em>.</li>
+        <li>Atherton, J., &amp; Wang, G. (2023). WebChucK: Bringing ChucK to the web. <em>Proceedings of ICMC</em>.</li>
+        <li>Awada, M., Becerik-Gerber, B., Lucas, G., &amp; Roll, S. (2022). Cognitive performance, creativity and stress levels of neurotypical young adults under diverse white noise levels. <em>Scientific Reports, 12</em>, 17058.</li>
+        <li>Bambu Lab. (2024). <em>A1 mini</em>.</li>
+        <li>Banzi, M., &amp; Shiloh, M. (2015). <em>Getting started with Arduino</em> (3rd ed.). Maker Media.</li>
+        <li>Benfield, J. A., Taff, B. D., Newman, P., &amp; Smyth, J. (2014). Natural sound facilitates mood recovery. <em>Ecopsychology, 6</em>(3), 183&ndash;188.</li>
+        <li>Berdahl, E., &amp; Ju, W. (2011). Satellite CCRMA: A musical interaction and sound synthesis platform. <em>Proceedings of NIME</em>.</li>
+        <li>Blender Online Community. (2024). <em>Blender</em>.</li>
+        <li>Blood, A. J., Zatorre, R. J., Bermudez, P., &amp; Evans, A. C. (1999). Emotional responses to pleasant and unpleasant music correlate with activity in paralimbic brain regions. <em>Nature Neuroscience, 2</em>(4), 382&ndash;387.</li>
+        <li>Boulanger, R. (Ed.). (2000). <em>The Csound book</em>. MIT Press.</li>
+        <li>&Ccedil;amc&#305;, A., &amp; Granzow, J. (2025). Virtual reality as a design tool for digital musical instruments. <em>Proceedings of ICMC</em>.</li>
+        <li>Cook, P. (2001). Principles for designing computer music controllers. <em>Proceedings of NIME</em>, 3&ndash;6.</li>
+        <li>Cook, P. R. (2004). Remutualizing the musical instrument: Co-design of synthesis algorithms and controllers. <em>JNMR, 33</em>(3), 315&ndash;320.</li>
+        <li>Cycling '74. (2023). <em>RNBO</em>.</li>
+        <li>De Witte, M., Spruit, A., van Hooren, S., Moens, E., &amp; Stams, G.-J. (2019). Effects of music interventions on stress-related outcomes. <em>Health Psychology Review, 14</em>(2), 294&ndash;324.</li>
+        <li>Farokhnezhad Afshar, P., Bahramnezhad, F., Asgari, P., &amp; Shiri, M. (2016). Effect of white noise on sleep in patients admitted to a coronary care unit. <em>Journal of Caring Sciences, 5</em>(2), 103&ndash;109.</li>
+        <li>Fels, S. (2004). Designing for intimacy: Creating new interfaces for musical expression. <em>Proceedings of the IEEE, 92</em>(4), 672&ndash;685.</li>
+        <li>Gao, D., et al. (2020). SWS brain-wave music may improve the quality of sleep: An EEG study. <em>Frontiers in Neuroscience, 14</em>, 67.</li>
+        <li>Hunt, A., &amp; Wanderley, M. M. (2002). Mapping performer parameters to synthesis engines. <em>Organised Sound, 7</em>(2), 97&ndash;108.</li>
+        <li>Jord&agrave;, S. (2004). Instruments and players: Some thoughts on digital lutherie. <em>JNMR, 33</em>(3), 321&ndash;341.</li>
+        <li>Karageorghis, C. I., et al. (2011). Revisiting the exercise heart rate&ndash;music tempo preference relationship. <em>RQES, 82</em>(2), 274&ndash;284.</li>
+        <li>Khalfa, S., Bella, S. D., Roy, M., Peretz, I., &amp; Lupien, S. J. (2003). Effects of relaxing music on salivary cortisol level after psychological stress. <em>Annals of the NY Academy of Sciences, 999</em>(1), 374&ndash;376.</li>
+        <li>Magnusson, T. (2019). <em>Sonic writing</em>. Bloomsbury Academic.</li>
+        <li>Monome. (2018). <em>Norns</em>.</li>
+        <li>Moro, G., Bin, A., Jack, R., Bernardo, F., &amp; McPherson, A. (2016). Making high-performance embedded instruments with Bela and Pure Data. <em>Proceedings of ICLI</em>.</li>
+        <li>Morreale, F., &amp; McPherson, A. (2017). Design for longevity: Ongoing use of instruments from NIME 2010&ndash;14. <em>Proceedings of NIME</em>.</li>
+        <li>O'Modhrain, S. (2011). A framework for the evaluation of digital musical instruments. <em>Computer Music Journal, 35</em>(1), 28&ndash;42.</li>
+        <li>PJRC. (2021). <em>Teensy audio library</em>.</li>
+        <li>Roberts, C., &amp; Wakefield, G. (2018). Tensions and techniques in live coding performance. In <em>The Oxford handbook of algorithmic music</em>. OUP.</li>
       </ol>
     </section>
 
@@ -96,7 +331,7 @@
 </article>
 
 <footer class="paper-footer">
-  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+  EMGOR &mdash; rendered in paper format. Screen version dark; print for the classic look.
 </footer>
 
 </body>

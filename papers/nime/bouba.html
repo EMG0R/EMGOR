@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BOUBA — NIME draft</title>
+<title>BOUBA — draft</title>
 <link rel="stylesheet" href="nime.css">
 </head>
 <body>
 
 <nav class="paper-nav">
-  <a href="index.html">&larr; NIME drafts</a>
-  <a href="../../index.html#/papers/bouba">View in the EMGOR universe</a>
+  <a href="index.html">&larr; Papers</a>
+  <a href="../../index.html#/papers/season-2026-27/bouba">View in the EMGOR universe</a>
 </nav>
 
 <article class="paper">
@@ -19,7 +19,7 @@
     <h1>BOUBA: An Intuitive System for Accessing the Benefits of Music Therapy</h1>
     <p class="authors">Emory Smith</p>
     <p class="affil">EMGOR / California Institute of the Arts</p>
-    <p class="draft-marker">Draft — NIME 2027 target</p>
+    <p class="draft-marker">Draft &mdash; TEI / DIS target</p>
   </header>
 
   <div class="paper-body">
@@ -37,60 +37,83 @@
 
     <section>
       <p class="keywords"><strong>Keywords:</strong> music therapy, generative synthesis,
-      tangible interfaces, ChucK, Teensy, wellbeing</p>
+      tangible interfaces, Teensy, quadraphonic, wellbeing</p>
     </section>
 
     <section class="flow">
       <h2>1. Introduction</h2>
       <p>Most therapeutic-sound products are apps: another screen, another subscription, another
       stream. BOUBA takes the opposite position — a small, self-contained physical object whose
-      entire interface is a joystick, whose state lives nowhere but inside it, and whose sound
-      is generated rather than played back. The bet is that physicality and self-containment are
+      controls are all onboard, whose state lives nowhere but inside it, and whose sound is
+      generated rather than played back. The bet is that physicality and self-containment are
       not packaging details but part of the therapeutic mechanism: an intimate, single-purpose
       object invites a different relationship with sound than a phone does.</p>
     </section>
 
     <section class="flow">
-      <h2>2. Design</h2>
-      <p>BOUBA runs on a Teensy 4.0 (subject to change) with no external connections besides
-      power. A joystick is the primary control, selecting and interpolating between generative
-      presets. One internal speaker sits onboard, with a battery for standalone portable use,
-      while a physical aux output allows connection to high-fidelity speaker systems. An
-      open-source web version mirrors the physical system, with both unified under ChucK for
-      exact parity between online and physical.</p>
-      <p>The research baseline draws from all four pillars: white noise and sine-based music for
-      sleep, natural soundscapes and consonant harmonics for mood, stochastic resonance and
-      rhythmic entrainment for productivity, and ambient consonance for autonomic regulation.
-      Each generative preset is an operationalization of one of these findings, and the
-      joystick's interpolation space is the map between them.</p>
-    </section>
+      <h2>2. The Built Object</h2>
+      <p>BOUBA is programmed with the Teensy Audio Library, centered around a number of
+      generative compositions that are self-sufficient but interactive. It runs with no
+      external connections besides power. Onboard controls select or interpolate between
+      presets, manually trigger notes, and adjust volume, probability, or pitch.</p>
+      <p>Four speakers deliver quadraphonic output from two PCM5102 DACs amplified by four
+      LM386 amplifiers. The system is powered from a standard 9&nbsp;V jack which is stepped
+      down for different components, allowing for use with common cables or batteries. It
+      costs roughly \$80 USD to reproduce. The 3D-printed enclosure positions the speakers for
+      quadraphonic imaging while centralizing controls for single-handed operation.</p>
+      <p>Evaluated against O'Modhrain's framework: <em>playability</em> is lower by design
+      &mdash; a minimal control surface is the point &mdash; <em>learnability</em> is high,
+      <em>sonic range</em> is intentionally constrained to consonant ambient territory, and
+      <em>robustness</em> has been high over two months of consistent use.</p>
 
-    <section>
+      <h3>2.1 The research baseline</h3>
+      <p>Each preset operationalizes a published finding. For <em>sleep</em>, white noise
+      improving sleep in coronary care patients and sine-based music reducing sleep latency by
+      38% with increased delta power. For <em>mood</em>, natural soundscapes facilitating mood
+      recovery, and consonant harmonic relationships engaging paralimbic reward centers while
+      dissonant stimuli activate amygdala regions tied to negative valence. For
+      <em>productivity</em>, 45&nbsp;dB white noise raising attention and creativity via
+      stochastic resonance, and rhythmic entrainment at 120&ndash;140 BPM improving work
+      output. For <em>autonomic regulation</em>, salivary cortisol halved post-stressor with
+      ambient music, and a meta-analytic effect of d&nbsp;=&nbsp;0.380 for physiological stress
+      reduction across music interventions.</p>
+      <p>BOUBA does not attempt to replicate the clinical conditions of any cited study, and
+      makes no claim of clinical efficacy. The relationship between these findings and BOUBA's
+      synthesis parameters is one of informed design.</p>
+
+      <h2>2.2 Second generation and the web version</h2>
+      <p>A second hardware prototype is in development, distinct from the original and designed
+      for the two things the first traded away: accessibility of reproduction, and sound
+      quality. Alongside it, a free web version runs the same generative system in a browser,
+      so the object can be used without being built.</p>
+      <p>The pair makes possible a comparison the object alone could not support: how people
+      relate to a physical sound object versus the identical generative system on a screen.</p>
+
       <h2>3. Current Status</h2>
-      <p><em>Design stage.</em> BOUBA exists as the design above; a search of the EMGOR working
-      archive found no dedicated BOUBA repository yet — its written sources are the 2026–2027
-      papers planning document and the site's papers overview. The ChucK-based generative
-      practice it builds on is established elsewhere in the EMGOR universe (the CIESEN web
-      instrument and the ChucK effect library in the code planets), and Teensy-based
-      self-contained instruments such as LITE demonstrate the intended hardware form factor.</p>
-    </section>
+      <p>Built and in use. The first BOUBA has been in consistent use for months and appears
+      as one of two case studies in <a href="digital-luthier.html">Workflow of a Modern Digital
+      Luthier</a>. The second-generation prototype and the web version are the active work.</p>
 
-    <section>
-      <h2>4. Future Work</h2>
-      <p>Prototype the Teensy + joystick + speaker object; implement two presets per pillar in
-      ChucK with the web mirror; then design a small user study around the four pillars with a
-      music-therapy collaborator. Planned collaboration with Yahezkul (Berklee Music Therapy)
-      and possibly Ajay. Target venues: AMTA and other music-therapy publications.</p>
-    </section>
+      <h2>4. Evaluation Plan</h2>
+      <p>The contribution offered is the interface and what people do with it, not a health
+      outcome &mdash; a tangible-interface and research-through-design paper rather than a
+      clinical one. Target venues: TEI or DIS, with Audio Mostly as the faster route.</p>
+      <p>Evaluation is qualitative: semi-structured interviews with a normal-for-the-field
+      sample, thematic analysis, a standardized interface-quality instrument such as AttrakDiff
+      or UEQ, and usage telemetry from the web build &mdash; which presets people return to,
+      how long sessions run, what time of day they happen. The physical-versus-browser
+      comparison is the central question.</p>
+      <p>Any study involving participants goes through institutional review before a single
+      response is collected.</p>
 
-    <section class="refs">
+      <section class="refs">
       <h2>References</h2>
       <ol>
         <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
         <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
         <li>E. Smith, "BOUBA,"
-        <a href="../../index.html#/papers/bouba">EMGOR universe node
-        <code>emgor.papers.bouba</code></a>, 2026.</li>
+        <a href="../../index.html#/papers/season-2026-27/bouba">EMGOR universe node
+        <code>emgor.papers.season-2026-27.bouba</code></a>, 2026.</li>
         <li>E. Smith, "LITE: Teensy 4.1 light instrument,"
         <a href="../../index.html#/hardware/lite">EMGOR universe node
         <code>emgor.hardware.lite</code></a>, 2026.</li>

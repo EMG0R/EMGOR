@@ -167,3 +167,20 @@ body {
     }
 }
 
+
+/* season grouping */
+.season-head {
+  margin: 2.4rem 0 1.2rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.season-label {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+.untitled-mark { opacity: 0.5; font-weight: 400; }
