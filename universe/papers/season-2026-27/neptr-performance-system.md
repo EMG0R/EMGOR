@@ -7,14 +7,14 @@ source: ______2026NEW/DEMIURGE_OS/neptr
 links:
   - { label: "Read as paper", url: "papers/nime/neptr-performance-system.html" }
   - { label: "NEPTR on the site", url: "NEPTR.html" }
-tags: [performance, csound, raspberry-pi, hyper-instruments, diy, nime, icmc]
+tags: [performance, csound, raspberry-pi, hyper-instruments, diy, icmc]
 updated: 2026-09-21
 draft: false
 ---
 
 # Performance System of a Modern Digital Luthier
 
-**Status: running.** The instrument is on stage now. Paper in progress — targets NIME and ICMC.
+**Status: running.** The instrument is on stage now. Paper in progress — targets ICMC.
 
 ## Abstract
 

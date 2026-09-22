@@ -68,7 +68,7 @@
       "path": "universe/code/csound-suite/_index.md",
       "route": "/code/csound-suite",
       "depth": 2,
-      "children": 5,
+      "children": 6,
       "downloads": [],
       "links": [],
       "tags": [
@@ -200,6 +200,31 @@
         "ambient"
       ],
       "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.code.csound-suite.nonlinear-daylight",
+      "title": "Nonlinear Daylight",
+      "blurb": "Nonlinear reverb study in Csound — headless, generative, no interface",
+      "parent": "emgor.code.csound-suite",
+      "path": "universe/code/csound-suite/nonlinear-daylight.md",
+      "route": "/code/csound-suite/nonlinear-daylight",
+      "depth": 3,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "Nonlinear_Daylight-EMGOR.csd",
+          "url": "universe/code/csound-suite/files/Nonlinear_Daylight-EMGOR.csd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "csound",
+        "reverb",
+        "nonlinear",
+        "generative",
+        "headless"
+      ],
+      "updated": "2026-09-22"
     },
     {
       "id": "emgor.code.juce",
@@ -1594,12 +1619,12 @@
     {
       "id": "emgor.papers.future",
       "title": "2027+",
-      "blurb": "The queue — a controller mid-build, a transport folding inward, and one concept still on paper",
+      "blurb": "The queue — a transport folding inward, and one concept still on paper",
       "parent": "emgor.papers",
       "path": "universe/papers/future/_index.md",
       "route": "/papers/future",
       "depth": 2,
-      "children": 3,
+      "children": 2,
       "downloads": [],
       "links": [],
       "tags": [
@@ -1612,37 +1637,6 @@
       ],
       "updated": "2026-09-21",
       "size": 2
-    },
-    {
-      "id": "emgor.papers.future.neuralgrid",
-      "title": "NeuralGrid",
-      "blurb": "A grid, ribbon, and lidar controller that speaks a symbolic vocabulary before it speaks sound.",
-      "parent": "emgor.papers.future",
-      "path": "universe/papers/future/neuralgrid.md",
-      "route": "/papers/future/neuralgrid",
-      "depth": 3,
-      "children": 0,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Read as paper",
-          "url": "papers/nime/neuralgrid.html"
-        },
-        {
-          "label": "NeuralGrid design document",
-          "url": "neuralgrid.html"
-        }
-      ],
-      "tags": [
-        "neural-models",
-        "sequencer",
-        "machine-lab",
-        "raspberry-pi",
-        "nime",
-        "tabla",
-        "protocol"
-      ],
-      "updated": "2026-09-21"
     },
     {
       "id": "emgor.papers.future.omniplex",
@@ -1707,7 +1701,7 @@
       "path": "universe/papers/season-2026-27/_index.md",
       "route": "/papers/season-2026-27",
       "depth": 2,
-      "children": 6,
+      "children": 7,
       "downloads": [],
       "links": [],
       "tags": [
@@ -1756,7 +1750,7 @@
       "path": "universe/papers/season-2026-27/demiurgeos/_index.md",
       "route": "/papers/season-2026-27/demiurgeos",
       "depth": 3,
-      "children": 5,
+      "children": 4,
       "downloads": [],
       "links": [
         {
@@ -1883,77 +1877,6 @@
       "updated": "2026-07-28"
     },
     {
-      "id": "emgor.papers.season-2026-27.demiurgeos.pi-experiments",
-      "title": "Pi Experiments",
-      "blurb": "Small satellites — the Pi music sketches that led to DEMIURGE",
-      "parent": "emgor.papers.season-2026-27.demiurgeos",
-      "path": "universe/papers/season-2026-27/demiurgeos/pi-experiments/_index.md",
-      "route": "/papers/season-2026-27/demiurgeos/pi-experiments",
-      "depth": 4,
-      "children": 2,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "raspberry-pi",
-        "sketches",
-        "max",
-        "csound"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.papers.season-2026-27.demiurgeos.pi-experiments.csound-pi",
-      "title": "Csound on Pi",
-      "blurb": "Headless Csound sketches — generative drums and nonlinear reverb",
-      "parent": "emgor.papers.season-2026-27.demiurgeos.pi-experiments",
-      "path": "universe/papers/season-2026-27/demiurgeos/pi-experiments/csound-pi.md",
-      "route": "/papers/season-2026-27/demiurgeos/pi-experiments/csound-pi",
-      "depth": 5,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "drums1.csd",
-          "url": "universe/papers/season-2026-27/demiurgeos/pi-experiments/files/drums1.csd"
-        },
-        {
-          "name": "Nonlinear_Daylight-EMGOR.csd",
-          "url": "universe/papers/season-2026-27/demiurgeos/pi-experiments/files/Nonlinear_Daylight-EMGOR.csd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "csound",
-        "generative",
-        "raspberry-pi",
-        "headless"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.papers.season-2026-27.demiurgeos.pi-experiments.lilith-pi",
-      "title": "LILITH_PI",
-      "blurb": "Pi drum machine in one Max patch",
-      "parent": "emgor.papers.season-2026-27.demiurgeos.pi-experiments",
-      "path": "universe/papers/season-2026-27/demiurgeos/pi-experiments/lilith-pi.md",
-      "route": "/papers/season-2026-27/demiurgeos/pi-experiments/lilith-pi",
-      "depth": 5,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "lilithPI.maxpat",
-          "url": "universe/papers/season-2026-27/demiurgeos/pi-experiments/files/lilithPI.maxpat"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max",
-        "drum-machine",
-        "sampler",
-        "raspberry-pi"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
       "id": "emgor.papers.season-2026-27.demiurgeos.web",
       "title": "Web Control",
       "blurb": "The companion TUI in a browser — telemetry, patches, power, transport",
@@ -1996,6 +1919,10 @@
         {
           "label": "Read as paper",
           "url": "papers/nime/digital-luthier.html"
+        },
+        {
+          "label": "Full rendered manuscript",
+          "url": "papers/nime/render/rotura/index.html"
         }
       ],
       "tags": [
@@ -2068,6 +1995,10 @@
         {
           "label": "Read as paper",
           "url": "papers/nime/nam-csound.html"
+        },
+        {
+          "label": "The paper (PDF)",
+          "url": "papers/nime/render/nam/nam-csound-icsc.pdf"
         }
       ],
       "tags": [
@@ -2107,8 +2038,38 @@
         "raspberry-pi",
         "hyper-instruments",
         "diy",
-        "nime",
         "icmc"
+      ],
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neuralgrid",
+      "title": "NeuralGrid",
+      "blurb": "A grid, ribbon, and lidar controller that speaks a symbolic vocabulary before it speaks sound.",
+      "parent": "emgor.papers.season-2026-27",
+      "path": "universe/papers/season-2026-27/neuralgrid.md",
+      "route": "/papers/season-2026-27/neuralgrid",
+      "depth": 3,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Read as paper",
+          "url": "papers/nime/neuralgrid.html"
+        },
+        {
+          "label": "NeuralGrid design document",
+          "url": "neuralgrid.html"
+        }
+      ],
+      "tags": [
+        "neural-models",
+        "sequencer",
+        "machine-lab",
+        "raspberry-pi",
+        "nime",
+        "tabla",
+        "protocol"
       ],
       "updated": "2026-09-21"
     },

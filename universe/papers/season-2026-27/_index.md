@@ -11,7 +11,7 @@ draft: false
 
 # 2026–2027 SEASON
 
-Six pieces of writing; the first four are one argument.
+Seven pieces of writing; the first five are one argument.
 
 The argument is that a single practitioner can now build a complete instrument — operating system, hardware, synthesis, interface, enclosure — as one integrated act rather than a sequence of handoffs between specialists. Each paper is a different cut through that claim.
 
@@ -23,6 +23,8 @@ The argument is that a single practitioner can now build a complete instrument �
 
 **[Performance System of a Modern Digital Luthier](/papers/season-2026-27/neptr-performance-system)** — the instrument. NEPTR as it exists now: Csound on DEMIURGE, a Python interface, a Rust supervisor underneath, and no laptop onstage.
 
+**[NeuralGrid](/papers/season-2026-27/neuralgrid)** — the controller. A sensor-dense grid whose models speak a symbolic vocabulary borrowed from tabla before they speak sound, then translate through seven perceptual axes.
+
 **[Master's Thesis](/papers/season-2026-27/thesis)** — the binding. A further-meta treatment that takes the OS, the instrument, and the methodology as three faces of one practice.
 
 **[BOUBA](/papers/season-2026-27/bouba)** — the system. A new hardware prototype built for accessibility and sound quality, plus a free web version, and the user-participation work the pair makes possible.
@@ -31,4 +33,4 @@ The argument is that a single practitioner can now build a complete instrument �
 
 Demiurge exists because NEPTR needed it. NEPTR is one of the two case studies that made the Luthier argument arguable. The thesis is what the three of them mean together, which is not a thing any of them can say alone.
 
-Still deferred — [NeuralGrid](/papers/future/neuralgrid), [OMNIPLEX](/papers/future/omniplex), and [Open-Pedal](/papers/future/open-pedal) — in [2027+](/papers/future).
+Still deferred — [OMNIPLEX](/papers/future/omniplex) and [Open-Pedal](/papers/future/open-pedal) — in [2027+](/papers/future).

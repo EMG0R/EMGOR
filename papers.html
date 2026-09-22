@@ -18,19 +18,19 @@
             <p class="subtitle">Emory Smith &mdash; CalArts Creative Computing</p>
         </header>
         <hr class="divider">
-        <nav class="toc">
+                <nav class="toc">
             <p class="season-label">2026&ndash;2027 Season</p>
             <ol>
                 <li><a href="#paper-1">Workflow of a Modern Digital Luthier</a></li>
                 <li><a href="#paper-2">DemiurgeOS</a></li>
                 <li><a href="#paper-3">Performance System of a Modern Digital Luthier</a></li>
-                <li><a href="#paper-4">Master&rsquo;s Thesis &mdash; untitled</a></li>
-                <li><a href="#paper-5">BOUBA</a></li>
-                <li><a href="#paper-6">Integrating Neural Amp Modeling into Csound</a></li>
+                <li><a href="#paper-4">NeuralGrid</a></li>
+                <li><a href="#paper-5">Master&rsquo;s Thesis &mdash; untitled</a></li>
+                <li><a href="#paper-6">BOUBA</a></li>
+                <li><a href="#paper-7">Integrating Neural Amp Modeling into Csound</a></li>
             </ol>
             <p class="season-label">2027+</p>
-            <ol start="7">
-                <li><a href="#paper-7">NeuralGrid</a></li>
+            <ol start="8">
                 <li><a href="#paper-8">OMNIPLEX</a></li>
                 <li><a href="#paper-9">Open-Pedal</a></li>
             </ol>
@@ -98,7 +98,7 @@
                 </div>
                 <div class="meta-block">
                     <p class="field-label">Publication</p>
-                    <p class="field-body">NIME, ICMC</p>
+                    <p class="field-body">ICMC</p>
                 </div>
             </div>
             <p class="field-body"><a href="papers/nime/neptr-performance-system.html">Read the paper &rarr;</a></p>
@@ -107,6 +107,28 @@
 
         <section class="paper" id="paper-4">
             <p class="paper-num">PAPER 4</p>
+            <h2>NeuralGrid: A Physical Interface for Live Sequencing and Improvisation</h2>
+            <p class="paper-deadline">Mid-build &mdash; first encoder working on hardware</p>
+            <p class="field-label">Abstract</p>
+            <p class="field-body">NeuralGrid is a sensor-dense physical controller whose models speak a symbolic vocabulary before they speak sound. Pads, ribbons, lidar, and contact microphones are smoothed and interpolated into a coherent output format defined by the dimensional space the sensors represent. A first model interprets gesture through a symbolic vocabulary borrowed from tabla; a second translates that stream onto any synthesis engine through seven perceptual axes. Parameter mapping across OSC and MIDI lets the same stream drive complex interfaces and mechanical instruments, including the Machine Lab.</p>
+            <p class="field-label">Summary</p>
+            <p class="field-body">The design turns on tabla. <em>Bols</em> are a spoken vocabulary of strokes; <em>theka</em> holds a cycle; <em>tihai</em> and <em>kaida</em> act as geometric transforms over stroke sequences &mdash; a complete, tested grammar for playing, combining, and varying phrases that happens to be symbolic and speakable by construction. The translator that follows is <strong>deaf</strong>: it never hears what it renders, which keeps model latency structurally outside the audio path. Hardcoded regions of its behavior define specific instruments; loosening them lets the instrument be generatively shaped by the translator's reactions to the player.</p>
+            <div class="meta-row">
+                <div class="meta-block">
+                    <p class="field-label">Co-authors</p>
+                    <p class="field-body">Emory Smith, Ajay Kapur, Jake Cheng</p>
+                </div>
+                <div class="meta-block">
+                    <p class="field-label">Publication</p>
+                    <p class="field-body">NIME</p>
+                </div>
+            </div>
+            <p class="field-body"><a href="papers/nime/neuralgrid.html">Read the paper &rarr;</a></p>
+        </section>
+        <hr class="divider">
+
+        <section class="paper" id="paper-5">
+            <p class="paper-num">PAPER 5</p>
             <h2>Master&rsquo;s Thesis <span class="untitled-mark">&mdash; untitled</span></h2>
             <p class="paper-deadline">In development &mdash; CalArts</p>
             <p class="field-label">Working position</p>
@@ -127,8 +149,8 @@
         </section>
         <hr class="divider">
 
-        <section class="paper" id="paper-5">
-            <p class="paper-num">PAPER 5</p>
+        <section class="paper" id="paper-6">
+            <p class="paper-num">PAPER 6</p>
             <h2>BOUBA: An Intuitive System for Accessing the Benefits of Music Therapy</h2>
             <p class="paper-deadline">Built &mdash; second prototype and web version in progress</p>
             <p class="field-label">Abstract</p>
@@ -149,8 +171,8 @@
         </section>
         <hr class="divider">
 
-        <section class="paper" id="paper-6">
-            <p class="paper-num">PAPER 6</p>
+        <section class="paper" id="paper-7">
+            <p class="paper-num">PAPER 7</p>
             <h2>Integrating Neural Amp Modeling into Csound</h2>
             <p class="paper-deadline">Complete and submitted &mdash; venue deferred to 2027</p>
             <p class="field-label">Abstract</p>
@@ -172,28 +194,6 @@
         <hr class="divider">
 
         <h2 class="season-head">2027+</h2>
-
-        <section class="paper" id="paper-7">
-            <p class="paper-num">PAPER 7</p>
-            <h2>NeuralGrid: A Physical Interface for Live Sequencing and Improvisation</h2>
-            <p class="paper-deadline">Mid-build &mdash; first encoder working on hardware</p>
-            <p class="field-label">Abstract</p>
-            <p class="field-body">NeuralGrid is a sensor-dense physical controller whose models speak a symbolic vocabulary before they speak sound. Pads, ribbons, lidar, and contact microphones are smoothed and interpolated into a coherent output format defined by the dimensional space the sensors represent. A first model interprets gesture through a symbolic vocabulary borrowed from tabla; a second translates that stream onto any synthesis engine through seven perceptual axes. Parameter mapping across OSC and MIDI lets the same stream drive complex interfaces and mechanical instruments, including the Machine Lab.</p>
-            <p class="field-label">Summary</p>
-            <p class="field-body">The design turns on tabla. <em>Bols</em> are a spoken vocabulary of strokes; <em>theka</em> holds a cycle; <em>tihai</em> and <em>kaida</em> act as geometric transforms over stroke sequences &mdash; a complete, tested grammar for playing, combining, and varying phrases that happens to be symbolic and speakable by construction. The translator that follows is <strong>deaf</strong>: it never hears what it renders, which keeps model latency structurally outside the audio path. Hardcoded regions of its behavior define specific instruments; loosening them lets the instrument be generatively shaped by the translator's reactions to the player.</p>
-            <div class="meta-row">
-                <div class="meta-block">
-                    <p class="field-label">Co-authors</p>
-                    <p class="field-body">Emory Smith, Ajay Kapur, Jake Cheng</p>
-                </div>
-                <div class="meta-block">
-                    <p class="field-label">Publication</p>
-                    <p class="field-body">NIME</p>
-                </div>
-            </div>
-            <p class="field-body"><a href="papers/nime/neuralgrid.html">Read the paper &rarr;</a></p>
-        </section>
-        <hr class="divider">
 
         <section class="paper" id="paper-8">
             <p class="paper-num">PAPER 8</p>

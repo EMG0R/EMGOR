@@ -36,13 +36,12 @@ Born from watching a class full of people fight their Pis — an integrated solu
 
 All of it controlled through a paired bash GUI, Python GUI, or local web GUI. Inspired by Satellite CCRMA and RNBO. Ships preinstalled with every major audio language.
 
-## Orbit map
+## Resources
 
-- **os** — the core: PipeWire/WirePlumber layer, virtual I/O, global clock, boot config, M8 performance pack
-- **launcher** — the Rust patch-graph engine that supervises everything
-- **nam** — Neural Amp Modeler as a chain stage: drop a `.nam` file into the chain
-- **web** — browser control surface: telemetry, patch switching, power, transport
-- **pi-experiments** — small satellites: earlier Pi music sketches that led here
+- **[OS Core](/papers/season-2026-27/demiurgeos/os)** — PipeWire/WirePlumber layer, virtual I/O, global clock, boot config, performance pack
+- **[Launcher](/papers/season-2026-27/demiurgeos/launcher)** — the zero-dependency Rust patch-graph engine
+- **[NAM](/papers/season-2026-27/demiurgeos/nam)** — Neural Amp Modeler as a chain stage: drop a `.nam` file in
+- **[Web Control](/papers/season-2026-27/demiurgeos/web)** — browser control surface: telemetry, patch switching, power, transport
 
 ## Beyond the sync layer
 

@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DemiurgeOS — NIME draft</title>
+<meta name="robots" content="noindex, nofollow">
+<title>DemiurgeOS: A Thoughtfully Designed System for DSP on the Raspberry Pi</title>
 <link rel="stylesheet" href="nime.css">
 </head>
 <body>
@@ -18,131 +19,59 @@
   <header class="titleblock">
     <h1>DemiurgeOS: A Thoughtfully Designed System for DSP on the Raspberry Pi</h1>
     <p class="authors">Emory Smith &middot; Ilai Gilbert &middot; Ajay Kapur</p>
-    <p class="affil">EMGOR / California Institute of the Arts</p>
-    <p class="draft-marker">Draft &mdash; Linux Audio Conference target</p>
+    <p class="affil">California Institute of the Arts</p>
+    <p class="draft-marker">Draft &mdash; Linux Audio Conference target &middot; system running today</p>
   </header>
 
   <div class="paper-body">
 
     <section class="abstract">
       <h2>Abstract</h2>
-      <p><span class="abstract-note">(Working abstract — formal abstract TBD.)</span>
-      DemiurgeOS provides a unified interface for managing a Raspberry Pi for DSP. This includes
-      a terminal UI, local web GUI, and local Python UI for high-level control of the system.
-      These manage things like the sync layer — which allows for modular patching between audio
-      interfaces and audio code — a MIDI pool for managing MIDI I/O, OSC I/O, and clock/CV
-      signals between different programs and physical interfaces, and things like intentional
-      power throttling, presets, and behavior/auto-run programs on boot, all controlled through
-      a paired bash GUI, Python GUI, or local web GUI. Inspired by Satellite CCRMA and RNBO.
-      Comes preinstalled with every major audio language.</p>
+      <p>DemiurgeOS is a flashable, audio-first operating system for the Raspberry Pi 5 &mdash;
+      a modern successor to Stanford CCRMA's Satellite. Every major audio language ships
+      pre-installed and pre-wired &mdash; Csound, Pure Data, SuperCollider, ChucK, Faust,
+      Strudel, C++, Python &mdash; routed through a unified PipeWire abstraction and tempo-locked
+      to a global clock. Programs never see hardware: everything moves through one virtual sink
+      and one shared MIDI bus, so hot-plug is invisible and a second interface aggregates
+      automatically. The whole system is driven from a single hot-reloaded config file. Edit one
+      file, reboot, perform.</p>
+    </section>
+
+    <section class="read-block">
+      <span class="read-btn disabled">Paper not yet written</span>
     </section>
 
     <section>
-      <p class="keywords"><strong>Keywords:</strong> Raspberry Pi, Linux audio, PipeWire,
-      embedded DSP, live performance infrastructure</p>
-    </section>
-
-    <section class="flow">
-      <h2>1. Introduction</h2>
-      <p>The project was born from watching a class full of people fight their Pis: an
-      integrated solution to the common DSP-on-Pi situations that would have at least doubled
-      that class's productivity. The result is a flashable, audio-first operating system for
-      the Raspberry Pi 5 — a modern successor to Stanford CCRMA's Satellite. Every major audio
-      language ships pre-installed and pre-wired: Csound, Pure Data, SuperCollider, ChucK,
-      Faust, Strudel, C++, Python, plus RNBO and Neural Amp Modeler profiles as first-class
-      stages. The workflow reduces to: edit one file, reboot, perform.</p>
-    </section>
-
-    <section class="flow">
-      <h2>2. System</h2>
-      <h3>2.1 The sync layer</h3>
-      <p>Programs never see hardware. Everything routes through a unified PipeWire abstraction:
-      one virtual sink (<code>demiurge-sink</code>, created with <code>node.linger</code> so it
-      exists whether or not hardware does), one shared ALSA-seq MIDI bus, and a small C++ clock
-      daemon fanning MIDI realtime <code>0xF8</code> at 24 PPQN to every language, with BPM
-      broadcast on ch16 CC119 and optional Ableton Link. Hot-plug is invisible: audio plays into
-      the void when nothing is connected and resumes when something is; a second USB interface
-      aggregates automatically.</p>
-      <h3>2.2 One config surface</h3>
-      <p>The whole system is driven from <code>live.conf</code> — the only file the user edits.
-      An ordered <code>chain =</code> list of source files; language inferred from the
-      extension; <code>.dsp</code> and <code>.cpp</code> compiled on demand. A zero-dependency
-      Rust launcher (~460 KB, stdlib only) parses the file into a patch graph, launches each
-      stage through per-language wrappers, links audio and MIDI, and hot-reloads on save in
-      under a second: untouched stages keep their PIDs, dead ones are routed around — the graph
-      is directed and self-healing.</p>
-      <h3>2.3 Control surfaces</h3>
-      <p>High-level control is mirrored across a terminal companion and a stdlib-only Python web
-      GUI (<code>demiurge.local:8080</code>): temperature, throttle-register decode, xrun
-      counts, patch tiles, power presets (intentional throttling), and start/stop of the audio
-      service — deliberately independent of the audio process so the UI survives it. A
-      performance pack pins audio to an isolated core at a 128-sample quantum, applies RT
-      limits and a safe overclock, and reproduces the whole system from a fresh flash via an
-      idempotent ten-phase installer.</p>
-    </section>
-
-    <section>
-      <h3>2.4 Clock, aggregation, and remote flashing</h3>
-      <p><code>demiurge-clock</code>, a C++ ALSA-seq daemon, emits MIDI realtime
-      <code>0xF8</code> at 24 PPQN and broadcasts BPM once per beat on <code>ch16 CC119</code>;
-      any program on the bus can retune by writing <code>ch16 CC118</code>. Setting
-      <code>link = on</code> in <code>live.conf</code> respawns it with Ableton Link enabled,
-      sharing tempo and transport with Live, Max, and any Link peer on the local network while
-      still fanning the usual MIDI broadcasts to every language.</p>
-      <p>Plugging in a second or third USB audio class device aggregates them automatically:
-      smaller channel counts take FL/FR, additional interfaces fill RL/RR on
-      <code>demiurge-sink</code>. HDMI, Bluetooth, and built-in audio are ignored by policy.
-      Hot-plug is live and requires no config change; the launcher writes a read-only device
-      inventory into a fenced block at the top of <code>live.conf</code>.</p>
-      <p>A Teensy plugged into the Pi reflashes over SSH with
-      <code>demiurge-flash-teensy &lt;file.hex&gt;</code> &mdash; no button press, no cable
-      shuffle. The wrapper sends Teensyduino's baud-134 soft-reboot signal to drop the running
-      firmware into HalfKay, then uploads via <code>teensy_loader_cli</code>. The audio graph
-      keeps playing through the ~1 s gap because MIDI hot-plug rewires the controller back onto
-      the bus automatically.</p>
-
-      <h2>3. Current Status</h2>
-      <p>Unlike several sibling proposals, DemiurgeOS is running today. Seven languages are
-      verified bidirectionally (MIDI in/out, BPM sync, audio in/out) on the Pi 5, on an isolated
-      core at quantum 128 without xruns. It is the platform under NEPTR, EMGOR's live
-      performance instrument &mdash; Csound with 63 effect modules across 20 menus &mdash; and
-      hosts the NAM chain stage built on the
-      <code>NAMProcess</code> Csound opcode. The full source tree, configs, launcher, and web
-      UI are documented across the DEMIURGE planets of this site.</p>
-    </section>
-
-    <section>
-      <h2>4. Future Work</h2>
-      <p>Packaging as a public flashable image; the paired bash/Python/web GUIs unified into one
-      release; formal latency and reliability benchmarks across languages; classroom deployment
-      to test the productivity claim that motivated it. OMNIPLEX, the unified real-time transport
-      drafted as a separate system, is being folded in as a DEMIURGE feature rather than
-      shipped standalone. Target venue: the Linux Audio Conference.</p>
-    </section>
-
-    <section class="refs">
-      <h2>References</h2>
-      <ol>
-        <li>E. Smith, "DemiurgeOS,"
-        <a href="../../index.html#/papers/season-2026-27/demiurgeos">EMGOR universe node <code>emgor.papers.demiurgeos</code></a>
-        — with sub-nodes <a href="../../index.html#/papers/season-2026-27/demiurgeos/os">OS Core</a>,
-        <a href="../../index.html#/papers/season-2026-27/demiurgeos/launcher">Launcher</a>,
-        <a href="../../index.html#/papers/season-2026-27/demiurgeos/nam">NAM</a>, and
-        <a href="../../index.html#/papers/season-2026-27/demiurgeos/web">Web Control</a>, 2026.</li>
-        <li>E. Smith, "Integrating Neural Amp Modeling into Csound,"
-        <a href="../../universe/papers/season-2026-27/files/nam-csound-icsc.pdf">ICSC 2026 submission (PDF)</a>.</li>
-        <li>E. Berdahl and W. Ju, "Satellite CCRMA: A Musical Interaction and Sound Synthesis
-        Platform," NIME 2011.</li>
-        <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
-        <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
+      <h2>Structure</h2>
+      <ol class="structure-list">
+        <li>Introduction &mdash; the Pi as instrument, and why Satellite needed a successor</li>
+        <li>The sync layer &mdash; virtual I/O, the MIDI merge bus, invisible hot-plug</li>
+        <li>One config surface &mdash; <code>live.conf</code>, the Rust patch-graph launcher, hot reload with graceful-failure re-routing</li>
+        <li>Clock and sync &mdash; <code>demiurge-clock</code> at 24 PPQN, BPM on ch16 CC119, optional Ableton Link</li>
+        <li>Control surfaces &mdash; terminal companion, Python web GUI, power presets</li>
+        <li>The performance pack &mdash; core isolation, quantum 128, overclock, thermal watchdog</li>
+        <li>Remote microcontroller flashing over SSH</li>
+        <li>Evaluation &mdash; seven languages verified bidirectionally; latency and reliability benchmarks</li>
+        <li>Future work &mdash; public flashable image, OMNIPLEX transport folded in, classroom deployment</li>
       </ol>
+    </section>
+
+    <section class="downloads-block">
+      <h2>Resources</h2>
+      <ul>
+        <li><a href="../../index.html#/papers/season-2026-27/demiurgeos/os">OS Core</a> &mdash; PipeWire layer, virtual I/O, global clock, boot config, performance pack</li>
+        <li><a href="../../index.html#/papers/season-2026-27/demiurgeos/launcher">Launcher</a> &mdash; the zero-dependency Rust patch-graph engine</li>
+        <li><a href="../../index.html#/papers/season-2026-27/demiurgeos/nam">NAM</a> &mdash; Neural Amp Modeler as a chain stage</li>
+        <li><a href="../../index.html#/papers/season-2026-27/demiurgeos/web">Web Control</a> &mdash; browser control surface: telemetry, patches, power, transport</li>
+        <li><a href="neptr-performance-system.html">NEPTR</a> &mdash; the instrument running on top of it</li>
+      </ul>
     </section>
 
   </div>
 </article>
 
 <footer class="paper-footer">
-  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+  EMGOR &mdash; rendered in paper format. Screen version dark; print for the classic look.
 </footer>
 
 </body>

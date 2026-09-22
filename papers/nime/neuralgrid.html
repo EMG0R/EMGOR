@@ -3,137 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NeuralGrid — draft</title>
+<meta name="robots" content="noindex, nofollow">
+<title>NeuralGrid: A Physical Interface for Live Sequencing and Improvisation</title>
 <link rel="stylesheet" href="nime.css">
 </head>
 <body>
 
 <nav class="paper-nav">
   <a href="index.html">&larr; Papers</a>
-  <a href="../../index.html#/papers/future/neuralgrid">View in the EMGOR universe</a>
+  <a href="../../index.html#/papers/season-2026-27/neuralgrid">View in the EMGOR universe</a>
 </nav>
 
 <article class="paper">
 
   <header class="titleblock">
-    <h1>NeuralGrid: A Physical Interface for Live Sequencing and Improvisation Using Adaptive Neural Models</h1>
+    <h1>NeuralGrid: A Physical Interface for Live Sequencing and Improvisation</h1>
     <p class="authors">Emory Smith &middot; Ajay Kapur &middot; Jake Cheng</p>
-    <p class="affil">EMGOR / California Institute of the Arts</p>
-    <p class="draft-marker">Draft &mdash; NIME target</p>
+    <p class="affil">California Institute of the Arts</p>
+    <p class="draft-marker">Draft &mdash; NIME target &middot; mid-build</p>
   </header>
 
   <div class="paper-body">
 
     <section class="abstract">
       <h2>Abstract</h2>
-      <p>NeuralGrid is a sensor-dense physical controller whose models speak a symbolic vocabulary
-      before they speak sound. Pads, ribbons, lidar, and contact microphones are smoothed and
-      interpolated into a coherent output format defined by the dimensional space the sensors
-      represent. A first model interprets gesture through a symbolic vocabulary borrowed from
-      tabla &mdash; where <em>bols</em> are spoken strokes, <em>theka</em> holds a cycle, and
-      <em>tihai</em> and <em>kaida</em> act as geometric transforms over stroke sequences
-      &mdash; so phrases can be played, combined, varied, and spoken aloud. A second model
-      translates that symbolic stream onto any synthesis engine through seven perceptual axes.
-      The translator is deaf by design: it never hears what it renders, which keeps model
-      latency structurally outside the audio path. Parameter mapping across OSC and MIDI lets
-      the same stream drive complex interfaces and mechanical instruments, including the
-      Machine Lab.</p>
+      <p>NeuralGrid is a sensor-dense physical controller whose models speak a symbolic
+      vocabulary before they speak sound. Pads, ribbons, lidar, and contact microphones are
+      smoothed and interpolated into a coherent output format defined by the dimensional space
+      the sensors represent. A first model interprets gesture through a symbolic vocabulary
+      borrowed from tabla &mdash; where <em>bols</em> are spoken strokes, <em>theka</em> holds a
+      cycle, and <em>tihai</em> and <em>kaida</em> act as geometric transforms over stroke
+      sequences &mdash; so phrases can be played, combined, varied, and spoken aloud. A second
+      model translates that symbolic stream onto any synthesis engine through seven perceptual
+      axes. The translator is deaf by design: it never hears what it renders, which keeps model
+      latency structurally outside the audio path.</p>
+    </section>
+
+    <section class="read-block">
+      <span class="read-btn disabled">Paper not yet written</span>
     </section>
 
     <section>
-      <p class="keywords"><strong>Keywords:</strong> grid controller, symbolic vocabulary, tabla bols,
-      perceptual coordinates, Raspberry Pi, Machine Lab</p>
-    </section>
-
-    <section class="flow">
-      <h2>1. Introduction</h2>
-      <p>Reflecting on the state of the Machine Lab system, a universal controller is the logical
-      next step: something pre-mapped to the OSC addresses around the room, able to manage basic
-      aspects of the server itself. Turning NeuralGrid on launches the server, and anyone new to
-      the room can immediately and intuitively play every instrument in it — the room as an
-      <em>instrument</em> rather than a composition platform.</p>
-      <p>The instrument built toward this separates the problem in two: a model that decides
-      <em>what is being played</em>, expressed symbolically, and a model that decides <em>what
-      that should sound like</em>, expressed as coordinates in a perceptual space. Neither one
-      sits in the real-time path.</p>
-    </section>
-
-    <section class="flow">
-      <h2>2. Two Layers, and the First One Is Language</h2>
-
-      <h3>2.1 The symbolic layer</h3>
-      <p>The design turns on a borrowing from tabla. <em>Bols</em> are the spoken vocabulary of
-      strokes &mdash; a phrase can be said as readily as played. <em>Theka</em> and
-      <em>taal</em> hold a cycle, and <em>tihai</em> and <em>kaida</em> operate as geometric
-      transforms over sequences of bols. That is a complete, tested grammar for playing,
-      combining, and varying phrases, and it is symbolic and speakable by construction &mdash;
-      which is precisely what generative pattern variation keeps trying to reinvent.</p>
-      <p>The first model therefore interprets gesture from spatial input through a symbolic
-      vocabulary of this kind: recognizing phrases, holding a consistent cycle, and applying
-      generative modulation as transforms over the symbol sequence rather than over audio. The
-      output is vocally synthesizable, and the vocabulary has room to extend into English
-      symbolism.</p>
-      <p>This is a borrowing from a living tradition and the paper treats it as one, named and
-      cited to the tabla scholarship rather than presented as a found abstraction.</p>
-
-      <h3>2.2 The translator layer</h3>
-      <p>The second model maps symbolic output onto any synthesis engine through seven
-      perceptual axes: frequency, loudness, harmonicity, rate (temporal modulation), scale
-      (spectral modulation), space, and time. Hardcoded regions of the translator's behavior
-      define specific <em>instruments</em>; loosening them lets more of the instrument be
-      generatively shaped, until the whole thing is authored by the translator's reactions to
-      the player.</p>
-      <p>The translator is <strong>deaf</strong>. It never hears what it renders &mdash; it
-      responds to the player and to the symbol stream, not to the resulting sound. That
-      separation is the design: a model that never listens never has to keep up, so model
-      latency stays structurally outside the audio path.</p>
-
-      <h3>2.3 Hardware</h3>
-      <p>A grid of RGB pads with force sensing beneath them, ribbon sensors along the edges,
-      lidar at the corners, and contact mics inside the enclosure as additional sensors, all
-      running to a Raspberry Pi. Sensor input is smoothed and interpolated into a coherent
-      output format defined by the dimensional space the sensors represent, rather than by what
-      each individual sensor happens to emit.</p>
-
-      <h3>2.4 Why the split matters</h3>
-      <p>The model never sits in the hot path. A real-time layer reads sensors, plays notes,
-      and drives LEDs without blocking on anything, while the models run beside it and stage
-      their results for an atomic swap on a boundary. If a model takes 200&nbsp;ms, nothing is
-      late.</p>
-
-      <h2>3. Current Status</h2>
-      <p>Mid-build. The first encoder is working on hardware, with sensor smoothing and
-      interpolation producing the coherent output format described above. The symbolic
-      vocabulary and the translator are the next two milestones.</p>
-
-      <h2>4. Future Work</h2>
-      <p>Extend from the working encoder to the full sensor complement; implement the symbolic
-      vocabulary and its transforms; then the translator and the seven-axis mapping. The Machine
-      Lab renderer and a browser-based controller/renderer pair are the two deployment targets
-      that would let a reader try the system without building anything. Target venue: NIME.</p>
-    </section>
-
-    <section class="refs">
-      <h2>References</h2>
-      <ol>
-        <li>E. Smith, "neuralGrid — Dimensional Architecture,"
-        <a href="../../neuralgrid.html">supplementary design document</a>, EMGOR, 2026.</li>
-        <li>E. Smith, "neuralGrid,"
-        <a href="../../index.html#/hardware/neuralgrid">EMGOR universe node
-        <code>emgor.hardware.neuralgrid</code></a> (build log, protocol spec, firmware), 2026.</li>
-        <li>E. Smith, "DemiurgeOS,"
-        <a href="../../index.html#/papers/demiurgeos">EMGOR universe node <code>emgor.papers.demiurgeos</code></a>,
-        2026.</li>
-        <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
-        <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
+      <h2>Structure</h2>
+      <ol class="structure-list">
+        <li>Introduction &mdash; the Machine Lab, and the case for a universal controller</li>
+        <li>Related work &mdash; grid controllers, gestural mapping, and computational models of tabla</li>
+        <li>The symbolic layer &mdash; bols as vocabulary, theka as cycle, tihai and kaida as transforms</li>
+        <li>The translator &mdash; seven perceptual axes, and what it means for a model to be deaf</li>
+        <li>Instruments as constraint &mdash; hardcoding regions of translator behavior</li>
+        <li>Hardware &mdash; pads, FSRs, ribbons, lidar, contact mics, and the sensor-to-space mapping</li>
+        <li>Architecture &mdash; keeping every model out of the hot path</li>
+        <li>Evaluation &mdash; latency of the fast plane; whether the axes are independently steerable</li>
+        <li>Future work &mdash; Machine Lab renderer, browser controller/renderer pair</li>
       </ol>
+    </section>
+
+    <section class="downloads-block">
+      <h2>Resources</h2>
+      <ul>
+        <li><a href="../../neuralgrid.html">NeuralGrid design document</a></li>
+        <li><a href="demiurgeos.html">DemiurgeOS</a> &mdash; the platform it runs on</li>
+        <li><a href="../../index.html#/papers/season-2026-27/neuralgrid">Universe node</a></li>
+      </ul>
     </section>
 
   </div>
 </article>
 
 <footer class="paper-footer">
-  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+  EMGOR &mdash; rendered in paper format. Screen version dark; print for the classic look.
 </footer>
 
 </body>

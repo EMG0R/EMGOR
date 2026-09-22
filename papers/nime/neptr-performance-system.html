@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Performance System of a Modern Digital Luthier — draft</title>
+<meta name="robots" content="noindex, nofollow">
+<title>Performance System of a Modern Digital Luthier</title>
 <link rel="stylesheet" href="nime.css">
 </head>
 <body>
@@ -18,115 +19,56 @@
   <header class="titleblock">
     <h1>Performance System of a Modern Digital Luthier</h1>
     <p class="authors">Emory Smith</p>
-    <p class="affil">EMGOR / California Institute of the Arts</p>
-    <p class="draft-marker">Draft &mdash; NIME / ICMC target</p>
+    <p class="affil">California Institute of the Arts</p>
+    <p class="draft-marker">Draft &mdash; ICMC target &middot; instrument running today</p>
   </header>
 
   <div class="paper-body">
 
     <section class="abstract">
       <h2>Abstract</h2>
-      <p><span class="abstract-note">(Working abstract — formal abstract TBD.)</span>
-      NEPTR is the brain at the center of the performance system, linking together audio
-      interfaces, DIY controllers and hyper-instruments with internal DSP and GUI. It replaces
-      the laptop, synthesizer and pedalboard onstage. Dense sensors and controls onboard with
-      exposed USB ports (&times;3), Ethernet port and micro-HDMI port; performance happens
-      using only DIY controllers and DIY hyper-instruments. Included in the NEPTR performance
-      system: hyper-trumpet, hyper-guitar, hemi speaker(s), WE remote, DIY audio interface. The system is documented here as a whole rather than as a box: the operating layer beneath
-      it, the effect architecture inside it, and the family of DIY satellites around it.</p>
+      <p>NEPTR is the brain at the center of the performance system, linking audio interfaces,
+      DIY controllers, and hyper-instruments with internal DSP and a graphical interface. It
+      replaces the laptop, the synthesizer, and the pedalboard onstage. Csound runs on a
+      Raspberry Pi 5 at 48&nbsp;kHz with a 128-sample period &mdash; 6&nbsp;ms from string to
+      amplifier &mdash; carrying 63 effect modules across 20 menus, with a Python touchscreen
+      interface mirrored over OSC and the Rust DEMIURGE supervisor underneath. This paper
+      documents the system as a whole rather than the box alone: the operating layer beneath it,
+      the effect architecture inside it, and the family of DIY satellites around it.</p>
+    </section>
+
+    <section class="read-block">
+      <span class="read-btn disabled">Paper not yet written</span>
     </section>
 
     <section>
-      <p class="keywords"><strong>Keywords:</strong> live performance, Csound, Raspberry Pi,
-      hyper-instruments, DIY controllers, guitar effects</p>
-    </section>
-
-    <section class="flow">
-      <h2>1. Introduction</h2>
-      <p>NEPTR has moved through four phases; Phase 4 — codenamed DEMIURGE, after the Pi that
-      runs it — is the instrument on stage right now. It is a guitar effects processor and
-      performance brain for surf rock and experimental performance, feeding a <em>real</em>
-      amplifier: everything is voiced as pedal or preamp, never cabinet simulation, because a
-      real amp is doing that job. The laptop, the synthesizer, and the pedalboard are gone;
-      what remains onstage is the Pi, a Teensy control surface, a touchscreen, and the DIY
-      hyper-instruments that feed it.</p>
-    </section>
-
-    <section class="flow">
-      <h2>2. System</h2>
-      <h3>2.1 Runtime</h3>
-      <p>Csound runs on a Raspberry Pi 5 at 48 kHz with a
-      128-sample period, for 6 ms round trip: guitar &rarr; interface &rarr; Csound
-      &rarr; interface &rarr; amplifier. One <code>.csd</code> entry point
-      <code>#include</code>s the effect library, a globals file, the signal chain, and a MIDI
-      handler; bypassed effects are <code>turnoff2</code>'d and cost zero CPU. A systemd service boots the whole instrument from a single
-      <code>live.conf</code> on the DEMIURGE platform, whose launcher is a zero-dependency
-      Rust patch-graph engine: it parses that file into a directed graph of live programs,
-      links audio and MIDI between them, and hot-reloads on save, routing around a dead stage
-      rather than failing. The OS work and the instrument work are the same work approached
-      from opposite ends, and the crossover is deliberate.</p>
-      <h3>2.2 Control surface</h3>
-      <p>A Teensy with seven encoders and an expression pedal drives everything. Physical CCs
-      are remapped to logical roles: two encoders page through <strong>20 menus</strong>, five toggleable effect slots per menu, and every rotation drives the last-toggled effect's parameters.
-      The expression pedal follows a sticky last-toggled-wins rule. A Python touchscreen UI is
-      mirrored over OSC, with a consistency test suite that fails the build if the UI tables,
-      the MIDI handler, and the reference documentation ever disagree.</p>
-      <h3>2.3 The effect roster</h3>
-      <p>63 effect modules, every one hand-written Csound. Highlights: five
-      circuit-modeled drive pedals (Klon/TS morph, Marshall preamp, SLO&oplus;5150 dual
-      high-gain, RAT&times;Metal Zone, Big Muff) through shared 4&times;-oversampled clippers;
-      ports of three Chase Bliss pedals, including a 175-second echo collector and a granular
-      modifier of the looper's own loops; Neural Amp Modeler at the end of the chain via the
-      custom <code>NAMProcess</code> opcode; a 5-channel looper with a drum-sample master-grid
-      mode and a clocked GLITCH menu placed post-looper so it mangles loops too; spectral bin
-      crushers and codec-degradation processors; pitch-tracked synth voices; convolution IR
-      reverb; and CHAIN FB, which feeds the entire chain back into itself, bounded by
-      construction.</p>
-      <h3>2.4 The performance system</h3>
-      <p>Around the brain sit the DIY satellites: hyper-trumpet and hyper-guitar, hemispherical
-      speakers (Quadro Punch Packer), the We-Remote BLE controller, the 4-i-Gor DIY audio
-      interface, and the oFOOTS foot controller — all documented as hardware planets on this
-      site.</p>
-    </section>
-
-    <section>
-      <h2>3. Current Status</h2>
-      <p>Phase 4 is the current gigging instrument: deployed at 6 ms round trip with the
-      20-menu surface, presets with per-preset output trim, and the NAM stage live. The looper
-      menu is in active development, and the authoritative internal reference document is kept
-      current as the system changes [2]. Latency work continues toward a 64-sample period pending a worst-preset soak test.</p>
-    </section>
-
-    <section>
-      <h2>4. Future Work</h2>
-      <p>Finish the looper; complete the hyper-instrument set; and take the system to the stage
-      at NIME and ICMC &mdash; performance first, presentation second.</p>
-    </section>
-
-    <section class="refs">
-      <h2>References</h2>
-      <ol>
-        <li>E. Smith, "Phase 4 — DEMIURGE,"
-        <a href="../../index.html#/neptr/phase-4">EMGOR universe node
-        <code>emgor.neptr.phase-4</code></a> (spine <code>.csd</code> and
-        <code>live.conf</code> downloadable), 2026.</li>
-        <li>E. Smith, "NEPTR Phase 4 — Full Reference," internal documentation,
-        <code>______2026NEW/NEPTR phase4/docs/neptr_full_reference.md</code>, 2026.</li>
-        <li>E. Smith, "DemiurgeOS,"
-        <a href="../../index.html#/papers/demiurgeos">EMGOR universe node
-        <code>emgor.papers.demiurgeos</code></a>, 2026.</li>
-        <li>E. Smith, "Integrating Neural Amp Modeling into Csound,"
-        <a href="../../universe/papers/season-2026-27/files/nam-csound-icsc.pdf">ICSC 2026 submission
-        (PDF)</a>.</li>
-        <li>E. Smith, "NEPTR," <a href="../../NEPTR.html">project page</a>, EMGOR, 2026.</li>
+      <h2>Structure</h2>
+      <ol class="structure-list">
+        <li>Introduction &mdash; the laptop, the synth, and the pedalboard, and why none of them are onstage</li>
+        <li>Runtime &mdash; Csound on the Pi 5, 6&nbsp;ms round trip, the Rust supervisor beneath</li>
+        <li>Control surface &mdash; Teensy encoders, 20 menus, last-toggled-wins, the consistency test suite</li>
+        <li>The effect roster &mdash; 63 hand-written modules; drive, spectral, granular, looper, NAM</li>
+        <li>The performance system &mdash; hyper-trumpet, hyper-guitar, hemi speakers, We-Remote, 4-i-Gor, oFOOTS</li>
+        <li>Evaluation &mdash; what survives a gig</li>
+        <li>Future work</li>
       </ol>
+    </section>
+
+    <section class="downloads-block">
+      <h2>Resources</h2>
+      <ul>
+        <li><a href="demiurgeos.html">DemiurgeOS</a> &mdash; the platform it boots from</li>
+        <li><a href="nam-csound.html">NAM &times; Csound</a> &mdash; the opcode at the end of its chain</li>
+        <li><a href="../../index.html#/hardware">Hardware planets</a> &mdash; the DIY satellites, with build files</li>
+        <li><a href="../../NEPTR.html">NEPTR on the site</a></li>
+      </ul>
     </section>
 
   </div>
 </article>
 
 <footer class="paper-footer">
-  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+  EMGOR &mdash; rendered in paper format. Screen version dark; print for the classic look.
 </footer>
 
 </body>

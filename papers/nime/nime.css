@@ -365,3 +365,22 @@ section.refs li { margin-bottom: 0.45rem; }
 .downloads-block ul { list-style: none; padding-left: 0; }
 .downloads-block li { padding: 0.3em 0; border-bottom: 1px solid rgba(128,128,128,0.18); }
 .downloads-block li:last-child { border-bottom: none; }
+
+/* read-the-paper button */
+.read-block { margin: 2rem 0 2.5rem; }
+.read-btn {
+  display: inline-block;
+  padding: 0.7em 1.4em;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  font-size: 0.95rem;
+  transition: opacity 0.15s ease;
+}
+.read-btn:hover { opacity: 0.65; }
+.read-btn.disabled { opacity: 0.35; border-style: dashed; cursor: default; }
+
+/* planned structure list */
+.structure-list { padding-left: 1.4rem; }
+.structure-list li { margin-bottom: 0.45rem; opacity: 0.85; }

@@ -18,6 +18,7 @@ Csound instruments with Cabbage UIs. Csound is the oldest living computer-music 
 - **EMGOR_SYNTH v1.2** — 9-partial additive synth with routable LFO
 - **EMGOR_FX v3** — stacked stereo FX rack, built as VST3
 - **EMGOR_GENERATIVE_SAMPLR v3.2** — probabilistic 8-slot sampler, built as AU
+- **Nonlinear Daylight** — nonlinear reverb study, headless
 - **metaGOR** — self-playing ambient piece in one file
 - **GEN_SEQUENCER v1** — grid sequencer prototype
 

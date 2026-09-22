@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BOUBA — draft</title>
+<meta name="robots" content="noindex, nofollow">
+<title>BOUBA: An Intuitive System for Accessing the Benefits of Music Therapy</title>
 <link rel="stylesheet" href="nime.css">
 </head>
 <body>
@@ -18,115 +19,57 @@
   <header class="titleblock">
     <h1>BOUBA: An Intuitive System for Accessing the Benefits of Music Therapy</h1>
     <p class="authors">Emory Smith</p>
-    <p class="affil">EMGOR / California Institute of the Arts</p>
-    <p class="draft-marker">Draft &mdash; TEI / DIS target</p>
+    <p class="affil">California Institute of the Arts</p>
+    <p class="draft-marker">Built &mdash; second prototype and web version in progress &middot; TEI / DIS target</p>
   </header>
 
   <div class="paper-body">
 
     <section class="abstract">
       <h2>Abstract</h2>
-      <p>BOUBA is a system providing tactile interaction with therapeutic generative synthesis.
-      Designed for the non-musician seeking a psychologically beneficial relationship with
-      sound, BOUBA targets four pillars of human experience: sleep, mood, productivity, and
-      autonomic regulation. At reproduction price, its physical controls and self-contained
-      state foster an intimate and unique relationship with the user, grounded in empirical
-      research linking ambient consonance, rhythmic entrainment, and generative soundscapes to
-      measurable physiological and psychological benefit.</p>
-    </section>
-
-    <section>
+      <p>BOUBA is a quadraphonic sound object providing tactile interaction with therapeutic
+      generative synthesis. Designed for the non-musician seeking a psychologically beneficial
+      relationship with sound, BOUBA targets four pillars of human experience: sleep, mood,
+      productivity, and autonomic regulation. At roughly \$80 USD to reproduce, its physical
+      controls and spatialization foster an intimate and unique relationship with the user,
+      grounded in empirical research linking ambient consonance, rhythmic entrainment, and
+      generative soundscapes to measurable physiological and psychological benefit. BOUBA makes
+      no claim of clinical efficacy; the relationship between the cited findings and its
+      synthesis parameters is one of informed design.</p>
       <p class="keywords"><strong>Keywords:</strong> music therapy, generative synthesis,
       tangible interfaces, Teensy, quadraphonic, wellbeing</p>
     </section>
 
-    <section class="flow">
-      <h2>1. Introduction</h2>
-      <p>Most therapeutic-sound products are apps: another screen, another subscription, another
-      stream. BOUBA takes the opposite position — a small, self-contained physical object whose
-      controls are all onboard, whose state lives nowhere but inside it, and whose sound is
-      generated rather than played back. The bet is that physicality and self-containment are
-      not packaging details but part of the therapeutic mechanism: an intimate, single-purpose
-      object invites a different relationship with sound than a phone does.</p>
+    <section class="read-block">
+      <a class="read-btn" href="render/rotura/index.html#case-study-bouba">Read the case study &rarr;</a>
     </section>
 
-    <section class="flow">
-      <h2>2. The Built Object</h2>
-      <p>BOUBA is programmed with the Teensy Audio Library, centered around a number of
-      generative compositions that are self-sufficient but interactive. It runs with no
-      external connections besides power. Onboard controls select or interpolate between
-      presets, manually trigger notes, and adjust volume, probability, or pitch.</p>
-      <p>Four speakers deliver quadraphonic output from two PCM5102 DACs amplified by four
-      LM386 amplifiers. The system is powered from a standard 9&nbsp;V jack which is stepped
-      down for different components, allowing for use with common cables or batteries. It
-      costs roughly \$80 USD to reproduce. The 3D-printed enclosure positions the speakers for
-      quadraphonic imaging while centralizing controls for single-handed operation.</p>
-      <p>Evaluated against O'Modhrain's framework: <em>playability</em> is lower by design
-      &mdash; a minimal control surface is the point &mdash; <em>learnability</em> is high,
-      <em>sonic range</em> is intentionally constrained to consonant ambient territory, and
-      <em>robustness</em> has been high over two months of consistent use.</p>
-
-      <h3>2.1 The research baseline</h3>
-      <p>Each preset operationalizes a published finding. For <em>sleep</em>, white noise
-      improving sleep in coronary care patients and sine-based music reducing sleep latency by
-      38% with increased delta power. For <em>mood</em>, natural soundscapes facilitating mood
-      recovery, and consonant harmonic relationships engaging paralimbic reward centers while
-      dissonant stimuli activate amygdala regions tied to negative valence. For
-      <em>productivity</em>, 45&nbsp;dB white noise raising attention and creativity via
-      stochastic resonance, and rhythmic entrainment at 120&ndash;140 BPM improving work
-      output. For <em>autonomic regulation</em>, salivary cortisol halved post-stressor with
-      ambient music, and a meta-analytic effect of d&nbsp;=&nbsp;0.380 for physiological stress
-      reduction across music interventions.</p>
-      <p>BOUBA does not attempt to replicate the clinical conditions of any cited study, and
-      makes no claim of clinical efficacy. The relationship between these findings and BOUBA's
-      synthesis parameters is one of informed design.</p>
-
-      <h2>2.2 Second generation and the web version</h2>
-      <p>A second hardware prototype is in development, distinct from the original and designed
-      for the two things the first traded away: accessibility of reproduction, and sound
-      quality. Alongside it, a free web version runs the same generative system in a browser,
-      so the object can be used without being built.</p>
-      <p>The pair makes possible a comparison the object alone could not support: how people
-      relate to a physical sound object versus the identical generative system on a screen.</p>
-
-      <h2>3. Current Status</h2>
-      <p>Built and in use. The first BOUBA has been in consistent use for months and appears
-      as one of two case studies in <a href="digital-luthier.html">Workflow of a Modern Digital
-      Luthier</a>. The second-generation prototype and the web version are the active work.</p>
-
-      <h2>4. Evaluation Plan</h2>
-      <p>The contribution offered is the interface and what people do with it, not a health
-      outcome &mdash; a tangible-interface and research-through-design paper rather than a
-      clinical one. Target venues: TEI or DIS, with Audio Mostly as the faster route.</p>
-      <p>Evaluation is qualitative: semi-structured interviews with a normal-for-the-field
-      sample, thematic analysis, a standardized interface-quality instrument such as AttrakDiff
-      or UEQ, and usage telemetry from the web build &mdash; which presets people return to,
-      how long sessions run, what time of day they happen. The physical-versus-browser
-      comparison is the central question.</p>
-      <p>Any study involving participants goes through institutional review before a single
-      response is collected.</p>
-
-      <section class="refs">
-      <h2>References</h2>
-      <ol>
-        <li>E. Smith, "2026–2027 Papers," EMGOR internal planning document,
-        <code>______2026NEW/__PAPERS/2026-2027 PAPERS.md</code>, 2026.</li>
-        <li>E. Smith, "BOUBA,"
-        <a href="../../index.html#/papers/season-2026-27/bouba">EMGOR universe node
-        <code>emgor.papers.season-2026-27.bouba</code></a>, 2026.</li>
-        <li>E. Smith, "LITE: Teensy 4.1 light instrument,"
-        <a href="../../index.html#/hardware/lite">EMGOR universe node
-        <code>emgor.hardware.lite</code></a>, 2026.</li>
-        <li>E. Smith, "CIESEN," <a href="../../ciesen.html">ChucK web instrument</a>,
-        EMGOR, 2026.</li>
+    <section>
+      <h2>Structure</h2>
+      <ol class="structure-list">
+        <li>The built object &mdash; Teensy Audio Library, four speakers from two PCM5102 DACs through four LM386 amplifiers, 9&nbsp;V in, no other connections</li>
+        <li>The research baseline &mdash; sleep, mood, productivity, autonomic regulation, and the studies behind each preset</li>
+        <li>Second generation &mdash; a new prototype built for accessibility and sound quality</li>
+        <li>The web version &mdash; the same generative system in a browser</li>
+        <li>Physical versus browser &mdash; the comparison the pair makes possible</li>
+        <li>Evaluation &mdash; interviews, thematic analysis, an interface-quality instrument, and usage telemetry</li>
       </ol>
+    </section>
+
+    <section class="downloads-block">
+      <h2>Resources</h2>
+      <ul>
+        <li><a href="render/rotura/index.html#case-study-bouba">BOUBA case study</a> &mdash; in the ROTURA manuscript, with figures and the full research baseline</li>
+        <li><a href="digital-luthier.html">Workflow of a Modern Digital Luthier</a> &mdash; the paper it appears in</li>
+        <li><a href="../../index.html#/papers/season-2026-27/bouba">Universe node</a></li>
+      </ul>
     </section>
 
   </div>
 </article>
 
 <footer class="paper-footer">
-  EMGOR — draft rendered in NIME paper format. Screen version dark; print for the classic look.
+  EMGOR &mdash; rendered in paper format. Screen version dark; print for the classic look.
 </footer>
 
 </body>

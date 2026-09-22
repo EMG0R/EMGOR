@@ -18,6 +18,7 @@ downloads:
   - files/nam-opcode/analyze.py
 links:
   - { label: "Read as paper", url: "papers/nime/nam-csound.html" }
+  - { label: "The paper (PDF)", url: "papers/nime/render/nam/nam-csound-icsc.pdf" }
 tags: [csound, neural-amp-modeler, dsp, raspberry-pi, cabbage, opcode, complete]
 updated: 2026-09-21
 draft: false

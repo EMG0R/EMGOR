@@ -6,6 +6,7 @@ parent: emgor.papers.season-2026-27
 source: luthier_paper_v2/rotura_submission.md
 links:
   - { label: "Read as paper", url: "papers/nime/digital-luthier.html" }
+  - { label: "Full rendered manuscript", url: "papers/nime/render/rotura/index.html" }
 tags: [rotura, methodology, digital-lutherie, fabrication, interaction-design, neptr, bouba]
 updated: 2026-09-21
 draft: false
