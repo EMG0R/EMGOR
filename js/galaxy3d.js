@@ -20,9 +20,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var VOID = '#060112';   // near-black, faint violet — deep cinematic void
     var ROOT_SYS_R = 1200;          // world radius of the root system
     var SHRINK = 0.2;               // child system radius = parent * SHRINK
-    var BODY_F = 0.3;               // body radius = own system radius * BODY_F
+    var BODY_F = 0.46;              // body radius = own system radius * BODY_F (bumped: planets read bigger)
     var ORBIT_MIN = 0.58, ORBIT_MAX = 1.0;
-    var MARGIN_X = 20, MARGIN_Y = 36;
+    var MARGIN_X = 8, MARGIN_Y = 14;   // tight frame: the system should reach the edges
     var FLY_DUR = 1.15;             // seconds, fractal zoom flight
     var CHILD_BOOST = 1.9;          // visual size boost for the focused nav ring
     var TAU = Math.PI * 2;
@@ -651,7 +651,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var diskGeom = warpRingGeometry(
             new THREE.RingGeometry(core * 1.08, core * 3.2, 128, 3), core * 0.07, 'emgor::disk1');
         var diskMat = new THREE.MeshBasicMaterial({
-            map: accTex, transparent: true, opacity: 0.6, side: THREE.DoubleSide,
+            map: accTex, transparent: true, opacity: 0.34, side: THREE.DoubleSide, depthWrite: false,
             blending: THREE.AdditiveBlending, depthWrite: false
         });
         accretionMesh = new THREE.Mesh(diskGeom, diskMat);
@@ -666,7 +666,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // also buckled off-plane (warpRingGeometry) so it never reads as a
         // flat 2D annulus even face-on — it's a churning volume of matter.
         var disk2Mat = diskMat.clone();
-        disk2Mat.opacity = 0.28;
+        disk2Mat.opacity = 0.17;
         var disk2Geom = warpRingGeometry(
             new THREE.RingGeometry(core * 0.55, core * 1.5, 96, 2), core * 0.1, 'emgor::disk2');
         accretionMesh2 = new THREE.Mesh(disk2Geom, disk2Mat);
@@ -676,7 +676,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         blackHole.add(pivot2);
 
         var disk3Mat = diskMat.clone();
-        disk3Mat.opacity = 0.2;
+        disk3Mat.opacity = 0.12;
         var disk3Geom = warpRingGeometry(
             new THREE.RingGeometry(core * 1.6, core * 4.4, 112, 2), core * 0.14, 'emgor::disk3');
         accretionMesh3 = new THREE.Mesh(disk3Geom, disk3Mat);
@@ -752,31 +752,93 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // straight down the pole — the swarm still reads as a 3D volume, not a
     // 2D ring. Hot magenta-violet near the core fading to deep violet out —
     // deliberately no near-white, so it reads as superheated plasma, not fog.
+    // Volumetric accretion field. The previous version scattered points on a
+    // thin disk (y = +/- a small thickness), so from any normal camera pitch
+    // it collapsed into a flat 2D band of pixels. This builds a genuine 3D
+    // volume instead: two populations, a flattened-but-thick inflow torus and
+    // a full spherical halo, so there are particles above, below, in front of
+    // and behind the hole no matter where the camera sits.
     function buildAccretionParticles(core) {
-        var N = 1500;
+        var N_DISK = 3000, N_HALO = 1900, N = N_DISK + N_HALO;
         var rng = mulberry32(hash32('emgor::accretion-particles'));
         var pos = new Float32Array(N * 3);
         var col = new Float32Array(N * 3);
-        var hotColor = new THREE.Color(0xe8a8ff);
-        var coolColor = new THREE.Color(0x4a1f8c);
-        for (var i = 0; i < N; i++) {
-            var a = rng() * TAU;
-            var t = Math.pow(rng(), 0.7);                 // bias toward inner radii
-            var r = core * (1.15 + t * 4.2);
-            var thickness = core * (0.16 + t * 0.7);       // puffier further out
-            var y = (rng() - 0.5) * 2 * thickness;
-            pos[i * 3] = Math.cos(a) * r;
-            pos[i * 3 + 1] = y;
-            pos[i * 3 + 2] = Math.sin(a) * r;
-            var c = hotColor.clone().lerp(coolColor, clamp(t, 0, 1));
+        var siz = new Float32Array(N);
+        var hotColor  = new THREE.Color(0xf0bcff);
+        var midColor  = new THREE.Color(0xa855f7);
+        var coolColor = new THREE.Color(0x3d1a7a);
+
+        function write(i, x, y, z, t, s) {
+            pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+            var c = t < 0.5 ? hotColor.clone().lerp(midColor, t * 2)
+                            : midColor.clone().lerp(coolColor, (t - 0.5) * 2);
             col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+            siz[i] = s;
         }
+
+        // ── inflow torus: still disk-biased (it IS an accretion disk) but
+        // thick enough to have real volume, and the thickness grows with
+        // radius so it flares instead of staying a plate.
+        for (var i = 0; i < N_DISK; i++) {
+            var a = rng() * TAU;
+            var t = Math.pow(rng(), 0.7);
+            var r = core * (1.1 + t * 4.4);
+            // vertical extent is a large fraction of the radius now (was ~4%)
+            var thick = core * (0.3 + t * 1.5);
+            var y = (rng() + rng() + rng() - 1.5) * thick;   // soft normal-ish falloff
+            // radial jitter so the torus has depth in the plane too, not a ring
+            var rr = r + (rng() - 0.5) * core * 0.5;
+            write(i, Math.cos(a) * rr, y, Math.sin(a) * rr, t,
+                  core * (0.011 + rng() * 0.017));
+        }
+
+        // ── spherical halo: genuinely isotropic, so the field reads as a
+        // cloud the hole sits inside rather than a band across it.
+        for (var j = 0; j < N_HALO; j++) {
+            var u = rng() * 2 - 1;                 // cos(phi), uniform on sphere
+            var th = rng() * TAU;
+            var sp = Math.sqrt(1 - u * u);
+            var rh = core * (1.1 + Math.pow(rng(), 0.6) * 3.4);
+            write(N_DISK + j, sp * Math.cos(th) * rh, u * rh, sp * Math.sin(th) * rh,
+                  0.4 + rng() * 0.6, core * (0.008 + rng() * 0.013));
+        }
+
         var geom = new THREE.BufferGeometry();
         geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
-        var mat = new THREE.PointsMaterial({
-            size: core * 0.055, vertexColors: true, transparent: true, opacity: 0.7,
-            blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+        geom.setAttribute('pcolor', new THREE.BufferAttribute(col, 3));
+        geom.setAttribute('psize', new THREE.BufferAttribute(siz, 1));
+
+        // per-point size needs a tiny shader; PointsMaterial has one global
+        // size, which is what made every particle read as the same flat speck.
+        var mat = new THREE.ShaderMaterial({
+            transparent: true, depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            uniforms: { uOpacity: { value: 0.8 }, uHeight: { value: 900 } },
+            vertexShader: [
+                'attribute float psize;',
+                'attribute vec3 pcolor;',
+                'uniform float uHeight;',
+                'varying vec3 vColor;',
+                'void main() {',
+                '  vColor = pcolor;',
+                '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+                // true perspective point size: a world-space radius projected
+                // to pixels. projectionMatrix[1][1] is 1/tan(fov/2).
+                '  gl_PointSize = psize * uHeight * projectionMatrix[1][1] / max(-mv.z, 0.0001);',
+                '  gl_Position = projectionMatrix * mv;',
+                '}'
+            ].join('\n'),
+            fragmentShader: [
+                'uniform float uOpacity;',
+                'varying vec3 vColor;',
+                'void main() {',
+                '  vec2 d = gl_PointCoord - vec2(0.5);',
+                '  float r = length(d);',
+                '  if (r > 0.5) discard;',
+                '  float a = smoothstep(0.5, 0.06, r);',
+                '  gl_FragColor = vec4(vColor, a * uOpacity);',
+                '}'
+            ].join('\n')
         });
         return new THREE.Points(geom, mat);
     }
@@ -1104,16 +1166,15 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // system (small/no size overrides) fits tight, while a system that
     // genuinely does have an oversized ringed child automatically gets
     // exactly the padding it needs, no more.
-    var FIT_SAFETY = 1.08;   // small fixed cushion: glow halo + rounding
+    var FIT_SAFETY = 0.86;   // <1: outer orbit runs to the frame edge, bodies may overhang
     function fitRadiusFor(node) {
-        var r = node.sysR * ORBIT_MAX;
-        for (var i = 0; i < node.kids.length; i++) {
-            var k = node.kids[i];
-            var bodyR = uniformSizeFor(k, node);
-            var reach = k.orbF * node.sysR + bodyR * (k.hasRing ? 1.9 : 1);
-            if (reach > r) r = reach;
-        }
-        return r * FIT_SAFETY;
+        // Fit the OUTER ORBIT itself, not the outer orbit plus the largest
+        // child's radius. Padding by body reach means a big body shrinks the
+        // whole system on screen to guarantee nothing ever crosses the frame
+        // edge — which leaves most of the window empty. Letting the outermost
+        // planet ride the edge (and occasionally overhang a little) is what
+        // makes the galaxy fill the screen.
+        return node.sysR * ORBIT_MAX * FIT_SAFETY;
     }
     //
     // The fit itself is solved with the EXACT perspective projection of
@@ -1559,7 +1620,16 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         return group;
     }
 
+    // Orbit path guides are disabled by design — the orbits read from the
+    // bodies' motion, not from drawn rings. Kept as a flag rather than
+    // deleted so the geometry path stays available if it's ever wanted.
+    var SHOW_ORBIT_LINES = false;
+
     function updateOrbitRings() {
+        if (!SHOW_ORBIT_LINES) {
+            for (var _id in orbitLinePool) orbitLinePool[_id].visible = false;
+            return;
+        }
         var e = trans ? easeInOut(clamp(trans.t, 0, 1)) : 1;
         for (var id in orbitLinePool) orbitLinePool[id].visible = false;
         if (focus.kids.length) {
@@ -1627,7 +1697,10 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         if (accretionMesh) accretionMesh.rotation.z = bt * 0.12;
         if (accretionMesh2) accretionMesh2.rotation.z = -bt * 0.3;      // spins about its own tilted pivot
         if (accretionMesh3) accretionMesh3.rotation.z = bt * 0.19;
-        if (accretionParticles) accretionParticles.rotation.y = bt * 0.045;
+        if (accretionParticles) {
+            accretionParticles.rotation.y = bt * 0.045;
+            accretionParticles.material.uniforms.uHeight.value = H;
+        }
         if (photonRing) photonRing.material.opacity = 0.5 + 0.2 * Math.sin(bt * 2.3);
         if (haloSprite) haloSprite.material.opacity = 0.13 + 0.03 * Math.sin(bt * 0.9);
         updateBlackHoleFade();

@@ -94,6 +94,12 @@
     <priority>0.3</priority>
   </url>
   <url>
+    <loc>https://emgor.online/#/code/csound-suite/nonlinear-daylight</loc>
+    <lastmod>2026-09-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://emgor.online/#/code/juce</loc>
     <lastmod>2026-07-28</lastmod>
     <changefreq>monthly</changefreq>
@@ -395,97 +401,97 @@
   </url>
   <url>
     <loc>https://emgor.online/#/papers</loc>
+    <lastmod>2026-09-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/future</loc>
+    <lastmod>2026-09-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/future/omniplex</loc>
+    <lastmod>2026-09-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/future/open-pedal</loc>
+    <lastmod>2026-09-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/season-2026-27</loc>
+    <lastmod>2026-09-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/season-2026-27/bouba</loc>
+    <lastmod>2026-09-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/season-2026-27/demiurgeos</loc>
+    <lastmod>2026-09-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/season-2026-27/demiurgeos/launcher</loc>
     <lastmod>2026-07-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/bouba</loc>
+    <loc>https://emgor.online/#/papers/season-2026-27/demiurgeos/nam</loc>
     <lastmod>2026-07-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/demiurgeos</loc>
+    <loc>https://emgor.online/#/papers/season-2026-27/demiurgeos/os</loc>
     <lastmod>2026-07-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/demiurgeos/launcher</loc>
+    <loc>https://emgor.online/#/papers/season-2026-27/demiurgeos/web</loc>
     <lastmod>2026-07-28</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/demiurgeos/nam</loc>
-    <lastmod>2026-07-28</lastmod>
+    <loc>https://emgor.online/#/papers/season-2026-27/digital-luthier</loc>
+    <lastmod>2026-09-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/demiurgeos/os</loc>
-    <lastmod>2026-07-28</lastmod>
+    <loc>https://emgor.online/#/papers/season-2026-27/nam-csound</loc>
+    <lastmod>2026-09-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/demiurgeos/pi-experiments</loc>
-    <lastmod>2026-07-28</lastmod>
+    <loc>https://emgor.online/#/papers/season-2026-27/neptr-performance-system</loc>
+    <lastmod>2026-09-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/demiurgeos/pi-experiments/csound-pi</loc>
-    <lastmod>2026-07-28</lastmod>
+    <loc>https://emgor.online/#/papers/season-2026-27/neuralgrid</loc>
+    <lastmod>2026-09-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/demiurgeos/pi-experiments/lilith-pi</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/demiurgeos/web</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/digital-luthier</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/nam-csound</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neuralgrid</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/open-pedal</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/unified-streaming</loc>
-    <lastmod>2026-07-28</lastmod>
+    <loc>https://emgor.online/#/papers/season-2026-27/thesis</loc>
+    <lastmod>2026-09-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
