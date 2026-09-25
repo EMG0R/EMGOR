@@ -5,7 +5,6 @@ blurb: A 2027 Retrospective and Prospectus. The binding argument — the OS, the
 parent: emgor.papers.season-2026-27
 links:
   - { label: "Read as draft", url: "papers/nime/thesis.html" }
-  - { label: "Research direction proposal", url: "thesis-proposal.html" }
 tags: [thesis, calarts, digital-lutherie, practice-based, in-development]
 updated: 2026-09-25
 draft: false
@@ -13,7 +12,7 @@ draft: false
 
 # Digital Lutherie and Expression for the Electronic Artist: A 2027 Retrospective and Prospectus
 
-**Status: in development.** A practice-based master's thesis, written in the first person because the practitioner is the site of the inquiry. The [research direction proposal](/thesis-proposal.html) answers the framing questions one by one.
+**Status: in development.** A practice-based master's thesis, written in the first person because the practitioner is the site of the inquiry.
 
 ## What it binds
 
