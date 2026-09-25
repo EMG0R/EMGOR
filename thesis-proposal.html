@@ -21,13 +21,13 @@
   .home-button:hover { border-color: var(--violet); }
   .hero { position: relative; z-index: 1; min-height: 100vh; scroll-snap-align: start;
     display: grid; grid-template-rows: minmax(56vh, 1fr) auto; align-items: end; }
-  #orbits { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #orbits { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; }
   #labels { position: absolute; inset: 0; pointer-events: none; }
   .lbl { position: absolute; transform: translate(-50%, 0); white-space: nowrap;
     font-size: clamp(0.62rem, 0.42vw + 0.5rem, 0.78rem); letter-spacing: 1.5px; color: var(--ink-dim);
     text-shadow: 0 0 8px rgba(13,2,33,0.95), 0 0 2px rgba(13,2,33,1); }
   .lbl.center { color: var(--lavender); font-size: clamp(0.72rem, 0.5vw + 0.55rem, 0.9rem); white-space: normal; width: min(60vw, 420px); text-align: center; line-height: 1.5; transform: translate(-50%, -100%); }
-  .hero-text { position: relative; z-index: 2; width: min(92vw, 960px); margin: 0 auto; padding: 0 0 clamp(28px, 5vh, 64px); text-align: center; }
+  .hero-text { position: relative; z-index: 2; pointer-events: none; width: min(92vw, 960px); margin: 0 auto; padding: 0 0 clamp(28px, 5vh, 64px); text-align: center; }
   .kicker { font-size: clamp(0.7rem, 0.5vw + 0.55rem, 0.85rem); letter-spacing: 4px; text-transform: uppercase; color: var(--violet); margin: 0 0 14px; }
   .hero h1 { font-size: clamp(1.8rem, 3.8vw + 0.7rem, 3.6rem); line-height: 1.18; letter-spacing: 1px; margin: 0 0 10px; color: #F9F0FF;
     text-shadow: 0 0 18px rgba(168,85,247,0.5), 0 0 48px rgba(100,50,180,0.25); }
@@ -267,7 +267,6 @@ void main(){ vec3 N=normalize(vWorldNormal); vec3 V=normalize(vViewDir);
   #include <colorspace_fragment>
 }`;
 const MAP = [
-  { id:'q',  label:'how is the landscape of creating and playing digital instruments changing?', tier:-1, r:1.0 },
   { id:'ch1', label:'modern digital lutherie', tier:0, r:0.62 },
   { id:'ch2', label:'performance practices',   tier:0, r:0.62 },
   { id:'ch3', label:'past and future · landscape', tier:0, r:0.56 },
@@ -309,28 +308,82 @@ const bodies = MAP.map((m, i) => {
     ring.rotation.x = Math.PI/2 + 0.22 + rng()*0.2; ring.rotation.z = (rng()-0.5)*0.9; anchor.add(ring);
   }
   const inner = m.tier === 0;
-  const n = inner ? 3 : 7, k = inner ? i-1 : i-4;
+  const n = inner ? 3 : 7, k = inner ? i : i-3;
   return { m, anchor, mesh,
     orb: m.tier === -1 ? 0 : (inner ? 3.1 + rng()*0.25 : 5.4 + (k%2)*1.05 + rng()*0.3),
     ang: (k/n)*TAU + rng()*0.6, spd: (inner ? 0.07 : 0.042) * (inner ? 1 : -1) * (0.85+rng()*0.3),
     spin: 0.045 + rng()*0.09, spinTilt: (rng()-0.5)*0.5, r: m.r };
 });
-let W = 0, H = 0;
+// ── the black hole, as on the homepage: opaque displaced void with a ragged
+// fresnel rim, broken photon arcs, and a volumetric particle field ──────────
+const CORE = 1.3;
+const NOISE3 = `
+float h3(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719)))*43758.5453); }
+float n3(vec3 p){ vec3 i=floor(p); vec3 f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z); }`;
+const bh = new THREE.Object3D(); scene.add(bh);
+const horizonMat = new THREE.ShaderMaterial({ transparent:false, depthWrite:true,
+  uniforms:{ uTime:{value:0}, uRim:{value:new THREE.Color(0xd7a2ff)}, uVoid:{value:new THREE.Color(0x000000)} },
+  vertexShader:`uniform float uTime; varying vec3 vN; varying vec3 vV; varying vec3 vD; ${NOISE3}
+    void main(){ vec3 d=normalize(position); vD=d;
+      float w=n3(d*2.2+vec3(0.0,uTime*0.13,0.0)); float w2=n3(d*4.7-vec3(uTime*0.09,0.0,0.0));
+      vec3 pos=position*(1.0+0.26*(w-0.5)+0.13*(w2-0.5));
+      vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(pos,1.0); vV=normalize(-mv.xyz);
+      gl_Position=projectionMatrix*mv; }`,
+  fragmentShader:`uniform float uTime; uniform vec3 uRim; uniform vec3 uVoid; varying vec3 vN; varying vec3 vV; varying vec3 vD; ${NOISE3}
+    void main(){ float fres=1.0-clamp(dot(normalize(vN),normalize(vV)),0.0,1.0);
+      float n=n3(vD*4.0+vec3(0.0,uTime*0.22,0.0));
+      float band=pow(fres,13.0)*(0.35+1.15*n)+pow(fres,34.0)*1.1;
+      gl_FragColor=vec4(uVoid+uRim*band,1.0); }` });
+bh.add(new THREE.Mesh(new THREE.IcosahedronGeometry(CORE, 4), horizonMat));
+// broken photon arcs
+const arcs = new THREE.Object3D(); bh.add(arcs);
+[[1.30,2.1,[Math.PI/2,0,0],0.62],[1.42,1.3,[Math.PI/2+0.5,0,1.1],0.40],[1.55,0.9,[Math.PI/2-0.7,0,-0.6],0.30],[1.26,1.6,[Math.PI/2+1.1,0,2.4],0.34]]
+  .forEach(([r,sw,tilt,op],i)=>{ const m=new THREE.Mesh(new THREE.TorusGeometry(CORE*r, CORE*0.036, 10, 64, sw),
+    new THREE.MeshBasicMaterial({ color:0xc98bff, transparent:true, opacity:op, depthWrite:false, blending:THREE.AdditiveBlending }));
+    m.rotation.set(tilt[0],tilt[1],tilt[2]); m.userData.spin=((i*0.37)%1-0.5)*0.06; arcs.add(m); });
+// volumetric particle field: thick inflow torus + isotropic halo
+(function(){ const ND=3000, NH=1900, N=ND+NH, r=mulberry32(hash32('emgor::accretion-particles'));
+  const pos=new Float32Array(N*3), col=new Float32Array(N*3), siz=new Float32Array(N);
+  const hot=new THREE.Color(0xf0bcff), mid=new THREE.Color(0xa855f7), cool=new THREE.Color(0x3d1a7a);
+  function w(i,x,y,z,tt,s){ pos[i*3]=x;pos[i*3+1]=y;pos[i*3+2]=z; const c=tt<0.5?hot.clone().lerp(mid,tt*2):mid.clone().lerp(cool,(tt-0.5)*2);
+    col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b; siz[i]=s; }
+  for(let i=0;i<ND;i++){ const a=r()*TAU, tt=Math.pow(r(),0.7), rr=CORE*(1.35+tt*4.2)+(r()-0.5)*CORE*0.5, th=CORE*(0.3+tt*1.5);
+    w(i,Math.cos(a)*rr,(r()+r()+r()-1.5)*th,Math.sin(a)*rr,tt,CORE*(0.011+r()*0.017)); }
+  for(let j=0;j<NH;j++){ const u=r()*2-1, th=r()*TAU, sp=Math.sqrt(1-u*u), rh=CORE*(1.55+Math.pow(r(),0.6)*3.2);
+    w(ND+j,sp*Math.cos(th)*rh,u*rh,sp*Math.sin(th)*rh,0.4+r()*0.6,CORE*(0.008+r()*0.013)); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('pcolor',new THREE.BufferAttribute(col,3)); g.setAttribute('psize',new THREE.BufferAttribute(siz,1));
+  const m=new THREE.ShaderMaterial({ transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, uniforms:{ uOpacity:{value:0.8}, uHeight:{value:900} },
+    vertexShader:`attribute float psize; attribute vec3 pcolor; uniform float uHeight; varying vec3 vC;
+      void main(){ vC=pcolor; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=psize*uHeight*projectionMatrix[1][1]/max(-mv.z,0.0001); gl_Position=projectionMatrix*mv; }`,
+    fragmentShader:`uniform float uOpacity; varying vec3 vC; void main(){ vec2 d=gl_PointCoord-vec2(0.5); float r=length(d); if(r>0.5) discard; gl_FragColor=vec4(vC, smoothstep(0.5,0.06,r)*uOpacity); }` });
+  bh.userData.particles = new THREE.Points(g,m); bh.add(bh.userData.particles); })();
+
+// ── orbit rig: yaw/pitch/dist, drag to spin, gentle inertia ────────────────
+let W = 0, H = 0, DIST = 0;
+let yaw = 0.3, pitch = 0.62, yawV = 0, pitchV = 0, dragging = false, lx = 0, ly = 0;
+function place(){ camera.position.set(Math.sin(yaw)*Math.cos(pitch)*DIST, Math.sin(pitch)*DIST, Math.cos(yaw)*Math.cos(pitch)*DIST); camera.lookAt(0, -7.4, 0); }
 function resize(){ W = canvas.clientWidth; H = canvas.clientHeight; renderer.setSize(W, H, false); camera.aspect = W/H; camera.updateProjectionMatrix();
-  const fit = 6.4 / Math.tan((42*Math.PI/180)/2) * Math.max(1, 1.55 / camera.aspect);
-  const pitch = 0.66; camera.position.set(0, Math.sin(pitch)*fit, Math.cos(pitch)*fit); camera.lookAt(0, -7.4, 0); }
+  DIST = 6.4 / Math.tan((42*Math.PI/180)/2) * Math.max(1, 1.55 / camera.aspect); place(); }
 addEventListener('resize', resize); resize();
-const v = new THREE.Vector3();
+canvas.style.cursor = 'grab'; canvas.style.touchAction = 'pan-y';
+canvas.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; });
+canvas.addEventListener('pointermove', e => { if (!dragging) return; const dx = e.clientX - lx, dy = e.clientY - ly; lx = e.clientX; ly = e.clientY;
+  yawV = -dx * 0.005; pitchV = dy * 0.004; yaw += yawV; pitch = Math.max(0.08, Math.min(1.35, pitch + pitchV)); });
+const endDrag = () => { dragging = false; canvas.style.cursor = 'grab'; };
+canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
+
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let t0 = performance.now();
 function frame(now){
   const s = (now - t0)/1000;
-  bodies.forEach(b => {
-    const a = b.ang + s*b.spd;
-    b.anchor.position.set(Math.cos(a)*b.orb, 0, Math.sin(a)*b.orb);
-    b.anchor.scale.setScalar(b.r);
-    b.mesh.rotation.set(b.spinTilt, s*b.spin*TAU*0.15, 0);
-  });
+  if (!dragging) { yaw += yawV; pitch = Math.max(0.08, Math.min(1.35, pitch + pitchV)); yawV *= 0.94; pitchV *= 0.9; yaw += 0.0007; }
+  place();
+  bodies.forEach(b => { const a = b.ang + s*b.spd; b.anchor.position.set(Math.cos(a)*b.orb, 0, Math.sin(a)*b.orb); b.anchor.scale.setScalar(b.r); b.mesh.rotation.set(b.spinTilt, s*b.spin*TAU*0.15, 0); });
+  horizonMat.uniforms.uTime.value = s;
+  arcs.children.forEach(a => { a.rotation.z += a.userData.spin * 0.016; });
+  bh.userData.particles.rotation.y = s * 0.045; bh.userData.particles.material.uniforms.uHeight.value = H;
   renderer.render(scene, camera);
   if (reduced) return;
   if (canvas.getBoundingClientRect().bottom > 0) requestAnimationFrame(frame); else setTimeout(()=>requestAnimationFrame(frame), 300);
