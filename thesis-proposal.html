@@ -287,7 +287,7 @@ void main(){ vec3 N=normalize(vWorldNormal); vec3 V=normalize(vViewDir);
   #include <colorspace_fragment>
 }`;
 // the same galaxy as the homepage: every node seeds its own palette, surface, orbit and moons from its id
-const ROOT_SYS_R = 6.0, SHRINK = 0.2, BODY_F = 0.276, ORBIT_MIN = 0.58, ORBIT_MAX = 1.0, BASE_ROT = 0.022;
+const ROOT_SYS_R = 6.0, SHRINK = 0.2, BODY_F = 0.276, ORBIT_MIN = 0.58, ORBIT_MAX = 1.0, BASE_ROT = 0.055;
 const SIZE_FALLBACK = { 'emgor.papers': 2.0, 'emgor.web-synth': 1.4 };
 const canvas = document.getElementById('orbits');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
