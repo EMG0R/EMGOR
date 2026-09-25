@@ -183,7 +183,7 @@
   <div class="hero-text">
     <p class="kicker">Assignment 1 &middot; Research Direction Proposal &middot; ICCC-690</p>
     <h1>Digital Lutherie and Expression for the Electronic Artist<br><em>A 2027 Retrospective and Prospectus</em></h1>
-    <p class="sub">Emory Smith &middot; CalArts Creative Computing &middot; a practice-based master&rsquo;s thesis</p>
+    <p class="sub">Emory Smith &middot; CalArts Creative Computing &middot; practice-based research</p>
     <span class="scroll-hint">scroll &darr;</span>
   </div>
 </section>
@@ -428,15 +428,33 @@
     ['#b56ac9','#6e3080','#f2d6f9'], ['#cf5a3c','#882818','#ffd0b8'], ['#3fb0c8','#0e5868','#d0f4fb']
   ];
   var R = rng(hash32('emgor::proposal-orbits'));
-  var planets = [];
-  for (var i = 0; i < 9; i++) {
-    planets.push({
-      orb: 0.30 + i * 0.082 + R()*0.03,   // fraction of half-width
-      ang: R()*6.283, spd: (0.06 + R()*0.09) * (R()<0.5?1:-1) * (1/(0.6+i*0.16)),
-      size: 22 + R()*26, pal: PAL[i % PAL.length], ring: R() < 0.35, ringTilt: 0.4 + R()*0.5,
-      seed: hash32('p'+i), spin: (R()-0.5)*0.4, moon: R() < 0.5 ? { d: 1.9 + R()*0.8, a: R()*6.283, s: 0.25 + R()*0.2, spd: 0.8 + R()*1.2 } : null
-    });
-  }
+  // inner ring: the three chapters. outer ring: the papers and sub-concepts they hold.
+  var MAP = [
+    { label: 'modern digital lutherie', tier: 0, size: 24 },
+    { label: 'performance practices',   tier: 0, size: 24 },
+    { label: 'landscape \u00b7 past & future', tier: 0, size: 22 },
+    { label: 'demiurgeos',   tier: 1, size: 17 },
+    { label: 'neptr',        tier: 1, size: 18 },
+    { label: 'neuralgrid',   tier: 1, size: 17 },
+    { label: 'the satellites', tier: 1, size: 15 },
+    { label: 'visual system',  tier: 1, size: 14 },
+    { label: 'nam \u00d7 csound', tier: 1, size: 14 },
+    { label: 'bouba',        tier: 1, size: 14 }
+  ];
+  var planets = MAP.map(function (m, i) {
+    var inner = m.tier === 0;
+    var n = inner ? 3 : 7, k = inner ? i : i - 3;
+    return {
+      label: m.label,
+      orb: inner ? 0.36 + R()*0.03 : 0.74 + (k % 2) * 0.10 + R()*0.04,
+      ang: (k / n) * 6.283 + R()*0.5,
+      spd: (inner ? 0.075 : 0.045) * (inner ? 1 : -1) * (0.85 + R()*0.3),
+      size: m.size, pal: PAL[i % PAL.length], ring: R() < 0.3, ringTilt: 0.4 + R()*0.5,
+      seed: hash32('p' + m.label), spin: (R()-0.5)*0.3,
+      moon: !inner && R() < 0.4 ? { d: 1.9 + R()*0.6, a: R()*6.283, s: 0.22 + R()*0.15, spd: 0.8 + R()*1.2 } : null
+    };
+  });
+  var center = { label: '2027 retrospective + prospectus', size: 34, pal: ['#8e6ad6','#3e2888','#e0d0ff'], seed: hash32('center'), spin: 0.12, ring: true, ringTilt: 0.42 };
   // pre-render each planet body at low res for the pixel look
   function bakePlanet(p){
     var S = 18, c = document.createElement('canvas'); c.width = c.height = S;
@@ -458,56 +476,55 @@
     g.putImageData(img,0,0); return c;
   }
   planets.forEach(function(p){ p.tex = bakePlanet(p); });
+  center.tex = bakePlanet(center);
 
   function sizeOrbits(){ oc.width = oc.clientWidth * DPR; oc.height = oc.clientHeight * DPR; }
   var t0 = performance.now();
+  function label(x, y, text, size, bright){
+    og.font = size + 'px "Courier New", Courier, monospace';
+    og.textAlign = 'center'; og.textBaseline = 'top';
+    og.shadowColor = 'rgba(13,2,33,0.95)'; og.shadowBlur = 6;
+    og.fillStyle = bright ? 'rgba(224,170,255,0.92)' : 'rgba(243,232,255,0.62)';
+    og.fillText(text, x, y); og.shadowBlur = 0;
+  }
+  function drawPlanet(p, x, y, sz, s){
+    var gr = og.createRadialGradient(x,y,sz*0.5,x,y,sz*1.7);
+    gr.addColorStop(0,'rgba(168,85,247,0.15)'); gr.addColorStop(1,'rgba(168,85,247,0)');
+    og.fillStyle = gr; og.beginPath(); og.arc(x,y,sz*1.7,0,6.283); og.fill();
+    if (p.ring) { og.save(); og.translate(x,y); og.scale(1,p.ringTilt);
+      og.strokeStyle='rgba(224,170,255,0.28)'; og.lineWidth=2; og.beginPath(); og.arc(0,0,sz*1.35,0,6.283); og.stroke(); og.restore(); }
+    og.save(); og.translate(x,y); og.rotate(s*p.spin);
+    og.drawImage(p.tex, -sz, -sz, sz*2, sz*2); og.restore();
+  }
   function drawOrbits(t){
     var W = oc.clientWidth, H = oc.clientHeight, s = (t - t0) / 1000;
     og.setTransform(DPR,0,0,DPR,0,0); og.clearRect(0,0,W,H);
     og.imageSmoothingEnabled = false;
     var cx = W/2, cy = H*0.30, halfW = Math.min(W*0.47, H*0.62), tilt = 0.30;
+    var small = Math.max(9, Math.min(11, W/120));
 
-    // sort by depth so near planets draw over the void and far ones behind it
+    // depth-sort so near bodies draw over the center and far ones behind it
     var items = [];
     planets.forEach(function(p){
       var a = p.ang + s*p.spd, rx = halfW*p.orb, rz = rx*tilt;
-      items.push({ p:p, x: cx + Math.cos(a)*rx, y: cy + Math.sin(a)*rz, z: Math.sin(a), a:a });
+      items.push({ p:p, x: cx + Math.cos(a)*rx, y: cy + Math.sin(a)*rz, z: Math.sin(a) });
     });
-    items.push({ void:true, z: 0 });
+    items.push({ center:true, z: 0 });
     items.sort(function(a,b){ return a.z - b.z; });
 
     items.forEach(function(it){
-      if (it.void) { drawVoid(cx, cy, Math.max(34, halfW*0.13), s); return; }
-      var p = it.p, sz = p.size * (0.78 + 0.22*(it.z+1)/2);
-      // glow
-      var gr = og.createRadialGradient(it.x,it.y,sz*0.5,it.x,it.y,sz*1.6);
-      gr.addColorStop(0,'rgba(168,85,247,0.16)'); gr.addColorStop(1,'rgba(168,85,247,0)');
-      og.fillStyle = gr; og.beginPath(); og.arc(it.x,it.y,sz*1.6,0,6.283); og.fill();
-      if (p.ring) { og.save(); og.translate(it.x,it.y); og.scale(1,p.ringTilt);
-        og.strokeStyle='rgba(224,170,255,0.28)'; og.lineWidth=2; og.beginPath(); og.arc(0,0,sz*1.35,0,6.283); og.stroke(); og.restore(); }
-      og.save(); og.translate(it.x,it.y); og.rotate(s*p.spin);
-      og.drawImage(p.tex, -sz, -sz, sz*2, sz*2); og.restore();
+      if (it.center) {
+        drawPlanet(center, cx, cy, center.size, s);
+        label(cx, cy + center.size + 10, center.label, small + 1, true);
+        return;
+      }
+      var p = it.p, sz = p.size * (0.8 + 0.2*(it.z+1)/2);
+      drawPlanet(p, it.x, it.y, sz, s);
       if (p.moon) { var ma = p.moon.a + s*p.moon.spd, mx = it.x + Math.cos(ma)*sz*p.moon.d, my = it.y + Math.sin(ma)*sz*p.moon.d*0.5;
         og.fillStyle='#c9b8ff'; og.fillRect(mx-sz*p.moon.s/2, my-sz*p.moon.s/2, sz*p.moon.s, sz*p.moon.s); }
+      label(it.x, it.y + sz + 7, p.label, small, false);
     });
   }
-  function drawVoid(cx, cy, r, s){
-    // soft halo + disk
-    var g = og.createRadialGradient(cx,cy,r*0.9,cx,cy,r*3.2);
-    g.addColorStop(0,'rgba(123,47,190,0.32)'); g.addColorStop(0.5,'rgba(61,29,142,0.14)'); g.addColorStop(1,'rgba(61,29,142,0)');
-    og.fillStyle=g; og.beginPath(); og.ellipse(cx,cy,r*3.2,r*1.25,0,0,6.283); og.fill();
-    // ragged rim, then the hole
-    og.beginPath();
-    for (var i=0;i<=64;i++){ var a=i/64*6.283, w=1+0.08*Math.sin(a*3+s*0.7)+0.05*Math.sin(a*7-s*0.5);
-      var x=cx+Math.cos(a)*r*w, y=cy+Math.sin(a)*r*w; i?og.lineTo(x,y):og.moveTo(x,y); }
-    og.closePath(); og.strokeStyle='rgba(215,162,255,0.85)'; og.lineWidth=1.5; og.shadowColor='rgba(168,85,247,0.9)'; og.shadowBlur=14; og.stroke();
-    og.shadowBlur=0; og.fillStyle='#000'; og.fill();
-    // a couple of lensed arcs
-    og.strokeStyle='rgba(201,139,255,0.55)'; og.lineWidth=2;
-    og.beginPath(); og.ellipse(cx,cy,r*1.35,r*0.5,0,3.4+s*0.2,5.6+s*0.2); og.stroke();
-    og.beginPath(); og.ellipse(cx,cy,r*1.5,r*0.62,0.5,0.2-s*0.15,1.6-s*0.15); og.stroke();
-  }
-
   // ── progress rail ──────────────────────────────────────────────
   var slides = Array.prototype.slice.call(document.querySelectorAll('.hero, .slide'));
   var rail = document.getElementById('rail');
