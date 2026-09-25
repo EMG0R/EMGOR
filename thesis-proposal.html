@@ -99,6 +99,11 @@
     line-height: 1.28; margin: 0 0 22px; color: #F9F0FF;
     text-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
   }
+  .ask {
+    font-style: italic; color: var(--lavender);
+    font-size: clamp(1rem, 0.7vw + 0.8rem, 1.2rem); line-height: 1.5;
+    margin: -8px 0 24px; opacity: 0.9;
+  }
   .attack {
     border-left: 2px solid var(--purple-bright);
     padding: 12px 0 12px 18px;
@@ -140,7 +145,8 @@
     border: 1px solid var(--rule); border-radius: 4px; padding: 16px 18px;
     background: rgba(13, 2, 33, 0.45);
   }
-  .chapter h4 { margin: 0 0 8px; font-size: 1em; color: #F9F0FF; letter-spacing: 1px; }
+  .chapter { padding: 12px 16px; }
+  .chapter h4 { margin: 0 0 4px; font-size: 1em; color: #F9F0FF; letter-spacing: 1px; }
   .chapter h4 span { color: var(--violet); font-size: 0.72rem; letter-spacing: 3px; margin-right: 10px; }
   .chapter .short { color: var(--ink-dim); font-size: 0.82em; letter-spacing: 2px; text-transform: uppercase; }
   .chapter ul { margin: 6px 0 0; padding-left: 1.2em; font-size: 0.9em; line-height: 1.6; }
@@ -188,207 +194,87 @@
   </div>
 </section>
 
-<!-- ─────────────────────────────── 01 TITLE ─────────────────────────────── -->
+<!-- ─────────────────────────────── 01 QUESTION ─────────────────────────────── -->
 <section class="slide" id="s1">
   <div class="slide-inner">
-    <p class="num">01 &middot; WORKING TITLE</p>
-    <h2>Digital Lutherie and Expression for the Electronic Artist: A 2027 Retrospective and Prospectus</h2>
-    <div class="attack"><span class="lab">the attack</span>A &ldquo;retrospective&rdquo; is a topic. It names a territory and decides nothing. What does this title commit you to?</div>
-    <div class="answer">
-      <p>It commits me to two things. <strong>Retrospective</strong>: I look back at the decade in which the tools of digital lutherie &mdash; single-board computers, microcontrollers, audio languages, fabrication, and now AI &mdash; matured far enough that one person can build a complete instrument as a single act. <strong>Prospectus</strong>: I say where that goes, for expression, for the electronic artist, and for the economies that surround both.</p>
-      <p>The retrospective is what I have already built. The prospectus is what I am arguing. The title is deliberately not a question, because the question lives underneath it &mdash; next slide.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────── 02 QUESTION ─────────────────────────────── -->
-<section class="slide" id="s2">
-  <div class="slide-inner">
-    <p class="num">02 &middot; PRELIMINARY RESEARCH QUESTION</p>
+    <p class="num">01 &middot; THE QUESTION</p>
     <h2>What changes when the luthier and the performer are the same person?</h2>
-    <div class="attack"><span class="lab">the attack</span>A question should change what you build, test, document, or notice. Which decision does yours force?</div>
+    <p class="ask">A retrospective names a territory. What decision does the question force?</p>
     <div class="answer">
       <span class="q">How does holding the whole instrument stack &mdash; operating system, hardware, synthesis, enclosure &mdash; in one practitioner&rsquo;s hands change what an electronic artist can express, compared with the laptop-and-gear ecosystem it replaces, within the constraint of no institutional resources?</span>
-      <p>It forces me to build everything, not most things. If any layer is bought instead of made, the comparison collapses. That is the decision.</p>
-      <p><strong>The evidence sub-question</strong> sits beneath it: when the OS, the instrument, and the method are built as one iterative act, what changes in the instrument&rsquo;s expressive identity &mdash; and can that change be documented as a workflow other people can repeat?</p>
-      <p><strong>The structure</strong> follows a third framing that isn&rsquo;t a question at all: a threshold has been crossed in what one practitioner can build alone. What did it cost the instruments? What did it give them? Where does the practice go from here? Retrospective, retrospective, prospectus.</p>
+      <p>It forces me to build <strong>everything</strong>, not most things. If any layer is bought instead of made, the comparison collapses.</p>
+      <p>Ten years ago a self-contained instrument cost an institution or a compromise. That gap has closed, and the field hasn&rsquo;t fully noticed what it does to <em>expression</em>. Retrospective: what I&rsquo;ve built. Prospectus: what I&rsquo;m arguing.</p>
     </div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── 03 TERRITORY ─────────────────────────────── -->
+<!-- ─────────────────────────────── 02 MAKING ─────────────────────────────── -->
+<section class="slide" id="s2">
+  <div class="slide-inner">
+    <p class="num">02 &middot; WHAT I&rsquo;M MAKING</p>
+    <h2>A performance where nothing onstage was bought that could have been built</h2>
+    <p class="ask">What does a person in the room actually get?</p>
+    <div class="answer">
+      <p><strong>The outcome</strong> &mdash; a laptop-free set at ICMC 2027 on the NEPTR performance system: Csound on my own OS, a Teensy control surface, hyper-guitar and hyper-trumpet, a printed hemispherical speaker, a second Pi rendering visuals over a cable protocol I wrote, NeuralGrid on the table. The thesis explains it; the performance <em>is</em> it.</p>
+      <p><strong>The stack</strong>, already running &mdash; DemiurgeOS (Pi 5, PipeWire, a Rust supervisor) &middot; Csound, 63 effect modules &middot; Teensy &middot; 3D-printed enclosures &middot; OMNIPLEX transport &middot; the NAMProcess opcode.</p>
+      <p><strong>The method</strong> &mdash; each layer built with the layer below, as one act, with AI as a working collaborator at every step. No AI chapter; it&rsquo;s in every chapter, the way it&rsquo;s in every day.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 03 FOR WHOM ─────────────────────────────── -->
 <section class="slide" id="s3">
   <div class="slide-inner">
-    <p class="num">03 &middot; TERRITORY &amp; TENSION</p>
-    <h2>Digital lutherie, and the thing that feels unresolved in it</h2>
-    <div class="attack"><span class="lab">the attack</span>NIME has been here for twenty-five years. What is actually unresolved?</div>
+    <p class="num">03 &middot; FOR WHOM, AND WHAT IT CONTRIBUTES</p>
+    <h2>The electronic artist who doesn&rsquo;t know yet that they can build their own</h2>
+    <p class="ask">Pick one register. Which one carries the weight?</p>
     <div class="answer">
-      <p><strong>The territory</strong> is digital lutherie as an expressive practice for the electronic artist &mdash; not instrument design as an engineering discipline, and not music technology as a product category.</p>
-      <p><strong>The tension</strong>: ten years ago a self-contained digital instrument demanded either institutional resources or a compromise. Sensor-rich controllers leaned on laptops; self-contained devices gave up compute or interface density. That gap has collapsed, and the field hasn&rsquo;t fully noticed. The design literature &mdash; Fels on intimacy, Hunt and Wanderley on mapping, Jord&agrave; on identity, Cook&rsquo;s &ldquo;some instruments are meant to be stupid&rdquo; &mdash; was written for a world where adding a sensor cost something. Now it costs nothing, and restraint becomes the whole discipline.</p>
-      <p>What&rsquo;s unresolved is what that does to <em>expression</em>. Everyone can see the tools got cheaper. Almost nobody is documenting, from inside the practice, what it feels like to perform on a stack you built from the OS up &mdash; and what the instruments become when nothing about them was chosen by someone else.</p>
+      <p><strong>Audience</strong> &mdash; the person I was three years ago, fighting a Pi in a class. Secondary: NIME / ICMC / Linux Audio, reading it as a case study. Anyone curious enough to build, and to watch the direction shift over time.</p>
+      <div class="registers">
+        <div class="reg primary"><h4>KNOWLEDGE &middot; PRIMARY</h4>A practitioner&rsquo;s map of the collapsed workflow &mdash; what it costs, gives, and where it goes.</div>
+        <div class="reg"><h4>TECHNICAL</h4>Demiurge, NEPTR, NeuralGrid, NAMProcess &mdash; real, open, supporting.</div>
+        <div class="reg"><h4>ARTISTIC</h4>A performance practice, every element self-built.</div>
+        <div class="reg"><h4>EXPERIENTIAL</h4>A changed relation between an artist and their tools.</div>
+      </div>
+      <p><em>My project contributes a practitioner&rsquo;s map of the collapsed lutherie workflow, by building one whole stack and documenting it from inside.</em> Not a longer ROTURA paper &mdash; that&rsquo;s the methodology facet. This is the map.</p>
     </div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── 04 OUTCOME ─────────────────────────────── -->
+<!-- ─────────────────────────────── 04 MAP ─────────────────────────────── -->
 <section class="slide" id="s4">
   <div class="slide-inner">
-    <p class="num">04 &middot; ARTISTIC OUTCOME OR EXPERIENCE</p>
-    <h2>A performance where nothing onstage was bought that could have been built</h2>
-    <div class="attack"><span class="lab">the attack</span>&ldquo;Everyone benefits&rdquo; is a mood, not an outcome. What does a person in the room actually get?</div>
-    <div class="answer">
-      <p><strong>The ambition</strong>, said plainly: when luthiers can build faster, performers get instruments that fit them, audiences get performances that respond to the room, and the gaps between all three keep shrinking. Anyone can make anything. That is the claim I want to be true.</p>
-      <p><strong>The artifact that has to prove it</strong>: a laptop-free performance at ICMC 2027 on the NEPTR performance system &mdash; a Raspberry Pi running Csound on my own operating system, a Teensy control surface, hyper-guitar and hyper-trumpet, a hemispherical speaker I printed, a second Pi rendering feedback visuals over a cable protocol I wrote, and NeuralGrid on the table. Every element self-built. Audience-reactive where it can be.</p>
-      <p>The written thesis explains it. The performance <em>is</em> it. If I had to cut one, I would cut the explanation.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────── 05 TECHNICAL ─────────────────────────────── -->
-<section class="slide" id="s5">
-  <div class="slide-inner">
-    <p class="num">05 &middot; TECHNOLOGIES, TOOLS, METHODS</p>
-    <h2>The stack I already have, and the one method that runs through all of it</h2>
-    <div class="attack"><span class="lab">the attack</span>A list of tools isn&rsquo;t a technical direction. Which of these is the research, and which is just the workshop?</div>
-    <div class="answer">
-      <p><strong>The stack</strong> &mdash; already running, not proposed: <strong>DemiurgeOS</strong> (a flashable audio-first OS for the Pi 5, PipeWire underneath, a Rust supervisor that hot-reloads a patch graph); <strong>Csound</strong> for the instrument&rsquo;s 63 effect modules; <strong>Teensy</strong> for control surfaces and audio I/O; <strong>3D printing</strong> for every enclosure; <strong>OMNIPLEX</strong>, a Rust transport that carries audio, video, and control over one cable; and the <strong>NAMProcess</strong> opcode I wrote to put neural amp modeling inside Csound.</p>
-      <p><strong>The method that is the research</strong>: building each layer with the layer below, iteratively, as one act &mdash; and using AI as a working collaborator at every step of it. I don&rsquo;t give AI its own chapter. It shows up in every chapter, the way it shows up in every day of the work, because the compression of time between hitting a problem and having a solution is part of what collapsed the workflow in the first place.</p>
-      <p><strong>The reflective method</strong>, planned: my git history across every project is a timeline of where my attention was and when it moved. I want to map that &mdash; later, deliberately, once every repo is under version control. Not this week.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────── 06 AUDIENCE ─────────────────────────────── -->
-<section class="slide" id="s6">
-  <div class="slide-inner">
-    <p class="num">06 &middot; INTENDED AUDIENCE</p>
-    <h2>Anyone curious enough to build their own</h2>
-    <div class="attack"><span class="lab">the attack</span>&ldquo;Anyone&rdquo; is nobody. One system, one audience, one learning goal. Who?</div>
-    <div class="answer">
-      <p><strong>Primary</strong>: the electronic artist who wants to make their own instruments and doesn&rsquo;t know that they already can &mdash; the person I was three years ago, fighting a Pi in a class. This thesis is the document I needed then: not a tutorial, a map. Where the tools are, what they cost, what they cannot do, and what it feels like on the other side.</p>
-      <p><strong>Secondary</strong>: the NIME / ICMC / Linux Audio research communities, who will read it as a case study &mdash; one whole stack, one practitioner, documented from inside &mdash; and as the writeup behind the individual papers.</p>
-      <p><strong>And the reader who wants to track it</strong>: because the work is open and the progress is public, anyone can watch the direction shift over time. That is part of the offer.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────── 07 CONTRIBUTION ─────────────────────────────── -->
-<section class="slide" id="s7">
-  <div class="slide-inner">
-    <p class="num">07 &middot; CONTRIBUTION</p>
-    <h2>&ldquo;My project contributes a practitioner&rsquo;s map of the collapsed lutherie workflow, by building one whole stack and documenting it from inside.&rdquo;</h2>
-    <div class="attack"><span class="lab">the attack</span>Pick one register. Which one carries the weight, and what happens to the others?</div>
-    <div class="answer">
-      <div class="registers">
-        <div class="reg primary"><h4>KNOWLEDGE &middot; PRIMARY</h4>A map of what the collapsed workflow costs, gives, and where it goes &mdash; written from inside the practice, not surveyed from above.</div>
-        <div class="reg"><h4>TECHNICAL</h4>DemiurgeOS, the NEPTR system, NeuralGrid, the NAMProcess opcode. Real, running, open. They support the map; they are not the map.</div>
-        <div class="reg"><h4>ARTISTIC</h4>A performance practice in which every element onstage is self-built. The proof the map points at.</div>
-        <div class="reg"><h4>EXPERIENTIAL</h4>A changed relation between an electronic artist and their tools &mdash; the claim the other three make arguable.</div>
-      </div>
-      <p>One register carries the weight because the lecture is right: a thesis that contributes everything defends nothing. The others are not thrown away &mdash; they are what the map is drawn from.</p>
-      <p><strong>And to be exact about what this thesis is not</strong>: it is not a longer version of <em>Workflow of a Modern Digital Luthier</em>. That paper is the methodology facet &mdash; one side of this. The thesis uses it, then goes where a journal article can&rsquo;t: into the performance system, the OS, the controller, the economics, and forward.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────── 08 STRUCTURE ─────────────────────────────── -->
-<section class="slide" id="s8">
-  <div class="slide-inner">
-    <p class="num">08 &middot; THE THESIS, CHAPTERED</p>
-    <h2>Every paper is a chapter or a subchapter. Two big chapters, one landscape, short bookends.</h2>
-    <div class="attack"><span class="lab">the attack</span>You have six papers and one thesis. Which ones are load-bearing, and which ones are you including because you worked hard on them?</div>
+    <p class="num">04 &middot; THE MAP</p>
+    <h2>Every paper a chapter or a subchapter. Two big, one landscape, short bookends.</h2>
+    <p class="ask">Which ones hold the argument up, and which are there because I worked hard?</p>
     <div class="answer">
       <div class="chapters">
-        <div class="chapter"><h4><span>INTRO</span>The threshold</h4><span class="short">short</span><ul><li>The question. First person declared as method: this is practice-based research and I am the site of it. How to read the document &mdash; retrospective, then prospectus.</li></ul></div>
-        <div class="chapter"><h4><span>CH 1</span>Workflow of a Modern Digital Luthier</h4><span class="short">big &middot; the methodology</span>
-          <ul>
-            <li>The ecosystem map &mdash; platforms, languages, sensing, fabrication, access to information &mdash; updated from the ROTURA paper and pushed forward</li>
-            <li><strong>DemiurgeOS</strong>, introduced here as the layer I had to build before any instrument was possible</li>
-            <li>AI as access to information &mdash; through the door ROTURA opened, not around it</li>
-            <li><strong>Reach</strong>: NAM &times; Csound, BOUBA, CIESEN, the smartwatch I wear every day &mdash; the same workflow, different needs. One paragraph each. Evidence the method generalizes, not chapters</li>
-            <li>What it cost, what it can&rsquo;t do, the demo problem</li>
-          </ul></div>
-        <div class="chapter"><h4><span>CH 2</span>Performance Practices</h4><span class="short">big &middot; NEPTR as a product of Demiurge</span>
-          <ul>
-            <li><strong>2.1 NEPTR</strong> &mdash; Csound on DEMIURGE, 63 modules, 20 menus, 6 ms, the Rust supervisor</li>
-            <li><strong>2.2 The satellites</strong> &mdash; hyper-guitar, hyper-trumpet, Pocket OpGorator, the hemi speaker (v1 onstage, v2 in progress), Duodecimus, oFOOTS, We-Remote, 4-i-Gor</li>
-            <li><strong>2.3 The visual system</strong> &mdash; the Pi fractal / feedback renderer, a second Pi over OMNIPLEX, and where interdisciplinary work (dance) enters later</li>
-            <li><strong>2.4 NeuralGrid</strong> &mdash; the published example, deep: bols as vocabulary, the seven-axis translator that never hears what it renders</li>
-          </ul></div>
-        <div class="chapter"><h4><span>CH 3</span>Landscape &mdash; past and future</h4><span class="short">the prospectus</span>
-          <ul>
-            <li>How the chapters strengthen each other: the OS exists because the instrument needed it; the instrument is a case study in the method; the method is what the two mean together</li>
-            <li>AI, capitalism, and mainstream academia&rsquo;s hold on art and technology &mdash; and the argument that as those economies break down, real work gets <em>more</em> valuable, not less, and the practice gets more exciting, not less</li>
-            <li>The progress map: git history as a record of where attention went and when direction shifted</li>
-          </ul></div>
-        <div class="chapter"><h4><span>OUTRO</span>What I know now</h4><span class="short">short</span><ul><li>What the question turned out to mean. What I would build differently. What I&rsquo;m building next.</li></ul></div>
+        <div class="chapter"><h4><span>INTRO</span>The threshold &mdash; first person declared as method</h4></div>
+        <div class="chapter"><h4><span>CH 1</span>Modern Digital Lutherie</h4><ul><li>the ecosystem map &middot; <strong>DemiurgeOS</strong> introduced as the layer built first &middot; AI as access &middot; <em>reach</em>: NAM, BOUBA, CIESEN, the watch I wear &middot; what it costs, what it can&rsquo;t do</li></ul></div>
+        <div class="chapter"><h4><span>CH 2</span>Performance Practices</h4><ul><li><strong>NEPTR</strong> as a product of Demiurge &middot; the satellites: hyper-guitar, hyper-trumpet, Pocket OpGorator, hemi v1&rarr;v2, Duodecimus, oFOOTS, We-Remote &middot; the visual Pi over OMNIPLEX &middot; <strong>NeuralGrid</strong>, deep</li></ul></div>
+        <div class="chapter"><h4><span>CH 3</span>Landscape &mdash; past and future</h4><ul><li>how the chapters strengthen each other &middot; AI, capitalism, academia breaking down &mdash; and why real work gets <em>more</em> valuable &middot; git history as a map of where attention went</li></ul></div>
+        <div class="chapter"><h4><span>OUTRO</span>What I know now</h4></div>
       </div>
-      <p>Load-bearing: Luthier, Demiurge, NEPTR, NeuralGrid. Present but not load-bearing: NAM, BOUBA, CIESEN, the watch. All of the work is in the document; only some of it holds it up.</p>
+      <p>Load-bearing: Luthier, Demiurge, NEPTR, NeuralGrid. Present, not load-bearing: NAM, BOUBA, CIESEN, the watch. All of the work is in; only some of it holds it up.</p>
     </div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── 09 EVIDENCE ─────────────────────────────── -->
-<section class="slide" id="s9">
+<!-- ─────────────────────────────── 05 SCOPE ─────────────────────────────── -->
+<section class="slide" id="s5">
   <div class="slide-inner">
-    <p class="num">09 &middot; EVIDENCE &amp; REFLECTION</p>
-    <h2>What a reader can actually observe</h2>
-    <div class="attack"><span class="lab">the attack</span>&ldquo;I built it and it works&rdquo; isn&rsquo;t evidence. A four-axis reflection isn&rsquo;t enough either. What would I see?</div>
-    <div class="answer">
-      <ul>
-        <li><strong>The prototypes themselves.</strong> Every system is open. Source, build files, configs, and enclosures are downloadable from this site. A reader can inspect the thing rather than take my word for it.</li>
-        <li><strong>The performances.</strong> NIME, ICMC, and hopefully ICSC this year, plus recorded sets online. The claim is made in public, on a stage, where it can fail.</li>
-        <li><strong>Their own results.</strong> If a reader builds it, they get the same instrument I have. Reproducibility is the evidence a practice-based claim can actually offer, and it is the one most theses can&rsquo;t.</li>
-        <li><strong>The data that exists.</strong> The latency perception test is real numeric work. Measured latencies, effect counts, costs, and build times are stated as numbers, not adjectives.</li>
-        <li><strong>Reflection</strong>, as one lens among these &mdash; O&rsquo;Modhrain&rsquo;s playability / learnability / sonic range / robustness, per artifact, honest about where each one is weak.</li>
-      </ul>
-      <p>The data is my own practice. The argument that it extends to other people is made in the landscape chapter, and it is argued, not measured. I&rsquo;d rather say that plainly than pretend a survey I didn&rsquo;t run.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────── 10 CONSTRAINT ─────────────────────────────── -->
-<section class="slide" id="s10">
-  <div class="slide-inner">
-    <p class="num">10 &middot; ONE DELIBERATE CONSTRAINT</p>
+    <p class="num">05 &middot; CONSTRAINT, SCOPE, NEXT</p>
     <h2>Only the instruments I already have. Only my own practice as data.</h2>
-    <div class="attack"><span class="lab">the attack</span>Scope is an artistic constraint, not an apology. Can the claim survive if one feature disappears? What are you refusing to do?</div>
+    <p class="ask">Can the claim survive if one feature disappears?</p>
     <div class="answer">
-      <p><strong>I will not build a new instrument for this thesis.</strong> NEPTR, the hyper-instruments, the hemi speaker, We-Remote, NeuralGrid, the visual Pi &mdash; these exist or are already in flight. The thesis finishes and documents them. Nothing new gets started. (The hemi v2 and the visual Pi count as finishing.)</p>
-      <p><strong>And the data is my own practice.</strong> This is a personal-practice paper. I am the performer, the luthier, and the subject, and I say so rather than borrow the authority of a study I haven&rsquo;t run. Where the work faces other people &mdash; BOUBA&rsquo;s users, other makers &mdash; I argue the connection; I don&rsquo;t claim to have measured it. That keeps a whole evaluation regime, and the IRB that comes with it, out of a document that doesn&rsquo;t need them.</p>
-      <p>Can the claim survive if one feature disappears? Yes &mdash; drop any satellite and NEPTR still performs. Drop NEPTR and the claim is gone. That is how I know which one is the core.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────── 11 SCOPE ─────────────────────────────── -->
-<section class="slide" id="s11">
-  <div class="slide-inner">
-    <p class="num">11 &middot; FEASIBLE SCOPE</p>
-    <h2>One system. One audience. One learning goal.</h2>
-    <div class="attack"><span class="lab">the attack</span>Can it be prototyped this semester? Experienced? Documented? Show me the tiers.</div>
-    <div class="answer">
+      <p>Drop any satellite and NEPTR still performs. Drop NEPTR and the claim is gone. That&rsquo;s how I know the core. <strong>No new instruments</strong> get started; the data is my own practice, and the case that it extends to others is argued, not measured. No study, no IRB, no borrowed authority.</p>
       <div class="tiers">
-        <div class="tier must"><h4>MUST</h4><ul><li>The written thesis</li><li>NEPTR performing at ICMC on DemiurgeOS</li><li>Hyper-instruments and NeuralGrid onstage &mdash; already are</li></ul></div>
-        <div class="tier"><h4>SHOULD</h4><ul><li>Hemi speaker v2</li><li>The visual Pi over OMNIPLEX</li><li>Every project under version control</li></ul></div>
-        <div class="tier"><h4>COULD</h4><ul><li>The git progress map</li><li>Hyper-trumpet refinement</li><li>Deeper NeuralGrid model work</li></ul></div>
-        <div class="tier"><h4>NOT NOW</h4><ul><li>BOUBA user study</li><li>Dance collaboration &mdash; implied future</li><li>Open-Pedal</li><li>New platforms, new instruments</li></ul></div>
+        <div class="tier must"><h4>MUST</h4><ul><li>the written thesis</li><li>NEPTR at ICMC on Demiurge</li><li>hyper-instruments + NeuralGrid onstage</li></ul></div>
+        <div class="tier"><h4>SHOULD</h4><ul><li>hemi speaker v2</li><li>the visual Pi</li><li>every project in git</li></ul></div>
+        <div class="tier"><h4>NOT NOW</h4><ul><li>BOUBA user study</li><li>dance &mdash; implied future</li><li>new platforms, new instruments</li></ul></div>
       </div>
-      <p>Everything in MUST already exists. The semester is spent making it legible, performing it, and writing it down &mdash; not inventing it. That is the only reason the scope is honest.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────── 12 NEXT ─────────────────────────────── -->
-<section class="slide" id="s12">
-  <div class="slide-inner">
-    <p class="num">12 &middot; NEXT STEP &amp; THE OPEN QUESTION</p>
-    <h2>What I&rsquo;m doing next, and the question I can&rsquo;t answer yet</h2>
-    <div class="attack"><span class="lab">the attack</span>Useful feedback makes the next decision easier. What is the next decision?</div>
-    <div class="answer">
-      <p><strong>Next step</strong>: this proposal, then a full draft of Chapter 1 &mdash; the methodology chapter &mdash; because it is the one the ROTURA paper already gives me most of, and because writing it will tell me whether the thesis is really a map or secretly a manual.</p>
-      <p><strong>The most important unanswered question</strong>: what does &ldquo;expression&rdquo; measurably mean when the luthier and the performer are the same person? I can describe what it feels like. I cannot yet say what a reader would observe that is different from a performer on bought gear. If I can&rsquo;t answer that by the end of Chapter 2, the title is wrong and I should know sooner rather than later.</p>
-      <p>What I most want to know from you: whether &ldquo;expression&rdquo; is the right word, or whether the thing I&rsquo;m actually tracking has a better name.</p>
+      <p><strong>Evidence</strong> &mdash; the prototypes, open; the performances, public; the numbers (latency, cost, build time); and, if you build it, your own results.</p>
+      <p><strong>Next</strong> &mdash; a full draft of Chapter 1. <strong>Open</strong> &mdash; what does &ldquo;expression&rdquo; measurably mean when the luthier is the performer? If I can&rsquo;t answer that by the end of Chapter 2, the title is wrong. Is &ldquo;expression&rdquo; even the right word?</p>
     </div>
   </div>
 </section>
