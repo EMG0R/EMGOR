@@ -174,16 +174,31 @@
 (function () {
   function hash32(s){var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
   function rng(seed){var a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-  var DPR = Math.min(window.devicePixelRatio || 1, 2);
-  var sc = document.getElementById('stars'), sg = sc.getContext('2d'), stars = [];
-  function sizeStars(){ sc.width = innerWidth*DPR; sc.height = innerHeight*DPR; var r = rng(hash32('emgor::proposal-stars')); stars = [];
-    var n = Math.floor((innerWidth*innerHeight)/5200); for (var i=0;i<n;i++) stars.push({x:r()*innerWidth,y:r()*innerHeight,s:0.6+r()*1.4,p:r()*6.28,c:r()}); }
-  function drawStars(t){ sg.setTransform(DPR,0,0,DPR,0,0); sg.clearRect(0,0,innerWidth,innerHeight);
-    for (var i=0;i<stars.length;i++){var s=stars[i];var a=0.35+0.45*(0.5+0.5*Math.sin(t*0.0009+s.p));
-      sg.fillStyle = s.c<0.12?'rgba(0,240,255,'+a+')':(s.c<0.5?'rgba(192,132,252,'+a+')':'rgba(235,225,255,'+a+')'); sg.fillRect(s.x,s.y,s.s,s.s);} }
-  addEventListener('resize', sizeStars); sizeStars();
+  var DPR = Math.min(window.devicePixelRatio || 1, 2), TAU = Math.PI*2;
+  var sc = document.getElementById('stars'), bg = sc.getContext('2d'), W = 0, H = 0;
+  var STAR_COLORS = ['rgba(235,225,255,', 'rgba(192,132,252,', 'rgba(110,235,255,'];
+  var nebula = [], starN=0, starX, starY, starR, starPh, starW, starTw, starLayer, starTint;
+  (function makeNebula(){ var hues=[268,288,248,195]; for (var i=0;i<hues.length;i++){ var S=512,c=document.createElement('canvas'); c.width=c.height=S; var g=c.getContext('2d');
+    var gr=g.createRadialGradient(S/2,S/2,0,S/2,S/2,S/2); gr.addColorStop(0,'hsla('+hues[i]+',70%,34%,'+(i===3?0.03:0.06)+')');
+    gr.addColorStop(0.55,'hsla('+hues[i]+',65%,24%,'+(i===3?0.015:0.03)+')'); gr.addColorStop(1,'hsla('+hues[i]+',60%,20%,0)'); g.fillStyle=gr; g.fillRect(0,0,S,S); nebula.push(c);} })();
+  function makeStars(){ W=innerWidth; H=innerHeight; sc.width=W*DPR; sc.height=H*DPR;
+    starN=Math.max(140,Math.min(460,Math.floor((W*H)/5200)));
+    starX=new Float32Array(starN); starY=new Float32Array(starN); starR=new Float32Array(starN); starPh=new Float32Array(starN);
+    starW=new Float32Array(starN); starTw=new Uint8Array(starN); starLayer=new Uint8Array(starN); starTint=new Uint8Array(starN);
+    var r=rng(hash32('emgor::stars')), cx=W/2, cy=H/2, clearR=Math.min(W,H)*0.36;
+    for (var i=0;i<starN;i++){ var x=r()*W,y=r()*H,tries=0; while(tries<3 && Math.hypot(x-cx,y-cy)<clearR && r()<0.68){x=r()*W;y=r()*H;tries++;}
+      starX[i]=x; starY[i]=y; var l=r(); starLayer[i]=l<0.5?0:(l<0.83?1:2); starR[i]=0.4+starLayer[i]*0.45+r()*0.7; starPh[i]=r()*TAU;
+      starW[i]=TAU/(6+r()*14); starTw[i]=r()<0.3?1:0; var tt=r(); starTint[i]=tt<0.07?2:(tt<0.26?1:0); } }
+  function drawBackdrop(time){ bg.setTransform(DPR,0,0,DPR,0,0); bg.clearRect(0,0,W,H); bg.globalCompositeOperation='lighter'; var d=Math.max(W,H);
+    for (var i=0;i<nebula.length;i++){ var ph=time*0.012+i*2.1; var bx=W*(0.18+0.64*(0.5+0.5*Math.sin(ph+i*1.7))), by=H*(0.2+0.6*(0.5+0.5*Math.cos(ph*0.8+i*2.3))), s=d*(0.7+i*0.22);
+      bg.drawImage(nebula[i], bx-s/2, by-s/2, s, s); }
+    for (var j=0;j<starN;j++){ var sN=0.5+0.5*Math.sin(time*starW[j]+starPh[j]); var a=Math.pow(sN,1.6)*(0.55+starLayer[j]*0.15);
+      if (starTw[j]) a*=0.82+0.18*Math.sin(time*2.7+starPh[j]*3.1); if (a<=0.015) continue;
+      bg.fillStyle=STAR_COLORS[starTint[j]]+a.toFixed(3)+')'; var rr=starR[j]; bg.fillRect(starX[j]-rr,starY[j]-rr,rr*2,rr*2); }
+    bg.globalCompositeOperation='source-over'; }
+  addEventListener('resize', makeStars); makeStars();
   var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  (function tick(t){ drawStars(t||0); if(!reduced) requestAnimationFrame(tick); })(0);
+  (function tick(t){ drawBackdrop((t||0)/1000); if(!reduced) requestAnimationFrame(tick); })(0);
 
   var slides = Array.prototype.slice.call(document.querySelectorAll('.hero, .slide'));
   var rail = document.getElementById('rail');
@@ -266,18 +281,9 @@ void main(){ vec3 N=normalize(vWorldNormal); vec3 V=normalize(vViewDir);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
-const MAP = [
-  { id:'ch1', label:'modern digital lutherie', tier:0, r:0.62 },
-  { id:'ch2', label:'performance practices',   tier:0, r:0.62 },
-  { id:'ch3', label:'past and future · landscape', tier:0, r:0.56 },
-  { id:'demiurge', label:'demiurgeos · LAC',   tier:1, r:0.42 },
-  { id:'neptr',    label:'neptr · ICMC',       tier:1, r:0.44 },
-  { id:'ngrid',    label:'neuralgrid · NIME',  tier:1, r:0.42 },
-  { id:'luthier',  label:'luthier · ROTURA',   tier:1, r:0.40 },
-  { id:'nam',      label:'nam × csound · ICSC', tier:1, r:0.34 },
-  { id:'bouba',    label:'bouba · AMTA',       tier:1, r:0.34 },
-  { id:'visuals',  label:'visual system',          tier:1, r:0.32 }
-];
+// the same galaxy as the homepage: every node seeds its own palette, surface, orbit and moons from its id
+const ROOT_SYS_R = 6.0, SHRINK = 0.2, BODY_F = 0.46, ORBIT_MIN = 0.58, ORBIT_MAX = 1.0, BASE_ROT = 0.022;
+const SIZE_FALLBACK = { 'emgor.papers': 2.0, 'emgor.web-synth': 1.4 };
 const canvas = document.getElementById('orbits');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
@@ -285,34 +291,55 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.setClearColor(0x000000, 0);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2000);
-const geo = new THREE.SphereGeometry(1, 48, 34);
-const bodies = MAP.map((m, i) => {
-  const rng = mulberry32(hash32('emgor.thesis.' + m.id));
-  const fam = PALETTES[(hash32(m.id) % PALETTES.length)];
-  const crng = mulberry32(hash32(m.id + '::tint'));
-  const pal = { hi: jitterColor(fam.hi,crng,0.05,0.10), lo: jitterColor(fam.lo,crng,0.05,0.08), sea: jitterColor(fam.sea,crng,0.05,0.08), atmo: jitterColor(fam.atmo,crng,0.03,0.06), acc: jitterColor(fam.acc,crng,0.04,0.06) };
-  const srng = mulberry32(hash32(m.id + '::surface'));
-  const biome = srng() < 0.38 ? 1 : 0;
+const geo = new THREE.SphereGeometry(1, 40, 28);
+const bodies = [];
+function seedIdentity(node, rng){
+  const fam = PALETTES[Math.floor(mulberry32(hash32(node.id + '::family'))() * PALETTES.length)];
+  const crng = mulberry32(hash32(node.id + '::tint'));
+  node.pal = { hi: jitterColor(fam.hi,crng,0.05,0.10), lo: jitterColor(fam.lo,crng,0.05,0.08), sea: jitterColor(fam.sea,crng,0.05,0.08), atmo: jitterColor(fam.atmo,crng,0.03,0.06), acc: jitterColor(fam.acc,crng,0.04,0.06) };
+  node.sizeVar = 0.6 + rng()*0.85; node.hasRing = rng() < 0.42; node.ringAngle = (rng()-0.5)*0.9; node.ringTilt = 0.22 + rng()*0.2;
+  node.pulseRate = 0.4 + rng()*1.1; node.pulsePhase = rng()*TAU;
+  node.spinRate = 0.045 + rng()*0.09; node.spinPhase = rng()*TAU; node.spinTilt = (rng()-0.5)*0.5;
+  const srng = mulberry32(hash32(node.id + '::surface'));
+  node.biome = srng() < 0.38 ? 1 : 0;
+  node.shSeed = new THREE.Vector3(srng()*43, srng()*43, srng()*43);
+  node.shFreq = 2.1 + srng()*1.7; node.shWarp = 0.55 + srng()*0.95; node.shBands = 5.0 + srng()*8.0; node.shSea = 0.43 + srng()*0.12;
+  node.shSpeckle = srng() < 0.3 ? 0.4 + srng()*0.6 : 0.0;
+}
+function makeBody(node){
   const mat = new THREE.ShaderMaterial({ uniforms: {
-      uSeed:{value:new THREE.Vector3(srng()*43,srng()*43,srng()*43)}, uColHigh:{value:pal.hi}, uColLow:{value:pal.lo}, uColSea:{value:pal.sea},
-      uAtmo:{value:pal.atmo}, uAccent:{value:pal.acc}, uBiome:{value:biome}, uFreq:{value:2.1+srng()*1.7}, uWarp:{value:0.55+srng()*0.95},
-      uBandFreq:{value:5.0+srng()*8.0}, uSeaLevel:{value:0.43+srng()*0.12}, uSpeckle:{value: srng()<0.3 ? 0.4+srng()*0.6 : 0.0}, uLightDir:{value:LIGHT_DIR} },
+      uSeed:{value:node.shSeed}, uColHigh:{value:node.pal.hi}, uColLow:{value:node.pal.lo}, uColSea:{value:node.pal.sea}, uAtmo:{value:node.pal.atmo}, uAccent:{value:node.pal.acc},
+      uBiome:{value:node.biome}, uFreq:{value:node.shFreq}, uWarp:{value:node.shWarp}, uBandFreq:{value:node.shBands}, uSeaLevel:{value:node.shSea}, uSpeckle:{value:node.shSpeckle}, uLightDir:{value:LIGHT_DIR} },
     vertexShader: PLANET_VERT, fragmentShader: PLANET_FRAG, toneMapped: false });
   const mesh = new THREE.Mesh(geo, mat);
-  const atmo = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms:{ uAtmo:{value:pal.atmo}, uAlpha:{value:0.7} },
+  const atmo = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms:{ uAtmo:{value:node.pal.atmo}, uAlpha:{value:0.7} },
     vertexShader: PLANET_VERT, fragmentShader: ATMO_FRAG, side: THREE.BackSide, transparent: true, blending: THREE.AdditiveBlending, depthWrite:false, toneMapped:false }));
   atmo.scale.setScalar(1.07); mesh.add(atmo);
   const anchor = new THREE.Object3D(); anchor.add(mesh); scene.add(anchor);
-  if (rng() < 0.42) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.75, 64), new THREE.MeshBasicMaterial({ color: pal.atmo.clone().lerp(new THREE.Color(0xffffff),0.35), transparent:true, opacity:0.13, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false }));
-    ring.rotation.x = Math.PI/2 + 0.22 + rng()*0.2; ring.rotation.z = (rng()-0.5)*0.9; anchor.add(ring);
+  if (node.hasRing) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 1.9, 48), new THREE.MeshBasicMaterial({ color: node.pal.atmo.clone().lerp(new THREE.Color(0xffffff),0.35), transparent:true, opacity:0.16, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false }));
+    ring.rotation.x = Math.PI/2 + node.ringTilt; ring.rotation.z = node.ringAngle; anchor.add(ring);
   }
-  const inner = m.tier === 0;
-  const n = inner ? 3 : 7, k = inner ? i : i-3;
-  return { m, anchor, mesh,
-    orb: m.tier === -1 ? 0 : (inner ? 3.1 + rng()*0.25 : 5.4 + (k%2)*1.05 + rng()*0.3),
-    ang: (k/n)*TAU + rng()*0.6, spd: (inner ? 0.07 : 0.042) * (inner ? 1 : -1) * (0.85+rng()*0.3),
-    spin: 0.045 + rng()*0.09, spinTilt: (rng()-0.5)*0.5, r: m.r };
+  node.anchor = anchor; node.mesh = mesh; bodies.push(node);
+}
+fetch('galaxy.json').then(r => r.json()).then(data => {
+  const root = { id:'emgor', kids:[], sysR: ROOT_SYS_R, wx:0, wy:0, sizeF:1 };
+  const byId = { emgor: root };
+  const nodes = (data.nodes||[]).filter(n => n.id !== 'emgor' && n.parent);
+  nodes.forEach(n => { const sz = typeof n.size === 'number' ? n.size : (SIZE_FALLBACK[n.id] || 1);
+    byId[n.id] = { id:n.id, parentId:n.parent, kids:[], sizeF: clamp(sz, 0.5, 2.5), wx:0, wy:0 }; });
+  nodes.forEach(n => { const node = byId[n.id], p = byId[node.parentId] || root; node.parentNode = p; p.kids.push(node); });
+  (function walk(node, depth){
+    node.sysR = node === root ? ROOT_SYS_R : node.parentNode.sysR * SHRINK;
+    node.bodyR = node.sysR * BODY_F * node.sizeF;
+    const kids = node.kids, N = kids.length, sysRot = mulberry32(hash32(node.id + '::rot'))() * TAU, minGap = N ? TAU/N : 0;
+    for (let i=0;i<N;i++){ const k = kids[i]; const tt = N === 1 ? 0.6 : i/(N-1); k.orbF = ORBIT_MIN + (ORBIT_MAX-ORBIT_MIN)*tt; }
+    for (let i=0;i<N;i++){ const k = kids[i]; const rng = mulberry32(hash32(k.id));
+      k.homeA = sysRot + (i/N)*TAU; k.vibDepth = Math.min(minGap*(0.08+rng()*0.1), 0.12); k.vibF = 0.35+rng()*0.45; k.vibPh = rng()*TAU;
+      seedIdentity(k, rng);
+      if (depth < 2) { makeBody(k); walk(k, depth+1); }
+    }
+  })(root, 0);
 });
 // ── the black hole, as on the homepage: opaque displaced void with a ragged
 // fresnel rim, broken photon arcs, and a volumetric particle field ──────────
@@ -365,7 +392,7 @@ let W = 0, H = 0, DIST = 0;
 let yaw = 0.3, pitch = 0.62, yawV = 0, pitchV = 0, dragging = false, lx = 0, ly = 0;
 function place(){ camera.position.set(Math.sin(yaw)*Math.cos(pitch)*DIST, Math.sin(pitch)*DIST, Math.cos(yaw)*Math.cos(pitch)*DIST); camera.lookAt(0, -7.4, 0); }
 function resize(){ W = canvas.clientWidth; H = canvas.clientHeight; renderer.setSize(W, H, false); camera.aspect = W/H; camera.updateProjectionMatrix();
-  DIST = 6.4 / Math.tan((42*Math.PI/180)/2) * Math.max(1, 1.55 / camera.aspect); place(); }
+  DIST = 7.7 / Math.tan((42*Math.PI/180)/2) * Math.max(1, 1.55 / camera.aspect); place(); }
 addEventListener('resize', resize); resize();
 canvas.style.cursor = 'grab'; canvas.style.touchAction = 'pan-y';
 canvas.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; });
@@ -380,7 +407,9 @@ function frame(now){
   const s = (now - t0)/1000;
   if (!dragging) { yaw += yawV; pitch = Math.max(0.08, Math.min(1.35, pitch + pitchV)); yawV *= 0.94; pitchV *= 0.9; yaw += 0.0007; }
   place();
-  bodies.forEach(b => { const a = b.ang + s*b.spd; b.anchor.position.set(Math.cos(a)*b.orb, 0, Math.sin(a)*b.orb); b.anchor.scale.setScalar(b.r); b.mesh.rotation.set(b.spinTilt, s*b.spin*TAU*0.15, 0); });
+  bodies.forEach(n => { const p = n.parentNode; const a = n.homeA + s*BASE_ROT + Math.sin(s*n.vibF + n.vibPh)*n.vibDepth; const r = n.orbF * p.sysR;
+    n.wx = p.wx + Math.cos(a)*r; n.wy = p.wy + Math.sin(a)*r;
+    n.anchor.position.set(n.wx, 0, n.wy); n.anchor.scale.setScalar(n.bodyR); n.mesh.rotation.set(n.spinTilt, n.spinPhase + s*n.spinRate*TAU*0.15, 0); });
   horizonMat.uniforms.uTime.value = s;
   arcs.children.forEach(a => { a.rotation.z += a.userData.spin * 0.016; });
   bh.userData.particles.rotation.y = s * 0.045; bh.userData.particles.material.uniforms.uHeight.value = H;
