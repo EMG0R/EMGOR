@@ -1,20 +1,19 @@
 ---
 id: emgor.papers.season-2026-27.thesis
-title: Master's Thesis
-blurb: Untitled. The binding argument — the OS, the instrument, and the methodology as one practice.
+title: Digital Lutherie and Expression for the Electronic Artist
+blurb: A 2027 Retrospective and Prospectus. The binding argument — the OS, the instrument, and the methodology as one practice.
 parent: emgor.papers.season-2026-27
 links:
   - { label: "Read as draft", url: "papers/nime/thesis.html" }
-tags: [thesis, calarts, digital-lutherie, in-development]
-updated: 2026-09-21
+  - { label: "Research direction proposal", url: "thesis-proposal.html" }
+tags: [thesis, calarts, digital-lutherie, practice-based, in-development]
+updated: 2026-09-25
 draft: false
 ---
 
-# Master's Thesis
+# Digital Lutherie and Expression for the Electronic Artist: A 2027 Retrospective and Prospectus
 
-**Status: in development. Untitled.**
-
-The title comes last, on purpose. It should fall out of what the three papers underneath it actually turn out to argue, not be chosen in advance and then defended.
+**Status: in development.** A practice-based master's thesis, written in the first person because the practitioner is the site of the inquiry. The [research direction proposal](/thesis-proposal.html) answers the framing questions one by one.
 
 ## What it binds
 

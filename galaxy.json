@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-22",
+  "generated": "2026-09-25",
   "nodes": [
     {
       "id": "emgor",
@@ -2075,8 +2075,8 @@
     },
     {
       "id": "emgor.papers.season-2026-27.thesis",
-      "title": "Master's Thesis",
-      "blurb": "Untitled. The binding argument — the OS, the instrument, and the methodology as one practice.",
+      "title": "Digital Lutherie and Expression for the Electronic Artist",
+      "blurb": "A 2027 Retrospective and Prospectus. The binding argument — the OS, the instrument, and the methodology as one practice.",
       "parent": "emgor.papers.season-2026-27",
       "path": "universe/papers/season-2026-27/thesis.md",
       "route": "/papers/season-2026-27/thesis",
@@ -2087,15 +2087,20 @@
         {
           "label": "Read as draft",
           "url": "papers/nime/thesis.html"
+        },
+        {
+          "label": "Research direction proposal",
+          "url": "thesis-proposal.html"
         }
       ],
       "tags": [
         "thesis",
         "calarts",
         "digital-lutherie",
+        "practice-based",
         "in-development"
       ],
-      "updated": "2026-09-21"
+      "updated": "2026-09-25"
     },
     {
       "id": "emgor.web-synth",

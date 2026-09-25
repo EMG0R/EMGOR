@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0D0221">
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="style/base.css">
+<title>Research Direction — Emory Smith</title>
+<style>
+  :root {
+    --ink: #F3E8FF;
+    --ink-dim: rgba(243, 232, 255, 0.62);
+    --rule: rgba(168, 85, 247, 0.28);
+  }
+  html { scroll-snap-type: y proximity; scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--void);
+    color: var(--ink);
+    font-family: 'Courier New', Courier, monospace;
+    overflow-x: hidden;
+  }
+  #bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(61, 29, 142, 0.35), transparent 55%),
+      radial-gradient(ellipse at 85% 90%, rgba(30, 15, 92, 0.5), transparent 50%),
+      var(--void);
+  }
+  #stars { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; }
+  .home-button {
+    position: fixed; top: 18px; left: 18px; z-index: 20;
+    width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center;
+    color: var(--lavender); text-decoration: none; font-size: 1.1rem;
+    border: 1px solid var(--rule); background: rgba(13, 2, 33, 0.6);
+    backdrop-filter: blur(6px);
+  }
+  .home-button:hover { border-color: var(--violet); }
+
+  /* ── hero ──────────────────────────────────────────── */
+  .hero {
+    position: relative; z-index: 1;
+    min-height: 100vh; scroll-snap-align: start;
+    display: grid; grid-template-rows: minmax(58vh, 1fr) auto; align-items: end;
+  }
+  #orbits {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+  }
+  .hero-text {
+    position: relative; z-index: 2;
+    width: min(92vw, 880px); margin: 0 auto;
+    padding: 0 0 clamp(28px, 5vh, 64px);
+    text-align: center;
+  }
+  .kicker {
+    font-size: clamp(0.7rem, 0.5vw + 0.55rem, 0.85rem);
+    letter-spacing: 4px; text-transform: uppercase;
+    color: var(--violet); margin: 0 0 14px;
+  }
+  .hero h1 {
+    font-size: clamp(1.5rem, 3.6vw + 0.6rem, 3rem);
+    line-height: 1.18; letter-spacing: 1px; margin: 0 0 10px;
+    color: #F9F0FF;
+    text-shadow: 0 0 18px rgba(168, 85, 247, 0.5), 0 0 48px rgba(100, 50, 180, 0.25);
+  }
+  .hero h1 em { font-style: normal; color: var(--lavender); }
+  .hero .sub {
+    font-size: clamp(0.9rem, 0.9vw + 0.55rem, 1.15rem);
+    color: var(--ink-dim); margin: 0 0 26px;
+  }
+  .scroll-hint {
+    display: inline-block; font-size: 0.75rem; letter-spacing: 3px;
+    color: var(--ink-dim); text-transform: uppercase;
+    animation: bob 2.4s ease-in-out infinite;
+  }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+
+  /* ── slides ────────────────────────────────────────── */
+  .slide {
+    position: relative; z-index: 1;
+    min-height: 100vh; scroll-snap-align: start;
+    display: flex; align-items: center;
+    padding: clamp(56px, 9vh, 110px) 0;
+  }
+  .slide-inner {
+    width: min(90vw, 820px); margin: 0 auto; text-align: left;
+  }
+  .slide-inner ul, .slide-inner ol { text-align: left; }
+  .num {
+    font-size: clamp(0.72rem, 0.45vw + 0.6rem, 0.85rem);
+    letter-spacing: 4px; color: var(--violet); font-weight: 700;
+    margin: 0 0 10px;
+  }
+  .slide h2 {
+    font-size: clamp(1.25rem, 1.8vw + 0.7rem, 1.9rem);
+    line-height: 1.28; margin: 0 0 22px; color: #F9F0FF;
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+  }
+  .attack {
+    border-left: 2px solid var(--purple-bright);
+    padding: 12px 0 12px 18px;
+    margin: 0 0 26px;
+    color: var(--ink-dim);
+    font-size: clamp(0.85rem, 0.5vw + 0.65rem, 1rem);
+    line-height: 1.6;
+  }
+  .attack .lab {
+    display: block; font-size: 0.7rem; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--violet); margin-bottom: 6px;
+  }
+  .answer {
+    font-size: clamp(0.92rem, 0.55vw + 0.7rem, 1.08rem);
+    line-height: 1.75; color: var(--ink);
+  }
+  .answer p { margin: 0 0 1.1em; }
+  .answer p:last-child { margin-bottom: 0; }
+  .answer strong { color: var(--lavender); font-weight: 700; }
+  .answer .q {
+    display: block; padding: 18px 22px; margin: 6px 0 18px;
+    border: 1px solid var(--rule); border-radius: 4px;
+    background: rgba(30, 15, 92, 0.28);
+    color: #F9F0FF; font-size: 1.04em; line-height: 1.6;
+  }
+  .answer ul, .answer ol { padding-left: 1.3em; margin: 0.3em 0 1.1em; }
+  .answer li { margin-bottom: 0.5em; }
+  .answer li strong { color: #F9F0FF; }
+
+  .tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 10px 0 18px; }
+  .tier { border: 1px solid var(--rule); border-radius: 4px; padding: 14px 16px; background: rgba(13, 2, 33, 0.45); }
+  .tier h4 { margin: 0 0 8px; font-size: 0.72rem; letter-spacing: 3px; color: var(--violet); }
+  .tier ul { padding-left: 1em; margin: 0; font-size: 0.86em; line-height: 1.55; }
+  .tier ul li { margin-bottom: 0.35em; }
+  .tier.must { border-color: rgba(192, 132, 252, 0.7); }
+
+  .chapters { counter-reset: ch; display: grid; gap: 12px; margin: 4px 0 18px; }
+  .chapter {
+    border: 1px solid var(--rule); border-radius: 4px; padding: 16px 18px;
+    background: rgba(13, 2, 33, 0.45);
+  }
+  .chapter h4 { margin: 0 0 8px; font-size: 1em; color: #F9F0FF; letter-spacing: 1px; }
+  .chapter h4 span { color: var(--violet); font-size: 0.72rem; letter-spacing: 3px; margin-right: 10px; }
+  .chapter .short { color: var(--ink-dim); font-size: 0.82em; letter-spacing: 2px; text-transform: uppercase; }
+  .chapter ul { margin: 6px 0 0; padding-left: 1.2em; font-size: 0.9em; line-height: 1.6; }
+  .chapter ul ul { margin-top: 2px; font-size: 0.95em; }
+
+  .registers { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 8px 0 18px; }
+  .reg { border: 1px solid var(--rule); border-radius: 4px; padding: 12px 14px; font-size: 0.86em; line-height: 1.55; background: rgba(13, 2, 33, 0.45); }
+  .reg h4 { margin: 0 0 6px; font-size: 0.7rem; letter-spacing: 3px; color: var(--violet); }
+  .reg.primary { border-color: rgba(192, 132, 252, 0.75); box-shadow: 0 0 22px rgba(168, 85, 247, 0.18); }
+  .reg.primary h4 { color: var(--lavender); }
+
+  .foot {
+    position: relative; z-index: 1;
+    width: min(90vw, 820px); margin: 0 auto;
+    padding: 30px 0 70px; color: var(--ink-dim);
+    font-size: 0.78rem; letter-spacing: 1px; line-height: 1.7;
+    border-top: 1px solid var(--rule);
+  }
+  .foot a { color: var(--lavender); }
+
+  /* progress rail */
+  .rail {
+    position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
+    z-index: 20; display: flex; flex-direction: column; gap: 9px;
+  }
+  .rail a { width: 7px; height: 7px; border-radius: 50%; background: rgba(192,132,252,0.28); display: block; }
+  .rail a.on { background: var(--lavender); box-shadow: 0 0 10px var(--violet); }
+  @media (max-width: 640px) { .rail { display: none; } }
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<canvas id="stars"></canvas>
+<a href="index.html" class="home-button" aria-label="home">&#8962;</a>
+<nav class="rail" id="rail" aria-hidden="true"></nav>
+
+<!-- ─────────────────────────────── HERO ─────────────────────────────── -->
+<section class="hero" id="top">
+  <canvas id="orbits" aria-hidden="true"></canvas>
+  <div class="hero-text">
+    <p class="kicker">Assignment 1 &middot; Research Direction Proposal &middot; ICCC-690</p>
+    <h1>Digital Lutherie and Expression for the Electronic Artist<br><em>A 2027 Retrospective and Prospectus</em></h1>
+    <p class="sub">Emory Smith &middot; CalArts Creative Computing &middot; a practice-based master&rsquo;s thesis</p>
+    <span class="scroll-hint">scroll &darr;</span>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 01 TITLE ─────────────────────────────── -->
+<section class="slide" id="s1">
+  <div class="slide-inner">
+    <p class="num">01 &middot; WORKING TITLE</p>
+    <h2>Digital Lutherie and Expression for the Electronic Artist: A 2027 Retrospective and Prospectus</h2>
+    <div class="attack"><span class="lab">the attack</span>A &ldquo;retrospective&rdquo; is a topic. It names a territory and decides nothing. What does this title commit you to?</div>
+    <div class="answer">
+      <p>It commits me to two things. <strong>Retrospective</strong>: I look back at the decade in which the tools of digital lutherie &mdash; single-board computers, microcontrollers, audio languages, fabrication, and now AI &mdash; matured far enough that one person can build a complete instrument as a single act. <strong>Prospectus</strong>: I say where that goes, for expression, for the electronic artist, and for the economies that surround both.</p>
+      <p>The retrospective is what I have already built. The prospectus is what I am arguing. The title is deliberately not a question, because the question lives underneath it &mdash; next slide.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 02 QUESTION ─────────────────────────────── -->
+<section class="slide" id="s2">
+  <div class="slide-inner">
+    <p class="num">02 &middot; PRELIMINARY RESEARCH QUESTION</p>
+    <h2>What changes when the luthier and the performer are the same person?</h2>
+    <div class="attack"><span class="lab">the attack</span>A question should change what you build, test, document, or notice. Which decision does yours force?</div>
+    <div class="answer">
+      <span class="q">How does holding the whole instrument stack &mdash; operating system, hardware, synthesis, enclosure &mdash; in one practitioner&rsquo;s hands change what an electronic artist can express, compared with the laptop-and-gear ecosystem it replaces, within the constraint of no institutional resources?</span>
+      <p>It forces me to build everything, not most things. If any layer is bought instead of made, the comparison collapses. That is the decision.</p>
+      <p><strong>The evidence sub-question</strong> sits beneath it: when the OS, the instrument, and the method are built as one iterative act, what changes in the instrument&rsquo;s expressive identity &mdash; and can that change be documented as a workflow other people can repeat?</p>
+      <p><strong>The structure</strong> follows a third framing that isn&rsquo;t a question at all: a threshold has been crossed in what one practitioner can build alone. What did it cost the instruments? What did it give them? Where does the practice go from here? Retrospective, retrospective, prospectus.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 03 TERRITORY ─────────────────────────────── -->
+<section class="slide" id="s3">
+  <div class="slide-inner">
+    <p class="num">03 &middot; TERRITORY &amp; TENSION</p>
+    <h2>Digital lutherie, and the thing that feels unresolved in it</h2>
+    <div class="attack"><span class="lab">the attack</span>NIME has been here for twenty-five years. What is actually unresolved?</div>
+    <div class="answer">
+      <p><strong>The territory</strong> is digital lutherie as an expressive practice for the electronic artist &mdash; not instrument design as an engineering discipline, and not music technology as a product category.</p>
+      <p><strong>The tension</strong>: ten years ago a self-contained digital instrument demanded either institutional resources or a compromise. Sensor-rich controllers leaned on laptops; self-contained devices gave up compute or interface density. That gap has collapsed, and the field hasn&rsquo;t fully noticed. The design literature &mdash; Fels on intimacy, Hunt and Wanderley on mapping, Jord&agrave; on identity, Cook&rsquo;s &ldquo;some instruments are meant to be stupid&rdquo; &mdash; was written for a world where adding a sensor cost something. Now it costs nothing, and restraint becomes the whole discipline.</p>
+      <p>What&rsquo;s unresolved is what that does to <em>expression</em>. Everyone can see the tools got cheaper. Almost nobody is documenting, from inside the practice, what it feels like to perform on a stack you built from the OS up &mdash; and what the instruments become when nothing about them was chosen by someone else.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 04 OUTCOME ─────────────────────────────── -->
+<section class="slide" id="s4">
+  <div class="slide-inner">
+    <p class="num">04 &middot; ARTISTIC OUTCOME OR EXPERIENCE</p>
+    <h2>A performance where nothing onstage was bought that could have been built</h2>
+    <div class="attack"><span class="lab">the attack</span>&ldquo;Everyone benefits&rdquo; is a mood, not an outcome. What does a person in the room actually get?</div>
+    <div class="answer">
+      <p><strong>The ambition</strong>, said plainly: when luthiers can build faster, performers get instruments that fit them, audiences get performances that respond to the room, and the gaps between all three keep shrinking. Anyone can make anything. That is the claim I want to be true.</p>
+      <p><strong>The artifact that has to prove it</strong>: a laptop-free performance at ICMC 2027 on the NEPTR performance system &mdash; a Raspberry Pi running Csound on my own operating system, a Teensy control surface, hyper-guitar and hyper-trumpet, a hemispherical speaker I printed, a second Pi rendering feedback visuals over a cable protocol I wrote, and NeuralGrid on the table. Every element self-built. Audience-reactive where it can be.</p>
+      <p>The written thesis explains it. The performance <em>is</em> it. If I had to cut one, I would cut the explanation.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 05 TECHNICAL ─────────────────────────────── -->
+<section class="slide" id="s5">
+  <div class="slide-inner">
+    <p class="num">05 &middot; TECHNOLOGIES, TOOLS, METHODS</p>
+    <h2>The stack I already have, and the one method that runs through all of it</h2>
+    <div class="attack"><span class="lab">the attack</span>A list of tools isn&rsquo;t a technical direction. Which of these is the research, and which is just the workshop?</div>
+    <div class="answer">
+      <p><strong>The stack</strong> &mdash; already running, not proposed: <strong>DemiurgeOS</strong> (a flashable audio-first OS for the Pi 5, PipeWire underneath, a Rust supervisor that hot-reloads a patch graph); <strong>Csound</strong> for the instrument&rsquo;s 63 effect modules; <strong>Teensy</strong> for control surfaces and audio I/O; <strong>3D printing</strong> for every enclosure; <strong>OMNIPLEX</strong>, a Rust transport that carries audio, video, and control over one cable; and the <strong>NAMProcess</strong> opcode I wrote to put neural amp modeling inside Csound.</p>
+      <p><strong>The method that is the research</strong>: building each layer with the layer below, iteratively, as one act &mdash; and using AI as a working collaborator at every step of it. I don&rsquo;t give AI its own chapter. It shows up in every chapter, the way it shows up in every day of the work, because the compression of time between hitting a problem and having a solution is part of what collapsed the workflow in the first place.</p>
+      <p><strong>The reflective method</strong>, planned: my git history across every project is a timeline of where my attention was and when it moved. I want to map that &mdash; later, deliberately, once every repo is under version control. Not this week.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 06 AUDIENCE ─────────────────────────────── -->
+<section class="slide" id="s6">
+  <div class="slide-inner">
+    <p class="num">06 &middot; INTENDED AUDIENCE</p>
+    <h2>Anyone curious enough to build their own</h2>
+    <div class="attack"><span class="lab">the attack</span>&ldquo;Anyone&rdquo; is nobody. One system, one audience, one learning goal. Who?</div>
+    <div class="answer">
+      <p><strong>Primary</strong>: the electronic artist who wants to make their own instruments and doesn&rsquo;t know that they already can &mdash; the person I was three years ago, fighting a Pi in a class. This thesis is the document I needed then: not a tutorial, a map. Where the tools are, what they cost, what they cannot do, and what it feels like on the other side.</p>
+      <p><strong>Secondary</strong>: the NIME / ICMC / Linux Audio research communities, who will read it as a case study &mdash; one whole stack, one practitioner, documented from inside &mdash; and as the writeup behind the individual papers.</p>
+      <p><strong>And the reader who wants to track it</strong>: because the work is open and the progress is public, anyone can watch the direction shift over time. That is part of the offer.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 07 CONTRIBUTION ─────────────────────────────── -->
+<section class="slide" id="s7">
+  <div class="slide-inner">
+    <p class="num">07 &middot; CONTRIBUTION</p>
+    <h2>&ldquo;My project contributes a practitioner&rsquo;s map of the collapsed lutherie workflow, by building one whole stack and documenting it from inside.&rdquo;</h2>
+    <div class="attack"><span class="lab">the attack</span>Pick one register. Which one carries the weight, and what happens to the others?</div>
+    <div class="answer">
+      <div class="registers">
+        <div class="reg primary"><h4>KNOWLEDGE &middot; PRIMARY</h4>A map of what the collapsed workflow costs, gives, and where it goes &mdash; written from inside the practice, not surveyed from above.</div>
+        <div class="reg"><h4>TECHNICAL</h4>DemiurgeOS, the NEPTR system, NeuralGrid, the NAMProcess opcode. Real, running, open. They support the map; they are not the map.</div>
+        <div class="reg"><h4>ARTISTIC</h4>A performance practice in which every element onstage is self-built. The proof the map points at.</div>
+        <div class="reg"><h4>EXPERIENTIAL</h4>A changed relation between an electronic artist and their tools &mdash; the claim the other three make arguable.</div>
+      </div>
+      <p>One register carries the weight because the lecture is right: a thesis that contributes everything defends nothing. The others are not thrown away &mdash; they are what the map is drawn from.</p>
+      <p><strong>And to be exact about what this thesis is not</strong>: it is not a longer version of <em>Workflow of a Modern Digital Luthier</em>. That paper is the methodology facet &mdash; one side of this. The thesis uses it, then goes where a journal article can&rsquo;t: into the performance system, the OS, the controller, the economics, and forward.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 08 STRUCTURE ─────────────────────────────── -->
+<section class="slide" id="s8">
+  <div class="slide-inner">
+    <p class="num">08 &middot; THE THESIS, CHAPTERED</p>
+    <h2>Every paper is a chapter or a subchapter. Two big chapters, one landscape, short bookends.</h2>
+    <div class="attack"><span class="lab">the attack</span>You have six papers and one thesis. Which ones are load-bearing, and which ones are you including because you worked hard on them?</div>
+    <div class="answer">
+      <div class="chapters">
+        <div class="chapter"><h4><span>INTRO</span>The threshold</h4><span class="short">short</span><ul><li>The question. First person declared as method: this is practice-based research and I am the site of it. How to read the document &mdash; retrospective, then prospectus.</li></ul></div>
+        <div class="chapter"><h4><span>CH 1</span>Workflow of a Modern Digital Luthier</h4><span class="short">big &middot; the methodology</span>
+          <ul>
+            <li>The ecosystem map &mdash; platforms, languages, sensing, fabrication, access to information &mdash; updated from the ROTURA paper and pushed forward</li>
+            <li><strong>DemiurgeOS</strong>, introduced here as the layer I had to build before any instrument was possible</li>
+            <li>AI as access to information &mdash; through the door ROTURA opened, not around it</li>
+            <li><strong>Reach</strong>: NAM &times; Csound, BOUBA, CIESEN, the smartwatch I wear every day &mdash; the same workflow, different needs. One paragraph each. Evidence the method generalizes, not chapters</li>
+            <li>What it cost, what it can&rsquo;t do, the demo problem</li>
+          </ul></div>
+        <div class="chapter"><h4><span>CH 2</span>Performance Practices</h4><span class="short">big &middot; NEPTR as a product of Demiurge</span>
+          <ul>
+            <li><strong>2.1 NEPTR</strong> &mdash; Csound on DEMIURGE, 63 modules, 20 menus, 6 ms, the Rust supervisor</li>
+            <li><strong>2.2 The satellites</strong> &mdash; hyper-guitar, hyper-trumpet, Pocket OpGorator, the hemi speaker (v1 onstage, v2 in progress), Duodecimus, oFOOTS, We-Remote, 4-i-Gor</li>
+            <li><strong>2.3 The visual system</strong> &mdash; the Pi fractal / feedback renderer, a second Pi over OMNIPLEX, and where interdisciplinary work (dance) enters later</li>
+            <li><strong>2.4 NeuralGrid</strong> &mdash; the published example, deep: bols as vocabulary, the seven-axis translator that never hears what it renders</li>
+          </ul></div>
+        <div class="chapter"><h4><span>CH 3</span>Landscape &mdash; past and future</h4><span class="short">the prospectus</span>
+          <ul>
+            <li>How the chapters strengthen each other: the OS exists because the instrument needed it; the instrument is a case study in the method; the method is what the two mean together</li>
+            <li>AI, capitalism, and mainstream academia&rsquo;s hold on art and technology &mdash; and the argument that as those economies break down, real work gets <em>more</em> valuable, not less, and the practice gets more exciting, not less</li>
+            <li>The progress map: git history as a record of where attention went and when direction shifted</li>
+          </ul></div>
+        <div class="chapter"><h4><span>OUTRO</span>What I know now</h4><span class="short">short</span><ul><li>What the question turned out to mean. What I would build differently. What I&rsquo;m building next.</li></ul></div>
+      </div>
+      <p>Load-bearing: Luthier, Demiurge, NEPTR, NeuralGrid. Present but not load-bearing: NAM, BOUBA, CIESEN, the watch. All of the work is in the document; only some of it holds it up.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 09 EVIDENCE ─────────────────────────────── -->
+<section class="slide" id="s9">
+  <div class="slide-inner">
+    <p class="num">09 &middot; EVIDENCE &amp; REFLECTION</p>
+    <h2>What a reader can actually observe</h2>
+    <div class="attack"><span class="lab">the attack</span>&ldquo;I built it and it works&rdquo; isn&rsquo;t evidence. A four-axis reflection isn&rsquo;t enough either. What would I see?</div>
+    <div class="answer">
+      <ul>
+        <li><strong>The prototypes themselves.</strong> Every system is open. Source, build files, configs, and enclosures are downloadable from this site. A reader can inspect the thing rather than take my word for it.</li>
+        <li><strong>The performances.</strong> NIME, ICMC, and hopefully ICSC this year, plus recorded sets online. The claim is made in public, on a stage, where it can fail.</li>
+        <li><strong>Their own results.</strong> If a reader builds it, they get the same instrument I have. Reproducibility is the evidence a practice-based claim can actually offer, and it is the one most theses can&rsquo;t.</li>
+        <li><strong>The data that exists.</strong> The latency perception test is real numeric work. Measured latencies, effect counts, costs, and build times are stated as numbers, not adjectives.</li>
+        <li><strong>Reflection</strong>, as one lens among these &mdash; O&rsquo;Modhrain&rsquo;s playability / learnability / sonic range / robustness, per artifact, honest about where each one is weak.</li>
+      </ul>
+      <p>The data is my own practice. The argument that it extends to other people is made in the landscape chapter, and it is argued, not measured. I&rsquo;d rather say that plainly than pretend a survey I didn&rsquo;t run.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 10 CONSTRAINT ─────────────────────────────── -->
+<section class="slide" id="s10">
+  <div class="slide-inner">
+    <p class="num">10 &middot; ONE DELIBERATE CONSTRAINT</p>
+    <h2>Only the instruments I already have. Only my own practice as data.</h2>
+    <div class="attack"><span class="lab">the attack</span>Scope is an artistic constraint, not an apology. Can the claim survive if one feature disappears? What are you refusing to do?</div>
+    <div class="answer">
+      <p><strong>I will not build a new instrument for this thesis.</strong> NEPTR, the hyper-instruments, the hemi speaker, We-Remote, NeuralGrid, the visual Pi &mdash; these exist or are already in flight. The thesis finishes and documents them. Nothing new gets started. (The hemi v2 and the visual Pi count as finishing.)</p>
+      <p><strong>And the data is my own practice.</strong> This is a personal-practice paper. I am the performer, the luthier, and the subject, and I say so rather than borrow the authority of a study I haven&rsquo;t run. Where the work faces other people &mdash; BOUBA&rsquo;s users, other makers &mdash; I argue the connection; I don&rsquo;t claim to have measured it. That keeps a whole evaluation regime, and the IRB that comes with it, out of a document that doesn&rsquo;t need them.</p>
+      <p>Can the claim survive if one feature disappears? Yes &mdash; drop any satellite and NEPTR still performs. Drop NEPTR and the claim is gone. That is how I know which one is the core.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 11 SCOPE ─────────────────────────────── -->
+<section class="slide" id="s11">
+  <div class="slide-inner">
+    <p class="num">11 &middot; FEASIBLE SCOPE</p>
+    <h2>One system. One audience. One learning goal.</h2>
+    <div class="attack"><span class="lab">the attack</span>Can it be prototyped this semester? Experienced? Documented? Show me the tiers.</div>
+    <div class="answer">
+      <div class="tiers">
+        <div class="tier must"><h4>MUST</h4><ul><li>The written thesis</li><li>NEPTR performing at ICMC on DemiurgeOS</li><li>Hyper-instruments and NeuralGrid onstage &mdash; already are</li></ul></div>
+        <div class="tier"><h4>SHOULD</h4><ul><li>Hemi speaker v2</li><li>The visual Pi over OMNIPLEX</li><li>Every project under version control</li></ul></div>
+        <div class="tier"><h4>COULD</h4><ul><li>The git progress map</li><li>Hyper-trumpet refinement</li><li>Deeper NeuralGrid model work</li></ul></div>
+        <div class="tier"><h4>NOT NOW</h4><ul><li>BOUBA user study</li><li>Dance collaboration &mdash; implied future</li><li>Open-Pedal</li><li>New platforms, new instruments</li></ul></div>
+      </div>
+      <p>Everything in MUST already exists. The semester is spent making it legible, performing it, and writing it down &mdash; not inventing it. That is the only reason the scope is honest.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── 12 NEXT ─────────────────────────────── -->
+<section class="slide" id="s12">
+  <div class="slide-inner">
+    <p class="num">12 &middot; NEXT STEP &amp; THE OPEN QUESTION</p>
+    <h2>What I&rsquo;m doing next, and the question I can&rsquo;t answer yet</h2>
+    <div class="attack"><span class="lab">the attack</span>Useful feedback makes the next decision easier. What is the next decision?</div>
+    <div class="answer">
+      <p><strong>Next step</strong>: this proposal, then a full draft of Chapter 1 &mdash; the methodology chapter &mdash; because it is the one the ROTURA paper already gives me most of, and because writing it will tell me whether the thesis is really a map or secretly a manual.</p>
+      <p><strong>The most important unanswered question</strong>: what does &ldquo;expression&rdquo; measurably mean when the luthier and the performer are the same person? I can describe what it feels like. I cannot yet say what a reader would observe that is different from a performer on bought gear. If I can&rsquo;t answer that by the end of Chapter 2, the title is wrong and I should know sooner rather than later.</p>
+      <p>What I most want to know from you: whether &ldquo;expression&rdquo; is the right word, or whether the thing I&rsquo;m actually tracking has a better name.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  Every word on this page is a draft until Emory approves it. Built from the ICCC-690 Lecture 02 framework and the Assignment 1 brief. &nbsp;&middot;&nbsp; <a href="papers.html">papers</a> &nbsp;&middot;&nbsp; <a href="papers/nime/thesis.html">thesis node</a>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+  // ── seeded rng (same family as the site's galaxy) ─────────────
+  function hash32(s){var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+  function rng(seed){var a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  // ── starfield (fixed, screen-space) ───────────────────────────
+  var sc = document.getElementById('stars'), sg = sc.getContext('2d'), stars = [];
+  function sizeStars(){
+    sc.width = innerWidth * DPR; sc.height = innerHeight * DPR;
+    var r = rng(hash32('emgor::proposal-stars')); stars = [];
+    var n = Math.floor((innerWidth * innerHeight) / 5200);
+    for (var i = 0; i < n; i++) stars.push({ x: r()*innerWidth, y: r()*innerHeight, s: 0.6 + r()*1.4, p: r()*6.28, c: r() });
+  }
+  function drawStars(t){
+    sg.setTransform(DPR,0,0,DPR,0,0); sg.clearRect(0,0,innerWidth,innerHeight);
+    for (var i=0;i<stars.length;i++){var s=stars[i];var a=0.35+0.45*(0.5+0.5*Math.sin(t*0.0009+s.p));
+      sg.fillStyle = s.c<0.12?'rgba(0,240,255,'+a+')':(s.c<0.5?'rgba(192,132,252,'+a+')':'rgba(235,225,255,'+a+')');
+      sg.fillRect(s.x, s.y, s.s, s.s);}
+  }
+
+  // ── orbit header: pixel planets around a ragged void ──────────
+  var oc = document.getElementById('orbits'), og = oc.getContext('2d');
+  var PAL = [
+    ['#2fa88f','#0c5c54','#f0b48a'], ['#b4708e','#8c2840','#f2c6d2'], ['#4d7fbf','#15406e','#d6e6ff'],
+    ['#d99a3e','#8e5010','#ffe6b0'], ['#8e6ad6','#3e2888','#e0d0ff'], ['#3aa878','#106848','#c9f5dd'],
+    ['#b56ac9','#6e3080','#f2d6f9'], ['#cf5a3c','#882818','#ffd0b8'], ['#3fb0c8','#0e5868','#d0f4fb']
+  ];
+  var R = rng(hash32('emgor::proposal-orbits'));
+  var planets = [];
+  for (var i = 0; i < 9; i++) {
+    planets.push({
+      orb: 0.30 + i * 0.082 + R()*0.03,   // fraction of half-width
+      ang: R()*6.283, spd: (0.06 + R()*0.09) * (R()<0.5?1:-1) * (1/(0.6+i*0.16)),
+      size: 22 + R()*26, pal: PAL[i % PAL.length], ring: R() < 0.35, ringTilt: 0.4 + R()*0.5,
+      seed: hash32('p'+i), spin: (R()-0.5)*0.4, moon: R() < 0.5 ? { d: 1.9 + R()*0.8, a: R()*6.283, s: 0.25 + R()*0.2, spd: 0.8 + R()*1.2 } : null
+    });
+  }
+  // pre-render each planet body at low res for the pixel look
+  function bakePlanet(p){
+    var S = 18, c = document.createElement('canvas'); c.width = c.height = S;
+    var g = c.getContext('2d'), r = rng(p.seed);
+    var img = g.createImageData(S, S), d = img.data;
+    function hex(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+    var hi = hex(p.pal[0]), lo = hex(p.pal[1]), ac = hex(p.pal[2]);
+    var cx = S/2 - 0.5, cy = S/2 - 0.5, rad = S/2 - 0.5;
+    var nz = []; for (var k=0;k<S*S;k++) nz.push(r());
+    for (var y=0;y<S;y++) for (var x=0;x<S;x++){
+      var dx=x-cx, dy=y-cy, dist=Math.sqrt(dx*dx+dy*dy); var o=(y*S+x)*4;
+      if (dist > rad) { d[o+3]=0; continue; }
+      // cheap blobby noise: average neighbours
+      var n = (nz[y*S+x] + nz[(y*S+((x+1)%S))] + nz[(((y+1)%S)*S+x)] + nz[(y*S+((x+S-1)%S))]) / 4;
+      var shade = 1 - Math.pow(dist/rad, 2.2) * 0.45 - Math.max(0, (dx+dy)/(rad*2)) * 0.35;
+      var col = n < 0.42 ? lo : (n < 0.78 ? hi : ac);
+      d[o]=col[0]*shade; d[o+1]=col[1]*shade; d[o+2]=col[2]*shade; d[o+3]=255;
+    }
+    g.putImageData(img,0,0); return c;
+  }
+  planets.forEach(function(p){ p.tex = bakePlanet(p); });
+
+  function sizeOrbits(){ oc.width = oc.clientWidth * DPR; oc.height = oc.clientHeight * DPR; }
+  var t0 = performance.now();
+  function drawOrbits(t){
+    var W = oc.clientWidth, H = oc.clientHeight, s = (t - t0) / 1000;
+    og.setTransform(DPR,0,0,DPR,0,0); og.clearRect(0,0,W,H);
+    og.imageSmoothingEnabled = false;
+    var cx = W/2, cy = H*0.30, halfW = Math.min(W*0.47, H*0.62), tilt = 0.30;
+
+    // sort by depth so near planets draw over the void and far ones behind it
+    var items = [];
+    planets.forEach(function(p){
+      var a = p.ang + s*p.spd, rx = halfW*p.orb, rz = rx*tilt;
+      items.push({ p:p, x: cx + Math.cos(a)*rx, y: cy + Math.sin(a)*rz, z: Math.sin(a), a:a });
+    });
+    items.push({ void:true, z: 0 });
+    items.sort(function(a,b){ return a.z - b.z; });
+
+    items.forEach(function(it){
+      if (it.void) { drawVoid(cx, cy, Math.max(34, halfW*0.13), s); return; }
+      var p = it.p, sz = p.size * (0.78 + 0.22*(it.z+1)/2);
+      // glow
+      var gr = og.createRadialGradient(it.x,it.y,sz*0.5,it.x,it.y,sz*1.6);
+      gr.addColorStop(0,'rgba(168,85,247,0.16)'); gr.addColorStop(1,'rgba(168,85,247,0)');
+      og.fillStyle = gr; og.beginPath(); og.arc(it.x,it.y,sz*1.6,0,6.283); og.fill();
+      if (p.ring) { og.save(); og.translate(it.x,it.y); og.scale(1,p.ringTilt);
+        og.strokeStyle='rgba(224,170,255,0.28)'; og.lineWidth=2; og.beginPath(); og.arc(0,0,sz*1.35,0,6.283); og.stroke(); og.restore(); }
+      og.save(); og.translate(it.x,it.y); og.rotate(s*p.spin);
+      og.drawImage(p.tex, -sz, -sz, sz*2, sz*2); og.restore();
+      if (p.moon) { var ma = p.moon.a + s*p.moon.spd, mx = it.x + Math.cos(ma)*sz*p.moon.d, my = it.y + Math.sin(ma)*sz*p.moon.d*0.5;
+        og.fillStyle='#c9b8ff'; og.fillRect(mx-sz*p.moon.s/2, my-sz*p.moon.s/2, sz*p.moon.s, sz*p.moon.s); }
+    });
+  }
+  function drawVoid(cx, cy, r, s){
+    // soft halo + disk
+    var g = og.createRadialGradient(cx,cy,r*0.9,cx,cy,r*3.2);
+    g.addColorStop(0,'rgba(123,47,190,0.32)'); g.addColorStop(0.5,'rgba(61,29,142,0.14)'); g.addColorStop(1,'rgba(61,29,142,0)');
+    og.fillStyle=g; og.beginPath(); og.ellipse(cx,cy,r*3.2,r*1.25,0,0,6.283); og.fill();
+    // ragged rim, then the hole
+    og.beginPath();
+    for (var i=0;i<=64;i++){ var a=i/64*6.283, w=1+0.08*Math.sin(a*3+s*0.7)+0.05*Math.sin(a*7-s*0.5);
+      var x=cx+Math.cos(a)*r*w, y=cy+Math.sin(a)*r*w; i?og.lineTo(x,y):og.moveTo(x,y); }
+    og.closePath(); og.strokeStyle='rgba(215,162,255,0.85)'; og.lineWidth=1.5; og.shadowColor='rgba(168,85,247,0.9)'; og.shadowBlur=14; og.stroke();
+    og.shadowBlur=0; og.fillStyle='#000'; og.fill();
+    // a couple of lensed arcs
+    og.strokeStyle='rgba(201,139,255,0.55)'; og.lineWidth=2;
+    og.beginPath(); og.ellipse(cx,cy,r*1.35,r*0.5,0,3.4+s*0.2,5.6+s*0.2); og.stroke();
+    og.beginPath(); og.ellipse(cx,cy,r*1.5,r*0.62,0.5,0.2-s*0.15,1.6-s*0.15); og.stroke();
+  }
+
+  // ── progress rail ──────────────────────────────────────────────
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.hero, .slide'));
+  var rail = document.getElementById('rail');
+  slides.forEach(function(sl){ var a=document.createElement('a'); a.href='#'+sl.id; rail.appendChild(a); });
+  var dots = rail.children;
+  var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ var i=slides.indexOf(e.target);
+    for (var k=0;k<dots.length;k++) dots[k].classList.toggle('on', k===i); } }); }, { threshold: 0.5 });
+  slides.forEach(function(sl){ io.observe(sl); });
+  // arrow keys step slides like a deck
+  addEventListener('keydown', function(e){
+    if (e.key!=='ArrowDown' && e.key!=='ArrowUp' && e.key!=='PageDown' && e.key!=='PageUp') return;
+    var cur = 0; for (var k=0;k<dots.length;k++) if (dots[k].classList.contains('on')) cur=k;
+    var nxt = (e.key==='ArrowDown'||e.key==='PageDown') ? Math.min(cur+1, slides.length-1) : Math.max(cur-1, 0);
+    slides[nxt].scrollIntoView({ behavior: 'smooth' }); e.preventDefault();
+  });
+
+  function resize(){ sizeStars(); sizeOrbits(); }
+  addEventListener('resize', resize); resize();
+  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function tick(t){ drawStars(t); if (oc.getBoundingClientRect().bottom > 0) drawOrbits(t); if (!reduced) requestAnimationFrame(tick); }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
