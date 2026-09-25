@@ -27,11 +27,12 @@
     font-size: clamp(0.62rem, 0.42vw + 0.5rem, 0.78rem); letter-spacing: 1.5px; color: var(--ink-dim);
     text-shadow: 0 0 8px rgba(13,2,33,0.95), 0 0 2px rgba(13,2,33,1); }
   .lbl.center { color: var(--lavender); font-size: clamp(0.72rem, 0.5vw + 0.55rem, 0.9rem); white-space: normal; width: min(60vw, 420px); text-align: center; line-height: 1.5; transform: translate(-50%, -100%); }
-  .hero-text { position: relative; z-index: 2; width: min(92vw, 880px); margin: 0 auto; padding: 0 0 clamp(28px, 5vh, 64px); text-align: center; }
+  .hero-text { position: relative; z-index: 2; width: min(92vw, 960px); margin: 0 auto; padding: 0 0 clamp(28px, 5vh, 64px); text-align: center; }
   .kicker { font-size: clamp(0.7rem, 0.5vw + 0.55rem, 0.85rem); letter-spacing: 4px; text-transform: uppercase; color: var(--violet); margin: 0 0 14px; }
-  .hero h1 { font-size: clamp(1.4rem, 3vw + 0.5rem, 2.55rem); line-height: 1.18; letter-spacing: 1px; margin: 0 0 10px; color: #F9F0FF;
+  .hero h1 { font-size: clamp(1.8rem, 3.8vw + 0.7rem, 3.6rem); line-height: 1.18; letter-spacing: 1px; margin: 0 0 10px; color: #F9F0FF;
     text-shadow: 0 0 18px rgba(168,85,247,0.5), 0 0 48px rgba(100,50,180,0.25); }
   .hero h1 em { font-style: normal; color: var(--lavender); }
+  .hero .sub-title { font-size: clamp(1.1rem, 1.5vw + 0.6rem, 1.8rem); color: var(--lavender); margin: 0 0 14px; letter-spacing: 1px; }
   .hero .sub { font-size: clamp(0.9rem, 0.9vw + 0.55rem, 1.15rem); color: var(--ink-dim); margin: 0 0 26px; }
   .scroll-hint { display: inline-block; font-size: 0.75rem; letter-spacing: 3px; color: var(--ink-dim); text-transform: uppercase; animation: bob 2.4s ease-in-out infinite; }
   @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
@@ -57,11 +58,13 @@
   .chapter .venue { display: block; color: var(--ink-dim); font-size: 0.8em; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
   .chapter ul { margin: 6px 0 0; padding-left: 1.2em; font-size: 0.9em; line-height: 1.6; }
   .deck { width: min(88vw, 960px); margin: 0 auto; text-align: left; }
-  .deck h2 { font-size: clamp(1.5rem, 2.6vw + 0.8rem, 2.7rem); line-height: 1.22; margin: 0 0 18px; color: #F9F0FF; text-shadow: 0 0 12px rgba(168,85,247,0.35); }
+  .deck h2 { font-size: clamp(1.35rem, 2vw + 0.7rem, 2.2rem); line-height: 1.25; margin: 0 0 14px; color: #F9F0FF; text-shadow: 0 0 12px rgba(168,85,247,0.35); }
   .deck .big { font-size: clamp(1.1rem, 1.3vw + 0.7rem, 1.6rem); color: var(--lavender); margin: 0 0 22px; line-height: 1.4; }
   .deck .line { font-size: clamp(0.85rem, 0.6vw + 0.6rem, 1rem); color: var(--ink-dim); letter-spacing: 1px; margin: 18px 0 0; }
   .deck ul { list-style: none; padding: 0; margin: 0; }
-  .deck li { font-size: clamp(1rem, 0.9vw + 0.7rem, 1.35rem); line-height: 1.5; padding: 10px 0 10px 22px; border-left: 2px solid var(--purple-bright); margin: 0 0 12px; }
+  .deck h2 + h2 { margin-top: -2px; }
+  .deck h2 + ul, .deck h2 + h2 + ul { margin-top: 22px; }
+  .deck li { font-size: clamp(0.95rem, 0.75vw + 0.65rem, 1.2rem); line-height: 1.5; padding: 10px 0 10px 22px; border-left: 2px solid var(--purple-bright); margin: 0 0 12px; }
   .deck li strong { color: var(--lavender); }
   .papers { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 22px; font-size: 0.82rem; letter-spacing: 1px; color: var(--ink-dim); }
   .foot { position: relative; z-index: 1; width: min(90vw, 820px); margin: 0 auto; padding: 30px 0 70px; color: var(--ink-dim);
@@ -82,82 +85,80 @@
 <section class="hero" id="top">
   <canvas id="orbits" aria-hidden="true"></canvas>
   <div class="hero-text">
-    <p class="kicker">Assignment 1 &middot; Research Direction Proposal &middot; ICCC-690</p>
-    <h1>Digital Lutherie and Expression for the Electronic Artist<br><em>A 2027 Retrospective and Prospectus</em></h1>
+    <p class="num">1 / 7 &middot; WORKING PROJECT TITLE</p>
+    <h1>Digital Lutherie and Expression for the Electronic Artist</h1>
+    <p class="sub-title">A 2027 Retrospective and Prospectus</p>
     <p class="sub">Emory Smith &middot; CalArts Creative Computing &middot; practice-based research</p>
     <span class="scroll-hint">scroll &darr;</span>
   </div>
 </section>
 
-<section class="slide" id="s1"><div class="deck">
-  <p class="num">1 / 7 &middot; WORKING PROJECT TITLE</p>
-  <h2>Digital Lutherie and Expression for the Electronic Artist</h2>
-  <p class="big">A 2027 Retrospective and Prospectus</p>
-  <p class="line">practice-based research &middot; personal practice paper</p>
-</div></section>
-
 <section class="slide" id="s2"><div class="deck">
   <p class="num">2 / 7 &middot; PRELIMINARY RESEARCH QUESTION</p>
   <h2>How is the landscape of creating and playing digital instruments changing?</h2>
-  <p class="big">How does this connect to where it comes from and where it is going?</p>
+  <h2>How does this connect to where it comes from and where it is going?</h2>
   <ul>
-    <li>Research on myself &mdash; personal practice as my data for now</li>
-    <li>Connecting to where it can be argued to be effective for stuff facing towards other people</li>
+    <li>Research on myself, personal practice as my data for now</li>
+    <li>Connecting my own data to where it applies for others</li>
   </ul>
 </div></section>
 
 <section class="slide" id="s3"><div class="deck">
   <p class="num">3 / 7 &middot; ARTISTIC OUTCOME OR EXPERIENCE</p>
-  <h2>Performing at NIME and ICMC this year</h2>
+  <h2>Predicted outcomes</h2>
   <ul>
-    <li><strong>NEPTR performance system</strong> &mdash; hyperguitar, hypertrumpet, PMOR (pocket operator DIY), hemi speaker v2, Duodecimus, NeuralGrid, my Wii remote controller</li>
-    <li><strong>Visuals</strong> &mdash; another Pi running my video fractal / feedback rendering system over the Ethernet / USB data protocol</li>
-    <li>Audience-reactive stuff &middot; anyone can make anything</li>
+    <li><strong>Publications</strong> &mdash; sub-papers at NIME, ICMC, ICSC, ROTURA, and the Linux Audio Conference</li>
+    <li><strong>Performances</strong> &mdash; NIME, ICMC, ICSC, and the Linux Audio Conference concert program</li>
+    <li><strong>NEPTR performance system</strong> &mdash; hyperguitar, hypertrumpet, PMOR, DIY hemi speaker, Duodecimus, NeuralGrid, We-Remote</li>
+    <li><strong>Distribution</strong> &mdash; information reaching the widest audience possible through an interactive website and social media</li>
   </ul>
 </div></section>
 
 <section class="slide" id="s4"><div class="deck">
   <p class="num">4 / 7 &middot; TECHNOLOGIES, TOOLS, METHODS</p>
-  <h2>Csound backend, Python UI, custom Rust-based Demiurge system behind it</h2>
+  <h2>Csound backend, Python UI, a Rust-heavy Linux distro behind it</h2>
   <ul>
-    <li><strong>DemiurgeOS</strong> introduced first &mdash; NEPTR as a product of Demiurge</li>
-    <li><strong>AI</strong> &mdash; I use AI all the time; comes up in each paragraph, no unique AI paragraph</li>
-    <li><strong>Future</strong> &mdash; using my git pushes to map my progress on each project and my direction shifts</li>
+    <li><strong>DemiurgeOS</strong> &mdash; the Rust-heavy Linux distro, introduced first</li>
+    <li><strong>NEPTR</strong> &mdash; a product of Demiurge: Csound backend, Python UI</li>
+    <li><strong>Practice-based research</strong> &mdash; my own prototypes and performances as the data</li>
   </ul>
   <div class="papers">
-    <span>Modern Digital Luthier &rarr; ROTURA</span><span>DemiurgeOS &rarr; Linux Audio Developer Conference</span><span>Performance system &rarr; ICMC</span><span>NeuralGrid &rarr; NIME</span><span>NAM &rarr; ICSC 2027</span><span>BOUBA &rarr; <em class="gap">venue?</em></span>
+    <span>Modern Digital Luthier &rarr; ROTURA</span><span>DemiurgeOS &rarr; Linux Audio Conference</span><span>Performance system &rarr; ICMC</span><span>NeuralGrid &rarr; NIME</span><span>NAM &rarr; ICSC 2027</span><span>BOUBA &rarr; <em class="gap">venue?</em></span>
   </div>
 </div></section>
 
 <section class="slide" id="s5"><div class="deck">
   <p class="num">5 / 7 &middot; INTENDED AUDIENCE &amp; POTENTIAL CONTRIBUTION</p>
-  <h2>Anyone who is curious about making their own shit / tracking the progress</h2>
+  <h2>The academic music technology community, then anyone curious about building digital instruments</h2>
   <ul>
-    <li>Luthiers benefit &rarr; performers benefit &rarr; everyone benefits</li>
-    <li>Shortening the gaps between all of the above exponentially</li>
-    <li>Two big chapters &mdash; Modern Digital Lutherie, Performance Practices &mdash; past and future / landscape mapping, short intro and conclusion. Each of my papers a chapter or subchapter</li>
+    <li><strong>Mapping</strong> of the current landscape and history of the practice</li>
+    <li><strong>Informed suggestion</strong> of where the field is heading, based on practice-based and academic research</li>
+    <li>Luthiers benefit &rarr; performers benefit &rarr; audience benefits</li>
+    <li>Help to shorten the gaps between them</li>
   </ul>
 </div></section>
 
 <section class="slide" id="s6"><div class="deck">
   <p class="num">6 / 7 &middot; ONE DELIBERATE CONSTRAINT</p>
-  <h2>Just using instruments I already have</h2>
+  <h2>Focus on music. Focus on lutherie.</h2>
   <ul>
-    <li>Research on myself &mdash; personal practice, not a study on other people</li>
-    <li>NeuralGrid and hyper-instruments are already onstage &mdash; I&rsquo;m using those</li>
-    <li>Dance collab: not now, implied future</li>
+    <li>Focus on music &mdash; imply other forms of art, but not researched here</li>
+    <li>Focus on lutherie &mdash; avoid non-musical interfaces</li>
   </ul>
 </div></section>
 
 <section class="slide" id="s7"><div class="deck">
-  <p class="num">7 / 7 &middot; NEXT STEP / MOST IMPORTANT UNANSWERED QUESTION</p>
-  <h2><span class="gap">next step &mdash; fill in</span></h2>
-  <p class="big"><span class="gap">most important unanswered question &mdash; fill in</span></p>
-  <p class="line">note: Ajay said NAM / BOUBA weaken the thesis &mdash; I don&rsquo;t quite understand why. Ask the room?</p>
+  <p class="num">7 / 7 &middot; NEXT STEPS</p>
+  <h2>Continue building into an ecosystem of prototypes and papers</h2>
+  <ul>
+    <li>Pursue conferences in Europe, 2027</li>
+    <li>Use this practice to build more highly accessible systems</li>
+    <li><span class="gap">most important unanswered question &mdash; fill in</span></li>
+  </ul>
 </div></section>
 
 <footer class="foot">
-  One slide per Assignment 1 requirement. Dashed boxes are blanks for Emory to fill. &nbsp;&middot;&nbsp; <a href="papers.html">papers</a> &nbsp;&middot;&nbsp; <a href="papers/nime/thesis.html">thesis node</a>
+  Dashed boxes are blanks for Emory to fill. &nbsp;&middot;&nbsp; <a href="papers.html">papers</a> &nbsp;&middot;&nbsp; <a href="papers/nime/thesis.html">thesis node</a>
 </footer>
 
 <script>
