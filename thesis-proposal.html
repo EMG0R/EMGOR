@@ -56,6 +56,14 @@
   .chapter h4 span { color: var(--violet); font-size: 0.72rem; letter-spacing: 3px; margin-right: 10px; }
   .chapter .venue { display: block; color: var(--ink-dim); font-size: 0.8em; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
   .chapter ul { margin: 6px 0 0; padding-left: 1.2em; font-size: 0.9em; line-height: 1.6; }
+  .deck { width: min(88vw, 960px); margin: 0 auto; text-align: left; }
+  .deck h2 { font-size: clamp(1.5rem, 2.6vw + 0.8rem, 2.7rem); line-height: 1.22; margin: 0 0 18px; color: #F9F0FF; text-shadow: 0 0 12px rgba(168,85,247,0.35); }
+  .deck .big { font-size: clamp(1.1rem, 1.3vw + 0.7rem, 1.6rem); color: var(--lavender); margin: 0 0 22px; line-height: 1.4; }
+  .deck .line { font-size: clamp(0.85rem, 0.6vw + 0.6rem, 1rem); color: var(--ink-dim); letter-spacing: 1px; margin: 18px 0 0; }
+  .deck ul { list-style: none; padding: 0; margin: 0; }
+  .deck li { font-size: clamp(1rem, 0.9vw + 0.7rem, 1.35rem); line-height: 1.5; padding: 10px 0 10px 22px; border-left: 2px solid var(--purple-bright); margin: 0 0 12px; }
+  .deck li strong { color: var(--lavender); }
+  .papers { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 22px; font-size: 0.82rem; letter-spacing: 1px; color: var(--ink-dim); }
   .foot { position: relative; z-index: 1; width: min(90vw, 820px); margin: 0 auto; padding: 30px 0 70px; color: var(--ink-dim);
     font-size: 0.78rem; letter-spacing: 1px; line-height: 1.7; border-top: 1px solid var(--rule); }
   .foot a { color: var(--lavender); }
@@ -73,7 +81,6 @@
 
 <section class="hero" id="top">
   <canvas id="orbits" aria-hidden="true"></canvas>
-  <div id="labels" aria-hidden="true"></div>
   <div class="hero-text">
     <p class="kicker">Assignment 1 &middot; Research Direction Proposal &middot; ICCC-690</p>
     <h1>Digital Lutherie and Expression for the Electronic Artist<br><em>A 2027 Retrospective and Prospectus</em></h1>
@@ -82,93 +89,75 @@
   </div>
 </section>
 
-<section class="slide" id="s1">
-  <div class="slide-inner">
-    <p class="num">01 &middot; RESEARCH QUESTION</p>
-    <h2>How is the landscape of creating and playing digital instruments changing?</h2>
-    <p class="ask">How does this connect to where it comes from and where it is going?</p>
-    <div class="answer">
-      <p>A threshold has been crossed in interactive system design, beyond the predictable increase of Moore&rsquo;s Law. The convergence of embedded computing, new programming environments, accessible fabrication, and open educational resources has lowered barriers to such an extent that a qualitatively different approach to digital lutherie is emerging &mdash; one where individuals can rapidly prototype and complete self-sufficient instruments within an integrated workflow.</p>
-      <p>Ten years ago, building a self-contained digital instrument required significant resources or compromise. Sensor-rich controllers depended on external computers and self-contained devices sacrificed computational headroom or interface density. The crossing of this threshold is causing the gap between commercial-quality and independent projects to collapse.</p>
-      <p>This is a personal practice paper. Research on myself &mdash; focusing on personal practice for now in my data, but connecting to where it can be easily argued to be effective for stuff facing towards other people.</p>
-    </div>
-  </div>
-</section>
+<section class="slide" id="s1"><div class="deck">
+  <p class="num">1 / 7 &middot; WORKING PROJECT TITLE</p>
+  <h2>Digital Lutherie and Expression for the Electronic Artist</h2>
+  <p class="big">A 2027 Retrospective and Prospectus</p>
+  <p class="line">practice-based research &middot; personal practice paper</p>
+</div></section>
 
-<section class="slide" id="s2">
-  <div class="slide-inner">
-    <p class="num">02 &middot; ARTISTIC OUTCOME &amp; TECHNICAL DIRECTION</p>
-    <h2>NEPTR is the brain at the center of my performance system</h2>
-    <p class="ask">I plan on performing with this at NIME and ICMC this year.</p>
-    <div class="answer">
-      <p><strong>DemiurgeOS</strong> provides a unified interface for managing a Raspberry Pi for DSP. Inspired by Satellite CCRMA and RNBO. Comes preinstalled with every major audio language. Introduce Demiurge first, then introduce NEPTR as a product of Demiurge.</p>
-      <p><strong>NEPTR</strong> links together audio interfaces, DIY controllers and hyper-instruments with internal DSP and GUI. Replaces the laptop, synthesizer and pedalboard onstage. Included in the NEPTR performance system: hyperguitar and hypertrumpet, PMOR (pocket operator DIY), hemi speaker (I&rsquo;m making a new one, v2), Duodecimus, and the NeuralGrid.</p>
-      <p><strong>Visuals</strong> &mdash; my video fractal / feedback rendering system for the Pi. For the NIME / ICMC performance I&rsquo;ll def have another Pi running visuals over the Ethernet / USB data protocol.</p>
-      <p><strong>AI</strong> &mdash; I use AI all the time. It comes up in each paragraph fairly, but no unique AI paragraph. LLMs are already capable of hugely compressing the time between a digital luthier encountering a broad range of problems and achieving a working solution.</p>
-    </div>
-  </div>
-</section>
+<section class="slide" id="s2"><div class="deck">
+  <p class="num">2 / 7 &middot; PRELIMINARY RESEARCH QUESTION</p>
+  <h2>How is the landscape of creating and playing digital instruments changing?</h2>
+  <p class="big">How does this connect to where it comes from and where it is going?</p>
+  <ul>
+    <li>Research on myself &mdash; personal practice as my data for now</li>
+    <li>Connecting to where it can be argued to be effective for stuff facing towards other people</li>
+  </ul>
+</div></section>
 
-<section class="slide" id="s3">
-  <div class="slide-inner">
-    <p class="num">03 &middot; STRUCTURE &amp; WHERE EACH PAPER IS GOING</p>
-    <h2>Each of my independent papers is a chapter</h2>
-    <p class="ask">Ajay said it weakens the thesis in a way I don&rsquo;t quite understand personally &mdash; but I want all my hard work represented in some way.</p>
-    <div class="answer">
-      <div class="chapters">
-        <div class="chapter"><h4><span>INTRO</span>shorter</h4></div>
-        <div class="chapter"><h4><span>CH 1</span>Modern Digital Lutherie &mdash; big</h4>
-          <span class="venue">Workflow of a Modern Digital Luthier &rarr; ROTURA &middot; in submission with Ajay Kapur</span>
-          <ul><li>Introduce Demiurge first in that paragraph &rarr; Linux Audio Developer Conference (definitely)</li>
-              <li>Lots of AI examples because I use AI all the time</li>
-              <li>NAM &rarr; ICSC, pushed to 2027 &middot; BOUBA &rarr; AMTA, music therapy targets &middot; CIESEN</li></ul></div>
-        <div class="chapter"><h4><span>CH 2</span>Performance Practices &mdash; big</h4>
-          <span class="venue">Performance system &rarr; ICMC only &middot; NeuralGrid &rarr; NIME &middot; performing at NIME and ICMC this year</span>
-          <ul><li>NEPTR system as a subchapter; NeuralGrid as a subchapter, deeper into NeuralGrid</li>
-              <li>Hyperguitar, hypertrumpet, PMOR, hemi speaker v2, Duodecimus, my Wii remote controller</li>
-              <li>Video fractal / feedback rendering system for the Pi &mdash; interdisciplinary work</li></ul></div>
-        <div class="chapter"><h4><span>CH 3</span>Past and future connection / landscape mapping</h4></div>
-        <div class="chapter"><h4><span>CONCLUSION</span>shorter</h4></div>
-      </div>
-      <p>Heavy AI and future but also past looking &mdash; how they integrate / strengthen each other.</p>
-    </div>
-  </div>
-</section>
+<section class="slide" id="s3"><div class="deck">
+  <p class="num">3 / 7 &middot; ARTISTIC OUTCOME OR EXPERIENCE</p>
+  <h2>Performing at NIME and ICMC this year</h2>
+  <ul>
+    <li><strong>NEPTR performance system</strong> &mdash; hyperguitar, hypertrumpet, PMOR (pocket operator DIY), hemi speaker v2, Duodecimus, NeuralGrid, my Wii remote controller</li>
+    <li><strong>Visuals</strong> &mdash; another Pi running my video fractal / feedback rendering system over the Ethernet / USB data protocol</li>
+    <li>Audience-reactive stuff &middot; anyone can make anything</li>
+  </ul>
+</div></section>
 
-<section class="slide" id="s4">
-  <div class="slide-inner">
-    <p class="num">04 &middot; WHERE IT COMES FROM, WHERE IT IS GOING</p>
-    <h2>It is only getting more exciting because of it</h2>
-    <p class="ask">Capitalism&rsquo;s effect on art, mainstream academia&rsquo;s effect on art / tech, and how it is all breaking down &mdash; everyone is scared.</p>
-    <div class="answer">
-      <p>Even if the capitalist economy / art economies are getting fucked, which is awful, conceptually it makes real shit more valuable &mdash; and I hope personally that it will turn back around.</p>
-      <p>As these tools reach optimal efficiency and begin competing across more axes, this practice will continue pushing further into a world where interfaces can be synchronically and nonlinearly realized. The effects of this transition will continue changing the face of technological interaction through a globally rising density of immersive experience, leaving more powerful tools and deeply outlined frameworks in the hands of the next generations of digital luthiers.</p>
-      <p>The way it influences my life: I reach for modular thinking. I built my own smartwatch I use regularly &mdash; just the way I naturally would be like, fuck it, I&rsquo;ll just build it.</p>
-      <p><strong>In the future</strong> &mdash; using my git pushes to map my progress on each project and determine my direction shifts / map them, and the ability to do that conceptually.</p>
-    </div>
+<section class="slide" id="s4"><div class="deck">
+  <p class="num">4 / 7 &middot; TECHNOLOGIES, TOOLS, METHODS</p>
+  <h2>Csound backend, Python UI, custom Rust-based Demiurge system behind it</h2>
+  <ul>
+    <li><strong>DemiurgeOS</strong> introduced first &mdash; NEPTR as a product of Demiurge</li>
+    <li><strong>AI</strong> &mdash; I use AI all the time; comes up in each paragraph, no unique AI paragraph</li>
+    <li><strong>Future</strong> &mdash; using my git pushes to map my progress on each project and my direction shifts</li>
+  </ul>
+  <div class="papers">
+    <span>Modern Digital Luthier &rarr; ROTURA</span><span>DemiurgeOS &rarr; Linux Audio Developer Conference</span><span>Performance system &rarr; ICMC</span><span>NeuralGrid &rarr; NIME</span><span>NAM &rarr; ICSC 2027</span><span>BOUBA &rarr; <em class="gap">venue?</em></span>
   </div>
-</section>
+</div></section>
 
-<section class="slide" id="s5">
-  <div class="slide-inner">
-    <p class="num">05 &middot; AUDIENCE &middot; CONSTRAINT &middot; EVIDENCE &middot; NEXT</p>
-    <h2>Just using instruments I already have</h2>
-    <p class="ask">For anyone who is curious about making their own shit / tracking the progress.</p>
-    <div class="answer">
-      <div class="grid2">
-        <div class="card must"><h4>ONE CONSTRAINT</h4>Just using instruments I already have. Research on myself.</div>
-        <div class="card"><h4>EVIDENCE</h4>The reader observes the data and the prototypes themselves, can see performances at NIME and ICMC, hopefully ICSC this year, along with online stuff &mdash; and they can see results if they build themselves.</div>
-        <div class="card"><h4>SCOPE</h4>NeuralGrid and hyper-instruments are already onstage, I&rsquo;m using those. Dance collab is not now but implied future.</div>
-        <div class="card"><h4>CONTRIBUTION</h4>Society gets new advancement: luthiers benefit, so performers benefit, so everyone benefits &mdash; shortening the gaps between all of the above exponentially. Audience-reactive stuff. Anyone can make anything.</div>
-      </div>
-      <p><strong>Next step</strong> &mdash; <span class="gap">your words needed</span></p>
-      <p><strong>Most important unanswered question</strong> &mdash; <span class="gap">your words needed</span></p>
-    </div>
-  </div>
-</section>
+<section class="slide" id="s5"><div class="deck">
+  <p class="num">5 / 7 &middot; INTENDED AUDIENCE &amp; POTENTIAL CONTRIBUTION</p>
+  <h2>Anyone who is curious about making their own shit / tracking the progress</h2>
+  <ul>
+    <li>Luthiers benefit &rarr; performers benefit &rarr; everyone benefits</li>
+    <li>Shortening the gaps between all of the above exponentially</li>
+    <li>Two big chapters &mdash; Modern Digital Lutherie, Performance Practices &mdash; past and future / landscape mapping, short intro and conclusion. Each of my papers a chapter or subchapter</li>
+  </ul>
+</div></section>
+
+<section class="slide" id="s6"><div class="deck">
+  <p class="num">6 / 7 &middot; ONE DELIBERATE CONSTRAINT</p>
+  <h2>Just using instruments I already have</h2>
+  <ul>
+    <li>Research on myself &mdash; personal practice, not a study on other people</li>
+    <li>NeuralGrid and hyper-instruments are already onstage &mdash; I&rsquo;m using those</li>
+    <li>Dance collab: not now, implied future</li>
+  </ul>
+</div></section>
+
+<section class="slide" id="s7"><div class="deck">
+  <p class="num">7 / 7 &middot; NEXT STEP / MOST IMPORTANT UNANSWERED QUESTION</p>
+  <h2><span class="gap">next step &mdash; fill in</span></h2>
+  <p class="big"><span class="gap">most important unanswered question &mdash; fill in</span></p>
+  <p class="line">note: Ajay said NAM / BOUBA weaken the thesis &mdash; I don&rsquo;t quite understand why. Ask the room?</p>
+</div></section>
 
 <footer class="foot">
-  Every sentence on this page is Emory&rsquo;s &mdash; from the ROTURA submission, the 2026&ndash;2027 papers document, or this week&rsquo;s notes. Dashed boxes are gaps waiting for his words. &nbsp;&middot;&nbsp; <a href="papers.html">papers</a> &nbsp;&middot;&nbsp; <a href="papers/nime/thesis.html">thesis node</a>
+  One slide per Assignment 1 requirement. Dashed boxes are blanks for Emory to fill. &nbsp;&middot;&nbsp; <a href="papers.html">papers</a> &nbsp;&middot;&nbsp; <a href="papers/nime/thesis.html">thesis node</a>
 </footer>
 
 <script>
@@ -280,7 +269,7 @@ const MAP = [
   { id:'bouba',    label:'bouba · AMTA',       tier:1, r:0.34 },
   { id:'visuals',  label:'visual system',          tier:1, r:0.32 }
 ];
-const canvas = document.getElementById('orbits'), labelsEl = document.getElementById('labels');
+const canvas = document.getElementById('orbits');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
@@ -311,8 +300,7 @@ const bodies = MAP.map((m, i) => {
   }
   const inner = m.tier === 0;
   const n = inner ? 3 : 7, k = inner ? i-1 : i-4;
-  const lbl = document.createElement('div'); lbl.className = 'lbl' + (m.tier === -1 ? ' center' : ''); lbl.textContent = m.label; labelsEl.appendChild(lbl);
-  return { m, anchor, mesh, lbl,
+  return { m, anchor, mesh,
     orb: m.tier === -1 ? 0 : (inner ? 3.1 + rng()*0.25 : 5.4 + (k%2)*1.05 + rng()*0.3),
     ang: (k/n)*TAU + rng()*0.6, spd: (inner ? 0.07 : 0.042) * (inner ? 1 : -1) * (0.85+rng()*0.3),
     spin: 0.045 + rng()*0.09, spinTilt: (rng()-0.5)*0.5, r: m.r };
@@ -332,8 +320,6 @@ function frame(now){
     b.anchor.position.set(Math.cos(a)*b.orb, 0, Math.sin(a)*b.orb);
     b.anchor.scale.setScalar(b.r);
     b.mesh.rotation.set(b.spinTilt, s*b.spin*TAU*0.15, 0);
-    v.copy(b.anchor.position); v.y += (b.m.tier === -1 ? b.r*1.35 : -b.r*1.25); v.project(camera);
-    b.lbl.style.left = ((v.x*0.5+0.5)*W)+'px'; b.lbl.style.top = ((-v.y*0.5+0.5)*H)+'px';
   });
   renderer.render(scene, camera);
   if (reduced) return;
