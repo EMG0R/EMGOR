@@ -8,170 +8,58 @@
 <link rel="stylesheet" href="style/base.css">
 <title>Research Direction — Emory Smith</title>
 <style>
-  :root {
-    --ink: #F3E8FF;
-    --ink-dim: rgba(243, 232, 255, 0.62);
-    --rule: rgba(168, 85, 247, 0.28);
-  }
+  :root { --ink: #F3E8FF; --ink-dim: rgba(243,232,255,0.62); --rule: rgba(168,85,247,0.28); }
   html { scroll-snap-type: y proximity; scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    background: var(--void);
-    color: var(--ink);
-    font-family: 'Courier New', Courier, monospace;
-    overflow-x: hidden;
-  }
-  #bg {
-    position: fixed; inset: 0; z-index: 0;
-    background:
-      radial-gradient(ellipse at 20% 10%, rgba(61, 29, 142, 0.35), transparent 55%),
-      radial-gradient(ellipse at 85% 90%, rgba(30, 15, 92, 0.5), transparent 50%),
-      var(--void);
-  }
+  body { margin: 0; background: var(--void); color: var(--ink); font-family: 'Courier New', Courier, monospace; overflow-x: hidden; }
+  #bg { position: fixed; inset: 0; z-index: 0;
+    background: radial-gradient(ellipse at 20% 10%, rgba(61,29,142,0.35), transparent 55%),
+                radial-gradient(ellipse at 85% 90%, rgba(30,15,92,0.5), transparent 50%), var(--void); }
   #stars { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; }
-  .home-button {
-    position: fixed; top: 18px; left: 18px; z-index: 20;
-    width: 40px; height: 40px; border-radius: 50%;
-    display: grid; place-items: center;
-    color: var(--lavender); text-decoration: none; font-size: 1.1rem;
-    border: 1px solid var(--rule); background: rgba(13, 2, 33, 0.6);
-    backdrop-filter: blur(6px);
-  }
+  .home-button { position: fixed; top: 18px; left: 18px; z-index: 20; width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center; color: var(--lavender); text-decoration: none; font-size: 1.1rem;
+    border: 1px solid var(--rule); background: rgba(13,2,33,0.6); backdrop-filter: blur(6px); }
   .home-button:hover { border-color: var(--violet); }
-
-  /* ── hero ──────────────────────────────────────────── */
-  .hero {
-    position: relative; z-index: 1;
-    min-height: 100vh; scroll-snap-align: start;
-    display: grid; grid-template-rows: minmax(58vh, 1fr) auto; align-items: end;
-  }
-  #orbits {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    image-rendering: pixelated; image-rendering: crisp-edges;
-  }
-  .hero-text {
-    position: relative; z-index: 2;
-    width: min(92vw, 880px); margin: 0 auto;
-    padding: 0 0 clamp(28px, 5vh, 64px);
-    text-align: center;
-  }
-  .kicker {
-    font-size: clamp(0.7rem, 0.5vw + 0.55rem, 0.85rem);
-    letter-spacing: 4px; text-transform: uppercase;
-    color: var(--violet); margin: 0 0 14px;
-  }
-  .hero h1 {
-    font-size: clamp(1.5rem, 3.6vw + 0.6rem, 3rem);
-    line-height: 1.18; letter-spacing: 1px; margin: 0 0 10px;
-    color: #F9F0FF;
-    text-shadow: 0 0 18px rgba(168, 85, 247, 0.5), 0 0 48px rgba(100, 50, 180, 0.25);
-  }
+  .hero { position: relative; z-index: 1; min-height: 100vh; scroll-snap-align: start;
+    display: grid; grid-template-rows: minmax(56vh, 1fr) auto; align-items: end; }
+  #orbits { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #labels { position: absolute; inset: 0; pointer-events: none; }
+  .lbl { position: absolute; transform: translate(-50%, 0); white-space: nowrap;
+    font-size: clamp(0.62rem, 0.42vw + 0.5rem, 0.78rem); letter-spacing: 1.5px; color: var(--ink-dim);
+    text-shadow: 0 0 8px rgba(13,2,33,0.95), 0 0 2px rgba(13,2,33,1); }
+  .lbl.center { color: var(--lavender); font-size: clamp(0.72rem, 0.5vw + 0.55rem, 0.9rem); white-space: normal; width: min(60vw, 420px); text-align: center; line-height: 1.5; transform: translate(-50%, -100%); }
+  .hero-text { position: relative; z-index: 2; width: min(92vw, 880px); margin: 0 auto; padding: 0 0 clamp(28px, 5vh, 64px); text-align: center; }
+  .kicker { font-size: clamp(0.7rem, 0.5vw + 0.55rem, 0.85rem); letter-spacing: 4px; text-transform: uppercase; color: var(--violet); margin: 0 0 14px; }
+  .hero h1 { font-size: clamp(1.4rem, 3vw + 0.5rem, 2.55rem); line-height: 1.18; letter-spacing: 1px; margin: 0 0 10px; color: #F9F0FF;
+    text-shadow: 0 0 18px rgba(168,85,247,0.5), 0 0 48px rgba(100,50,180,0.25); }
   .hero h1 em { font-style: normal; color: var(--lavender); }
-  .hero .sub {
-    font-size: clamp(0.9rem, 0.9vw + 0.55rem, 1.15rem);
-    color: var(--ink-dim); margin: 0 0 26px;
-  }
-  .scroll-hint {
-    display: inline-block; font-size: 0.75rem; letter-spacing: 3px;
-    color: var(--ink-dim); text-transform: uppercase;
-    animation: bob 2.4s ease-in-out infinite;
-  }
+  .hero .sub { font-size: clamp(0.9rem, 0.9vw + 0.55rem, 1.15rem); color: var(--ink-dim); margin: 0 0 26px; }
+  .scroll-hint { display: inline-block; font-size: 0.75rem; letter-spacing: 3px; color: var(--ink-dim); text-transform: uppercase; animation: bob 2.4s ease-in-out infinite; }
   @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
-
-  /* ── slides ────────────────────────────────────────── */
-  .slide {
-    position: relative; z-index: 1;
-    min-height: 100vh; scroll-snap-align: start;
-    display: flex; align-items: center;
-    padding: clamp(56px, 9vh, 110px) 0;
-  }
-  .slide-inner {
-    width: min(90vw, 820px); margin: 0 auto; text-align: left;
-  }
+  .slide { position: relative; z-index: 1; min-height: 100vh; scroll-snap-align: start; display: flex; align-items: center; padding: clamp(56px, 9vh, 110px) 0; }
+  .slide-inner { width: min(90vw, 820px); margin: 0 auto; text-align: left; }
   .slide-inner ul, .slide-inner ol { text-align: left; }
-  .num {
-    font-size: clamp(0.72rem, 0.45vw + 0.6rem, 0.85rem);
-    letter-spacing: 4px; color: var(--violet); font-weight: 700;
-    margin: 0 0 10px;
-  }
-  .slide h2 {
-    font-size: clamp(1.25rem, 1.8vw + 0.7rem, 1.9rem);
-    line-height: 1.28; margin: 0 0 22px; color: #F9F0FF;
-    text-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
-  }
-  .ask {
-    font-style: italic; color: var(--lavender);
-    font-size: clamp(1rem, 0.7vw + 0.8rem, 1.2rem); line-height: 1.5;
-    margin: -8px 0 24px; opacity: 0.9;
-  }
-  .attack {
-    border-left: 2px solid var(--purple-bright);
-    padding: 12px 0 12px 18px;
-    margin: 0 0 26px;
-    color: var(--ink-dim);
-    font-size: clamp(0.85rem, 0.5vw + 0.65rem, 1rem);
-    line-height: 1.6;
-  }
-  .attack .lab {
-    display: block; font-size: 0.7rem; letter-spacing: 3px;
-    text-transform: uppercase; color: var(--violet); margin-bottom: 6px;
-  }
-  .answer {
-    font-size: clamp(0.92rem, 0.55vw + 0.7rem, 1.08rem);
-    line-height: 1.75; color: var(--ink);
-  }
-  .answer p { margin: 0 0 1.1em; }
-  .answer p:last-child { margin-bottom: 0; }
+  .num { font-size: clamp(0.72rem, 0.45vw + 0.6rem, 0.85rem); letter-spacing: 4px; color: var(--violet); font-weight: 700; margin: 0 0 10px; }
+  .slide h2 { font-size: clamp(1.25rem, 1.8vw + 0.7rem, 1.9rem); line-height: 1.28; margin: 0 0 18px; color: #F9F0FF; text-shadow: 0 0 10px rgba(168,85,247,0.3); }
+  .ask { font-style: italic; color: var(--lavender); font-size: clamp(1rem, 0.7vw + 0.8rem, 1.2rem); line-height: 1.5; margin: -6px 0 24px; opacity: 0.9; }
+  .answer { font-size: clamp(0.92rem, 0.55vw + 0.7rem, 1.08rem); line-height: 1.75; color: var(--ink); }
+  .answer p { margin: 0 0 1.1em; } .answer p:last-child { margin-bottom: 0; }
   .answer strong { color: var(--lavender); font-weight: 700; }
-  .answer .q {
-    display: block; padding: 18px 22px; margin: 6px 0 18px;
-    border: 1px solid var(--rule); border-radius: 4px;
-    background: rgba(30, 15, 92, 0.28);
-    color: #F9F0FF; font-size: 1.04em; line-height: 1.6;
-  }
-  .answer ul, .answer ol { padding-left: 1.3em; margin: 0.3em 0 1.1em; }
-  .answer li { margin-bottom: 0.5em; }
-  .answer li strong { color: #F9F0FF; }
-
-  .tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 10px 0 18px; }
-  .tier { border: 1px solid var(--rule); border-radius: 4px; padding: 14px 16px; background: rgba(13, 2, 33, 0.45); }
-  .tier h4 { margin: 0 0 8px; font-size: 0.72rem; letter-spacing: 3px; color: var(--violet); }
-  .tier ul { padding-left: 1em; margin: 0; font-size: 0.86em; line-height: 1.55; }
-  .tier ul li { margin-bottom: 0.35em; }
-  .tier.must { border-color: rgba(192, 132, 252, 0.7); }
-
-  .chapters { counter-reset: ch; display: grid; gap: 12px; margin: 4px 0 18px; }
-  .chapter {
-    border: 1px solid var(--rule); border-radius: 4px; padding: 16px 18px;
-    background: rgba(13, 2, 33, 0.45);
-  }
-  .chapter { padding: 12px 16px; }
+  .answer ul { padding-left: 1.3em; margin: 0.3em 0 1.1em; } .answer li { margin-bottom: 0.45em; }
+  .gap { display: inline-block; padding: 2px 8px; border: 1px dashed rgba(224,170,255,0.6); border-radius: 3px; color: var(--pale); font-style: italic; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 6px 0 18px; }
+  .card { border: 1px solid var(--rule); border-radius: 4px; padding: 12px 16px; background: rgba(13,2,33,0.45); font-size: 0.9em; line-height: 1.6; }
+  .card h4 { margin: 0 0 6px; font-size: 0.7rem; letter-spacing: 3px; color: var(--violet); }
+  .card.must { border-color: rgba(192,132,252,0.7); }
+  .chapters { display: grid; gap: 10px; margin: 4px 0 18px; }
+  .chapter { border: 1px solid var(--rule); border-radius: 4px; padding: 12px 16px; background: rgba(13,2,33,0.45); }
   .chapter h4 { margin: 0 0 4px; font-size: 1em; color: #F9F0FF; letter-spacing: 1px; }
   .chapter h4 span { color: var(--violet); font-size: 0.72rem; letter-spacing: 3px; margin-right: 10px; }
-  .chapter .short { color: var(--ink-dim); font-size: 0.82em; letter-spacing: 2px; text-transform: uppercase; }
+  .chapter .venue { display: block; color: var(--ink-dim); font-size: 0.8em; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
   .chapter ul { margin: 6px 0 0; padding-left: 1.2em; font-size: 0.9em; line-height: 1.6; }
-  .chapter ul ul { margin-top: 2px; font-size: 0.95em; }
-
-  .registers { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 8px 0 18px; }
-  .reg { border: 1px solid var(--rule); border-radius: 4px; padding: 12px 14px; font-size: 0.86em; line-height: 1.55; background: rgba(13, 2, 33, 0.45); }
-  .reg h4 { margin: 0 0 6px; font-size: 0.7rem; letter-spacing: 3px; color: var(--violet); }
-  .reg.primary { border-color: rgba(192, 132, 252, 0.75); box-shadow: 0 0 22px rgba(168, 85, 247, 0.18); }
-  .reg.primary h4 { color: var(--lavender); }
-
-  .foot {
-    position: relative; z-index: 1;
-    width: min(90vw, 820px); margin: 0 auto;
-    padding: 30px 0 70px; color: var(--ink-dim);
-    font-size: 0.78rem; letter-spacing: 1px; line-height: 1.7;
-    border-top: 1px solid var(--rule);
-  }
+  .foot { position: relative; z-index: 1; width: min(90vw, 820px); margin: 0 auto; padding: 30px 0 70px; color: var(--ink-dim);
+    font-size: 0.78rem; letter-spacing: 1px; line-height: 1.7; border-top: 1px solid var(--rule); }
   .foot a { color: var(--lavender); }
-
-  /* progress rail */
-  .rail {
-    position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
-    z-index: 20; display: flex; flex-direction: column; gap: 9px;
-  }
+  .rail { position: fixed; right: 16px; top: 50%; transform: translateY(-50%); z-index: 20; display: flex; flex-direction: column; gap: 9px; }
   .rail a { width: 7px; height: 7px; border-radius: 50%; background: rgba(192,132,252,0.28); display: block; }
   .rail a.on { background: var(--lavender); box-shadow: 0 0 10px var(--violet); }
   @media (max-width: 640px) { .rail { display: none; } }
@@ -183,9 +71,9 @@
 <a href="index.html" class="home-button" aria-label="home">&#8962;</a>
 <nav class="rail" id="rail" aria-hidden="true"></nav>
 
-<!-- ─────────────────────────────── HERO ─────────────────────────────── -->
 <section class="hero" id="top">
   <canvas id="orbits" aria-hidden="true"></canvas>
+  <div id="labels" aria-hidden="true"></div>
   <div class="hero-text">
     <p class="kicker">Assignment 1 &middot; Research Direction Proposal &middot; ICCC-690</p>
     <h1>Digital Lutherie and Expression for the Electronic Artist<br><em>A 2027 Retrospective and Prospectus</em></h1>
@@ -194,224 +82,110 @@
   </div>
 </section>
 
-<!-- ─────────────────────────────── 01 QUESTION ─────────────────────────────── -->
 <section class="slide" id="s1">
   <div class="slide-inner">
-    <p class="num">01 &middot; THE QUESTION</p>
-    <h2>What changes when the luthier and the performer are the same person?</h2>
-    <p class="ask">A retrospective names a territory. What decision does the question force?</p>
+    <p class="num">01 &middot; RESEARCH QUESTION</p>
+    <h2>How is the landscape of creating and playing digital instruments changing?</h2>
+    <p class="ask">How does this connect to where it comes from and where it is going?</p>
     <div class="answer">
-      <span class="q">How does holding the whole instrument stack &mdash; operating system, hardware, synthesis, enclosure &mdash; in one practitioner&rsquo;s hands change what an electronic artist can express, compared with the laptop-and-gear ecosystem it replaces, within the constraint of no institutional resources?</span>
-      <p>It forces me to build <strong>everything</strong>, not most things. If any layer is bought instead of made, the comparison collapses.</p>
-      <p>Ten years ago a self-contained instrument cost an institution or a compromise. That gap has closed, and the field hasn&rsquo;t fully noticed what it does to <em>expression</em>. Retrospective: what I&rsquo;ve built. Prospectus: what I&rsquo;m arguing.</p>
+      <p>A threshold has been crossed in interactive system design, beyond the predictable increase of Moore&rsquo;s Law. The convergence of embedded computing, new programming environments, accessible fabrication, and open educational resources has lowered barriers to such an extent that a qualitatively different approach to digital lutherie is emerging &mdash; one where individuals can rapidly prototype and complete self-sufficient instruments within an integrated workflow.</p>
+      <p>Ten years ago, building a self-contained digital instrument required significant resources or compromise. Sensor-rich controllers depended on external computers and self-contained devices sacrificed computational headroom or interface density. The crossing of this threshold is causing the gap between commercial-quality and independent projects to collapse.</p>
+      <p>This is a personal practice paper. Research on myself &mdash; focusing on personal practice for now in my data, but connecting to where it can be easily argued to be effective for stuff facing towards other people.</p>
     </div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── 02 MAKING ─────────────────────────────── -->
 <section class="slide" id="s2">
   <div class="slide-inner">
-    <p class="num">02 &middot; WHAT I&rsquo;M MAKING</p>
-    <h2>A performance where nothing onstage was bought that could have been built</h2>
-    <p class="ask">What does a person in the room actually get?</p>
+    <p class="num">02 &middot; ARTISTIC OUTCOME &amp; TECHNICAL DIRECTION</p>
+    <h2>NEPTR is the brain at the center of my performance system</h2>
+    <p class="ask">I plan on performing with this at NIME and ICMC this year.</p>
     <div class="answer">
-      <p><strong>The outcome</strong> &mdash; a laptop-free set at ICMC 2027 on the NEPTR performance system: Csound on my own OS, a Teensy control surface, hyper-guitar and hyper-trumpet, a printed hemispherical speaker, a second Pi rendering visuals over a cable protocol I wrote, NeuralGrid on the table. The thesis explains it; the performance <em>is</em> it.</p>
-      <p><strong>The stack</strong>, already running &mdash; DemiurgeOS (Pi 5, PipeWire, a Rust supervisor) &middot; Csound, 63 effect modules &middot; Teensy &middot; 3D-printed enclosures &middot; OMNIPLEX transport &middot; the NAMProcess opcode.</p>
-      <p><strong>The method</strong> &mdash; each layer built with the layer below, as one act, with AI as a working collaborator at every step. No AI chapter; it&rsquo;s in every chapter, the way it&rsquo;s in every day.</p>
+      <p><strong>DemiurgeOS</strong> provides a unified interface for managing a Raspberry Pi for DSP. Inspired by Satellite CCRMA and RNBO. Comes preinstalled with every major audio language. Introduce Demiurge first, then introduce NEPTR as a product of Demiurge.</p>
+      <p><strong>NEPTR</strong> links together audio interfaces, DIY controllers and hyper-instruments with internal DSP and GUI. Replaces the laptop, synthesizer and pedalboard onstage. Included in the NEPTR performance system: hyperguitar and hypertrumpet, PMOR (pocket operator DIY), hemi speaker (I&rsquo;m making a new one, v2), Duodecimus, and the NeuralGrid.</p>
+      <p><strong>Visuals</strong> &mdash; my video fractal / feedback rendering system for the Pi. For the NIME / ICMC performance I&rsquo;ll def have another Pi running visuals over the Ethernet / USB data protocol.</p>
+      <p><strong>AI</strong> &mdash; I use AI all the time. It comes up in each paragraph fairly, but no unique AI paragraph. LLMs are already capable of hugely compressing the time between a digital luthier encountering a broad range of problems and achieving a working solution.</p>
     </div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── 03 FOR WHOM ─────────────────────────────── -->
 <section class="slide" id="s3">
   <div class="slide-inner">
-    <p class="num">03 &middot; FOR WHOM, AND WHAT IT CONTRIBUTES</p>
-    <h2>The electronic artist who doesn&rsquo;t know yet that they can build their own</h2>
-    <p class="ask">Pick one register. Which one carries the weight?</p>
-    <div class="answer">
-      <p><strong>Audience</strong> &mdash; the person I was three years ago, fighting a Pi in a class. Secondary: NIME / ICMC / Linux Audio, reading it as a case study. Anyone curious enough to build, and to watch the direction shift over time.</p>
-      <div class="registers">
-        <div class="reg primary"><h4>KNOWLEDGE &middot; PRIMARY</h4>A practitioner&rsquo;s map of the collapsed workflow &mdash; what it costs, gives, and where it goes.</div>
-        <div class="reg"><h4>TECHNICAL</h4>Demiurge, NEPTR, NeuralGrid, NAMProcess &mdash; real, open, supporting.</div>
-        <div class="reg"><h4>ARTISTIC</h4>A performance practice, every element self-built.</div>
-        <div class="reg"><h4>EXPERIENTIAL</h4>A changed relation between an artist and their tools.</div>
-      </div>
-      <p><em>My project contributes a practitioner&rsquo;s map of the collapsed lutherie workflow, by building one whole stack and documenting it from inside.</em> Not a longer ROTURA paper &mdash; that&rsquo;s the methodology facet. This is the map.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────── 04 MAP ─────────────────────────────── -->
-<section class="slide" id="s4">
-  <div class="slide-inner">
-    <p class="num">04 &middot; THE MAP</p>
-    <h2>Every paper a chapter or a subchapter. Two big, one landscape, short bookends.</h2>
-    <p class="ask">Which ones hold the argument up, and which are there because I worked hard?</p>
+    <p class="num">03 &middot; STRUCTURE &amp; WHERE EACH PAPER IS GOING</p>
+    <h2>Each of my independent papers is a chapter</h2>
+    <p class="ask">Ajay said it weakens the thesis in a way I don&rsquo;t quite understand personally &mdash; but I want all my hard work represented in some way.</p>
     <div class="answer">
       <div class="chapters">
-        <div class="chapter"><h4><span>INTRO</span>The threshold &mdash; first person declared as method</h4></div>
-        <div class="chapter"><h4><span>CH 1</span>Modern Digital Lutherie</h4><ul><li>the ecosystem map &middot; <strong>DemiurgeOS</strong> introduced as the layer built first &middot; AI as access &middot; <em>reach</em>: NAM, BOUBA, CIESEN, the watch I wear &middot; what it costs, what it can&rsquo;t do</li></ul></div>
-        <div class="chapter"><h4><span>CH 2</span>Performance Practices</h4><ul><li><strong>NEPTR</strong> as a product of Demiurge &middot; the satellites: hyper-guitar, hyper-trumpet, Pocket OpGorator, hemi v1&rarr;v2, Duodecimus, oFOOTS, We-Remote &middot; the visual Pi over OMNIPLEX &middot; <strong>NeuralGrid</strong>, deep</li></ul></div>
-        <div class="chapter"><h4><span>CH 3</span>Landscape &mdash; past and future</h4><ul><li>how the chapters strengthen each other &middot; AI, capitalism, academia breaking down &mdash; and why real work gets <em>more</em> valuable &middot; git history as a map of where attention went</li></ul></div>
-        <div class="chapter"><h4><span>OUTRO</span>What I know now</h4></div>
+        <div class="chapter"><h4><span>INTRO</span>shorter</h4></div>
+        <div class="chapter"><h4><span>CH 1</span>Modern Digital Lutherie &mdash; big</h4>
+          <span class="venue">Workflow of a Modern Digital Luthier &rarr; ROTURA &middot; in submission with Ajay Kapur</span>
+          <ul><li>Introduce Demiurge first in that paragraph &rarr; Linux Audio Developer Conference (definitely)</li>
+              <li>Lots of AI examples because I use AI all the time</li>
+              <li>NAM &rarr; ICSC, pushed to 2027 &middot; BOUBA &rarr; AMTA, music therapy targets &middot; CIESEN</li></ul></div>
+        <div class="chapter"><h4><span>CH 2</span>Performance Practices &mdash; big</h4>
+          <span class="venue">Performance system &rarr; ICMC only &middot; NeuralGrid &rarr; NIME &middot; performing at NIME and ICMC this year</span>
+          <ul><li>NEPTR system as a subchapter; NeuralGrid as a subchapter, deeper into NeuralGrid</li>
+              <li>Hyperguitar, hypertrumpet, PMOR, hemi speaker v2, Duodecimus, my Wii remote controller</li>
+              <li>Video fractal / feedback rendering system for the Pi &mdash; interdisciplinary work</li></ul></div>
+        <div class="chapter"><h4><span>CH 3</span>Past and future connection / landscape mapping</h4></div>
+        <div class="chapter"><h4><span>CONCLUSION</span>shorter</h4></div>
       </div>
-      <p>Load-bearing: Luthier, Demiurge, NEPTR, NeuralGrid. Present, not load-bearing: NAM, BOUBA, CIESEN, the watch. All of the work is in; only some of it holds it up.</p>
+      <p>Heavy AI and future but also past looking &mdash; how they integrate / strengthen each other.</p>
     </div>
   </div>
 </section>
 
-<!-- ─────────────────────────────── 05 SCOPE ─────────────────────────────── -->
+<section class="slide" id="s4">
+  <div class="slide-inner">
+    <p class="num">04 &middot; WHERE IT COMES FROM, WHERE IT IS GOING</p>
+    <h2>It is only getting more exciting because of it</h2>
+    <p class="ask">Capitalism&rsquo;s effect on art, mainstream academia&rsquo;s effect on art / tech, and how it is all breaking down &mdash; everyone is scared.</p>
+    <div class="answer">
+      <p>Even if the capitalist economy / art economies are getting fucked, which is awful, conceptually it makes real shit more valuable &mdash; and I hope personally that it will turn back around.</p>
+      <p>As these tools reach optimal efficiency and begin competing across more axes, this practice will continue pushing further into a world where interfaces can be synchronically and nonlinearly realized. The effects of this transition will continue changing the face of technological interaction through a globally rising density of immersive experience, leaving more powerful tools and deeply outlined frameworks in the hands of the next generations of digital luthiers.</p>
+      <p>The way it influences my life: I reach for modular thinking. I built my own smartwatch I use regularly &mdash; just the way I naturally would be like, fuck it, I&rsquo;ll just build it.</p>
+      <p><strong>In the future</strong> &mdash; using my git pushes to map my progress on each project and determine my direction shifts / map them, and the ability to do that conceptually.</p>
+    </div>
+  </div>
+</section>
+
 <section class="slide" id="s5">
   <div class="slide-inner">
-    <p class="num">05 &middot; CONSTRAINT, SCOPE, NEXT</p>
-    <h2>Only the instruments I already have. Only my own practice as data.</h2>
-    <p class="ask">Can the claim survive if one feature disappears?</p>
+    <p class="num">05 &middot; AUDIENCE &middot; CONSTRAINT &middot; EVIDENCE &middot; NEXT</p>
+    <h2>Just using instruments I already have</h2>
+    <p class="ask">For anyone who is curious about making their own shit / tracking the progress.</p>
     <div class="answer">
-      <p>Drop any satellite and NEPTR still performs. Drop NEPTR and the claim is gone. That&rsquo;s how I know the core. <strong>No new instruments</strong> get started; the data is my own practice, and the case that it extends to others is argued, not measured. No study, no IRB, no borrowed authority.</p>
-      <div class="tiers">
-        <div class="tier must"><h4>MUST</h4><ul><li>the written thesis</li><li>NEPTR at ICMC on Demiurge</li><li>hyper-instruments + NeuralGrid onstage</li></ul></div>
-        <div class="tier"><h4>SHOULD</h4><ul><li>hemi speaker v2</li><li>the visual Pi</li><li>every project in git</li></ul></div>
-        <div class="tier"><h4>NOT NOW</h4><ul><li>BOUBA user study</li><li>dance &mdash; implied future</li><li>new platforms, new instruments</li></ul></div>
+      <div class="grid2">
+        <div class="card must"><h4>ONE CONSTRAINT</h4>Just using instruments I already have. Research on myself.</div>
+        <div class="card"><h4>EVIDENCE</h4>The reader observes the data and the prototypes themselves, can see performances at NIME and ICMC, hopefully ICSC this year, along with online stuff &mdash; and they can see results if they build themselves.</div>
+        <div class="card"><h4>SCOPE</h4>NeuralGrid and hyper-instruments are already onstage, I&rsquo;m using those. Dance collab is not now but implied future.</div>
+        <div class="card"><h4>CONTRIBUTION</h4>Society gets new advancement: luthiers benefit, so performers benefit, so everyone benefits &mdash; shortening the gaps between all of the above exponentially. Audience-reactive stuff. Anyone can make anything.</div>
       </div>
-      <p><strong>Evidence</strong> &mdash; the prototypes, open; the performances, public; the numbers (latency, cost, build time); and, if you build it, your own results.</p>
-      <p><strong>Next</strong> &mdash; a full draft of Chapter 1. <strong>Open</strong> &mdash; what does &ldquo;expression&rdquo; measurably mean when the luthier is the performer? If I can&rsquo;t answer that by the end of Chapter 2, the title is wrong. Is &ldquo;expression&rdquo; even the right word?</p>
+      <p><strong>Next step</strong> &mdash; <span class="gap">your words needed</span></p>
+      <p><strong>Most important unanswered question</strong> &mdash; <span class="gap">your words needed</span></p>
     </div>
   </div>
 </section>
 
 <footer class="foot">
-  Every word on this page is a draft until Emory approves it. Built from the ICCC-690 Lecture 02 framework and the Assignment 1 brief. &nbsp;&middot;&nbsp; <a href="papers.html">papers</a> &nbsp;&middot;&nbsp; <a href="papers/nime/thesis.html">thesis node</a>
+  Every sentence on this page is Emory&rsquo;s &mdash; from the ROTURA submission, the 2026&ndash;2027 papers document, or this week&rsquo;s notes. Dashed boxes are gaps waiting for his words. &nbsp;&middot;&nbsp; <a href="papers.html">papers</a> &nbsp;&middot;&nbsp; <a href="papers/nime/thesis.html">thesis node</a>
 </footer>
 
 <script>
 (function () {
-  'use strict';
-  // ── seeded rng (same family as the site's galaxy) ─────────────
   function hash32(s){var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
   function rng(seed){var a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
   var DPR = Math.min(window.devicePixelRatio || 1, 2);
-
-  // ── starfield (fixed, screen-space) ───────────────────────────
   var sc = document.getElementById('stars'), sg = sc.getContext('2d'), stars = [];
-  function sizeStars(){
-    sc.width = innerWidth * DPR; sc.height = innerHeight * DPR;
-    var r = rng(hash32('emgor::proposal-stars')); stars = [];
-    var n = Math.floor((innerWidth * innerHeight) / 5200);
-    for (var i = 0; i < n; i++) stars.push({ x: r()*innerWidth, y: r()*innerHeight, s: 0.6 + r()*1.4, p: r()*6.28, c: r() });
-  }
-  function drawStars(t){
-    sg.setTransform(DPR,0,0,DPR,0,0); sg.clearRect(0,0,innerWidth,innerHeight);
+  function sizeStars(){ sc.width = innerWidth*DPR; sc.height = innerHeight*DPR; var r = rng(hash32('emgor::proposal-stars')); stars = [];
+    var n = Math.floor((innerWidth*innerHeight)/5200); for (var i=0;i<n;i++) stars.push({x:r()*innerWidth,y:r()*innerHeight,s:0.6+r()*1.4,p:r()*6.28,c:r()}); }
+  function drawStars(t){ sg.setTransform(DPR,0,0,DPR,0,0); sg.clearRect(0,0,innerWidth,innerHeight);
     for (var i=0;i<stars.length;i++){var s=stars[i];var a=0.35+0.45*(0.5+0.5*Math.sin(t*0.0009+s.p));
-      sg.fillStyle = s.c<0.12?'rgba(0,240,255,'+a+')':(s.c<0.5?'rgba(192,132,252,'+a+')':'rgba(235,225,255,'+a+')');
-      sg.fillRect(s.x, s.y, s.s, s.s);}
-  }
+      sg.fillStyle = s.c<0.12?'rgba(0,240,255,'+a+')':(s.c<0.5?'rgba(192,132,252,'+a+')':'rgba(235,225,255,'+a+')'); sg.fillRect(s.x,s.y,s.s,s.s);} }
+  addEventListener('resize', sizeStars); sizeStars();
+  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  (function tick(t){ drawStars(t||0); if(!reduced) requestAnimationFrame(tick); })(0);
 
-  // ── orbit header: pixel planets around a ragged void ──────────
-  var oc = document.getElementById('orbits'), og = oc.getContext('2d');
-  var PAL = [
-    ['#2fa88f','#0c5c54','#f0b48a'], ['#b4708e','#8c2840','#f2c6d2'], ['#4d7fbf','#15406e','#d6e6ff'],
-    ['#d99a3e','#8e5010','#ffe6b0'], ['#8e6ad6','#3e2888','#e0d0ff'], ['#3aa878','#106848','#c9f5dd'],
-    ['#b56ac9','#6e3080','#f2d6f9'], ['#cf5a3c','#882818','#ffd0b8'], ['#3fb0c8','#0e5868','#d0f4fb']
-  ];
-  var R = rng(hash32('emgor::proposal-orbits'));
-  // inner ring: the three chapters. outer ring: the papers and sub-concepts they hold.
-  var MAP = [
-    { label: 'modern digital lutherie', tier: 0, size: 24 },
-    { label: 'performance practices',   tier: 0, size: 24 },
-    { label: 'landscape \u00b7 past & future', tier: 0, size: 22 },
-    { label: 'demiurgeos',   tier: 1, size: 17 },
-    { label: 'neptr',        tier: 1, size: 18 },
-    { label: 'neuralgrid',   tier: 1, size: 17 },
-    { label: 'the satellites', tier: 1, size: 15 },
-    { label: 'visual system',  tier: 1, size: 14 },
-    { label: 'nam \u00d7 csound', tier: 1, size: 14 },
-    { label: 'bouba',        tier: 1, size: 14 }
-  ];
-  var planets = MAP.map(function (m, i) {
-    var inner = m.tier === 0;
-    var n = inner ? 3 : 7, k = inner ? i : i - 3;
-    return {
-      label: m.label,
-      orb: inner ? 0.36 + R()*0.03 : 0.74 + (k % 2) * 0.10 + R()*0.04,
-      ang: (k / n) * 6.283 + R()*0.5,
-      spd: (inner ? 0.075 : 0.045) * (inner ? 1 : -1) * (0.85 + R()*0.3),
-      size: m.size, pal: PAL[i % PAL.length], ring: R() < 0.3, ringTilt: 0.4 + R()*0.5,
-      seed: hash32('p' + m.label), spin: (R()-0.5)*0.3,
-      moon: !inner && R() < 0.4 ? { d: 1.9 + R()*0.6, a: R()*6.283, s: 0.22 + R()*0.15, spd: 0.8 + R()*1.2 } : null
-    };
-  });
-  var center = { label: '2027 retrospective + prospectus', size: 34, pal: ['#8e6ad6','#3e2888','#e0d0ff'], seed: hash32('center'), spin: 0.12, ring: true, ringTilt: 0.42 };
-  // pre-render each planet body at low res for the pixel look
-  function bakePlanet(p){
-    var S = 18, c = document.createElement('canvas'); c.width = c.height = S;
-    var g = c.getContext('2d'), r = rng(p.seed);
-    var img = g.createImageData(S, S), d = img.data;
-    function hex(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
-    var hi = hex(p.pal[0]), lo = hex(p.pal[1]), ac = hex(p.pal[2]);
-    var cx = S/2 - 0.5, cy = S/2 - 0.5, rad = S/2 - 0.5;
-    var nz = []; for (var k=0;k<S*S;k++) nz.push(r());
-    for (var y=0;y<S;y++) for (var x=0;x<S;x++){
-      var dx=x-cx, dy=y-cy, dist=Math.sqrt(dx*dx+dy*dy); var o=(y*S+x)*4;
-      if (dist > rad) { d[o+3]=0; continue; }
-      // cheap blobby noise: average neighbours
-      var n = (nz[y*S+x] + nz[(y*S+((x+1)%S))] + nz[(((y+1)%S)*S+x)] + nz[(y*S+((x+S-1)%S))]) / 4;
-      var shade = 1 - Math.pow(dist/rad, 2.2) * 0.45 - Math.max(0, (dx+dy)/(rad*2)) * 0.35;
-      var col = n < 0.42 ? lo : (n < 0.78 ? hi : ac);
-      d[o]=col[0]*shade; d[o+1]=col[1]*shade; d[o+2]=col[2]*shade; d[o+3]=255;
-    }
-    g.putImageData(img,0,0); return c;
-  }
-  planets.forEach(function(p){ p.tex = bakePlanet(p); });
-  center.tex = bakePlanet(center);
-
-  function sizeOrbits(){ oc.width = oc.clientWidth * DPR; oc.height = oc.clientHeight * DPR; }
-  var t0 = performance.now();
-  function label(x, y, text, size, bright){
-    og.font = size + 'px "Courier New", Courier, monospace';
-    og.textAlign = 'center'; og.textBaseline = 'top';
-    og.shadowColor = 'rgba(13,2,33,0.95)'; og.shadowBlur = 6;
-    og.fillStyle = bright ? 'rgba(224,170,255,0.92)' : 'rgba(243,232,255,0.62)';
-    og.fillText(text, x, y); og.shadowBlur = 0;
-  }
-  function drawPlanet(p, x, y, sz, s){
-    var gr = og.createRadialGradient(x,y,sz*0.5,x,y,sz*1.7);
-    gr.addColorStop(0,'rgba(168,85,247,0.15)'); gr.addColorStop(1,'rgba(168,85,247,0)');
-    og.fillStyle = gr; og.beginPath(); og.arc(x,y,sz*1.7,0,6.283); og.fill();
-    if (p.ring) { og.save(); og.translate(x,y); og.scale(1,p.ringTilt);
-      og.strokeStyle='rgba(224,170,255,0.28)'; og.lineWidth=2; og.beginPath(); og.arc(0,0,sz*1.35,0,6.283); og.stroke(); og.restore(); }
-    og.save(); og.translate(x,y); og.rotate(s*p.spin);
-    og.drawImage(p.tex, -sz, -sz, sz*2, sz*2); og.restore();
-  }
-  function drawOrbits(t){
-    var W = oc.clientWidth, H = oc.clientHeight, s = (t - t0) / 1000;
-    og.setTransform(DPR,0,0,DPR,0,0); og.clearRect(0,0,W,H);
-    og.imageSmoothingEnabled = false;
-    var cx = W/2, cy = H*0.30, halfW = Math.min(W*0.47, H*0.62), tilt = 0.30;
-    var small = Math.max(9, Math.min(11, W/120));
-
-    // depth-sort so near bodies draw over the center and far ones behind it
-    var items = [];
-    planets.forEach(function(p){
-      var a = p.ang + s*p.spd, rx = halfW*p.orb, rz = rx*tilt;
-      items.push({ p:p, x: cx + Math.cos(a)*rx, y: cy + Math.sin(a)*rz, z: Math.sin(a) });
-    });
-    items.push({ center:true, z: 0 });
-    items.sort(function(a,b){ return a.z - b.z; });
-
-    items.forEach(function(it){
-      if (it.center) {
-        drawPlanet(center, cx, cy, center.size, s);
-        label(cx, cy + center.size + 10, center.label, small + 1, true);
-        return;
-      }
-      var p = it.p, sz = p.size * (0.8 + 0.2*(it.z+1)/2);
-      drawPlanet(p, it.x, it.y, sz, s);
-      if (p.moon) { var ma = p.moon.a + s*p.moon.spd, mx = it.x + Math.cos(ma)*sz*p.moon.d, my = it.y + Math.sin(ma)*sz*p.moon.d*0.5;
-        og.fillStyle='#c9b8ff'; og.fillRect(mx-sz*p.moon.s/2, my-sz*p.moon.s/2, sz*p.moon.s, sz*p.moon.s); }
-      label(it.x, it.y + sz + 7, p.label, small, false);
-    });
-  }
-  // ── progress rail ──────────────────────────────────────────────
   var slides = Array.prototype.slice.call(document.querySelectorAll('.hero, .slide'));
   var rail = document.getElementById('rail');
   slides.forEach(function(sl){ var a=document.createElement('a'); a.href='#'+sl.id; rail.appendChild(a); });
@@ -419,20 +193,153 @@
   var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ var i=slides.indexOf(e.target);
     for (var k=0;k<dots.length;k++) dots[k].classList.toggle('on', k===i); } }); }, { threshold: 0.5 });
   slides.forEach(function(sl){ io.observe(sl); });
-  // arrow keys step slides like a deck
   addEventListener('keydown', function(e){
-    if (e.key!=='ArrowDown' && e.key!=='ArrowUp' && e.key!=='PageDown' && e.key!=='PageUp') return;
+    if (['ArrowDown','ArrowUp','PageDown','PageUp'].indexOf(e.key) < 0) return;
     var cur = 0; for (var k=0;k<dots.length;k++) if (dots[k].classList.contains('on')) cur=k;
     var nxt = (e.key==='ArrowDown'||e.key==='PageDown') ? Math.min(cur+1, slides.length-1) : Math.max(cur-1, 0);
     slides[nxt].scrollIntoView({ behavior: 'smooth' }); e.preventDefault();
   });
-
-  function resize(){ sizeStars(); sizeOrbits(); }
-  addEventListener('resize', resize); resize();
-  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function tick(t){ drawStars(t); if (oc.getBoundingClientRect().bottom > 0) drawOrbits(t); if (!reduced) requestAnimationFrame(tick); }
-  requestAnimationFrame(tick);
 })();
+</script>
+
+<script type="module">
+// orbit header: the homepage's procedural planets, ported from js/galaxy3d.js
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+function hash32(s){var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)); const TAU=Math.PI*2;
+const PALETTES = [
+  { hi: 0xF4A28C, lo: 0xD96D5A, sea: 0x2E8C8C, atmo: 0x7DE8F0, acc: 0xFFE3C8 },
+  { hi: 0xE8B84B, lo: 0xB7852F, sea: 0x6D4FA3, atmo: 0xF26BD8, acc: 0xFFE9A8 },
+  { hi: 0x9FE6C5, lo: 0x5FBF9A, sea: 0xB5496B, atmo: 0xFFA7C4, acc: 0xEAFFF2 },
+  { hi: 0xE08B4F, lo: 0xB25A33, sea: 0x2FB3A8, atmo: 0x63F2DC, acc: 0xFFC894 },
+  { hi: 0xB9A5E3, lo: 0x8B6FC2, sea: 0x7FA893, atmo: 0xD9B8FF, acc: 0xF2E8FF },
+  { hi: 0xD6455C, lo: 0xA32B44, sea: 0x3E6C99, atmo: 0xA8D8FF, acc: 0xFF9AA8 },
+  { hi: 0xC4E060, lo: 0x8FB03A, sea: 0x7A4A8C, atmo: 0xE0A8F2, acc: 0xF4FFB8 },
+  { hi: 0xF2B98F, lo: 0xDB8E63, sea: 0x2F8C66, atmo: 0x8FF2C2, acc: 0xFFE0C2 },
+  { hi: 0xE3C08F, lo: 0xC29455, sea: 0x3573B5, atmo: 0x7FB8FF, acc: 0xFFEFC4 },
+  { hi: 0xE8A8B8, lo: 0xC97A94, sea: 0x5C6FA8, atmo: 0x93A8F2, acc: 0xFFD8E8 }
+];
+const LIGHT_DIR = new THREE.Vector3(-0.62, 0.52, 0.4).normalize();
+function jitterColor(hex, rng, hAmt, lAmt){ const c=new THREE.Color(hex), o={h:0,s:0,l:0}; c.getHSL(o);
+  c.setHSL(((o.h+(rng()-0.5)*hAmt)%1+1)%1, clamp(o.s+(rng()-0.5)*0.08,0,1), clamp(o.l+(rng()-0.5)*lAmt,0.08,0.92)); return c; }
+const PLANET_VERT = `varying vec3 vObjPos; varying vec3 vWorldNormal; varying vec3 vViewDir;
+void main(){ vObjPos = position; vec4 wp = modelMatrix * vec4(position,1.0);
+  vWorldNormal = normalize(mat3(modelMatrix) * normal); vViewDir = cameraPosition - wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp; }`;
+const NOISE = `float nhash(vec3 p){ p = fract(p*0.3183099+0.1); p *= 17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float vnoise(vec3 x){ vec3 i=floor(x); vec3 f=fract(x); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(nhash(i+vec3(0,0,0)),nhash(i+vec3(1,0,0)),f.x),mix(nhash(i+vec3(0,1,0)),nhash(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(nhash(i+vec3(0,0,1)),nhash(i+vec3(1,0,1)),f.x),mix(nhash(i+vec3(0,1,1)),nhash(i+vec3(1,1,1)),f.x),f.y),f.z); }
+float fbm(vec3 p){ float v=0.0; float a=0.5; for(int i=0;i<4;i++){ v+=a*vnoise(p); p=p*2.07+vec3(11.3,7.9,5.1); a*=0.5; } return v; }`;
+const PLANET_FRAG = `uniform vec3 uSeed, uColHigh, uColLow, uColSea, uAtmo, uAccent, uLightDir;
+uniform float uBiome, uFreq, uWarp, uBandFreq, uSeaLevel, uSpeckle;
+varying vec3 vObjPos; varying vec3 vWorldNormal; varying vec3 vViewDir;
+${NOISE}
+void main(){
+  vec3 sp = normalize(vObjPos); vec3 p = sp*uFreq + uSeed;
+  vec3 q = vec3(fbm(p+vec3(0.0,3.1,1.7)), fbm(p+vec3(5.2,1.3,2.8)), fbm(p+vec3(1.7,9.2,4.6)));
+  vec3 col;
+  if (uBiome < 0.5) {
+    float n = fbm(p + (q-0.5)*uWarp); n += (fbm(p*3.7 + q*2.0)-0.5)*0.22;
+    float land = smoothstep(uSeaLevel-0.035, uSeaLevel+0.035, n);
+    float high = smoothstep(uSeaLevel+0.12, uSeaLevel+0.2, n);
+    col = mix(uColSea, uColLow, land); col = mix(col, uColHigh, high); col += (fbm(p*6.3)-0.5)*0.07;
+  } else {
+    float lat = sp.y + (q.x-0.5)*uWarp*0.45 + (fbm(p*2.3)-0.5)*0.3;
+    float s = sin(lat*uBandFreq + q.y*2.4); float band = smoothstep(-0.55,0.55,s);
+    float storm = smoothstep(0.58,0.8,fbm(p*2.6+q));
+    col = mix(uColLow, uColHigh, band); col = mix(col, uColSea, storm*0.65); col += (fbm(p*5.1)-0.5)*0.05;
+  }
+  if (uSpeckle > 0.0) { float spk = step(1.0-uSpeckle*0.012, vnoise(p*26.0)); col += uAccent*spk*1.7; }
+  vec3 N = normalize(vWorldNormal); float ndl = dot(N,uLightDir)*0.5+0.5;
+  col *= mix(0.24, 0.96, smoothstep(0.08,0.92,ndl));
+  vec3 V = normalize(vViewDir); float fr = pow(1.0-clamp(dot(N,V),0.0,1.0),3.6); col += uAtmo*fr*0.3;
+  gl_FragColor = vec4(col,1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+const ATMO_FRAG = `uniform vec3 uAtmo; uniform float uAlpha;
+varying vec3 vObjPos; varying vec3 vWorldNormal; varying vec3 vViewDir;
+void main(){ vec3 N=normalize(vWorldNormal); vec3 V=normalize(vViewDir);
+  float d = clamp(-dot(N,V)*2.9,0.0,1.0); float glow = pow(d,1.7);
+  gl_FragColor = vec4(uAtmo*glow*uAlpha,1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+const MAP = [
+  { id:'q',  label:'how is the landscape of creating and playing digital instruments changing?', tier:-1, r:1.0 },
+  { id:'ch1', label:'modern digital lutherie', tier:0, r:0.62 },
+  { id:'ch2', label:'performance practices',   tier:0, r:0.62 },
+  { id:'ch3', label:'past and future · landscape', tier:0, r:0.56 },
+  { id:'demiurge', label:'demiurgeos · LAC',   tier:1, r:0.42 },
+  { id:'neptr',    label:'neptr · ICMC',       tier:1, r:0.44 },
+  { id:'ngrid',    label:'neuralgrid · NIME',  tier:1, r:0.42 },
+  { id:'luthier',  label:'luthier · ROTURA',   tier:1, r:0.40 },
+  { id:'nam',      label:'nam × csound · ICSC', tier:1, r:0.34 },
+  { id:'bouba',    label:'bouba · AMTA',       tier:1, r:0.34 },
+  { id:'visuals',  label:'visual system',          tier:1, r:0.32 }
+];
+const canvas = document.getElementById('orbits'), labelsEl = document.getElementById('labels');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.setClearColor(0x000000, 0);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2000);
+const geo = new THREE.SphereGeometry(1, 48, 34);
+const bodies = MAP.map((m, i) => {
+  const rng = mulberry32(hash32('emgor.thesis.' + m.id));
+  const fam = PALETTES[(hash32(m.id) % PALETTES.length)];
+  const crng = mulberry32(hash32(m.id + '::tint'));
+  const pal = { hi: jitterColor(fam.hi,crng,0.05,0.10), lo: jitterColor(fam.lo,crng,0.05,0.08), sea: jitterColor(fam.sea,crng,0.05,0.08), atmo: jitterColor(fam.atmo,crng,0.03,0.06), acc: jitterColor(fam.acc,crng,0.04,0.06) };
+  const srng = mulberry32(hash32(m.id + '::surface'));
+  const biome = srng() < 0.38 ? 1 : 0;
+  const mat = new THREE.ShaderMaterial({ uniforms: {
+      uSeed:{value:new THREE.Vector3(srng()*43,srng()*43,srng()*43)}, uColHigh:{value:pal.hi}, uColLow:{value:pal.lo}, uColSea:{value:pal.sea},
+      uAtmo:{value:pal.atmo}, uAccent:{value:pal.acc}, uBiome:{value:biome}, uFreq:{value:2.1+srng()*1.7}, uWarp:{value:0.55+srng()*0.95},
+      uBandFreq:{value:5.0+srng()*8.0}, uSeaLevel:{value:0.43+srng()*0.12}, uSpeckle:{value: srng()<0.3 ? 0.4+srng()*0.6 : 0.0}, uLightDir:{value:LIGHT_DIR} },
+    vertexShader: PLANET_VERT, fragmentShader: PLANET_FRAG, toneMapped: false });
+  const mesh = new THREE.Mesh(geo, mat);
+  const atmo = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms:{ uAtmo:{value:pal.atmo}, uAlpha:{value:0.7} },
+    vertexShader: PLANET_VERT, fragmentShader: ATMO_FRAG, side: THREE.BackSide, transparent: true, blending: THREE.AdditiveBlending, depthWrite:false, toneMapped:false }));
+  atmo.scale.setScalar(1.07); mesh.add(atmo);
+  const anchor = new THREE.Object3D(); anchor.add(mesh); scene.add(anchor);
+  if (rng() < 0.42) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.75, 64), new THREE.MeshBasicMaterial({ color: pal.atmo.clone().lerp(new THREE.Color(0xffffff),0.35), transparent:true, opacity:0.13, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false }));
+    ring.rotation.x = Math.PI/2 + 0.22 + rng()*0.2; ring.rotation.z = (rng()-0.5)*0.9; anchor.add(ring);
+  }
+  const inner = m.tier === 0;
+  const n = inner ? 3 : 7, k = inner ? i-1 : i-4;
+  const lbl = document.createElement('div'); lbl.className = 'lbl' + (m.tier === -1 ? ' center' : ''); lbl.textContent = m.label; labelsEl.appendChild(lbl);
+  return { m, anchor, mesh, lbl,
+    orb: m.tier === -1 ? 0 : (inner ? 3.1 + rng()*0.25 : 5.4 + (k%2)*1.05 + rng()*0.3),
+    ang: (k/n)*TAU + rng()*0.6, spd: (inner ? 0.07 : 0.042) * (inner ? 1 : -1) * (0.85+rng()*0.3),
+    spin: 0.045 + rng()*0.09, spinTilt: (rng()-0.5)*0.5, r: m.r };
+});
+let W = 0, H = 0;
+function resize(){ W = canvas.clientWidth; H = canvas.clientHeight; renderer.setSize(W, H, false); camera.aspect = W/H; camera.updateProjectionMatrix();
+  const fit = 6.4 / Math.tan((42*Math.PI/180)/2) * Math.max(1, 1.55 / camera.aspect);
+  const pitch = 0.66; camera.position.set(0, Math.sin(pitch)*fit, Math.cos(pitch)*fit); camera.lookAt(0, -7.4, 0); }
+addEventListener('resize', resize); resize();
+const v = new THREE.Vector3();
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let t0 = performance.now();
+function frame(now){
+  const s = (now - t0)/1000;
+  bodies.forEach(b => {
+    const a = b.ang + s*b.spd;
+    b.anchor.position.set(Math.cos(a)*b.orb, 0, Math.sin(a)*b.orb);
+    b.anchor.scale.setScalar(b.r);
+    b.mesh.rotation.set(b.spinTilt, s*b.spin*TAU*0.15, 0);
+    v.copy(b.anchor.position); v.y += (b.m.tier === -1 ? b.r*1.35 : -b.r*1.25); v.project(camera);
+    b.lbl.style.left = ((v.x*0.5+0.5)*W)+'px'; b.lbl.style.top = ((-v.y*0.5+0.5)*H)+'px';
+  });
+  renderer.render(scene, camera);
+  if (reduced) return;
+  if (canvas.getBoundingClientRect().bottom > 0) requestAnimationFrame(frame); else setTimeout(()=>requestAnimationFrame(frame), 300);
+}
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>
