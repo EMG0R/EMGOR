@@ -282,7 +282,7 @@ void main(){ vec3 N=normalize(vWorldNormal); vec3 V=normalize(vViewDir);
   #include <colorspace_fragment>
 }`;
 // the same galaxy as the homepage: every node seeds its own palette, surface, orbit and moons from its id
-const ROOT_SYS_R = 6.0, SHRINK = 0.2, BODY_F = 0.23, ORBIT_MIN = 0.58, ORBIT_MAX = 1.0, BASE_ROT = 0.022;
+const ROOT_SYS_R = 6.0, SHRINK = 0.2, BODY_F = 0.276, ORBIT_MIN = 0.58, ORBIT_MAX = 1.0, BASE_ROT = 0.022;
 const SIZE_FALLBACK = { 'emgor.papers': 2.0, 'emgor.web-synth': 1.4 };
 const canvas = document.getElementById('orbits');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -355,7 +355,7 @@ const horizonMat = new THREE.ShaderMaterial({ transparent:false, depthWrite:true
   vertexShader:`uniform float uTime; varying vec3 vN; varying vec3 vV; varying vec3 vD; ${NOISE3}
     void main(){ vec3 d=normalize(position); vD=d;
       float w=n3(d*2.2+vec3(0.0,uTime*0.13,0.0)); float w2=n3(d*4.7-vec3(uTime*0.09,0.0,0.0));
-      vec3 pos=position*(1.0+0.26*(w-0.5)+0.13*(w2-0.5));
+      vec3 pos=position*(1.0+0.14*(w-0.5)+0.06*(w2-0.5));
       vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(pos,1.0); vV=normalize(-mv.xyz);
       gl_Position=projectionMatrix*mv; }`,
   fragmentShader:`uniform float uTime; uniform vec3 uRim; uniform vec3 uVoid; varying vec3 vN; varying vec3 vV; varying vec3 vD; ${NOISE3}
@@ -363,13 +363,7 @@ const horizonMat = new THREE.ShaderMaterial({ transparent:false, depthWrite:true
       float n=n3(vD*4.0+vec3(0.0,uTime*0.22,0.0));
       float band=pow(fres,13.0)*(0.35+1.15*n)+pow(fres,34.0)*1.1;
       gl_FragColor=vec4(uVoid+uRim*band,1.0); }` });
-bh.add(new THREE.Mesh(new THREE.IcosahedronGeometry(CORE, 4), horizonMat));
-// broken photon arcs
-const arcs = new THREE.Object3D(); bh.add(arcs);
-[[1.30,2.1,[Math.PI/2,0,0],0.62],[1.42,1.3,[Math.PI/2+0.5,0,1.1],0.40],[1.55,0.9,[Math.PI/2-0.7,0,-0.6],0.30],[1.26,1.6,[Math.PI/2+1.1,0,2.4],0.34]]
-  .forEach(([r,sw,tilt,op],i)=>{ const m=new THREE.Mesh(new THREE.TorusGeometry(CORE*r, CORE*0.036, 10, 64, sw),
-    new THREE.MeshBasicMaterial({ color:0xc98bff, transparent:true, opacity:op, depthWrite:false, blending:THREE.AdditiveBlending }));
-    m.rotation.set(tilt[0],tilt[1],tilt[2]); m.userData.spin=((i*0.37)%1-0.5)*0.06; arcs.add(m); });
+bh.add(new THREE.Mesh(new THREE.IcosahedronGeometry(CORE, 6), horizonMat));
 // volumetric particle field: thick inflow torus + isotropic halo
 (function(){ const ND=3000, NH=1900, N=ND+NH, r=mulberry32(hash32('emgor::accretion-particles'));
   const pos=new Float32Array(N*3), col=new Float32Array(N*3), siz=new Float32Array(N);
@@ -411,7 +405,6 @@ function frame(now){
     n.wx = p.wx + Math.cos(a)*r; n.wy = p.wy + Math.sin(a)*r;
     n.anchor.position.set(n.wx, 0, n.wy); n.anchor.scale.setScalar(n.bodyR); n.mesh.rotation.set(n.spinTilt, n.spinPhase + s*n.spinRate*TAU*0.15, 0); });
   horizonMat.uniforms.uTime.value = s;
-  arcs.children.forEach(a => { a.rotation.z += a.userData.spin * 0.016; });
   bh.userData.particles.rotation.y = s * 0.045; bh.userData.particles.material.uniforms.uHeight.value = H;
   renderer.render(scene, camera);
   if (reduced) return;
