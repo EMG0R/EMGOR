@@ -591,6 +591,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // just in-plane), a photon-ring torus, and a big soft omnidirectional
     // glow sprite — together giving it genuine 3D bulk from any camera angle.
     var accretionMesh3 = null, accretionParticles = null, haloSprite = null;
+    var photonPulse = 1;   // arc brightness pulse, applied inside updateBlackHoleFade
 
     // buckles a flat RingGeometry into a turbulent, non-planar disk — layered
     // sine displacement along its own normal, seeded per ring, so it reads as
@@ -642,16 +643,101 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var core = ROOT_SYS_R * 0.14;      // bigger, more commanding presence
         bhCoreR = core;
 
-        var horizonGeom = new THREE.SphereGeometry(core, 40, 28);
-        var horizonMat = new THREE.MeshBasicMaterial({ color: 0x030008, transparent: true });
+        // ── The horizon is deliberately NOT a shaded orb. It is a faceted
+        // void: a low-subdivision icosahedron whose interior renders as flat
+        // absence and whose silhouette is eaten away by an angular noise
+        // field, so the edge reads as something unresolved rather than a
+        // ball with a highlight. The rim lights only where the surface turns
+        // away from the camera (fresnel), which is what makes it read as a
+        // hole rather than a sphere.
+        //
+        // It is OPAQUE on purpose: an opaque material renders in three's
+        // opaque pass and depth-sorts per fragment against the planets, so a
+        // planet in front covers it and a planet behind is covered by it,
+        // from any camera angle. As a `transparent` material it rendered in
+        // the late pass, where sorting is per-object and anything behind it
+        // could bleed through.
+        var horizonGeom = new THREE.IcosahedronGeometry(core, 4);
+        var horizonMat = new THREE.ShaderMaterial({
+            transparent: false, depthWrite: true, depthTest: true,
+            uniforms: {
+                uTime: { value: 0 },
+                uRim:  { value: new THREE.Color(0xd7a2ff) },
+                uVoid: { value: new THREE.Color(0x000000) },
+                uFade: { value: 1 }
+            },
+            vertexShader: [
+                'uniform float uTime;',
+                'varying vec3 vN;',
+                'varying vec3 vView;',
+                'varying vec3 vDir;',
+                'float h(vec3 p) {',
+                '  return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);',
+                '}',
+                'float noise(vec3 p) {',
+                '  vec3 i = floor(p); vec3 f = fract(p);',
+                '  f = f * f * (3.0 - 2.0 * f);',
+                '  return mix(mix(mix(h(i), h(i + vec3(1,0,0)), f.x),',
+                '                 mix(h(i + vec3(0,1,0)), h(i + vec3(1,1,0)), f.x), f.y),',
+                '             mix(mix(h(i + vec3(0,0,1)), h(i + vec3(1,0,1)), f.x),',
+                '                 mix(h(i + vec3(0,1,1)), h(i + vec3(1,1,1)), f.x), f.y), f.z);',
+                '}',
+                'void main() {',
+                '  vec3 dir = normalize(position);',
+                '  vDir = dir;',
+                // breathe the silhouette out of round: a slow, low-amplitude
+                // displacement so the edge is an unstable shape rather than
+                // the clean circle of a sphere.
+                '  float w = noise(dir * 2.2 + vec3(0.0, uTime * 0.13, 0.0));',
+                '  float w2 = noise(dir * 4.7 - vec3(uTime * 0.09, 0.0, 0.0));',
+                '  vec3 pos = position * (1.0 + 0.26 * (w - 0.5) + 0.13 * (w2 - 0.5));',
+                '  vN = normalize(normalMatrix * normal);',
+                '  vec4 mv = modelViewMatrix * vec4(pos, 1.0);',
+                '  vView = normalize(-mv.xyz);',
+                '  gl_Position = projectionMatrix * mv;',
+                '}'
+            ].join('\n'),
+            fragmentShader: [
+                'uniform float uTime;',
+                'uniform vec3 uRim;',
+                'uniform vec3 uVoid;',
+                'uniform float uFade;',
+                'varying vec3 vN;',
+                'varying vec3 vView;',
+                'varying vec3 vDir;',
+                'float h(vec3 p) {',
+                '  return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);',
+                '}',
+                'float noise(vec3 p) {',
+                '  vec3 i = floor(p); vec3 f = fract(p);',
+                '  f = f * f * (3.0 - 2.0 * f);',
+                '  return mix(mix(mix(h(i), h(i + vec3(1,0,0)), f.x),',
+                '                 mix(h(i + vec3(0,1,0)), h(i + vec3(1,1,0)), f.x), f.y),',
+                '             mix(mix(h(i + vec3(0,0,1)), h(i + vec3(1,0,1)), f.x),',
+                '                 mix(h(i + vec3(0,1,1)), h(i + vec3(1,1,1)), f.x), f.y), f.z);',
+                '}',
+                'void main() {',
+                '  float fres = 1.0 - clamp(dot(normalize(vN), normalize(vView)), 0.0, 1.0);',
+                // the interior must stay genuinely empty — the rim is confined
+                // to a thin band right at the silhouette, and chewed into by
+                // noise so it never closes into a clean ring
+                '  float n = noise(vDir * 4.0 + vec3(0.0, uTime * 0.22, 0.0));',
+                '  float band = pow(fres, 13.0) * (0.35 + 1.15 * n);',
+                '  band += pow(fres, 34.0) * 1.1;',
+                '  vec3 c = uVoid + uRim * band * uFade;',
+                '  gl_FragColor = vec4(c, 1.0);',
+                '}'
+            ].join('\n')
+        });
         var horizon = new THREE.Mesh(horizonGeom, horizonMat);
         blackHole.add(horizon);
+        blackHole.userData.horizonMat = horizonMat;
 
         var accTex = buildAccretionTexture();
         var diskGeom = warpRingGeometry(
             new THREE.RingGeometry(core * 1.08, core * 3.2, 128, 3), core * 0.07, 'emgor::disk1');
         var diskMat = new THREE.MeshBasicMaterial({
-            map: accTex, transparent: true, opacity: 0.34, side: THREE.DoubleSide, depthWrite: false,
+            map: accTex, transparent: true, opacity: 0.34, side: THREE.DoubleSide,
             blending: THREE.AdditiveBlending, depthWrite: false
         });
         accretionMesh = new THREE.Mesh(diskGeom, diskMat);
@@ -668,7 +754,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var disk2Mat = diskMat.clone();
         disk2Mat.opacity = 0.17;
         var disk2Geom = warpRingGeometry(
-            new THREE.RingGeometry(core * 0.55, core * 1.5, 96, 2), core * 0.1, 'emgor::disk2');
+            new THREE.RingGeometry(core * 1.18, core * 2.3, 96, 2), core * 0.1, 'emgor::disk2');
         accretionMesh2 = new THREE.Mesh(disk2Geom, disk2Mat);
         var pivot2 = new THREE.Object3D();
         pivot2.rotation.set(Math.PI / 2 + 0.62, 0, 0.9);
@@ -688,11 +774,32 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // photon ring: the tight, bright lensed edge right at the horizon —
         // deliberately warm violet rather than near-white so it reads as
         // superheated matter, not a flat pale outline
-        var photonGeom = warpTorusGeometry(
-            new THREE.TorusGeometry(core * 1.01, core * 0.045, 12, 96), core * 0.018, 'emgor::photon');
-        var photonMat = new THREE.MeshBasicMaterial({ color: 0xb87cf0, transparent: true, opacity: 0.5 });
-        photonRing = new THREE.Mesh(photonGeom, photonMat);
-        photonRing.rotation.x = Math.PI / 2;
+        // Broken arcs rather than one closed torus: a complete ring reads as
+        // the lit edge of a sphere, which is exactly the literal look we're
+        // avoiding. Four partial arcs at unrelated tilts read as lensed
+        // fragments with nothing solid holding them.
+        photonRing = new THREE.Object3D();
+        var arcRng = mulberry32(hash32('emgor::photon-arcs'));
+        var arcSpec = [
+            { r: 1.30, sweep: 2.1, tilt: [Math.PI / 2, 0, 0],            op: 0.62 },
+            { r: 1.42, sweep: 1.3, tilt: [Math.PI / 2 + 0.5, 0, 1.1],    op: 0.40 },
+            { r: 1.55, sweep: 0.9, tilt: [Math.PI / 2 - 0.7, 0, -0.6],   op: 0.30 },
+            { r: 1.26, sweep: 1.6, tilt: [Math.PI / 2 + 1.1, 0, 2.4],    op: 0.34 }
+        ];
+        for (var ai = 0; ai < arcSpec.length; ai++) {
+            var s = arcSpec[ai];
+            var g = warpTorusGeometry(
+                new THREE.TorusGeometry(core * s.r, core * 0.036, 10, 64, s.sweep),
+                core * 0.02, 'emgor::photon' + ai);
+            var m = new THREE.MeshBasicMaterial({
+                color: 0xc98bff, transparent: true, opacity: s.op,
+                depthWrite: false, blending: THREE.AdditiveBlending
+            });
+            var arc = new THREE.Mesh(g, m);
+            arc.rotation.set(s.tilt[0], s.tilt[1], s.tilt[2]);
+            arc.userData.spin = (arcRng() - 0.5) * 0.06;
+            photonRing.add(arc);
+        }
         blackHole.add(photonRing);
 
         accretionParticles = buildAccretionParticles(core);
@@ -737,11 +844,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // vanishes — there's still a black hole out there, just small.
         var scale = 0.06 + 0.94 * fade;
         blackHole.scale.setScalar(scale);
+        var hm = blackHole.userData.horizonMat;
+        if (hm) hm.uniforms.uFade.value = 0.4 + 0.6 * fade;
         blackHole.traverse(function (obj) {
             if (!obj.material) return;
             var m = obj.material;
+            // the horizon is opaque by design (correct depth sorting against
+            // the planets) — fading its `opacity` would do nothing, so it is
+            // driven by uFade above instead.
+            if (m === hm) { m.visible = true; return; }
             if (m.userData.baseOpacity === undefined) m.userData.baseOpacity = m.opacity;
-            m.opacity = m.userData.baseOpacity * (0.4 + 0.6 * fade);
+            var isArc = photonRing && obj.parent === photonRing;
+            m.opacity = m.userData.baseOpacity * (0.4 + 0.6 * fade) * (isArc ? photonPulse : 1);
             m.visible = true;
         });
     }
@@ -782,7 +896,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         for (var i = 0; i < N_DISK; i++) {
             var a = rng() * TAU;
             var t = Math.pow(rng(), 0.7);
-            var r = core * (1.1 + t * 4.4);
+            var r = core * (1.35 + t * 4.2);
             // vertical extent is a large fraction of the radius now (was ~4%)
             var thick = core * (0.3 + t * 1.5);
             var y = (rng() + rng() + rng() - 1.5) * thick;   // soft normal-ish falloff
@@ -798,7 +912,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             var u = rng() * 2 - 1;                 // cos(phi), uniform on sphere
             var th = rng() * TAU;
             var sp = Math.sqrt(1 - u * u);
-            var rh = core * (1.1 + Math.pow(rng(), 0.6) * 3.4);
+            var rh = core * (1.55 + Math.pow(rng(), 0.6) * 3.2);
             write(N_DISK + j, sp * Math.cos(th) * rh, u * rh, sp * Math.sin(th) * rh,
                   0.4 + rng() * 0.6, core * (0.008 + rng() * 0.013));
         }
@@ -1701,7 +1815,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             accretionParticles.rotation.y = bt * 0.045;
             accretionParticles.material.uniforms.uHeight.value = H;
         }
-        if (photonRing) photonRing.material.opacity = 0.5 + 0.2 * Math.sin(bt * 2.3);
+        if (blackHole && blackHole.userData.horizonMat) {
+            blackHole.userData.horizonMat.uniforms.uTime.value = bt;
+        }
+        // photonRing is a GROUP of broken arcs now, not a single torus mesh —
+        // drift each arc and pulse each arc's own material.
+        if (photonRing) {
+            photonPulse = 1 + 0.4 * Math.sin(bt * 2.3);
+            for (var pi = 0; pi < photonRing.children.length; pi++) {
+                photonRing.children[pi].rotation.z +=
+                    photonRing.children[pi].userData.spin * 0.016;
+            }
+        }
         if (haloSprite) haloSprite.material.opacity = 0.13 + 0.03 * Math.sin(bt * 0.9);
         updateBlackHoleFade();
 
