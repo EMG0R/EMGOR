@@ -76,7 +76,7 @@
 
 <!-- CONSOLE -->
 <div id="console" class="screen hidden">
-  <header><b id="hdr">LIGHTS</b><button class="out" id="logout">lock</button></header>
+  <header><b id="hdr">neptr · claude code</b><button class="out" id="logout">lock</button></header>
   <div class="body">
     <div class="pane" id="pane-lights"><iframe id="lightsFrame" src="about:blank"></iframe></div>
     <div class="pane hidden" id="pane-term"><iframe id="termFrame" src="about:blank"></iframe></div>
@@ -94,10 +94,10 @@
     </div>
   </div>
   <div class="tabs">
-    <button data-t="lights" class="on">LIGHTS</button>
-    <button data-t="term">TERMINAL</button>
-    <button data-t="server">SERVER</button>
-    <button data-t="auth">AUTH</button>
+    <button data-t="term" class="on">neptr</button>
+    <button data-t="lights">lights</button>
+    <button data-t="server">server</button>
+    <button data-t="auth">auth</button>
   </div>
 </div>
 
@@ -178,12 +178,12 @@ function openConsole(){
   show("console");
   $("#lightsFrame").src="gorcave-lights.html";          // same-origin; reads token from localStorage
   $("#termFrame").src=FUNNEL+"/terminal?token="+encodeURIComponent(LS.get("gorcave_token")||"");
-  switchTab("lights");loadVitals();
+  switchTab("term");loadVitals();
 }
 function switchTab(t){
   document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
   ["lights","term","server","auth"].forEach(p=>$("#pane-"+p).classList.toggle("hidden",p!==t));
-  $("#hdr").textContent={lights:"LIGHTS",term:"TERMINAL",server:"SERVER",auth:"AUTH"}[t];
+  $("#hdr").textContent={term:"neptr · claude code",lights:"lights",server:"server",auth:"auth"}[t];
   if(t==="server")loadVitals();
 }
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>switchTab(b.dataset.t));
