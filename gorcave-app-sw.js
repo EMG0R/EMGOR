@@ -1,4 +1,4 @@
-const C = "gorcave-console-v1";
+const C = "gorcave-console-v2";
 const SHELL = ["gorcave-app.html","gorcave-app-manifest.json","gorcave-icon-192.png","gorcave-icon-512.png"];
 self.addEventListener("install", e => { self.skipWaiting();
   e.waitUntil(caches.open(C).then(c => c.addAll(SHELL)).catch(()=>{})); });
