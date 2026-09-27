@@ -44,6 +44,12 @@
   .label{font-size:10px;letter-spacing:.22em;color:var(--text-faint);text-transform:uppercase;margin-bottom:8px}
   .stat{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}
   .stat b{color:var(--text-dim);font-weight:400}
+  button.go.sync{max-width:none;font-size:13px;letter-spacing:.22em;padding:12px}
+  #syncMsg{margin-top:8px;font-size:11px;word-break:break-word}
+  #syncTok{margin-top:10px} #syncTok summary{cursor:pointer;list-style:none;font-size:10px}
+  #syncTok summary::-webkit-details-marker{display:none}
+  #syncTok input{max-width:none;font-size:12px;padding:10px;text-align:left;margin:8px 0}
+  #syncTok .out{margin-right:8px}
 </style>
 </head>
 <body>
@@ -65,6 +71,15 @@
     <div class="pane hidden" id="pane-server">
       <div class="card"><div class="label">server vitals</div><div id="vitals"><div class="stat"><b>loading…</b><span></span></div></div></div>
       <div class="card"><div class="label">access</div><div id="access"><div class="stat"><b>logins</b><span id="loginct">—</span></div></div></div>
+      <div class="card"><div class="label">emgor_skills sync</div>
+        <button class="go sync" id="syncBtn">SYNC</button>
+        <div class="msg" id="syncMsg"></div>
+        <details id="syncTok"><summary class="tag">sync token</summary>
+          <input id="syncTokIn" type="password" placeholder="paste emory-mcp token" autocomplete="off" autocapitalize="off">
+          <button class="out" id="syncTokSave">save</button>
+          <span class="msg" id="syncTokMsg"></span>
+        </details>
+      </div>
     </div>
   </div>
   <div class="tabs">
@@ -129,6 +144,31 @@ async function loadVitals(){
     $("#loginct").textContent=(s.logins||0)+" ("+(s.unique_ips||0)+" devices)";}catch(e){}
 }
 function fmtPct(o){if(o==null)return"?";if(typeof o==="object")return(o.percent??o.used_percent??o.pct??"?")+"%";return o;}
+
+// --- EMGOR_SKILLS sync: POST <funnel>/m/<token>/sync on the Pi (emory-mcp).
+// The token is never in this page; paste it once, it lives in localStorage.emgor_sync_token.
+const SYNC_KEY="emgor_sync_token";
+function syncMsg(t,cls){const m=$("#syncMsg");m.textContent=t;m.className="msg"+(cls?" "+cls:"");}
+$("#syncBtn").onclick=async()=>{
+  const tok=(LS.get(SYNC_KEY)||"").trim();
+  if(!tok){syncMsg("no sync token — open “sync token” below and paste it","err");$("#syncTok").open=true;return;}
+  $("#syncBtn").disabled=true;syncMsg("syncing…");
+  try{
+    const r=await fetch(FUNNEL+"/m/"+encodeURIComponent(tok)+"/sync",{method:"POST"});
+    if(r.status===404)throw new Error("404 — wrong sync token?");
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const d=await r.json();
+    syncMsg("✓ "+(d.result||"ok"),"ok");
+  }catch(e){syncMsg("✗ "+e.message,"err");}
+  finally{$("#syncBtn").disabled=false;}
+};
+$("#syncTokSave").onclick=()=>{
+  const v=$("#syncTokIn").value.trim();
+  if(!v){LS.del(SYNC_KEY);$("#syncTokMsg").textContent="cleared";$("#syncTokMsg").className="msg";return;}
+  LS.set(SYNC_KEY,v);$("#syncTokIn").value="";
+  $("#syncTokMsg").textContent="saved";$("#syncTokMsg").className="msg ok";$("#syncTok").open=false;
+};
+$("#syncTokIn").addEventListener("keydown",e=>{if(e.key==="Enter")$("#syncTokSave").click();});
 
 boot();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("gorcave-app-sw.js").catch(()=>{});
