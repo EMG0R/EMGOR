@@ -58,7 +58,7 @@
 
 <!-- CONSOLE -->
 <div id="console" class="screen hidden">
-  <header><b id="hdr">neptr · claude code</b><button class="out" id="logout">lock</button></header>
+  <header><b id="hdr">neptr</b></header>
   <div class="body">
     <div class="pane" id="pane-term"><iframe id="termFrame" src="about:blank"></iframe></div>
     <div class="pane hidden" id="pane-lights"><iframe id="lightsFrame" src="about:blank"></iframe></div>
@@ -100,18 +100,17 @@ $("#loginBtn").onclick=async()=>{
   finally{$("#loginBtn").disabled=false;}
 };
 $("#pass").addEventListener("keydown",e=>{if(e.key==="Enter")$("#loginBtn").click();});
-$("#logout").onclick=()=>{LS.del("gorcave_token");LS.del("gorcave_token_exp");boot();};
 
 function openConsole(){
   show("console");
-  $("#termFrame").src=FUNNEL+"/terminal?token="+encodeURIComponent(LS.get("gorcave_token")||"");
+  $("#termFrame").src="gorcave-chat.html";
   $("#lightsFrame").src="gorcave-lights.html";
   switchTab("term");loadVitals();
 }
 function switchTab(t){
   document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
   ["term","lights","server"].forEach(p=>$("#pane-"+p).classList.toggle("hidden",p!==t));
-  $("#hdr").textContent={term:"neptr · claude code",lights:"lights",server:"server"}[t];
+  $("#hdr").textContent={term:"neptr",lights:"lights",server:"server"}[t];
   if(t==="server")loadVitals();
 }
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>switchTab(b.dataset.t));
