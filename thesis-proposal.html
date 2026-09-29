@@ -77,6 +77,11 @@
   .rail a { width: 7px; height: 7px; border-radius: 50%; background: rgba(192,132,252,0.28); display: block; }
   .rail a.on { background: var(--lavender); box-shadow: 0 0 10px var(--violet); }
   @media (max-width: 640px) { .rail { display: none; } }
+  html.capture .rail, html.capture .scroll-hint, html.capture .home-button { display: none; }
+  html.capture { scroll-snap-type: none; scroll-behavior: auto; }
+  html.capture .hero, html.capture .slide { display: none; }
+  html.capture .hero.show { display: grid; }
+  html.capture .slide.show { display: flex; }
 </style>
 </head>
 <body>
@@ -202,6 +207,10 @@
   var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   (function tick(t){ drawBackdrop((t||0)/1000); if(!reduced) requestAnimationFrame(tick); })(0);
 
+  // ?slide=<id> — capture mode: jump straight to one slide, hide the chrome (used for the PDF export)
+  var cap = new URLSearchParams(location.search).get('slide');
+  if (cap) { document.documentElement.classList.add('capture'); var el = document.getElementById(cap);
+    if (el) { el.classList.add('show'); } }
   var slides = Array.prototype.slice.call(document.querySelectorAll('.hero, .slide'));
   var rail = document.getElementById('rail');
   slides.forEach(function(sl){ var a=document.createElement('a'); a.href='#'+sl.id; rail.appendChild(a); });
