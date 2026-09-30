@@ -11,7 +11,7 @@
 
   var q = new URLSearchParams(location.search);
   var local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
-  var wantEdit = local || q.has('edit');
+  var wantEdit = local || q.has('edit') || window.EPK_EDIT === true;
 
   function slotOf(key) { return state.frames[key] || (state.frames[key] = { file: null, fx: 0, fy: 0, s: 1 }); }
 

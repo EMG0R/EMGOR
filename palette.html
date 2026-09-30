@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="style/base.css"><link rel="stylesheet" href="style/player.css">
+<title>palette</title>
+<style>
+html, body { justify-content: flex-start; overflow-y: auto; height: auto; min-height: 100%; }
+body { background: transparent; width: 100%; color: var(--bone); text-align: left; }
+main { width: min(100% - 32px, 820px); margin: 0 auto; padding: 70px 0 80px; }
+h1 { font-size: 0.7rem; letter-spacing: 0.4em; text-transform: uppercase; color: var(--ember); margin: 0 0 24px; }
+h2 { font-size: 0.66rem; letter-spacing: 0.36em; text-transform: uppercase; color: var(--ember); margin: 44px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.sw { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.sw div { border-radius: 12px; padding: 18px 14px; min-height: 130px; display: flex; flex-direction: column; justify-content: flex-end; border: 1px solid var(--line); font-size: 0.72rem; letter-spacing: 0.1em; }
+.sw b { font-size: 0.9rem; display: block; margin-bottom: 4px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.btn { font: inherit; font-size: 0.78rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; padding: 13px 26px; border-radius: 999px; border: 0; background: var(--ember); color: #1a0a00; cursor: pointer; }
+.ghost { background: transparent; color: var(--bone); border: 1px solid var(--line); }
+.link { padding: 13px 14px; border-radius: 10px; text-decoration: none; color: var(--bone); background: rgba(13,2,33,0.5); border: 1px solid var(--line); font-size: 0.86rem; display: flex; justify-content: space-between; gap: 12px; min-width: 240px; }
+.link small { color: var(--ice); font-size: 0.68rem; }
+p { line-height: 1.75; font-size: 0.92rem; opacity: 0.9; }
+a.inline { color: var(--ice); }
+.frame { aspect-ratio: 16/8; border-radius: 14px; border: 1px solid var(--line); background: linear-gradient(135deg, rgba(255,160,91,0.18), rgba(125,242,255,0.10)), rgba(30,15,92,0.28); display: grid; place-items: center; font-size: 0.7rem; letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.8; }
+.big { font-size: clamp(3rem, 12vw, 5.6rem); line-height: 0.9; letter-spacing: 0.06em; font-weight: 700; color: var(--bone); margin: 0; }
+.note { font-size: 0.72rem; opacity: 0.55; margin-top: 30px; }
+@media (max-width: 600px) { .sw { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<a href="index.html" class="home-button" aria-label="home">&#8962;</a>
+<main>
+  <h1>emgor palette — proposal</h1>
+  <p class="big">EMGOR</p>
+  <div class="sw" style="margin-top:24px">
+    <div style="background:#0D0221"><b>void</b>#0D0221<br>ground — your purple-black</div>
+    <div style="background:#F1ECF8;color:#0D0221"><b>bone</b>#F1ECF8<br>all text</div>
+    <div style="background:#FFA05B;color:#1a0a00"><b>ember</b>#FFA05B<br>action · labels · played</div>
+    <div style="background:#7DF2FF;color:#03242a"><b>ice</b>#7DF2FF<br>links · live · editor</div>
+  </div>
+  <p class="note">Plus one non-color: <span style="color:var(--lavender)">lavender</span> at 22% as the hairline (borders, rules). It is the old purple, demoted to structure.</p>
+
+  <h2>type</h2>
+  <p>Body text is bone on void. Nothing in the copy is purple any more. <a class="inline" href="#">Inline links are ice.</a> Section labels are ember, tiny, wide-tracked, uppercase, sitting on a lavender hairline.</p>
+
+  <h2>actions</h2>
+  <div class="row"><button class="btn">&#8681; downloads</button><button class="btn ghost">secondary</button><a class="link" href="#"><span>instagram</span><small>@_emgor_</small></a></div>
+
+  <h2>player</h2>
+  <div data-player data-peaks="resources/peaks.json" data-tracks='[{"name":"our world","src":"resources/epk/our-world.wav"}]'></div>
+
+  <h2>photo frame</h2>
+  <div class="frame">photo · bone caption · ember label</div>
+
+  <h2>alternates, if ember is too warm</h2>
+  <div class="sw">
+    <div style="background:#FF6B4A;color:#1a0a00"><b>coral</b>#FF6B4A<br>hotter, more punk</div>
+    <div style="background:#F7E36B;color:#1a1a00"><b>acid</b>#F7E36B<br>lava-lamp yellow</div>
+    <div style="background:#5EF2B0;color:#002a1a"><b>mint</b>#5EF2B0<br>cool instead of warm</div>
+    <div style="background:#FF4FD8;color:#2a0022"><b>magenta</b>#FF4FD8<br>stays in the purple family</div>
+  </div>
+  <p class="note">Rule of the palette: void everywhere, bone for words, ONE accent for action (ember), ONE for links and live state (ice). Never both accents on the same element.</p>
+</main>
+<script src="js/stars-bg.js"></script><script src="js/player.js"></script>
+</body>
+</html>

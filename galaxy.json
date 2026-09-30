@@ -9,7 +9,7 @@
       "path": "universe/_index.md",
       "route": "/",
       "depth": 0,
-      "children": 8,
+      "children": 6,
       "downloads": [],
       "links": [],
       "tags": [
@@ -17,6 +17,558 @@
         "open-source"
       ],
       "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.archive",
+      "title": "ARCHIVE",
+      "blurb": "The grab-bag — older devices, experiments, and pages that still work",
+      "parent": "emgor",
+      "path": "universe/archive/_index.md",
+      "route": "/archive",
+      "depth": 1,
+      "children": 3,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "archive",
+        "max-for-live",
+        "portfolio",
+        "experiments"
+      ],
+      "updated": "2026-09-30",
+      "size": 1.2
+    },
+    {
+      "id": "emgor.archive.latency-test",
+      "title": "LATENCY PERCEPTION TEST",
+      "blurb": "Find the smallest audio delay you can actually feel",
+      "parent": "emgor.archive",
+      "path": "universe/archive/latency-test/_index.md",
+      "route": "/archive/latency-test",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "latency",
+        "psychoacoustics",
+        "web-audio",
+        "perception",
+        "measurement",
+        "guitar"
+      ],
+      "updated": "2026-08-11",
+      "size": 1.4,
+      "launch": "latency-test.html"
+    },
+    {
+      "id": "emgor.archive.m4l",
+      "title": "M4L",
+      "blurb": "Max for Live devices built in the EMGOR lab — synths, effects, robots, wearables",
+      "parent": "emgor.archive",
+      "path": "universe/archive/m4l/_index.md",
+      "route": "/archive/m4l",
+      "depth": 2,
+      "children": 3,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "ableton",
+        "max-msp"
+      ],
+      "updated": "2026-03-09"
+    },
+    {
+      "id": "emgor.archive.m4l.controllers",
+      "title": "Controllers",
+      "blurb": "Hardware-facing devices — the Infinity Gauntlet wearable and GEORGE wind synth",
+      "parent": "emgor.archive.m4l",
+      "path": "universe/archive/m4l/controllers/_index.md",
+      "route": "/archive/m4l/controllers",
+      "depth": 3,
+      "children": 2,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "hardware",
+        "controllers",
+        "wearables"
+      ],
+      "updated": "2025-01-25"
+    },
+    {
+      "id": "emgor.archive.m4l.controllers.george",
+      "title": "GEORGE_SYNTH",
+      "blurb": "FM/AM synth voiced for an EWI wind controller, built for a collaborator",
+      "parent": "emgor.archive.m4l.controllers",
+      "path": "universe/archive/m4l/controllers/george.md",
+      "route": "/archive/m4l/controllers/george",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "GEORGE_SYNTH_v1.2.2.amxd",
+          "url": "universe/archive/m4l/controllers/files/GEORGE_SYNTH_v1.2.2.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "synth",
+        "fm",
+        "ewi",
+        "wind-controller"
+      ],
+      "updated": "2024-09-06"
+    },
+    {
+      "id": "emgor.archive.m4l.controllers.infinity-gauntlet",
+      "title": "INFINITY GAUNTLET",
+      "blurb": "Wearable gesture controller — a glove that sequences Ableton over serial",
+      "parent": "emgor.archive.m4l.controllers",
+      "path": "universe/archive/m4l/controllers/infinity-gauntlet.md",
+      "route": "/archive/m4l/controllers/infinity-gauntlet",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "INFINITY_GAUNTLET_v3.2.1.amxd",
+          "url": "universe/archive/m4l/controllers/files/INFINITY_GAUNTLET_v3.2.1.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "wearable",
+        "hardware",
+        "arduino",
+        "sequencer",
+        "monome"
+      ],
+      "updated": "2025-01-25"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices",
+      "title": "Emory Devices",
+      "blurb": "The personal arsenal — synths, granular manglers, generative drums, chords, visuals",
+      "parent": "emgor.archive.m4l",
+      "path": "universe/archive/m4l/emory-devices/_index.md",
+      "route": "/archive/m4l/emory-devices",
+      "depth": 3,
+      "children": 9,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "devices"
+      ],
+      "updated": "2026-05-01"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices.cat",
+      "title": "CAT",
+      "blurb": "A cat in your device chain, animated to your session tempo",
+      "parent": "emgor.archive.m4l.emory-devices",
+      "path": "universe/archive/m4l/emory-devices/cat.md",
+      "route": "/archive/m4l/emory-devices/cat",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "CAT_v1.5.amxd",
+          "url": "universe/archive/m4l/emory-devices/files/CAT_v1.5.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "visual",
+        "jitter",
+        "fun"
+      ],
+      "updated": "2024-04-03"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices.easy",
+      "title": "EASY",
+      "blurb": "One-finger chord engine — full jazz voicings from single notes",
+      "parent": "emgor.archive.m4l.emory-devices",
+      "path": "universe/archive/m4l/emory-devices/easy.md",
+      "route": "/archive/m4l/emory-devices/easy",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "EASY_v1.3.amxd",
+          "url": "universe/archive/m4l/emory-devices/files/EASY_v1.3.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "midi",
+        "chords",
+        "harmony"
+      ],
+      "updated": "2025-02-14"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices.efex",
+      "title": "EFEX",
+      "blurb": "Motion-controlled effects — your phone's tilt becomes the mod source",
+      "parent": "emgor.archive.m4l.emory-devices",
+      "path": "universe/archive/m4l/emory-devices/efex.md",
+      "route": "/archive/m4l/emory-devices/efex",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "EFEX.amxd",
+          "url": "universe/archive/m4l/emory-devices/files/EFEX.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "audio-effect",
+        "sensors",
+        "osc"
+      ],
+      "updated": "2024-05-22"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices.granola",
+      "title": "GRANOLA",
+      "blurb": "Granular ring-buffer mangler — feed it live audio, gobble it back",
+      "parent": "emgor.archive.m4l.emory-devices",
+      "path": "universe/archive/m4l/emory-devices/granola.md",
+      "route": "/archive/m4l/emory-devices/granola",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "GRANOLA_v1.3.1.amxd",
+          "url": "universe/archive/m4l/emory-devices/files/GRANOLA_v1.3.1.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "audio-effect",
+        "granular"
+      ],
+      "updated": "2025-09-04"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices.light-music",
+      "title": "LIGHT_MUSIC",
+      "blurb": "Live visuals engine running inside Ableton — OpenGL, noise, crossfades",
+      "parent": "emgor.archive.m4l.emory-devices",
+      "path": "universe/archive/m4l/emory-devices/light-music.md",
+      "route": "/archive/m4l/emory-devices/light-music",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "LIGHT_MUSIC_v2.3.amxd",
+          "url": "universe/archive/m4l/emory-devices/files/LIGHT_MUSIC_v2.3.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "visuals",
+        "jitter",
+        "opengl",
+        "performance"
+      ],
+      "updated": "2025-02-01"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices.light-music-controller",
+      "title": "LIGHT_MUSIC_CONTROLLER",
+      "blurb": "Sensor-to-CC bridge — accelerometer, gyro and touch become MIDI control",
+      "parent": "emgor.archive.m4l.emory-devices",
+      "path": "universe/archive/m4l/emory-devices/light-music-controller.md",
+      "route": "/archive/m4l/emory-devices/light-music-controller",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "LIGHT_MUSIC_CONTROLLER.amxd",
+          "url": "universe/archive/m4l/emory-devices/files/LIGHT_MUSIC_CONTROLLER.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "midi",
+        "controller",
+        "sensors"
+      ],
+      "updated": "2025-02-04"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices.lil-drumr",
+      "title": "LIL_DRUMR",
+      "blurb": "Generative step drummer that drives the KNOCK drum plugin",
+      "parent": "emgor.archive.m4l.emory-devices",
+      "path": "universe/archive/m4l/emory-devices/lil-drumr.md",
+      "route": "/archive/m4l/emory-devices/lil-drumr",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "LIL_DRUMR_v1.2.amxd",
+          "url": "universe/archive/m4l/emory-devices/files/LIL_DRUMR_v1.2.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "midi",
+        "drums",
+        "generative"
+      ],
+      "updated": "2026-05-01"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices.modul8",
+      "title": "MODUL8",
+      "blurb": "LFO/modulation matrix — map wave shapes onto any Live parameter",
+      "parent": "emgor.archive.m4l.emory-devices",
+      "path": "universe/archive/m4l/emory-devices/modul8.md",
+      "route": "/archive/m4l/emory-devices/modul8",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "MODUL8_v1.2.amxd",
+          "url": "universe/archive/m4l/emory-devices/files/MODUL8_v1.2.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "modulation",
+        "lfo",
+        "live-api"
+      ],
+      "updated": "2024-05-15"
+    },
+    {
+      "id": "emgor.archive.m4l.emory-devices.the-purp",
+      "title": "THE_PURP",
+      "blurb": "The flagship performance instrument — two years and ~45 versions deep",
+      "parent": "emgor.archive.m4l.emory-devices",
+      "path": "universe/archive/m4l/emory-devices/the-purp.md",
+      "route": "/archive/m4l/emory-devices/the-purp",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "THE_PURP.amxd",
+          "url": "universe/archive/m4l/emory-devices/files/THE_PURP.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "instrument",
+        "synth",
+        "performance"
+      ],
+      "updated": "2025-03-17"
+    },
+    {
+      "id": "emgor.archive.m4l.machine-lab",
+      "title": "Machine Lab",
+      "blurb": "Compose for CalArts' robotic instruments from anywhere — samples local, OSC live",
+      "parent": "emgor.archive.m4l",
+      "path": "universe/archive/m4l/machine-lab/_index.md",
+      "route": "/archive/m4l/machine-lab",
+      "depth": 3,
+      "children": 6,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "robotics",
+        "calarts",
+        "osc",
+        "generative"
+      ],
+      "updated": "2026-03-09"
+    },
+    {
+      "id": "emgor.archive.m4l.machine-lab.breakbot",
+      "title": "BREAKBOT",
+      "blurb": "M4L interface for the Machine Lab's BreakBot — samples local, OSC live",
+      "parent": "emgor.archive.m4l.machine-lab",
+      "path": "universe/archive/m4l/machine-lab/breakbot.md",
+      "route": "/archive/m4l/machine-lab/breakbot",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "BREAKBOT_v1.2.amxd",
+          "url": "universe/archive/m4l/machine-lab/files/BREAKBOT_v1.2.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "robotics",
+        "calarts",
+        "drums",
+        "osc"
+      ],
+      "updated": "2026-02-19"
+    },
+    {
+      "id": "emgor.archive.m4l.machine-lab.gana-pati",
+      "title": "GANA_PATI",
+      "blurb": "M4L interface for the Machine Lab's GanaPati percussion robot",
+      "parent": "emgor.archive.m4l.machine-lab",
+      "path": "universe/archive/m4l/machine-lab/gana-pati.md",
+      "route": "/archive/m4l/machine-lab/gana-pati",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "GANA_PATI_v1.2.amxd",
+          "url": "universe/archive/m4l/machine-lab/files/GANA_PATI_v1.2.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "robotics",
+        "calarts",
+        "percussion",
+        "osc"
+      ],
+      "updated": "2026-02-19"
+    },
+    {
+      "id": "emgor.archive.m4l.machine-lab.lydia",
+      "title": "LYDIA",
+      "blurb": "M4L interface for LYDIA, one of the Machine Lab's robotic instruments",
+      "parent": "emgor.archive.m4l.machine-lab",
+      "path": "universe/archive/m4l/machine-lab/lydia.md",
+      "route": "/archive/m4l/machine-lab/lydia",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "LYDIA_v1.2.amxd",
+          "url": "universe/archive/m4l/machine-lab/files/LYDIA_v1.2.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "robotics",
+        "calarts",
+        "osc"
+      ],
+      "updated": "2026-03-02"
+    },
+    {
+      "id": "emgor.archive.m4l.machine-lab.marimbot",
+      "title": "MARIMBOT",
+      "blurb": "M4L interface for the Machine Lab's robotic marimba",
+      "parent": "emgor.archive.m4l.machine-lab",
+      "path": "universe/archive/m4l/machine-lab/marimbot.md",
+      "route": "/archive/m4l/machine-lab/marimbot",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "MARIMBOT_v1.2.2.amxd",
+          "url": "universe/archive/m4l/machine-lab/files/MARIMBOT_v1.2.2.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "robotics",
+        "calarts",
+        "marimba",
+        "osc"
+      ],
+      "updated": "2026-03-09"
+    },
+    {
+      "id": "emgor.archive.m4l.machine-lab.modulettes",
+      "title": "MODULETTES",
+      "blurb": "M4L interface for the Modulettes, the Machine Lab's small modular robots",
+      "parent": "emgor.archive.m4l.machine-lab",
+      "path": "universe/archive/m4l/machine-lab/modulettes.md",
+      "route": "/archive/m4l/machine-lab/modulettes",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "MODULETTES_v1.2.2.amxd",
+          "url": "universe/archive/m4l/machine-lab/files/MODULETTES_v1.2.2.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "robotics",
+        "calarts",
+        "percussion",
+        "osc"
+      ],
+      "updated": "2026-03-09"
+    },
+    {
+      "id": "emgor.archive.m4l.machine-lab.tammy",
+      "title": "TAMMY",
+      "blurb": "M4L interface for TAMMY, one of the Machine Lab's robotic instruments",
+      "parent": "emgor.archive.m4l.machine-lab",
+      "path": "universe/archive/m4l/machine-lab/tammy.md",
+      "route": "/archive/m4l/machine-lab/tammy",
+      "depth": 4,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "TAMMY_v1.2.amxd",
+          "url": "universe/archive/m4l/machine-lab/files/TAMMY_v1.2.amxd"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "max-for-live",
+        "robotics",
+        "calarts",
+        "osc"
+      ],
+      "updated": "2026-02-19"
+    },
+    {
+      "id": "emgor.archive.portfolio-2024",
+      "title": "2024 PORTFOLIO",
+      "blurb": "Six produced tracks and three videos from 2024, streaming in-site",
+      "parent": "emgor.archive",
+      "path": "universe/archive/portfolio-2024.md",
+      "route": "/archive/portfolio-2024",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "portfolio",
+        "production",
+        "video",
+        "2024"
+      ],
+      "updated": "2026-09-30",
+      "launch": "music.html"
     },
     {
       "id": "emgor.code",
@@ -360,990 +912,6 @@
       "updated": "2026-09-29",
       "size": 1.2,
       "launch": "epk.html"
-    },
-    {
-      "id": "emgor.latency-test",
-      "title": "LATENCY PERCEPTION TEST",
-      "blurb": "Find the smallest audio delay you can actually feel",
-      "parent": "emgor",
-      "path": "universe/latency-test/_index.md",
-      "route": "/latency-test",
-      "depth": 1,
-      "children": 0,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "latency",
-        "psychoacoustics",
-        "web-audio",
-        "perception",
-        "measurement",
-        "guitar"
-      ],
-      "updated": "2026-08-11",
-      "size": 1.4,
-      "launch": "latency-test.html"
-    },
-    {
-      "id": "emgor.m4l",
-      "title": "M4L",
-      "blurb": "Max for Live devices built in the EMGOR lab — synths, effects, robots, wearables",
-      "parent": "emgor",
-      "path": "universe/m4l/_index.md",
-      "route": "/m4l",
-      "depth": 1,
-      "children": 3,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "ableton",
-        "max-msp"
-      ],
-      "updated": "2026-03-09"
-    },
-    {
-      "id": "emgor.m4l.controllers",
-      "title": "Controllers",
-      "blurb": "Hardware-facing devices — the Infinity Gauntlet wearable and GEORGE wind synth",
-      "parent": "emgor.m4l",
-      "path": "universe/m4l/controllers/_index.md",
-      "route": "/m4l/controllers",
-      "depth": 2,
-      "children": 2,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "hardware",
-        "controllers",
-        "wearables"
-      ],
-      "updated": "2025-01-25"
-    },
-    {
-      "id": "emgor.m4l.controllers.george",
-      "title": "GEORGE_SYNTH",
-      "blurb": "FM/AM synth voiced for an EWI wind controller, built for a collaborator",
-      "parent": "emgor.m4l.controllers",
-      "path": "universe/m4l/controllers/george.md",
-      "route": "/m4l/controllers/george",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "GEORGE_SYNTH_v1.2.2.amxd",
-          "url": "universe/m4l/controllers/files/GEORGE_SYNTH_v1.2.2.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "synth",
-        "fm",
-        "ewi",
-        "wind-controller"
-      ],
-      "updated": "2024-09-06"
-    },
-    {
-      "id": "emgor.m4l.controllers.infinity-gauntlet",
-      "title": "INFINITY GAUNTLET",
-      "blurb": "Wearable gesture controller — a glove that sequences Ableton over serial",
-      "parent": "emgor.m4l.controllers",
-      "path": "universe/m4l/controllers/infinity-gauntlet.md",
-      "route": "/m4l/controllers/infinity-gauntlet",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "INFINITY_GAUNTLET_v3.2.1.amxd",
-          "url": "universe/m4l/controllers/files/INFINITY_GAUNTLET_v3.2.1.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "wearable",
-        "hardware",
-        "arduino",
-        "sequencer",
-        "monome"
-      ],
-      "updated": "2025-01-25"
-    },
-    {
-      "id": "emgor.m4l.emory-devices",
-      "title": "Emory Devices",
-      "blurb": "The personal arsenal — synths, granular manglers, generative drums, chords, visuals",
-      "parent": "emgor.m4l",
-      "path": "universe/m4l/emory-devices/_index.md",
-      "route": "/m4l/emory-devices",
-      "depth": 2,
-      "children": 9,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "devices"
-      ],
-      "updated": "2026-05-01"
-    },
-    {
-      "id": "emgor.m4l.emory-devices.cat",
-      "title": "CAT",
-      "blurb": "A cat in your device chain, animated to your session tempo",
-      "parent": "emgor.m4l.emory-devices",
-      "path": "universe/m4l/emory-devices/cat.md",
-      "route": "/m4l/emory-devices/cat",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "CAT_v1.5.amxd",
-          "url": "universe/m4l/emory-devices/files/CAT_v1.5.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "visual",
-        "jitter",
-        "fun"
-      ],
-      "updated": "2024-04-03"
-    },
-    {
-      "id": "emgor.m4l.emory-devices.easy",
-      "title": "EASY",
-      "blurb": "One-finger chord engine — full jazz voicings from single notes",
-      "parent": "emgor.m4l.emory-devices",
-      "path": "universe/m4l/emory-devices/easy.md",
-      "route": "/m4l/emory-devices/easy",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "EASY_v1.3.amxd",
-          "url": "universe/m4l/emory-devices/files/EASY_v1.3.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "midi",
-        "chords",
-        "harmony"
-      ],
-      "updated": "2025-02-14"
-    },
-    {
-      "id": "emgor.m4l.emory-devices.efex",
-      "title": "EFEX",
-      "blurb": "Motion-controlled effects — your phone's tilt becomes the mod source",
-      "parent": "emgor.m4l.emory-devices",
-      "path": "universe/m4l/emory-devices/efex.md",
-      "route": "/m4l/emory-devices/efex",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "EFEX.amxd",
-          "url": "universe/m4l/emory-devices/files/EFEX.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "audio-effect",
-        "sensors",
-        "osc"
-      ],
-      "updated": "2024-05-22"
-    },
-    {
-      "id": "emgor.m4l.emory-devices.granola",
-      "title": "GRANOLA",
-      "blurb": "Granular ring-buffer mangler — feed it live audio, gobble it back",
-      "parent": "emgor.m4l.emory-devices",
-      "path": "universe/m4l/emory-devices/granola.md",
-      "route": "/m4l/emory-devices/granola",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "GRANOLA_v1.3.1.amxd",
-          "url": "universe/m4l/emory-devices/files/GRANOLA_v1.3.1.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "audio-effect",
-        "granular"
-      ],
-      "updated": "2025-09-04"
-    },
-    {
-      "id": "emgor.m4l.emory-devices.light-music",
-      "title": "LIGHT_MUSIC",
-      "blurb": "Live visuals engine running inside Ableton — OpenGL, noise, crossfades",
-      "parent": "emgor.m4l.emory-devices",
-      "path": "universe/m4l/emory-devices/light-music.md",
-      "route": "/m4l/emory-devices/light-music",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "LIGHT_MUSIC_v2.3.amxd",
-          "url": "universe/m4l/emory-devices/files/LIGHT_MUSIC_v2.3.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "visuals",
-        "jitter",
-        "opengl",
-        "performance"
-      ],
-      "updated": "2025-02-01"
-    },
-    {
-      "id": "emgor.m4l.emory-devices.light-music-controller",
-      "title": "LIGHT_MUSIC_CONTROLLER",
-      "blurb": "Sensor-to-CC bridge — accelerometer, gyro and touch become MIDI control",
-      "parent": "emgor.m4l.emory-devices",
-      "path": "universe/m4l/emory-devices/light-music-controller.md",
-      "route": "/m4l/emory-devices/light-music-controller",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "LIGHT_MUSIC_CONTROLLER.amxd",
-          "url": "universe/m4l/emory-devices/files/LIGHT_MUSIC_CONTROLLER.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "midi",
-        "controller",
-        "sensors"
-      ],
-      "updated": "2025-02-04"
-    },
-    {
-      "id": "emgor.m4l.emory-devices.lil-drumr",
-      "title": "LIL_DRUMR",
-      "blurb": "Generative step drummer that drives the KNOCK drum plugin",
-      "parent": "emgor.m4l.emory-devices",
-      "path": "universe/m4l/emory-devices/lil-drumr.md",
-      "route": "/m4l/emory-devices/lil-drumr",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "LIL_DRUMR_v1.2.amxd",
-          "url": "universe/m4l/emory-devices/files/LIL_DRUMR_v1.2.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "midi",
-        "drums",
-        "generative"
-      ],
-      "updated": "2026-05-01"
-    },
-    {
-      "id": "emgor.m4l.emory-devices.modul8",
-      "title": "MODUL8",
-      "blurb": "LFO/modulation matrix — map wave shapes onto any Live parameter",
-      "parent": "emgor.m4l.emory-devices",
-      "path": "universe/m4l/emory-devices/modul8.md",
-      "route": "/m4l/emory-devices/modul8",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "MODUL8_v1.2.amxd",
-          "url": "universe/m4l/emory-devices/files/MODUL8_v1.2.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "modulation",
-        "lfo",
-        "live-api"
-      ],
-      "updated": "2024-05-15"
-    },
-    {
-      "id": "emgor.m4l.emory-devices.the-purp",
-      "title": "THE_PURP",
-      "blurb": "The flagship performance instrument — two years and ~45 versions deep",
-      "parent": "emgor.m4l.emory-devices",
-      "path": "universe/m4l/emory-devices/the-purp.md",
-      "route": "/m4l/emory-devices/the-purp",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "THE_PURP.amxd",
-          "url": "universe/m4l/emory-devices/files/THE_PURP.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "instrument",
-        "synth",
-        "performance"
-      ],
-      "updated": "2025-03-17"
-    },
-    {
-      "id": "emgor.m4l.machine-lab",
-      "title": "Machine Lab",
-      "blurb": "Compose for CalArts' robotic instruments from anywhere — samples local, OSC live",
-      "parent": "emgor.m4l",
-      "path": "universe/m4l/machine-lab/_index.md",
-      "route": "/m4l/machine-lab",
-      "depth": 2,
-      "children": 6,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "robotics",
-        "calarts",
-        "osc",
-        "generative"
-      ],
-      "updated": "2026-03-09"
-    },
-    {
-      "id": "emgor.m4l.machine-lab.breakbot",
-      "title": "BREAKBOT",
-      "blurb": "M4L interface for the Machine Lab's BreakBot — samples local, OSC live",
-      "parent": "emgor.m4l.machine-lab",
-      "path": "universe/m4l/machine-lab/breakbot.md",
-      "route": "/m4l/machine-lab/breakbot",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "BREAKBOT_v1.2.amxd",
-          "url": "universe/m4l/machine-lab/files/BREAKBOT_v1.2.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "robotics",
-        "calarts",
-        "drums",
-        "osc"
-      ],
-      "updated": "2026-02-19"
-    },
-    {
-      "id": "emgor.m4l.machine-lab.gana-pati",
-      "title": "GANA_PATI",
-      "blurb": "M4L interface for the Machine Lab's GanaPati percussion robot",
-      "parent": "emgor.m4l.machine-lab",
-      "path": "universe/m4l/machine-lab/gana-pati.md",
-      "route": "/m4l/machine-lab/gana-pati",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "GANA_PATI_v1.2.amxd",
-          "url": "universe/m4l/machine-lab/files/GANA_PATI_v1.2.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "robotics",
-        "calarts",
-        "percussion",
-        "osc"
-      ],
-      "updated": "2026-02-19"
-    },
-    {
-      "id": "emgor.m4l.machine-lab.lydia",
-      "title": "LYDIA",
-      "blurb": "M4L interface for LYDIA, one of the Machine Lab's robotic instruments",
-      "parent": "emgor.m4l.machine-lab",
-      "path": "universe/m4l/machine-lab/lydia.md",
-      "route": "/m4l/machine-lab/lydia",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "LYDIA_v1.2.amxd",
-          "url": "universe/m4l/machine-lab/files/LYDIA_v1.2.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "robotics",
-        "calarts",
-        "osc"
-      ],
-      "updated": "2026-03-02"
-    },
-    {
-      "id": "emgor.m4l.machine-lab.marimbot",
-      "title": "MARIMBOT",
-      "blurb": "M4L interface for the Machine Lab's robotic marimba",
-      "parent": "emgor.m4l.machine-lab",
-      "path": "universe/m4l/machine-lab/marimbot.md",
-      "route": "/m4l/machine-lab/marimbot",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "MARIMBOT_v1.2.2.amxd",
-          "url": "universe/m4l/machine-lab/files/MARIMBOT_v1.2.2.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "robotics",
-        "calarts",
-        "marimba",
-        "osc"
-      ],
-      "updated": "2026-03-09"
-    },
-    {
-      "id": "emgor.m4l.machine-lab.modulettes",
-      "title": "MODULETTES",
-      "blurb": "M4L interface for the Modulettes, the Machine Lab's small modular robots",
-      "parent": "emgor.m4l.machine-lab",
-      "path": "universe/m4l/machine-lab/modulettes.md",
-      "route": "/m4l/machine-lab/modulettes",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "MODULETTES_v1.2.2.amxd",
-          "url": "universe/m4l/machine-lab/files/MODULETTES_v1.2.2.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "robotics",
-        "calarts",
-        "percussion",
-        "osc"
-      ],
-      "updated": "2026-03-09"
-    },
-    {
-      "id": "emgor.m4l.machine-lab.tammy",
-      "title": "TAMMY",
-      "blurb": "M4L interface for TAMMY, one of the Machine Lab's robotic instruments",
-      "parent": "emgor.m4l.machine-lab",
-      "path": "universe/m4l/machine-lab/tammy.md",
-      "route": "/m4l/machine-lab/tammy",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "TAMMY_v1.2.amxd",
-          "url": "universe/m4l/machine-lab/files/TAMMY_v1.2.amxd"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "max-for-live",
-        "robotics",
-        "calarts",
-        "osc"
-      ],
-      "updated": "2026-02-19"
-    },
-    {
-      "id": "emgor.neptr",
-      "title": "NEPTR",
-      "blurb": "Performance system of a modern digital luthier — the brain, and every device built around it",
-      "parent": "emgor",
-      "path": "universe/neptr/_index.md",
-      "route": "/neptr",
-      "depth": 1,
-      "children": 13,
-      "downloads": [],
-      "links": [
-        {
-          "label": "NEPTR web (RNBO export)",
-          "url": "NEPTR.html"
-        }
-      ],
-      "tags": [
-        "instrument",
-        "guitar",
-        "raspberry-pi",
-        "csound",
-        "chuck",
-        "max",
-        "live-performance"
-      ],
-      "updated": "2026-09-29"
-    },
-    {
-      "id": "emgor.neptr.4-i-gor",
-      "title": "4-i-Gor",
-      "blurb": "Teensy 4.0 quad-in / quad-out USB audio interface with MIDI",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/4-i-gor.md",
-      "route": "/neptr/4-i-gor",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "4-i-gor.ino",
-          "url": "universe/neptr/files/4-i-gor.ino"
-        },
-        {
-          "name": "4-i-gor-pcb.md",
-          "url": "universe/neptr/files/4-i-gor-pcb.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "audio-interface",
-        "teensy",
-        "i2s",
-        "midi",
-        "pcb"
-      ],
-      "updated": "2026-04-07"
-    },
-    {
-      "id": "emgor.neptr.hyperguitar",
-      "title": "hyperGuitar",
-      "blurb": "Headless semi-hollow 6-string with a Bela Gem Multi living inside it",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/hyperguitar.md",
-      "route": "/neptr/hyperguitar",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "hyperguitar-design.md",
-          "url": "universe/neptr/files/hyperguitar-design.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "augmented-instrument",
-        "bela",
-        "guitar",
-        "dsp",
-        "hexaphonic"
-      ],
-      "updated": "2026-05-22"
-    },
-    {
-      "id": "emgor.neptr.hypertrumpet",
-      "title": "hyperTrumpet",
-      "blurb": "Augmented trumpet — Teensy 4.1 sensor rig into Max, everything on channel 3",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/hypertrumpet.md",
-      "route": "/neptr/hypertrumpet",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "hypertrumpet.ino",
-          "url": "universe/neptr/files/hypertrumpet.ino"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "augmented-instrument",
-        "teensy",
-        "midi",
-        "max-msp",
-        "trumpet"
-      ],
-      "updated": "2026-03-27"
-    },
-    {
-      "id": "emgor.neptr.neuralgrid",
-      "title": "neuralGrid",
-      "blurb": "A monome-style grid that rewrites its own interface on the downbeat",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/neuralgrid.md",
-      "route": "/neptr/neuralgrid",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "neuralgrid-protocol.md",
-          "url": "universe/neptr/files/neuralgrid-protocol.md"
-        },
-        {
-          "name": "neuralgrid-grid_link.ino",
-          "url": "universe/neptr/files/neuralgrid-grid_link.ino"
-        }
-      ],
-      "links": [
-        {
-          "label": "Dimensional architecture map",
-          "url": "neuralgrid.html"
-        }
-      ],
-      "tags": [
-        "grid",
-        "neural",
-        "raspberry-pi",
-        "esp32",
-        "nime",
-        "research"
-      ],
-      "updated": "2026-07-17"
-    },
-    {
-      "id": "emgor.neptr.ofoots",
-      "title": "DUODECIMUS",
-      "blurb": "Ten-encoder foot controller — 8 pages, 64 CCs, one expression pedal",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/ofoots.md",
-      "route": "/neptr/ofoots",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "ofoots.ino",
-          "url": "universe/neptr/files/ofoots.ino"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "controller",
-        "midi",
-        "foot-controller",
-        "tft",
-        "neopixel"
-      ],
-      "updated": "2026-01-23"
-    },
-    {
-      "id": "emgor.neptr.phase-1",
-      "title": "Phase 1 — Pi + RNBO",
-      "blurb": "Max patches compiled onto a Raspberry Pi — the era that proved the idea",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/phase-1/_index.md",
-      "route": "/neptr/phase-1",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "BMO.py",
-          "url": "universe/neptr/phase-1/files/BMO.py"
-        },
-        {
-          "name": "_COMBINED_UI_YAYY.py",
-          "url": "universe/neptr/phase-1/files/_COMBINED_UI_YAYY.py"
-        }
-      ],
-      "links": [
-        {
-          "label": "NEPTR web (RNBO export of this era)",
-          "url": "NEPTR.html"
-        }
-      ],
-      "tags": [
-        "max",
-        "rnbo",
-        "raspberry-pi",
-        "kivy",
-        "pcb",
-        "icmc"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.neptr.phase-2",
-      "title": "Phase 2 — Csound on the Pi",
-      "blurb": "The engine rewritten by hand in Csound, with robot faces and a Bela detour",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/phase-2/_index.md",
-      "route": "/neptr/phase-2",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "NEPTR_PHASE2_PIinto.csd",
-          "url": "universe/neptr/phase-2/files/NEPTR_PHASE2_PIinto.csd"
-        },
-        {
-          "name": "PHASE2_UI.py",
-          "url": "universe/neptr/phase-2/files/PHASE2_UI.py"
-        },
-        {
-          "name": "bela1-neptr-phase2.csd",
-          "url": "universe/neptr/phase-2/files/bela1-neptr-phase2.csd"
-        },
-        {
-          "name": "FACE1.png",
-          "url": "universe/neptr/phase-2/files/FACE1.png"
-        },
-        {
-          "name": "FACE4.png",
-          "url": "universe/neptr/phase-2/files/FACE4.png"
-        },
-        {
-          "name": "FACE7.png",
-          "url": "universe/neptr/phase-2/files/FACE7.png"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "csound",
-        "raspberry-pi",
-        "kivy",
-        "osc",
-        "bela",
-        "protofaces"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.neptr.phase-3",
-      "title": "Phase 3 — ChucK",
-      "blurb": "Strongly-timed rewrite — ChuckTer, neptrSYNTH1, Teensy I/O, a new body",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/phase-3/_index.md",
-      "route": "/neptr/phase-3",
-      "depth": 2,
-      "children": 1,
-      "downloads": [
-        {
-          "name": "neptrSYNTH1.ck",
-          "url": "universe/neptr/phase-3/files/neptrSYNTH1.ck"
-        },
-        {
-          "name": "ChuckTer_v1.2_noGL.ck",
-          "url": "universe/neptr/phase-3/files/ChuckTer_v1.2_noGL.ck"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "chuck",
-        "teensy",
-        "3d-print",
-        "synthesis",
-        "live-coding"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.neptr.phase-3.cheese",
-      "title": "CHEESE",
-      "blurb": "Modular ChucK FX library — nine stereo effects, one shared brain",
-      "parent": "emgor.neptr.phase-3",
-      "path": "universe/neptr/phase-3/cheese.md",
-      "route": "/neptr/phase-3/cheese",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "chorus.ck",
-          "url": "universe/neptr/phase-3/files/chorus.ck"
-        },
-        {
-          "name": "delay1.ck",
-          "url": "universe/neptr/phase-3/files/delay1.ck"
-        },
-        {
-          "name": "phaser.ck",
-          "url": "universe/neptr/phase-3/files/phaser.ck"
-        },
-        {
-          "name": "reverb1.ck",
-          "url": "universe/neptr/phase-3/files/reverb1.ck"
-        },
-        {
-          "name": "ringmod.ck",
-          "url": "universe/neptr/phase-3/files/ringmod.ck"
-        },
-        {
-          "name": "spectralWah.ck",
-          "url": "universe/neptr/phase-3/files/spectralWah.ck"
-        },
-        {
-          "name": "pitchShifter.ck",
-          "url": "universe/neptr/phase-3/files/pitchShifter.ck"
-        },
-        {
-          "name": "vibrato.ck",
-          "url": "universe/neptr/phase-3/files/vibrato.ck"
-        },
-        {
-          "name": "ANALYSIS.md",
-          "url": "universe/neptr/phase-3/files/ANALYSIS.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "chuck",
-        "fx",
-        "modular",
-        "midi"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.neptr.phase-4",
-      "title": "Phase 4 — DEMIURGE",
-      "blurb": "The current machine — Csound on a Pi 5, NAM, 19 menus, ~7 ms round trip",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/phase-4/_index.md",
-      "route": "/neptr/phase-4",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "neptrPhase4.csd",
-          "url": "universe/neptr/phase-4/files/neptrPhase4.csd"
-        },
-        {
-          "name": "live.conf",
-          "url": "universe/neptr/phase-4/files/live.conf"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "csound",
-        "raspberry-pi-5",
-        "nam",
-        "teensy",
-        "looper",
-        "live-performance",
-        "current"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.neptr.pocket-opgorator",
-      "title": "PMOR",
-      "blurb": "Pocket-Operator-format Daisy sampler/synth with a velocity NeoTrellis grid",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/pocket-opgorator.md",
-      "route": "/neptr/pocket-opgorator",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "pocket-opgorator-spec.md",
-          "url": "universe/neptr/files/pocket-opgorator-spec.md"
-        },
-        {
-          "name": "pocket-opgorator.ino",
-          "url": "universe/neptr/files/pocket-opgorator.ino"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "synth",
-        "sampler",
-        "daisy",
-        "neotrellis",
-        "3d-print"
-      ],
-      "updated": "2026-06-10"
-    },
-    {
-      "id": "emgor.neptr.quadro-punch-packer",
-      "title": "Quadro Punch Packer",
-      "blurb": "10\" printed hemisphere speaker — 4 coaxials at the cube-vertex angle plus a sub",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/quadro-punch-packer.md",
-      "route": "/neptr/quadro-punch-packer",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "quadro-punch-packer-build.md",
-          "url": "universe/neptr/files/quadro-punch-packer-build.md"
-        },
-        {
-          "name": "quadro-punch-packer-circuit.png",
-          "url": "universe/neptr/files/quadro-punch-packer-circuit.png"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "speaker",
-        "quad",
-        "3d-print",
-        "amplifier",
-        "battery"
-      ],
-      "updated": "2026-05-08"
-    },
-    {
-      "id": "emgor.neptr.speak",
-      "title": "SPEAK — neptr's voice",
-      "blurb": "Speak-&-Spell singing synth + a fully offline AI companion on a Pi",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/speak/_index.md",
-      "route": "/neptr/speak",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "persona.md",
-          "url": "universe/neptr/speak/files/persona.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "speech-synthesis",
-        "lpc",
-        "tms5100",
-        "llm",
-        "offline-ai",
-        "raspberry-pi"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.neptr.we-remote",
-      "title": "We-Remote",
-      "blurb": "Open-source Wii remote — BLE gamepad, keyboard, and MIDI CC in one shell",
-      "parent": "emgor.neptr",
-      "path": "universe/neptr/we-remote.md",
-      "route": "/neptr/we-remote",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "we-remote.ino",
-          "url": "universe/neptr/files/we-remote.ino"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "controller",
-        "esp32-s3",
-        "ble",
-        "midi",
-        "3d-print"
-      ],
-      "updated": "2026-05-19"
     },
     {
       "id": "emgor.papers",
@@ -1773,10 +1341,10 @@
       "title": "NEPTR Performance System",
       "blurb": "The instrument as it exists now — Csound on DEMIURGE, a Python interface, a Rust supervisor, no laptop onstage.",
       "parent": "emgor.papers.season-2026-27",
-      "path": "universe/papers/season-2026-27/neptr-performance-system.md",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/_index.md",
       "route": "/papers/season-2026-27/neptr-performance-system",
       "depth": 3,
-      "children": 0,
+      "children": 1,
       "downloads": [],
       "links": [
         {
@@ -1797,6 +1365,478 @@
         "icmc"
       ],
       "updated": "2026-09-21"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "title": "NEPTR",
+      "blurb": "Performance system of a modern digital luthier — the brain, and every device built around it",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/_index.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr",
+      "depth": 4,
+      "children": 13,
+      "downloads": [],
+      "links": [
+        {
+          "label": "NEPTR web (RNBO export)",
+          "url": "NEPTR.html"
+        }
+      ],
+      "tags": [
+        "instrument",
+        "guitar",
+        "raspberry-pi",
+        "csound",
+        "chuck",
+        "max",
+        "live-performance"
+      ],
+      "updated": "2026-09-29"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.4-i-gor",
+      "title": "4-i-Gor",
+      "blurb": "Teensy 4.0 quad-in / quad-out USB audio interface with MIDI",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/4-i-gor.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/4-i-gor",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "4-i-gor.ino",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/4-i-gor.ino"
+        },
+        {
+          "name": "4-i-gor-pcb.md",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/4-i-gor-pcb.md"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "audio-interface",
+        "teensy",
+        "i2s",
+        "midi",
+        "pcb"
+      ],
+      "updated": "2026-04-07"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.hyperguitar",
+      "title": "hyperGuitar",
+      "blurb": "Headless semi-hollow 6-string with a Bela Gem Multi living inside it",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/hyperguitar.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/hyperguitar",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "hyperguitar-design.md",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/hyperguitar-design.md"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "augmented-instrument",
+        "bela",
+        "guitar",
+        "dsp",
+        "hexaphonic"
+      ],
+      "updated": "2026-05-22"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.hypertrumpet",
+      "title": "hyperTrumpet",
+      "blurb": "Augmented trumpet — Teensy 4.1 sensor rig into Max, everything on channel 3",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/hypertrumpet.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/hypertrumpet",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "hypertrumpet.ino",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/hypertrumpet.ino"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "augmented-instrument",
+        "teensy",
+        "midi",
+        "max-msp",
+        "trumpet"
+      ],
+      "updated": "2026-03-27"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.neuralgrid",
+      "title": "neuralGrid",
+      "blurb": "A monome-style grid that rewrites its own interface on the downbeat",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/neuralgrid.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/neuralgrid",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "neuralgrid-protocol.md",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/neuralgrid-protocol.md"
+        },
+        {
+          "name": "neuralgrid-grid_link.ino",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/neuralgrid-grid_link.ino"
+        }
+      ],
+      "links": [
+        {
+          "label": "Dimensional architecture map",
+          "url": "neuralgrid.html"
+        }
+      ],
+      "tags": [
+        "grid",
+        "neural",
+        "raspberry-pi",
+        "esp32",
+        "nime",
+        "research"
+      ],
+      "updated": "2026-07-17"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.ofoots",
+      "title": "DUODECIMUS",
+      "blurb": "Ten-encoder foot controller — 8 pages, 64 CCs, one expression pedal",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/ofoots.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/ofoots",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "ofoots.ino",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/ofoots.ino"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "controller",
+        "midi",
+        "foot-controller",
+        "tft",
+        "neopixel"
+      ],
+      "updated": "2026-01-23"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-1",
+      "title": "Phase 1 — Pi + RNBO",
+      "blurb": "Max patches compiled onto a Raspberry Pi — the era that proved the idea",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-1/_index.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/phase-1",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "BMO.py",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-1/files/BMO.py"
+        },
+        {
+          "name": "_COMBINED_UI_YAYY.py",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-1/files/_COMBINED_UI_YAYY.py"
+        }
+      ],
+      "links": [
+        {
+          "label": "NEPTR web (RNBO export of this era)",
+          "url": "NEPTR.html"
+        }
+      ],
+      "tags": [
+        "max",
+        "rnbo",
+        "raspberry-pi",
+        "kivy",
+        "pcb",
+        "icmc"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-2",
+      "title": "Phase 2 — Csound on the Pi",
+      "blurb": "The engine rewritten by hand in Csound, with robot faces and a Bela detour",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-2/_index.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/phase-2",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "NEPTR_PHASE2_PIinto.csd",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-2/files/NEPTR_PHASE2_PIinto.csd"
+        },
+        {
+          "name": "PHASE2_UI.py",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-2/files/PHASE2_UI.py"
+        },
+        {
+          "name": "bela1-neptr-phase2.csd",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-2/files/bela1-neptr-phase2.csd"
+        },
+        {
+          "name": "FACE1.png",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-2/files/FACE1.png"
+        },
+        {
+          "name": "FACE4.png",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-2/files/FACE4.png"
+        },
+        {
+          "name": "FACE7.png",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-2/files/FACE7.png"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "csound",
+        "raspberry-pi",
+        "kivy",
+        "osc",
+        "bela",
+        "protofaces"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-3",
+      "title": "Phase 3 — ChucK",
+      "blurb": "Strongly-timed rewrite — ChuckTer, neptrSYNTH1, Teensy I/O, a new body",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/_index.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/phase-3",
+      "depth": 5,
+      "children": 1,
+      "downloads": [
+        {
+          "name": "neptrSYNTH1.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/neptrSYNTH1.ck"
+        },
+        {
+          "name": "ChuckTer_v1.2_noGL.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/ChuckTer_v1.2_noGL.ck"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "chuck",
+        "teensy",
+        "3d-print",
+        "synthesis",
+        "live-coding"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-3.cheese",
+      "title": "CHEESE",
+      "blurb": "Modular ChucK FX library — nine stereo effects, one shared brain",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-3",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/cheese.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/phase-3/cheese",
+      "depth": 6,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "chorus.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/chorus.ck"
+        },
+        {
+          "name": "delay1.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/delay1.ck"
+        },
+        {
+          "name": "phaser.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/phaser.ck"
+        },
+        {
+          "name": "reverb1.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/reverb1.ck"
+        },
+        {
+          "name": "ringmod.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/ringmod.ck"
+        },
+        {
+          "name": "spectralWah.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/spectralWah.ck"
+        },
+        {
+          "name": "pitchShifter.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/pitchShifter.ck"
+        },
+        {
+          "name": "vibrato.ck",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/vibrato.ck"
+        },
+        {
+          "name": "ANALYSIS.md",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-3/files/ANALYSIS.md"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "chuck",
+        "fx",
+        "modular",
+        "midi"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-4",
+      "title": "Phase 4 — DEMIURGE",
+      "blurb": "The current machine — Csound on a Pi 5, NAM, 19 menus, ~7 ms round trip",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-4/_index.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/phase-4",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "neptrPhase4.csd",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-4/files/neptrPhase4.csd"
+        },
+        {
+          "name": "live.conf",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/phase-4/files/live.conf"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "csound",
+        "raspberry-pi-5",
+        "nam",
+        "teensy",
+        "looper",
+        "live-performance",
+        "current"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.pocket-opgorator",
+      "title": "PMOR",
+      "blurb": "Pocket-Operator-format Daisy sampler/synth with a velocity NeoTrellis grid",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/pocket-opgorator.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/pocket-opgorator",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "pocket-opgorator-spec.md",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/pocket-opgorator-spec.md"
+        },
+        {
+          "name": "pocket-opgorator.ino",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/pocket-opgorator.ino"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "synth",
+        "sampler",
+        "daisy",
+        "neotrellis",
+        "3d-print"
+      ],
+      "updated": "2026-06-10"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.quadro-punch-packer",
+      "title": "Quadro Punch Packer",
+      "blurb": "10\" printed hemisphere speaker — 4 coaxials at the cube-vertex angle plus a sub",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/quadro-punch-packer.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/quadro-punch-packer",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "quadro-punch-packer-build.md",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/quadro-punch-packer-build.md"
+        },
+        {
+          "name": "quadro-punch-packer-circuit.png",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/quadro-punch-packer-circuit.png"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "speaker",
+        "quad",
+        "3d-print",
+        "amplifier",
+        "battery"
+      ],
+      "updated": "2026-05-08"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.speak",
+      "title": "SPEAK — neptr's voice",
+      "blurb": "Speak-&-Spell singing synth + a fully offline AI companion on a Pi",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/speak/_index.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/speak",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "persona.md",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/speak/files/persona.md"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "speech-synthesis",
+        "lpc",
+        "tms5100",
+        "llm",
+        "offline-ai",
+        "raspberry-pi"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.papers.season-2026-27.neptr-performance-system.neptr.we-remote",
+      "title": "We-Remote",
+      "blurb": "Open-source Wii remote — BLE gamepad, keyboard, and MIDI CC in one shell",
+      "parent": "emgor.papers.season-2026-27.neptr-performance-system.neptr",
+      "path": "universe/papers/season-2026-27/neptr-performance-system/neptr/we-remote.md",
+      "route": "/papers/season-2026-27/neptr-performance-system/neptr/we-remote",
+      "depth": 5,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "we-remote.ino",
+          "url": "universe/papers/season-2026-27/neptr-performance-system/neptr/files/we-remote.ino"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "controller",
+        "esp32-s3",
+        "ble",
+        "midi",
+        "3d-print"
+      ],
+      "updated": "2026-05-19"
     },
     {
       "id": "emgor.papers.season-2026-27.neuralgrid",

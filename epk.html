@@ -12,6 +12,14 @@
 </head>
 <body>
 
+    <!-- ══ PHOTO EDIT MODE ══════════════════════════════════════════════
+         1. run:  python3 tools/epk-dev.py      (from the EMGOR folder)
+         2. open: http://localhost:8777/epk.html
+         3. drop or click a frame, drag to move, scroll/pinch to zoom, ✓ done
+         Editing is automatic on localhost. To force it elsewhere, uncomment
+         the next line (never leave it on when you push):
+    <script>window.EPK_EDIT = true;</script>
+         ═══════════════════════════════════════════════════════════════ -->
     <canvas id="stars"></canvas>
     <a href="index.html" class="home-button" aria-label="home">&#8962;</a>
     <input type="file" id="picker" accept="image/*" hidden>
@@ -87,17 +95,6 @@
                 <div class="dl-col">
                     <h3>songs</h3>
                     <div id="dlSongs"></div>
-                </div>
-                <div class="dl-col">
-                    <h3>samples &mdash; home-made foley</h3>
-                    <a class="dl" href="universe/music/files/BURP.wav" download>burp</a>
-                    <a class="dl" href="universe/music/files/CRICKET_STROKE.wav" download>cricket stroke</a>
-                    <a class="dl" href="universe/music/files/FROG_HIT.wav" download>frog hit</a>
-                    <a class="dl" href="universe/music/files/KALMBA_NOTE.wav" download>kalimba note</a>
-                    <a class="dl" href="universe/music/files/MOUTH_POP.wav" download>mouth pop</a>
-                    <a class="dl" href="universe/music/files/OWL_HIT.wav" download>owl hit</a>
-                    <a class="dl" href="universe/music/files/SHMACK.wav" download>shmack</a>
-                    <a class="dl" href="universe/music/files/WATERBOTTLE_SHORT.wav" download>waterbottle</a>
                 </div>
             </div>
         </section>
