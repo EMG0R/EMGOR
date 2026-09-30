@@ -17,7 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PHOTOS = os.path.join(ROOT, 'epk', 'photos')
 LAYOUT = os.path.join(ROOT, 'epk', 'layout.json')
 DRAFT = os.path.join(ROOT, 'epk', 'layout.draft.json')
-ZIP = os.path.join(ROOT, 'epk', 'emgor-photos.zip')
+ZIP = os.path.join(ROOT, 'epk', 'emgor-media-kit.zip')
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8777
 
 def resize_jpeg(raw):
@@ -34,13 +34,16 @@ def resize_jpeg(raw):
     im.save(out, 'JPEG', quality=88, optimize=True, progressive=True)
     return out.getvalue(), im.width, im.height, 'jpg'
 
-def rebuild_zip(layout):
-    used = [s['file'] for s in layout.get('slots', []) if s.get('file')]
+def rebuild_zip(layout, bios=''):
+    frames = layout.get('frames', {})
+    used = [frames[k]['file'] for k in ('hero', 'a', 'b') if frames.get(k, {}).get('file')]
     with zipfile.ZipFile(ZIP, 'w', zipfile.ZIP_DEFLATED) as z:
         for i, rel in enumerate(used):
             p = os.path.join(ROOT, rel)
             if os.path.exists(p):
-                z.write(p, 'emgor-%02d%s' % (i + 1, os.path.splitext(rel)[1]))
+                z.write(p, 'EMGOR media kit/photos/emgor-%02d%s' % (i + 1, os.path.splitext(rel)[1]))
+        z.writestr('EMGOR media kit/bio.txt', bios or '')
+        z.writestr('EMGOR media kit/links.txt', 'EMGOR — Emory Smith\nemgor.online/epk.html\ninstagram.com/_emgor_\ngithub.com/EMG0R\nbooking & press: emorysmith02@gmail.com\n')
 
 class H(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
@@ -95,7 +98,7 @@ class H(SimpleHTTPRequestHandler):
                 json.dump(layout, f, indent=2)
             if os.path.exists(DRAFT):
                 os.remove(DRAFT)
-            rebuild_zip(layout)
+            rebuild_zip(layout, req.get('bios', ''))
             return self._json(200, {'ok': True})
         return self._json(404, {'error': 'unknown endpoint'})
 

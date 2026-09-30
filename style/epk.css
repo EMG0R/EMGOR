@@ -108,3 +108,60 @@ html.editing .frame.over { outline: 2px solid var(--ice); }
 @media (max-width: 640px) { .dl-panel { grid-template-columns: 1fr; } }
 
 .foot { text-align: center; font-size: 0.66rem; letter-spacing: 0.32em; color: var(--bone); opacity: 0.35; margin-top: 30px; }
+
+/* ─── sticky nav ─── */
+.epknav {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%) translateY(-60px); z-index: 900;
+    display: flex; gap: 2px; padding: 4px; border-radius: 999px; max-width: calc(100% - 100px); overflow-x: auto; scrollbar-width: none;
+    background: rgba(13, 2, 33, 0.85); border: 1px solid var(--line); backdrop-filter: blur(10px);
+    opacity: 0; transition: transform 0.35s ease, opacity 0.35s ease;
+}
+.epknav::-webkit-scrollbar { display: none; }
+.epknav.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+.epknav a { color: var(--bone); text-decoration: none; font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; padding: 7px 10px; border-radius: 999px; white-space: nowrap; opacity: 0.75; }
+.epknav a.on, .epknav a:hover { opacity: 1; color: var(--ice); }
+.epknav .nav-dl { background: var(--ember); color: #1a0a00; opacity: 1; font-weight: 700; }
+html.editing .epknav { display: none; }
+section[id] { scroll-margin-top: 70px; }
+
+/* ─── bio lengths ─── */
+.bio-len { position: relative; padding: 14px 0 10px; border-bottom: 1px dotted var(--line); }
+.bio-len:last-child { border-bottom: 0; }
+.bio-one { font-size: 1.1rem; line-height: 1.5; color: var(--bone); margin: 0 0 8px; }
+.copy { font: inherit; font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; padding: 5px 10px; border-radius: 999px; background: transparent; color: var(--ice); border: 1px solid rgba(125, 242, 255, 0.4); }
+.copy.done { color: #1a0a00; background: var(--ice); }
+.lede { font-size: 0.86rem; line-height: 1.7; opacity: 0.8; margin-bottom: 16px; }
+.lede a { color: var(--ice); }
+
+/* ─── instruments ─── */
+.inst-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.inst { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 12px; text-decoration: none; color: var(--bone); background: rgba(13, 2, 33, 0.5); border: 1px solid var(--line); transition: border-color 0.2s, transform 0.15s; min-height: 118px; }
+.inst b { font-size: 0.9rem; letter-spacing: 0.04em; }
+.inst span { font-size: 0.72rem; line-height: 1.5; opacity: 0.7; }
+.inst i { font-style: normal; font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ember); margin-top: auto; }
+@media (hover: hover) { .inst:hover { border-color: var(--ice); transform: translateY(-2px); } }
+@media (max-width: 640px) { .inst-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ─── papers ─── */
+.paper-list { display: flex; flex-direction: column; }
+.paper { display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; align-items: baseline; padding: 12px 0; border-bottom: 1px dotted var(--line); text-decoration: none; color: var(--bone); }
+.paper b { font-size: 0.9rem; }
+.paper span { grid-column: 1; font-size: 0.74rem; opacity: 0.65; line-height: 1.5; }
+.paper i { font-style: normal; font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ice); white-space: nowrap; }
+@media (hover: hover) { .paper:hover b { color: var(--ice); } }
+
+/* ─── live formats ─── */
+.formats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fmt { padding: 14px; border-radius: 12px; background: rgba(13, 2, 33, 0.5); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.fmt b { font-size: 0.7rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ember); }
+.fmt span { font-size: 0.82rem; line-height: 1.6; opacity: 0.85; }
+@media (max-width: 560px) { .formats { grid-template-columns: 1fr; } }
+
+/* ─── contact ─── */
+.booking { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 16px 18px; margin-bottom: 10px; border-radius: 12px; text-decoration: none; color: #1a0a00; background: var(--ember); font-weight: 700; font-size: 0.9rem; letter-spacing: 0.04em; }
+.booking small { font-weight: 400; font-size: 0.74rem; opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ─── media kit ─── */
+.dl-toggle { display: inline-block; text-decoration: none; }
+.kit-note { font-size: 0.72rem; opacity: 0.55; margin: 12px 0 14px; }
+.dl-more { font: inherit; font-size: 0.64rem; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; padding: 7px 14px; border-radius: 999px; background: transparent; color: var(--ice); border: 1px solid rgba(125, 242, 255, 0.4); }

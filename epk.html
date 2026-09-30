@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0D0221">
     <meta name="description" content="EMGOR — Emory Smith. Artist press kit: bio, photos, music, downloads, and links.">
-    <link rel="stylesheet" href="style/base.css">
-    <link rel="stylesheet" href="style/player.css">
-    <link rel="stylesheet" href="style/epk.css">
+    <link rel="stylesheet" href="style/base.css?v=20260930">
+    <link rel="stylesheet" href="style/player.css?v=20260930">
+    <link rel="stylesheet" href="style/epk.css?v=20260930">
     <title>epk</title>
 </head>
 <body>
@@ -24,6 +24,10 @@
     <a href="index.html" class="home-button" aria-label="home">&#8962;</a>
     <input type="file" id="picker" accept="image/*" hidden>
 
+    <nav id="epknav" class="epknav" aria-label="sections">
+        <a href="#bio">bio</a><a href="#instruments">instruments</a><a href="#listen">listen</a><a href="#watch">watch</a><a href="#papers">papers</a><a href="#live">live</a><a href="#contact">contact</a><a href="#downloads" class="nav-dl">&#8681; kit</a>
+    </nav>
+
     <div id="editbar" class="editbar" hidden>
         <span class="editbar-status" id="editStatus">editing</span>
         <button type="button" id="publish" class="eb-btn eb-ok">&#10003; done</button>
@@ -39,11 +43,26 @@
 
         <figure class="frame frame-hero" data-frame="hero"></figure>
 
-        <section class="bio">
+        <section class="bio" id="bio">
             <h2>bio</h2>
-            <p>Emory Smith, known as EMGOR, is a digital luthier and audio-visual programmer in Los Angeles. He builds his instruments end to end: the DSP, the microcontroller firmware, the touch interfaces, and the 3D-printed bodies.</p>
-            <p>At the center of his live rig is NEPTR, a Csound effects brain on a Raspberry Pi running his own audio-first operating system, DEMIURGE. Around it orbit a hex-pickup hyperGuitar, the PMOR pocket groovebox, the neuralGrid gesture surface, and the DUODECIMUS foot controller. All of it is published open source.</p>
-            <p>He works in Csound, ChucK, Max/MSP, Faust, Pure Data and SuperCollider, studies in the Music Technology program at CalArts, and plays in the Machine Lab robot orchestra. His research targets NIME, ICMC and ICSC. As a guitarist he plays surf rock and generative ambient.</p>
+            <div class="bio-len">
+                <p class="bio-one" data-copy="one-line">EMGOR (Emory Smith) is a Los Angeles digital luthier who builds his own instruments end to end and plays them.</p>
+                <button type="button" class="copy" data-target="one-line">copy</button>
+            </div>
+            <div class="bio-len">
+                <div data-copy="short">
+                <p>Emory Smith, known as EMGOR, is a digital luthier and audio-visual programmer in Los Angeles. He builds his instruments end to end, from the DSP and firmware to the touch interfaces and 3D-printed bodies, and performs on them with guitar. At the center of his rig is NEPTR, a Csound effects brain on a Raspberry Pi running his own operating system. He studies music technology at CalArts, plays in the Machine Lab robot orchestra, and publishes everything open source.</p>
+                </div>
+                <button type="button" class="copy" data-target="short">copy short</button>
+            </div>
+            <div class="bio-len">
+                <div data-copy="long">
+                <p>Emory Smith, known as EMGOR, is a digital luthier and audio-visual programmer in Los Angeles. He builds his instruments end to end: the DSP, the microcontroller firmware, the touch interfaces, and the 3D-printed bodies.</p>
+                <p>At the center of his live rig is NEPTR, a Csound effects brain on a Raspberry Pi running his own audio-first operating system, DEMIURGE. Around it orbit a hex-pickup hyperGuitar, the PMOR pocket groovebox, the neuralGrid gesture surface, and the DUODECIMUS foot controller. All of it is published open source.</p>
+                <p>He works in Csound, ChucK, Max/MSP, Faust, Pure Data and SuperCollider, studies in the Music Technology program at CalArts, and plays in the Machine Lab robot orchestra. His research targets NIME, ICMC and ICSC. As a guitarist he plays surf rock and generative ambient.</p>
+                </div>
+                <button type="button" class="copy" data-target="long">copy long</button>
+            </div>
         </section>
 
         <div class="frame-pair">
@@ -51,7 +70,13 @@
             <figure class="frame frame-sq" data-frame="b"></figure>
         </div>
 
-        <section class="listen">
+        <section class="instruments" id="instruments">
+            <h2>instruments</h2>
+            <p class="lede">Every device onstage was built by hand. Each one is a planet in the <a href="index.html">EMGOR universe</a> with its source, wiring, and print files.</p>
+            <div id="instrumentGrid" class="inst-grid"></div>
+        </section>
+
+        <section class="listen" id="listen">
             <h2>listen</h2>
             <div id="player" data-player data-peaks="resources/peaks.json" data-tracks='[
                 {"name":"our world","src":"resources/epk/our-world.wav"},
@@ -63,7 +88,7 @@
             ]'></div>
         </section>
 
-        <section class="watch">
+        <section class="watch" id="watch">
             <h2>watch</h2>
             <div class="videos">
                 <figure><video controls playsinline preload="none"><source src="resources/spiderverse.mov" type="video/mp4"></video><figcaption>spiderverse</figcaption></figure>
@@ -72,24 +97,41 @@
             </div>
         </section>
 
-        <section class="elsewhere">
-            <h2>elsewhere</h2>
+        <section class="papers" id="papers">
+            <h2>papers &amp; talks</h2>
+            <div id="paperList" class="paper-list"></div>
+        </section>
+
+        <section class="live" id="live">
+            <h2>live</h2>
+            <div class="formats">
+                <div class="fmt"><b>solo set</b><span>guitar through NEPTR and the hyperGuitar rig. no laptop onstage. 20 to 60 minutes.</span></div>
+                <div class="fmt"><b>lecture-demo</b><span>the instruments, how they were built, and what they sound like, played live. 30 to 60 minutes.</span></div>
+                <div class="fmt"><b>generative / installation</b><span>an ambient system running unattended for as long as the room is open.</span></div>
+                <div class="fmt"><b>needs</b><span>one stereo pair into the house (or a guitar amp), one power drop, a small table.</span></div>
+            </div>
+        </section>
+
+        <section class="elsewhere" id="contact">
+            <h2>contact &amp; elsewhere</h2>
+            <a class="booking" href="mailto:emorysmith02@gmail.com?subject=EMGOR%20booking"><span>booking &amp; press</span><small>emorysmith02@gmail.com</small></a>
             <div class="links">
                 <a class="link" href="https://www.instagram.com/_emgor_" target="_blank" rel="noopener"><span>instagram</span><small>@_emgor_</small></a>
                 <a class="link" href="https://untitled.stream/library/project/veJMUkIpWRg3UQLCy4h4g" target="_blank" rel="noopener"><span>untitled.stream</span><small>main</small></a>
                 <a class="link" href="it-is.html"><span>it is</span><small>ep &middot; all platforms</small></a>
                 <a class="link" href="https://distrokid.com/hyperfollow/fivemonthsinaday/five-months-in-a-day" target="_blank" rel="noopener"><span>five months in a day</span><small>released</small></a>
                 <a class="link" href="https://github.com/EMG0R" target="_blank" rel="noopener"><span>github</span><small>EMG0R</small></a>
-                <a class="link" href="mailto:emorysmith02@gmail.com"><span>email</span><small>emorysmith02@gmail.com</small></a>
             </div>
         </section>
 
-        <section class="downloads">
-            <button type="button" id="dlToggle" class="dl-toggle" aria-expanded="false" aria-controls="dlPanel">&#8681; downloads</button>
+        <section class="downloads" id="downloads">
+            <a class="dl-toggle" id="dlKit" href="epk/emgor-media-kit.zip" download>&#8681; media kit</a>
+            <p class="kit-note">photos, all three bios as text, links. songs below, one by one.</p>
+            <button type="button" id="dlToggle" class="dl-more" aria-expanded="false" aria-controls="dlPanel">individual files</button>
             <div id="dlPanel" class="dl-panel" hidden>
                 <div class="dl-col">
                     <h3>photos</h3>
-                    <a class="dl" id="dlZip" href="epk/emgor-photos.zip" download>all photos (zip)</a>
+                    <a class="dl" id="dlZip" href="epk/emgor-media-kit.zip" download>media kit (zip)</a>
                     <div id="dlPhotos"></div>
                 </div>
                 <div class="dl-col">

@@ -188,7 +188,7 @@
     editbar.hidden = false;
     document.getElementById('publish').addEventListener('click', function () {
       setStatus('publishing…');
-      post('/__epk/publish', { layout: state })
+      post('/__epk/publish', { layout: state, bios: Array.prototype.map.call(document.querySelectorAll('[data-copy]'), function (el) { return el.dataset.copy.toUpperCase() + '\n\n' + el.innerText.trim(); }).join('\n\n\n') })
         .then(function () { setStatus('✓ saved to epk/layout.json — tell claude to push'); })
         .catch(function () { setStatus('publish failed — start: python3 tools/epk-dev.py'); });
     });
@@ -209,4 +209,64 @@
       if (wantEdit) enableEditor();
       render();
     });
+})();
+
+// ── EPK extras: sticky nav, copy bios, instruments + papers pulled from the galaxy ──
+(function () {
+  var nav = document.getElementById('epknav');
+  var links = nav ? Array.prototype.slice.call(nav.querySelectorAll('a[href^="#"]')) : [];
+  function onScroll() {
+    if (!nav) return;
+    nav.classList.toggle('show', scrollY > 260);
+    var cur = null;
+    links.forEach(function (a) {
+      var el = document.querySelector(a.getAttribute('href'));
+      if (el && el.getBoundingClientRect().top <= 90) cur = a;
+    });
+    links.forEach(function (a) { a.classList.toggle('on', a === cur); });
+  }
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  Array.prototype.forEach.call(document.querySelectorAll('.copy'), function (btn) {
+    btn.addEventListener('click', function () {
+      var src = document.querySelector('[data-copy="' + btn.dataset.target + '"]');
+      var text = src ? src.innerText.trim() : '';
+      var done = function () { var t = btn.textContent; btn.textContent = 'copied'; btn.classList.add('done'); setTimeout(function () { btn.textContent = t; btn.classList.remove('done'); }, 1400); };
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done);
+      else { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done(); }
+    });
+  });
+
+  var NEPTR = 'emgor.papers.season-2026-27.neptr-performance-system.neptr';
+  var SEASON = 'emgor.papers.season-2026-27';
+  var DEVICES = ['hyperguitar', 'hypertrumpet', 'neuralgrid', 'pocket-opgorator', 'ofoots', 'quadro-punch-packer', '4-i-gor', 'we-remote'];
+  fetch('galaxy.json').then(function (r) { return r.json(); }).then(function (g) {
+    var nodes = g.nodes || g;
+    var byId = {}; nodes.forEach(function (n) { byId[n.id] = n; });
+    var grid = document.getElementById('instrumentGrid');
+    if (grid) {
+      var items = [byId[NEPTR]].concat(DEVICES.map(function (d) { return byId[NEPTR + '.' + d]; })).filter(Boolean);
+      items.forEach(function (n) {
+        var a = document.createElement('a');
+        a.className = 'inst'; a.href = 'index.html#' + n.route;
+        a.innerHTML = '<b></b><span></span><i>open planet</i>';
+        a.querySelector('b').textContent = n.title;
+        a.querySelector('span').textContent = n.blurb || '';
+        grid.appendChild(a);
+      });
+    }
+    var list = document.getElementById('paperList');
+    if (list) {
+      nodes.filter(function (n) { return n.parent === SEASON; }).forEach(function (n) {
+        var read = (n.links || []).filter(function (l) { return /read/i.test(l.label); })[0];
+        var a = document.createElement('a');
+        a.className = 'paper'; a.href = read ? read.url : 'index.html#' + n.route;
+        a.innerHTML = '<b></b><i></i><span></span>';
+        a.querySelector('b').textContent = n.title;
+        a.querySelector('i').textContent = read ? 'read' : 'planet';
+        a.querySelector('span').textContent = n.blurb || '';
+        list.appendChild(a);
+      });
+    }
+  }).catch(function () {});
 })();
