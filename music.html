@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
     <link rel="stylesheet" href="style/base.css">
+    <link rel="stylesheet" href="style/player.css">
     <link rel="stylesheet" href="style/music.css">
     <title>EMGOR</title>
 </head>
@@ -19,44 +20,7 @@
 
     <p style="text-align:center; color:white; font-family:'Courier New',monospace; margin:10px 0 5px 0; opacity:0.7; font-size:0.85rem;">music i have produced/written</p>
 
-    <div id="track-list" class="track-list">
-        <div class="track-row" data-src="resources/anxiety.wav">
-            <button class="track-play">&#9654;</button>
-            <span class="track-name">anxiety</span>
-            <div class="track-scrubber"><div class="track-progress"></div></div>
-            <span class="track-time">0:00</span>
-        </div>
-        <div class="track-row" data-src="resources/okay.wav">
-            <button class="track-play">&#9654;</button>
-            <span class="track-name">okay</span>
-            <div class="track-scrubber"><div class="track-progress"></div></div>
-            <span class="track-time">0:00</span>
-        </div>
-        <div class="track-row" data-src="resources/matthew.wav">
-            <button class="track-play">&#9654;</button>
-            <span class="track-name">matthew</span>
-            <div class="track-scrubber"><div class="track-progress"></div></div>
-            <span class="track-time">0:00</span>
-        </div>
-        <div class="track-row" data-src="resources/fitmk.wav">
-            <button class="track-play">&#9654;</button>
-            <span class="track-name">fitmk</span>
-            <div class="track-scrubber"><div class="track-progress"></div></div>
-            <span class="track-time">0:00</span>
-        </div>
-        <div class="track-row" data-src="resources/mashup.wav">
-            <button class="track-play">&#9654;</button>
-            <span class="track-name">mashup</span>
-            <div class="track-scrubber"><div class="track-progress"></div></div>
-            <span class="track-time">0:00</span>
-        </div>
-        <div class="track-row" data-src="resources/sad.wav">
-            <button class="track-play">&#9654;</button>
-            <span class="track-name">sad</span>
-            <div class="track-scrubber"><div class="track-progress"></div></div>
-            <span class="track-time">0:00</span>
-        </div>
-    </div>
+    <div class="track-list" data-player data-tracks='[{"name":"anxiety","src":"resources/anxiety.wav"},{"name":"okay","src":"resources/okay.wav"},{"name":"matthew","src":"resources/matthew.wav"},{"name":"fitmk","src":"resources/fitmk.wav"},{"name":"mashup","src":"resources/mashup.wav"},{"name":"sad","src":"resources/sad.wav"}]'></div>
 
     <div class="video-container">
 
@@ -107,7 +71,7 @@
 
     </div>
 
-    <script src="js/music.js"></script>
+    <script src="js/player.js"></script>
     <script src="js/lava.js"></script>
     <script src="js/space.js"></script>
     <div style="height: 100px;"></div>

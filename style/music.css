@@ -15,102 +15,9 @@ h1 {
 }
 
 .track-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
     width: 90%;
     max-width: 600px;
     margin: 10px auto 40px auto;
-    padding: 0;
-}
-
-.track-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    padding: 8px 0;
-}
-
-.track-play {
-    width: 48px;
-    height: 40px;
-    flex-shrink: 0;
-    color: white;
-    background-color: var(--purple-mid);
-    border: 2px solid var(--purple-light);
-    border-radius: 8px;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 1.1em;
-    font-weight: bold;
-    cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: background-color 0.3s ease, transform 0.2s ease;
-    -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
-    touch-action: manipulation;
-}
-
-@media (hover: hover) {
-    .track-play:hover {
-        background-color: var(--purple-light);
-        transform: scale(1.08);
-    }
-}
-
-.track-play:active {
-    background-color: var(--purple-darker);
-    transform: scale(0.95);
-}
-
-.track-play.playing {
-    background-color: var(--purple-light);
-    border-color: white;
-}
-
-.track-name {
-    font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.8);
-    min-width: 70px;
-    text-align: left;
-    flex-shrink: 0;
-    letter-spacing: 1px;
-    text-transform: lowercase;
-}
-
-.track-scrubber {
-    flex: 1;
-    height: 10px;
-    background-color: var(--purple-darker);
-    border: 2px solid var(--purple-light);
-    border-radius: 5px;
-    position: relative;
-    overflow: hidden;
-    cursor: pointer;
-    min-width: 80px;
-    touch-action: none;
-}
-
-.track-progress {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(to right, var(--purple-mid), var(--purple-light));
-    border-radius: 3px;
-    transition: none;
-    pointer-events: none;
-}
-
-.track-time {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
-    min-width: 40px;
-    text-align: right;
-    flex-shrink: 0;
-    font-variant-numeric: tabular-nums;
 }
 
 .video-container {
@@ -155,22 +62,6 @@ h1 {
 }
 
 @media (max-width: 600px) {
-    .track-row {
-        gap: 8px;
-    }
-    .track-name {
-        min-width: 55px;
-        font-size: 0.8rem;
-    }
-    .track-play {
-        width: 42px;
-        height: 36px;
-        font-size: 1em;
-    }
-    .track-time {
-        min-width: 35px;
-        font-size: 0.7rem;
-    }
     .track-list {
         width: 95%;
     }
