@@ -1,6 +1,6 @@
 /* APK — artist press kit. Stars behind, one tight column, photo bento. */
 html, body { justify-content: flex-start; overflow-x: hidden; overflow-y: auto; height: auto; min-height: 100%; }
-body { background: transparent; }
+body { background: transparent; width: 100%; max-width: 100%; }
 
 .apk {
     width: min(100% - 32px, 760px);
@@ -132,3 +132,5 @@ html.editing .photos.over .drop-hint { border-color: var(--cyan); color: var(--c
 @media (max-width: 520px) { .dl-panel { grid-template-columns: 1fr; } }
 
 .foot { text-align: center; font-size: 0.7rem; letter-spacing: 0.3em; color: var(--lavender); opacity: 0.45; margin-top: 30px; }
+
+[hidden] { display: none !important; }
