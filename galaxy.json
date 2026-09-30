@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-25",
+  "generated": "2026-09-30",
   "nodes": [
     {
       "id": "emgor",
@@ -9,7 +9,7 @@
       "path": "universe/_index.md",
       "route": "/",
       "depth": 0,
-      "children": 9,
+      "children": 10,
       "downloads": [],
       "links": [],
       "tags": [
@@ -667,6 +667,27 @@
         "3d-print"
       ],
       "updated": "2026-05-19"
+    },
+    {
+      "id": "emgor.info",
+      "title": "INFO",
+      "blurb": "Links, contact, and everywhere else the work lives",
+      "parent": "emgor",
+      "path": "universe/info/_index.md",
+      "route": "/info",
+      "depth": 1,
+      "children": 0,
+      "downloads": [],
+      "links": [],
+      "tags": [
+        "info",
+        "links",
+        "contact",
+        "instagram"
+      ],
+      "updated": "2026-09-29",
+      "size": 1.2,
+      "launch": "apk.html"
     },
     {
       "id": "emgor.latency-test",

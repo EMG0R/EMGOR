@@ -1,0 +1,81 @@
+html, body {
+    justify-content: flex-start;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+h1 {
+    letter-spacing: 2px;
+}
+
+.apk-sub {
+    text-align: center;
+    color: white;
+    font-family: 'Courier New', Courier, monospace;
+    margin: 10px 0 5px 0;
+    opacity: 0.7;
+    font-size: 0.85rem;
+}
+
+.apk-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 90%;
+    max-width: 600px;
+    margin: 24px auto 40px auto;
+    padding: 0;
+}
+
+.apk-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 12px 14px;
+    color: white;
+    text-decoration: none;
+    background-color: var(--purple-mid);
+    border: 2px solid var(--purple-light);
+    border-radius: 8px;
+    font-family: 'Courier New', Courier, monospace;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3);
+    touch-action: manipulation;
+}
+
+@media (hover: hover) {
+    .apk-row:hover {
+        background-color: var(--purple-light);
+        transform: scale(1.02);
+    }
+}
+
+.apk-row:active {
+    background-color: var(--purple-darker);
+    transform: scale(0.98);
+}
+
+.apk-row svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    opacity: 0.9;
+}
+
+.apk-name {
+    font-size: 0.95rem;
+    letter-spacing: 1px;
+    text-transform: lowercase;
+    flex-shrink: 0;
+}
+
+.apk-handle {
+    margin-left: auto;
+    font-size: 0.8rem;
+    opacity: 0.6;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
