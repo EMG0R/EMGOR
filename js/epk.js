@@ -13,14 +13,8 @@
   var local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   var wantEdit = local || q.has('edit') || window.EPK_EDIT === true;
 
-  function slotOf(key) { return state.frames[key] || (state.frames[key] = { file: null, fx: 0, fy: 0, s: 1, ar: 'photo' }); }
-  var RATIOS = { photo: null, '1:1': 1, '4:5': 0.8, '3:4': 0.75, '16:10': 1.6 };
-  function applyAspect(slot, el) {
-    var img = el.querySelector('img');
-    var r = RATIOS[slot.ar || 'photo'];
-    if (r == null && img && img.naturalWidth) r = img.naturalWidth / img.naturalHeight;
-    el.style.aspectRatio = r ? String(r) : '';
-  }
+  function slotOf(key) { return state.frames[key] || (state.frames[key] = { file: null, fx: 0, fy: 0, s: 1 }); }
+  function applyAspect() {} // frame sizes are fixed in CSS: hero 4:5, pair 1:1 — same on every device
 
   function applyTransform(slot, el) {
     var img = el.querySelector('img');
@@ -93,12 +87,6 @@
     if (slot.file) {
       var tools = document.createElement('div');
       tools.className = 'fr-tools';
-      Object.keys(RATIOS).forEach(function (r) {
-        var b = document.createElement('button');
-        b.type = 'button'; b.textContent = r; b.className = (slot.ar || 'photo') === r ? 'on' : '';
-        b.addEventListener('click', function (e) { e.stopPropagation(); slot.ar = r; render(); saveDraft(); });
-        tools.appendChild(b);
-      });
       var swap = document.createElement('button');
       swap.type = 'button'; swap.textContent = 'replace';
       swap.addEventListener('click', function (e) { e.stopPropagation(); pickTarget = key; picker.click(); });
