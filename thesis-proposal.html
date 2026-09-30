@@ -395,9 +395,9 @@ bh.add(new THREE.Mesh(new THREE.IcosahedronGeometry(CORE, 6), horizonMat));
 // ── orbit rig: yaw/pitch/dist, drag to spin, gentle inertia ────────────────
 let W = 0, H = 0, DIST = 0;
 let yaw = 0.3, pitch = 0.62, yawV = 0, pitchV = 0, dragging = false, lx = 0, ly = 0;
-function place(){ camera.position.set(Math.sin(yaw)*Math.cos(pitch)*DIST, Math.sin(pitch)*DIST, Math.cos(yaw)*Math.cos(pitch)*DIST); camera.lookAt(0, -7.4, 0); }
+function place(){ camera.position.set(Math.sin(yaw)*Math.cos(pitch)*DIST, Math.sin(pitch)*DIST, Math.cos(yaw)*Math.cos(pitch)*DIST); camera.lookAt(0, -5.4, 0); }
 function resize(){ W = canvas.clientWidth; H = canvas.clientHeight; renderer.setSize(W, H, false); camera.aspect = W/H; camera.updateProjectionMatrix();
-  DIST = 7.7 / Math.tan((42*Math.PI/180)/2) * Math.max(1, 1.55 / camera.aspect); place(); }
+  DIST = 5.6 / Math.tan((42*Math.PI/180)/2) * Math.max(1, 1.55 / camera.aspect); place(); }
 addEventListener('resize', resize); resize();
 canvas.style.cursor = 'grab'; canvas.style.touchAction = 'pan-y';
 canvas.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; });
