@@ -1,34 +1,26 @@
+// EMGOR in-site audio player. Title over a waveform you can scrub, one track at a time page-wide.
+// Usage: <div data-player data-peaks="resources/peaks.json" data-tracks='[{"name":"..","src":".."}]'></div>
+//        or EmgorPlayer.mount(el, tracks, { peaks: {src: [..]} })
 (function () {
     'use strict';
 
-    // shared "only one track plays at a time" state across every mounted player
-    var active = null; // { audio, btn, row, fill, timeEl }
+    var active = null;
+    var DPR = Math.min(window.devicePixelRatio || 1, 2);
+    var COL_DIM = 'rgba(192,132,252,0.32)', COL_PLAY = '#C084FC', COL_HOVER = 'rgba(224,170,255,0.55)';
 
     function formatTime(s) {
         if (!s || !isFinite(s)) return '0:00';
-        var m = Math.floor(s / 60);
-        var sec = Math.floor(s % 60);
+        var m = Math.floor(s / 60), sec = Math.floor(s % 60);
         return m + ':' + (sec < 10 ? '0' : '') + sec;
     }
 
-    function stopActive() {
-        if (!active) return;
-        active.audio.pause();
-        try { active.audio.currentTime = 0; } catch (e) {}
-        active.btn.textContent = '▶';
-        active.btn.classList.remove('playing');
-        active.fill.style.width = '0%';
-        active.bar.setAttribute('aria-valuenow', '0');
-        active.timeEl.textContent = '0:00 / ' + formatTime(active.audio.duration);
-        active = null;
-    }
+    function flatPeaks() { var a = []; for (var i = 0; i < 160; i++) a.push(0.35 + 0.15 * Math.sin(i * 0.4)); return a; }
 
     function mount(container, tracks, opts) {
-        if (typeof container === 'string') {
-            container = document.querySelector(container);
-        }
+        if (typeof container === 'string') container = document.querySelector(container);
         if (!container || !tracks || !tracks.length) return;
         opts = opts || {};
+        var peaksMap = opts.peaks || {};
 
         var wrap = document.createElement('div');
         wrap.className = 'ep';
@@ -38,139 +30,138 @@
             row.className = 'ep-row';
 
             var btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'ep-play';
-            btn.textContent = '▶';
+            btn.type = 'button'; btn.className = 'ep-play'; btn.innerHTML = '&#9654;';
             btn.setAttribute('aria-label', 'play ' + track.name);
 
+            var body = document.createElement('div');
+            body.className = 'ep-body';
+
+            var head = document.createElement('div');
+            head.className = 'ep-head';
             var name = document.createElement('span');
-            name.className = 'ep-name';
-            name.textContent = track.name;
-
-            var bar = document.createElement('div');
-            bar.className = 'ep-bar';
-            bar.setAttribute('role', 'slider');
-            bar.setAttribute('tabindex', '0');
-            bar.setAttribute('aria-label', track.name + ' scrubber');
-            bar.setAttribute('aria-valuemin', '0');
-            bar.setAttribute('aria-valuemax', '100');
-            bar.setAttribute('aria-valuenow', '0');
-
-            var fill = document.createElement('div');
-            fill.className = 'ep-fill';
-            bar.appendChild(fill);
-
+            name.className = 'ep-name'; name.textContent = track.name;
             var timeEl = document.createElement('span');
-            timeEl.className = 'ep-time';
-            timeEl.textContent = '0:00';
-
-            row.appendChild(btn);
-            row.appendChild(name);
-            row.appendChild(bar);
-            row.appendChild(timeEl);
-
+            timeEl.className = 'ep-time'; timeEl.textContent = '0:00';
+            head.appendChild(name); head.appendChild(timeEl);
             if (track.download) {
                 var dl = document.createElement('a');
-                dl.className = 'ep-dl';
-                dl.href = track.src;
-                dl.setAttribute('download', '');
-                dl.textContent = '⤓';
-                dl.setAttribute('aria-label', 'download ' + track.name);
-                row.appendChild(dl);
+                dl.className = 'ep-dl'; dl.href = track.src; dl.setAttribute('download', '');
+                dl.innerHTML = '&#10515;'; dl.setAttribute('aria-label', 'download ' + track.name);
+                head.appendChild(dl);
             }
 
+            var wave = document.createElement('canvas');
+            wave.className = 'ep-wave';
+            wave.setAttribute('role', 'slider'); wave.setAttribute('tabindex', '0');
+            wave.setAttribute('aria-label', track.name + ' scrubber');
+            wave.setAttribute('aria-valuemin', '0'); wave.setAttribute('aria-valuemax', '100'); wave.setAttribute('aria-valuenow', '0');
+
+            body.appendChild(head); body.appendChild(wave);
+            row.appendChild(btn); row.appendChild(body);
             wrap.appendChild(row);
 
-            var audio = null;
-            var scrubbing = false;
+            var peaks = track.peaks || peaksMap[track.src] || null;
+            var audio = null, frac = 0, hover = -1, pendingSeek = -1, scrubbing = false;
+            var ctx = wave.getContext('2d'), W = 0, H = 0;
 
-            function ensureAudio() {
-                if (!audio) {
-                    audio = new Audio(track.src);
-                    audio.preload = 'none';
-
-                    audio.addEventListener('loadedmetadata', function () {
-                        timeEl.textContent = formatTime(audio.currentTime) + ' / ' + formatTime(audio.duration);
-                    });
-
-                    audio.addEventListener('timeupdate', function () {
-                        if (!audio.duration) return;
-                        var pct = (audio.currentTime / audio.duration) * 100;
-                        fill.style.width = pct + '%';
-                        bar.setAttribute('aria-valuenow', String(Math.round(pct)));
-                        timeEl.textContent = formatTime(audio.currentTime) + ' / ' + formatTime(audio.duration);
-                    });
-
-                    audio.addEventListener('ended', function () {
-                        stopActive();
-                    });
+            function draw() {
+                var p = peaks || flatPeaks();
+                ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+                ctx.clearRect(0, 0, W, H);
+                var n = p.length, bw = W / n, gap = Math.min(1.5, bw * 0.3), mid = H / 2;
+                for (var i = 0; i < n; i++) {
+                    var x = i * bw, pos = (i + 0.5) / n;
+                    var h = Math.max(2, p[i] * (H - 4));
+                    ctx.fillStyle = pos <= frac ? COL_PLAY : (hover >= 0 && pos <= hover ? COL_HOVER : COL_DIM);
+                    ctx.fillRect(x + gap / 2, mid - h / 2, bw - gap, h);
                 }
+            }
+            function size() {
+                var r = wave.getBoundingClientRect();
+                if (!r.width) return;
+                W = r.width; H = r.height;
+                wave.width = Math.round(W * DPR); wave.height = Math.round(H * DPR);
+                draw();
+            }
+            if (window.ResizeObserver) new ResizeObserver(size).observe(wave); else addEventListener('resize', size);
+            setTimeout(size, 0);
+
+            function setFrac(f) {
+                frac = Math.max(0, Math.min(1, f));
+                wave.setAttribute('aria-valuenow', String(Math.round(frac * 100)));
+                draw();
+            }
+            function reset() {
+                btn.innerHTML = '&#9654;'; btn.classList.remove('playing');
+                setFrac(0);
+                timeEl.textContent = '0:00' + (audio && audio.duration ? ' / ' + formatTime(audio.duration) : '');
+            }
+            function ensureAudio() {
+                if (audio) return audio;
+                audio = new Audio();
+                audio.preload = 'metadata';
+                audio.src = track.src;
+                audio.addEventListener('loadedmetadata', function () {
+                    if (pendingSeek >= 0) { audio.currentTime = pendingSeek * audio.duration; pendingSeek = -1; }
+                    timeEl.textContent = formatTime(audio.currentTime) + ' / ' + formatTime(audio.duration);
+                });
+                audio.addEventListener('timeupdate', function () {
+                    if (!audio.duration || scrubbing) return;
+                    setFrac(audio.currentTime / audio.duration);
+                    timeEl.textContent = formatTime(audio.currentTime) + ' / ' + formatTime(audio.duration);
+                });
+                audio.addEventListener('ended', function () { if (active && active.audio === audio) { active = null; } reset(); });
                 return audio;
             }
-
-            function primeMetadata() {
-                var a = ensureAudio();
-                if (a.preload === 'none') {
-                    a.preload = 'metadata';
-                }
+            function stopOthers() {
+                if (active && active.audio !== audio) { active.audio.pause(); active.reset(); active = null; }
             }
-
-            btn.addEventListener('mouseenter', primeMetadata);
-            btn.addEventListener('focus', primeMetadata);
-            bar.addEventListener('mouseenter', primeMetadata);
-            bar.addEventListener('focus', primeMetadata);
-
+            function play() {
+                var a = ensureAudio();
+                stopOthers();
+                active = { audio: a, reset: reset };
+                a.play();
+                btn.innerHTML = '&#9209;'; btn.classList.add('playing');
+            }
             btn.addEventListener('click', function () {
                 var a = ensureAudio();
-                if (active && active.audio === a && !a.paused) {
-                    stopActive();
-                    return;
-                }
-                stopActive();
-                active = { audio: a, btn: btn, row: row, fill: fill, bar: bar, timeEl: timeEl };
-                a.play();
-                btn.textContent = '⏹';
-                btn.classList.add('playing');
+                if (!a.paused) { a.pause(); btn.innerHTML = '&#9654;'; btn.classList.remove('playing'); return; }
+                play();
             });
 
-            function seekFromClientX(clientX) {
+            function seekTo(f) {
+                f = Math.max(0, Math.min(1, f));
                 var a = ensureAudio();
-                var rect = bar.getBoundingClientRect();
-                var x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-                var pct = rect.width ? (x / rect.width) : 0;
-                if (a.duration) {
-                    a.currentTime = pct * a.duration;
-                    fill.style.width = (pct * 100) + '%';
-                    bar.setAttribute('aria-valuenow', String(Math.round(pct * 100)));
-                }
+                setFrac(f);
+                if (a.duration) { a.currentTime = f * a.duration; timeEl.textContent = formatTime(a.currentTime) + ' / ' + formatTime(a.duration); }
+                else pendingSeek = f;
             }
+            function fracFromEvent(e) { var r = wave.getBoundingClientRect(); return r.width ? (e.clientX - r.left) / r.width : 0; }
 
-            bar.addEventListener('pointerdown', function (e) {
-                scrubbing = true;
-                try { bar.setPointerCapture(e.pointerId); } catch (err) {}
-                seekFromClientX(e.clientX);
+            wave.addEventListener('pointerdown', function (e) {
+                e.preventDefault(); scrubbing = true;
+                try { wave.setPointerCapture(e.pointerId); } catch (err) {}
+                seekTo(fracFromEvent(e));
             });
-            bar.addEventListener('pointermove', function (e) {
-                if (scrubbing) seekFromClientX(e.clientX);
+            wave.addEventListener('pointermove', function (e) {
+                if (scrubbing) seekTo(fracFromEvent(e));
+                else if (e.pointerType === 'mouse') { hover = fracFromEvent(e); draw(); }
             });
-            bar.addEventListener('pointerup', function (e) {
+            function end(e) {
+                if (!scrubbing) return;
                 scrubbing = false;
-                try { bar.releasePointerCapture(e.pointerId); } catch (err) {}
-            });
-            bar.addEventListener('pointercancel', function () {
-                scrubbing = false;
-            });
-
-            bar.addEventListener('keydown', function (e) {
+                try { wave.releasePointerCapture(e.pointerId); } catch (err) {}
                 var a = ensureAudio();
-                if (!a.duration) return;
-                if (e.key === 'ArrowLeft') {
-                    a.currentTime = Math.max(0, a.currentTime - 5);
-                    e.preventDefault();
-                } else if (e.key === 'ArrowRight') {
-                    a.currentTime = Math.min(a.duration, a.currentTime + 5);
-                    e.preventDefault();
-                }
+                if (a.paused) play();
+            }
+            wave.addEventListener('pointerup', end);
+            wave.addEventListener('pointercancel', function () { scrubbing = false; });
+            wave.addEventListener('pointerleave', function () { hover = -1; draw(); });
+            wave.addEventListener('keydown', function (e) {
+                var a = ensureAudio();
+                if (e.key === 'ArrowLeft') { seekTo(frac - (a.duration ? 5 / a.duration : 0.02)); e.preventDefault(); }
+                else if (e.key === 'ArrowRight') { seekTo(frac + (a.duration ? 5 / a.duration : 0.02)); e.preventDefault(); }
+                else if (e.key === ' ' || e.key === 'Enter') { btn.click(); e.preventDefault(); }
             });
         });
 
@@ -180,21 +171,19 @@
 
     function autoMount() {
         var nodes = document.querySelectorAll('[data-player]');
-        nodes.forEach(function (node) {
-            var raw = node.getAttribute('data-tracks');
-            if (!raw) return;
+        Array.prototype.forEach.call(nodes, function (node) {
             var tracks;
-            try {
-                tracks = JSON.parse(raw);
-            } catch (e) {
-                return;
-            }
-            if (!Array.isArray(tracks)) return;
-            mount(node, tracks, {});
+            try { tracks = JSON.parse(node.getAttribute('data-tracks') || '[]'); } catch (e) { return; }
+            if (!Array.isArray(tracks) || !tracks.length) return;
+            var src = node.getAttribute('data-peaks');
+            if (src) {
+                fetch(src).then(function (r) { return r.json(); })
+                    .then(function (peaks) { mount(node, tracks, { peaks: peaks }); })
+                    .catch(function () { mount(node, tracks, {}); });
+            } else mount(node, tracks, {});
         });
     }
 
     window.EmgorPlayer = { mount: mount };
-
     document.addEventListener('DOMContentLoaded', autoMount);
 })();
