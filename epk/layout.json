@@ -1,1 +1,22 @@
-{ "frames": {} }
+{
+  "frames": {
+    "hero": {
+      "file": "epk/photos/eca7349f4b.jpg",
+      "fx": 0,
+      "fy": -0.29559135977337114,
+      "s": 1
+    },
+    "a": {
+      "file": null,
+      "fx": 0,
+      "fy": 0,
+      "s": 1
+    },
+    "b": {
+      "file": null,
+      "fx": 0,
+      "fy": 0,
+      "s": 1
+    }
+  }
+}

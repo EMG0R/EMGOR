@@ -69,7 +69,10 @@
   function setStatus(t) { statusEl.textContent = t; }
   function post(path, body) {
     return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+      .then(function (r) {
+        if (r.ok) return r.json();
+        return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.error || ('server said ' + r.status)); });
+      });
   }
   function saveDraft() {
     clearTimeout(saveT);
@@ -82,7 +85,7 @@
     return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.onerror = rej; fr.readAsDataURL(file); });
   }
   function putFile(key, file) {
-    if (!file || !/^image\//.test(file.type)) { setStatus('that is not an image'); return; }
+    if (!file || !(/^image\//.test(file.type) || /\.(heic|heif|jpe?g|png|tiff?|webp|gif)$/i.test(file.name))) { setStatus('that is not an image: ' + (file && file.name)); return; }
     setStatus('uploading ' + file.name + '…');
     readFile(file).then(function (data) { return post('/__epk/upload', { name: file.name, data: data }); })
       .then(function (r) {
@@ -90,7 +93,7 @@
         slot.file = r.path; slot.fx = 0; slot.fy = 0; slot.s = 1;
         render(); saveDraft();
       })
-      .catch(function () { setStatus('upload failed — start: python3 tools/epk-dev.py'); });
+      .catch(function (e) { setStatus('upload failed: ' + (e && e.message ? e.message : 'is python3 tools/epk-dev.py running?')); });
   }
   picker.addEventListener('change', function () { if (picker.files[0] && pickTarget) putFile(pickTarget, picker.files[0]); picker.value = ''; });
 

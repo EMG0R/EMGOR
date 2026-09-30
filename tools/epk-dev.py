@@ -10,7 +10,7 @@ Endpoints (editor only works on localhost):
   GET  /__epk/draft                                    -> current draft or {} if none
 Never deletes photos: unused ones stay in epk/photos/ until you remove them yourself.
 """
-import base64, io, json, os, sys, time, zipfile, hashlib
+import base64, io, json, os, sys, time, zipfile, hashlib, subprocess
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,19 +19,38 @@ LAYOUT = os.path.join(ROOT, 'epk', 'layout.json')
 DRAFT = os.path.join(ROOT, 'epk', 'layout.draft.json')
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8777
 
-def resize_jpeg(raw):
+def resize_jpeg(raw, name=''):
+    """Any image (jpg/png/heic/tiff/...) -> 2000px max JPEG. Pillow first, then macOS sips for HEIC and friends."""
     try:
         from PIL import Image, ImageOps
-    except ImportError:
-        return raw, None, None, 'bin'
-    im = Image.open(io.BytesIO(raw))
-    im = ImageOps.exif_transpose(im)
-    if im.mode not in ('RGB', 'L'):
-        im = im.convert('RGB')
-    im.thumbnail((2000, 2000))
-    out = io.BytesIO()
-    im.save(out, 'JPEG', quality=88, optimize=True, progressive=True)
-    return out.getvalue(), im.width, im.height, 'jpg'
+        im = Image.open(io.BytesIO(raw))
+        im = ImageOps.exif_transpose(im)
+        if im.mode not in ('RGB', 'L'):
+            im = im.convert('RGB')
+        im.thumbnail((2000, 2000))
+        out = io.BytesIO()
+        im.save(out, 'JPEG', quality=88, optimize=True, progressive=True)
+        return out.getvalue(), im.width, im.height, 'jpg'
+    except Exception as e:
+        pil_err = e
+    import tempfile, shutil
+    if shutil.which('sips'):
+        ext = os.path.splitext(name)[1] or '.heic'
+        with tempfile.TemporaryDirectory() as td:
+            src = os.path.join(td, 'in' + ext); dst = os.path.join(td, 'out.jpg')
+            with open(src, 'wb') as f:
+                f.write(raw)
+            r = subprocess.run(['sips', '-s', 'format', 'jpeg', '-s', 'formatOptions', '88', '-Z', '2000', src, '--out', dst], capture_output=True, text=True)
+            if r.returncode == 0 and os.path.exists(dst):
+                data = open(dst, 'rb').read()
+                try:
+                    from PIL import Image
+                    im = Image.open(io.BytesIO(data)); w, h = im.size
+                except Exception:
+                    w = h = None
+                return data, w, h, 'jpg'
+            raise RuntimeError('sips could not convert %s: %s' % (name, (r.stderr or r.stdout).strip()[:200]))
+    raise RuntimeError('cannot read %s (%s)' % (name, pil_err))
 
 def rebuild_zip(layout, bios=''):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -75,7 +94,11 @@ class H(SimpleHTTPRequestHandler):
                 data = data.split(',', 1)[1]
             raw = base64.b64decode(data)
             os.makedirs(PHOTOS, exist_ok=True)
-            out, w, h, ext = resize_jpeg(raw)
+            try:
+                out, w, h, ext = resize_jpeg(raw, req.get('name', ''))
+            except Exception as e:
+                sys.stderr.write('upload failed: %s\n' % e)
+                return self._json(422, {'error': str(e)})
             pid = hashlib.sha1(out).hexdigest()[:10]
             fn = '%s.%s' % (pid, ext)
             with open(os.path.join(PHOTOS, fn), 'wb') as f:
