@@ -6,7 +6,7 @@
 
     var active = null;
     var DPR = Math.min(window.devicePixelRatio || 1, 2);
-    var COL_DIM = 'rgba(241,236,248,0.22)', COL_PLAY = '#FFA05B', COL_HOVER = 'rgba(125,242,255,0.45)';
+    var COL_DIM = 'rgba(241,236,248,0.22)', COL_PLAY = '#F5E663', COL_HOVER = 'rgba(143,217,255,0.45)';
 
     function formatTime(s) {
         if (!s || !isFinite(s)) return '0:00';

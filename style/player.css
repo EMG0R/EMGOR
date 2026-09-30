@@ -5,16 +5,16 @@
 
 .ep-play {
     width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%; cursor: pointer;
-    color: var(--ember, #FFA05B); background-color: rgba(13, 2, 33, 0.6);
-    border: 2px solid var(--ember, #FFA05B);
+    color: var(--sun, #F5E663); background-color: rgba(13, 2, 33, 0.6);
+    border: 2px solid var(--sun, #F5E663);
     font-family: 'Courier New', Courier, monospace; font-size: 1.05em; line-height: 1;
     display: flex; justify-content: center; align-items: center; padding: 0 0 0 2px;
     transition: background-color 0.25s ease, transform 0.15s ease;
     -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3); touch-action: manipulation;
 }
-@media (hover: hover) { .ep-play:hover { background-color: var(--ember, #FFA05B); color: #1a0a00; transform: scale(1.06); } }
+@media (hover: hover) { .ep-play:hover { background-color: var(--sun, #F5E663); color: #1a1800; transform: scale(1.06); } }
 .ep-play:active { transform: scale(0.94); }
-.ep-play.playing { background-color: var(--ember, #FFA05B); color: #1a0a00; padding: 0; }
+.ep-play.playing { background-color: var(--sun, #F5E663); color: #1a1800; padding: 0; }
 
 .ep-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 
@@ -24,13 +24,13 @@
     font-size: 0.86rem; letter-spacing: 1px; text-transform: lowercase; color: var(--bone, #F1ECF8);
 }
 .ep-time { font-size: 0.7rem; color: rgba(255, 255, 255, 0.5); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ep-dl { color: var(--ice, #7DF2FF); text-decoration: none; font-size: 0.9rem; line-height: 1; }
+.ep-dl { color: var(--sky, #8FD9FF); text-decoration: none; font-size: 0.9rem; line-height: 1; }
 
 .ep-wave {
     display: block; width: 100%; height: 46px; cursor: pointer; touch-action: none; border-radius: 4px;
     outline: none;
 }
-.ep-wave:focus-visible { box-shadow: 0 0 0 1px var(--ice, #7DF2FF); }
+.ep-wave:focus-visible { box-shadow: 0 0 0 1px var(--sky, #8FD9FF); }
 
 @media (max-width: 600px) {
     .ep-row { gap: 10px; }
