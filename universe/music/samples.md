@@ -15,7 +15,7 @@ downloads:
   - files/WATERBOTTLE_SHORT.wav
 tags: [samples, foley, one-shots, free]
 updated: 2026-07-28
-draft: false
+draft: true
 ---
 
 # Samples

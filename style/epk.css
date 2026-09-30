@@ -1,0 +1,110 @@
+/* EPK — artist press kit. Palette: void ground, bone text, ember action, ice links. */
+html, body { justify-content: flex-start; overflow-x: hidden; overflow-y: auto; height: auto; min-height: 100%; }
+body { background: transparent; width: 100%; max-width: 100%; color: var(--bone); }
+[hidden] { display: none !important; }
+
+.epk { width: min(100% - 32px, 720px); margin: 0 auto; padding: 72px 0 60px; text-align: left; }
+
+/* ─── hero ─── */
+.hero { text-align: center; margin-bottom: 26px; }
+.kicker { font-size: 0.66rem; letter-spacing: 0.36em; text-transform: uppercase; color: var(--ember); margin-bottom: 12px; }
+.wordmark {
+    margin: 0; font-size: clamp(3.4rem, 15vw, 6.8rem); line-height: 0.88; letter-spacing: 0.06em;
+    color: var(--bone); font-weight: 700; text-shadow: 0 0 40px rgba(255, 160, 91, 0.18);
+}
+.tag { margin-top: 14px; font-size: 0.8rem; letter-spacing: 0.14em; color: var(--bone); opacity: 0.6; }
+
+h2 {
+    font-size: 0.66rem; letter-spacing: 0.36em; text-transform: uppercase; color: var(--ember);
+    margin: 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+section { margin-bottom: 48px; }
+
+/* ─── photo frames ─── */
+.frame {
+    position: relative; overflow: hidden; margin: 0; border-radius: 14px;
+    background: rgba(30, 15, 92, 0.28); border: 1px solid var(--line);
+    box-shadow: 0 20px 50px rgba(13, 2, 33, 0.7);
+}
+.frame-hero { aspect-ratio: 16 / 10; margin-bottom: 44px; }
+.frame-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 48px; }
+.frame-sq { aspect-ratio: 1 / 1; }
+.frame img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+    transform-origin: center; user-select: none; -webkit-user-drag: none; pointer-events: none;
+}
+.frame.empty { display: none; }
+html.editing .frame.empty { display: block; }
+html.editing .frame.empty::after {
+    content: "drop a photo  ·  or click"; position: absolute; inset: 0; display: grid; place-items: center;
+    color: var(--ice); opacity: 0.7; font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase;
+}
+@media (max-width: 560px) {
+    .frame-hero { aspect-ratio: 4 / 5; margin-bottom: 36px; }
+    .frame-pair { gap: 10px; margin-bottom: 40px; }
+}
+
+/* editor chrome (localhost only) */
+html.editing .frame { cursor: grab; touch-action: none; outline: 1px dashed rgba(125, 242, 255, 0.35); outline-offset: 3px; }
+html.editing .frame.dragging { cursor: grabbing; }
+html.editing .frame.over { outline: 2px solid var(--ice); }
+.fr-tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 2; opacity: 0; transition: opacity 0.15s; }
+.frame:hover .fr-tools, .frame:focus-within .fr-tools { opacity: 1; }
+.fr-tools button {
+    font: inherit; font-size: 0.68rem; padding: 5px 8px; border-radius: 6px; cursor: pointer;
+    background: rgba(13, 2, 33, 0.85); color: var(--bone); border: 1px solid rgba(125, 242, 255, 0.5);
+}
+.fr-zoom { position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 2; opacity: 0; transition: opacity 0.15s; accent-color: var(--ember); height: 18px; }
+.frame:hover .fr-zoom, .frame:focus-within .fr-zoom { opacity: 1; }
+.editbar {
+    position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;
+    display: flex; gap: 10px; align-items: center; padding: 8px 12px 8px 16px; border-radius: 999px;
+    background: rgba(13, 2, 33, 0.92); border: 1px solid rgba(125, 242, 255, 0.4);
+    font-size: 0.72rem; color: var(--ice); white-space: nowrap; max-width: calc(100% - 100px);
+}
+.editbar-status { overflow: hidden; text-overflow: ellipsis; }
+.eb-btn { font: inherit; font-size: 0.72rem; padding: 6px 12px; border-radius: 999px; cursor: pointer; background: var(--ember); color: #1a0a00; border: 0; font-weight: 700; }
+.eb-btn:active { transform: scale(0.96); }
+
+/* ─── bio ─── */
+.bio p { font-size: 0.92rem; line-height: 1.75; color: var(--bone); opacity: 0.9; margin-bottom: 14px; }
+
+/* ─── watch ─── */
+.videos { display: grid; grid-template-columns: 1fr; gap: 18px; }
+.videos figure { margin: 0; }
+.videos video { width: 100%; display: block; border-radius: 12px; background: #000; border: 1px solid var(--line); }
+.videos figcaption { margin-top: 8px; font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--bone); opacity: 0.55; }
+
+/* ─── links ─── */
+.links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.link {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0;
+    padding: 13px 14px; border-radius: 10px; text-decoration: none; color: var(--bone);
+    background: rgba(13, 2, 33, 0.5); border: 1px solid var(--line);
+    font-size: 0.86rem; letter-spacing: 0.04em; transition: border-color 0.2s, color 0.2s, transform 0.15s;
+}
+.link span { flex-shrink: 0; }
+.link small { font-size: 0.68rem; color: var(--ice); opacity: 0.75; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (hover: hover) { .link:hover { border-color: var(--ice); color: var(--ice); transform: translateY(-1px); } }
+.link:active { transform: scale(0.98); }
+@media (max-width: 520px) { .links { grid-template-columns: 1fr; } }
+
+/* ─── downloads ─── */
+.downloads { text-align: center; }
+.dl-toggle {
+    font: inherit; font-size: 0.82rem; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; font-weight: 700;
+    padding: 15px 30px; border-radius: 999px; color: #1a0a00; background: var(--ember); border: 0;
+    box-shadow: 0 0 30px rgba(255, 160, 91, 0.3);
+}
+.dl-toggle[aria-expanded="true"] { box-shadow: none; opacity: 0.85; }
+.dl-panel {
+    margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; text-align: left;
+    padding: 18px; border-radius: 12px; background: rgba(13, 2, 33, 0.6); border: 1px solid var(--line);
+}
+.dl-col h3 { font-size: 0.62rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ember); margin-bottom: 8px; }
+.dl { display: block; padding: 7px 0; color: var(--bone); text-decoration: none; font-size: 0.82rem; border-bottom: 1px dotted var(--line); }
+.dl small { opacity: 0.5; margin-left: 8px; font-size: 0.68rem; }
+@media (hover: hover) { .dl:hover { color: var(--ice); } }
+@media (max-width: 640px) { .dl-panel { grid-template-columns: 1fr; } }
+
+.foot { text-align: center; font-size: 0.66rem; letter-spacing: 0.32em; color: var(--bone); opacity: 0.35; margin-top: 30px; }

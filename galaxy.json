@@ -9,7 +9,7 @@
       "path": "universe/_index.md",
       "route": "/",
       "depth": 0,
-      "children": 10,
+      "children": 8,
       "downloads": [],
       "links": [],
       "tags": [
@@ -341,334 +341,6 @@
       "launch": "gorcave-dash.html"
     },
     {
-      "id": "emgor.hardware",
-      "title": "HARDWARE",
-      "blurb": "Physical instruments, wearables, controllers — built by hand",
-      "parent": "emgor",
-      "path": "universe/hardware/_index.md",
-      "route": "/hardware",
-      "depth": 1,
-      "children": 11,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Infinity Gauntlet (M4L controllers)",
-          "url": "#/m4l/controllers"
-        }
-      ],
-      "tags": [
-        "hardware",
-        "instruments",
-        "embedded",
-        "diy"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.hardware.4-i-gor",
-      "title": "4-i-Gor",
-      "blurb": "Teensy 4.0 quad-in / quad-out USB audio interface with MIDI",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/4-i-gor.md",
-      "route": "/hardware/4-i-gor",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "4-i-gor.ino",
-          "url": "universe/hardware/files/4-i-gor.ino"
-        },
-        {
-          "name": "4-i-gor-pcb.md",
-          "url": "universe/hardware/files/4-i-gor-pcb.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "audio-interface",
-        "teensy",
-        "i2s",
-        "midi",
-        "pcb"
-      ],
-      "updated": "2026-04-07"
-    },
-    {
-      "id": "emgor.hardware.hyperguitar",
-      "title": "hyperGuitar",
-      "blurb": "Headless semi-hollow 6-string with a Bela Gem Multi living inside it",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/hyperguitar.md",
-      "route": "/hardware/hyperguitar",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "hyperguitar-design.md",
-          "url": "universe/hardware/files/hyperguitar-design.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "augmented-instrument",
-        "bela",
-        "guitar",
-        "dsp",
-        "hexaphonic"
-      ],
-      "updated": "2026-05-22"
-    },
-    {
-      "id": "emgor.hardware.hypertrumpet",
-      "title": "hyperTrumpet",
-      "blurb": "Augmented trumpet — Teensy 4.1 sensor rig into Max, everything on channel 3",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/hypertrumpet.md",
-      "route": "/hardware/hypertrumpet",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "hypertrumpet.ino",
-          "url": "universe/hardware/files/hypertrumpet.ino"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "augmented-instrument",
-        "teensy",
-        "midi",
-        "max-msp",
-        "trumpet"
-      ],
-      "updated": "2026-03-27"
-    },
-    {
-      "id": "emgor.hardware.lite",
-      "title": "LITE",
-      "blurb": "Teensy 4.1 light instrument — 20-voice generative synth in a printed bowl",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/lite.md",
-      "route": "/hardware/lite",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "lite-bigns-wiring.txt",
-          "url": "universe/hardware/files/lite-bigns-wiring.txt"
-        },
-        {
-          "name": "lite-bigns.ino",
-          "url": "universe/hardware/files/lite-bigns.ino"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "teensy",
-        "neopixel",
-        "generative",
-        "synth",
-        "quad-audio",
-        "3d-print"
-      ],
-      "updated": "2026-03-20"
-    },
-    {
-      "id": "emgor.hardware.neuralgrid",
-      "title": "neuralGrid",
-      "blurb": "A monome-style grid that rewrites its own interface on the downbeat",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/neuralgrid.md",
-      "route": "/hardware/neuralgrid",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "neuralgrid-protocol.md",
-          "url": "universe/hardware/files/neuralgrid-protocol.md"
-        },
-        {
-          "name": "neuralgrid-grid_link.ino",
-          "url": "universe/hardware/files/neuralgrid-grid_link.ino"
-        }
-      ],
-      "links": [
-        {
-          "label": "Dimensional architecture map",
-          "url": "neuralgrid.html"
-        }
-      ],
-      "tags": [
-        "grid",
-        "neural",
-        "raspberry-pi",
-        "esp32",
-        "nime",
-        "research"
-      ],
-      "updated": "2026-07-17"
-    },
-    {
-      "id": "emgor.hardware.ofoots",
-      "title": "oFOOTS",
-      "blurb": "Ten-encoder foot controller — 8 pages, 64 CCs, one expression pedal",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/ofoots.md",
-      "route": "/hardware/ofoots",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "ofoots.ino",
-          "url": "universe/hardware/files/ofoots.ino"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "controller",
-        "midi",
-        "foot-controller",
-        "tft",
-        "neopixel"
-      ],
-      "updated": "2026-01-23"
-    },
-    {
-      "id": "emgor.hardware.pocket-opgorator",
-      "title": "Pocket OpGorator",
-      "blurb": "Pocket-Operator-format Daisy sampler/synth with a velocity NeoTrellis grid",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/pocket-opgorator.md",
-      "route": "/hardware/pocket-opgorator",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "pocket-opgorator-spec.md",
-          "url": "universe/hardware/files/pocket-opgorator-spec.md"
-        },
-        {
-          "name": "pocket-opgorator.ino",
-          "url": "universe/hardware/files/pocket-opgorator.ino"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "synth",
-        "sampler",
-        "daisy",
-        "neotrellis",
-        "3d-print"
-      ],
-      "updated": "2026-06-10"
-    },
-    {
-      "id": "emgor.hardware.quadro-punch-packer",
-      "title": "Quadro Punch Packer",
-      "blurb": "10\" printed hemisphere speaker — 4 coaxials at the cube-vertex angle plus a sub",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/quadro-punch-packer.md",
-      "route": "/hardware/quadro-punch-packer",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "quadro-punch-packer-build.md",
-          "url": "universe/hardware/files/quadro-punch-packer-build.md"
-        },
-        {
-          "name": "quadro-punch-packer-circuit.png",
-          "url": "universe/hardware/files/quadro-punch-packer-circuit.png"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "speaker",
-        "quad",
-        "3d-print",
-        "amplifier",
-        "battery"
-      ],
-      "updated": "2026-05-08"
-    },
-    {
-      "id": "emgor.hardware.smartgor",
-      "title": "smartGOR",
-      "blurb": "A Raspberry Pi 4 room hub — 800-LED FCOB lighting, plant watering, BLE lamps, one MQTT broker",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/smartgor.md",
-      "route": "/hardware/smartgor",
-      "depth": 2,
-      "children": 0,
-      "downloads": [],
-      "links": [],
-      "tags": [
-        "raspberry-pi",
-        "esp32",
-        "mqtt",
-        "ws2812b",
-        "home-automation",
-        "ble",
-        "plant-watering",
-        "iot"
-      ],
-      "updated": "2026-08-12"
-    },
-    {
-      "id": "emgor.hardware.the-watch",
-      "title": "THE WATCH",
-      "blurb": "Forearm AMOLED smartwatch fused with an RF multitool and a sensor army",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/the-watch.md",
-      "route": "/hardware/the-watch",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "the-watch-design.md",
-          "url": "universe/hardware/files/the-watch-design.md"
-        },
-        {
-          "name": "the-watch-parts.md",
-          "url": "universe/hardware/files/the-watch-parts.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "wearable",
-        "esp32",
-        "rf",
-        "sensors",
-        "hand-built"
-      ],
-      "updated": "2026-07-16"
-    },
-    {
-      "id": "emgor.hardware.we-remote",
-      "title": "We-Remote",
-      "blurb": "Open-source Wii remote — BLE gamepad, keyboard, and MIDI CC in one shell",
-      "parent": "emgor.hardware",
-      "path": "universe/hardware/we-remote.md",
-      "route": "/hardware/we-remote",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "we-remote.ino",
-          "url": "universe/hardware/files/we-remote.ino"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "controller",
-        "esp32-s3",
-        "ble",
-        "midi",
-        "3d-print"
-      ],
-      "updated": "2026-05-19"
-    },
-    {
       "id": "emgor.info",
       "title": "INFO",
       "blurb": "Links, contact, and everywhere else the work lives",
@@ -687,7 +359,7 @@
       ],
       "updated": "2026-09-29",
       "size": 1.2,
-      "launch": "apk.html"
+      "launch": "epk.html"
     },
     {
       "id": "emgor.latency-test",
@@ -1202,173 +874,14 @@
       "updated": "2026-02-19"
     },
     {
-      "id": "emgor.music",
-      "title": "MUSIC",
-      "blurb": "Released music, production portfolio, and sample packs",
-      "parent": "emgor",
-      "path": "universe/music/_index.md",
-      "route": "/music",
-      "depth": 1,
-      "children": 4,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Portfolio page",
-          "url": "music.html"
-        },
-        {
-          "label": "It Is — smart link",
-          "url": "it-is.html"
-        }
-      ],
-      "tags": [
-        "music",
-        "releases",
-        "samples"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.music.five-months-in-a-day",
-      "title": "Five Months in a Day",
-      "blurb": "DistroKid release — follow and stream everywhere",
-      "parent": "emgor.music",
-      "path": "universe/music/five-months-in-a-day.md",
-      "route": "/music/five-months-in-a-day",
-      "depth": 2,
-      "children": 0,
-      "downloads": [],
-      "links": [
-        {
-          "label": "HyperFollow",
-          "url": "https://distrokid.com/hyperfollow/fivemonthsinaday/five-months-in-a-day"
-        }
-      ],
-      "tags": [
-        "release",
-        "distrokid"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.music.it-is",
-      "title": "It Is",
-      "blurb": "The EP — one smart link, every streaming platform",
-      "parent": "emgor.music",
-      "path": "universe/music/it-is.md",
-      "route": "/music/it-is",
-      "depth": 2,
-      "children": 0,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Smart link",
-          "url": "it-is.html"
-        },
-        {
-          "label": "Spotify",
-          "url": "https://open.spotify.com/album/0oLQnAK0ceBWjXphGdJwb1"
-        },
-        {
-          "label": "Apple Music",
-          "url": "https://geo.music.apple.com/au/album/it-is-ep/6787853777?app=music&ls=1&ct=FFM_8f5fa828ed63d1e7c59889bb78d9a32c&at=1001lwQy"
-        },
-        {
-          "label": "YouTube Music",
-          "url": "https://music.youtube.com/playlist?list=OLAK5uy_mMSkVTrYxtP3jM-32JqlbE0yFg-Ff7VFQ"
-        }
-      ],
-      "tags": [
-        "release",
-        "ep",
-        "streaming"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.music.portfolio",
-      "title": "Portfolio",
-      "blurb": "Six produced tracks and video work, streaming in-site",
-      "parent": "emgor.music",
-      "path": "universe/music/portfolio.md",
-      "route": "/music/portfolio",
-      "depth": 2,
-      "children": 0,
-      "downloads": [],
-      "links": [
-        {
-          "label": "Listen — portfolio page",
-          "url": "music.html"
-        }
-      ],
-      "tags": [
-        "portfolio",
-        "production",
-        "video"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.music.samples",
-      "title": "Samples",
-      "blurb": "Home-made foley one-shots — free mini-pack",
-      "parent": "emgor.music",
-      "path": "universe/music/samples.md",
-      "route": "/music/samples",
-      "depth": 2,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "BURP.wav",
-          "url": "universe/music/files/BURP.wav"
-        },
-        {
-          "name": "CRICKET_STROKE.wav",
-          "url": "universe/music/files/CRICKET_STROKE.wav"
-        },
-        {
-          "name": "FROG_HIT.wav",
-          "url": "universe/music/files/FROG_HIT.wav"
-        },
-        {
-          "name": "KALMBA_NOTE.wav",
-          "url": "universe/music/files/KALMBA_NOTE.wav"
-        },
-        {
-          "name": "MOUTH_POP.wav",
-          "url": "universe/music/files/MOUTH_POP.wav"
-        },
-        {
-          "name": "OWL_HIT.wav",
-          "url": "universe/music/files/OWL_HIT.wav"
-        },
-        {
-          "name": "SHMACK.wav",
-          "url": "universe/music/files/SHMACK.wav"
-        },
-        {
-          "name": "WATERBOTTLE_SHORT.wav",
-          "url": "universe/music/files/WATERBOTTLE_SHORT.wav"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "samples",
-        "foley",
-        "one-shots",
-        "free"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
       "id": "emgor.neptr",
       "title": "NEPTR",
-      "blurb": "Flagship live guitar instrument — four generations of one machine",
+      "blurb": "Performance system of a modern digital luthier — the brain, and every device built around it",
       "parent": "emgor",
       "path": "universe/neptr/_index.md",
       "route": "/neptr",
       "depth": 1,
-      "children": 5,
+      "children": 13,
       "downloads": [],
       "links": [
         {
@@ -1385,7 +898,146 @@
         "max",
         "live-performance"
       ],
-      "updated": "2026-07-28"
+      "updated": "2026-09-29"
+    },
+    {
+      "id": "emgor.neptr.4-i-gor",
+      "title": "4-i-Gor",
+      "blurb": "Teensy 4.0 quad-in / quad-out USB audio interface with MIDI",
+      "parent": "emgor.neptr",
+      "path": "universe/neptr/4-i-gor.md",
+      "route": "/neptr/4-i-gor",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "4-i-gor.ino",
+          "url": "universe/neptr/files/4-i-gor.ino"
+        },
+        {
+          "name": "4-i-gor-pcb.md",
+          "url": "universe/neptr/files/4-i-gor-pcb.md"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "audio-interface",
+        "teensy",
+        "i2s",
+        "midi",
+        "pcb"
+      ],
+      "updated": "2026-04-07"
+    },
+    {
+      "id": "emgor.neptr.hyperguitar",
+      "title": "hyperGuitar",
+      "blurb": "Headless semi-hollow 6-string with a Bela Gem Multi living inside it",
+      "parent": "emgor.neptr",
+      "path": "universe/neptr/hyperguitar.md",
+      "route": "/neptr/hyperguitar",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "hyperguitar-design.md",
+          "url": "universe/neptr/files/hyperguitar-design.md"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "augmented-instrument",
+        "bela",
+        "guitar",
+        "dsp",
+        "hexaphonic"
+      ],
+      "updated": "2026-05-22"
+    },
+    {
+      "id": "emgor.neptr.hypertrumpet",
+      "title": "hyperTrumpet",
+      "blurb": "Augmented trumpet — Teensy 4.1 sensor rig into Max, everything on channel 3",
+      "parent": "emgor.neptr",
+      "path": "universe/neptr/hypertrumpet.md",
+      "route": "/neptr/hypertrumpet",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "hypertrumpet.ino",
+          "url": "universe/neptr/files/hypertrumpet.ino"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "augmented-instrument",
+        "teensy",
+        "midi",
+        "max-msp",
+        "trumpet"
+      ],
+      "updated": "2026-03-27"
+    },
+    {
+      "id": "emgor.neptr.neuralgrid",
+      "title": "neuralGrid",
+      "blurb": "A monome-style grid that rewrites its own interface on the downbeat",
+      "parent": "emgor.neptr",
+      "path": "universe/neptr/neuralgrid.md",
+      "route": "/neptr/neuralgrid",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "neuralgrid-protocol.md",
+          "url": "universe/neptr/files/neuralgrid-protocol.md"
+        },
+        {
+          "name": "neuralgrid-grid_link.ino",
+          "url": "universe/neptr/files/neuralgrid-grid_link.ino"
+        }
+      ],
+      "links": [
+        {
+          "label": "Dimensional architecture map",
+          "url": "neuralgrid.html"
+        }
+      ],
+      "tags": [
+        "grid",
+        "neural",
+        "raspberry-pi",
+        "esp32",
+        "nime",
+        "research"
+      ],
+      "updated": "2026-07-17"
+    },
+    {
+      "id": "emgor.neptr.ofoots",
+      "title": "DUODECIMUS",
+      "blurb": "Ten-encoder foot controller — 8 pages, 64 CCs, one expression pedal",
+      "parent": "emgor.neptr",
+      "path": "universe/neptr/ofoots.md",
+      "route": "/neptr/ofoots",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "ofoots.ino",
+          "url": "universe/neptr/files/ofoots.ino"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "controller",
+        "midi",
+        "foot-controller",
+        "tft",
+        "neopixel"
+      ],
+      "updated": "2026-01-23"
     },
     {
       "id": "emgor.neptr.phase-1",
@@ -1585,6 +1237,64 @@
       "updated": "2026-07-28"
     },
     {
+      "id": "emgor.neptr.pocket-opgorator",
+      "title": "PMOR",
+      "blurb": "Pocket-Operator-format Daisy sampler/synth with a velocity NeoTrellis grid",
+      "parent": "emgor.neptr",
+      "path": "universe/neptr/pocket-opgorator.md",
+      "route": "/neptr/pocket-opgorator",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "pocket-opgorator-spec.md",
+          "url": "universe/neptr/files/pocket-opgorator-spec.md"
+        },
+        {
+          "name": "pocket-opgorator.ino",
+          "url": "universe/neptr/files/pocket-opgorator.ino"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "synth",
+        "sampler",
+        "daisy",
+        "neotrellis",
+        "3d-print"
+      ],
+      "updated": "2026-06-10"
+    },
+    {
+      "id": "emgor.neptr.quadro-punch-packer",
+      "title": "Quadro Punch Packer",
+      "blurb": "10\" printed hemisphere speaker — 4 coaxials at the cube-vertex angle plus a sub",
+      "parent": "emgor.neptr",
+      "path": "universe/neptr/quadro-punch-packer.md",
+      "route": "/neptr/quadro-punch-packer",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "quadro-punch-packer-build.md",
+          "url": "universe/neptr/files/quadro-punch-packer-build.md"
+        },
+        {
+          "name": "quadro-punch-packer-circuit.png",
+          "url": "universe/neptr/files/quadro-punch-packer-circuit.png"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "speaker",
+        "quad",
+        "3d-print",
+        "amplifier",
+        "battery"
+      ],
+      "updated": "2026-05-08"
+    },
+    {
       "id": "emgor.neptr.speak",
       "title": "SPEAK — neptr's voice",
       "blurb": "Speak-&-Spell singing synth + a fully offline AI companion on a Pi",
@@ -1609,6 +1319,31 @@
         "raspberry-pi"
       ],
       "updated": "2026-07-28"
+    },
+    {
+      "id": "emgor.neptr.we-remote",
+      "title": "We-Remote",
+      "blurb": "Open-source Wii remote — BLE gamepad, keyboard, and MIDI CC in one shell",
+      "parent": "emgor.neptr",
+      "path": "universe/neptr/we-remote.md",
+      "route": "/neptr/we-remote",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "we-remote.ino",
+          "url": "universe/neptr/files/we-remote.ino"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "controller",
+        "esp32-s3",
+        "ble",
+        "midi",
+        "3d-print"
+      ],
+      "updated": "2026-05-19"
     },
     {
       "id": "emgor.papers",

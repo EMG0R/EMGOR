@@ -1,8 +1,8 @@
 ---
-id: emgor.hardware.hypertrumpet
+id: emgor.neptr.hypertrumpet
 title: hyperTrumpet
 blurb: Augmented trumpet — Teensy 4.1 sensor rig into Max, everything on channel 3
-parent: emgor.hardware
+parent: emgor.neptr
 source: ______2026NEW/hyperTrumpet/
 downloads:
   - files/hypertrumpet.ino

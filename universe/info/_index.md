@@ -7,9 +7,9 @@ tags: [info, links, contact, instagram]
 updated: 2026-09-29
 draft: false
 size: 1.2
-launch: apk.html
+launch: epk.html
 ---
 
 # INFO
 
-Where to find EMGOR outside this galaxy: instagram, untitled.stream, releases, GitHub, and email. Clicking this planet opens the APK page.
+Where to find EMGOR outside this galaxy: instagram, untitled.stream, releases, GitHub, and email. Clicking this planet opens the EPK page.

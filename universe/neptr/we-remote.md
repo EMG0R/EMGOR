@@ -1,8 +1,8 @@
 ---
-id: emgor.hardware.we-remote
+id: emgor.neptr.we-remote
 title: We-Remote
 blurb: Open-source Wii remote — BLE gamepad, keyboard, and MIDI CC in one shell
-parent: emgor.hardware
+parent: emgor.neptr
 source: ______2026NEW/We-Remote/
 downloads:
   - files/we-remote.ino

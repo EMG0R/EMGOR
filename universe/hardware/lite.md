@@ -9,7 +9,7 @@ downloads:
   - files/lite-bigns.ino
 tags: [teensy, neopixel, generative, synth, quad-audio, 3d-print]
 updated: 2026-03-20
-draft: false
+draft: true
 ---
 
 # LITE

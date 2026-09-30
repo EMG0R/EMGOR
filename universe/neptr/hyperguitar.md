@@ -1,8 +1,8 @@
 ---
-id: emgor.hardware.hyperguitar
+id: emgor.neptr.hyperguitar
 title: hyperGuitar
 blurb: Headless semi-hollow 6-string with a Bela Gem Multi living inside it
-parent: emgor.hardware
+parent: emgor.neptr
 source: ______2026NEW/hyperGuitar/
 downloads:
   - files/hyperguitar-design.md

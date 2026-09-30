@@ -1,8 +1,8 @@
 ---
-id: emgor.hardware.ofoots
-title: oFOOTS
+id: emgor.neptr.ofoots
+title: DUODECIMUS
 blurb: Ten-encoder foot controller — 8 pages, 64 CCs, one expression pedal
-parent: emgor.hardware
+parent: emgor.neptr
 source: ____oFOOTS/
 downloads:
   - files/ofoots.ino

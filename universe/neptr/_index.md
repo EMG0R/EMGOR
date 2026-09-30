@@ -1,13 +1,13 @@
 ---
 id: emgor.neptr
 title: NEPTR
-blurb: Flagship live guitar instrument — four generations of one machine
+blurb: "Performance system of a modern digital luthier — the brain, and every device built around it"
 parent: emgor
 source: _____pi / ______PHASE2 / ______PHASE3 / ______2026NEW
 links:
   - { label: "NEPTR web (RNBO export)", url: "NEPTR.html" }
 tags: [instrument, guitar, raspberry-pi, csound, chuck, max, live-performance]
-updated: 2026-07-28
+updated: 2026-09-29
 draft: false
 ---
 

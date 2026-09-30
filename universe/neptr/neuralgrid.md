@@ -1,8 +1,8 @@
 ---
-id: emgor.hardware.neuralgrid
+id: emgor.neptr.neuralgrid
 title: neuralGrid
 blurb: A monome-style grid that rewrites its own interface on the downbeat
-parent: emgor.hardware
+parent: emgor.neptr
 source: ______2026NEW/neuralGrid/
 downloads:
   - files/neuralgrid-protocol.md

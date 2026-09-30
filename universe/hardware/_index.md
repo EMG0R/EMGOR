@@ -8,7 +8,7 @@ links:
   - { label: "Infinity Gauntlet (M4L controllers)", url: "#/m4l/controllers" }
 tags: [hardware, instruments, embedded, diy]
 updated: 2026-07-28
-draft: false
+draft: true
 ---
 
 # HARDWARE

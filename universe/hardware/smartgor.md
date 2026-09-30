@@ -6,7 +6,7 @@ parent: emgor.hardware
 source: ______2026NEW/smartGOR/
 tags: [raspberry-pi, esp32, mqtt, ws2812b, home-automation, ble, plant-watering, iot]
 updated: 2026-08-12
-draft: false
+draft: true
 ---
 
 # smartGOR

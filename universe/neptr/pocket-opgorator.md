@@ -1,8 +1,8 @@
 ---
-id: emgor.hardware.pocket-opgorator
-title: Pocket OpGorator
+id: emgor.neptr.pocket-opgorator
+title: PMOR
 blurb: Pocket-Operator-format Daisy sampler/synth with a velocity NeoTrellis grid
-parent: emgor.hardware
+parent: emgor.neptr
 source: ______2026NEW/Pocket-OpGorator/
 downloads:
   - files/pocket-opgorator-spec.md

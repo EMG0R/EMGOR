@@ -9,7 +9,7 @@ downloads:
   - files/the-watch-parts.md
 tags: [wearable, esp32, rf, sensors, hand-built]
 updated: 2026-07-16
-draft: false
+draft: true
 ---
 
 # THE WATCH

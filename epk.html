@@ -7,21 +7,21 @@
     <meta name="description" content="EMGOR — Emory Smith. Artist press kit: bio, photos, music, downloads, and links.">
     <link rel="stylesheet" href="style/base.css">
     <link rel="stylesheet" href="style/player.css">
-    <link rel="stylesheet" href="style/apk.css">
-    <title>apk</title>
+    <link rel="stylesheet" href="style/epk.css">
+    <title>epk</title>
 </head>
 <body>
 
     <canvas id="stars"></canvas>
     <a href="index.html" class="home-button" aria-label="home">&#8962;</a>
+    <input type="file" id="picker" accept="image/*" hidden>
 
     <div id="editbar" class="editbar" hidden>
-        <span class="editbar-status" id="editStatus">editing &mdash; drop photos anywhere</span>
-        <button type="button" id="addSlot" class="eb-btn" title="add an empty frame">+ frame</button>
-        <button type="button" id="publish" class="eb-btn eb-ok" title="write layout to apk/layout.json">&#10003; done</button>
+        <span class="editbar-status" id="editStatus">editing</span>
+        <button type="button" id="publish" class="eb-btn eb-ok">&#10003; done</button>
     </div>
 
-    <main class="apk">
+    <main class="epk">
 
         <header class="hero">
             <p class="kicker">artist press kit</p>
@@ -29,10 +29,7 @@
             <p class="tag">Emory Smith &middot; digital luthier &middot; Los Angeles</p>
         </header>
 
-        <section class="photos" aria-label="photos">
-            <div id="grid" class="grid"></div>
-            <div id="dropHint" class="drop-hint" hidden>drop photos here &mdash; drag to move, scroll or pinch to zoom</div>
-        </section>
+        <figure class="frame frame-hero" data-frame="hero"></figure>
 
         <section class="bio">
             <h2>bio</h2>
@@ -41,16 +38,30 @@
             <p>He works in Csound, ChucK, Max/MSP, Faust, Pure Data and SuperCollider, studies in the Music Technology program at CalArts, and plays in the Machine Lab robot orchestra. His research targets NIME, ICMC and ICSC. As a guitarist he plays surf rock and generative ambient.</p>
         </section>
 
+        <div class="frame-pair">
+            <figure class="frame frame-sq" data-frame="a"></figure>
+            <figure class="frame frame-sq" data-frame="b"></figure>
+        </div>
+
         <section class="listen">
             <h2>listen</h2>
             <div id="player" data-player data-peaks="resources/peaks.json" data-tracks='[
-                {"name":"our world","src":"resources/apk/our-world.wav"},
-                {"name":"run","src":"resources/apk/run.wav"},
-                {"name":"the new sick (w/ cal digiovanni + omer kochba)","src":"resources/apk/the-new-sick.m4a"},
-                {"name":"sync 9-1","src":"resources/apk/sync-9-1.m4a"},
-                {"name":"lighten up","src":"resources/apk/lighten-up.wav"},
-                {"name":"space vox","src":"resources/apk/space-vox.m4a"}
+                {"name":"our world","src":"resources/epk/our-world.wav"},
+                {"name":"run","src":"resources/epk/run.wav"},
+                {"name":"the new sick (w/ cal digiovanni + omer kochba)","src":"resources/epk/the-new-sick.m4a"},
+                {"name":"sync 9-1","src":"resources/epk/sync-9-1.m4a"},
+                {"name":"lighten up","src":"resources/epk/lighten-up.wav"},
+                {"name":"space vox","src":"resources/epk/space-vox.m4a"}
             ]'></div>
+        </section>
+
+        <section class="watch">
+            <h2>watch</h2>
+            <div class="videos">
+                <figure><video controls playsinline preload="none"><source src="resources/spiderverse.mov" type="video/mp4"></video><figcaption>spiderverse</figcaption></figure>
+                <figure><video controls playsinline preload="none"><source src="resources/indexVIDS/3_VIDEOSYNTH.mp4" type="video/mp4"></video><figcaption>video synth</figcaption></figure>
+                <figure><video controls playsinline preload="none"><source src="resources/indexVIDS/1_EMORY_SMITH_491.mp4" type="video/mp4"></video><figcaption>prototypes</figcaption></figure>
+            </div>
         </section>
 
         <section class="elsewhere">
@@ -70,12 +81,23 @@
             <div id="dlPanel" class="dl-panel" hidden>
                 <div class="dl-col">
                     <h3>photos</h3>
-                    <a class="dl" id="dlZip" href="apk/emgor-photos.zip" download>all photos (zip)</a>
+                    <a class="dl" id="dlZip" href="epk/emgor-photos.zip" download>all photos (zip)</a>
                     <div id="dlPhotos"></div>
                 </div>
                 <div class="dl-col">
                     <h3>songs</h3>
                     <div id="dlSongs"></div>
+                </div>
+                <div class="dl-col">
+                    <h3>samples &mdash; home-made foley</h3>
+                    <a class="dl" href="universe/music/files/BURP.wav" download>burp</a>
+                    <a class="dl" href="universe/music/files/CRICKET_STROKE.wav" download>cricket stroke</a>
+                    <a class="dl" href="universe/music/files/FROG_HIT.wav" download>frog hit</a>
+                    <a class="dl" href="universe/music/files/KALMBA_NOTE.wav" download>kalimba note</a>
+                    <a class="dl" href="universe/music/files/MOUTH_POP.wav" download>mouth pop</a>
+                    <a class="dl" href="universe/music/files/OWL_HIT.wav" download>owl hit</a>
+                    <a class="dl" href="universe/music/files/SHMACK.wav" download>shmack</a>
+                    <a class="dl" href="universe/music/files/WATERBOTTLE_SHORT.wav" download>waterbottle</a>
                 </div>
             </div>
         </section>
@@ -85,6 +107,6 @@
 
     <script src="js/stars-bg.js"></script>
     <script src="js/player.js"></script>
-    <script src="js/apk.js"></script>
+    <script src="js/epk.js"></script>
 </body>
 </html>

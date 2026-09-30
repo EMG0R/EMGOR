@@ -1,8 +1,8 @@
 ---
-id: emgor.hardware.quadro-punch-packer
+id: emgor.neptr.quadro-punch-packer
 title: Quadro Punch Packer
 blurb: 10" printed hemisphere speaker — 4 coaxials at the cube-vertex angle plus a sub
-parent: emgor.hardware
+parent: emgor.neptr
 source: ______2026NEW/Quadro-Punch-Packer/
 downloads:
   - files/quadro-punch-packer-build.md

@@ -8,7 +8,7 @@ links:
   - { label: "HyperFollow", url: "https://distrokid.com/hyperfollow/fivemonthsinaday/five-months-in-a-day" }
 tags: [release, distrokid]
 updated: 2026-07-28
-draft: false
+draft: true
 ---
 
 # Five Months in a Day

@@ -10,6 +10,14 @@
     --pale: #E0AAFF;
     --cyan: #00F0FF;
 
+    /* ── site palette (locked 2026-09-29): purple-black ground + three colors ──
+       bone  = text            ember = action / highlight / played
+       ice   = links / live    lavender stays as a low-alpha structural line only */
+    --bone: #F1ECF8;
+    --ember: #FFA05B;
+    --ice: #7DF2FF;
+    --line: rgba(192, 132, 252, 0.22);
+
     --purple-light: #7B2FBE;
     --purple-mid: #3D1D8E;
     --purple-dark: #1E0F5C;
@@ -40,7 +48,7 @@
     --red-darker: #670500;
     --red-darkest: #290200;
 
-    --white: #E0AAFF;
+    --white: var(--bone);
     --input-bg: var(--nebula-dark);
     --input-border: var(--purple-bright);
     --button-bg: var(--amethyst);

@@ -1,8 +1,8 @@
 ---
-id: emgor.hardware.4-i-gor
+id: emgor.neptr.4-i-gor
 title: 4-i-Gor
 blurb: Teensy 4.0 quad-in / quad-out USB audio interface with MIDI
-parent: emgor.hardware
+parent: emgor.neptr
 source: ______2026NEW/4-i-Gor/
 downloads:
   - files/4-i-gor.ino
