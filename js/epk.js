@@ -45,7 +45,7 @@
       if (slot.file) {
         var img = document.createElement('img');
         img.src = slot.file; img.alt = 'EMGOR'; img.decoding = 'async';
-        img.onload = function () { applyAspect(slot, el); clampSlot(slot, el); };
+        img.onload = function () { applyAspect(slot, el); clampSlot(slot, el); requestAnimationFrame(function () { img.classList.add('in'); }); };
         el.appendChild(img);
         applyTransform(slot, el);
       }

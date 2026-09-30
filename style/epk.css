@@ -3,11 +3,20 @@ html, body { justify-content: flex-start; overflow-x: hidden; overflow-y: auto; 
 body { background: transparent; width: 100%; max-width: 100%; color: var(--bone); }
 [hidden] { display: none !important; }
 
-.epk { width: min(100% - 32px, 720px); margin: 0 auto; padding: 72px 0 60px; text-align: left; }
+.epk { width: min(100% - 32px, 720px); margin: 0 auto; padding: 8px 0 60px; text-align: left; }
 
+/* ─── full-bleed hero ─── */
+.hero-full { position: relative; width: 100%; height: min(82vh, 920px); min-height: 420px; overflow: hidden; background: #000; }
+.hero-full .frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 0; box-shadow: none; aspect-ratio: auto; margin: 0; }
+.hero-full .frame img { opacity: 0; transform: scale(1.06); transition: opacity 1.6s ease, transform 2.2s ease; }
+.hero-full .frame img.in { opacity: 1; transform: scale(1); }
+.hero-veil { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(13, 2, 33, 0.35) 0%, rgba(13, 2, 33, 0) 30%, rgba(13, 2, 33, 0) 55%, rgba(13, 2, 33, 0.85) 85%, var(--void) 100%); }
+.hero-text { position: absolute; left: 0; right: 0; bottom: 6%; text-align: center; pointer-events: none; opacity: 0; transform: translateY(14px); animation: heroText 1.4s ease 0.5s forwards; }
+@keyframes heroText { to { opacity: 1; transform: none; } }
+html.editing .hero-text { opacity: 0.35; animation: none; }
 .hero { text-align: center; margin-bottom: 26px; }
 .kicker { font-size: 0.66rem; letter-spacing: 0.36em; text-transform: uppercase; color: var(--sun); margin-bottom: 12px; }
-.wordmark { margin: 0; font-size: clamp(3.4rem, 15vw, 6.8rem); line-height: 0.88; letter-spacing: 0.06em; color: var(--bone); font-weight: 700; text-shadow: 0 0 40px rgba(245, 230, 99, 0.16); }
+.wordmark { margin: 0; font-size: clamp(3.6rem, 16vw, 8.5rem); line-height: 0.88; letter-spacing: 0.06em; color: var(--bone); font-weight: 700; text-shadow: 0 2px 30px rgba(13, 2, 33, 0.9), 0 0 60px rgba(13, 2, 33, 0.7); }
 .tag { margin-top: 14px; font-size: 0.8rem; letter-spacing: 0.14em; color: var(--bone); opacity: 0.6; }
 
 h2 { font-size: 0.66rem; letter-spacing: 0.36em; text-transform: uppercase; color: var(--sun); margin: 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
@@ -15,14 +24,14 @@ section { margin-bottom: 48px; }
 
 /* photo frames — black rectangles until a photo is placed */
 .frame { position: relative; overflow: hidden; margin: 0; border-radius: 14px; background: #000; border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(13, 2, 33, 0.7); }
-.frame-hero { aspect-ratio: 16 / 10; width: min(100%, 640px); margin: 0 auto 44px; }
 .frame-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 48px; }
+.bio { margin-top: 40px; }
 .frame-sq { aspect-ratio: 1 / 1; }
 .frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: center; user-select: none; -webkit-user-drag: none; pointer-events: none; }
-@media (max-width: 560px) { .frame-hero { margin-bottom: 36px; } .frame-pair { gap: 10px; margin-bottom: 40px; } }
+@media (max-width: 560px) { .hero-full { height: 72vh; } .frame-pair { gap: 10px; margin-bottom: 40px; } }
 
 /* editor chrome (localhost only) */
-html.editing .frame { cursor: grab; touch-action: none; outline: 1px dashed rgba(143, 217, 255, 0.4); outline-offset: 3px; }
+html.editing .frame { cursor: grab; touch-action: none; outline: 1px dashed rgba(143, 217, 255, 0.4); outline-offset: -3px; }
 html.editing .frame.empty::after { content: attr(data-size); position: absolute; inset: 0; display: grid; place-items: center; color: var(--sky); opacity: 0.7; font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; }
 html.editing .frame.dragging { cursor: grabbing; }
 html.editing .frame.over { outline: 2px solid var(--sky); }
