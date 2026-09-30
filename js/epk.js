@@ -13,7 +13,14 @@
   var local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   var wantEdit = local || q.has('edit') || window.EPK_EDIT === true;
 
-  function slotOf(key) { return state.frames[key] || (state.frames[key] = { file: null, fx: 0, fy: 0, s: 1 }); }
+  function slotOf(key) { return state.frames[key] || (state.frames[key] = { file: null, fx: 0, fy: 0, s: 1, ar: 'photo' }); }
+  var RATIOS = { photo: null, '1:1': 1, '4:5': 0.8, '3:4': 0.75, '16:10': 1.6 };
+  function applyAspect(slot, el) {
+    var img = el.querySelector('img');
+    var r = RATIOS[slot.ar || 'photo'];
+    if (r == null && img && img.naturalWidth) r = img.naturalWidth / img.naturalHeight;
+    el.style.aspectRatio = r ? String(r) : '';
+  }
 
   function applyTransform(slot, el) {
     var img = el.querySelector('img');
@@ -35,12 +42,16 @@
   function render() {
     Object.keys(frames).forEach(function (key) {
       var el = frames[key], slot = slotOf(key);
-      el.innerHTML = '';
+      // fresh element = no stacked listeners from earlier renders
+      var clean = el.cloneNode(false); clean.innerHTML = '';
+      el.parentNode.replaceChild(clean, el); el = frames[key] = clean;
+      el.onclick = null;
+      applyAspect(slot, el);
       el.classList.toggle('empty', !slot.file);
       if (slot.file) {
         var img = document.createElement('img');
         img.src = slot.file; img.alt = 'EMGOR'; img.decoding = 'async';
-        img.onload = function () { clampSlot(slot, el); };
+        img.onload = function () { applyAspect(slot, el); clampSlot(slot, el); };
         el.appendChild(img);
         applyTransform(slot, el);
       }
@@ -82,6 +93,12 @@
     if (slot.file) {
       var tools = document.createElement('div');
       tools.className = 'fr-tools';
+      Object.keys(RATIOS).forEach(function (r) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.textContent = r; b.className = (slot.ar || 'photo') === r ? 'on' : '';
+        b.addEventListener('click', function (e) { e.stopPropagation(); slot.ar = r; render(); saveDraft(); });
+        tools.appendChild(b);
+      });
       var swap = document.createElement('button');
       swap.type = 'button'; swap.textContent = 'replace';
       swap.addEventListener('click', function (e) { e.stopPropagation(); pickTarget = key; picker.click(); });
@@ -97,7 +114,7 @@
       zoom.addEventListener('input', function () { slot.s = parseFloat(zoom.value); clampSlot(slot, el); saveDraft(); });
       el.appendChild(zoom);
     } else {
-      el.addEventListener('click', function () { pickTarget = key; picker.click(); });
+      el.onclick = function () { pickTarget = key; picker.click(); };
     }
 
     el.addEventListener('dragover', function (e) { e.preventDefault(); e.stopPropagation(); el.classList.add('over'); });

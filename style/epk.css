@@ -16,6 +16,7 @@ section { margin-bottom: 48px; }
 /* photo frames — black rectangles until a photo is placed */
 .frame { position: relative; overflow: hidden; margin: 0; border-radius: 14px; background: #000; border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(13, 2, 33, 0.7); }
 .frame-hero { aspect-ratio: 16 / 10; margin-bottom: 44px; }
+.frame-pair { align-items: start; }
 .frame-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 48px; }
 .frame-sq { aspect-ratio: 1 / 1; }
 .frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: center; user-select: none; -webkit-user-drag: none; pointer-events: none; }
@@ -28,6 +29,7 @@ html.editing .frame.dragging { cursor: grabbing; }
 html.editing .frame.over { outline: 2px solid var(--sky); }
 .fr-tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 2; opacity: 0; transition: opacity 0.15s; }
 .frame:hover .fr-tools, .frame:focus-within .fr-tools { opacity: 1; }
+.fr-tools button.on { background: var(--sun); color: #1a1800; border-color: var(--sun); }
 .fr-tools button { font: inherit; font-size: 0.68rem; padding: 5px 8px; border-radius: 6px; cursor: pointer; background: rgba(13, 2, 33, 0.85); color: var(--bone); border: 1px solid rgba(143, 217, 255, 0.5); }
 .fr-zoom { position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 2; opacity: 0; transition: opacity 0.15s; accent-color: var(--sun); height: 18px; }
 .frame:hover .fr-zoom, .frame:focus-within .fr-zoom { opacity: 1; }
