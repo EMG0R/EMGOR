@@ -16,20 +16,26 @@
   function slotOf(key) { return state.frames[key] || (state.frames[key] = { file: null, fx: 0, fy: 0, s: 1 }); }
   function applyAspect() {} // frame sizes are fixed in CSS: hero 4:5, pair 1:1 — same on every device
 
-  function applyTransform(slot, el) {
-    var img = el.querySelector('img');
-    if (img) img.style.transform = 'translate(' + (slot.fx * 100).toFixed(3) + '%, ' + (slot.fy * 100).toFixed(3) + '%) scale(' + slot.s.toFixed(4) + ')';
-  }
-  function clampSlot(slot, el) {
+  // Photo placement: the img is sized to COVER the frame (times zoom) and offset by fx/fy fractions of the frame.
+  // No object-fit — the whole photo is real pixels, so panning can reach every edge.
+  function layout(slot, el) {
     var img = el.querySelector('img');
     if (!img || !img.naturalWidth) return;
     var W = el.clientWidth, H = el.clientHeight;
-    var k = Math.max(W / img.naturalWidth, H / img.naturalHeight);
-    var rw = img.naturalWidth * k * slot.s, rh = img.naturalHeight * k * slot.s;
-    var mx = Math.max(0, (rw - W) / 2) / W, my = Math.max(0, (rh - H) / 2) / H;
-    slot.fx = Math.max(-mx, Math.min(mx, slot.fx));
-    slot.fy = Math.max(-my, Math.min(my, slot.fy));
-    applyTransform(slot, el);
+    if (!W || !H) return;
+    var k = Math.max(W / img.naturalWidth, H / img.naturalHeight) * (slot.s || 1);
+    var w = img.naturalWidth * k, h = img.naturalHeight * k;
+    var mx = Math.max(0, (w - W) / 2) / W, my = Math.max(0, (h - H) / 2) / H;
+    slot.fx = Math.max(-mx, Math.min(mx, slot.fx || 0));
+    slot.fy = Math.max(-my, Math.min(my, slot.fy || 0));
+    img.style.width = w + 'px'; img.style.height = h + 'px';
+    img.style.transform = 'translate3d(' + ((W - w) / 2 + slot.fx * W).toFixed(2) + 'px, ' + ((H - h) / 2 + slot.fy * H).toFixed(2) + 'px, 0)';
+  }
+  function applyTransform(slot, el) { layout(slot, el); }
+  function clampSlot(slot, el) { layout(slot, el); }
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(function () { Object.keys(frames).forEach(function (k) { layout(slotOf(k), frames[k]); }); });
+    Object.keys(frames).forEach(function (k) { ro.observe(frames[k]); });
   }
   addEventListener('resize', function () { Object.keys(frames).forEach(function (k) { clampSlot(slotOf(k), frames[k]); }); });
 
@@ -39,13 +45,18 @@
       // fresh element = no stacked listeners from earlier renders
       var clean = el.cloneNode(false); clean.innerHTML = '';
       el.parentNode.replaceChild(clean, el); el = frames[key] = clean;
+      if (window.ResizeObserver && ro) ro.observe(el);
       el.onclick = null;
+      if (!slot.file) el.classList.add('in');
       applyAspect(slot, el);
       el.classList.toggle('empty', !slot.file);
       if (slot.file) {
         var img = document.createElement('img');
-        img.src = slot.file; img.alt = 'EMGOR'; img.decoding = 'async';
-        img.onload = function () { applyAspect(slot, el); clampSlot(slot, el); requestAnimationFrame(function () { img.classList.add('in'); }); };
+        img.alt = 'EMGOR'; img.decoding = 'async';
+        var ready = function () { applyAspect(slot, el); clampSlot(slot, el); requestAnimationFrame(function () { el.classList.add('in'); }); };
+        img.onload = ready;
+        img.src = slot.file;
+        if (img.complete && img.naturalWidth) ready();
         el.appendChild(img);
         applyTransform(slot, el);
       }
@@ -116,7 +127,7 @@
     var ptrs = {}, start = null;
     el.addEventListener('pointerdown', function (e) {
       if (!slot.file) return;
-      el.setPointerCapture(e.pointerId);
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
       ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
       var keys = Object.keys(ptrs);
       if (keys.length === 1) start = { x: e.clientX, y: e.clientY, fx: slot.fx, fy: slot.fy };
