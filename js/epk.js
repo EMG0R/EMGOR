@@ -184,7 +184,7 @@
   fetch('epk/layout.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return {}; })
     .then(function (pub) {
       if (pub && pub.frames) state = pub;
-      if (!wantEdit) return;
+      if (!wantEdit && !local) return;
       return fetch('/__epk/draft', { cache: 'no-store' })
         .then(function (r) { if (!r.ok) throw new Error(); devOK = true; return r.json(); })
         .then(function (d) { if (d && d.frames) state = d; })
