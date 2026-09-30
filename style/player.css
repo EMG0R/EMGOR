@@ -1,8 +1,16 @@
+.ep,
+.ep *,
+.ep *::before,
+.ep *::after {
+    box-sizing: border-box;
+}
+
 .ep {
     display: flex;
     flex-direction: column;
     gap: 12px;
     width: 100%;
+    max-width: 100%;
 }
 
 .ep-row {
