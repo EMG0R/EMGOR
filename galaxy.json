@@ -1658,7 +1658,7 @@
       "path": "universe/web-synth/_index.md",
       "route": "/web-synth",
       "depth": 1,
-      "children": 3,
+      "children": 4,
       "downloads": [],
       "links": [],
       "tags": [
@@ -1672,12 +1672,43 @@
       "size": 1.4
     },
     {
-      "id": "emgor.web-synth.ciesen",
-      "title": "CIESEN",
-      "blurb": "Generative ambient ChucK synth, live in-browser — works on iPhone",
+      "id": "emgor.web-synth.bouba",
+      "title": "BOUBA",
+      "blurb": "Generative ambient synth in pure Web Audio — pure sines, harmonic-series tuning, keeps playing with the phone screen off",
       "parent": "emgor.web-synth",
-      "path": "universe/web-synth/ciesen.md",
-      "route": "/web-synth/ciesen",
+      "path": "universe/web-synth/bouba.md",
+      "route": "/web-synth/bouba",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Play BOUBA",
+          "url": "bouba.html"
+        },
+        {
+          "label": "BOUBA (legacy) — the ChucK build",
+          "url": "ciesen.html"
+        }
+      ],
+      "tags": [
+        "web-audio",
+        "generative",
+        "ambient",
+        "harmonic-series",
+        "iphone"
+      ],
+      "updated": "2026-10-01",
+      "launch": "bouba.html",
+      "order": 1
+    },
+    {
+      "id": "emgor.web-synth.bouba-legacy",
+      "title": "BOUBA (legacy)",
+      "blurb": "The original CIESEN build — ChucK in the browser via WebChucK, kept as is",
+      "parent": "emgor.web-synth",
+      "path": "universe/web-synth/bouba-legacy.md",
+      "route": "/web-synth/bouba-legacy",
       "depth": 2,
       "children": 0,
       "downloads": [
@@ -1688,7 +1719,7 @@
       ],
       "links": [
         {
-          "label": "Play CIESEN",
+          "label": "Play BOUBA (legacy)",
           "url": "ciesen.html"
         },
         {
@@ -1704,8 +1735,9 @@
         "generative",
         "ambient"
       ],
-      "updated": "2026-08-12",
-      "launch": "ciesen.html"
+      "updated": "2026-10-01",
+      "launch": "ciesen.html",
+      "order": 2
     },
     {
       "id": "emgor.web-synth.neptr",

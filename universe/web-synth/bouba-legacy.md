@@ -1,23 +1,24 @@
 ---
-id: emgor.web-synth.ciesen
+id: emgor.web-synth.bouba-legacy
 launch: ciesen.html
-title: CIESEN
-blurb: Generative ambient ChucK synth, live in-browser — works on iPhone
+title: BOUBA (legacy)
+blurb: The original CIESEN build — ChucK in the browser via WebChucK, kept as is
 parent: emgor.web-synth
 source: ____EMGOR_ONLINE/EMGOR/_CIESEN_audio.ck
 downloads:
   - files/_CIESEN.ck
 links:
-  - { label: "Play CIESEN", url: "ciesen.html" }
+  - { label: "Play BOUBA (legacy)", url: "ciesen.html" }
   - { label: "Full chuGL version (desktop, WebGPU)", url: "ciesen-gl.html" }
 tags: [chuck, webchuck, chugl, webgpu, generative, ambient]
-updated: 2026-08-12
+updated: 2026-10-01
 draft: false
+order: 2
 ---
 
-# CIESEN
+# BOUBA (legacy)
 
-**Language: ChucK.** A generative ambient piece written in ChucK and run *in
+**Language: ChucK.** This is the first build of BOUBA (then called CIESEN): a generative ambient piece written in ChucK and run *in
 the browser* via WebChucK — the same audio engine that would run on the
 desktop VM, compiled to the web. The default build here is the
 maximally-compatible one: real ChucK audio (`webchuck`, AudioWorklet-based,

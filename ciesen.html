@@ -158,13 +158,14 @@
             50% { transform: scale(1.08); border-color: rgba(255,255,255,0.3); }
         }
     </style>
-    <title>CIESEN</title>
+    <title>BOUBA (legacy)</title>
 </head>
 <body>
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     <a href="index.html" class="home-button">&#8962;</a>
     <button id="opts-button" class="opts-button" aria-label="options">&#8943;</button>
     <div id="opts-panel">
+        <a href="bouba.html">BOUBA (new, pure Web Audio)</a>
         <a href="ciesen-gl.html">Full chuGL version&#10;(desktop, WebGPU)</a>
         <a href="universe/web-synth/files/_CIESEN.ck" download>Download _CIESEN.ck</a>
         <!-- VIDEO PLACEHOLDER — no capture of CIESEN exists in the archive yet.
@@ -174,7 +175,7 @@
         -->
         <span class="opts-row opts-placeholder">Video capture — TBD</span>
     </div>
-    <div id="status">Loading CIESEN</div>
+    <div id="status">Loading BOUBA (legacy)</div>
     <div id="tap-overlay">
         <div class="tap-ring">
             <span class="tap-icon">&#9654;</span>
@@ -233,7 +234,7 @@
         const dotInterval = setInterval(() => {
             dotCount = (dotCount + 1) % 4;
             if (!statusEl.classList.contains('error') && !statusEl.classList.contains('hidden')) {
-                statusEl.textContent = 'Loading CIESEN' + '.'.repeat(dotCount);
+                statusEl.textContent = 'Loading BOUBA (legacy)' + '.'.repeat(dotCount);
             }
         }, 400);
 
@@ -688,11 +689,11 @@
                 const dispY = (0.5 - ny) * 2 * HALF_H;
                 const [cr, cg, cb] = CTRL_COLOR[i];
                 const obright = 0.5 + o.val * 0.5;
-                // ChuGL's GCircle mesh radius-per-sca-unit isn't something
-                // we can verify outside the WebGPU renderer; 0.12 world
-                // units is a by-eye pick that reads as a small draggable
-                // control dot rather than covering the screen.
-                const orbSz = 0.12 * winScale * scale;
+                // Radius ported from the ChuGL reference (_CIESEN.ck:
+                // `1 * winScale => orbFixedSz`), same world-units-to-pixels
+                // scale factor as every other world-space shape here. The
+                // previous 0.12 was ~8x too small (only orb centres showed).
+                const orbSz = 1.0 * winScale * scale;
                 const jx = reducedMotion ? 0 : rand(-0.006, 0.006) * halfW * 0.05;
                 const jy = reducedMotion ? 0 : rand(-0.006, 0.006) * HALF_H * 0.05;
 
@@ -753,7 +754,7 @@
                 const [nx, ny] = orbScreenNorm(orbs[i], i);
                 const dx = mx - nx, dy = (my - ny) * (W / H);
                 const dist = Math.hypot(dx, dy);
-                if (dist < 0.08 && dist < closestDist) { closestDist = dist; closest = i; }
+                if (dist < 0.06 && dist < closestDist) { closestDist = dist; closest = i; }
             }
             if (closest >= 0) {
                 grabIdx = closest;

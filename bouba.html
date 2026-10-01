@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+        body { font-family: 'Courier New', Courier, monospace; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+            position: fixed;
+            top: 0; left: 0;
+        }
+
+        .home-button {
+            position: fixed;
+            top: max(16px, env(safe-area-inset-top));
+            left: max(16px, env(safe-area-inset-left));
+            z-index: 100;
+            font-size: 1.8rem;
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            transition: color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .home-button:hover { color: rgba(255,255,255,0.95); }
+
+        .opts-button {
+            position: fixed;
+            top: max(16px, env(safe-area-inset-top));
+            right: max(16px, env(safe-area-inset-right));
+            z-index: 100;
+            width: 34px; height: 34px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: color 0.2s;
+        }
+        .opts-button:hover, .opts-button.active { color: rgba(255,255,255,0.95); }
+
+        #opts-panel {
+            position: fixed;
+            top: max(54px, calc(env(safe-area-inset-top) + 38px));
+            right: max(16px, env(safe-area-inset-right));
+            z-index: 100;
+            min-width: 220px;
+            background: rgba(0,0,0,0.88);
+            border: 1px solid rgba(255,255,255,0.14);
+            padding: 10px;
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+        }
+        #opts-panel.show { display: flex; }
+        #opts-panel a, #opts-panel .opts-row {
+            display: block;
+            padding: 9px 8px;
+            font-size: 0.62rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.55);
+            text-decoration: none;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            transition: color 0.15s, background 0.15s;
+        }
+        #opts-panel a:last-child, #opts-panel .opts-row:last-child { border-bottom: none; }
+        #opts-panel a:hover { color: rgba(255,255,255,0.95); background: rgba(255,255,255,0.05); }
+
+        #status {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+            color: rgba(255,255,255,0.25);
+            text-align: center;
+            white-space: pre-wrap;
+            word-break: break-word;
+            transition: opacity 0.8s;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        #status.hidden { opacity: 0; pointer-events: none; }
+        #status.error { color: rgba(239,80,60,0.8); background: rgba(0,0,0,0.92); font-size: 0.65rem; }
+
+        #tap-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.85);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #tap-overlay.show { display: flex; }
+        #tap-overlay .tap-ring {
+            width: 100px; height: 100px;
+            border: 1.5px solid rgba(255,255,255,0.15);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            animation: tapPulse 2s ease-in-out infinite;
+        }
+        #tap-overlay .tap-icon {
+            font-size: 1.6rem;
+            color: rgba(255,255,255,0.5);
+            letter-spacing: 1px;
+        }
+        #tap-overlay .tap-label {
+            margin-top: 18px;
+            font-size: 0.6rem;
+            letter-spacing: 3px;
+            color: rgba(255,255,255,0.2);
+            text-transform: uppercase;
+        }
+        @keyframes tapPulse {
+            0%, 100% { transform: scale(1); border-color: rgba(255,255,255,0.15); }
+            50% { transform: scale(1.08); border-color: rgba(255,255,255,0.3); }
+        }
+    </style>
+    <title>BOUBA</title>
+</head>
+<body>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <a href="index.html" class="home-button">&#8962;</a>
+    <button id="opts-button" class="opts-button" aria-label="options">&#8943;</button>
+    <div id="opts-panel">
+        <a href="ciesen.html">BOUBA (legacy)&#10;(WebChucK / WASM)</a>
+        <a href="ciesen-gl.html">Full chuGL version&#10;(desktop, WebGPU)</a>
+        <a href="universe/web-synth/files/_CIESEN.ck" download>Download _CIESEN.ck</a>
+    </div>
+    <div id="status">Loading BOUBA</div>
+    <div id="tap-overlay">
+        <div class="tap-ring">
+            <span class="tap-icon">&#9654;</span>
+        </div>
+        <div class="tap-label">tap to start</div>
+    </div>
+
+    <!-- Hidden audio element — the SOLE audio output path. A MediaStreamDestination
+         feeds it so iOS treats this page as a media player and keeps it playing
+         with the screen locked, same trick as ciesen.html. -->
+    <audio id="bg-audio" playsinline webkit-playsinline></audio>
+    <pre id="__probe" style="position:fixed;opacity:0;pointer-events:none;"></pre>
+
+    <script type="module">
+        // ═══════════════════════════════════════════════════════════════
+        // BOUBA — native Web Audio port of CIESEN (_CIESEN_audio.ck), no
+        // WebChucK/WASM. Two intentional sound changes vs the original:
+        //   (a) pure sines — vibrato/wobble removed from sine pads and from
+        //       the sustained part of bird voices (the chirp pitch SWEEPS
+        //       that define the chirp are kept, just not the vibrato on
+        //       top of them).
+        //   (b) tuning is a harmonic series (65.41 Hz * n, n=1..48)
+        //       instead of the original's equal-tempered C-major table.
+        //       Every index-based lookup still works the same way.
+        // ═══════════════════════════════════════════════════════════════
+
+        const statusEl   = document.getElementById('status');
+        const tapOverlay = document.getElementById('tap-overlay');
+        const bgAudio    = document.getElementById('bg-audio');
+        const canvas     = document.getElementById('canvas');
+        const vctx       = canvas.getContext('2d');
+        const optsButton = document.getElementById('opts-button');
+        const optsPanel  = document.getElementById('opts-panel');
+
+        const params = new URLSearchParams(location.search);
+        const AUTOSTART = params.get('autostart') === '1'; // dev-only verification hook
+
+        // ── probe exposed on window for headless verification ──────────
+        window.__bouba = {
+            ctxState: 'unstarted',
+            nodeCount: 0,
+            events: { kicks: 0, birds: 0, rain: 0, pads: 0 },
+            errors: []
+        };
+        window.onerror = function (msg, src, line, col, err) {
+            window.__bouba.errors.push(String(msg) + ' @ ' + line + ':' + col);
+        };
+
+        optsButton.addEventListener('click', () => {
+            optsPanel.classList.toggle('show');
+            optsButton.classList.toggle('active');
+        });
+        document.addEventListener('click', (e) => {
+            if (!optsPanel.contains(e.target) && e.target !== optsButton) {
+                optsPanel.classList.remove('show');
+                optsButton.classList.remove('active');
+            }
+        });
+
+        let dotCount = 0;
+        const dotInterval = setInterval(() => {
+            dotCount = (dotCount + 1) % 4;
+            if (!statusEl.classList.contains('error') && !statusEl.classList.contains('hidden')) {
+                statusEl.textContent = 'Loading BOUBA' + '.'.repeat(dotCount);
+            }
+        }, 400);
+
+        function fail(msg) {
+            clearInterval(dotInterval);
+            statusEl.className = 'error';
+            statusEl.textContent = msg;
+            window.__bouba.errors.push(msg);
+        }
+
+        // ── helpers ──────────────────────────────────────────────────
+        function rf(a, b) { return a + Math.random() * (b - a); }
+        function ri(a, b) { return Math.floor(a + Math.random() * (b - a + 1)); } // inclusive, like ChucK Math.random2
+        function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+        // ── harmonic-series tuning table (replaces cMajor[48]) ──────────
+        // fundamental 65.41 Hz (C2), entries = f0 * n for n = 1..48
+        const HARM = [];
+        for (let n = 1; n <= 48; n++) HARM.push(65.41 * n);
+
+        let chuckOutputLog = ''; // kept for parity with ciesen's log panel; unused UI here
+
+        // ═══════════════════════════════════════════════════════════════
+        // Audio engine (built once we have an AudioContext from the tap)
+        // ═══════════════════════════════════════════════════════════════
+        let ctx = null;
+        let master = null, limiter = null, mediaStreamDest = null, silentOsc = null;
+        let noiseBuffer = null;
+        let engineStarted = false;
+
+        const ctrl = { pitch: 0.458, kick: 0.33, waves: 0.80, sin: 0.75, storm: 0.25, bird: 0.50 };
+        const state = { pitch: 0, bpm: 131, waveLevel: 0, thunderLevel: 0 };
+        const events = { kickCount: 0, birdCount: 0, rainCount: 0, padCount: 0 };
+
+        function makeNoiseBuffer(c) {
+            const len = c.sampleRate * 2;
+            const buf = c.createBuffer(1, len, c.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+            return buf;
+        }
+
+        function noiseSrc() {
+            const s = ctx.createBufferSource();
+            s.buffer = noiseBuffer;
+            s.loop = true;
+            return s;
+        }
+
+        // AD envelope (every ADSR in the source .ck has sustain = 0, so this
+        // is always a plain attack->decay-to-zero shape).
+        function AD(param, t0, atk, dec, peak) {
+            atk = Math.max(0.0005, atk);
+            dec = Math.max(0.0005, dec);
+            param.cancelScheduledValues(t0);
+            param.setValueAtTime(0, t0);
+            param.linearRampToValueAtTime(peak, t0 + atk);
+            param.linearRampToValueAtTime(0, t0 + atk + dec);
+        }
+
+        function scheduleVisual(t, fn) {
+            const delayMs = Math.max(0, (t - ctx.currentTime) * 1000);
+            setTimeout(fn, delayMs);
+        }
+
+        // ── persistent bus graph ─────────────────────────────────────
+        let kickOutGain, kickBodyOsc, kickBodyGain, kickSubOsc, kickSubGain, kickClickOsc, kickClickGain;
+        let wavesNoise = [], wavesLPF = [], wavesGain = [], wavesPan = [];
+        let thunderLowNoise = [], thunderLPF = [], thunderLowGain = [], thunderMidNoise = [], thunderBPF = [], thunderMidGain = [], thunderPan = [];
+        let rainHissSrc, rainHissFilt, rainHissGain;
+        let rainBus, rainPan;
+
+        const BASE_NODE_COUNT_TARGET = 58; // see report: kick7 + waves16 + thunder28 + rainHiss3 + rainBus/pan2 + master/limiter2
+
+        function buildGraph() {
+            master = ctx.createGain();
+            master.gain.value = 1.8; // same master boost as the .ck's masterL/masterR gain
+            limiter = ctx.createDynamicsCompressor();
+            limiter.threshold.value = -1; limiter.knee.value = 0; limiter.ratio.value = 20;
+            limiter.attack.value = 0.003; limiter.release.value = 0.25;
+            master.connect(limiter);
+            // limiter -> mediaStreamDest only: the <audio> element is the sole
+            // output path (never connected to ctx.destination directly).
+            noiseBuffer = makeNoiseBuffer(ctx);
+
+            // kick: body(90hz)+sub(45hz)+click(180hz), each with its own AD
+            // envelope into a shared kickOut bus whose gain is the per-hit
+            // volume trim (vol*0.432), exactly mirroring the .ck topology.
+            kickOutGain = ctx.createGain(); kickOutGain.gain.value = 0; kickOutGain.connect(master);
+            kickBodyOsc = ctx.createOscillator(); kickBodyOsc.type = 'sine'; kickBodyOsc.frequency.value = 90;
+            kickBodyGain = ctx.createGain(); kickBodyGain.gain.value = 0;
+            kickBodyOsc.connect(kickBodyGain).connect(kickOutGain); kickBodyOsc.start();
+            kickSubOsc = ctx.createOscillator(); kickSubOsc.type = 'sine'; kickSubOsc.frequency.value = 45;
+            kickSubGain = ctx.createGain(); kickSubGain.gain.value = 0;
+            kickSubOsc.connect(kickSubGain).connect(kickOutGain); kickSubOsc.start();
+            kickClickOsc = ctx.createOscillator(); kickClickOsc.type = 'sine'; kickClickOsc.frequency.value = 180;
+            kickClickGain = ctx.createGain(); kickClickGain.gain.value = 0;
+            kickClickOsc.connect(kickClickGain).connect(kickOutGain); kickClickOsc.start();
+
+            // ocean waves: 4ch filtered noise, fixed pan spread
+            const wPans = [-0.7, 0.7, -0.3, 0.3];
+            for (let ch = 0; ch < 4; ch++) {
+                const n = noiseSrc();
+                const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 120; f.Q.value = 0.707;
+                const g = ctx.createGain(); g.gain.value = 0;
+                const p = ctx.createStereoPanner(); p.pan.value = wPans[ch];
+                n.connect(f).connect(g).connect(p).connect(master);
+                n.start();
+                wavesNoise.push(n); wavesLPF.push(f); wavesGain.push(g); wavesPan.push(p);
+            }
+
+            // thunder: 4ch, LPF rumble + BPF-at-350hz mid, summed per channel
+            // then panned, fixed pan spread
+            const tPans = [-0.6, 0.6, -0.2, 0.2];
+            for (let ch = 0; ch < 4; ch++) {
+                const p = ctx.createStereoPanner(); p.pan.value = tPans[ch];
+                const n1 = noiseSrc();
+                const f1 = ctx.createBiquadFilter(); f1.type = 'lowpass'; f1.frequency.value = 80; f1.Q.value = 1.2;
+                const g1 = ctx.createGain(); g1.gain.value = 0;
+                n1.connect(f1).connect(g1).connect(p); n1.start();
+                const n2 = noiseSrc();
+                const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 350; f2.Q.value = 2.0;
+                const g2 = ctx.createGain(); g2.gain.value = 0;
+                n2.connect(f2).connect(g2).connect(p); n2.start();
+                p.connect(master);
+                thunderLowNoise.push(n1); thunderLPF.push(f1); thunderLowGain.push(g1);
+                thunderMidNoise.push(n2); thunderBPF.push(f2); thunderMidGain.push(g2);
+                thunderPan.push(p);
+            }
+
+            // rain hiss (continuous) — boil/impact/bubble are transient, below
+            rainHissSrc = noiseSrc();
+            rainHissFilt = ctx.createBiquadFilter(); rainHissFilt.type = 'bandpass'; rainHissFilt.frequency.value = 1200; rainHissFilt.Q.value = 1.2;
+            rainHissGain = ctx.createGain(); rainHissGain.gain.value = 0;
+            rainHissSrc.connect(rainHissFilt).connect(rainHissGain).connect(master);
+            rainHissSrc.start();
+
+            // shared bus+panner for rain impacts/bubbles (the .ck pans the
+            // WHOLE bus per-drop via one shared Pan2, not per-voice — a
+            // quirk of the original that we reproduce exactly)
+            rainBus = ctx.createGain(); rainBus.gain.value = 1;
+            rainPan = ctx.createStereoPanner(); rainPan.pan.value = 0;
+            rainBus.connect(rainPan).connect(master);
+        }
+
+        // ── kick ─────────────────────────────────────────────────────
+        let kickNextTime = 0;
+        function kickTick(now, lookahead) {
+            while (kickNextTime < now + lookahead) {
+                const m = ctrl.kick;
+                if (m > 0) {
+                    const vol = Math.min(m / 0.5, 1);
+                    let bpm = 131;
+                    if (m > 0.5) bpm = 131 + (m - 0.5) / 0.5 * 50;
+                    state.bpm = bpm;
+                    const t = kickNextTime;
+                    kickOutGain.gain.setValueAtTime(vol * 0.432, t);
+                    AD(kickBodyGain.gain, t, 0.002, 0.260, 0.55);
+                    AD(kickSubGain.gain, t, 0.003, 0.200, 0.30);
+                    AD(kickClickGain.gain, t, 0.001, 0.040, 0.18);
+                    kickBodyOsc.frequency.setValueAtTime(90, t);
+                    kickBodyOsc.frequency.setValueAtTime(70, t + 0.006);
+                    kickBodyOsc.frequency.setValueAtTime(58, t + 0.012);
+                    kickBodyOsc.frequency.setValueAtTime(55, t + 0.018);
+                    kickSubOsc.frequency.setValueAtTime(45, t);
+                    kickSubOsc.frequency.setValueAtTime(35, t + 0.006);
+                    kickSubOsc.frequency.setValueAtTime(29, t + 0.012);
+                    kickSubOsc.frequency.setValueAtTime(27, t + 0.018);
+                    events.kickCount++;
+                    scheduleVisual(t, () => onKick(vol));
+                    const wait = Math.max(0, (60 / bpm) - 0.018);
+                    kickNextTime = t + wait;
+                } else {
+                    kickOutGain.gain.setValueAtTime(0, kickNextTime);
+                    kickNextTime += 0.05;
+                }
+            }
+        }
+
+        // ── sine pads (24-voice cap, transient oscillators) ──────────
+        const activePads = [];
+        let sineNextTime = 0;
+        function sineTick(now, lookahead) {
+            const m = ctrl.sin;
+            const prob = Math.min(m * 2, 1);
+            const vol = 0.9;
+            const pitch = state.pitch;
+            const bpm = state.bpm;
+            const wholeNote = 60 / bpm;
+
+            for (let i = activePads.length - 1; i >= 0; i--) {
+                const v = activePads[i];
+                if (now - v.start > v.life) { activePads.splice(i, 1); continue; }
+                const freq = HARM[v.noteIdx] * Math.pow(2, pitch / 12) * 0.25;
+                v.oscF.frequency.setTargetAtTime(freq, now, 0.05);
+                v.oscH.frequency.setTargetAtTime(freq * 3, now, 0.05);
+                const morph = clamp((ctrl.sin - 0.3) * 1.43, 0, 1);
+                v.gF.gain.setTargetAtTime(0.15 * (1 - morph * 0.4), now, 0.05);
+                v.gH.gain.setTargetAtTime(0.08 * morph, now, 0.05);
+            }
+
+            while (sineNextTime < now + lookahead) {
+                if (m > 0 && Math.random() < prob * 0.9) {
+                    triggerSineNote(ri(0, 39), vol, pitch, Math.max(sineNextTime, now));
+                }
+                sineNextTime = Math.max(sineNextTime, now) + (Math.random() < 0.75 ? wholeNote / 4 : wholeNote / 2);
+                if (m <= 0) break; // mirrors original idle-poll behaviour closely enough
+            }
+        }
+
+        function triggerSineNote(noteIdx, vol, pitch, t) {
+            if (activePads.length >= 24) return; // 24-voice cap, matches findFreeSine()
+            noteIdx = clamp(noteIdx, 0, 47);
+            const freq = HARM[noteIdx] * Math.pow(2, pitch / 12) * 0.25;
+            const oscF = ctx.createOscillator(); oscF.type = 'sine'; oscF.frequency.value = freq;
+            const oscH = ctx.createOscillator(); oscH.type = 'sine'; oscH.frequency.value = freq * 3;
+            const gF = ctx.createGain(); gF.gain.value = 0.15;
+            const gH = ctx.createGain(); gH.gain.value = 0.0;
+            const env = ctx.createGain(); env.gain.value = 0;
+            const pan = ctx.createStereoPanner(); pan.pan.value = rf(-0.7, 0.7);
+            oscF.connect(gF).connect(env);
+            oscH.connect(gH).connect(env);
+            env.connect(pan).connect(master);
+            const amp = 0.22 * vol;
+            AD(env.gain, t, 1.2, 3.5, amp);
+            oscF.start(t); oscH.start(t);
+            const stopAt = t + 4.8;
+            oscF.stop(stopAt); oscH.stop(stopAt);
+            oscH.onended = () => { try { oscF.disconnect(); oscH.disconnect(); gF.disconnect(); gH.disconnect(); env.disconnect(); pan.disconnect(); } catch (e) {} };
+            activePads.push({ oscF, oscH, gF, gH, env, pan, start: t, life: 4.7, noteIdx, amp });
+            events.padCount++;
+            scheduleVisual(t, () => onPad());
+        }
+
+        // fires a big chord every 15s (after an initial 10s delay)
+        let chordNextTime = 0, chordInit = false;
+        function chordTick(now, lookahead) {
+            if (!chordInit) { chordNextTime = now + 10; chordInit = true; }
+            while (chordNextTime < now + lookahead) {
+                if (ctrl.sin > 0) {
+                    const pitch = state.pitch;
+                    const numNotes = ri(10, 14);
+                    const deg = [0, 2, 4, 6];
+                    for (let c = 0; c < numNotes; c++) {
+                        const oct = ri(2, 5);
+                        let cNote = oct * 8 + deg[ri(0, 3)];
+                        if (cNote > 47) cNote = 47;
+                        triggerSineNote(cNote, 0.95, pitch, chordNextTime);
+                    }
+                }
+                chordNextTime += 15;
+            }
+        }
+
+        // ── birds: 4 types x 2 concurrent voices, transient oscillators ──
+        const bMinBurst = [3, 2, 8, 4], bMaxBurst = [6, 4, 16, 8];
+        const bMinInt = [0.050, 0.200, 0.020, 0.040], bMaxInt = [0.120, 0.400, 0.040, 0.080];
+        const bPitchMode = [1, -1, 0, 0];
+        const bAtk = [15.0, 40.0, 5.0, 10.0], bDec = [60.0, 160.0, 20.0, 50.0];
+        const bStartNote = [32, 28, 38, 30], bNoteRange = [8, 8, 8, 10];
+        const bMinSweep = [0.3, -1.0, -0.15, 0.05], bMaxSweep = [1.5, -0.3, 0.15, 0.5];
+        const bird = {
+            burstLeft: [0, 0, 0, 0], nextNote: [0, 0, 0, 0], nextCall: [0, 0, 0, 0],
+            currentNote: [0, 0, 0, 0], rel: [0, 0, 0, 0], vclock: [0, 0, 0, 0], activeCount: [0, 0, 0, 0],
+            init: false
+        };
+        function birdTick(now, lookahead) {
+            if (!bird.init) {
+                for (let t = 0; t < 4; t++) { bird.nextCall[t] = now + rf(0.5, 2.0); bird.nextNote[t] = now; bird.vclock[t] = now; }
+                bird.init = true;
+            }
+            const m = ctrl.bird;
+            const probRaw = Math.min(m / 0.4, 1) * 0.23;
+            let vol = 0.3; if (m > 0.4) vol = 0.3 + (m - 0.4) / 0.6 * 0.7;
+            const pitch = state.pitch;
+            const prob = Math.pow(probRaw, 3);
+            const STEP = 0.015;
+            for (let t = 0; t < 4; t++) {
+                let vc = bird.vclock[t];
+                let guard = 0;
+                while (vc < now + lookahead && guard++ < 200) {
+                    if (m > 0) {
+                        if (vc >= bird.nextCall[t] && bird.burstLeft[t] <= 0) {
+                            if (Math.random() < prob) {
+                                bird.burstLeft[t] = ri(bMinBurst[t], bMaxBurst[t]);
+                                bird.currentNote[t] = bStartNote[t] + ri(0, bNoteRange[t]);
+                                bird.rel[t] = 0;
+                                bird.nextNote[t] = vc;
+                            }
+                            bird.nextCall[t] = vc + 0.020;
+                        }
+                        if (bird.burstLeft[t] > 0 && vc >= bird.nextNote[t]) {
+                            let noteIdx = clamp(bird.currentNote[t] + bird.rel[t], 0, 47);
+                            triggerBird(t, noteIdx, pitch, vol, vc);
+                            let delta;
+                            if (bPitchMode[t] === 1) delta = ri(1, 3);
+                            else if (bPitchMode[t] === -1) delta = -ri(1, 3);
+                            else delta = ri(-3, 3);
+                            bird.rel[t] = clamp(bird.rel[t] + delta + ri(-1, 1), -10, 10);
+                            bird.nextNote[t] = vc + rf(bMinInt[t], bMaxInt[t]);
+                            bird.burstLeft[t]--;
+                            if (bird.burstLeft[t] <= 0) bird.nextCall[t] = vc + (0.8 + rf(0, 2.0));
+                        }
+                    }
+                    vc += STEP;
+                }
+                bird.vclock[t] = vc;
+            }
+        }
+        function triggerBird(t, noteIdx, pitch, vol, time) {
+            if (bird.activeCount[t] >= 2) { bird.nextNote[t] = time + 0.010; return; }
+            const freq = HARM[noteIdx] * Math.pow(2, pitch / 12);
+            let atk = Math.max(0.001, (bAtk[t] + rf(-5, 5)) / 1000);
+            let dec = Math.max(0.001, (bDec[t] + rf(-10, 10)) / 1000);
+            const sweep = rf(bMinSweep[t], bMaxSweep[t]);
+            const life = atk + dec;
+            const osc = ctx.createOscillator(); osc.type = 'sine';
+            const N = 24; const curve = new Float32Array(N);
+            for (let i = 0; i < N; i++) { const p = i / (N - 1); curve[i] = freq * Math.pow(2, sweep * p); }
+            osc.frequency.setValueCurveAtTime(curve, time, life);
+            const env = ctx.createGain(); env.gain.value = 0;
+            const pan = ctx.createStereoPanner(); const bpan = rf(-1, 1); pan.pan.value = bpan;
+            osc.connect(env).connect(pan).connect(master);
+            AD(env.gain, time, atk, dec, 0.3 * vol * 0.2);
+            osc.start(time);
+            const stopAt = time + life + 0.02;
+            osc.stop(stopAt);
+            bird.activeCount[t]++;
+            osc.onended = () => { bird.activeCount[t]--; try { osc.disconnect(); env.disconnect(); pan.disconnect(); } catch (e) {} };
+            events.birdCount++;
+            scheduleVisual(time, () => onBird(bpan));
+        }
+
+        // ── ocean waves (continuous, control-rate update) ────────────
+        const waves = { phase: [0, 0, 0, 0], rate: [0, 0, 0, 0], nextSweep: [0, 0, 0, 0], sweeping: [0, 0, 0, 0], sweepUp: [0, 0, 0, 0], sweepStart: [0, 0, 0, 0], maxCut: [0, 0, 0, 0], sweepDur: [0, 0, 0, 0], init: false };
+        function wavesTick(now) {
+            if (!waves.init) {
+                for (let ch = 0; ch < 4; ch++) { waves.rate[ch] = rf(0.05, 0.15); waves.phase[ch] = rf(0, 6.28); waves.nextSweep[ch] = now + rf(10, 30); }
+                waves.init = true;
+            }
+            const m = ctrl.waves;
+            const prob = Math.min(m / 0.4, 1);
+            let vol = 0.3; if (m > 0.4) vol = 0.3 + (m - 0.4) / 0.6 * 0.7;
+            const pitch = state.pitch;
+            const dt = 0.016; // matches the .ck's fixed per-iteration dt
+            const filterMax = 300 + (pitch + 12) / 24 * 1200;
+            let wLevel = 0;
+            for (let ch = 0; ch < 4; ch++) {
+                if (m > 0) {
+                    const g = 0.85 * vol;
+                    wavesGain[ch].gain.setTargetAtTime(g, now, 0.01);
+                    if (g > wLevel) wLevel = g;
+                    waves.phase[ch] += 6.28 * waves.rate[ch] * dt;
+                    if (waves.phase[ch] > 6.28) waves.phase[ch] -= 6.28;
+                    let cutoff = 150 + Math.sin(waves.phase[ch]) * 80;
+                    if (now >= waves.nextSweep[ch] && !waves.sweeping[ch]) {
+                        if (Math.random() < prob * 0.5) {
+                            waves.sweeping[ch] = 1; waves.sweepUp[ch] = 1; waves.sweepStart[ch] = now;
+                            waves.maxCut[ch] = Math.random() < 0.15 ? filterMax * rf(0.7, 1.0) : filterMax * rf(0.15, 0.35);
+                            waves.sweepDur[ch] = rf(3.0, 7.0);
+                        }
+                        waves.nextSweep[ch] = now + ri(6, 22);
+                    }
+                    if (waves.sweeping[ch]) {
+                        const elapsed = now - waves.sweepStart[ch];
+                        const p = elapsed / waves.sweepDur[ch];
+                        if (waves.sweepUp[ch]) {
+                            if (p < 1) cutoff += (waves.maxCut[ch] - 120) * p;
+                            else { waves.sweepUp[ch] = 0; waves.sweepStart[ch] = now; }
+                        } else {
+                            if (p < 1) cutoff += (waves.maxCut[ch] - 120) * (1 - p);
+                            else waves.sweeping[ch] = 0;
+                        }
+                    }
+                    cutoff = clamp(cutoff, 50, 12000);
+                    wavesLPF[ch].frequency.setTargetAtTime(cutoff, now, 0.01);
+                } else {
+                    wavesGain[ch].gain.setTargetAtTime(0, now, 0.01);
+                }
+            }
+            state.waveLevel = wLevel;
+        }
+
+        // ── thunder (continuous, control-rate update, per-tick jitter) ──
+        const thunder = { sweeping: [0, 0, 0, 0], sweepStart: [0, 0, 0, 0], maxCut: [0, 0, 0, 0], duration: [0, 0, 0, 0], maxGain: [0, 0, 0, 0], nextTrig: [0, 0, 0, 0], init: false };
+        function thunderTick(now) {
+            if (!thunder.init) {
+                for (let ch = 0; ch < 4; ch++) thunder.nextTrig[ch] = now + ri(2, 10);
+                thunder.init = true;
+            }
+            const m = ctrl.storm;
+            const trigProb = Math.min(m / 0.25, 1) * 0.4;
+            const vol = Math.min(m * 2, 1);
+            let thLevel = 0;
+            for (let ch = 0; ch < 4; ch++) {
+                if (m > 0) {
+                    if (now >= thunder.nextTrig[ch] && !thunder.sweeping[ch]) {
+                        if (Math.random() < trigProb) {
+                            thunder.sweeping[ch] = 1; thunder.sweepStart[ch] = now;
+                            thunder.maxCut[ch] = 80 + rf(0, 140);
+                            thunder.duration[ch] = rf(3.0, 12.0);
+                            thunder.maxGain[ch] = 0.5 + rf(0, 0.35);
+                            thunder.nextTrig[ch] = now + ri(5, 20);
+                        } else {
+                            thunder.nextTrig[ch] = now + 0.5;
+                        }
+                    }
+                    if (thunder.sweeping[ch]) {
+                        const elapsed = now - thunder.sweepStart[ch];
+                        const p = elapsed / thunder.duration[ch];
+                        if (p < 1) {
+                            let g;
+                            if (p < 0.06) g = (p / 0.06) * (p / 0.06) * thunder.maxGain[ch];
+                            else { const baseG = thunder.maxGain[ch] * Math.pow(1 - p, 0.6); g = (0.6 + rf(0, 0.4)) * baseG; }
+                            let cutoff;
+                            if (p < 0.3) cutoff = 60 + thunder.maxCut[ch] * (p / 0.3);
+                            else cutoff = thunder.maxCut[ch] * Math.pow(1 - (p - 0.3) / 0.7, 0.4) + 40;
+                            cutoff = clamp(cutoff, 40, 220);
+                            thunderLPF[ch].frequency.setTargetAtTime(cutoff, now, 0.01);
+                            thunderLPF[ch].Q.setTargetAtTime(0.707 + rf(0, 0.3), now, 0.01);
+                            thunderLowGain[ch].gain.setTargetAtTime(g * vol * 0.94, now, 0.01);
+                            thunderMidGain[ch].gain.setTargetAtTime(g * vol * 0.45, now, 0.01);
+                            if (g * vol > thLevel) thLevel = g * vol;
+                        } else {
+                            thunder.sweeping[ch] = 0;
+                            thunderLowGain[ch].gain.setTargetAtTime(0, now, 0.01);
+                            thunderMidGain[ch].gain.setTargetAtTime(0, now, 0.01);
+                        }
+                    } else {
+                        thunderLowGain[ch].gain.setTargetAtTime(0, now, 0.01);
+                        thunderMidGain[ch].gain.setTargetAtTime(0, now, 0.01);
+                    }
+                } else {
+                    thunderLowGain[ch].gain.setTargetAtTime(0, now, 0.01);
+                    thunderMidGain[ch].gain.setTargetAtTime(0, now, 0.01);
+                    thunder.sweeping[ch] = 0;
+                }
+            }
+            state.thunderLevel = thLevel;
+        }
+
+        // ── rain: hiss (continuous) + boil/impact/bubble (transient) ──
+        function rainTick(now) {
+            const m = ctrl.storm; // gRainMacro == gCtrlStorm in the source
+            const vol = 0.7;
+            const hissGain = m * m * 2.0;
+            rainHissFilt.frequency.setTargetAtTime(1200 + m * 3000, now, 0.01);
+            rainHissGain.gain.setTargetAtTime(hissGain * 0.014, now, 0.01);
+            if (m > 0) {
+                const boilCount = ri(0, 1 + Math.floor(m * m * 2.0));
+                for (let b = 0; b < boilCount; b++) if (Math.random() < m * m * 0.85) triggerBoil(now, m, vol);
+                for (let ch = 0; ch < 4; ch++) if (Math.random() < m * m * 0.9) triggerRainDrop(now, vol);
+            }
+        }
+        function triggerBoil(now, m, vol) {
+            const freq = 4000 + Math.pow(Math.random(), 0.6) * 10000;
+            const Q = 2.5 + rf(0, 3);
+            const amp = (0.003 + rf(0, 0.005)) * m * vol;
+            const src = noiseSrc();
+            const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = freq; filt.Q.value = Q;
+            const env = ctx.createGain(); env.gain.value = 0;
+            src.connect(filt).connect(env).connect(master);
+            AD(env.gain, now, 0.0002, 0.005, amp * 0.8);
+            src.start(now); src.stop(now + 0.012);
+            src.onended = () => { try { src.disconnect(); filt.disconnect(); env.disconnect(); } catch (e) {} };
+        }
+        function triggerRainDrop(now, vol) {
+            const dropSize = Math.pow(Math.random(), 2.2);
+            let impactFreq = clamp(9000 - dropSize * 7500 + rf(-600, 600), 1000, 11000);
+            const impactQ = 1.2 + (1 - dropSize) * 2.8;
+            const atk = Math.max(0.0003, rf(0.3, 0.8) / 1000);
+            const dec = Math.max(0.001, (3.0 + dropSize * 57.0 + rf(-2, 6)) / 1000);
+            const amp = (0.009 + rf(0, 0.016)) * (vol + 0.2);
+            const src = noiseSrc();
+            const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = impactFreq; filt.Q.value = impactQ;
+            const env = ctx.createGain(); env.gain.value = 0;
+            src.connect(filt).connect(env).connect(rainBus);
+            AD(env.gain, now, atk, dec, amp * 0.9);
+            src.start(now); src.stop(now + atk + dec + 0.015);
+            src.onended = () => { try { src.disconnect(); filt.disconnect(); env.disconnect(); } catch (e) {} };
+
+            if (Math.random() < 0.25 + dropSize * 0.65) {
+                let bubFreq = clamp(800 + (1 - dropSize) * (1 - dropSize) * 14200 + rf(-200, 200) * (1 + dropSize * 3), 600, 16000);
+                const bubTau = Math.max(0.001, (4 + dropSize * 26) / 1000);
+                const bosc = ctx.createOscillator(); bosc.type = 'sine'; bosc.frequency.value = bubFreq;
+                const benv = ctx.createGain(); benv.gain.value = 0;
+                bosc.connect(benv).connect(rainBus);
+                const bamp = (0.002 + dropSize * 0.012) * (vol + 0.2);
+                AD(benv.gain, now, 0.0003, bubTau, bamp);
+                bosc.start(now); bosc.stop(now + 0.0003 + bubTau + 0.012);
+                bosc.onended = () => { try { bosc.disconnect(); benv.disconnect(); } catch (e) {} };
+            }
+            const dropPan = rf(-0.9, 0.9);
+            rainPan.pan.setValueAtTime(dropPan, now); // shared panner — matches the .ck's quirk exactly
+            events.rainCount++;
+            scheduleVisual(now, () => onRain(dropPan));
+        }
+
+        // ── FM pluck: 4-voice engine, built but intentionally never
+        // scheduled — the source .ck never sporks pluckLoop() either
+        // ("wired up but silent"), so this stays dormant by design.
+        const fmRatios = [1.0, 2.0, 1.5, 3.0];
+        let pkVoice = 0, pkNextNote = 0;
+        let pkLastNotes = [10, 14, 18, 22], pkNoteCount = 4;
+        function triggerPluck(time) { /* never called — see comment above */
+            const m = Math.max(0, (ctrl.sin - 0.5) * 2.0);
+            if (m <= 0 || pkNoteCount <= 0) return;
+            const pitch = state.pitch;
+            let noteIdx = clamp(pkLastNotes[ri(0, pkNoteCount - 1)] + ri(-8, 8), 0, 47);
+            const freq = HARM[noteIdx] * Math.pow(2, pitch / 12);
+            const ratio = fmRatios[pkVoice];
+            const car = ctx.createOscillator(); car.type = 'sine'; car.frequency.value = freq;
+            const mod = ctx.createOscillator(); mod.type = 'sine'; mod.frequency.value = freq * ratio;
+            const modGain = ctx.createGain(); modGain.gain.value = freq * ratio * rf(0.5, 2.0);
+            mod.connect(modGain).connect(car.frequency);
+            const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.Q.value = 1.5;
+            filt.frequency.value = clamp(freq * 3 + 500, 0, 6000);
+            const carGain = ctx.createGain(); carGain.gain.value = 0.2;
+            const env = ctx.createGain(); env.gain.value = 0;
+            car.connect(carGain).connect(filt).connect(env).connect(master);
+            const atkDur = Math.max(0.001, (200 - m * 197) / 1000);
+            const decDur = Math.max(0.001, (600 - m * 520) / 1000);
+            AD(env.gain, time, atkDur, decDur, 0.25 * 0.9);
+            car.start(time); mod.start(time);
+            car.stop(time + atkDur + decDur + 0.03); mod.stop(time + atkDur + decDur + 0.03);
+            pkVoice = (pkVoice + 1) % 4;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // master scheduler
+        // ═══════════════════════════════════════════════════════════════
+        const LOOKAHEAD = 0.12;
+        let schedulerTimer = null;
+        function masterTick() {
+            const now = ctx.currentTime;
+            state.pitch = -12 + ctrl.pitch * 24;
+            kickTick(now, LOOKAHEAD);
+            sineTick(now, LOOKAHEAD);
+            chordTick(now, LOOKAHEAD);
+            birdTick(now, LOOKAHEAD);
+            wavesTick(now);
+            thunderTick(now);
+            rainTick(now);
+            updateProbe();
+        }
+
+        function updateProbe() {
+            const activeBirds = bird.activeCount.reduce((a, b) => a + b, 0);
+            window.__bouba.ctxState = ctx ? ctx.state : 'unstarted';
+            window.__bouba.nodeCount = BASE_NODE_COUNT_TARGET + activePads.length * 6 + activeBirds * 3;
+            window.__bouba.events = { kicks: events.kickCount, birds: events.birdCount, rain: events.rainCount, pads: events.padCount };
+        }
+
+        function startEngine() {
+            if (engineStarted) return;
+            engineStarted = true;
+            const now = ctx.currentTime;
+            kickNextTime = now;
+            sineNextTime = now;
+            buildGraph();
+            schedulerTimer = setInterval(masterTick, 25);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Canvas2D visuals — ported from ciesen.html, driven directly by
+        // the engine's own events instead of polling globals across a
+        // WASM boundary (there is no boundary here, so this is simpler).
+        // ═══════════════════════════════════════════════════════════════
+        const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        function rand(a, b) { return a + Math.random() * (b - a); }
+
+        const TONE_GAMMA = 0.5;
+        function tone(v) { return Math.pow(clamp(v, 0, 1), TONE_GAMMA); }
+        function col(r, g, b, a) {
+            const R = Math.round(tone(r) * 255), G = Math.round(tone(g) * 255), B = Math.round(tone(b) * 255);
+            return a === undefined ? `rgb(${R},${G},${B})` : `rgba(${R},${G},${B},${a})`;
+        }
+
+        const CAM_Z = 6.0;
+        const HALF_H = CAM_Z * Math.tan(22.5 * Math.PI / 180.0);
+        let W = 0, H = 0, DPR = 1, scale = 1, halfW = HALF_H, winScale = 1;
+        function worldToPx(wx, wy) { return [W / 2 + wx * scale, H / 2 - wy * scale]; }
+        function resize() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+            vctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            scale = H / (2 * HALF_H);
+            halfW = HALF_H * (W / H);
+            winScale = clamp(Math.min(W, H) / 700, 0.5, 1.5);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // ── control orbs ──────────────────────────────────────────────
+        const CTRL_NAMES  = ['pitch', 'kick', 'waves', 'sin', 'storm', 'bird'];
+        const CTRL_LABELS = ['PITCH', 'KICK', 'WAVES', 'SIN', 'STORM', 'BIRD'];
+        const CTRL_DEFAULT = [0.458, 0.33, 0.80, 0.75, 0.25, 0.50];
+        const CTRL_COLOR = [
+            [0.15, 0.22, 0.70], [0.30, 0.25, 0.60], [0.20, 0.45, 0.55],
+            [0.40, 0.50, 0.35], [0.65, 0.55, 0.25], [0.85, 0.75, 0.10],
+        ];
+        const orbs = CTRL_NAMES.map((name, i) => ({ name, val: CTRL_DEFAULT[i], swayPh: rand(0, 6.28), swayRt: rand(0.3, 0.8) }));
+        let grabIdx = -1, grabOffsetNormY = 0;
+
+        const TRAIL_N = 12;
+        const trail = Array.from({ length: TRAIL_N }, () => ({ life: 0, maxLife: 0.6, x: 0, y: 0, sz: 0, r: 0, g: 0, b: 0 }));
+        let trailHead = 0;
+
+        const BG_N = 5;
+        function freshBgShape(s, spawnAnywhere) {
+            s.x = spawnAnywhere ? rand(-halfW, halfW) : rand(-4.5, 4.5);
+            s.y = spawnAnywhere ? rand(-HALF_H, HALF_H) : rand(-3.5, 3.5);
+            s.vx = rand(-0.008, 0.008); s.vy = rand(-0.006, 0.006);
+            s.phase = rand(0, 6.28);
+            s.rotSpd = rand(0.06, 0.2) * (Math.random() < 0.5 ? -1 : 1);
+            s.baseSca = rand(1.2, 3.5); s.aspX = rand(0.4, 1.4); s.aspY = rand(0.4, 1.4);
+            const hue = rand(0, 6.28);
+            s.r = 0.020 + 0.04 * Math.max(0, Math.sin(hue));
+            s.g = 0.015 + 0.035 * Math.max(0, Math.sin(hue + 2.09));
+            s.b = 0.020 + 0.045 * Math.max(0, Math.sin(hue + 4.19));
+            s.maxLife = rand(15, 40);
+            s.life = spawnAnywhere ? s.maxLife : rand(0, s.maxLife);
+            s.isCircle = s.kind === 'circle'; s.rot = rand(0, 6.28);
+        }
+        const bgShapes = Array.from({ length: BG_N }, (_, i) => { const s = { kind: i < 2 ? 'circle' : 'rect' }; freshBgShape(s, true); return s; });
+
+        const kick = { life: 0, maxLife: 0.32 };
+
+        const RAIN_N = 32;
+        const rain = Array.from({ length: RAIN_N }, () => ({ life: 0, maxLife: 1, x: 0, y: 0, vx: 0, vy: -2.5, sz: 0 }));
+        let rainHead = 0;
+        function spawnRainVisual(pan) {
+            const d = rain[rainHead]; rainHead = (rainHead + 1) % RAIN_N;
+            const targetDist = HALF_H * 2.0 * 0.65;
+            const dist = rand(0.7, 1.0) * targetDist;
+            const speed = 2.5;
+            d.maxLife = dist / speed; d.life = d.maxLife;
+            d.x = pan * halfW; d.y = HALF_H * 0.95;
+            d.vx = rand(-0.15, 0.15); d.vy = -speed; d.sz = rand(0.02, 0.04);
+        }
+
+        const BIRD_N = 8;
+        const birdsVisual = Array.from({ length: BIRD_N }, () => ({ life: 0, maxLife: 0.5, x: 0, y: 0, rotBase: 0 }));
+        let birdHead = 0;
+        function spawnBirdVisual(pan) {
+            const b = birdsVisual[birdHead]; birdHead = (birdHead + 1) % BIRD_N;
+            b.life = 0.5; b.maxLife = 0.5;
+            b.x = pan * 0.85 * halfW; b.y = rand(-0.2, 0.6) * HALF_H; b.rotBase = rand(0, 6.28);
+        }
+
+        let kickPulse = 0, thunderLevelV = 0, padBright = 0;
+        let globalTime = 0, frameCount = 0, lastTs = 0;
+
+        // ── direct engine->visual hooks (no polling) ──────────────────
+        function onKick(vol) { kick.life = kick.maxLife; kickPulse = vol; }
+        function onBird(pan) { spawnBirdVisual(pan); }
+        function onRain(pan) { spawnRainVisual(pan); }
+        function onPad() { /* padBright is recomputed every frame from activePads directly */ }
+
+        function computePadBright(now) {
+            let raw = 0;
+            for (const v of activePads) if (now - v.start <= v.life) raw += v.amp;
+            return Math.min(raw * 2, 1) * 0.5;
+        }
+
+        function draw(dt) {
+            globalTime += dt; frameCount++;
+            if (ctx) {
+                padBright = computePadBright(ctx.currentTime);
+                thunderLevelV = state.thunderLevel || 0;
+            }
+
+            const thColorBoost = thunderLevelV * 0.02;
+            const kickGrow = 1 + kickPulse * 0.08;
+
+            vctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            vctx.globalCompositeOperation = 'source-over';
+            vctx.shadowBlur = 0;
+            vctx.fillStyle = col(
+                0.005 + kickPulse * 0.002 + thColorBoost * 0.08,
+                0.003 + kickPulse * 0.001 + thColorBoost * 0.012,
+                0.010 + kickPulse * 0.004 + thColorBoost * 0.12
+            );
+            vctx.fillRect(0, 0, W, H);
+            vctx.globalCompositeOperation = 'source-over';
+
+            for (let i = 0; i < BG_N; i++) {
+                const s = bgShapes[i];
+                if (!reducedMotion) {
+                    s.life -= dt;
+                    if (s.life <= 0) freshBgShape(s, false);
+                    s.phase += dt * 0.2; s.x += s.vx * dt; s.y += s.vy * dt;
+                } else if (s.life <= 0) { freshBgShape(s, false); s.life = s.maxLife * 0.5; }
+                const lifeRatio = s.life / s.maxLife;
+                const age = 1 - lifeRatio;
+                let fade = 1;
+                if (age < 0.15) fade = age / 0.15;
+                if (lifeRatio < 0.15) fade = lifeRatio / 0.15;
+                const cr = s.r * fade * 0.525 * (1 + padBright) + thColorBoost * 0.14 * fade;
+                const cg = s.g * fade * 0.525 * (1 + padBright) + Math.sin(s.phase + 2.0) * 0.004 * fade;
+                const cb = s.b * fade * 0.525 * (1 + padBright) + thColorBoost * 0.10 * fade;
+                const [px, py] = worldToPx(s.x, s.y);
+                const rot = reducedMotion ? s.rot : (globalTime * s.rotSpd + s.phase);
+                const sx = s.baseSca * s.aspX * kickGrow * scale;
+                const sy = s.baseSca * s.aspY * kickGrow * scale;
+                vctx.save();
+                vctx.translate(px, py); vctx.rotate(-rot);
+                vctx.fillStyle = col(cr, cg, cb);
+                vctx.shadowColor = vctx.fillStyle; vctx.shadowBlur = 18;
+                if (s.isCircle) { vctx.beginPath(); vctx.ellipse(0, 0, sx, sy, 0, 0, Math.PI * 2); vctx.fill(); }
+                else vctx.fillRect(-sx, -sy, sx * 2, sy * 2);
+                vctx.restore();
+            }
+
+            vctx.globalCompositeOperation = 'lighter';
+
+            if (kick.life > 0) {
+                if (!reducedMotion) kick.life -= dt;
+                if (kick.life <= 0) kick.life = 0;
+                else {
+                    const elapsed = kick.maxLife - kick.life;
+                    let env;
+                    if (elapsed < 0.015) env = elapsed / 0.015;
+                    else env = Math.max(0, 1 - (elapsed - 0.015) / 0.305);
+                    const sz = env * 9.0 * winScale * scale;
+                    const kbright = 0.06 + Math.pow(env, 0.8) * 0.06;
+                    const [px, py] = worldToPx(0, 0);
+                    vctx.fillStyle = col(0 * kbright, 0.015 * kbright, 0.12 * kbright);
+                    vctx.shadowColor = vctx.fillStyle; vctx.shadowBlur = 30;
+                    vctx.beginPath(); vctx.arc(px, py, sz, 0, Math.PI * 2); vctx.fill();
+                }
+            }
+
+            vctx.shadowBlur = 8;
+            for (let i = 0; i < RAIN_N; i++) {
+                const d = rain[i];
+                if (d.life <= 0) continue;
+                d.life -= dt; if (d.life <= 0) continue;
+                d.x += d.vx * dt; d.y += d.vy * dt;
+                const lifeLeft = d.life / d.maxLife;
+                let alpha = 1; if (lifeLeft < 0.15) alpha = lifeLeft / 0.15;
+                const rb = 0.9 * alpha;
+                const [px, py] = worldToPx(d.x, d.y);
+                vctx.fillStyle = col(0.78 * rb, 0.82 * rb, 0.93 * rb);
+                vctx.shadowColor = vctx.fillStyle;
+                vctx.beginPath(); vctx.arc(px, py, d.sz * alpha * scale, 0, Math.PI * 2); vctx.fill();
+            }
+
+            vctx.shadowBlur = 22;
+            for (let i = 0; i < BIRD_N; i++) {
+                const b = birdsVisual[i];
+                if (b.life <= 0) continue;
+                b.life -= dt; if (b.life <= 0) continue;
+                const t = b.life / b.maxLife;
+                let env = t > 0.85 ? (1 - t) / 0.15 : t / 0.85;
+                const sz = 0.4 * winScale * env * scale;
+                const [px, py] = worldToPx(b.x, b.y);
+                vctx.save();
+                vctx.translate(px, py); vctx.rotate(-(b.rotBase + rand(-0.06, 0.06)));
+                const bb = env * 0.8;
+                vctx.fillStyle = col(1.0 * bb, 0.92 * bb, 0.08 * bb, undefined);
+                vctx.shadowColor = vctx.fillStyle;
+                vctx.fillRect(-sz * 0.4, -sz, sz * 0.8, sz * 2);
+                vctx.restore();
+            }
+
+            if (frameCount % 10 === 0) {
+                for (let i = 0; i < orbs.length; i++) {
+                    const o = orbs[i];
+                    const [nx, ny] = orbScreenNorm(o, i);
+                    const dispX = (nx - 0.5) * 2 * halfW;
+                    const dispY = (0.5 - ny) * 2 * HALF_H;
+                    const tr = trail[trailHead]; trailHead = (trailHead + 1) % TRAIL_N;
+                    tr.life = 0.6; tr.maxLife = 0.6;
+                    tr.x = dispX; tr.y = dispY; tr.sz = 0.02 * winScale;
+                    [tr.r, tr.g, tr.b] = CTRL_COLOR[i];
+                }
+            }
+            vctx.shadowBlur = 10;
+            for (let i = 0; i < TRAIL_N; i++) {
+                const tr = trail[i];
+                if (tr.life <= 0) continue;
+                tr.life -= dt; if (tr.life <= 0) continue;
+                const alpha = tr.life / tr.maxLife; const fade = alpha * alpha;
+                const [px, py] = worldToPx(tr.x, tr.y);
+                const tb = fade * 0.08;
+                vctx.fillStyle = col(tr.r * tb, tr.g * tb, tr.b * tb);
+                vctx.shadowColor = vctx.fillStyle;
+                vctx.beginPath(); vctx.arc(px, py, tr.sz * fade * scale, 0, Math.PI * 2); vctx.fill();
+            }
+
+            // control orbs + labels — radius fixed per the ChuGL reference
+            // (_CIESEN.ck: `1 * winScale => orbFixedSz`, world units, same
+            // scale-to-pixels factor as every other world-space shape here).
+            // The previous build used 0.12 instead of 1.0 here, ~8x too
+            // small — that's the "only orb centres show" bug this fixes.
+            vctx.shadowBlur = 16;
+            for (let i = 0; i < orbs.length; i++) {
+                const o = orbs[i];
+                const [nx, ny] = orbScreenNorm(o, i);
+                const dispX = (nx - 0.5) * 2 * halfW;
+                const dispY = (0.5 - ny) * 2 * HALF_H;
+                const [cr, cg, cb] = CTRL_COLOR[i];
+                const obright = 0.5 + o.val * 0.5;
+                const orbSz = 1.0 * winScale * scale;
+                const jx = reducedMotion ? 0 : rand(-0.006, 0.006) * halfW * 0.05;
+                const jy = reducedMotion ? 0 : rand(-0.006, 0.006) * HALF_H * 0.05;
+                const [px, py] = worldToPx(dispX, dispY);
+                const bodyPx = px + jx, bodyPy = py + jy;
+                vctx.fillStyle = col(cr * 0.45 * obright, cg * 0.45 * obright, cb * 0.45 * obright);
+                vctx.shadowColor = vctx.fillStyle;
+                vctx.beginPath(); vctx.arc(bodyPx, bodyPy, orbSz, 0, Math.PI * 2); vctx.fill();
+                vctx.fillStyle = col((0.12 + cr * 0.3) * obright, (0.12 + cg * 0.3) * obright, (0.12 + cb * 0.3) * obright);
+                vctx.shadowColor = vctx.fillStyle;
+                vctx.beginPath(); vctx.arc(bodyPx, bodyPy, orbSz * 0.4, 0, Math.PI * 2); vctx.fill();
+                const [lx, ly] = worldToPx((0.08 + 0.84 * i / 5 - 0.5) * 2 * halfW, -HALF_H * 0.92);
+                vctx.save();
+                vctx.shadowBlur = 0;
+                vctx.fillStyle = 'rgba(217,217,217,0.85)';
+                const fsz = clamp(halfW * 0.06, 0, 0.27) * scale * 0.9;
+                vctx.font = `${Math.max(9, fsz)}px 'Courier New', monospace`;
+                vctx.textAlign = 'center'; vctx.textBaseline = 'middle';
+                vctx.fillText(CTRL_LABELS[i], lx, ly);
+                vctx.restore();
+            }
+
+            vctx.globalCompositeOperation = 'source-over';
+            vctx.shadowBlur = 0;
+        }
+
+        function orbScreenNorm(o, i) {
+            const sway = reducedMotion ? 0 :
+                Math.sin(globalTime * o.swayRt + o.swayPh) * 0.028 + Math.sin(globalTime * o.swayRt * 2.3 + o.swayPh * 0.7) * 0.012;
+            const swayY = reducedMotion ? 0 :
+                Math.sin(globalTime * o.swayRt * 0.6 + o.swayPh + 1.5) * 0.015 + Math.cos(globalTime * o.swayRt * 1.7 + o.swayPh * 1.3) * 0.008;
+            const nx = 0.08 + 0.84 * (i / 5) + sway;
+            const ny = 0.82 - o.val * 0.74 + swayY;
+            return [nx, ny];
+        }
+
+        // ── pointer drag — hit radius 0.06, from _CIESEN.ck's grab test ──
+        function pointerNorm(e) {
+            const rect = canvas.getBoundingClientRect();
+            return [(e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height];
+        }
+        canvas.addEventListener('pointerdown', (e) => {
+            const [mx, my] = pointerNorm(e);
+            let closest = -1, closestDist = 999;
+            for (let i = 0; i < orbs.length; i++) {
+                const [nx, ny] = orbScreenNorm(orbs[i], i);
+                const dx = mx - nx, dy = (my - ny) * (W / H);
+                const dist = Math.hypot(dx, dy);
+                if (dist < 0.06 && dist < closestDist) { closestDist = dist; closest = i; }
+            }
+            if (closest >= 0) {
+                grabIdx = closest;
+                const [, ny] = orbScreenNorm(orbs[closest], closest);
+                grabOffsetNormY = my - ny;
+                canvas.setPointerCapture(e.pointerId);
+            }
+        });
+        canvas.addEventListener('pointermove', (e) => {
+            if (grabIdx < 0) return;
+            const [, my] = pointerNorm(e);
+            const dragNormY = my - grabOffsetNormY;
+            let norm = (0.82 - dragNormY) / 0.74;
+            norm = clamp(norm, 0, 1);
+            orbs[grabIdx].val = norm;
+            ctrl[orbs[grabIdx].name] = norm;
+        });
+        function releasePointer() { grabIdx = -1; }
+        canvas.addEventListener('pointerup', releasePointer);
+        canvas.addEventListener('pointercancel', releasePointer);
+
+        function rafLoop(ts) {
+            requestAnimationFrame(rafLoop);
+            if (!lastTs) lastTs = ts;
+            let dt = (ts - lastTs) / 1000;
+            lastTs = ts;
+            dt = clamp(dt, 0, 0.05);
+            kickPulse *= Math.exp(-2.0 * dt);
+            if (kickPulse < 0.003) kickPulse = 0;
+            draw(dt);
+        }
+        requestAnimationFrame(rafLoop);
+
+        // ═══════════════════════════════════════════════════════════════
+        // iOS background audio — ported from ciesen.html: MediaStreamDest
+        // -> <audio> is the SOLE output path, a 1Hz near-silent keepalive
+        // oscillator, MediaSession metadata/handlers, visibilitychange +
+        // keepalive resume, and a Web Lock.
+        // ═══════════════════════════════════════════════════════════════
+        const _allCtx = [];
+        const _OrigAC = window.AudioContext || window.webkitAudioContext;
+        if (_OrigAC) {
+            const P = function (...args) {
+                const opts = (args[0] && typeof args[0] === 'object') ? args[0] : {};
+                const c = new _OrigAC({ latencyHint: 'playback', ...opts });
+                _allCtx.push(c);
+                return c;
+            };
+            P.prototype = _OrigAC.prototype;
+            if (window.AudioContext) window.AudioContext = P;
+            if (window.webkitAudioContext) window.webkitAudioContext = P;
+        }
+
+        let bgAudioReady = false;
+        function setupBackgroundAudio(c) {
+            if (bgAudioReady) return;
+            try {
+                mediaStreamDest = c.createMediaStreamDestination();
+                limiter.connect(mediaStreamDest); // the only connection out of the synth graph
+
+                silentOsc = c.createOscillator();
+                const silentGain = c.createGain();
+                silentGain.gain.value = 0.001;
+                silentOsc.frequency.value = 1;
+                silentOsc.connect(silentGain);
+                silentGain.connect(mediaStreamDest);
+                silentOsc.start();
+
+                bgAudio.srcObject = mediaStreamDest.stream;
+                bgAudioReady = true;
+            } catch (e) {
+                console.warn('[BOUBA] MediaStreamDestination setup failed:', e);
+            }
+        }
+        function playBgAudio() { if (bgAudioReady) bgAudio.play().catch(() => {}); }
+
+        function setupMediaSession() {
+            if (!('mediaSession' in navigator)) return;
+            navigator.mediaSession.metadata = new MediaMetadata({ title: 'BOUBA', artist: 'EMGOR', album: 'EMGOR.ONLINE' });
+            navigator.mediaSession.setActionHandler('play', () => { resumeAll(); playBgAudio(); });
+            navigator.mediaSession.setActionHandler('pause', () => {});
+            try { navigator.mediaSession.setActionHandler('stop', () => {}); } catch (e) {}
+        }
+        function acquireWakeLock() {
+            if (navigator.locks) {
+                navigator.locks.request('bouba-audio-keepalive', { mode: 'exclusive' }, () => new Promise(() => {})).catch(() => {});
+            }
+        }
+        function resumeAll() { for (const c of _allCtx) if (c.state !== 'running') c.resume().catch(() => {}); }
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') { resumeAll(); playBgAudio(); }
+        });
+        let keepaliveTimer = null;
+        function startKeepalive() {
+            if (keepaliveTimer) return;
+            keepaliveTimer = setInterval(() => {
+                for (const c of _allCtx) if (c.state === 'suspended' || c.state === 'interrupted') c.resume().catch(() => {});
+            }, 3000);
+        }
+
+        // ── init ────────────────────────────────────────────────────
+        if (location.protocol === 'file:') {
+            fail('requires HTTP server\n\nnpx serve .\nthen open http://localhost:PORT/bouba.html');
+        } else {
+            try {
+                ctx = new (window.AudioContext || window.webkitAudioContext)();
+                clearInterval(dotInterval);
+                statusEl.classList.add('hidden');
+
+                function onUnlock() {
+                    resumeAll();
+                    if (!engineStarted) startEngine();
+                    setupBackgroundAudio(ctx);
+                    tapOverlay.classList.remove('show');
+                    playBgAudio();
+                    setupMediaSession();
+                    acquireWakeLock();
+                    startKeepalive();
+                    ['touchend', 'click', 'keydown'].forEach(ev => document.removeEventListener(ev, onUnlock, true));
+                }
+
+                if (ctx.state === 'running' && !AUTOSTART) {
+                    // rare, but if a context ever starts running pre-gesture
+                    onUnlock();
+                } else {
+                    tapOverlay.classList.add('show');
+                    ['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, onUnlock, { capture: true }));
+                    if (AUTOSTART) {
+                        // dev-only: synthetic tap so headless verification can
+                        // start the engine without a real user gesture
+                        setTimeout(() => { tapOverlay.click(); }, 50);
+                        const probeEl = document.getElementById('__probe');
+                        setInterval(() => { probeEl.textContent = JSON.stringify(window.__bouba); }, 250);
+                    }
+                }
+            } catch (err) {
+                console.error('[BOUBA]', err);
+                fail(err.message || String(err));
+            }
+        }
+    </script>
+</body>
+</html>
