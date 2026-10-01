@@ -33,7 +33,7 @@ section { margin-bottom: 52px; }
     .row .frame, .row-flip .frame { order: 0; aspect-ratio: 4 / 5; height: auto; min-height: 0; border-radius: 12px; }
     .col { order: 1; overflow: visible; }
     .view .cta { margin-top: 28px; }
-    .orbit { gap: 8px; margin-top: 12px; }
+    .orbit { gap: 8px; margin-bottom: 12px; }
     .pill { padding: 9px 12px; font-size: 0.72rem; }
     .pill .l { display: none; }
     .pill .s { display: inline; }
@@ -81,7 +81,7 @@ html.editing .frame.over { outline: 2px solid var(--sky); }
 .cta { text-align: center; margin-top: 8px; margin-bottom: 0; }
 .dl-toggle { display: inline-block; text-decoration: none; font-size: 0.86rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; padding: 17px 34px; border-radius: 999px; color: #1a1800; background: var(--sun); box-shadow: 0 0 34px rgba(245, 230, 99, 0.28); }
 .dl-toggle:active { transform: scale(0.98); }
-.orbit { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+.orbit { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
 .pill {
     display: inline-flex; align-items: center; gap: 10px; text-decoration: none; padding: 12px 18px; border-radius: 999px;
     color: var(--sky); border: 1px solid rgba(143, 217, 255, 0.55); background: rgba(13, 2, 33, 0.55);
