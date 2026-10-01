@@ -20,6 +20,21 @@ def page_tracks():
     tracks = json.loads(m.group(1)) if m else []
     return [(t['name'], os.path.splitext(os.path.basename(t['src']))[0]) for t in tracks]
 
+def page_bio():
+    """Plain-text bio from the .bio column on epk.html."""
+    html = open(PAGE).read()
+    m = re.search(r'<div class="col bio">(.*?)</div>', html, re.S)
+    if not m: return ''
+    t = m.group(1)
+    t = re.sub(r'<h2>.*?</h2>', '', t, flags=re.S)
+    t = re.sub(r'<p class="bio-links">.*?</p>', '', t, flags=re.S)
+    t = re.sub(r'<li>', '- ', t); t = re.sub(r'</li>|</p>|<br>', '\n', t)
+    t = re.sub(r'<span>([^<]*)</span>', r'\1: ', t)
+    t = re.sub(r'<[^>]+>', '', t)
+    import html as H; t = H.unescape(t)
+    t = '\n'.join(line.strip() for line in t.splitlines()); t = re.sub(r'[ \t]+', ' ', t); t = re.sub(r'\n\s*\n+', '\n\n', t)
+    return 'EMGOR - Emory Smith\n\n' + t.strip() + '\n\ninstagram: instagram.com/_emgor_\nit is (ep): emgor.online/it-is.html\nemail: emorysmith02@gmail.com\nsite: emgor.online/epk.html\n'
+
 def safe(name):
     return re.sub(r'[\\/:*?"<>|]', '', name).replace('/', '').strip()
 
@@ -50,6 +65,7 @@ def build(bio=''):
             p = os.path.join(ROOT, rel)
             if os.path.exists(p):
                 z.write(p, 'EMGOR/photos/EMGOR %d%s' % (i + 1, os.path.splitext(rel)[1]))
+        z.writestr('EMGOR/bio.txt', page_bio())
         for name, stem in tracks:
             m = os.path.join(MP3, stem + '.mp3')
             if os.path.exists(m):

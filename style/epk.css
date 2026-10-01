@@ -81,6 +81,10 @@ html.editing .frame.over { outline: 2px solid var(--sky); }
 .bio-inf span { display: block; font-size: 0.86rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--sun); margin-bottom: 6px; }
 .bio-edu { font-size: 0.74rem; white-space: nowrap; letter-spacing: 0; opacity: 0.85; padding-top: 12px; border-top: 1px solid var(--line); }
 .tag a { color: var(--sky); text-decoration: none; }
+.bio-links { margin-top: 10px; font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.bio-links a { color: var(--sky); text-decoration: none; border-bottom: 1px solid rgba(143, 217, 255, 0.35); }
+.bio-links span { opacity: 0.4; }
+@media (hover: hover) { .bio-links a:hover { border-bottom-color: var(--sky); } }
 
 .cta { text-align: center; margin-top: 8px; margin-bottom: 0; }
 .dl-toggle { display: inline-block; text-decoration: none; font-size: 0.86rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; padding: 17px 34px; border-radius: 999px; color: #1a1800; background: var(--sun); box-shadow: 0 0 34px rgba(245, 230, 99, 0.28); }

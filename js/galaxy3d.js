@@ -33,11 +33,17 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var SIZE_FALLBACK = { 'emgor.papers': 2.0, 'emgor.web-synth': 1.4 };
 
     // the primary (flat, in-orbital-plane) accretion disk's outer radius, as
-    // a multiple of the black hole core radius. Pulled in from 3.2 to 2.0
-    // alongside the ORBIT_MIN/MAX tightening above — the disk used to reach
-    // almost to the innermost root planet's orbit; verified clear (see
-    // report) with >=1 planet-radius of gap at the new orbit radii.
-    var DISK_OUTER_MULT = 2.0;
+    // a multiple of the black hole core radius. Pulled in from 3.2 to 1.6
+    // (compensating for BH_CORE_BOOST below so the disk's absolute reach in
+    // world units stays the same) alongside the ORBIT_MIN/MAX tightening —
+    // the disk used to reach almost to the innermost root planet's orbit;
+    // verified clear (see report) with >=1 planet-radius of gap.
+    var DISK_OUTER_MULT = 1.6;
+    // black hole core, +25% per Emory's ask for a bigger, more commanding
+    // presence — every other black-hole element (disks, photon arcs,
+    // particle field, halo) is sized as core * <multiplier>, so they all
+    // grow proportionally for free.
+    var BH_CORE_BOOST = 1.25;
 
     var reducedMotion = window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -137,6 +143,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var SPHERE_GEOM = {};           // tier(segments) -> BufferGeometry
     var RING_TEX = null;            // one shared radial-alpha ring texture
     var GLOW_TEX = null;            // one shared radial glow texture
+    var TUBE_GLOW_TEX = null;       // soft cross-section falloff for tube/arc geometry
     var orbitLinePool = {};         // parentId -> THREE.Line (built lazily)
 
     // ─── data loading (unchanged contract) ────────────────────
@@ -529,6 +536,29 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         return tex;
     }
 
+    // soft cross-section falloff for thin tube/arc geometry (the photon
+    // ring): a vertical alpha gradient, bright dead-center and fading fully
+    // transparent at the top/bottom edge. Mapped onto a TorusGeometry this
+    // turns a hard-edged, low-poly-faceted "wireframe" line into a soft
+    // glowing filament with no visible facets — repeats cleanly around the
+    // ring (U) since it's constant along that axis.
+    function buildTubeGlowTexture() {
+        var S = 64;
+        var c = document.createElement('canvas');
+        c.width = 8; c.height = S;
+        var g = c.getContext('2d');
+        var grad = g.createLinearGradient(0, 0, 0, S);
+        grad.addColorStop(0.0, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.5, 'rgba(255,255,255,1)');
+        grad.addColorStop(1.0, 'rgba(255,255,255,0)');
+        g.fillStyle = grad;
+        g.fillRect(0, 0, 8, S);
+        var tex = new THREE.CanvasTexture(c);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        return tex;
+    }
+
     // ─── per-node three.js objects: one Object3D "anchor" at the node's
     // true absolute world position, holding a real sphere mesh, an
     // optional ring mesh (its own child, so ring tilt/rotation composes
@@ -651,7 +681,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         blackHole = new THREE.Object3D();
         blackHole.name = 'emgor';
 
-        var core = ROOT_SYS_R * 0.14;      // bigger, more commanding presence
+        var core = ROOT_SYS_R * 0.14 * BH_CORE_BOOST;      // bigger, more commanding presence
         bhCoreR = core;
 
         // ── The horizon is deliberately NOT a shaded orb. It is a faceted
@@ -799,11 +829,17 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         ];
         for (var ai = 0; ai < arcSpec.length; ai++) {
             var s = arcSpec[ai];
+            // tubularSegments was 10 — on a thin tube that's low-poly enough
+            // to facet into visible straight edges, which is what read as
+            // "weird lines" slicing across the hole instead of soft lensed
+            // arcs. 28 segments plus a thicker tube plus a soft radial-alpha
+            // map (TUBE_GLOW_TEX) replace the hard-edged faceted line with a
+            // glowing filament with no visible geometry.
             var g = warpTorusGeometry(
-                new THREE.TorusGeometry(core * s.r, core * 0.036, 10, 64, s.sweep),
+                new THREE.TorusGeometry(core * s.r, core * 0.06, 28, 96, s.sweep),
                 core * 0.02, 'emgor::photon' + ai);
             var m = new THREE.MeshBasicMaterial({
-                color: 0xc98bff, transparent: true, opacity: s.op,
+                color: 0xc98bff, map: TUBE_GLOW_TEX, transparent: true, opacity: s.op,
                 depthWrite: false, blending: THREE.AdditiveBlending
             });
             var arc = new THREE.Mesh(g, m);
@@ -818,10 +854,10 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
         var haloMat = new THREE.SpriteMaterial({
             map: GLOW_TEX, color: 0x8a5fd9, transparent: true,
-            opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending
+            opacity: 0.19, depthWrite: false, blending: THREE.AdditiveBlending
         });
         haloSprite = new THREE.Sprite(haloMat);
-        haloSprite.scale.setScalar(core * 6.5);
+        haloSprite.scale.setScalar(core * 7.8);
         blackHole.add(haloSprite);
 
         scene.add(blackHole);
@@ -884,7 +920,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // a full spherical halo, so there are particles above, below, in front of
     // and behind the hole no matter where the camera sits.
     function buildAccretionParticles(core) {
-        var N_DISK = 3000, N_HALO = 1900, N = N_DISK + N_HALO;
+        // bumped up + extended further out per Emory's ask for more dust/
+        // stars visibly streaming off the hole, not just a tight haze.
+        var N_DISK = 3600, N_HALO = 2600, N = N_DISK + N_HALO;
         var rng = mulberry32(hash32('emgor::accretion-particles'));
         var pos = new Float32Array(N * 3);
         var col = new Float32Array(N * 3);
@@ -923,7 +961,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             var u = rng() * 2 - 1;                 // cos(phi), uniform on sphere
             var th = rng() * TAU;
             var sp = Math.sqrt(1 - u * u);
-            var rh = core * (1.55 + Math.pow(rng(), 0.6) * 3.2);
+            var rh = core * (1.55 + Math.pow(rng(), 0.6) * 4.6);
             write(N_DISK + j, sp * Math.cos(th) * rh, u * rh, sp * Math.sin(th) * rh,
                   0.4 + rng() * 0.6, core * (0.008 + rng() * 0.013));
         }
@@ -2057,6 +2095,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
         RING_TEX = buildRingTexture();
         GLOW_TEX = buildGlowTexture();
+        TUBE_GLOW_TEX = buildTubeGlowTexture();
         buildBlackHole();
         setupPost();
     }
