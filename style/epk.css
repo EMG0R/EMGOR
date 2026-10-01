@@ -6,11 +6,11 @@ body { background: transparent; width: 100%; max-width: 100%; color: var(--bone)
 .epk { width: min(100% - 32px, 1080px); margin: 0 auto; padding: 60px 0 60px; text-align: left; }
 
 .hero { text-align: center; margin-bottom: 44px; }
-.kicker { font-size: 0.7rem; letter-spacing: 0.36em; text-transform: uppercase; color: var(--bone); opacity: 0.6; margin-bottom: 12px; }
+.kicker { font-size: 0.86rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--sun); margin-bottom: 12px; }
 .wordmark { margin: 0; font-size: clamp(3.4rem, 12vw, 6.4rem); line-height: 0.88; letter-spacing: 0.06em; color: var(--bone); font-weight: 700; text-shadow: 0 0 40px rgba(245, 230, 99, 0.14); }
 .tag { margin-top: 14px; font-size: 0.8rem; letter-spacing: 0.14em; color: var(--bone); opacity: 0.6; }
 
-h2 { font-size: 0.74rem; letter-spacing: 0.34em; text-transform: uppercase; color: var(--bone); margin: 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+h2 { font-size: 0.92rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--sun); margin: 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 section { margin-bottom: 56px; }
 
 /* two-column rows: photo | text, text | photo. Stack on phones. */
@@ -47,16 +47,16 @@ html.editing .frame.over { outline: 2px solid var(--sky); }
 .bio p { font-size: 0.92rem; line-height: 1.75; color: var(--bone); opacity: 0.9; margin-bottom: 14px; }
 .bio-list { list-style: none; margin: 0 0 18px; padding: 0; }
 .bio-list li { position: relative; padding-left: 18px; font-size: 0.88rem; line-height: 1.7; opacity: 0.88; margin-bottom: 8px; }
-.bio-list li::before { content: "\2014"; position: absolute; left: 0; color: var(--bone); opacity: 0.5; }
+.bio-list li::before { content: "\2014"; position: absolute; left: 0; color: var(--sun); }
 .bio-inf { font-size: 0.86rem; }
-.bio-inf span { display: block; font-size: 0.68rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--bone); opacity: 0.6; margin-bottom: 5px; }
+.bio-inf span { display: block; font-size: 0.86rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--sun); margin-bottom: 6px; }
 .bio-edu { font-size: 0.84rem; opacity: 0.85; padding-top: 12px; border-top: 1px solid var(--line); }
 .tag a { color: var(--sky); text-decoration: none; }
 
 .links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .link { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; padding: 13px 14px; border-radius: 10px; text-decoration: none; color: var(--bone); background: rgba(13, 2, 33, 0.5); border: 1px solid var(--line); font-size: 0.86rem; letter-spacing: 0.04em; transition: border-color 0.2s, color 0.2s, transform 0.15s; }
 .link span { flex-shrink: 0; }
-.link small { font-size: 0.68rem; color: var(--sky); opacity: 0.8; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link small { font-size: 0.78rem; color: var(--sky); opacity: 0.8; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (hover: hover) { .link:hover { border-color: var(--sky); color: var(--sky); transform: translateY(-1px); } }
 .link:active { transform: scale(0.98); }
 @media (max-width: 520px) { .links { grid-template-columns: 1fr; } }
@@ -68,6 +68,6 @@ html.editing .frame.over { outline: 2px solid var(--sky); }
 .cta-ghost:active { transform: scale(0.98); }
 .dl-toggle { display: inline-block; text-decoration: none; font-size: 0.82rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; padding: 16px 30px; border-radius: 999px; color: #1a1800; background: var(--sun); box-shadow: 0 0 30px rgba(245, 230, 99, 0.25); }
 .dl-toggle:active { transform: scale(0.98); }
-.kit-note { font-size: 0.72rem; opacity: 0.55; margin-top: 12px; }
+.kit-note { font-size: 0.82rem; opacity: 0.65; margin-top: 12px; }
 
-.foot { text-align: center; font-size: 0.66rem; letter-spacing: 0.32em; color: var(--bone); opacity: 0.35; margin-top: 30px; }
+.foot { text-align: center; font-size: 0.8rem; letter-spacing: 0.32em; color: var(--bone); opacity: 0.35; margin-top: 30px; }
