@@ -5,7 +5,20 @@ body { background: transparent; width: 100%; max-width: 100%; color: var(--bone)
 [hidden] { display: none !important; }
 
 .epk { width: min(100% - 32px, 1120px); margin: 0 auto; padding: 0; text-align: left; }
-.view { min-height: 100vh; min-height: 100svh; scroll-snap-align: start; scroll-snap-stop: always; display: flex; flex-direction: column; justify-content: center; padding: 40px 0; box-sizing: border-box; }
+.view { min-height: 100vh; min-height: 100svh; scroll-snap-align: start; scroll-snap-stop: always; display: flex; flex-direction: column; justify-content: safe center; padding: 32px 0; box-sizing: border-box; }
+/* text and player scale with viewport height so each view fits one screen on any Mac */
+@media (min-width: 761px) {
+    .bio .lead { font-size: clamp(0.82rem, 1.25vh, 1rem); }
+    .bio p, .bio-list li, .bio-inf { font-size: clamp(0.74rem, 1.12vh, 0.9rem); line-height: 1.62; }
+    .bio-inf span, h2 { font-size: clamp(0.7rem, 1.05vh, 0.92rem); }
+    .bio-edu { font-size: clamp(0.72rem, 1.05vh, 0.84rem); }
+    .bio-list li { margin-bottom: clamp(3px, 0.6vh, 8px); }
+    .bio p, .bio-inf { margin-bottom: clamp(6px, 1.1vh, 14px); }
+    .ep { gap: clamp(6px, 1.2vh, 14px); }
+    .ep-wave { height: clamp(28px, 4.2vh, 46px); }
+    .ep-play { width: clamp(36px, 4.8vh, 46px); height: clamp(36px, 4.8vh, 46px); }
+    .view .cta { margin-top: clamp(16px, 3vh, 36px); }
+}
 .view > section { margin-bottom: 0; }
 .view .cta { margin-top: 36px; }
 
