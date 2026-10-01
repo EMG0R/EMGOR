@@ -14,7 +14,13 @@
   var wantEdit = (local || q.has('edit') || window.EPK_EDIT === true) && !q.has('view');
 
   function slotOf(key) { return state.frames[key] || (state.frames[key] = { file: null, fx: 0, fy: 0, s: 1 }); }
-  function applyAspect() {} // frame sizes are fixed in CSS: hero 4:5, pair 1:1 — same on every device
+  var phone = matchMedia('(max-width: 760px)');
+  function applyAspect(slot, el) {
+    // phones: reproduce the exact frame shape the crop was made in (desktop stretches to the text column)
+    if (phone.matches && slot.ar) { el.style.aspectRatio = String(slot.ar); el.style.height = 'auto'; }
+    else { el.style.aspectRatio = ''; el.style.height = ''; }
+  }
+  phone.addEventListener('change', function () { Object.keys(frames).forEach(function (k) { applyAspect(slotOf(k), frames[k]); layout(slotOf(k), frames[k]); }); });
 
   // Photo placement: the img is sized to COVER the frame (times zoom) and offset by fx/fy fractions of the frame.
   // No object-fit — the whole photo is real pixels, so panning can reach every edge.
@@ -75,6 +81,7 @@
       });
   }
   function saveDraft() {
+    Object.keys(frames).forEach(function (k) { var el = frames[k]; if (el.clientWidth && el.clientHeight) slotOf(k).ar = el.clientWidth / el.clientHeight; });
     clearTimeout(saveT);
     saveT = setTimeout(function () {
       post('/__epk/draft', { layout: state }).then(function () { setStatus('draft saved'); })
