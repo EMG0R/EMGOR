@@ -1,14 +1,14 @@
 ---
 id: emgor.music.portfolio
-title: Portfolio
-blurb: Six produced tracks and video work, streaming in-site
+title: 2024 PORTFOLIO
+blurb: "Six produced tracks and three videos from 2024, streaming in-site"
 parent: emgor.music
 source: ____EMGOR_ONLINE/EMGOR/resources/
 links:
   - { label: "Listen — portfolio page", url: "music.html" }
 tags: [portfolio, production, video]
 updated: 2026-07-28
-draft: true
+draft: false
 ---
 
 # Portfolio

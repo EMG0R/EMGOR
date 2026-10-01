@@ -1,14 +1,14 @@
 ---
 id: emgor.music
 title: MUSIC
-blurb: Released music, production portfolio, and sample packs
+blurb: Releases, the untitled.stream feed, and the 2024 portfolio
 parent: emgor
 links:
-  - { label: "Portfolio page", url: "music.html" }
+  - { label: "untitled.stream", url: "https://untitled.stream/library/project/veJMUkIpWRg3UQLCy4h4g" }
   - { label: "It Is — smart link", url: "it-is.html" }
 tags: [music, releases, samples]
-updated: 2026-07-28
-draft: true
+updated: 2026-09-30
+draft: false
 ---
 
 # MUSIC

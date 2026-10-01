@@ -45,6 +45,13 @@ html.editing .frame.over { outline: 2px solid var(--sky); }
 .eb-btn:active { transform: scale(0.96); }
 
 .bio p { font-size: 0.92rem; line-height: 1.75; color: var(--bone); opacity: 0.9; margin-bottom: 14px; }
+.bio-list { list-style: none; margin: 0 0 18px; padding: 0; }
+.bio-list li { position: relative; padding-left: 18px; font-size: 0.88rem; line-height: 1.7; opacity: 0.88; margin-bottom: 8px; }
+.bio-list li::before { content: "\2014"; position: absolute; left: 0; color: var(--sun); }
+.bio-inf { font-size: 0.86rem; }
+.bio-inf span { display: block; font-size: 0.62rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--sun); margin-bottom: 4px; }
+.bio-edu { font-size: 0.8rem; opacity: 0.7; padding-top: 12px; border-top: 1px solid var(--line); }
+.tag a { color: var(--sky); text-decoration: none; }
 
 .links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .link { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; padding: 13px 14px; border-radius: 10px; text-decoration: none; color: var(--bone); background: rgba(13, 2, 33, 0.5); border: 1px solid var(--line); font-size: 0.86rem; letter-spacing: 0.04em; transition: border-color 0.2s, color 0.2s, transform 0.15s; }

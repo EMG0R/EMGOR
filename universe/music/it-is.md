@@ -11,7 +11,7 @@ links:
   - { label: "YouTube Music", url: "https://music.youtube.com/playlist?list=OLAK5uy_mMSkVTrYxtP3jM-32JqlbE0yFg-Ff7VFQ" }
 tags: [release, ep, streaming]
 updated: 2026-07-28
-draft: true
+draft: false
 ---
 
 # It Is
