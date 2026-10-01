@@ -1,16 +1,28 @@
 #!/usr/bin/env python3
-"""Build epk/emgor-press-kit.zip: photos placed on the EPK page + all songs as 320k mp3 + bio.txt.
+"""Build epk/emgor-press-kit.zip: photos placed on the EPK page + the songs listed on it as 320k mp3, named as on the page.
 
     python3 tools/build-press-kit.py            # also called by tools/epk-dev.py on ✓ done
 
 mp3 renders are cached in resources/epk/mp3/ (re-rendered only when the source is newer). Needs ffmpeg.
 """
-import json, os, subprocess, sys, zipfile
+import json, os, re, subprocess, sys, zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'resources', 'epk')
 MP3 = os.path.join(SRC, 'mp3')
 ZIP = os.path.join(ROOT, 'epk', 'emgor-press-kit.zip')
 LAYOUT = os.path.join(ROOT, 'epk', 'layout.json')
+PAGE = os.path.join(ROOT, 'epk.html')
+
+def page_tracks():
+    """[(display name, mp3 stem)] from the data-tracks JSON on epk.html."""
+    html = open(PAGE).read()
+    m = re.search(r"data-tracks='(\[.*?\])'", html, re.S)
+    tracks = json.loads(m.group(1)) if m else []
+    return [(t['name'], os.path.splitext(os.path.basename(t['src']))[0]) for t in tracks]
+
+def safe(name):
+    return re.sub(r'[\\/:*?"<>|]', '', name).replace('/', '').strip()
+
 
 def render_mp3s():
     os.makedirs(MP3, exist_ok=True)
@@ -30,18 +42,22 @@ def render_mp3s():
 def build(bio=''):
     layout = json.load(open(LAYOUT)) if os.path.exists(LAYOUT) else {}
     frames = layout.get('frames', {})
-    photos = [frames[k]['file'] for k in ('hero', 'a', 'b') if frames.get(k, {}).get('file')]
-    mp3s = render_mp3s()
+    photos = [frames[k]['file'] for k in ('a', 'b', 'hero') if frames.get(k, {}).get('file')]
+    render_mp3s()
+    tracks = page_tracks()
     with zipfile.ZipFile(ZIP, 'w', zipfile.ZIP_DEFLATED) as z:
         for i, rel in enumerate(photos):
             p = os.path.join(ROOT, rel)
             if os.path.exists(p):
-                z.write(p, 'EMGOR press kit/photos/emgor-%02d%s' % (i + 1, os.path.splitext(rel)[1]))
-        for m in mp3s:
-            z.write(m, 'EMGOR press kit/music/' + os.path.basename(m))
-        z.writestr('EMGOR press kit/bio.txt', (bio or '').strip() + '\n')
-        z.writestr('EMGOR press kit/links.txt', 'EMGOR - Emory Smith\nemgor.online/epk.html\ninstagram.com/_emgor_\ngithub.com/EMG0R\nemorysmith02@gmail.com\n')
-    print('wrote', os.path.relpath(ZIP, ROOT), '%.1f MB' % (os.path.getsize(ZIP) / 1e6), '| photos:', len(photos), 'songs:', len(mp3s))
+                z.write(p, 'EMGOR/photos/EMGOR %d%s' % (i + 1, os.path.splitext(rel)[1]))
+        for name, stem in tracks:
+            m = os.path.join(MP3, stem + '.mp3')
+            if os.path.exists(m):
+                subprocess.run(['ffmpeg', '-v', 'quiet', '-y', '-i', m, '-codec', 'copy', '-id3v2_version', '3', '-metadata', 'artist=EMGOR', '-metadata', 'title=' + name, m + '.tmp.mp3'])
+                src = m + '.tmp.mp3' if os.path.exists(m + '.tmp.mp3') else m
+                z.write(src, 'EMGOR/music/' + safe(name.replace('w/', 'w')) + '.mp3')
+                if src != m: os.remove(src)
+    print('wrote', os.path.relpath(ZIP, ROOT), '%.1f MB' % (os.path.getsize(ZIP) / 1e6), '| photos:', len(photos), 'songs:', len(tracks))
 
 if __name__ == '__main__':
-    build(open(sys.argv[1]).read() if len(sys.argv) > 1 else '')
+    build()
