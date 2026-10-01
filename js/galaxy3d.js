@@ -38,12 +38,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // world units stays the same) alongside the ORBIT_MIN/MAX tightening —
     // the disk used to reach almost to the innermost root planet's orbit;
     // verified clear (see report) with >=1 planet-radius of gap.
-    var DISK_OUTER_MULT = 1.6;
+    var DISK_OUTER_MULT = 1.5;  // (re-tuned with BH_CORE_BOOST=1.3 below)
     // black hole core, +25% per Emory's ask for a bigger, more commanding
     // presence — every other black-hole element (disks, photon arcs,
     // particle field, halo) is sized as core * <multiplier>, so they all
     // grow proportionally for free.
-    var BH_CORE_BOOST = 1.25;
+    var BH_CORE_BOOST = 1.3;
 
     var reducedMotion = window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -854,10 +854,10 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
         var haloMat = new THREE.SpriteMaterial({
             map: GLOW_TEX, color: 0x8a5fd9, transparent: true,
-            opacity: 0.19, depthWrite: false, blending: THREE.AdditiveBlending
+            opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending
         });
         haloSprite = new THREE.Sprite(haloMat);
-        haloSprite.scale.setScalar(core * 7.8);
+        haloSprite.scale.setScalar(core * 6.5);
         blackHole.add(haloSprite);
 
         scene.add(blackHole);
@@ -871,8 +871,16 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // root. Without this the root would balloon and dominate every focused
     // system at depth, which reads as broken even though the geometry is
     // "correct." Applies uniformly to every material in the group.
-    var BH_FADE_START = 0.16;   // angular-radius / (half-FOV) ratio where fade begins
-    var BH_FADE_END = 0.34;     // ratio where it's fully faded out
+    // Shifted up from 0.16/0.34: with BH_CORE_BOOST making bhCoreR bigger,
+    // the ROOT view's own ratio crept further into the old fade window and
+    // started silently shrinking the hole back down — a bigger core was
+    // fading itself out faster than it grew, so "bigger core" stopped
+    // reading as "bigger on screen" at all. Re-tuned so root view still
+    // sits mostly before the fade starts, while deep sub-system zooms
+    // (much smaller camera distance -> much bigger ratio) still hit the
+    // fade hard and don't balloon.
+    var BH_FADE_START = 0.23;   // angular-radius / (half-FOV) ratio where fade begins
+    var BH_FADE_END = 0.41;     // ratio where it's fully faded out
     function updateBlackHoleFade() {
         if (!blackHole || !bhCoreR) return;
         var dist = camera.position.length();      // origin is always (0,0,0)
@@ -920,9 +928,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // a full spherical halo, so there are particles above, below, in front of
     // and behind the hole no matter where the camera sits.
     function buildAccretionParticles(core) {
-        // bumped up + extended further out per Emory's ask for more dust/
-        // stars visibly streaming off the hole, not just a tight haze.
-        var N_DISK = 3600, N_HALO = 2600, N = N_DISK + N_HALO;
+        var N_DISK = 3000, N_HALO = 1900, N = N_DISK + N_HALO;
         var rng = mulberry32(hash32('emgor::accretion-particles'));
         var pos = new Float32Array(N * 3);
         var col = new Float32Array(N * 3);
@@ -961,7 +967,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             var u = rng() * 2 - 1;                 // cos(phi), uniform on sphere
             var th = rng() * TAU;
             var sp = Math.sqrt(1 - u * u);
-            var rh = core * (1.55 + Math.pow(rng(), 0.6) * 4.6);
+            var rh = core * (1.55 + Math.pow(rng(), 0.6) * 3.2);
             write(N_DISK + j, sp * Math.cos(th) * rh, u * rh, sp * Math.sin(th) * rh,
                   0.4 + rng() * 0.6, core * (0.008 + rng() * 0.013));
         }
@@ -1226,14 +1232,27 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // bump (0.05 -> 0.06, matched with the BODY_F bump above to land at
     // "somewhat bigger" rather than 2x) since the root view's planets sit
     // much closer together on screen than a zoomed-in nav ring does.
-    var CHILD_ROLE = 0.133;         // nav-ring children when zoomed into a sub-system
-    var ROOT_CHILD_ROLE = 0.06;     // root-level planets around the black hole
-    // crowded systems (more than ~5 kids — e.g. the 11-wide M4L shelf or the
-    // 14-wide NEPTR shelf) get a compensating shrink so the bigger CHILD_ROLE
-    // above still clears neighbours; untouched for ordinary small systems.
-    var CROWD_C = 0.07;
-    function crowdAdj(n) { return 1 / (1 + Math.max(0, n - 5) * CROWD_C); }
-    var SUN_ROLE = 0.20;
+    var CHILD_ROLE = 0.133;         // nav-ring children when zoomed into a sub-system (N=1 baseline)
+    var ROOT_CHILD_ROLE = 0.06;     // root-level planets around the black hole (N=1 baseline)
+    // root's kid count barely moves (<=6 here) — keep its old mild step
+    // curve so the "somewhat bigger" root-view bump from before is intact.
+    var CROWD_C_ROOT = 0.07;
+    function crowdAdjRoot(n) { return 1 / (1 + Math.max(0, n - 5) * CROWD_C_ROOT); }
+    // zoomed-in nav-ring children: a smooth curve over EVERY N (no flat
+    // plateau below 5) — a 3-kid system's planets read bigger than a 9-kid
+    // system's (papers), which read bigger than the 11/13-kid shelves
+    // (M4L, NEPTR). CHILD_CROWD_K tuned against the real tree so the
+    // tightest real system (NEPTR, 13 kids) still clears with margin —
+    // see the report for the per-N values this produces.
+    var CHILD_CROWD_K = 10;
+    function crowdAdjChild(n) { return CHILD_CROWD_K / (CHILD_CROWD_K + Math.max(0, n - 1)); }
+    // the focused "sun": close to ORBIT_MIN (so it barely shrinks from how
+    // big it read as a nav-ring child a moment ago) but strictly inside it,
+    // leaving just enough room for its own innermost child — verified
+    // against the real tree's worst case (an N=1/2 system, which keeps the
+    // full un-crowd-reduced CHILD_ROLE and so has the single biggest inner
+    // child to clear).
+    var SUN_ROLE = 0.36;
     function uniformSizeFor(n, f) {
         if (n === f) {
             // the "sun": a flat size driven ONLY by its role in its OWN
@@ -1248,10 +1267,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             // matter how big the focused node's own `size` is.
             return f.sysR * SUN_ROLE;
         }
-        var role, isChildTier = false, crowdN = 0;
+        var role, isChildTier = false, crowdN = 0, crowdFn = null;
         if (n.parentNode === f) {                                   // nav-ring children — main tier
             role = (f === root) ? ROOT_CHILD_ROLE : CHILD_ROLE;
             crowdN = f.kids.length;
+            crowdFn = (f === root) ? crowdAdjRoot : crowdAdjChild;
             isChildTier = true;
         }
         else if (n.parentNode && n.parentNode.parentNode === f) role = 0.02; // hinted grandkids
@@ -1259,10 +1279,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         else if (f !== root && n.parentNode === f.parentNode) {          // siblings
             role = CHILD_ROLE;
             crowdN = f.parentNode.kids.length;
+            crowdFn = crowdAdjChild;
             isChildTier = true;
         }
         else role = n.bodyR / Math.max(1, f.sysR);
-        if (isChildTier) role *= crowdAdj(crowdN);
+        if (isChildTier) role *= crowdFn(crowdN);
         var uniformR = f.sysR * role;
         var sizeFVar = clamp(0.85 + (n.sizeF - 1) * 0.15, 0.8, 1.2);     // gentle per-node variation only
         // the seeded sizeVar only applies to nav-ring/sibling children —
@@ -2246,6 +2267,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         listChildren: function (id) {
             var n = id ? byId[id] : root;
             return n ? n.kids.map(function (k) { return k.id; }) : [];
+        },
+        // probe hook: the black hole's TRUE on-screen pixel radius, i.e.
+        // bhCoreR with the distance-based depth-cue fade/scale already
+        // applied (blackHole.scale) and projected through the real camera —
+        // the only number that answers "does it look bigger," since the
+        // fade in updateBlackHoleFade() can silently undercut a bigger
+        // bhCoreR.
+        bhVisibleRadiusPx: function () {
+            if (!blackHole || !camera || !bhCoreR) return null;
+            var trueR = bhCoreR * blackHole.scale.x;
+            var d = camera.position.length();
+            return (trueR / Math.max(1e-3, d * Math.tan(fovRad / 2))) * (H / 2);
         }
     };
 
