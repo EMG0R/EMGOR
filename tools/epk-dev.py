@@ -58,6 +58,7 @@ def rebuild_zip(layout, bios=''):
     kit.build(bios)
 
 class H(SimpleHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
     def __init__(self, *a, **k):
         super().__init__(*a, directory=ROOT, **k)
     def log_message(self, fmt, *args):
@@ -68,12 +69,50 @@ class H(SimpleHTTPRequestHandler):
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body)))
-        self.send_header('Cache-Control', 'no-store')
         self.end_headers()
         self.wfile.write(body)
+    MEDIA = ('.wav', '.m4a', '.mp3', '.mp4', '.mov', '.aif', '.aiff', '.flac', '.ogg')
     def end_headers(self):
-        self.send_header('Cache-Control', 'no-store')
+        if not self.path.split('?')[0].lower().endswith(self.MEDIA):
+            self.send_header('Cache-Control', 'no-store')  # media keeps default caching: Chrome needs it to seek
+        self.send_header('Accept-Ranges', 'bytes')
         super().end_headers()
+    extensions_map = {**SimpleHTTPRequestHandler.extensions_map, '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.mov': 'video/quicktime'}
+    def send_head(self):
+        self._range_len = None
+        rng = self.headers.get('Range')
+        path = self.translate_path(self.path)
+        if rng and os.path.isfile(path):
+            try:
+                size = os.path.getsize(path)
+                a, b = rng.replace('bytes=', '').split('-')
+                start = int(a) if a else max(0, size - int(b))
+                end = int(b) if b else size - 1
+                end = min(end, size - 1)
+                if start > end or start >= size:
+                    self.send_response(416); self.send_header('Content-Range', 'bytes */%d' % size); self.end_headers(); return None
+                f = open(path, 'rb'); f.seek(start)
+                self.send_response(206)
+                self.send_header('Content-Type', self.guess_type(path))
+                self.send_header('Accept-Ranges', 'bytes')
+                self.send_header('Content-Range', 'bytes %d-%d/%d' % (start, end, size))
+                self.send_header('Content-Length', str(end - start + 1))
+                self.end_headers()
+                self._range_len = end - start + 1
+                return f
+            except Exception:
+                pass
+        self._range_len = None
+        return super().send_head()
+    def copyfile(self, src, dst):
+        n = getattr(self, '_range_len', None)
+        if n is None:
+            return super().copyfile(src, dst)
+        left = n
+        while left > 0:
+            chunk = src.read(min(65536, left))
+            if not chunk: break
+            dst.write(chunk); left -= len(chunk)
     def do_GET(self):
         if self.path.split('?')[0] == '/__epk/draft':
             if os.path.exists(DRAFT):

@@ -191,6 +191,8 @@
         .catch(function () { devOK = false; });
     })
     .then(function () {
+      if (state.frames && state.frames.hero && !(state.frames.a && state.frames.a.file)) { state.frames.a = state.frames.hero; }
+      if (state.frames) delete state.frames.hero;
       if (wantEdit) enableEditor();
       render();
     });

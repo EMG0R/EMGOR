@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0D0221">
     <meta name="description" content="EMGOR — Emory Smith. Press kit: photos, bio, music, downloads.">
-    <link rel="stylesheet" href="style/base.css?v=20260930j">
-    <link rel="stylesheet" href="style/player.css?v=20260930j">
-    <link rel="stylesheet" href="style/epk.css?v=20260930j">
+    <link rel="stylesheet" href="style/base.css?v=20260930l">
+    <link rel="stylesheet" href="style/player.css?v=20260930l">
+    <link rel="stylesheet" href="style/epk.css?v=20260930l">
     <title>epk</title>
 </head>
 <body>
@@ -29,40 +29,37 @@
         <button type="button" id="publish" class="eb-btn">&#10003; done</button>
     </div>
 
-    <header class="hero-full">
-        <figure class="frame frame-hero" data-frame="hero" data-size="drop or click"></figure>
-        <div class="hero-veil"></div>
-        <div class="hero-text">
+    <main class="epk">
+
+        <header class="hero">
             <p class="kicker">press kit</p>
             <h1 class="wordmark">EMGOR</h1>
             <p class="tag">Emory Smith &middot; Los Angeles</p>
-        </div>
-    </header>
+        </header>
 
-    <main class="epk">
-
-        <section class="bio">
-            <h2>bio</h2>
-            <p>Emory Smith, known as EMGOR, is a digital luthier and audio-visual programmer in Los Angeles. He builds his instruments end to end: the DSP, the microcontroller firmware, the touch interfaces, and the 3D-printed bodies.</p>
-            <p>At the center of his live rig is NEPTR, a Csound effects brain on a Raspberry Pi running his own audio-first operating system, DEMIURGE. Around it orbit a hex-pickup hyperGuitar, the PMOR pocket groovebox, the neuralGrid gesture surface, and the DUODECIMUS foot controller. All of it is published open source.</p>
-            <p>He works in Csound, ChucK, Max/MSP, Faust, Pure Data and SuperCollider, studies in the Music Technology program at CalArts, and plays in the Machine Lab robot orchestra. As a guitarist he plays surf rock and generative ambient.</p>
+        <section class="row">
+            <figure class="frame" data-frame="a" data-size="4 : 5  ·  drop or click"></figure>
+            <div class="col bio">
+                <h2>bio</h2>
+                <p>Emory Smith, known as EMGOR, is a digital luthier and audio-visual programmer in Los Angeles. He builds his instruments end to end: the DSP, the microcontroller firmware, the touch interfaces, and the 3D-printed bodies.</p>
+                <p>At the center of his live rig is NEPTR, a Csound effects brain on a Raspberry Pi running his own audio-first operating system, DEMIURGE. Around it orbit a hex-pickup hyperGuitar, the PMOR pocket groovebox, the neuralGrid gesture surface, and the DUODECIMUS foot controller. All of it is published open source.</p>
+                <p>He works in Csound, ChucK, Max/MSP, Faust, Pure Data and SuperCollider, studies in the Music Technology program at CalArts, and plays in the Machine Lab robot orchestra. As a guitarist he plays surf rock and generative ambient.</p>
+            </div>
         </section>
 
-        <div class="frame-pair">
-            <figure class="frame frame-sq" data-frame="a" data-size="1 : 1  ·  drop or click"></figure>
-            <figure class="frame frame-sq" data-frame="b" data-size="1 : 1  ·  drop or click"></figure>
-        </div>
-
-        <section class="listen">
-            <h2>music</h2>
-            <div id="player" data-player data-peaks="resources/peaks.json" data-tracks='[
-                {"name":"our world","src":"resources/epk/our-world.wav"},
-                {"name":"run","src":"resources/epk/run.wav"},
-                {"name":"the new sick (w/ cal digiovanni + omer kochba)","src":"resources/epk/the-new-sick.m4a"},
-                {"name":"sync 9-1","src":"resources/epk/sync-9-1.m4a"},
-                {"name":"lighten up","src":"resources/epk/lighten-up.wav"},
-                {"name":"space vox","src":"resources/epk/space-vox.m4a"}
-            ]'></div>
+        <section class="row row-flip">
+            <div class="col listen">
+                <h2>music</h2>
+                <div id="player" data-player data-peaks="resources/peaks.json" data-tracks='[
+                    {"name":"our world","src":"resources/epk/our-world.wav"},
+                    {"name":"run","src":"resources/epk/run.wav"},
+                    {"name":"the new sick (w/ cal digiovanni + omer kochba)","src":"resources/epk/the-new-sick.m4a"},
+                    {"name":"sync 9-1","src":"resources/epk/sync-9-1.m4a"},
+                    {"name":"lighten up","src":"resources/epk/lighten-up.wav"},
+                    {"name":"space vox","src":"resources/epk/space-vox.m4a"}
+                ]'></div>
+            </div>
+            <figure class="frame" data-frame="b" data-size="4 : 5  ·  drop or click"></figure>
         </section>
 
         <section class="elsewhere">
@@ -78,7 +75,10 @@
         </section>
 
         <section class="downloads">
-            <a class="dl-toggle" href="epk/emgor-press-kit.zip" download>&#8681; download photos + music</a>
+            <div class="cta-row">
+                <a class="dl-toggle" href="epk/emgor-press-kit.zip" download>&#8681; download photos + music</a>
+                <a class="cta-ghost" href="mailto:emorysmith02@gmail.com">get in touch</a>
+            </div>
             <p class="kit-note">one zip: every photo on this page, all six songs as 320k mp3, bio as text</p>
         </section>
 
@@ -86,7 +86,7 @@
     </main>
 
     <script src="js/stars-bg.js"></script>
-    <script src="js/player.js?v=20260930j"></script>
-    <script src="js/epk.js?v=20260930j"></script>
+    <script src="js/player.js?v=20260930l"></script>
+    <script src="js/epk.js?v=20260930l"></script>
 </body>
 </html>
