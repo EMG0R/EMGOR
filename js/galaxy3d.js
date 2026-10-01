@@ -1233,10 +1233,23 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // above still clears neighbours; untouched for ordinary small systems.
     var CROWD_C = 0.07;
     function crowdAdj(n) { return 1 / (1 + Math.max(0, n - 5) * CROWD_C); }
+    var SUN_ROLE = 0.20;
     function uniformSizeFor(n, f) {
+        if (n === f) {
+            // the "sun": a flat size driven ONLY by its role in its OWN
+            // system — deliberately NOT blended with its true bodyR/sizeF
+            // the way every other tier is. A node with a big `size`
+            // override (e.g. papers at 2.0) has a huge bodyR as seen from
+            // OUTSIDE its system; blending that in here made the sun swell
+            // until it nearly touched (and sometimes visually swallowed)
+            // its own innermost orbiting child — the exact "children hidden
+            // behind/in front of the parent" bug. Fully role-based keeps
+            // the sun's radius always well inside ORBIT_MIN * f.sysR, no
+            // matter how big the focused node's own `size` is.
+            return f.sysR * SUN_ROLE;
+        }
         var role, isChildTier = false, crowdN = 0;
-        if (n === f) role = 0.20;                                        // focused body ("sun")
-        else if (n.parentNode === f) {                                   // nav-ring children — main tier
+        if (n.parentNode === f) {                                   // nav-ring children — main tier
             role = (f === root) ? ROOT_CHILD_ROLE : CHILD_ROLE;
             crowdN = f.kids.length;
             isChildTier = true;
