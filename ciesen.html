@@ -693,7 +693,7 @@
                 // `1 * winScale => orbFixedSz`), same world-units-to-pixels
                 // scale factor as every other world-space shape here. The
                 // previous 0.12 was ~8x too small (only orb centres showed).
-                const orbSz = 1.0 * winScale * scale;
+                const orbSz = 0.5 * winScale * scale; // ChuGL scale 1 = unit circle = diameter 1, radius 0.5
                 const jx = reducedMotion ? 0 : rand(-0.006, 0.006) * halfW * 0.05;
                 const jy = reducedMotion ? 0 : rand(-0.006, 0.006) * HALF_H * 0.05;
 

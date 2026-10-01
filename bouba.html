@@ -1018,7 +1018,7 @@
                 const dispY = (0.5 - ny) * 2 * HALF_H;
                 const [cr, cg, cb] = CTRL_COLOR[i];
                 const obright = 0.5 + o.val * 0.5;
-                const orbSz = 1.0 * winScale * scale;
+                const orbSz = 0.5 * winScale * scale; // ChuGL scale 1 = unit circle = diameter 1, radius 0.5
                 const jx = reducedMotion ? 0 : rand(-0.006, 0.006) * halfW * 0.05;
                 const jy = reducedMotion ? 0 : rand(-0.006, 0.006) * HALF_H * 0.05;
                 const [px, py] = worldToPx(dispX, dispY);
