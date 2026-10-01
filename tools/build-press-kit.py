@@ -9,7 +9,7 @@ import json, os, re, subprocess, sys, zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'resources', 'epk')
 MP3 = os.path.join(SRC, 'mp3')
-ZIP = os.path.join(ROOT, 'epk', 'emgor-press-kit.zip')
+ZIP = os.path.join(ROOT, 'epk', 'EMGOR press kit.zip')
 LAYOUT = os.path.join(ROOT, 'epk', 'layout.json')
 PAGE = os.path.join(ROOT, 'epk.html')
 
@@ -64,14 +64,14 @@ def build(bio=''):
         for i, rel in enumerate(photos):
             p = os.path.join(ROOT, rel)
             if os.path.exists(p):
-                z.write(p, 'EMGOR/photos/EMGOR %d%s' % (i + 1, os.path.splitext(rel)[1]))
-        z.writestr('EMGOR/bio.txt', page_bio())
+                z.write(p, 'EMGOR press kit/photos/EMGOR %d%s' % (i + 1, os.path.splitext(rel)[1]))
+        z.writestr('EMGOR press kit/bio.txt', page_bio())
         for name, stem in tracks:
             m = os.path.join(MP3, stem + '.mp3')
             if os.path.exists(m):
                 subprocess.run(['ffmpeg', '-v', 'quiet', '-y', '-i', m, '-codec', 'copy', '-id3v2_version', '3', '-metadata', 'artist=EMGOR', '-metadata', 'title=' + name, m + '.tmp.mp3'])
                 src = m + '.tmp.mp3' if os.path.exists(m + '.tmp.mp3') else m
-                z.write(src, 'EMGOR/music/' + safe(name.replace('w/', 'w')) + '.mp3')
+                z.write(src, 'EMGOR press kit/music/' + safe(name.replace('w/', 'w')) + '.mp3')
                 if src != m: os.remove(src)
     print('wrote', os.path.relpath(ZIP, ROOT), '%.1f MB' % (os.path.getsize(ZIP) / 1e6), '| photos:', len(photos), 'songs:', len(tracks))
 
