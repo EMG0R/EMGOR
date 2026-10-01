@@ -79,15 +79,15 @@ html.editing .frame.over { outline: 2px solid var(--sky); }
 
 /* text and player scale with viewport height so each view fits one screen on any Mac */
 @media (min-width: 761px) {
-    .bio .lead { font-size: clamp(0.74rem, 1.25vh, 1rem); }
-    .bio p, .bio-list li, .bio-inf { font-size: clamp(0.66rem, 1.12vh, 0.9rem); line-height: 1.58; }
-    .bio-inf span, h2 { font-size: clamp(0.64rem, 1.05vh, 0.92rem); }
+    .bio .lead { font-size: clamp(0.74rem, 1.9vh, 1rem); }
+    .bio p, .bio-list li, .bio-inf { font-size: clamp(0.66rem, 1.7vh, 0.9rem); line-height: 1.6; }
+    .bio-inf span, h2 { font-size: clamp(0.64rem, 1.5vh, 0.92rem); }
     h2 { margin-bottom: clamp(8px, 1.4vh, 16px); }
-    .bio-edu { font-size: clamp(0.64rem, 0.95vh, 0.76rem); white-space: nowrap; }
-    .bio-list li { margin-bottom: clamp(3px, 0.6vh, 8px); }
-    .bio p, .bio-inf { margin-bottom: clamp(6px, 1.1vh, 14px); }
-    .ep { gap: clamp(6px, 1.2vh, 14px); }
-    .ep-wave { height: clamp(28px, 4.2vh, 46px); }
+    .bio-edu { font-size: clamp(0.64rem, 1.35vh, 0.76rem); white-space: nowrap; }
+    .bio-list li { margin-bottom: clamp(3px, 0.9vh, 8px); }
+    .bio p, .bio-inf { margin-bottom: clamp(6px, 1.5vh, 14px); }
+    .ep { gap: clamp(6px, 1.5vh, 14px); }
+    .ep-wave { height: clamp(28px, 5vh, 46px); }
     .ep-play { width: clamp(36px, 4.8vh, 46px); height: clamp(36px, 4.8vh, 46px); }
     .view .cta { margin-top: clamp(16px, 3vh, 36px); }
 }
