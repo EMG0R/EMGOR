@@ -1,8 +1,9 @@
 ---
-id: emgor.papers.season-2026-27.thesis
-title: Digital Lutherie and Expression for the Electronic Artist
+id: emgor.papers.thesis
+title: 5. Digital Lutherie and Expression
+order: 5
 blurb: A 2027 Retrospective and Prospectus. The binding argument — the OS, the instrument, and the methodology as one practice.
-parent: emgor.papers.season-2026-27
+parent: emgor.papers
 links:
   - { label: "Read as draft", url: "papers/nime/thesis.html" }
 tags: [thesis, calarts, digital-lutherie, practice-based, in-development]
@@ -18,9 +19,9 @@ draft: false
 
 Three pieces of work that only mean something together:
 
-- **[DemiurgeOS](/papers/season-2026-27/demiurgeos)** — the operating layer. What it takes to make a Raspberry Pi behave like an instrument instead of a computer.
-- **[Performance System of a Modern Digital Luthier](/papers/season-2026-27/neptr-performance-system)** — the instrument. What gets built on top of that layer, and what it means to walk onstage with nothing bought.
-- **[Workflow of a Modern Digital Luthier](/papers/season-2026-27/digital-luthier)** — the methodology. The claim that the first two are instances of something general.
+- **[DemiurgeOS](/papers/demiurgeos)** — the operating layer. What it takes to make a Raspberry Pi behave like an instrument instead of a computer.
+- **[Performance System of a Modern Digital Luthier](/papers/neptr-performance-system)** — the instrument. What gets built on top of that layer, and what it means to walk onstage with nothing bought.
+- **[Workflow of a Modern Digital Luthier](/papers/digital-luthier)** — the methodology. The claim that the first two are instances of something general.
 
 ## The argument
 
@@ -30,7 +31,7 @@ The thesis is the further-meta position on that. Not *here is an instrument*, an
 
 ## Scope
 
-The argument runs on those three. [BOUBA](/papers/season-2026-27/bouba) and [NAM × Csound](/papers/season-2026-27/nam-csound) are the same season's work and can be cited as artifacts, but they aren't load-bearing here — BOUBA's user study in particular is evaluated by a methodology foreign to everything else, and ships on its own timeline as its own paper.
+The argument runs on those three. [BOUBA](/papers/bouba) and [NAM × Csound](/papers/nam-csound) are the same season's work and can be cited as artifacts, but they aren't load-bearing here — BOUBA's user study in particular is evaluated by a methodology foreign to everything else, and ships on its own timeline as its own paper.
 
 ## People
 

@@ -1,8 +1,8 @@
 ---
-id: emgor.code.csound-suite.emgor-synth
+id: emgor.archive.m4l.emgor-synth
 title: EMGOR_SYNTH
 blurb: 9-partial additive synth with a routable LFO, in one .csd
-parent: emgor.code.csound-suite
+parent: emgor.archive.m4l
 source: csound/EMGOR_SYNTH/EMGOR_SYNTH_v1.2.csd
 downloads:
   - files/EMGOR_SYNTH_v1.2.csd

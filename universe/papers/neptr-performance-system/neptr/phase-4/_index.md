@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-4
+id: emgor.papers.neptr-performance-system.neptr.phase-4
 title: Phase 4 — DEMIURGE
 blurb: The current machine — Csound on a Pi 5, NAM, 19 menus, ~7 ms round trip
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______2026NEW/NEPTR phase4/
 downloads:
   - files/neptrPhase4.csd

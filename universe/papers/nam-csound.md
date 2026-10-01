@@ -1,8 +1,9 @@
 ---
-id: emgor.papers.season-2026-27.nam-csound
-title: NAM × Csound
+id: emgor.papers.nam-csound
+title: 6. NAM × Csound (2027+)
+order: 6
 blurb: NAMProcess — real-time Neural Amp Modeler inference as a Csound opcode, with live volume compensation. Complete.
-parent: emgor.papers.season-2026-27
+parent: emgor.papers
 source: ______2026NEW/__PAPERS/Integrating Neural Amp Modeling Into Csound
 downloads:
   - files/nam-csound-icsc.pdf
@@ -26,7 +27,7 @@ draft: false
 
 # Integrating Neural Amp Modeling into Csound
 
-**Status: complete and submitted.** The paper is written, the PDF is downloadable below, and the opcode source ships with it. The venue slipped to 2027; the work did not. It runs inside [DEMIURGE](/papers/season-2026-27/demiurgeos) and inside [NEPTR](/papers/season-2026-27/neptr-performance-system) today.
+**Status: complete and submitted.** The paper is written, the PDF is downloadable below, and the opcode source ships with it. The venue slipped to 2027; the work did not. It runs inside [DEMIURGE](/papers/demiurgeos) and inside [NEPTR](/papers/neptr-performance-system) today.
 
 ## Abstract
 

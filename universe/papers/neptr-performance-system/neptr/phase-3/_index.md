@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-3
+id: emgor.papers.neptr-performance-system.neptr.phase-3
 title: Phase 3 — ChucK
 blurb: Strongly-timed rewrite — ChuckTer, neptrSYNTH1, Teensy I/O, a new body
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______PHASE3/
 downloads:
   - files/neptrSYNTH1.ck

@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.we-remote
+id: emgor.papers.neptr-performance-system.neptr.we-remote
 title: We-Remote
 blurb: Open-source Wii remote — BLE gamepad, keyboard, and MIDI CC in one shell
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______2026NEW/We-Remote/
 downloads:
   - files/we-remote.ino

@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.ofoots
+id: emgor.papers.neptr-performance-system.neptr.ofoots
 title: DUODECIMUS
 blurb: Ten-encoder foot controller — 8 pages, 64 CCs, one expression pedal
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ____oFOOTS/
 downloads:
   - files/ofoots.ino

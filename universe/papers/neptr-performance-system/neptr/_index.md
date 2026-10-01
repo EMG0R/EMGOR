@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr
+id: emgor.papers.neptr-performance-system.neptr
 title: NEPTR
 blurb: "Performance system of a modern digital luthier — the brain, and every device built around it"
-parent: emgor.papers.season-2026-27.neptr-performance-system
+parent: emgor.papers.neptr-performance-system
 source: _____pi / ______PHASE2 / ______PHASE3 / ______2026NEW
 links:
   - { label: "NEPTR web (RNBO export)", url: "NEPTR.html" }

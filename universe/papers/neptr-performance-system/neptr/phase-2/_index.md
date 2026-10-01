@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-2
+id: emgor.papers.neptr-performance-system.neptr.phase-2
 title: Phase 2 — Csound on the Pi
 blurb: The engine rewritten by hand in Csound, with robot faces and a Bela detour
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______PHASE2/ + belaSAD/
 downloads:
   - files/NEPTR_PHASE2_PIinto.csd

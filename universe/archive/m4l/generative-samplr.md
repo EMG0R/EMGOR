@@ -1,8 +1,8 @@
 ---
-id: emgor.code.csound-suite.generative-samplr
+id: emgor.archive.m4l.generative-samplr
 title: EMGOR_GENERATIVE_SAMPLR
 blurb: Probabilistic 8-slot sampler — drag, set chance, let it play
-parent: emgor.code.csound-suite
+parent: emgor.archive.m4l
 source: csound/EMGOR_GENERATIVE_SAMPLR/EMGOR_GEN_SAMPLER_v3.2.csd
 downloads:
   - files/EMGOR_GEN_SAMPLER_v3.2.csd

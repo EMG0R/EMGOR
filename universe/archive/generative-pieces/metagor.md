@@ -1,8 +1,9 @@
 ---
-id: emgor.code.csound-suite.metagor
+id: emgor.archive.generative-pieces.metagor
 title: metaGOR
+order: 2
 blurb: Self-playing ambient Csound piece — weighted notes, giant wet reverb
-parent: emgor.code.csound-suite
+parent: emgor.archive.generative-pieces
 source: csound/metaGOR.csd
 downloads:
   - files/metaGOR.csd

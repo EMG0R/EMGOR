@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.speak
+id: emgor.papers.neptr-performance-system.neptr.speak
 title: SPEAK — neptr's voice
 blurb: Speak-&-Spell singing synth + a fully offline AI companion on a Pi
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______2026NEW/SPEAK/
 downloads:
   - files/persona.md

@@ -1,8 +1,8 @@
 ---
-id: emgor.code.csound-suite.gen-sequencer
+id: emgor.archive.m4l.gen-sequencer
 title: GEN_SEQUENCER
 blurb: Grid step-sequencer prototype — Cabbage UI generated from code
-parent: emgor.code.csound-suite
+parent: emgor.archive.m4l
 source: csound/_EMGOR_GEN_SEQUENCER_v1.csd
 downloads:
   - files/_EMGOR_GEN_SEQUENCER_v1.csd

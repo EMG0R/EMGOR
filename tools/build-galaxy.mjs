@@ -218,6 +218,16 @@ async function main() {
       }
     }
 
+    // Optional sibling sort order (number). Lower sorts first; ties fall back to route.
+    let order;
+    if (fm.order !== undefined) {
+      if (typeof fm.order === 'number' && Number.isFinite(fm.order)) {
+        order = fm.order;
+      } else {
+        warnings.push(`${repoRel}: "order" must be a number (got ${JSON.stringify(fm.order)}) — ignored`);
+      }
+    }
+
     const node = {
       id: typeof fm.id === 'string' ? fm.id : String(fm.id ?? ''),
       title: fm.title !== undefined ? String(fm.title) : '',
@@ -233,6 +243,7 @@ async function main() {
       updated,
       ...(size !== undefined ? { size } : {}),
       ...(launch !== undefined ? { launch } : {}),
+      ...(order !== undefined ? { order } : {}),
     };
 
     if (node.id) {
@@ -313,7 +324,17 @@ async function main() {
   for (const w of warnings) console.warn('  WARN: ' + w);
   if (errors.length) fail(errors);
 
-  nodes.sort((a, b) => a.route.localeCompare(b.route));
+  nodes.sort((a, b) => {
+    // Only let "order" arbitrate between true siblings (same parent); otherwise
+    // fall back to route, which is what keeps unrelated subtrees correctly grouped.
+    if (a.parent === b.parent) {
+      const oa = a.order, ob = b.order;
+      if (oa !== undefined && ob !== undefined && oa !== ob) return oa - ob;
+      if (oa !== undefined && ob === undefined) return -1;
+      if (oa === undefined && ob !== undefined) return 1;
+    }
+    return a.route.localeCompare(b.route);
+  });
   const galaxy = {
     generated: new Date().toISOString().slice(0, 10),
     nodes,

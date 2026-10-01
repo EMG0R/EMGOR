@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-3.cheese
+id: emgor.papers.neptr-performance-system.neptr.phase-3.cheese
 title: CHEESE
 blurb: Modular ChucK FX library — nine stereo effects, one shared brain
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-3
+parent: emgor.papers.neptr-performance-system.neptr.phase-3
 source: ______PHASE3/cheese/
 downloads:
   - files/chorus.ck

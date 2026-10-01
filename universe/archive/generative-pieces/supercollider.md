@@ -1,8 +1,9 @@
 ---
-id: emgor.code.supercollider
+id: emgor.archive.generative-pieces.supercollider
 title: SUPERCOLLIDER
+order: 4
 blurb: GEN_COLIDER — generative FM pieces, mono to 8-channel
-parent: emgor.code
+parent: emgor.archive.generative-pieces
 source: __SUPAH/
 downloads:
   - files/GEN_COLIDER_1.scd

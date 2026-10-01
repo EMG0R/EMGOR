@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.phase-1
+id: emgor.papers.neptr-performance-system.neptr.phase-1
 title: Phase 1 — Pi + RNBO
 blurb: Max patches compiled onto a Raspberry Pi — the era that proved the idea
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: _____pi/
 downloads:
   - files/BMO.py

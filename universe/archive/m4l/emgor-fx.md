@@ -1,8 +1,8 @@
 ---
-id: emgor.code.csound-suite.emgor-fx
+id: emgor.archive.m4l.emgor-fx
 title: EMGOR_FX
 blurb: Stacked stereo FX rack — phaser to bitcrush — shipped as VST3
-parent: emgor.code.csound-suite
+parent: emgor.archive.m4l
 source: csound/EMGOR_FX/EMGOR_EFFECTz_v3.csd
 downloads:
   - files/EMGOR_EFFECTz_v3.csd

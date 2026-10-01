@@ -1,8 +1,9 @@
 ---
-id: emgor.papers.season-2026-27.bouba
-title: BOUBA
+id: emgor.papers.bouba
+title: 7. BOUBA (2027+)
+order: 7
 blurb: A quadraphonic therapeutic sound object, built — plus a new accessible prototype and a free web version.
-parent: emgor.papers.season-2026-27
+parent: emgor.papers
 source: luthier_paper_v2/rotura_submission.md
 links:
   - { label: "Read as paper", url: "papers/nime/bouba.html" }
@@ -13,7 +14,7 @@ draft: false
 
 # BOUBA
 
-**Status: built, and being rebuilt.** The first BOUBA exists and has been in consistent use for months. It appears as one of the two case studies in the [Luthier paper](/papers/season-2026-27/digital-luthier). What's active now is the second generation plus the web version, and the user-participation work that pair makes possible.
+**Status: built, and being rebuilt.** The first BOUBA exists and has been in consistent use for months. It appears as one of the two case studies in the [Luthier paper](/papers/digital-luthier). What's active now is the second generation plus the web version, and the user-participation work that pair makes possible.
 
 ## What it is
 

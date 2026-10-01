@@ -1,8 +1,9 @@
 ---
-id: emgor.papers.season-2026-27.digital-luthier
-title: Digital Luthier
+id: emgor.papers.digital-luthier
+title: 1. Digital Luthier
+order: 1
 blurb: The methodology paper — embedded audio, fabrication, and interaction design as one workflow. In submission to ROTURA.
-parent: emgor.papers.season-2026-27
+parent: emgor.papers
 source: luthier_paper_v2/rotura_submission.md
 links:
   - { label: "Read as paper", url: "papers/nime/digital-luthier.html" }
@@ -38,10 +39,10 @@ Both are evaluated against O'Modhrain's framework — playability, learnability,
 
 ## A note on NEPTR's two lives
 
-The NEPTR documented in this paper runs ChucK for synthesis with a Python GUI over OSC. That is an earlier instrument than the one described in [Performance System of a Modern Digital Luthier](/papers/season-2026-27/neptr-performance-system), which runs Csound on DEMIURGE with a Rust supervisor underneath.
+The NEPTR documented in this paper runs ChucK for synthesis with a Python GUI over OSC. That is an earlier instrument than the one described in [Performance System of a Modern Digital Luthier](/papers/neptr-performance-system), which runs Csound on DEMIURGE with a Rust supervisor underneath.
 
 This is not a contradiction to be resolved. The case study documents the prototype at the moment it demonstrated the workflow; the performance-system paper documents what that prototype became. Both are true of their own moment.
 
 ## Where it sits
 
-This is the paper that states the season's argument out loud. [DemiurgeOS](/papers/season-2026-27/demiurgeos) and [the NEPTR paper](/papers/season-2026-27/neptr-performance-system) are evidence for it from underneath and above; [the thesis](/papers/season-2026-27/thesis) is what all three mean together.
+This is the paper that states the season's argument out loud. [DemiurgeOS](/papers/demiurgeos) and [the NEPTR paper](/papers/neptr-performance-system) are evidence for it from underneath and above; [the thesis](/papers/thesis) is what all three mean together.

@@ -1,8 +1,9 @@
 ---
-id: emgor.code.juce
+id: emgor.archive.generative-pieces.juce
 title: JUCE
+order: 3
 blurb: C++ generative synths as JUCE console apps — run one, get a composition
-parent: emgor.code
+parent: emgor.archive.generative-pieces
 source: __juco/
 downloads:
   - files/piGO.cpp

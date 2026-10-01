@@ -1,6 +1,6 @@
 ---
 id: emgor.papers
-title: 2026-2027 PAPERS
+title: PAPERS
 blurb: Research & writing — one season shipping, the rest in orbit
 parent: emgor
 source: ______2026NEW/__PAPERS

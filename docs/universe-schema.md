@@ -32,6 +32,7 @@ links:                                 # external or in-site links
   - { label: "Live demo", url: "ciesen.html" }
 tags: [max-for-live, synth]
 size: 1.4                              # optional planet visual size multiplier (number, default 1)
+order: 1                               # optional sibling sort order (number, lower first)
 updated: 2025-03-17                    # YYYY-MM-DD
 draft: false                           # true = excluded from galaxy.json
 ```
@@ -42,6 +43,14 @@ or non-numeric the builder treats it as the default `1` and omits it from `galax
 `launch` (optional string URL): clicking the planet navigates straight to this URL —
 no doc overlay. Used for live instruments (e.g. `launch: ciesen.html`). Emitted on the
 galaxy.json node verbatim.
+
+`order` (optional number): pins a node's position among its siblings. Sibling sort is
+`(order asc, then route)` — nodes that set `order` sort before unordered siblings, and
+when two siblings both set it, the lower number comes first; everything else (and ties)
+falls back to route string comparison. `order` only arbitrates between true siblings
+(same `parent`); it never reorders unrelated subtrees. Omit it to keep the old
+alphabetical-by-route behavior. The 3D galaxy view and `galaxy.json`'s `nodes` array both
+reflect this order.
 
 Body: normal markdown — the planet's documentation page.
 

@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.4-i-gor
+id: emgor.papers.neptr-performance-system.neptr.4-i-gor
 title: 4-i-Gor
 blurb: Teensy 4.0 quad-in / quad-out USB audio interface with MIDI
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______2026NEW/4-i-Gor/
 downloads:
   - files/4-i-gor.ino

@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.pocket-opgorator
+id: emgor.papers.neptr-performance-system.neptr.pocket-opgorator
 title: PMOR
 blurb: Pocket-Operator-format Daisy sampler/synth with a velocity NeoTrellis grid
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______2026NEW/Pocket-OpGorator/
 downloads:
   - files/pocket-opgorator-spec.md

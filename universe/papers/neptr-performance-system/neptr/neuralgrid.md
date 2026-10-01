@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.neuralgrid
+id: emgor.papers.neptr-performance-system.neptr.neuralgrid
 title: neuralGrid
 blurb: A monome-style grid that rewrites its own interface on the downbeat
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______2026NEW/neuralGrid/
 downloads:
   - files/neuralgrid-protocol.md

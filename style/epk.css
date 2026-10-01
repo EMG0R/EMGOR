@@ -17,8 +17,8 @@ section { margin-bottom: 56px; }
 .row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 40px; align-items: start; }
 .row-flip { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); }
 .col { min-width: 0; }
-.frame { position: relative; overflow: hidden; margin: 0; aspect-ratio: 4 / 5; border-radius: 14px; background: #000; border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(13, 2, 33, 0.7); opacity: 0; transition: opacity 1.2s ease; }
-.frame.in { opacity: 1; }
+.frame { position: relative; overflow: hidden; margin: 0; aspect-ratio: 4 / 5; border-radius: 14px; background: #000; border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(13, 2, 33, 0.7); }
+
 .frame img { position: absolute; left: 0; top: 0; max-width: none; display: block; will-change: transform; user-select: none; -webkit-user-drag: none; pointer-events: none; }
 @media (max-width: 760px) {
     .epk { padding-top: 48px; }

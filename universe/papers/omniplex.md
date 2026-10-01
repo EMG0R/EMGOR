@@ -1,8 +1,9 @@
 ---
-id: emgor.papers.future.omniplex
-title: OMNIPLEX
+id: emgor.papers.omniplex
+title: 8. OMNIPLEX (2027+)
+order: 8
 blurb: One cable for audio, video, and control — a Rust transport, now folding into DemiurgeOS.
-parent: emgor.papers.future
+parent: emgor.papers
 source: ______2026NEW/__PAPERS/2026-2027 PAPERS.md + ______2026NEW/universal_usb_protocol/
 links:
   - { label: "Read as paper", url: "papers/nime/omniplex.html" }
@@ -27,7 +28,7 @@ A Rust workspace, not a proposal: `omniplex-wire`, `-transport`, `-mux`, `-sessi
 
 ## Why it's deferred
 
-The transport is being absorbed into [DemiurgeOS](/papers/season-2026-27/demiurgeos) as a feature rather than shipped as its own system. Inside the OS it is justified by what the instrument needs and evaluated by whether the instrument works — a far better position than competing with industrial audio-over-IP standards on a spec sheet.
+The transport is being absorbed into [DemiurgeOS](/papers/demiurgeos) as a feature rather than shipped as its own system. Inside the OS it is justified by what the instrument needs and evaluated by whether the instrument works — a far better position than competing with industrial audio-over-IP standards on a spec sheet.
 
 The standalone paper stays queued. When it goes out, it goes to a systems venue where transport is the subject rather than the plumbing.
 

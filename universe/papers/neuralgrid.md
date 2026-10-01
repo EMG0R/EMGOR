@@ -1,8 +1,9 @@
 ---
-id: emgor.papers.season-2026-27.neuralgrid
-title: NeuralGrid
+id: emgor.papers.neuralgrid
+title: 3. NeuralGrid
+order: 3
 blurb: A grid, ribbon, and lidar controller that speaks a symbolic vocabulary before it speaks sound.
-parent: emgor.papers.season-2026-27
+parent: emgor.papers
 source: ______2026NEW/neuralGrid
 links:
   - { label: "Read as paper", url: "papers/nime/neuralgrid.html" }

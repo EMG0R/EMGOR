@@ -1,8 +1,9 @@
 ---
-id: emgor.papers.season-2026-27.demiurgeos
-title: DemiurgeOS
+id: emgor.papers.demiurgeos
+title: 4. DemiurgeOS
+order: 4
 blurb: Flashable audio-first OS for Raspberry Pi 5 — successor to CCRMA Satellite, and the paper about it
-parent: emgor.papers.season-2026-27
+parent: emgor.papers
 source: ______2026NEW/DEMIURGE_OS ; ______2026NEW/__PAPERS/2026-2027 PAPERS.md
 links:
   - { label: "Read as paper", url: "papers/nime/demiurgeos.html" }
@@ -26,7 +27,7 @@ The whole system is driven from `~/demiurge/live.conf` — the **only** file you
 
 ## Why it exists
 
-DEMIURGE is the platform under [NEPTR](/papers/season-2026-27/neptr-performance-system), emgor's live performance instrument: a Csound processor with 63 effect modules across 20 menus, a Python interface, and a Teensy control surface. The OS exists so the instrument can survive power pulls, hot-plugs, and field gigs. It grew into a general system — seven languages verified bidirectionally (MIDI in/out, BPM sync, audio in/out) on the Pi 5, running on an isolated CPU core at a 128-sample quantum without xruns.
+DEMIURGE is the platform under [NEPTR](/papers/neptr-performance-system), emgor's live performance instrument: a Csound processor with 63 effect modules across 20 menus, a Python interface, and a Teensy control surface. The OS exists so the instrument can survive power pulls, hot-plugs, and field gigs. It grew into a general system — seven languages verified bidirectionally (MIDI in/out, BPM sync, audio in/out) on the Pi 5, running on an isolated CPU core at a 128-sample quantum without xruns.
 
 Born from watching a class full of people fight their Pis — an integrated solution to the common DSP-on-Pi situations that would have at least doubled that class's productivity. The core pieces:
 
@@ -38,10 +39,10 @@ All of it controlled through a paired bash GUI, Python GUI, or local web GUI. In
 
 ## Resources
 
-- **[OS Core](/papers/season-2026-27/demiurgeos/os)** — PipeWire/WirePlumber layer, virtual I/O, global clock, boot config, performance pack
-- **[Launcher](/papers/season-2026-27/demiurgeos/launcher)** — the zero-dependency Rust patch-graph engine
-- **[NAM](/papers/season-2026-27/demiurgeos/nam)** — Neural Amp Modeler as a chain stage: drop a `.nam` file in
-- **[Web Control](/papers/season-2026-27/demiurgeos/web)** — browser control surface: telemetry, patch switching, power, transport
+- **[OS Core](/papers/demiurgeos/os)** — PipeWire/WirePlumber layer, virtual I/O, global clock, boot config, performance pack
+- **[Launcher](/papers/demiurgeos/launcher)** — the zero-dependency Rust patch-graph engine
+- **[NAM](/papers/demiurgeos/nam)** — Neural Amp Modeler as a chain stage: drop a `.nam` file in
+- **[Web Control](/papers/demiurgeos/web)** — browser control surface: telemetry, patch switching, power, transport
 
 ## Beyond the sync layer
 
@@ -55,7 +56,7 @@ The **M8 performance pack** pins it down: RT limits for `@audio`, PipeWire quant
 
 ## What's folding in
 
-[OMNIPLEX](/papers/future/omniplex) — the unified real-time transport — is being absorbed into DEMIURGE as a feature rather than shipping as its own system. Inside the OS it is justified by what the instrument needs and evaluated by whether the instrument works, which is a far better position for it than competing with industrial audio-over-IP standards on a spec sheet.
+[OMNIPLEX](/papers/omniplex) — the unified real-time transport — is being absorbed into DEMIURGE as a feature rather than shipping as its own system. Inside the OS it is justified by what the instrument needs and evaluated by whether the instrument works, which is a far better position for it than competing with industrial audio-over-IP standards on a spec sheet.
 
 ## People
 

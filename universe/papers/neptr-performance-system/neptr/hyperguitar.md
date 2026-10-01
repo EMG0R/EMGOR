@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.hyperguitar
+id: emgor.papers.neptr-performance-system.neptr.hyperguitar
 title: hyperGuitar
 blurb: Headless semi-hollow 6-string with a Bela Gem Multi living inside it
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______2026NEW/hyperGuitar/
 downloads:
   - files/hyperguitar-design.md

@@ -1,8 +1,9 @@
 ---
-id: emgor.code.vcv
-title: VCV RACK
+id: emgor.archive.generative-pieces.vcv
+title: VCV
+order: 5
 blurb: Patch files from the virtual modular — the alexthief series
-parent: emgor.code
+parent: emgor.archive.generative-pieces
 source: VCV./
 downloads:
   - files/alexthief.vcv

@@ -1,8 +1,8 @@
 ---
-id: emgor.papers.season-2026-27.neptr-performance-system.neptr.hypertrumpet
+id: emgor.papers.neptr-performance-system.neptr.hypertrumpet
 title: hyperTrumpet
 blurb: Augmented trumpet — Teensy 4.1 sensor rig into Max, everything on channel 3
-parent: emgor.papers.season-2026-27.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system.neptr
 source: ______2026NEW/hyperTrumpet/
 downloads:
   - files/hypertrumpet.ino

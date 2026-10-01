@@ -1,8 +1,9 @@
 ---
-id: emgor.code.csound-suite.nonlinear-daylight
-title: Nonlinear Daylight
+id: emgor.archive.generative-pieces.csound
+title: CSOUND
+order: 1
 blurb: Nonlinear reverb study in Csound — headless, generative, no interface
-parent: emgor.code.csound-suite
+parent: emgor.archive.generative-pieces
 source: csound/Nonlinear_Daylight-EMGOR.csd
 downloads:
   - files/Nonlinear_Daylight-EMGOR.csd
