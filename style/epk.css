@@ -6,7 +6,6 @@ body { background: transparent; width: 100%; max-width: 100%; color: var(--bone)
 
 .epk { width: min(100% - 32px, 1120px); margin: 0 auto; padding: 0; text-align: left; }
 .view { min-height: 100vh; min-height: 100svh; scroll-snap-align: start; scroll-snap-stop: always; display: flex; flex-direction: column; justify-content: safe center; padding: 32px 0; box-sizing: border-box; }
-}
 .view > section { margin-bottom: 0; }
 .view .cta { margin-top: 36px; }
 
@@ -91,3 +90,4 @@ html.editing .frame.over { outline: 2px solid var(--sky); }
     .ep-wave { height: clamp(28px, 4.2vh, 46px); }
     .ep-play { width: clamp(36px, 4.8vh, 46px); height: clamp(36px, 4.8vh, 46px); }
     .view .cta { margin-top: clamp(16px, 3vh, 36px); }
+}
