@@ -35,6 +35,12 @@ def page_bio():
     t = '\n'.join(line.strip() for line in t.splitlines()); t = re.sub(r'[ \t]+', ' ', t); t = re.sub(r'\n\s*\n+', '\n\n', t)
     return 'EMGOR - Emory Smith\n\n' + t.strip() + '\n\ninstagram: instagram.com/_emgor_\nit is (ep): emgor.online/it-is.html\nemail: emorysmith02@gmail.com\nsite: emgor.online/epk.html\n'
 
+def slug(name):
+    """'the new sick (w/ cal digiovanni + omer kochba)' -> 'the_new_sick_w_cal_digiovanni_omer_kochba'"""
+    n = name.lower().replace('w/', 'w').replace('+', ' ')
+    n = re.sub(r'[^a-z0-9]+', '_', n).strip('_')
+    return n
+
 def safe(name):
     return re.sub(r'[\\/:*?"<>|]', '', name).replace('/', '').strip()
 
@@ -69,14 +75,14 @@ def build(bio=''):
             orig = [os.path.join(odir, f) for f in (os.listdir(odir) if os.path.isdir(odir) else []) if f.startswith(stem + '.')]
             src = orig[0] if orig else p
             if os.path.exists(src):
-                z.write(src, 'EMGOR press kit/photos/EMGOR %d%s' % (i + 1, os.path.splitext(src)[1]))
-        z.writestr('EMGOR press kit/bio.txt', page_bio())
+                z.write(src, 'EMGOR press kit/photos/EMGOR_%d%s' % (i + 1, os.path.splitext(src)[1].lower().replace('.jpeg', '.jpg')))
+        z.writestr('EMGOR press kit/README.txt', page_bio())
         for name, stem in tracks:
             m = os.path.join(MP3, stem + '.mp3')
             if os.path.exists(m):
                 subprocess.run(['ffmpeg', '-v', 'quiet', '-y', '-i', m, '-codec', 'copy', '-id3v2_version', '3', '-metadata', 'artist=EMGOR', '-metadata', 'title=' + name, m + '.tmp.mp3'])
                 src = m + '.tmp.mp3' if os.path.exists(m + '.tmp.mp3') else m
-                z.write(src, 'EMGOR press kit/music/' + safe(name.replace('w/', 'w')) + '.mp3')
+                z.write(src, 'EMGOR press kit/music/' + slug(name) + '.mp3')
                 if src != m: os.remove(src)
     print('wrote', os.path.relpath(ZIP, ROOT), '%.1f MB' % (os.path.getsize(ZIP) / 1e6), '| photos:', len(photos), 'songs:', len(tracks))
 
