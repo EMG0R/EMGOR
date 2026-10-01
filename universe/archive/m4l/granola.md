@@ -1,13 +1,14 @@
 ---
-id: emgor.archive.m4l.emory-devices.granola
+id: emgor.archive.m4l.granola
 title: GRANOLA
 blurb: Granular ring-buffer mangler — feed it live audio, gobble it back
-parent: emgor.archive.m4l.emory-devices
+parent: emgor.archive.m4l
 source: _M4L/EMORY DEVICES/_GRANOLA_v1.3.1.amxd
 downloads:
   - files/GRANOLA_v1.3.1.amxd
 tags: [max-for-live, audio-effect, granular]
 updated: 2025-09-04
+order: 2
 ---
 
 # GRANOLA v1.3.1

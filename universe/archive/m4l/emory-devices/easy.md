@@ -8,6 +8,7 @@ downloads:
   - files/EASY_v1.3.amxd
 tags: [max-for-live, midi, chords, harmony]
 updated: 2025-02-14
+draft: true
 ---
 
 # EASY v1.3

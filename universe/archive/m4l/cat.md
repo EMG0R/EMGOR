@@ -1,13 +1,14 @@
 ---
-id: emgor.archive.m4l.emory-devices.cat
+id: emgor.archive.m4l.cat
 title: CAT
 blurb: A cat in your device chain, animated to your session tempo
-parent: emgor.archive.m4l.emory-devices
+parent: emgor.archive.m4l
 source: _M4L/EMORY DEVICES/CAT1.5.amxd
 downloads:
   - files/CAT_v1.5.amxd
 tags: [max-for-live, visual, jitter, fun]
 updated: 2024-04-03
+order: 1
 ---
 
 # CAT v1.5

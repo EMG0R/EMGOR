@@ -6,6 +6,7 @@ parent: emgor.archive.m4l
 source: _M4L/EMORY DEVICES
 tags: [max-for-live, devices]
 updated: 2026-05-01
+draft: true
 ---
 
 # Emory Devices

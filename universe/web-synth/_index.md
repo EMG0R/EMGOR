@@ -1,6 +1,6 @@
 ---
 id: emgor.web-synth
-title: WEB SYNTH
+title: WEB SYNTHS
 blurb: Instruments that run entirely in the browser — three languages, zero installs
 parent: emgor
 source: ____EMGOR_ONLINE/EMGOR (livecode.html, NEPTR.html, ciesen.html)
@@ -10,7 +10,7 @@ updated: 2026-08-02
 draft: false
 ---
 
-# WEB SYNTH
+# WEB SYNTHS
 
 Instruments that run entirely in the browser — no DAW, no download, no plugin
 scan. Open a tab and you're holding the instrument.

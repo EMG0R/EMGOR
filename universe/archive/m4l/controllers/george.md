@@ -8,6 +8,7 @@ downloads:
   - files/GEORGE_SYNTH_v1.2.2.amxd
 tags: [max-for-live, synth, fm, ewi, wind-controller]
 updated: 2024-09-06
+draft: true
 ---
 
 # GEORGE_SYNTH v1.2.2

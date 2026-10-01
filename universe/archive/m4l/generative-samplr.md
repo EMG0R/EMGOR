@@ -9,6 +9,7 @@ downloads:
 tags: [csound, cabbage, sampler, generative, au]
 updated: 2026-07-28
 draft: false
+order: 10
 ---
 
 # EMGOR_GENERATIVE_SAMPLR v3.2

@@ -9,6 +9,7 @@ downloads:
 tags: [csound, cabbage, fx, vst3]
 updated: 2026-07-28
 draft: false
+order: 8
 ---
 
 # EMGOR_FX v3 (EMGOR_EFFECTz)

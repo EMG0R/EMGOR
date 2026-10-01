@@ -8,6 +8,7 @@ downloads:
   - files/INFINITY_GAUNTLET_v3.2.1.amxd
 tags: [max-for-live, wearable, hardware, arduino, sequencer, monome]
 updated: 2025-01-25
+draft: true
 ---
 
 # INFINITY GAUNTLET

@@ -8,6 +8,7 @@ downloads:
   - files/GANA_PATI_v1.2.amxd
 tags: [max-for-live, robotics, calarts, percussion, osc]
 updated: 2026-02-19
+draft: true
 ---
 
 # GANA_PATI v1.2

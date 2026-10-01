@@ -5,22 +5,10 @@ blurb: DSP source across seven languages — the lab notebook, open
 parent: emgor
 source: _EMGOR_SYNTH working folders (csound/, ______2026NEW/, __SUPAH/, __juco/, VCV./)
 tags: [dsp, open-source, code]
-updated: 2026-07-28
-draft: false
+updated: 2026-09-30
+draft: true
 ---
 
 # CODE
 
-The source layer of the EMGOR universe. Every instrument here started as a question — *what does this language want to sound like?* — and got answered in working code: Csound plugins, SuperCollider generative pieces, JUCE/C++ experiments, VCV Rack patches, and synths that run entirely in your browser.
-
-Everything is real, everything ran, and the sources are downloadable from their planets. This is an artist-run lab, not a product shelf: version numbers are honest, prototypes are labeled as prototypes.
-
-## Orbits
-
-- **csound-suite** — Cabbage-built Csound instruments, including two shipped as VST3/AU plugins
-- **supercollider** — GEN_COLIDER generative FM pieces, up to 8-channel
-- **juce** — C++/JUCE console-app generative synths
-- **vcv** — VCV Rack patch files
-- **bmo** — a pure-WebGL shader scene: lava noise bending around a black hole
-
-The in-browser *instruments* — Strudel, RNBO, ChucK — now orbit their own planet: [WEB SYNTH](#/web-synth).
+Retired as a planet. Its children moved: the generative pieces (Csound, SuperCollider, JUCE, VCV) are now under [GENERATIVE PIECES](#/archive/generative-pieces); the installable tools (EMGOR_SYNTH, EMGOR_FX, GEN_SEQUENCER, EMGOR_GENERATIVE_SAMPLR) are now under [PLUGINS](#/archive/m4l). BMO no longer exists as a site node — the file stays on disk but nothing links to it. The in-browser instruments — Strudel, RNBO, ChucK — are at [WEB SYNTHS](#/web-synth).

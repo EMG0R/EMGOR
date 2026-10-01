@@ -1,13 +1,14 @@
 ---
-id: emgor.archive.m4l.emory-devices.light-music
+id: emgor.archive.m4l.light-music
 title: LIGHT_MUSIC
 blurb: Live visuals engine running inside Ableton — OpenGL, noise, crossfades
-parent: emgor.archive.m4l.emory-devices
+parent: emgor.archive.m4l
 source: _M4L/EMORY DEVICES/LIGHT_MUSIC_v2.3.amxd
 downloads:
   - files/LIGHT_MUSIC_v2.3.amxd
 tags: [max-for-live, visuals, jitter, opengl, performance]
 updated: 2025-02-01
+order: 5
 ---
 
 # LIGHT_MUSIC v2.3

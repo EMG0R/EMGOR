@@ -5,6 +5,7 @@ blurb: Hardware-facing devices — the Infinity Gauntlet wearable and GEORGE win
 parent: emgor.archive.m4l
 tags: [max-for-live, hardware, controllers, wearables]
 updated: 2025-01-25
+draft: true
 ---
 
 # Controllers

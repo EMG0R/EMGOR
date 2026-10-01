@@ -1,13 +1,14 @@
 ---
-id: emgor.archive.m4l.emory-devices.the-purp
+id: emgor.archive.m4l.the-purp
 title: THE_PURP
 blurb: The flagship performance instrument — two years and ~45 versions deep
-parent: emgor.archive.m4l.emory-devices
+parent: emgor.archive.m4l
 source: _M4L/EMORY DEVICES/__THE_PURP.amxd
 downloads:
   - files/THE_PURP.amxd
 tags: [max-for-live, instrument, synth, performance]
 updated: 2025-03-17
+order: 4
 ---
 
 # THE_PURP

@@ -9,6 +9,7 @@ downloads:
 tags: [csound, cabbage, sequencer, prototype]
 updated: 2026-07-28
 draft: false
+order: 9
 ---
 
 # GEN_SEQUENCER v1

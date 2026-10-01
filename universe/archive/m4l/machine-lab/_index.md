@@ -6,6 +6,7 @@ parent: emgor.archive.m4l
 source: _M4L/_machineLabM4L/DELIVERABLES
 tags: [max-for-live, robotics, calarts, osc, generative]
 updated: 2026-03-09
+draft: true
 ---
 
 # Machine Lab (MachineLab4L)

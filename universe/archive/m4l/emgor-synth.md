@@ -9,6 +9,7 @@ downloads:
 tags: [csound, cabbage, synth, additive, midi]
 updated: 2026-07-28
 draft: false
+order: 7
 ---
 
 # EMGOR_SYNTH v1.2

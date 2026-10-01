@@ -2,7 +2,7 @@
 id: emgor.archive.generative-pieces.vcv
 title: VCV
 order: 5
-blurb: Patch files from the virtual modular — the alexthief series
+blurb: Patch files from the virtual modular — alexthief, refreshed to its most recent build
 parent: emgor.archive.generative-pieces
 source: VCV./
 downloads:
@@ -10,7 +10,7 @@ downloads:
   - files/alexthiefNEU.vcv
   - files/cal2.vcv
 tags: [vcv-rack, modular, patch]
-updated: 2026-07-28
+updated: 2026-09-30
 draft: false
 ---
 
@@ -20,8 +20,8 @@ Patches from the virtual Eurorack. Modular is where signal-flow thinking gets pr
 
 Three patches, downloadable above:
 
-- **alexthief** — the original patch
-- **alexthiefNEU** — its rebuild ("NEU"), the version that lived at the top of the working folder
+- **alexthief** — the patch, kept current: the file here is the most recent build on disk (2026-05-12, from `_desktop_patches/`), newer than the "NEU" rebuild below
+- **alexthiefNEU** — an earlier rebuild ("NEU"), from 2025-11-14
 - **cal2** — a compact second patch
 
 Open them in [VCV Rack](https://vcvrack.com) (free); Rack will offer to fetch any plugin modules a patch uses from its library. Patch files are JSON under the hood — readable in a text editor if you want to see the cabling as data.

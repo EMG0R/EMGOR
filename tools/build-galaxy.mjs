@@ -324,16 +324,31 @@ async function main() {
   for (const w of warnings) console.warn('  WARN: ' + w);
   if (errors.length) fail(errors);
 
-  nodes.sort((a, b) => {
-    // Only let "order" arbitrate between true siblings (same parent); otherwise
-    // fall back to route, which is what keeps unrelated subtrees correctly grouped.
-    if (a.parent === b.parent) {
-      const oa = a.order, ob = b.order;
-      if (oa !== undefined && ob !== undefined && oa !== ob) return oa - ob;
-      if (oa !== undefined && ob === undefined) return -1;
-      if (oa === undefined && ob !== undefined) return 1;
+  // Stable hierarchical sort: each node's key is the chain of its ancestors' keys, where a
+  // sibling's key is (has order? 0 : 1, order, route segment). "order" only ever reorders
+  // true siblings; everything else stays grouped by route exactly as before.
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const keyOf = (n) => {
+    const chain = [];
+    for (let cur = n; cur; cur = cur.parent ? nodeById.get(cur.parent) : null) {
+      const seg = cur.route.split('/').pop();
+      chain.unshift(cur.order !== undefined ? [0, cur.order, seg] : [1, 0, seg]);
     }
-    return a.route.localeCompare(b.route);
+    return chain;
+  };
+  const keys = new Map(nodes.map((n) => [n.id, keyOf(n)]));
+  nodes.sort((a, b) => {
+    const ka = keys.get(a.id), kb = keys.get(b.id);
+    for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
+      if (!ka[i]) return -1;
+      if (!kb[i]) return 1;
+      const [fa, oa, sa] = ka[i], [fb, ob, sb] = kb[i];
+      if (fa !== fb) return fa - fb;
+      if (oa !== ob) return oa - ob;
+      const c = sa.localeCompare(sb);
+      if (c) return c;
+    }
+    return 0;
   });
   const galaxy = {
     generated: new Date().toISOString().slice(0, 10),

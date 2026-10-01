@@ -8,6 +8,7 @@ downloads:
   - files/EFEX.amxd
 tags: [max-for-live, audio-effect, sensors, osc]
 updated: 2024-05-22
+draft: true
 ---
 
 # EFEX

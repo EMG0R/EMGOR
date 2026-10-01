@@ -9,6 +9,7 @@ updated: 2026-08-11
 draft: false
 size: 1.4
 launch: latency-test.html
+order: 4
 ---
 
 # LATENCY PERCEPTION TEST

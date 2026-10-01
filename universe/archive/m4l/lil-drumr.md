@@ -1,13 +1,14 @@
 ---
-id: emgor.archive.m4l.emory-devices.lil-drumr
+id: emgor.archive.m4l.lil-drumr
 title: LIL_DRUMR
 blurb: Generative step drummer that drives the KNOCK drum plugin
-parent: emgor.archive.m4l.emory-devices
+parent: emgor.archive.m4l
 source: _M4L/EMORY DEVICES/_LIL_DRUMR_v1.2.amxd
 downloads:
   - files/LIL_DRUMR_v1.2.amxd
 tags: [max-for-live, midi, drums, generative]
 updated: 2026-05-01
+order: 3
 ---
 
 # LIL_DRUMR v1.2

@@ -8,6 +8,7 @@ downloads:
   - files/TAMMY_v1.2.amxd
 tags: [max-for-live, robotics, calarts, osc]
 updated: 2026-02-19
+draft: true
 ---
 
 # TAMMY v1.2

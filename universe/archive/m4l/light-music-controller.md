@@ -1,13 +1,14 @@
 ---
-id: emgor.archive.m4l.emory-devices.light-music-controller
+id: emgor.archive.m4l.light-music-controller
 title: LIGHT_MUSIC_CONTROLLER
 blurb: Sensor-to-CC bridge — accelerometer, gyro and touch become MIDI control
-parent: emgor.archive.m4l.emory-devices
+parent: emgor.archive.m4l
 source: _M4L/EMORY DEVICES/LIGHT_MUSIC_CONTROLLER.amxd
 downloads:
   - files/LIGHT_MUSIC_CONTROLLER.amxd
 tags: [max-for-live, midi, controller, sensors]
 updated: 2025-02-04
+order: 6
 ---
 
 # LIGHT_MUSIC_CONTROLLER

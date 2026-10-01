@@ -8,6 +8,7 @@ downloads:
   - files/BREAKBOT_v1.2.amxd
 tags: [max-for-live, robotics, calarts, drums, osc]
 updated: 2026-02-19
+draft: true
 ---
 
 # BREAKBOT v1.2

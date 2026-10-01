@@ -8,6 +8,7 @@ downloads:
   - files/MARIMBOT_v1.2.2.amxd
 tags: [max-for-live, robotics, calarts, marimba, osc]
 updated: 2026-03-09
+draft: true
 ---
 
 # MARIMBOT v1.2.2

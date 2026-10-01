@@ -8,6 +8,7 @@ downloads:
   - files/MODUL8_v1.2.amxd
 tags: [max-for-live, modulation, lfo, live-api]
 updated: 2024-05-15
+draft: true
 ---
 
 # MODUL8 v1.2

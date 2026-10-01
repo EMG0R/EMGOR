@@ -8,6 +8,7 @@ downloads:
   - files/LYDIA_v1.2.amxd
 tags: [max-for-live, robotics, calarts, osc]
 updated: 2026-03-02
+draft: true
 ---
 
 # LYDIA v1.2

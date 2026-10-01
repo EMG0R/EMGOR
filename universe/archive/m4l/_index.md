@@ -1,25 +1,29 @@
 ---
 id: emgor.archive.m4l
-title: M4L
-blurb: Max for Live devices built in the EMGOR lab — synths, effects, robots, wearables
+title: PLUGINS
+blurb: Installable devices and plugins — Max for Live, VST3/AU Csound, and a RNBO/Max export
 parent: emgor.archive
-source: _M4L
-tags: [max-for-live, ableton, max-msp]
-updated: 2026-03-09
+source: _M4L, csound/
+tags: [max-for-live, ableton, max-msp, csound, cabbage, plugin, vst3, au]
+updated: 2026-09-30
+order: 2
 ---
 
-# M4L
+# PLUGINS
 
-Max for Live devices from the EMGOR lab. Everything here runs inside Ableton Live (Suite, or Live + Max for Live) — drop the `.amxd` into a track and go.
+The installable layer: things you drop into a DAW track or a plugin folder and play, as opposed to [GENERATIVE PIECES](#/archive/generative-pieces), which are pieces you run. Two families live here —
 
-Three orbits:
+- **Max for Live devices** — CAT, GRANOLA, LIL_DRUMR, THE_PURP, LIGHT_MUSIC + LIGHT_MUSIC_CONTROLLER (a pair), and the NEPTR Max/RNBO export. Drop the `.amxd` into Ableton and go.
+- **Csound/Cabbage plugins** — EMGOR_SYNTH, EMGOR_FX, GEN_SEQUENCER, and EMGOR_GENERATIVE_SAMPLR, built as VST3/AU.
 
-- **Emory Devices** — the personal arsenal. Synths, granular mangler, generative drums, chord engines, live visuals.
-- **Machine Lab** — devices for composing on the robotic instruments at the CalArts Machine Lab, with built-in sample libraries and OSC control.
-- **Controllers** — hardware-facing instruments: the Infinity Gauntlet wearable and GEORGE, a wind-controller synth.
+Older M4L devices (EASY, EFEX, MODUL8, GEORGE_SYNTH, INFINITY GAUNTLET, the Machine Lab robot devices) are still on disk but hidden from the galaxy — not deleted, just not the front of the house.
 
-## Install (all devices)
+## Install (Max for Live devices)
 
 1. Download the `.amxd`.
 2. Drop it into your Ableton User Library (`Places > User Library > Presets > Instruments/Audio Effects/MIDI Effects > Max Instrument` etc.), or just drag it straight onto a track.
 3. Devices are open — unfreeze, click around, take them apart.
+
+## Install (Csound/Cabbage plugins)
+
+Open the `.csd` in Cabbage to build it, or use the already-shipped VST3/AU where noted on each plugin's page.
