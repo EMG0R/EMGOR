@@ -27,9 +27,9 @@ def resize_jpeg(raw, name=''):
         im = ImageOps.exif_transpose(im)
         if im.mode not in ('RGB', 'L'):
             im = im.convert('RGB')
-        im.thumbnail((2000, 2000))
+        im.thumbnail((3200, 3200))
         out = io.BytesIO()
-        im.save(out, 'JPEG', quality=88, optimize=True, progressive=True)
+        im.save(out, 'JPEG', quality=92, optimize=True, progressive=True)
         return out.getvalue(), im.width, im.height, 'jpg'
     except Exception as e:
         pil_err = e
@@ -40,7 +40,7 @@ def resize_jpeg(raw, name=''):
             src = os.path.join(td, 'in' + ext); dst = os.path.join(td, 'out.jpg')
             with open(src, 'wb') as f:
                 f.write(raw)
-            r = subprocess.run(['sips', '-s', 'format', 'jpeg', '-s', 'formatOptions', '88', '-Z', '2000', src, '--out', dst], capture_output=True, text=True)
+            r = subprocess.run(['sips', '-s', 'format', 'jpeg', '-s', 'formatOptions', '92', '-Z', '3200', src, '--out', dst], capture_output=True, text=True)
             if r.returncode == 0 and os.path.exists(dst):
                 data = open(dst, 'rb').read()
                 try:
@@ -142,6 +142,11 @@ class H(SimpleHTTPRequestHandler):
             fn = '%s.%s' % (pid, ext)
             with open(os.path.join(PHOTOS, fn), 'wb') as f:
                 f.write(out)
+            # keep the untouched original next to it for the press-kit zip
+            oext = os.path.splitext(req.get('name', ''))[1].lower() or '.bin'
+            os.makedirs(os.path.join(PHOTOS, 'originals'), exist_ok=True)
+            with open(os.path.join(PHOTOS, 'originals', pid + oext), 'wb') as f:
+                f.write(raw)
             return self._json(200, {'path': 'epk/photos/' + fn, 'w': w, 'h': h})
         if path == '/__epk/draft':
             with open(DRAFT, 'w') as f:

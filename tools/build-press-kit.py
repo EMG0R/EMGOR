@@ -63,8 +63,13 @@ def build(bio=''):
     with zipfile.ZipFile(ZIP, 'w', zipfile.ZIP_DEFLATED) as z:
         for i, rel in enumerate(photos):
             p = os.path.join(ROOT, rel)
-            if os.path.exists(p):
-                z.write(p, 'EMGOR press kit/photos/EMGOR %d%s' % (i + 1, os.path.splitext(rel)[1]))
+            # full-quality original if the uploader kept one, else the web copy
+            stem = os.path.splitext(os.path.basename(rel))[0]
+            odir = os.path.join(ROOT, 'epk', 'photos', 'originals')
+            orig = [os.path.join(odir, f) for f in (os.listdir(odir) if os.path.isdir(odir) else []) if f.startswith(stem + '.')]
+            src = orig[0] if orig else p
+            if os.path.exists(src):
+                z.write(src, 'EMGOR press kit/photos/EMGOR %d%s' % (i + 1, os.path.splitext(src)[1]))
         z.writestr('EMGOR press kit/bio.txt', page_bio())
         for name, stem in tracks:
             m = os.path.join(MP3, stem + '.mp3')
