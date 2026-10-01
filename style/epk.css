@@ -11,7 +11,7 @@ body { background: transparent; width: 100%; max-width: 100%; color: var(--bone)
     .bio .lead { font-size: clamp(0.82rem, 1.25vh, 1rem); }
     .bio p, .bio-list li, .bio-inf { font-size: clamp(0.74rem, 1.12vh, 0.9rem); line-height: 1.62; }
     .bio-inf span, h2 { font-size: clamp(0.7rem, 1.05vh, 0.92rem); }
-    .bio-edu { font-size: clamp(0.72rem, 1.05vh, 0.84rem); }
+    .bio-edu { font-size: clamp(0.64rem, 0.95vh, 0.76rem); white-space: nowrap; }
     .bio-list li { margin-bottom: clamp(3px, 0.6vh, 8px); }
     .bio p, .bio-inf { margin-bottom: clamp(6px, 1.1vh, 14px); }
     .ep { gap: clamp(6px, 1.2vh, 14px); }
@@ -72,7 +72,7 @@ html.editing .frame.over { outline: 2px solid var(--sky); }
 .bio-list li::before { content: "\2014"; position: absolute; left: 0; color: var(--sun); }
 .bio-inf { font-size: 0.86rem; }
 .bio-inf span { display: block; font-size: 0.86rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--sun); margin-bottom: 6px; }
-.bio-edu { font-size: 0.84rem; opacity: 0.85; padding-top: 12px; border-top: 1px solid var(--line); }
+.bio-edu { font-size: 0.74rem; white-space: nowrap; letter-spacing: 0; opacity: 0.85; padding-top: 12px; border-top: 1px solid var(--line); }
 .tag a { color: var(--sky); text-decoration: none; }
 
 .cta { text-align: center; margin-top: 8px; margin-bottom: 0; }
