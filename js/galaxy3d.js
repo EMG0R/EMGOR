@@ -20,8 +20,10 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var VOID = '#060112';   // near-black, faint violet — deep cinematic void
     var ROOT_SYS_R = 1200;          // world radius of the root system
     var SHRINK = 0.2;               // child system radius = parent * SHRINK
-    var BODY_F = 0.46;              // body radius = own system radius * BODY_F (bumped: planets read bigger)
-    var ORBIT_MIN = 0.58, ORBIT_MAX = 1.0;
+    var BODY_F = 0.53;              // body radius = own system radius * BODY_F (+15%: planets read bigger)
+    // pulled ~15% closer around the black hole vs. the old 0.58/1.0 (verified
+    // against the accretion disk's outer radius below — see DISK_OUTER_MULT)
+    var ORBIT_MIN = 0.493, ORBIT_MAX = 0.85;
     var MARGIN_X = 8, MARGIN_Y = 14;   // tight frame: the system should reach the edges
     var FLY_DUR = 1.15;             // seconds, fractal zoom flight
     var CHILD_BOOST = 1.9;          // visual size boost for the focused nav ring
@@ -29,6 +31,13 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var BASE_ROT = 0.022;           // rad/s — slow chill shared orbital drift
 
     var SIZE_FALLBACK = { 'emgor.papers': 2.0, 'emgor.web-synth': 1.4 };
+
+    // the primary (flat, in-orbital-plane) accretion disk's outer radius, as
+    // a multiple of the black hole core radius. Pulled in from 3.2 to 2.0
+    // alongside the ORBIT_MIN/MAX tightening above — the disk used to reach
+    // almost to the innermost root planet's orbit; verified clear (see
+    // report) with >=1 planet-radius of gap at the new orbit radii.
+    var DISK_OUTER_MULT = 2.0;
 
     var reducedMotion = window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -185,26 +194,28 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             node.bodyR = node.sysR * BODY_F * node.sizeF;
             var kids = node.kids;
             var N = kids.length;
-            var minGap = N ? TAU / N : 0;
-            var boostEff = CHILD_BOOST / (1 + Math.max(0, N - 5) * 0.045);
             var sysRot = mulberry32(hash32(node.id + '::rot'))() * TAU;
-            var kBody = node.sysR * SHRINK * BODY_F;
+            // world-unit gap between two adjacent (by orbit radius) siblings'
+            // shells — caps the radial "breathing" wobble below so it can
+            // never nudge one orbit shell into its neighbour's.
+            var orbitGapWorld = N > 1 ? ((ORBIT_MAX - ORBIT_MIN) / (N - 1)) * node.sysR : node.sysR * 0.1;
             var i, k;
-
-            var maxHalf = 0;
             for (i = 0; i < N; i++) {
                 k = kids[i];
                 var t = N === 1 ? 0.6 : i / (N - 1);
                 k.orbF = ORBIT_MIN + (ORBIT_MAX - ORBIT_MIN) * t;   // even spread, not center-bunched
-                k._half = (kBody * k.sizeF * boostEff) / (0.73 * node.sysR);
-                if (k._half > maxHalf) maxHalf = k._half;
-            }
-            for (i = 0; i < N; i++) {
-                k = kids[i];
                 var rng = mulberry32(hash32(k.id));
                 k.homeA = sysRot + (i / N) * TAU;
-                var depthCap = Math.max(0.015, 0.5 * (minGap - (maxHalf + k._half) * 1.15));
-                k.vibDepth = Math.min(minGap * (0.08 + rng() * 0.1), depthCap);
+                // RADIAL breathing only — the orbit radius gently pulses
+                // in/out. Never angular: an angular wobble's own derivative
+                // can exceed BASE_ROT and flip the sign of the planet's
+                // angular velocity, which is what read as back-and-forth
+                // jitter. A radius pulse has no direction to reverse, it
+                // just breathes, so the body still always advances the
+                // same way around its orbit.
+                var r = k.orbF * node.sysR;
+                var maxRadAmp = Math.min(orbitGapWorld * 0.3, r * 0.06);
+                k.vibDepth = (maxRadAmp / Math.max(1, r)) * (0.5 + rng() * 0.5);
                 k.vibF = 0.35 + rng() * 0.45;
                 k.vibPh = rng() * TAU;
                 seedIdentity(k, rng);
@@ -735,7 +746,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
         var accTex = buildAccretionTexture();
         var diskGeom = warpRingGeometry(
-            new THREE.RingGeometry(core * 1.08, core * 3.2, 128, 3), core * 0.07, 'emgor::disk1');
+            new THREE.RingGeometry(core * 1.08, core * DISK_OUTER_MULT, 128, 3), core * 0.07, 'emgor::disk1');
         var diskMat = new THREE.MeshBasicMaterial({
             map: accTex, transparent: true, opacity: 0.34, side: THREE.DoubleSide,
             blending: THREE.AdditiveBlending, depthWrite: false
@@ -1149,9 +1160,14 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         for (var i = 0; i < drawOrder.length; i++) {
             var n = drawOrder[i];
             var p = n.parentNode;
-            var a = n.homeA + time * BASE_ROT +
-                Math.sin(time * n.vibF + n.vibPh) * n.vibDepth;
-            var r = n.orbF * p.sysR;
+            // angle advances at a constant rate only — da/dt === BASE_ROT,
+            // always the same sign, so the body always sweeps the same way
+            // around its orbit. Any "liveliness" comes from the radius
+            // breathing gently in and out instead (vibDepth is now a small
+            // fractional radial amplitude, bounded in buildTree so it can
+            // never breathe one orbit shell into a neighbour's).
+            var a = n.homeA + time * BASE_ROT;
+            var r = n.orbF * p.sysR * (1 + Math.sin(time * n.vibF + n.vibPh) * n.vibDepth);
             n.wx = p.wx + Math.cos(a) * r;
             n.wy = p.wy + Math.sin(a) * r;
         }
@@ -1166,21 +1182,42 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // the real sense of scale/depth now comes from orbit motion, self-spin
     // and camera framing instead of a dramatic size hierarchy.
     var UNIFORM_MIX = 0.7;          // 0 = true hierarchy size, 1 = fully uniform by role
-    var CHILD_ROLE = 0.05;          // nav-ring children — small until you actually fly into them
+    // nav-ring children read ~2x bigger than before (0.05 -> 0.133) once
+    // you've flown into a system, so sub-planets are no longer dwarfed by
+    // their freshly-huge parent "sun". Root itself gets a smaller, separate
+    // bump (0.05 -> 0.06, matched with the BODY_F bump above to land at
+    // "somewhat bigger" rather than 2x) since the root view's planets sit
+    // much closer together on screen than a zoomed-in nav ring does.
+    var CHILD_ROLE = 0.133;         // nav-ring children when zoomed into a sub-system
+    var ROOT_CHILD_ROLE = 0.06;     // root-level planets around the black hole
+    // crowded systems (more than ~5 kids — e.g. the 11-wide M4L shelf or the
+    // 14-wide NEPTR shelf) get a compensating shrink so the bigger CHILD_ROLE
+    // above still clears neighbours; untouched for ordinary small systems.
+    var CROWD_C = 0.07;
+    function crowdAdj(n) { return 1 / (1 + Math.max(0, n - 5) * CROWD_C); }
     function uniformSizeFor(n, f) {
-        var role;
+        var role, isChildTier = false, crowdN = 0;
         if (n === f) role = 0.20;                                        // focused body ("sun")
-        else if (n.parentNode === f) role = CHILD_ROLE;                  // nav-ring children — main tier
+        else if (n.parentNode === f) {                                   // nav-ring children — main tier
+            role = (f === root) ? ROOT_CHILD_ROLE : CHILD_ROLE;
+            crowdN = f.kids.length;
+            isChildTier = true;
+        }
         else if (n.parentNode && n.parentNode.parentNode === f) role = 0.02; // hinted grandkids
         else if (f !== root && n === f.parentNode) role = 0.30;          // ambient background giant
-        else if (f !== root && n.parentNode === f.parentNode) role = CHILD_ROLE; // siblings
+        else if (f !== root && n.parentNode === f.parentNode) {          // siblings
+            role = CHILD_ROLE;
+            crowdN = f.parentNode.kids.length;
+            isChildTier = true;
+        }
         else role = n.bodyR / Math.max(1, f.sysR);
+        if (isChildTier) role *= crowdAdj(crowdN);
         var uniformR = f.sysR * role;
         var sizeFVar = clamp(0.85 + (n.sizeF - 1) * 0.15, 0.8, 1.2);     // gentle per-node variation only
         // the seeded sizeVar only applies to nav-ring/sibling children —
         // the focused "sun" and the ambient background giant keep a
         // predictable, stable size for framing/navigation clarity
-        var varMix = (n !== f && role === CHILD_ROLE) ? n.sizeVar : 1;
+        var varMix = (n !== f && isChildTier) ? n.sizeVar : 1;
         return lerp(n.bodyR, uniformR, UNIFORM_MIX) * sizeFVar * varMix;
     }
     function alphaFor(n, f) {
@@ -2138,7 +2175,26 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // manually advance one frame (camera + positions + render) without
         // waiting on requestAnimationFrame — useful when a tab is
         // backgrounded/throttled (e.g. headless automation) and rAF stalls.
-        step: function (dt) { frameStep(+dt || 0.05); }
+        step: function (dt) { frameStep(+dt || 0.05); },
+        // probe hook: true world position + orbital angle (relative to its
+        // own parent, screen-projection-independent) for a given node id —
+        // used by the automated jitter check (angle must advance
+        // monotonically, never reverse sign frame to frame).
+        nodePos: function (id) {
+            var n = byId[id];
+            if (!n) return null;
+            var p = n.parentNode;
+            return {
+                wx: n.wx, wy: n.wy,
+                angle: Math.atan2(n.wy - p.wy, n.wx - p.wx),
+                r: Math.hypot(n.wx - p.wx, n.wy - p.wy),
+                sx: n.sx, sy: n.sy, sr: n.sr, behind: n.behind
+            };
+        },
+        listChildren: function (id) {
+            var n = id ? byId[id] : root;
+            return n ? n.kids.map(function (k) { return k.id; }) : [];
+        }
     };
 
     if (document.readyState === 'loading') {
