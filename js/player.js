@@ -5,6 +5,9 @@
     'use strict';
 
     var active = null;
+    // plain shapes, not text glyphs (no emoji fallback on phones, exact centering)
+    var PLAY = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.5v13l10.5-6.5z"/></svg>';
+    var STOP = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1.5"/></svg>';
     var DPR = Math.min(window.devicePixelRatio || 1, 2);
     var COL_DIM = 'rgba(241,236,248,0.22)', COL_PLAY = '#F5E663', COL_HOVER = 'rgba(143,217,255,0.45)';
 
@@ -30,7 +33,7 @@
             row.className = 'ep-row';
 
             var btn = document.createElement('button');
-            btn.type = 'button'; btn.className = 'ep-play'; btn.innerHTML = '&#9654;';
+            btn.type = 'button'; btn.className = 'ep-play'; btn.innerHTML = PLAY;
             btn.setAttribute('aria-label', 'play ' + track.name);
 
             var body = document.createElement('div');
@@ -92,7 +95,7 @@
                 draw();
             }
             function reset() {
-                btn.innerHTML = '&#9654;'; btn.classList.remove('playing');
+                btn.innerHTML = PLAY; btn.classList.remove('playing');
                 setFrac(0);
                 timeEl.textContent = '0:00' + (audio && audio.duration ? ' / ' + formatTime(audio.duration) : '');
             }
@@ -121,11 +124,11 @@
                 stopOthers();
                 active = { audio: a, reset: reset };
                 a.play();
-                btn.innerHTML = '&#9209;'; btn.classList.add('playing');
+                btn.innerHTML = STOP; btn.classList.add('playing');
             }
             btn.addEventListener('click', function () {
                 var a = ensureAudio();
-                if (!a.paused) { a.pause(); btn.innerHTML = '&#9654;'; btn.classList.remove('playing'); return; }
+                if (!a.paused) { a.pause(); btn.innerHTML = PLAY; btn.classList.remove('playing'); return; }
                 play();
             });
 

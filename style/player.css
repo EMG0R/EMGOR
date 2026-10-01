@@ -8,13 +8,14 @@
     color: var(--sun, #F5E663); background-color: rgba(13, 2, 33, 0.6);
     border: 2px solid var(--sun, #F5E663);
     font-family: 'Courier New', Courier, monospace; font-size: 1.05em; line-height: 1;
-    display: flex; justify-content: center; align-items: center; padding: 0 0 0 2px;
+    display: flex; justify-content: center; align-items: center; padding: 0;
     transition: background-color 0.25s ease, transform 0.15s ease;
     -webkit-tap-highlight-color: rgba(114, 0, 159, 0.3); touch-action: manipulation;
 }
 @media (hover: hover) { .ep-play:hover { background-color: var(--sun, #F5E663); color: #1a1800; transform: scale(1.06); } }
 .ep-play:active { transform: scale(0.94); }
-.ep-play.playing { background-color: var(--sun, #F5E663); color: #1a1800; padding: 0; }
+.ep-play.playing { background-color: var(--sun, #F5E663); color: #1a1800; }
+.ep-play svg { width: 44%; height: 44%; display: block; fill: currentColor; }
 
 .ep-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 
