@@ -504,3 +504,120 @@ the same continents you saw from orbit. Nothing is allocated until you are withi
 - `engine.nudgeBody(node, dx, dy, dz)` (galaxy3d.js): per-node decaying world offset
   added in computePositions, so a titan can push planets around for fun.
 - Every attack is unique per archetype and telegraphed; damage grows with tier.
+
+## Revision 14 (2026-10-01) — static bosses, real dodge, 8× scale, landing + on foot
+
+### Fixes (ship.js unless noted)
+- **Bosses static**: no follow band. A boss parks where it spawned (drift ≤ 0.1 u/s),
+  rotates to face you, never approaches. You fly around it. Gravity well is subtle:
+  a gentle drift toward it (≤ 15 % of cruise), never a pin, and it ends on its own.
+- **Boss size curve**: boss length = refR × clamp(0.05 × wave, 0.15, 1.0) → wave 20 ≈ a
+  planet. Titans 1.5 × refR regardless.
+- **Bosses look different** (ship-enemies.js): 5 body plans chosen by name seed —
+  serpent (long spine, many fins), crab (wide shell, 6 claws), jelly (dome + 12
+  tentacles), leviathan (armored hull, spikes, 3 eyes), hydra (3 heads on necks). Each
+  with its own flex/sway animation. Name on the HP bar.
+- **Allies visible**: they hold a slot 20–40 L AHEAD of you and fly crossing passes
+  through your field of view between attacks; name chevrons like players; count
+  shown on HUD.
+- **Surface stability** (ship-planet.js): the patch samples in the planet's LOCAL frame
+  (inverse of mesh.rotation and parent orbit) so it never slides against the painted
+  globe; floorAt uses the same transform. Verified by parking on the surface for 60 s
+  and measuring drift vs the globe texture (must be 0).
+- **Scale**: planets grow ×3 while piloting (PILOT_PLANET_SCALE on renderedRadius for
+  root-level planets, blended during the boarding cinematic) and L = refR / 5000 →
+  ≈ 8× bigger planets relative to the ship vs rev 13, with no float jitter (the ship
+  stays ≥ 0.02 u). Sub-system planets scale ×2 (they sit closer together).
+- **Speeds**: cruise 4, boost 40, pulse exponential `v = cruise·e^(t/2.5)` capped at 1500
+  u/s (galaxy in ~3 s), drops only on imminent impact. Streaks/exhaust follow.
+- **Barrel roll = dodge**: 4 L lateral displacement over 0.45 s on the roll side, with a
+  wing-thruster puff (fx.flash at the wingtip + a short side exhaust). 40 % damage cut
+  during. Cooldown ring.
+
+### Landing + on foot
+- **Atmospheric entry**: inside 1.4 R above boost speed: plasma sheath on the hull (a
+  slightly larger hull copy with an additive fresnel fire shader), heat streaks, rumble,
+  HUD "ENTRY". Ends when speed < boost.
+- **LAND (E)**: available below 12 L altitude over land and speed < cruise: HUD "E LAND".
+  Press E: ship auto-levels, descends, legs down, touchdown dust (fx.impact ×3), state
+  `landed`. E again: **exit ship** → third-person humanoid (new js/ship-human.js:
+  low-poly rig, procedural walk/run/jump, theme color suit, helmet visor glow). WASD,
+  Shift run, Space jump, mouse orbit cam; E near the ship = board; T/Enter chat as
+  usual. Players on foot are sent over the relay as `{t:'pos', mode:'foot'}` and
+  rendered as humanoids by others; you can walk up to each other.
+- **Takeoff**: in the ship, W from `landed` → lift-off burst, back to flight.
+
+### Shops / NPCs / weapons (rev 15, right after)
+- **Outposts**: seeded per planet (1–3 per planet on land, placed by hashing the
+  planet id), a landing pad + a small building + an NPC humanoid. Visible from the
+  air as a beacon. Landing on the pad = safe.
+- **NPCs**: E to talk → dialog overlay in the chat font; names from the boss name
+  generator; one line of seeded personality.
+- **Weapons**: procedural (new js/ship-weapons.js): name + stats (dmg, rate, spread,
+  projectile count, speed, color/shape, one special: pierce, homing-lite, chain, burn)
+  + a tiny procedural model on the hull. Bought with units (earned per kill/boss),
+  saved on the profile, `/weapons` lists, shop UI lists 4 seeded per outpost.
+
+### Beauty (rev 16)
+- Per-planet biome from palette: sky gradient + sun disc, day/night from LIGHT_DIR and
+  spin, grass instancing, bioluminescent night flora, aurora on cold palettes, rings
+  seen from the ground, floating rocks on exotic ones, fog color by biome.
+
+### Later (ideas, not scheduled)
+Discovery: name a planet/creature on first visit → shared registry via the relay and
+announced in chat. Exocraft. Derelict freighters as dungeons. Galaxy events ("titan
+sighted near PAPERS"). Leaderboard page on the site. Procedural ambient music per
+planet (Strudel/ChucK in-browser, credit the tools). Mobile touch controls.
+
+### Rev 15/16 adds from docs/nms-mechanics.md (decided)
+- Rev 15: weapon and ship class letters C/B/A/S; jetpack (hold Space on foot, 2 s fuel,
+  regen) + scanner visor (hold V: outposts, discoveries, friends highlighted, 8 s cd).
+- Rev 16: discovery registry (first visit claims a planet/creature name via the relay,
+  announced in chat, `/name` only works on your own discoveries); friend beacon
+  (`/tp NAME` → request, accept → spawn beside them); scheduled weather + aurora events
+  announced in chat. Skipped for now: alien language, exocraft, placeable beacons.
+
+## Revision 17 (2026-10-01) — melee bosses, planet throws, parts library, performance
+
+### A. Bosses fight with their bodies (ship.js + ship-enemies.js)
+- Every boss spawn is unique: name, body plan, palette, limb set and attack combo are
+  all seeded from (wave, spawn counter, relay epoch) — never the same twice.
+- Bosses do NOT shoot. They **swing**: each body plan exposes named limbs (claws,
+  tentacles, heads, tail) with animated hit volumes (capsules updated from the limb's
+  current pose). Attacks are seeded combos of: sweep (limb arcs across 120°), slam
+  (limb raises, telegraph, slams down a cone), grab-lunge (head/claw lunges 20 L),
+  spin (full-body 360° sweep), tail whip. Telegraph = limb glow + wind-up pose
+  0.8–1.5 s; damage 25–45 on contact; knockback 6 L. Escorts (spawned by the boss)
+  do the shooting.
+- **Hit feedback**: 2× camera shake, red flash at 35 % of today's opacity and shorter.
+- **Planet-sized bosses (wave ≥ 20)**: length ≥ 1 refR. They can **throw planets**:
+  telegraph 3 s (boss turns to a planet, limbs wrap it, planet glows), then the planet
+  is launched along the throw vector at 60 u/s via a new engine `throwBody(node, vec,
+  speed)`: the planet leaves its orbit, travels, and if its disc passes through the
+  player = instant death (ignores god). After 8 s or on reaching 2× sysR from home it
+  eases back to its orbital slot over 20 s (equilibrium). Only one planet in flight at
+  a time; sub-planets ride their parent. HUD: "PLANET INCOMING" + arrow.
+
+### B. Parts library (NEW js/ship-parts.js)
+A modular procedural asset kit every generator draws from: fins, spikes, plates, pods,
+antennae, engines, eyes, tentacles, claws, shells, domes, struts, cockpit canopies,
+landing legs, with a tiny grammar `compose(THREE, recipe, rng)` → merged geometry +
+emissive geometry + named attachment sockets. Deterministic, mergeable, vertex-colored,
+flat-shaded, ≤ N tris per part with LOD variants (hi/lo). Used by hulls, creatures,
+bosses, weapons, outposts, humans over the next passes. Goal: everything looks like one
+family, more detail per triangle, no hand-built one-offs.
+
+### C. Performance (NEW js/ship-perf.js + galaxy3d.js, ship-fx.js, ship-planet.js)
+Target: 60 fps on a Chromebook-class GPU, 120 fps on the M4, same look where possible.
+- Quality manager: measures frame time (rolling 2 s), steps a quality tier 0–3
+  (DPR cap 1.0/1.5/2, bloom on/off + resolution, star count, patch grid 64/96/128,
+  flora/creature counts, exhaust cone segments), persisted per device.
+- LOD: enemies/bosses swap hi→lo part variants beyond 60 L; impostor sprites beyond
+  200 L; flora instancing already; far creatures skip update.
+- Render: one shared material per family (fewer program switches), frustum culling
+  on everything except the sky, no per-frame uniform object creation, merged static
+  outposts, bolts instanced (done), labels DOM-throttled to 20 Hz.
+- Organization: split ship.js along clear seams into modules with one owner each
+  (flight, combat, waves, hud, chat, net glue) WITHOUT behavior change, via a
+  documented module map in docs/ship-architecture.md. Done last, by one agent, with
+  a before/after test.

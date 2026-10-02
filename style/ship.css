@@ -249,17 +249,27 @@ body.is-piloting { cursor: none; }
 }
 
 /* ─── revision 3: boss bar, allies, reset link ─────────────── */
-.sh-boss {
+/* rev 13: stacked boss bars (titan on top, then giants, then minis) */
+.sh-bosses {
     position: absolute;
     top: calc(7vh - 38px);
     left: 50%;
     width: min(560px, 60vw);
     transform: translateX(-50%);
-    text-align: center;
-    opacity: 0;
-    transition: opacity 0.4s ease;
+    display: flex; flex-direction: column; gap: 10px;
 }
-.sh-boss.is-on { opacity: 1; }
+.sh-boss {
+    position: relative;
+    width: 100%;
+    text-align: center;
+    display: none;
+}
+.sh-boss.is-on { display: block; }
+.sh-boss.sh-k1 { width: 70%; margin: 0 auto; }
+.sh-boss.sh-k1 span { font-size: 10px; margin-bottom: 3px; }
+.sh-boss.sh-k1 b { height: 6px; }
+.sh-boss.sh-k3 b { height: 12px; }
+.sh-boss.sh-k3 span { color: #ff4a7a; }
 .sh-boss span {
     display: block;
     font-size: 12px;
@@ -456,15 +466,55 @@ body.is-piloting .ship-online { display: none; }
 .sh-ram {
     position: absolute; inset: 0; opacity: 0; pointer-events: none;
     background: radial-gradient(ellipse at center, rgba(255, 40, 50, 0) 35%, rgba(255, 40, 50, 0.55) 100%);
-    transition: opacity 0.7s ease-out;
+    transition: opacity 0.42s ease-out;      /* rev 17: 60 % of the old duration */
 }
 .sh-ram::after {
     content: "DON'T RAM"; position: absolute; left: 50%; top: 32%; transform: translateX(-50%);
     font-size: 22px; font-weight: 700; letter-spacing: 0.35em; color: #ff4a58; text-shadow: 0 0 14px rgba(255, 58, 74, 0.9);
 }
-.sh-ram.is-on { opacity: 1; transition: none; }
+.sh-ram.is-on { opacity: 0.35; transition: none; }      /* rev 17: 35 % of the old opacity */
+.sh-ram.is-hit::after { content: ''; }
+.sh-incoming { position: absolute; inset: 0; pointer-events: none; opacity: 0; display: none; }
+.sh-incoming.is-on { display: block; opacity: 1; animation: sh-blink 0.6s ease-in-out infinite; }
+.sh-incoming span { position: absolute; left: 50%; top: 17%; transform: translateX(-50%); font-size: 20px; font-weight: 700; letter-spacing: 0.4em; color: #ff4a58; text-shadow: 0 0 14px rgba(255, 58, 74, 0.9); white-space: nowrap; }
+.sh-incoming i { position: absolute; left: 0; top: 0; margin: -14px 0 0 -14px; width: 28px; height: 28px; border-right: 4px solid #ff4a58; border-top: 4px solid #ff4a58; box-sizing: border-box; transform-origin: 50% 50%; filter: drop-shadow(0 0 6px rgba(255, 58, 74, 0.9)); }
 .sh-atmo { position: absolute; right: 28px; top: calc(7vh + 120px); width: 140px; opacity: 0; transition: opacity 0.4s ease; }
 .sh-atmo.is-on { opacity: 1; }
 .sh-atmo span { display: block; font-size: 9px; letter-spacing: 0.3em; color: rgba(216, 196, 245, 0.75); margin-bottom: 3px; }
 .sh-atmo b { display: block; height: 2px; background: rgba(61, 29, 142, 0.55); overflow: hidden; }
 .sh-atmo u { display: block; height: 100%; width: 100%; transform-origin: left center; transform: scaleX(0); background: #7fe8c8; box-shadow: 0 0 6px rgba(127, 232, 200, 0.7); }
+
+/* rev 13: flip + drift cooldown rings (beside the dodge-roll ring) and other-player marks */
+.sh-flip, .sh-drift {
+    position: absolute; top: calc(50% + 26px); width: 14px; height: 14px; border-radius: 50%;
+    -webkit-mask: radial-gradient(circle, transparent 4px, #000 5px); mask: radial-gradient(circle, transparent 4px, #000 5px);
+    opacity: 0.5;
+}
+.sh-flip { left: calc(50% + 54px); background: conic-gradient(rgba(168, 85, 247, 0.95) var(--p, 100%), rgba(61, 29, 142, 0.55) 0); }
+.sh-drift { left: calc(50% + 74px); background: conic-gradient(rgba(255, 176, 74, 0.95) var(--p, 100%), rgba(61, 29, 142, 0.55) 0); }
+.sh-flip.is-ready, .sh-drift.is-ready, .sh-drift.is-on { opacity: 0.95; }
+.sh-players { position: absolute; inset: 0; pointer-events: none; }
+.sh-pl { position: absolute; left: 0; top: 0; color: #8a5cff; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.2em; white-space: nowrap; will-change: transform; }
+.sh-pl i { display: block; width: 0; height: 0; margin: 0 auto; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 14px solid currentColor; filter: drop-shadow(0 0 6px currentColor); }
+.sh-pl b { display: block; margin-top: 4px; font-weight: 700; text-shadow: 0 0 6px currentColor, 0 1px 2px rgba(2, 0, 8, 0.95); }
+.sh-pl.is-near i { width: 8px; height: 8px; border: 0; background: currentColor; }
+
+/* ─── rev 14: entry burn, landing prompt, on-foot ─────────── */
+.sh-entry {
+    position: absolute; left: 0; right: 0; top: calc(7vh + 52px); text-align: center;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.42em; color: #ff9a3a;
+    text-shadow: 0 0 14px rgba(255, 120, 30, 0.9); opacity: 0; transition: opacity 0.25s ease;
+}
+.sh-entry.is-on { opacity: 1; animation: sh-blink 0.5s ease-in-out infinite; }
+.sh-land {
+    position: absolute; left: 0; right: 0; bottom: 18vh; text-align: center;
+    font-size: 15px; font-weight: 700; letter-spacing: 0.34em; color: var(--pale, #d8c4f5);
+    text-shadow: 0 0 12px rgba(168, 85, 247, 0.9), 0 1px 2px rgba(2, 0, 8, 0.95);
+    opacity: 0; transition: opacity 0.2s ease; white-space: pre;
+}
+.sh-land.is-on { opacity: 1; }
+#ship-hud.is-ground .sh-arrows, #ship-hud.is-ground .sh-pip, #ship-hud.is-ground .sh-lock, #ship-hud.is-ground .sh-target,
+#ship-hud.is-ground .sh-bosses, #ship-hud.is-ground .sh-graze, #ship-hud.is-ground .sh-focus, #ship-hud.is-ground .sh-bars,
+#ship-hud.is-ground .sh-roll, #ship-hud.is-ground .sh-flip, #ship-hud.is-ground .sh-drift, #ship-hud.is-ground .sh-chain,
+#ship-hud.is-ground .sh-speed, #ship-hud.is-ground .sh-hp { display: none; }
+#ship-hud.is-foot .sh-ret { display: none; }

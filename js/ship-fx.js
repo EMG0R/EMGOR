@@ -3,12 +3,18 @@
 //   fx.setMotion(vel, speedNorm, pulsing)   fx.exhaust(n) -> Object3D[]   fx.setExhaust(i, intensity 0 idle..1 boost..2 pulse)
 //   fx.spawnBolt(pos, dir, color, speed, life) -> id (-1 if full)   fx.updateBolts(dt)   fx.boltPos(id, out)   fx.killBolt(id)
 //   fx.flash(pos, color)   fx.impact(pos, color, size)   fx.update(dt, camera)   fx.dispose()
+// fx.setQuality(t 0..3)  (perf rev 17, ship-perf.js): streak count 200/320/480/600, exhaust cone radial segments 5/6/8/8,
+//   sparks per impact 6/8/12/12. New instances start at globalThis.EMGOR_PERF_TIER (set by the quality manager), default 3.
+// fx.setPixelRatio(pr): the renderer's pixel ratio, so point sprites stay the same on-screen size when the DPR cap changes.
+// Culling note: every object here is positioned or displaced in its vertex shader (streaks wrap in a camera box, bolts and
+// sparks are instanced billboards), so geometry bounds are meaningless and frustumCulled stays false; only the cones cull.
 // Exhaust cones are authored in world units of L (length 0.6L idle .. 6L pulse); parent scale multiplies on top.
 // Every shader includes the logdepthbuf chunks (renderer uses logarithmicDepthBuffer). Draw calls: 1 streaks + N cones
 // + 1 bolts + 1 flash/sparks points. No per-frame allocation (module-scope scratch).
 
 var _v = null, _c = null;   // scratch, created once on first createFx
 var BOLT_CAP = 160, FLASH_CAP = 8, BURST_CAP = 40, BURST_N = 12, STAR_N = 600;
+var Q_STREAKS = [200, 320, 480, 600], Q_CONESEG = [5, 6, 8, 8], Q_SPARKS = [6, 8, 12, 12];
 
 var STREAK_VS = [
 'uniform vec3 uCamPos; uniform vec3 uVelDir; uniform float uStretch; uniform float uBox; uniform float uAlpha; uniform float uL;',
@@ -173,9 +179,17 @@ export function createFx(THREE, scene, camera, L) {
 
     // ── exhaust ────────────────────────────────────────────────
     var cones = [], coneTgt = [], coneCur = [];
-    var coneGeo = new THREE.ConeGeometry(0.16, 1, 8, 1, true);
-    coneGeo.translate(0, 0.5, 0); coneGeo.rotateX(Math.PI / 2);    // base at origin, apex toward +Z
-    geoms.push(coneGeo);
+    var coneGeos = {};
+    function coneGeoFor(seg) {
+        var g = coneGeos[seg];
+        if (!g) {
+            g = new THREE.ConeGeometry(0.16, 1, seg, 1, true);
+            g.translate(0, 0.5, 0); g.rotateX(Math.PI / 2);    // base at origin, apex toward +Z
+            coneGeos[seg] = g; geoms.push(g);
+        }
+        return g;
+    }
+    var coneGeo = coneGeoFor(8);
     fx.exhaust = function (n) {
         var out = [];
         for (var i = 0; i < n; i++) {
@@ -188,7 +202,7 @@ export function createFx(THREE, scene, camera, L) {
                 }
             });
             var mesh = new THREE.Mesh(coneGeo, m);
-            mesh.frustumCulled = false; mesh.renderOrder = 15;
+            mesh.frustumCulled = true; mesh.renderOrder = 15;
             mesh.scale.set(L, L, 0.6 * L);
             mats.push(m); cones.push(mesh); coneTgt.push(0); coneCur.push(0); out.push(mesh);
         }
@@ -272,6 +286,7 @@ export function createFx(THREE, scene, camera, L) {
     scene.add(pts); track(pts, pg, pmat);
     var fAge = new Float32Array(FLASH_CAP).fill(-1), fCur = 0;      // flash age in s
     var xAge = new Float32Array(BURST_CAP).fill(-1), xCur = 0;      // burst age in s
+    var xN = new Uint8Array(BURST_CAP).fill(BURST_N), burstN = BURST_N;   // sparks actually emitted per burst (quality)
     var FLASH_T = 0.08, BURST_T = 0.4;
     fx.flash = function (pos, color) {
         var f = fCur; fCur = (fCur + 1) % FLASH_CAP;
@@ -287,6 +302,7 @@ export function createFx(THREE, scene, camera, L) {
         var b = xCur; xCur = (xCur + 1) % BURST_CAP;
         xAge[b] = 0; _c.set(color === undefined ? 0xffffff : color);
         var base = FLASH_CAP + b * BURST_N;
+        xN[b] = burstN;
         for (var i = 0; i < BURST_N; i++) {
             var p = base + i;
             var u = Math.random() * 2 - 1, th = Math.random() * 6.2832, sq = Math.sqrt(1 - u * u);
@@ -294,10 +310,27 @@ export function createFx(THREE, scene, camera, L) {
             pO[p * 3] = pos.x; pO[p * 3 + 1] = pos.y; pO[p * 3 + 2] = pos.z;
             pV[p * 3] = sq * Math.cos(th) * sp2; pV[p * 3 + 1] = u * sp2; pV[p * 3 + 2] = sq * Math.sin(th) * sp2;
             pC[p * 3] = _c.r; pC[p * 3 + 1] = _c.g; pC[p * 3 + 2] = _c.b;
-            pS[p] = (0.35 + Math.random() * 0.4) * L * size; pT[p] = 0;
+            pS[p] = (0.35 + Math.random() * 0.4) * L * size; pT[p] = i < burstN ? 0 : -1;
         }
         aO.needsUpdate = aV.needsUpdate = aC.needsUpdate = aS.needsUpdate = aT.needsUpdate = true;
     };
+
+    // ── quality (perf rev 17) ──────────────────────────────────
+    var pixelRatio = window.devicePixelRatio || 1, tier = 3;
+    fx.setPixelRatio = function (pr) { if (pr > 0) pixelRatio = pr; };
+    fx.setQuality = function (t) {
+        t = t < 0 ? 0 : t > 3 ? 3 : Math.round(t); tier = t;
+        sg.setDrawRange(0, Q_STREAKS[t] * 2);                       // 2 verts per streak
+        var g = coneGeoFor(Q_CONESEG[t]);
+        for (var i = 0; i < cones.length; i++) if (cones[i].geometry !== g) cones[i].geometry = g;
+        coneGeo = g;
+        burstN = Q_SPARKS[t];
+    };
+    Object.defineProperty(fx, 'quality', { get: function () { return tier; } });
+    var _gt = typeof globalThis !== 'undefined' ? globalThis.EMGOR_PERF_TIER : undefined;
+    if (typeof _gt === 'number') fx.setQuality(_gt);
+    var _gp = typeof globalThis !== 'undefined' ? globalThis.EMGOR_PERF_PR : undefined;
+    if (typeof _gp === 'number') fx.setPixelRatio(_gp);
 
     // ── update ─────────────────────────────────────────────────
     fx.update = function (dt, cam) {
@@ -329,11 +362,11 @@ export function createFx(THREE, scene, camera, L) {
             xAge[i2] += dt; any = true;
             var done = xAge[i2] >= BURST_T, t = xAge[i2] / BURST_T, base = FLASH_CAP + i2 * BURST_N;
             if (done) xAge[i2] = -1;
-            for (j = 0; j < BURST_N; j++) pT[base + j] = done ? -1 : t;
+            for (j = 0; j < xN[i2]; j++) pT[base + j] = done ? -1 : t;
         }
         if (any) aT.needsUpdate = true;
         pts.visible = true;
-        pmat.uniforms.uScale.value = (window.innerHeight * (window.devicePixelRatio || 1)) * 0.5 / Math.tan((cam.fov || 50) * Math.PI / 360);
+        pmat.uniforms.uScale.value = (window.innerHeight * pixelRatio) * 0.5 / Math.tan((cam.fov || 50) * Math.PI / 360);
         fx.updateBolts(dt);
     };
 

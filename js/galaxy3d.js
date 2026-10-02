@@ -112,6 +112,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var bgCanvas, bgCtx, fxCanvas, fxCtx;   // 2D backdrop / foreground fx layers
     var labelsEl, crumbEl, homeBtn;
     var W = 0, H = 0, DPR = 1;
+    // perf rev 17 (ship-perf.js quality manager hooks)
+    var dprCap = 2;                      // renderer pixel-ratio cap, set via engine.setPixelRatioCap
+    var bloomOn = true, bloomScale = 1;  // engine.setBloom
+    var starN = 0, dustN = 0, starDust = null;
+    var frameCbs = [], wallMs = 0;
+    var perfStats = { calls: 0, tris: 0, points: 0, lines: 0, programs: 0, geoms: 0, textures: 0, stepMs: 0, renderMs: 0, wallMs: 0, frames: 0 };
     var availX = 0, availY = 0;
     var time = 0, lastTs = 0, frame = 0;
     var clockFn = null;
@@ -187,14 +193,14 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 downloads: n.downloads || [], links: n.links || [],
                 tags: n.tags || [], updated: n.updated || '',
                 launch: typeof n.launch === 'string' ? n.launch : '',
+                read: typeof n.read === 'string' ? n.read : '',
+                zip: typeof n.zip === 'string' ? n.zip : '',
                 wx: 0, wy: 0, sx: 0, sy: 0, sr: 0, alpha: 0, rev: 1
             };
             var sz = typeof n.size === 'number' ? n.size : (SIZE_FALLBACK[node.id] || 1);
             node.sizeF = clamp(sz, 0.5, 2.5);
             byId[node.id] = node;
             byRoute[node.route] = node;
-                read: typeof n.read === 'string' ? n.read : '',
-                zip: typeof n.zip === 'string' ? n.zip : '',
         });
         nodes.forEach(function (n) {
             var node = byId[n.id];
@@ -863,7 +869,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
         var haloMat = new THREE.SpriteMaterial({
             map: GLOW_TEX, color: 0x8a5fd9, transparent: true,
-            opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending
+            opacity: 0.11, depthWrite: false, blending: THREE.AdditiveBlending
         });
         haloSprite = new THREE.Sprite(haloMat);
         haloSprite.scale.setScalar(core * 6.5);
@@ -910,19 +916,26 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         blackHole.scale.setScalar(scale);
         var hm = blackHole.userData.horizonMat;
         if (hm) hm.uniforms.uFade.value = 0.4 + 0.6 * fade;
-        blackHole.traverse(function (obj) {
-            if (!obj.material) return;
-            var m = obj.material;
+        if (!_bhMats) {
+            _bhMats = []; _bhArc = [];
+            blackHole.traverse(function (obj) {
+                if (!obj.material) return;
+                _bhMats.push(obj.material); _bhArc.push(!!(photonRing && obj.parent === photonRing));
+            });
+        }
+        var fk = 0.4 + 0.6 * fade;
+        for (var bi = 0; bi < _bhMats.length; bi++) {
+            var m = _bhMats[bi];
             // the horizon is opaque by design (correct depth sorting against
             // the planets) — fading its `opacity` would do nothing, so it is
             // driven by uFade above instead.
-            if (m === hm) { m.visible = true; return; }
+            if (m === hm) { m.visible = true; continue; }
             if (m.userData.baseOpacity === undefined) m.userData.baseOpacity = m.opacity;
-            var isArc = photonRing && obj.parent === photonRing;
-            m.opacity = m.userData.baseOpacity * (0.4 + 0.6 * fade) * (isArc ? photonPulse : 1);
+            m.opacity = m.userData.baseOpacity * fk * (_bhArc[bi] ? photonPulse : 1);
             m.visible = true;
-        });
+        }
     }
+    var _bhMats = null, _bhArc = null;
 
     // puffy, non-flat particle swarm around the disk — points are scattered
     // with vertical jitter that grows with radius (a torus with real
@@ -937,7 +950,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // a full spherical halo, so there are particles above, below, in front of
     // and behind the hole no matter where the camera sits.
     function buildAccretionParticles(core) {
-        var N_DISK = 3000, N_HALO = 1900, N = N_DISK + N_HALO;
+        var N_DISK = 1200, N_HALO = 760, N = N_DISK + N_HALO;
         var rng = mulberry32(hash32('emgor::accretion-particles'));
         var pos = new Float32Array(N * 3);
         var col = new Float32Array(N * 3);
@@ -962,12 +975,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             var t = Math.pow(rng(), 0.7);
             var r = core * (1.35 + t * 4.2);
             // vertical extent is a large fraction of the radius now (was ~4%)
-            var thick = core * (0.3 + t * 1.5);
+            var thick = core * (0.15 + t * 0.7);
             var y = (rng() + rng() + rng() - 1.5) * thick;   // soft normal-ish falloff
             // radial jitter so the torus has depth in the plane too, not a ring
             var rr = r + (rng() - 0.5) * core * 0.5;
             write(i, Math.cos(a) * rr, y, Math.sin(a) * rr, t,
-                  core * (0.011 + rng() * 0.017));
+                  core * (0.011 + rng() * 0.017) * 0.6);
         }
 
         // ── spherical halo: genuinely isotropic, so the field reads as a
@@ -976,9 +989,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             var u = rng() * 2 - 1;                 // cos(phi), uniform on sphere
             var th = rng() * TAU;
             var sp = Math.sqrt(1 - u * u);
-            var rh = core * (1.55 + Math.pow(rng(), 0.6) * 3.2);
-            write(N_DISK + j, sp * Math.cos(th) * rh, u * rh, sp * Math.sin(th) * rh,
-                  0.4 + rng() * 0.6, core * (0.008 + rng() * 0.013));
+            var rh = core * (1.55 + Math.pow(rng(), 0.6) * 2.2);
+            write(N_DISK + j, sp * Math.cos(th) * rh, u * rh * 0.35, sp * Math.sin(th) * rh,
+                  0.4 + rng() * 0.6, core * (0.008 + rng() * 0.013) * 0.6);
         }
 
         var geom = new THREE.BufferGeometry();
@@ -991,7 +1004,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var mat = new THREE.ShaderMaterial({
             transparent: true, depthWrite: false,
             blending: THREE.AdditiveBlending,
-            uniforms: { uOpacity: { value: 0.8 }, uHeight: { value: 900 } },
+            uniforms: { uOpacity: { value: 0.32 }, uHeight: { value: 900 } },
             vertexShader: [
                 'attribute float psize;',
                 'attribute vec3 pcolor;',
@@ -1077,19 +1090,19 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // real 3D sky: unit-sphere points, recentered on the camera each frame
     // (translates with it, never rotates) so stars sweep with every turn.
     function buildStarSky() {
-        var N = 2500, R = 90000;
+        var N = 4500, R = 90000;
         var rng = mulberry32(hash32('emgor::stars3d'));
         var pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
         var lay = new Float32Array(N), ph = new Float32Array(N), alp = new Float32Array(N);
-        var tints = [[0.92, 0.88, 1.0], [0.75, 0.52, 0.99], [0.43, 0.92, 1.0]];
+        var tints = [[0.92, 0.88, 1.0], [0.75, 0.52, 0.99], [0.43, 0.92, 1.0], [1.0, 0.85, 0.62]];
         for (var i = 0; i < N; i++) {
             var u = rng() * 2 - 1, t = rng() * TAU, r = Math.sqrt(1 - u * u);
             pos[i * 3] = r * Math.cos(t) * R; pos[i * 3 + 1] = u * R; pos[i * 3 + 2] = r * Math.sin(t) * R;
             var l = rng();
             var layer = l < 0.5 ? 0 : (l < 0.83 ? 1 : 2);
             lay[i] = layer; ph[i] = rng() * TAU;
-            alp[i] = 0.2 + layer * 0.12 + rng() * 0.25;
-            var tt = rng(), tc = tints[tt < 0.07 ? 2 : (tt < 0.26 ? 1 : 0)];
+            alp[i] = Math.min(0.95, (0.2 + layer * 0.12 + rng() * 0.25) * 1.8);
+            var tt = rng(), tc = tints[tt < 0.07 ? 2 : (tt < 0.20 ? 3 : (tt < 0.36 ? 1 : 0))];
             col[i * 3] = tc[0]; col[i * 3 + 1] = tc[1]; col[i * 3 + 2] = tc[2];
         }
         var geo = new THREE.BufferGeometry();
@@ -1116,7 +1129,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 '  float tw = 0.5 + 0.5*sin(uTime*(0.4+0.5*fract(aPhase*7.0)) + aPhase);',
                 '  vA = aAlpha * (0.45 + 0.55*pow(tw,1.4));',
                 '  vCol = aColor;',
-                '  gl_PointSize = (1.4 + aLayer*0.7) * uDPR;',
+                '  gl_PointSize = (1.5 + aLayer*1.15) * uDPR;',
                 '}'].join('\n'),
             fragmentShader: [
                 'varying vec3 vCol; varying float vA;',
@@ -1125,27 +1138,69 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 'void main(){',
                 '  #include <logdepthbuf_fragment>',
                 '  float d = length(gl_PointCoord-0.5)*2.0;',
-                '  float a = smoothstep(1.0,0.0,d); a*=a;',
-                '  gl_FragColor = vec4(vCol*0.7, a*vA);',
+                '  float a = smoothstep(1.0,0.0,d); a = a*(0.4+0.6*a);',
+                '  gl_FragColor = vec4(vCol*0.85, min(1.0, a*vA*1.5));',
                 '}'].join('\n')
         });
+        starN = N;
         starSky = new THREE.Points(geo, mat);
         starSky.frustumCulled = false;
         starSky.renderOrder = -1000;
+
+        // far dust band: tiny dim stars concentrated on a tilted great circle
+        // (Milky Way). Child of starSky so it recenters on the camera too.
+        var ND = 1500;
+        var drng = mulberry32(hash32('emgor::stars-dust'));
+        var dpos = new Float32Array(ND * 3), dcol = new Float32Array(ND * 3);
+        var dlay = new Float32Array(ND), dph = new Float32Array(ND), dalp = new Float32Array(ND);
+        var ct = Math.cos(0.55), st = Math.sin(0.55), cx2 = Math.cos(0.8), sx2 = Math.sin(0.8);
+        var dtints = [[0.85, 0.8, 1.0], [0.7, 0.55, 0.95], [1.0, 0.88, 0.7]];
+        for (var di = 0; di < ND; di++) {
+            var ang = drng() * TAU;
+            var lat = (drng() + drng() + drng() - 1.5) * 0.28;
+            var bx = Math.cos(ang) * Math.cos(lat), by = Math.sin(lat), bz = Math.sin(ang) * Math.cos(lat);
+            var rx = bx * ct - by * st, ry = bx * st + by * ct;          // tilt about z
+            var ry2 = ry * cx2 - bz * sx2, rz2 = ry * sx2 + bz * cx2;    // tilt about x
+            dpos[di * 3] = rx * R; dpos[di * 3 + 1] = ry2 * R; dpos[di * 3 + 2] = rz2 * R;
+            dlay[di] = -0.2; dph[di] = drng() * TAU;
+            dalp[di] = 0.25 + drng() * 0.3;
+            var dc = dtints[Math.floor(drng() * 3)];
+            dcol[di * 3] = dc[0]; dcol[di * 3 + 1] = dc[1]; dcol[di * 3 + 2] = dc[2];
+        }
+        var dgeo = new THREE.BufferGeometry();
+        dgeo.setAttribute('position', new THREE.BufferAttribute(dpos, 3));
+        dgeo.setAttribute('aColor', new THREE.BufferAttribute(dcol, 3));
+        dgeo.setAttribute('aLayer', new THREE.BufferAttribute(dlay, 1));
+        dgeo.setAttribute('aPhase', new THREE.BufferAttribute(dph, 1));
+        dgeo.setAttribute('aAlpha', new THREE.BufferAttribute(dalp, 1));
+        dustN = ND;
+        var dust = new THREE.Points(dgeo, mat);
+        starDust = dust;
+        dust.frustumCulled = false;
+        dust.renderOrder = -1001;
+        starSky.add(dust);
         scene.add(starSky);
     }
 
+    // module-scope scratch (perf rev 17: no per-frame object allocation in frameStep / updateBodies)
+    var _sFwd = new THREE.Vector3(), _sBack = new THREE.Vector3(), _sTarget = new THREE.Vector3(),
+        _sFpA = new THREE.Vector3(), _sFpB = new THREE.Vector3(), _sRigP = new THREE.Vector3(), _sRigQ = new THREE.Quaternion();
     function camYaw() {
-        var f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        return Math.atan2(f.x, -f.z);
+        _sFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        return Math.atan2(_sFwd.x, -_sFwd.z);
     }
 
+    var _bdYaw = 1e9, _bdTime = -1e9, _bdW = 0, _bdH = 0;
     function drawBackdrop() {
+        // the nebula layer drifts ~5 px/s: redraw on camera yaw change or every 0.1 s of drift (full-screen 2D blits are not free)
+        var cy0 = camYaw();
+        if (Math.abs(cy0 - _bdYaw) < 1e-4 && Math.abs(time - _bdTime) < 0.1 && _bdW === W && _bdH === H) return;
+        _bdYaw = cy0; _bdTime = time; _bdW = W; _bdH = H;
         bgCtx.fillStyle = VOID;
         bgCtx.fillRect(0, 0, W, H);
         bgCtx.globalCompositeOperation = 'lighter';
         var d = Math.max(W, H);
-        var cyaw = camYaw();
+        var cyaw = cy0;
         for (var i = 0; i < nebulaSprites.length; i++) {
             var ph = time * 0.012 + i * 2.1;
             var bx = W * (0.18 + 0.64 * (0.5 + 0.5 * Math.sin(ph + i * 1.7)));
@@ -1368,7 +1423,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 // ship mode: everything fully present at its on-screen-truth
                 // size, intro reveal ignored (focus/trans stay untouched)
                 a = 1;
-                targetR = uniformSizeFor(n, n.parentNode);
+                targetR = uniformSizeFor(n, n.parentNode) * pilotMul(n);
             } else {
                 a = alphaFor(n, focus);
                 if (trans) a = lerp(alphaFor(n, trans.from), a, easeInOut(clamp(trans.t, 0, 1)));
@@ -1427,7 +1482,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     function buildCameraTransform(target, dist) {
         camera.rotation.order = 'YXZ';
         camera.rotation.set(pitch, yaw, 0);
-        var back = new THREE.Vector3(0, 0, dist).applyEuler(camera.rotation);
+        var back = _sBack.set(0, 0, dist).applyEuler(camera.rotation);
         camera.position.set(target.x + back.x, target.y + back.y, target.z + back.z);
     }
 
@@ -1632,6 +1687,26 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
     function renderDownloadsLinks(node) {
         ovDl.innerHTML = '';
+        ovLinks.innerHTML = '';
+        ovRoot.classList.toggle('is-paper', !!node.read);
+        // paper panels: title, abstract, then the buttons underneath
+        if (node.read) ovBody.after(ovDl); else ovLinks.before(ovDl);
+        if (node.read) {
+            var rd = document.createElement('a');
+            rd.className = 'ov-dl ov-read';
+            rd.href = node.read;
+            rd.textContent = 'Read the paper';
+            ovDl.appendChild(rd);
+            if (node.zip) {
+                var zp = document.createElement('a');
+                zp.className = 'ov-dl ov-zip';
+                zp.href = node.zip;
+                zp.setAttribute('download', '');
+                zp.innerHTML = '<span class="ov-dl-arrow">↓</span> Download resources (.zip)';
+                ovDl.appendChild(zp);
+            }
+            return;
+        }
         (node.downloads || []).forEach(function (d) {
             var url = typeof d === 'string' ? d : d.url;
             var name = typeof d === 'string' ? fileName(d) : (d.name || fileName(d.url));
@@ -1660,6 +1735,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         ovBlurb.textContent = node.blurb;
         renderMeta(node, null);
         renderDownloadsLinks(node);
+        if (node.read) { ovBlurb.textContent = ''; ovMeta.innerHTML = ''; }
         ovBody.innerHTML = '<p class="ov-loading">receiving transmission…</p>';
         ovRoot.hidden = false;
         requestAnimationFrame(function () { ovRoot.classList.add('is-open'); });
@@ -1690,26 +1766,6 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                     'hasn\'t been synced yet.</p>';
             });
     }
-        ovLinks.innerHTML = '';
-        ovRoot.classList.toggle('is-paper', !!node.read);
-        // paper panels: title, abstract, then the buttons underneath
-        if (node.read) ovBody.after(ovDl); else ovLinks.before(ovDl);
-        if (node.read) {
-            var rd = document.createElement('a');
-            rd.className = 'ov-dl ov-read';
-            rd.href = node.read;
-            rd.textContent = 'Read the paper';
-            ovDl.appendChild(rd);
-            if (node.zip) {
-                var zp = document.createElement('a');
-                zp.className = 'ov-dl ov-zip';
-                zp.href = node.zip;
-                zp.setAttribute('download', '');
-                zp.innerHTML = '<span class="ov-dl-arrow">↓</span> Download resources (.zip)';
-                ovDl.appendChild(zp);
-            }
-            return;
-        }
 
     function closeOverlay(navigate) {
         if (!overlayNode) return;
@@ -1738,22 +1794,21 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     }
     // approximate on-screen pixel radius of a world-space sphere radius r
     // centered at (wx,wy,wz), for label sizing / hit-testing (no lookAt
-        if (node.read) { ovBlurb.textContent = ''; ovMeta.innerHTML = ''; }
     // dependency — pure perspective-projection math, correct from any angle)
     function projectRadius(wx, wy, wz, r) {
-        var d = camera.position.distanceTo(new THREE.Vector3(wx, wy, wz));
+        var d = camera.position.distanceTo(_sFwd.set(wx, wy, wz));
         return (r / Math.max(1e-3, d * Math.tan(fovRad / 2))) * (H / 2);
     }
 
     function projectAllBodies() {
         for (var i = 0; i < drawOrder.length; i++) {
             var n = drawOrder[i];
-            var p = project(n.wx, 0, n.wy);
-            n.sx = p.x; n.sy = p.y; n.sz = p.z; n.behind = p.behind;
+            _v3.set(n.wx, 0, n.wy).project(camera);
+            n.sx = (_v3.x * 0.5 + 0.5) * W; n.sy = (-_v3.y * 0.5 + 0.5) * H; n.sz = _v3.z; n.behind = _v3.z > 1;
             n.sr = projectRadius(n.wx, 0, n.wy, n.bodyR * (n.mesh ? n.mesh.scale.x / Math.max(1e-6, n.bodyR) : 1));
         }
-        var rp = project(0, 0, 0);
-        root.sx = rp.x; root.sy = rp.y;
+        _v3.set(0, 0, 0).project(camera);
+        root.sx = (_v3.x * 0.5 + 0.5) * W; root.sy = (-_v3.y * 0.5 + 0.5) * H;
     }
 
     // ─── labels (real DOM <a> elements, projected from true 3D world) ──
@@ -1785,6 +1840,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     }
 
     var labArr = [];
+    var _lbT = -1e9, _lbPx = 0, _lbPy = 0, _lbPz = 0, _lbQx = 0, _lbQy = 0, _lbQz = 0, _lbQw = 0;
+    // labels: every frame while anything is moving the VIEW (fly, drag, spin, hand-off, intro, any camera pose change);
+    // when only orbits drift (nothing else changed) 20 Hz is plenty.
+    function syncLabelsThrottled() {
+        var now = performance.now(), cp = camera.position, cq = camera.quaternion;
+        var moving = trans || intro || dragging || camBlend || yawV !== 0 || pitchV !== 0 ||
+            cp.x !== _lbPx || cp.y !== _lbPy || cp.z !== _lbPz ||
+            cq.x !== _lbQx || cq.y !== _lbQy || cq.z !== _lbQz || cq.w !== _lbQw;
+        if (!moving && now - _lbT < 50) return;
+        _lbT = now; _lbPx = cp.x; _lbPy = cp.y; _lbPz = cp.z; _lbQx = cq.x; _lbQy = cq.y; _lbQz = cq.z; _lbQw = cq.w;
+        syncLabels();
+    }
     function syncLabels() {
         var id;
         for (id in labelPool) labelPool[id]._keep = false;
@@ -1869,21 +1936,31 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             var el = a._el;
             var zi = a.sz < 0 ? 15 : 3;
             if (el._zi !== zi) { el._zi = zi; el.style.zIndex = zi; }
-            el.style.display = 'flex';
-            el.style.width = a._lw + 'px';
-            el.style.height = a._lh + 'px';
-            el.style.fontSize = a._fs + 'px';
-            el.style.opacity = a._la.toFixed(3);
-            el.style.transform = 'translate3d(' + (a._lx - a._lw / 2) + 'px,' +
-                (a._ly - a._lh / 2) + 'px,0)';
+            if (el.style.display !== 'flex') el.style.display = 'flex';
+            // write only what changed (style writes dirty layout even when the value is identical in some engines)
+            if (el._w !== a._lw) { el._w = a._lw; el.style.width = a._lw + 'px'; }
+            if (el._h !== a._lh) { el._h = a._lh; el.style.height = a._lh + 'px'; }
+            if (el._f !== a._fs) { el._f = a._fs; el.style.fontSize = a._fs + 'px'; }
+            var oq = Math.round(a._la * 1000);
+            if (el._o !== oq) { el._o = oq; el.style.opacity = (oq / 1000).toFixed(3); }
+            var tx = a._lx - a._lw / 2, ty = a._ly - a._lh / 2;
+            if (el._tx !== tx || el._ty !== ty) { el._tx = tx; el._ty = ty; el.style.transform = 'translate3d(' + tx + 'px,' + ty + 'px,0)'; }
         }
+    }
+
+    // bloom runs at bloomScale x the framebuffer size (UnrealBloomPass composites its mip chain back at full res)
+    function applyBloomSize() {
+        if (!bloomPass) return;
+        var f = Math.max(0.2, Math.min(1, bloomScale));
+        bloomPass.setSize(Math.max(64, Math.floor(W * DPR * f)), Math.max(64, Math.floor(H * DPR * f)));
     }
 
     // ─── viewport ──────────────────────────────────────────────
     function resize() {
         W = window.innerWidth;
         H = window.innerHeight;
-        DPR = Math.min(window.devicePixelRatio || 1, 2);
+        DPR = Math.min(window.devicePixelRatio || 1, 2, dprCap);
+        _bdYaw = 1e9;   // canvas buffers were just cleared: force a backdrop redraw
 
         availX = Math.max(120, W / 2 - MARGIN_X);
         availY = Math.max(120, H / 2 - MARGIN_Y);
@@ -1901,6 +1978,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         if (composer) {
             composer.setPixelRatio(DPR);
             composer.setSize(W, H);
+            applyBloomSize();
         }
         camera.aspect = W / H;
         camera.fov = FOV;
@@ -1973,11 +2051,16 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     function tick(ts) {
         requestAnimationFrame(tick);
         var dt = lastTs ? Math.min((ts - lastTs) / 1000, 0.05) : 0.016;
+        wallMs = lastTs ? ts - lastTs : 0;      // true rAF interval (0 on manual EMGOR_GALAXY.step) for the quality manager
         lastTs = ts;
         frameStep(dt);
     }
 
     function frameStep(dt) {
+        var _t0 = performance.now();
+        // renderer.info auto-resets inside every render() call; with the bloom composer that left only the LAST pass
+        // in the counters. Reset once per frame instead so calls/triangles cover the whole frame.
+        renderer.info.autoReset = false; renderer.info.reset();
         frame++;
         if (!reducedMotion) time = clockFn ? clockFn(time, dt) : time + dt;   // clockFn: multiplayer shared orbital clock (ship-net); null = local
 
@@ -1998,12 +2081,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             if (trans) {
                 trans.t += dt / FLY_DUR;
                 var e = easeInOut(clamp(trans.t, 0, 1));
-                var fp = focusPoint(trans.from), tp = focusPoint(trans.to);
-                targetVec = new THREE.Vector3(lerp(fp.x, tp.x, e), lerp(fp.y, tp.y, e), lerp(fp.z, tp.z, e));
+                var fp = focusPoint(trans.from, _sFpA), tp = focusPoint(trans.to, _sFpB);
+                targetVec = _sTarget.set(lerp(fp.x, tp.x, e), lerp(fp.y, tp.y, e), lerp(fp.z, tp.z, e));
                 camDist = Math.exp(lerp(Math.log(trans.dFrom), Math.log(trans.dTo), e));
                 if (trans.t >= 1) trans = null;
             } else {
-                targetVec = focusPoint(focus);
+                targetVec = focusPoint(focus, _sTarget);
                 var tDist = distanceFor(focus);
                 camDist += (tDist - camDist) * Math.min(1, dt * 5);
             }
@@ -2023,7 +2106,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             if (camBlend) {
                 camBlend.t += dt / FLY_DUR;
                 var be = easeInOut(clamp(camBlend.t, 0, 1));
-                var rigP = camera.position.clone(), rigQ = camera.quaternion.clone();
+                var rigP = _sRigP.copy(camera.position), rigQ = _sRigQ.copy(camera.quaternion);
                 camera.position.lerpVectors(camBlend.pos, rigP, be);
                 camera.quaternion.slerpQuaternions(camBlend.quat, rigQ, be);
                 if (camBlend.t >= 1) camBlend = null;
@@ -2063,12 +2146,22 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         drawBackdrop();
         if (intro) drawIntroFx(dt);
 
-        if (composer) composer.render();
+        var _t1 = performance.now();
+        if (composer && bloomOn) composer.render();
         else renderer.render(scene, camera);
+        var _t2 = performance.now();
 
         if (!pilot) {
             projectAllBodies();
-            syncLabels();
+            syncLabelsThrottled();
+        }
+        var inf = renderer.info, ps_ = perfStats;
+        ps_.calls = inf.render.calls; ps_.tris = inf.render.triangles; ps_.points = inf.render.points; ps_.lines = inf.render.lines;
+        ps_.programs = inf.programs ? inf.programs.length : 0; ps_.geoms = inf.memory.geometries; ps_.textures = inf.memory.textures;
+        ps_.renderMs = _t2 - _t1; ps_.stepMs = performance.now() - _t0; ps_.wallMs = wallMs; ps_.frames++;
+        wallMs = 0;
+        for (var fi = 0; fi < frameCbs.length; fi++) {
+            try { frameCbs[fi](ps_.stepMs, ps_.wallMs, dt); } catch (err) { if (window.console) console.warn('galaxy3d: onFrame cb threw', err); }
         }
     }
 
@@ -2227,19 +2320,26 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // world point the orbit rig aims at for a node. Real nodes live on the
     // y=0 plane at (wx, wy); procedural ones animate anchor.position
     // themselves (and may sit off-plane), so read that when present.
-    function focusPoint(node) {
+    function focusPoint(node, out) {
+        out = out || new THREE.Vector3();
         if (node._proc && node.anchor) {
-            return new THREE.Vector3(node.anchor.position.x, node.anchor.position.y, node.anchor.position.z);
+            return out.set(node.anchor.position.x, node.anchor.position.y, node.anchor.position.z);
         }
-        return new THREE.Vector3(node.wx, 0, node.wy);
+        return out.set(node.wx, 0, node.wy);
     }
 
     // on-screen-truth radius. Real/proc nodes with a parent: exactly what
     // updateBodies draws while piloting. A parentless procedural node (a
     // sun) has no sibling ring to be sized against, so treat it as the
     // focused "sun" of its own system: sysR * SUN_ROLE (uniformSizeFor(n, n)).
-    function renderedRadius(node) {
-        return uniformSizeFor(node, node.parentNode || node);
+    // rev 14: planets grow while piloting (PILOT_PLANET_SCALE: x3 root-level, x2 deeper), blended 0..1 by the ship (boarding / exit cinematics).
+    // renderedRadius(node, true) = the unscaled radius.
+    var PILOT_PLANET_SCALE = { root: 3, deep: 2 }, pilotBlend = 1;
+    function pilotScaleOf(n) { return !n.parentNode ? 1 : (n.parentNode === root ? PILOT_PLANET_SCALE.root : PILOT_PLANET_SCALE.deep); }
+    function pilotMul(n) { return 1 + (pilotScaleOf(n) - 1) * pilotBlend; }
+    function renderedRadius(node, raw) {
+        var r = uniformSizeFor(node, node.parentNode || node);
+        return (pilot && !raw) ? r * pilotMul(node) : r;
     }
 
     function makeBody(spec) {
@@ -2345,6 +2445,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             get time() { return time; },
             root: root, byId: byId, drawOrder: drawOrder,
             renderedRadius: renderedRadius,
+            pilotScale: pilotScaleOf,
+            setPilotBlend: function (t) { pilotBlend = t < 0 ? 0 : (t > 1 ? 1 : t); },
             nudgeBody: nudgeBody,
             makeBody: makeBody,
             disposeBody: disposeBody,
@@ -2353,7 +2455,38 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             focusNode: focusNode,
             openOverlay: function (node) { openOverlay(node); },
             nearestSystem: nearestSystem,
-            onEscape: function (fn) { escapeHandler = typeof fn === 'function' ? fn : null; }
+            onEscape: function (fn) { escapeHandler = typeof fn === 'function' ? fn : null; },
+            // ── perf rev 17 (js/ship-perf.js) ──
+            // fn(stepMs, wallMs, dt) after every frameStep. stepMs = CPU time in frameStep (incl. render submit);
+            // wallMs = true rAF interval (0 when driven by EMGOR_GALAXY.step). Returns an unsubscribe function.
+            onFrame: function (fn) {
+                if (typeof fn !== 'function') return function () {};
+                frameCbs.push(fn);
+                return function () { var i = frameCbs.indexOf(fn); if (i >= 0) frameCbs.splice(i, 1); };
+            },
+            // last-frame renderer + timing stats (whole frame: info is reset once per frameStep)
+            get perf() { return perfStats; },
+            // bloom on/off (off = plain renderer.render, the same path used when the addons fail to load) and its
+            // working resolution as a fraction of the framebuffer (0.2..1)
+            setBloom: function (enabled, scale) {
+                bloomOn = !!enabled;
+                if (typeof scale === 'number' && scale > 0) bloomScale = Math.max(0.2, Math.min(1, scale));
+                applyBloomSize();
+            },
+            get bloom() { return { on: bloomOn, scale: bloomScale }; },
+            // fraction (0..1) of the star sky + dust band that is drawn (draw range on the Points; stars are in random order)
+            setStarFraction: function (f) {
+                f = Math.max(0, Math.min(1, +f));
+                if (starSky) starSky.geometry.setDrawRange(0, Math.floor(starN * f));
+                if (starDust) starDust.geometry.setDrawRange(0, Math.floor(dustN * f));
+            },
+            // renderer pixel-ratio cap (min(devicePixelRatio, 2, cap))
+            setPixelRatioCap: function (c) {
+                c = Math.max(0.5, Math.min(2, +c || 2));
+                if (c === dprCap) return;
+                dprCap = c; resize();
+            },
+            get pixelRatio() { return DPR; }
         };
     }
 
@@ -2466,6 +2599,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             c.addPass(bloomPass);
             c.addPass(new mods[3].OutputPass());
             composer = c;
+            applyBloomSize();
         }).catch(function (err) {
             composer = null;
             if (window.console) console.warn('galaxy3d: bloom addons unavailable, rendering direct', err);
@@ -2499,6 +2633,14 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             buildTree(data);
             drawOrder.forEach(buildBodyObjects);
             window.EMGOR_GALAXY.engine = buildEngine();
+            // ?perf (or ?perf=0 to read only): start the quality manager on the bare engine so tiers + stats are
+            // inspectable from the console as window.EMGOR_PERF. ship.js attaches fx / ps when it adopts the manager.
+            if (/[?&]perf(=|&|$)/.test(location.search)) {
+                import('./ship-perf.js').then(function (m) {
+                    window.EMGOR_PERF = m.createQualityManager(window.EMGOR_GALAXY.engine, { auto: !/[?&]perf=0/.test(location.search) });
+                    window.EMGOR_PERF.attach({ getPs: function () { return window.EMGOR_SHIP && window.EMGOR_SHIP.ps; } });
+                }).catch(function (err) { if (window.console) console.warn('galaxy3d: ship-perf unavailable', err); });
+            }
 
             focus = root;
             camDist = distanceFor(root);

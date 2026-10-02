@@ -12,6 +12,17 @@
 //   ps.setVisible(bool)      hide/show every near-mode object (the orbital mesh is never hidden)
 //   ps.shake                 0..1 rumble envelope of the 1.6-1.4 R rim pass (caller reads it)
 //   ps.scar(pos, dir, len, ttl)  glowing line decal on the ground for ttl seconds (max 4 pooled)
+//   ps.landable(pos)         {ok, r, n, slope, onPad}: ok = over land, slope < 0.25, inside 12 L altitude
+//   ps.outposts              active planet's outposts: {id, name, pos (world), n, pad (Object3D), npcSpot:{pos,facing}, vel, radius}
+//                            pos/n/npcSpot refresh at render time (onBeforeRender), vel = world velocity of the pad point
+//   rev 14: everything that sits on the ground lives in ONE group ('ride') whose position/quaternion are copied from the
+//   anchor/mesh at RENDER time (after updateBodies spun the globe), so the terrain can never lag the painted sphere.
+//   ps.setQuality(t 0..3)    perf rev 17 (ship-perf.js): patch grid 64/96/128/128 cells, flora 150/300/500/500, creatures 10/20/40/40.
+//                            Grid change swaps the patch geometry; flora/creatures re-seed on the next frame. New surfaces start at
+//                            globalThis.EMGOR_PERF_TIER (set by the quality manager), default 3. ps.quality reads the tier back.
+//                            The patch / flora / creatures are displaced or instanced in their shaders, so their geometry bounds are
+//                            meaningless: they stay frustumCulled=false (hidden via .visible instead); the sky dome is a camera-attached
+//                            sphere and likewise uncullable. There is no fog sampling loop (fog is one analytic exp per fragment).
 //   ps.dispose()
 //   ps.sampleHeight(dx,dy,dz,uniforms) / NOISE_GLSL / HEIGHT_GLSL exported for verification.
 
@@ -27,6 +38,9 @@ var AMP = 0.09;                           // terrain amplitude, fraction of R
 var BIAS = 0.0015;                        // minimum radius above the orbital sphere (no z-fight)
 var FLORA_MAX = 500, CREAT_MAX = 40;
 var FLORA_R = 1.3, CREAT_R = 1.2;         // x R
+var NPAD = 3;                             // outposts per planet (max)
+var PAD_L = 6, BLD_S = 0.55, PAD_FLAT = 15, PAD_BLEND = 22, NPC_OFF = 7.8, BLD_OFF = 11;   // x L
+var LAND_ALT = 12, LAND_SLOPE = 0.25, OUT_SEP = 0.4;
 
 // ─── GLSL: noise copied verbatim from galaxy3d PLANET_NOISE ───────────────────
 export var NOISE_GLSL = [
@@ -87,6 +101,14 @@ var PATCH_VERT = [
     '#include <logdepthbuf_pars_vertex>',
     NOISE_GLSL,
     HEIGHT_GLSL,
+    'uniform vec3 uPadD[3]; uniform vec3 uPadP[3];',       // outpost pads: local dir, (flat chord, blend chord, height frac)
+    'float hfunP(vec3 d) {',
+    '    float h = hfun(d);',
+    '    for (int i = 0; i < 3; i++) {',
+    '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
+    '    }',
+    '    return h;',
+    '}',
     'vec3 dirAt(vec2 s) {',
     '    vec2 u = s * (0.25 + 0.75 * s * s);',            // dense under the ship, coarse at the rim
     '    return normalize(uC + (uT1 * u.x + uT2 * u.y) * uTan);',
@@ -96,14 +118,14 @@ var PATCH_VERT = [
     '    vec3 d = dirAt(s);',
     '    float rim = max(abs(s.x), abs(s.y));',
     '    float taper = 1.0 - smoothstep(0.8, 1.0, rim);',  // relief fades to the sphere at the rim
-    '    float h = hfun(d);',
+    '    float h = hfunP(d);',
     '    h = mix(uBias, h, taper);',
     '    vH = h;',
     '    vec3 ref = abs(d.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
     '    vec3 e1 = normalize(cross(d, ref)); vec3 e2 = cross(d, e1);',
     '    float eps = 0.0012;',
     '    vec3 db = normalize(d + e1 * eps); vec3 dc = normalize(d + e2 * eps);',
-    '    float hb = mix(uBias, hfun(db), taper); float hc = mix(uBias, hfun(dc), taper);',
+    '    float hb = mix(uBias, hfunP(db), taper); float hc = mix(uBias, hfunP(dc), taper);',
     '    vec3 pa = d * (1.0 + h); vec3 pb = db * (1.0 + hb); vec3 pc = dc * (1.0 + hc);',
     '    vec3 nl = normalize(cross(pb - pa, pc - pa));',
     '    if (dot(nl, d) < 0.0) nl = -nl;',
@@ -271,6 +293,75 @@ var STREAK_FRAG = [
     'void main() { float a = vE * vE * uAlpha; gl_FragColor = vec4(uCol * a, 1.0); }'
 ].join('\n');
 
+
+// outposts: pads + buildings share one vertex shader (instance colour x per-vertex shade; shade >= 1.5 = lit window / lamp)
+var OUT_VERT = [
+    'attribute float aPart; attribute vec3 aCol;',
+    'varying vec3 vCol; varying vec3 vN; varying vec3 vView; varying float vGlow;',
+    '#include <common>',
+    '#include <logdepthbuf_pars_vertex>',
+    'void main() {',
+    '    mat4 M = modelMatrix * instanceMatrix;',
+    '    vec4 wp = M * vec4(position, 1.0);',
+    '    vN = normalize(mat3(M) * normal);',
+    '    vCol = aCol * aPart; vGlow = step(1.5, aPart);',
+    '    vView = cameraPosition - wp.xyz;',
+    '    gl_Position = projectionMatrix * viewMatrix * wp;',
+    '    #include <logdepthbuf_vertex>',
+    '}'
+].join('\n');
+var OUT_FRAG = [
+    'uniform vec3 uLightDir; uniform vec3 uFogCol; uniform float uFogK;',
+    'varying vec3 vCol; varying vec3 vN; varying vec3 vView; varying float vGlow;',
+    '#include <common>',
+    '#include <logdepthbuf_pars_fragment>',
+    'void main() {',
+    '    #include <logdepthbuf_fragment>',
+    '    vec3 N = normalize(vN);',
+    '    if (!gl_FrontFacing) N = -N;',
+    '    float ndl = dot(N, uLightDir) * 0.5 + 0.5;',
+    '    float lightAmt = mix(0.3, 1.0, smoothstep(0.08, 0.92, ndl));',
+    '    vec3 col = mix(vCol * lightAmt, vCol, vGlow);',
+    '    float f = min(1.0 - exp(-pow(length(vView) * uFogK, 2.0)), 0.93);',
+    '    col = mix(col, uFogCol, f * (1.0 - vGlow * 0.6));',
+    '    gl_FragColor = vec4(col, 1.0);',
+    '    #include <tonemapping_fragment>',
+    '    #include <colorspace_fragment>',
+    '}'
+].join('\n');
+// beacon: instanced camera-facing glow, constant-ish angular size so it reads from 3 R, blinks, depth-tested by the globe
+var BEAC_VERT = [
+    'attribute float aPh;',
+    'uniform float uTime; uniform float uR; uniform float uMin;',
+    'varying vec2 vUv; varying float vBl;',
+    '#include <common>',
+    '#include <logdepthbuf_pars_vertex>',
+    'void main() {',
+    '    vec4 c = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);',
+    '    float dist = distance(cameraPosition, c.xyz);',
+    '    float size = max(uMin, dist * 0.014);',
+    '    vec3 cr = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);',
+    '    vec3 cu = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);',
+    '    vec3 wp = c.xyz + (cr * position.x + cu * position.y) * size;',
+    '    vUv = position.xy;',
+    '    float blink = 0.5 + 0.5 * sin(uTime * 3.2 + aPh);',
+    '    vBl = (0.25 + 0.75 * blink * blink) * (1.0 - smoothstep(2.55 * uR, 3.0 * uR, dist)) * smoothstep(uMin * 1.5, uMin * 8.0, dist);',
+    '    gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);',
+    '    #include <logdepthbuf_vertex>',
+    '}'
+].join('\n');
+var BEAC_FRAG = [
+    'uniform vec3 uCol; varying vec2 vUv; varying float vBl;',
+    '#include <common>',
+    '#include <logdepthbuf_pars_fragment>',
+    'void main() {',
+    '    #include <logdepthbuf_fragment>',
+    '    float r = length(vUv);',
+    '    float a = pow(max(0.0, 1.0 - r), 2.4) + 0.9 * pow(max(0.0, 1.0 - r * 4.0), 2.0);',
+    '    gl_FragColor = vec4(mix(uCol, vec3(1.0), 0.35) * a, clamp(a, 0.0, 1.0) * vBl);',
+    '}'
+].join('\n');
+
 var DOME_VERT = [
     'varying vec3 vP;',
     '#include <common>',
@@ -283,7 +374,7 @@ var DOME_VERT = [
     '}'
 ].join('\n');
 var DOME_FRAG = [
-    'uniform vec3 uFogCol; uniform vec3 uAtmo; uniform vec3 uUp; uniform float uAlpha; uniform float uSun; uniform float uHor;',
+    'uniform vec3 uFogCol; uniform vec3 uAtmo; uniform vec3 uUp; uniform float uAlpha; uniform float uSun; uniform float uHor; uniform vec3 uSunDir;',
     'varying vec3 vP;',
     '#include <common>',
     '#include <logdepthbuf_pars_fragment>',
@@ -295,7 +386,13 @@ var DOME_FRAG = [
     '    vec3 zen = uAtmo * (0.18 + 0.5 * uSun);',
     '    vec3 col = mix(uFogCol, zen, pow(z, 0.55));',
     '    float wash = smoothstep(uHor - 0.02, uHor + 0.1, c);',     // sky only; the ground below is the patch + fog
-    '    gl_FragColor = vec4(col, uAlpha * wash);',
+    '    float sd = dot(v, normalize(uSunDir));',
+    '    float disc = smoothstep(0.99972, 0.99982, sd);',              // ~1.2 deg sun disc along uLightDir
+    '    float halo = pow(max(sd, 0.0), 40.0) * 0.45 + pow(max(sd, 0.0), 6.0) * 0.12;',
+    '    float sunA = clamp(disc + halo, 0.0, 1.0);',
+    '    col = mix(col, mix(vec3(1.0, 0.93, 0.74), uFogCol * 1.8, 0.0), clamp(disc + halo * 0.8, 0.0, 1.0));',
+    '    float alpha = max(uAlpha * wash, sunA * wash * uAlpha / 0.95);',
+    '    gl_FragColor = vec4(col, alpha);',
     '    #include <tonemapping_fragment>',
     '    #include <colorspace_fragment>',
     '}'
@@ -385,6 +482,24 @@ GeoBuilder.prototype.cone = function (cx, y0, cz, r0, y1, r1, sides, v, part, w3
         }
     }
 };
+// axis-aligned box; `part` carries the shade (>= 1.5 = lit)
+GeoBuilder.prototype.box = function (x0, y0, z0, x1, y1, z1, shade) {
+    var A = [x0, y0, z0], B = [x1, y0, z0], C = [x1, y1, z0], D = [x0, y1, z0], E = [x0, y0, z1], F = [x1, y0, z1], G = [x1, y1, z1], H = [x0, y1, z1], q = this;
+    function quad(a, b, c, d) { q.tri(a, b, c, 0, shade); q.tri(a, c, d, 0, shade); }
+    quad(A, D, C, B); quad(E, F, G, H); quad(A, E, H, D); quad(B, C, G, F); quad(D, H, G, C); quad(A, B, F, E);
+};
+// flat hexagon fan at height y between radii r0 (inner, 0 = filled) and r1
+GeoBuilder.prototype.hex = function (r0, r1, y, shade) {
+    for (var i = 0; i < 6; i++) {
+        var a0 = i / 6 * Math.PI * 2, a1 = (i + 1) / 6 * Math.PI * 2;
+        var o0 = [Math.cos(a0) * r1, y, Math.sin(a0) * r1], o1 = [Math.cos(a1) * r1, y, Math.sin(a1) * r1];
+        if (r0 <= 0) this.tri([0, y, 0], o1, o0, 0, shade);
+        else {
+            var i0 = [Math.cos(a0) * r0, y, Math.sin(a0) * r0], i1 = [Math.cos(a1) * r0, y, Math.sin(a1) * r0];
+            this.tri(i0, o1, o0, 0, shade); this.tri(i0, i1, o1, 0, shade);
+        }
+    }
+};
 // low UV sphere (ellipsoid), lat0..lat1 in [0,pi]
 GeoBuilder.prototype.sphere = function (cx, cy, cz, rx, ry, rz, seg, rings, lat0, lat1, v, part, w, ph, pc) {
     function P(i, j) {
@@ -428,6 +543,8 @@ function hash01(i, j, k, s) {
 }
 function nodeSeed(node) { var s = 0, id = String(node.id); for (var i = 0; i < id.length; i++) s = (Math.imul(s, 31) + id.charCodeAt(i)) | 0; return s; }
 function col3(c) { return c && c.r !== undefined ? [c.r, c.g, c.b] : [c.x, c.y, c.z]; }
+function col3o(c, o) { if (c && c.r !== undefined) { o[0] = c.r; o[1] = c.g; o[2] = c.b; } else { o[0] = c.x; o[1] = c.y; o[2] = c.z; } return o; }
+var Q_GRID = [64, 96, 128, 128], Q_FLORA = [150, 300, 500, 500], Q_CREAT = [10, 20, 40, 40];
 
 // ═════════════════════════════════════════════════════════════════════════════════
 export function createPlanetSurface(engine, L) {
@@ -442,6 +559,9 @@ export function createPlanetSurface(engine, L) {
         uTime: { value: 0 }
     };
     var alloc = null;            // built on first near-mode entry
+    var qTier = (typeof globalThis !== 'undefined' && typeof globalThis.EMGOR_PERF_TIER === 'number') ? Math.max(0, Math.min(3, globalThis.EMGOR_PERF_TIER | 0)) : 3;
+    var gridN = Q_GRID[qTier], floraLim = Q_FLORA[qTier], creatLim = Q_CREAT[qTier];
+    var _cA = [0, 0, 0], _cH = [0, 0, 0];
     var t = 0;
     var node = null, R = 1;
     var haloH = null;            // hooks on the active node's atmo shell + glow sprite
@@ -458,29 +578,65 @@ export function createPlanetSurface(engine, L) {
     // flora / creature seed centres (object-space unit directions)
     var floraC = new THREE.Vector3(), floraSet = false, creatC = new THREE.Vector3(), creatSet = false;
 
-    function hFrac(dx, dy, dz) { return sampleHeight(dx, dy, dz, seedV, freq, warp, sea, amp, bias); }
-
-    function build() {
-        var a = {};
-        // patch
-        var n1 = GRID + 1, pos = new Float32Array(n1 * n1 * 3), idx = new Uint16Array(GRID * GRID * 6), k = 0;
-        for (var j = 0; j < n1; j++) for (var i = 0; i < n1; i++) {
-            pos[(j * n1 + i) * 3] = i / GRID * 2 - 1; pos[(j * n1 + i) * 3 + 1] = j / GRID * 2 - 1; pos[(j * n1 + i) * 3 + 2] = 0;
+    // outpost pads (local dir, flat chord, blend chord, height frac) -- mirrors hfunP in the patch shader
+    var pads = [], outR = 0, lastLand = false, rideKey = [NaN, 0, 0, 0, 0, 0, 0];
+    function hFrac(dx, dy, dz) {
+        var h = sampleHeight(dx, dy, dz, seedV, freq, warp, sea, amp, bias);
+        for (var i = 0; i < pads.length; i++) {
+            var pd = pads[i], ch = Math.sqrt((dx - pd.d.x) * (dx - pd.d.x) + (dy - pd.d.y) * (dy - pd.d.y) + (dz - pd.d.z) * (dz - pd.d.z));
+            if (ch < pd.blend) { var w = 1 - smoothstep(pd.flat, pd.blend, ch); h = h * (1 - w) + pd.h * w; }
         }
-        for (var jj = 0; jj < GRID; jj++) for (var ii = 0; ii < GRID; ii++) {
+        return h;
+    }
+    function nearPad(dx, dy, dz, extraL) {
+        for (var i = 0; i < pads.length; i++) {
+            var pd = pads[i];
+            if (Math.sqrt((dx - pd.d.x) * (dx - pd.d.x) + (dy - pd.d.y) * (dy - pd.d.y) + (dz - pd.d.z) * (dz - pd.d.z)) < pd.blend + extraL * L / R) return true;
+        }
+        return false;
+    }
+    ps.outposts = [];
+
+    function makePatchGeo(G) {
+        var n1 = G + 1, pos = new Float32Array(n1 * n1 * 3), idx = new Uint16Array(G * G * 6), k = 0;
+        for (var j = 0; j < n1; j++) for (var i = 0; i < n1; i++) {
+            pos[(j * n1 + i) * 3] = i / G * 2 - 1; pos[(j * n1 + i) * 3 + 1] = j / G * 2 - 1; pos[(j * n1 + i) * 3 + 2] = 0;
+        }
+        for (var jj = 0; jj < G; jj++) for (var ii = 0; ii < G; ii++) {
             var v00 = jj * n1 + ii, v10 = v00 + 1, v01 = v00 + n1, v11 = v01 + 1;
             idx[k++] = v00; idx[k++] = v01; idx[k++] = v10; idx[k++] = v10; idx[k++] = v01; idx[k++] = v11;
         }
         var pg = new THREE.BufferGeometry();
         pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         pg.setIndex(new THREE.BufferAttribute(idx, 1));
+        return pg;
+    }
+
+    ps.quality = qTier;
+    ps.setQuality = function (t) {
+        t = t < 0 ? 0 : t > 3 ? 3 : Math.round(t);
+        if (t === qTier && alloc) return;
+        qTier = t; ps.quality = t;
+        floraLim = Q_FLORA[t]; creatLim = Q_CREAT[t];
+        if (Q_GRID[t] !== gridN) {
+            gridN = Q_GRID[t];
+            if (alloc) { var old = alloc.patch.geometry; alloc.patch.geometry = makePatchGeo(gridN); old.dispose(); }
+        }
+        floraSet = false; creatSet = false;       // re-seed against the new caps on the next update
+    };
+
+    function build() {
+        var a = {};
+        // patch
+        var pg = makePatchGeo(gridN);
         a.patchU = {
             uSeed: { value: new THREE.Vector3() }, uColHigh: { value: new THREE.Color() }, uColLow: { value: new THREE.Color() },
             uColSea: { value: new THREE.Color() }, uAtmo: { value: new THREE.Color() }, uAccent: { value: new THREE.Color() },
             uBiome: { value: 0 }, uFreq: { value: 3 }, uWarp: { value: 1 }, uBandFreq: { value: 8 }, uSeaLevel: { value: 0.5 },
             uSpeckle: { value: 0 }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK,
             uAmp: { value: AMP }, uBias: { value: BIAS }, uR: { value: 1 },
-            uC: { value: C }, uT1: { value: T1 }, uT2: { value: T2 }, uTan: { value: 0.3 }, uFade: { value: 1 }
+            uC: { value: C }, uT1: { value: T1 }, uT2: { value: T2 }, uTan: { value: 0.3 }, uFade: { value: 1 },
+            uPadD: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }, uPadP: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }
         };
         a.patchMat = new THREE.ShaderMaterial({
             uniforms: a.patchU, vertexShader: PATCH_VERT, fragmentShader: PATCH_FRAG,
@@ -491,7 +647,9 @@ export function createPlanetSurface(engine, L) {
         a.patch.frustumCulled = false;
         a.patch.renderOrder = 1;
         a.patch.matrixAutoUpdate = true;
-        scene.add(a.patch);
+        a.patch.onBeforeRender = syncRide;
+        a.ride = new THREE.Group(); a.ride.matrixAutoUpdate = false; scene.add(a.ride);   // spins with the globe, see syncRide
+        a.ride.add(a.patch);
 
         // flora: 3 variants merged, selected per instance
         var g = new GeoBuilder();
@@ -516,7 +674,7 @@ export function createPlanetSurface(engine, L) {
             uniforms: a.floraU, vertexShader: FLORA_VERT, fragmentShader: INST_FRAG, side: THREE.DoubleSide, toneMapped: false
         }), FLORA_MAX);
         a.flora.count = 0; a.flora.frustumCulled = false; a.flora.renderOrder = 2;
-        scene.add(a.flora);
+        a.flora.onBeforeRender = syncRide; a.ride.add(a.flora);
 
         // creatures: walker (0) + jelly (1)
         var c = new GeoBuilder(), s;
@@ -546,13 +704,13 @@ export function createPlanetSurface(engine, L) {
         }), CREAT_MAX);
         a.creat.count = 0; a.creat.frustumCulled = false; a.creat.renderOrder = 2;
         a.creat.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        scene.add(a.creat);
+        a.creat.onBeforeRender = syncRide; a.ride.add(a.creat);
         a.creatData = [];
         for (var q = 0; q < CREAT_MAX; q++) a.creatData.push({ home: new THREE.Vector3(), t1: new THREE.Vector3(), t2: new THREE.Vector3(), r: 1, ax: 0, ay: 0, wx: 0, wy: 0, px: 0, py: 0, v: 0, hover: 0, sz: 1, active: false });
         a.creatRR = 0;
 
         // atmosphere dome (camera-attached inverted sphere)
-        a.domeU = { uFogCol: SH.uFogCol, uAtmo: { value: new THREE.Color() }, uUp: { value: new THREE.Vector3(0, 1, 0) }, uAlpha: { value: 0 }, uSun: { value: 1 }, uHor: { value: -0.3 } };
+        a.domeU = { uFogCol: SH.uFogCol, uAtmo: { value: new THREE.Color() }, uUp: { value: new THREE.Vector3(0, 1, 0) }, uAlpha: { value: 0 }, uSun: { value: 1 }, uHor: { value: -0.3 }, uSunDir: SH.uLightDir };
         a.dome = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), new THREE.ShaderMaterial({
             uniforms: a.domeU, vertexShader: DOME_VERT, fragmentShader: DOME_FRAG,
             side: THREE.BackSide, transparent: true, depthWrite: false, depthTest: true, toneMapped: false
@@ -589,7 +747,7 @@ export function createPlanetSurface(engine, L) {
         for (var z = 0; z < NSTREAK; z++) a.st.push({ x: 0, y: 0, z: 0, len: 1, sp: 1, w: 1, init: false });
 
         // scars: NSCAR pooled ribbons (planet-frame group so they ride the spin)
-        a.scarG = new THREE.Group(); a.scarG.matrixAutoUpdate = true; scene.add(a.scarG);
+        a.scarG = new THREE.Group(); a.ride.add(a.scarG);
         a.scars = [];
         for (var c2 = 0; c2 < NSCAR; c2++) {
             var cg2 = new THREE.BufferGeometry();
@@ -600,11 +758,174 @@ export function createPlanetSurface(engine, L) {
             var cm = new THREE.Mesh(cg2, new THREE.MeshBasicMaterial({
                 color: 0xff7a2a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false
             }));
-            cm.frustumCulled = false; cm.renderOrder = 3; cm.visible = false;
+            cm.frustumCulled = false; cm.renderOrder = 3; cm.visible = false; cm.onBeforeRender = syncRide;
             a.scarG.add(cm);
             a.scars.push({ mesh: cm, ttl: 0, max: 1, born: 0 });
         }
+        // outposts: pads, buildings, beacons (3 instanced draws, up to NPAD instances each)
+        var pg2 = new GeoBuilder();
+        pg2.hex(0, 1.0, 0.1, 0.5);                       // slab
+        pg2.hex(0.84, 1.0, 0.12, 0.62);                  // rim
+        pg2.hex(0, 0.84, 0.14, 0.95);                    // plate
+        pg2.hex(0.30, 0.42, 0.16, 1.7);                  // lit ring
+        for (var hc = 0; hc < 6; hc++) {
+            var ha = hc / 6 * Math.PI * 2, hx = Math.cos(ha) * 0.92, hz = Math.sin(ha) * 0.92;
+            pg2.box(hx - 0.035, 0.1, hz - 0.035, hx + 0.035, 0.34, hz + 0.035, 2.3);
+        }
+        var bg = new GeoBuilder();
+        bg.box(-3, -0.8, -2.5, 3, 3.2, 2.5, 1.0);        // main block
+        bg.box(-3.2, 3.2, -2.7, 3.2, 3.45, 2.7, 0.55);   // roof
+        bg.box(-1.8, 3.45, -1.6, 1.8, 5.2, 1.7, 0.88);   // upper floor
+        bg.box(-2.0, 5.2, -1.8, 2.0, 5.4, 1.9, 0.55);
+        bg.box(3.0, -0.8, -1.2, 5.2, 1.8, 1.2, 0.78);    // annex
+        bg.box(-0.1, 5.4, -0.1, 0.1, 10.0, 0.1, 0.5);    // antenna mast
+        bg.box(-0.25, 10.0, -0.25, 0.25, 10.5, 0.25, 2.4);   // antenna lamp
+        bg.box(-3.06, 1.5, -1.9, -3.0, 2.4, 1.9, 1.9);   // lit window strip, faces the pad
+        bg.box(-1.2, 3.9, 1.7, 1.2, 4.7, 1.76, 1.9);
+        function outMesh(gb, name) {
+            var geo = finishGeo(THREE, gb, { part: true });
+            var col = new THREE.InstancedBufferAttribute(new Float32Array(NPAD * 3), 3);
+            geo.setAttribute('aCol', col);
+            var m = new THREE.InstancedMesh(geo, new THREE.ShaderMaterial({
+                uniforms: { uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK },
+                vertexShader: OUT_VERT, fragmentShader: OUT_FRAG, side: THREE.DoubleSide, toneMapped: false,
+                polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3
+            }), NPAD);
+            m.count = 0; m.frustumCulled = false; m.renderOrder = 2; m.onBeforeRender = syncRide; m.name = name;
+            a.ride.add(m);
+            return { mesh: m, col: col };
+        }
+        var po = outMesh(pg2, 'ps-pads'), bo = outMesh(bg, 'ps-bld');
+        a.pads = po.mesh; a.padCol = po.col; a.blds = bo.mesh; a.bldCol = bo.col;
+        var qg = new THREE.BufferGeometry();
+        qg.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0]), 3));
+        qg.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1));
+        var bph = new THREE.InstancedBufferAttribute(new Float32Array(NPAD), 1);
+        qg.setAttribute('aPh', bph);
+        a.beacU = { uTime: SH.uTime, uR: { value: 1 }, uMin: { value: 1.2 * L }, uCol: { value: new THREE.Color(1, 0.5, 0.9) } };
+        a.beac = new THREE.InstancedMesh(qg, new THREE.ShaderMaterial({
+            uniforms: a.beacU, vertexShader: BEAC_VERT, fragmentShader: BEAC_FRAG, transparent: true, depthWrite: false,
+            blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false
+        }), NPAD);
+        a.beac.count = 0; a.beac.frustumCulled = false; a.beac.renderOrder = 17; a.beac.onBeforeRender = syncRide;
+        a.beacPh = bph; a.ride.add(a.beac);
         return a;
+    }
+
+    // ─── ride sync: copy the globe's CURRENT anchor position + spin onto the 'ride' group. Called from onBeforeRender
+    // of every ground object, i.e. after updateBodies() has advanced mesh.rotation this frame (update() runs before
+    // it, which is what made the terrain lag the painted sphere by a frame = w*R*dt of slide).
+    function syncRide() {
+        if (!node || !alloc) return;
+        var q = node.mesh.quaternion, p = node.anchor.position, k = rideKey;
+        if (k[0] === q.x && k[1] === q.y && k[2] === q.z && k[3] === q.w && k[4] === p.x && k[5] === p.y && k[6] === p.z) return;
+        k[0] = q.x; k[1] = q.y; k[2] = q.z; k[3] = q.w; k[4] = p.x; k[5] = p.y; k[6] = p.z;
+        var r = alloc.ride;
+        r.position.copy(p); r.quaternion.copy(q); r.updateMatrix(); r.updateMatrixWorld(true);
+        for (var i = 0; i < ps.outposts.length; i++) {
+            var o = ps.outposts[i], me = o.pad.matrixWorld.elements;
+            o.pos.set(me[12], me[13], me[14]);
+            o.n.set(me[4], me[5], me[6]).normalize();
+            o.axis.set(me[0], me[1], me[2]).normalize();
+            o.npcSpot.pos.copy(o.pos).addScaledVector(o.axis, NPC_OFF * L);
+            o.npcSpot.facing.copy(o.axis).multiplyScalar(-1);
+        }
+    }
+
+    // ─── outposts (seeded per planet id) ──────────────────────────────────────────
+    var OUT_A = ['Kel', 'Vor', 'Ash', 'Nim', 'Tor', 'Sev', 'Lum', 'Ori', 'Dra', 'Pel', 'Mar', 'Zan'];
+    var OUT_B = ['vara', 'dun', 'thos', 'mere', 'lis', 'quor', 'bay', 'nox', 'rell', 'ita', 'gate', 'wick'];
+    var OUT_T = ['Outpost', 'Landing', 'Port', 'Station', 'Haven', 'Depot'];
+    function seedOutposts() {
+        var a = alloc, sd = nodeSeed(node) + 31337, found = [], k, i;
+        pads = []; ps.outposts = [];
+        a.pads.count = a.blds.count = a.beac.count = 0;
+        for (i = 0; i < NPAD; i++) { a.patchU.uPadP.value[i].set(0, 0, 0); }
+        if (isGas || !seedV) return;
+        var want = 1 + Math.floor(hash01(sd, 1, 2, 3) * 3), flatA = PAD_FLAT * L / R, blendA = PAD_BLEND * L / R;
+        var ringN = 6;
+        var cands = [];
+        for (k = 0; k < 500; k++) {                      // sample the sphere, score each lowland site by how flat its surroundings are
+            var z = hash01(k, 7, sd, 1) * 2 - 1, ph = hash01(k, 8, sd, 2) * 6.2831853, rr = Math.sqrt(1 - z * z);
+            var dx = rr * Math.cos(ph), dy = z, dz = rr * Math.sin(ph);
+            var hc = hFrac(dx, dy, dz);
+            if (!(_lastN > sea + 0.05 && _lastN < sea + 0.115)) continue;           // lowland, not beach / mountain
+            var ref0 = Math.abs(dy) < 0.9, e1x, e1y, e1z;
+            if (ref0) { e1x = dz; e1y = 0; e1z = -dx; } else { e1x = 0; e1y = -dz; e1z = dy; }
+            var el = Math.hypot(e1x, e1y, e1z); e1x /= el; e1y /= el; e1z /= el;
+            var e2x = e1y * dz - e1z * dy, e2y = e1z * dx - e1x * dz, e2z = e1x * dy - e1y * dx;   // e1 x d (right-handed X=e1, Y=d, Z=e2)
+            var maxd = 0, minN = 9;
+            for (var rg = 0; rg < ringN; rg++) {
+                var ang = rg / ringN * 6.2832, cx = Math.cos(ang) * blendA * 1.4, cy = Math.sin(ang) * blendA * 1.4;
+                var px = dx + e1x * cx + e2x * cy, py = dy + e1y * cx + e2y * cy, pz = dz + e1z * cx + e2z * cy, pl = Math.hypot(px, py, pz);
+                var hh = hFrac(px / pl, py / pl, pz / pl);
+                minN = Math.min(minN, _lastN); maxd = Math.max(maxd, Math.abs(hh - hc));
+            }
+            if (minN < sea + 0.012) continue;            // whole ring on land
+            cands.push({ d: new THREE.Vector3(dx, dy, dz), h: hc, e1: [e1x, e1y, e1z], e2: [e2x, e2y, e2z], k: k, score: maxd / (blendA * 1.4) });
+        }
+        cands.sort(function (p, q) { return p.score - q.score; });
+        for (var ci = 0; ci < cands.length && found.length < want; ci++) {
+            var cd = cands[ci], okSep = true;
+            for (i = 0; i < found.length; i++) if (cd.d.dot(found[i].d) > Math.cos(OUT_SEP)) { okSep = false; break; }
+            if (okSep && (found.length === 0 || cd.score < 0.35)) found.push(cd);
+        }
+        var pm = a.pads.instanceMatrix.array, bm = a.blds.instanceMatrix.array, bc = a.beac.instanceMatrix.array;
+        var u = node.mesh.material.uniforms, lo = col3(u.uColLow.value), hi = col3(u.uColHigh.value), ac = col3(u.uAccent.value);
+        for (i = 0; i < found.length; i++) {
+            var f = found[i], d = f.d, id = node.id + '-op' + i;
+            pads.push({ d: d, flat: flatA, blend: blendA, h: f.h });
+            var pu = a.patchU;
+            pu.uPadD.value[i].copy(d); pu.uPadP.value[i].set(flatA, blendA, f.h);
+            var yaw = hash01(f.k, 11, sd, 5) * 6.2831853, cy2 = Math.cos(yaw), sy2 = Math.sin(yaw);
+            var ux = f.e1[0] * cy2 + f.e2[0] * sy2, uy = f.e1[1] * cy2 + f.e2[1] * sy2, uz = f.e1[2] * cy2 + f.e2[2] * sy2;   // pad X (toward building)
+            var vx = -f.e1[0] * sy2 + f.e2[0] * cy2, vy = -f.e1[1] * sy2 + f.e2[1] * cy2, vz = -f.e1[2] * sy2 + f.e2[2] * cy2;
+            var rad = R * (1 + f.h), sp = PAD_L * L, o = i * 16, m4 = new THREE.Matrix4();
+            // pad instance: X/Z = hex radius, Y = 1 L, lifted a hair above the flat ground
+            var lift = 0.1 * L;
+            pm[o] = ux * sp; pm[o + 1] = uy * sp; pm[o + 2] = uz * sp; pm[o + 3] = 0;
+            pm[o + 4] = d.x * L; pm[o + 5] = d.y * L; pm[o + 6] = d.z * L; pm[o + 7] = 0;
+            pm[o + 8] = vx * sp; pm[o + 9] = vy * sp; pm[o + 10] = vz * sp; pm[o + 11] = 0;
+            pm[o + 12] = d.x * (rad + lift); pm[o + 13] = d.y * (rad + lift); pm[o + 14] = d.z * (rad + lift); pm[o + 15] = 1;
+            var bs = BLD_S * L, off = BLD_OFF * L;
+            bm[o] = ux * bs; bm[o + 1] = uy * bs; bm[o + 2] = uz * bs; bm[o + 3] = 0;
+            bm[o + 4] = d.x * bs; bm[o + 5] = d.y * bs; bm[o + 6] = d.z * bs; bm[o + 7] = 0;
+            bm[o + 8] = vx * bs; bm[o + 9] = vy * bs; bm[o + 10] = vz * bs; bm[o + 11] = 0;
+            bm[o + 12] = d.x * rad + ux * off; bm[o + 13] = d.y * rad + uy * off; bm[o + 14] = d.z * rad + uz * off; bm[o + 15] = 1;
+            var bi = i * 16, top = rad + 7 * BLD_S * L;                                     // beacon floats above the mast
+            var bpx = d.x * (rad + 11 * BLD_S * L) + ux * off, bpy = d.y * (rad + 11 * BLD_S * L) + uy * off, bpz = d.z * (rad + 11 * BLD_S * L) + uz * off;
+            bc[bi] = 1; bc[bi + 1] = 0; bc[bi + 2] = 0; bc[bi + 3] = 0; bc[bi + 4] = 0; bc[bi + 5] = 1; bc[bi + 6] = 0; bc[bi + 7] = 0;
+            bc[bi + 8] = 0; bc[bi + 9] = 0; bc[bi + 10] = 1; bc[bi + 11] = 0; bc[bi + 12] = bpx; bc[bi + 13] = bpy; bc[bi + 14] = bpz; bc[bi + 15] = 1;
+            a.beacPh.array[i] = hash01(f.k, 13, sd, 6) * 6.28;
+            var tt = 0.3 + 0.5 * hash01(f.k, 14, sd, 7);
+            for (var qq = 0; qq < 3; qq++) {
+                a.padCol.array[i * 3 + qq] = hi[qq] * 0.3 + lo[qq] * 0.2 + 0.08;
+                a.bldCol.array[i * 3 + qq] = (lo[qq] * (1 - tt) + hi[qq] * tt) * 0.72 + 0.1;
+            }
+            // pad Object3D (riding the globe): X = toward building, Y = up; children expose the NPC spot via its world offset
+            var padO = new THREE.Object3D();
+            m4.makeBasis(new THREE.Vector3(ux, uy, uz), new THREE.Vector3(d.x, d.y, d.z), new THREE.Vector3(vx, vy, vz));
+            padO.quaternion.setFromRotationMatrix(m4);
+            padO.position.set(d.x * rad, d.y * rad, d.z * rad);
+            a.ride.add(padO);
+            ps.outposts.push({
+                id: id, name: OUT_T[Math.floor(hash01(f.k, 15, sd, 8) * OUT_T.length)] + ' ' + OUT_A[Math.floor(hash01(f.k, 16, sd, 9) * OUT_A.length)] + OUT_B[Math.floor(hash01(f.k, 17, sd, 10) * OUT_B.length)],
+                pad: padO, dir: d.clone(), radius: PAD_L * L, pos: new THREE.Vector3(), n: new THREE.Vector3(0, 1, 0), axis: new THREE.Vector3(1, 0, 0),
+                vel: new THREE.Vector3(), prev: new THREE.Vector3(), prevOk: false,
+                npcSpot: { pos: new THREE.Vector3(), facing: new THREE.Vector3(-1, 0, 0) }
+            });
+        }
+        a.pads.count = a.blds.count = a.beac.count = found.length;
+        a.pads.instanceMatrix.needsUpdate = a.blds.instanceMatrix.needsUpdate = a.beac.instanceMatrix.needsUpdate = true;
+        a.padCol.needsUpdate = a.bldCol.needsUpdate = a.beacPh.needsUpdate = true;
+        a.beacU.uR.value = R; outR = R;
+        a.beacU.uCol.value.setRGB(ac[0], ac[1], ac[2]);
+        rideKey[0] = NaN; syncRide();
+    }
+    function clearOutposts() {
+        for (var i = 0; i < ps.outposts.length; i++) if (ps.outposts[i].pad.parent) ps.outposts[i].pad.parent.remove(ps.outposts[i].pad);
+        ps.outposts = []; pads = [];
+        if (alloc) { alloc.pads.count = alloc.blds.count = alloc.beac.count = 0; for (var q = 0; q < NPAD; q++) alloc.patchU.uPadP.value[q].set(0, 0, 0); }
     }
 
     function setNodeUniforms() {
@@ -661,19 +982,21 @@ export function createPlanetSurface(engine, L) {
         alloc.patch.visible = on; alloc.dome.visible = on; alloc.streaks.visible = on && rimI > 0.002;
         for (var si = 0; si < NSCAR; si++) alloc.scars[si].mesh.visible = on && alloc.scars[si].ttl > 0;
         alloc.flora.visible = on && alloc.flora.count > 0; alloc.creat.visible = on && alloc.creat.count > 0;
+        alloc.pads.visible = alloc.blds.visible = alloc.beac.visible = on && alloc.pads.count > 0;
     }
 
     function activate(n) {
-        if (node && node !== n) { unhookHalo(); killScars(); }
+        if (node && node !== n) { unhookHalo(); killScars(); clearOutposts(); }
         node = n;
         if (!alloc) alloc = build();
         hookHalo(n);
         setNodeUniforms();
         patchSet = false; floraSet = false; creatSet = false;
-        ps.active = n;
+        ps.active = n; R = n.mesh.scale.x;
+        seedOutposts();
     }
     function deactivate() {
-        unhookHalo(); killScars();
+        unhookHalo(); killScars(); clearOutposts();
         node = null; ps.active = null; ps.depth = 0;
         if (alloc) { showObjs(false); alloc.domeU.uAlpha.value = 0; alloc.flora.count = 0; alloc.creat.count = 0; }
     }
@@ -708,10 +1031,11 @@ export function createPlanetSurface(engine, L) {
         cands.sort(function (p, q) { return p[0] - q[0]; });
         var cnt = 0, mat = a.flora.instanceMatrix.array, ca = a.floraCol.array, sa = a.floraSel.array;
         var lo = col3(node.mesh.material.uniforms.uColLow.value), hi = col3(node.mesh.material.uniforms.uColHigh.value), ac = col3(node.mesh.material.uniforms.uAccent.value);
-        for (var c = 0; c < cands.length && cnt < FLORA_MAX; c++) {
+        for (var c = 0; c < cands.length && cnt < floraLim; c++) {
             var cd = cands[c], dx = cd[1], dy = cd[2], dz = cd[3];
             var h = hFrac(dx, dy, dz);
             if (isGas || _lastN < sea + 0.03) continue;           // land only
+            if (pads.length && nearPad(dx, dy, dz, 3)) continue;     // keep outposts clear
             if (_lastN > sea + 0.19) { if (hash01(cd[4], cd[5], cd[6], seed + 9) < 0.7) continue; }
             var rr = hash01(cd[4], cd[5], cd[6], seed + 4), r2 = hash01(cd[4], cd[5], cd[6], seed + 5), r3 = hash01(cd[4], cd[5], cd[6], seed + 6);
             var variant = Math.floor(rr * 3) % 3, sh = (6 + r2 * 4) * L, sw = sh * (0.38 + r3 * 0.22);
@@ -757,12 +1081,13 @@ export function createPlanetSurface(engine, L) {
         cands.sort(function (p, q) { return p[0] - q[0]; });
         var u = node.mesh.material.uniforms;
         var lo = col3(u.uColLow.value), hi = col3(u.uColHigh.value), ac = col3(u.uAccent.value), cnt = 0;
-        for (var c = 0; c < cands.length && cnt < CREAT_MAX; c++) {
+        for (var c = 0; c < cands.length && cnt < creatLim; c++) {
             var cd = cands[c], cr = a.creatData[cnt];
             var vr = hash01(cd[4], cd[5], cd[6], seed + 4);
             hFrac(cd[1], cd[2], cd[3]);
             var land = !isGas && _lastN > sea + 0.03;
             var jelly = vr > 0.5 || !land;
+            if (!jelly && pads.length && nearPad(cd[1], cd[2], cd[3], 20)) jelly = true;
             cr.v = jelly ? 1 : 0;
             cr.home.set(cd[1], cd[2], cd[3]);
             tangentFrame(cr.home, cr.t1, cr.t2);
@@ -894,7 +1219,6 @@ export function createPlanetSurface(engine, L) {
     };
     function updateScars(dt) {
         var a = alloc;
-        a.scarG.position.copy(a.patch.position); a.scarG.quaternion.copy(a.patch.quaternion);
         for (var i = 0; i < NSCAR; i++) {
             var c = a.scars[i];
             if (c.ttl <= 0) { c.mesh.visible = false; continue; }
@@ -923,14 +1247,17 @@ export function createPlanetSurface(engine, L) {
         if (best !== node) activate(best);
         var a = alloc;
         R = node.mesh.scale.x;
+        if (outR && Math.abs(R / outR - 1) > 0.004) { clearOutposts(); seedOutposts(); }   // planet rescaled (pilot blend): re-lay at the new radius
         var ratioD = bd;
 
         // keep the patch in the planet's (spinning) frame
-        a.patch.position.copy(node.anchor.position); a.patch.quaternion.copy(node.mesh.quaternion);
-        a.flora.position.copy(a.patch.position); a.flora.quaternion.copy(a.patch.quaternion);
-        a.creat.position.copy(a.patch.position); a.creat.quaternion.copy(a.patch.quaternion);
-        a.patch.updateMatrix(); a.flora.updateMatrix(); a.creat.updateMatrix();   // matrixAutoUpdate handles the rest
-        a.patchU.uR.value = R;
+        a.patchU.uR.value = R; a.beacU.uR.value = R;
+        rideKey[0] = NaN; syncRide();    // also re-synced at render time (after updateBodies) by every ride object
+        for (var oi = 0; oi < ps.outposts.length; oi++) {
+            var op = ps.outposts[oi];
+            if (op.prevOk && dt > 1e-5) op.vel.copy(op.pos).sub(op.prev).multiplyScalar(1 / dt); else op.vel.set(0, 0, 0);
+            op.prev.copy(op.pos); op.prevOk = true;
+        }
 
         toObjDir(shipPos, dirObj);
         var horizon = Math.acos(Math.min(1, 1 / Math.max(ratioD, 1.0001)));
@@ -957,12 +1284,12 @@ export function createPlanetSurface(engine, L) {
         var floorR = R * (1 + BIAS);
         var distC = bd * R;
         ps.depth = Math.max(0, Math.min(1, (ATMO_R * R - distC) / (ATMO_R * R - floorR)));
-        var A = col3(node.mesh.material.uniforms.uAtmo.value);
+        var A = col3o(node.mesh.material.uniforms.uAtmo.value, _cA), Hh = col3o(node.mesh.material.uniforms.uColHigh.value, _cH);
         // up (world) from planet centre to camera -> sun term
         tmpV.set(shipPos.x - node.anchor.position.x, shipPos.y - node.anchor.position.y, shipPos.z - node.anchor.position.z).normalize();
         var sunDot = tmpV.dot(SH.uLightDir.value), sunTerm = smoothstep(-0.25, 0.55, sunDot);
         var fb = 0.28 + 0.72 * sunTerm;
-        SH.uFogCol.value.set(A[0] * fb * 0.6 + 0.02, A[1] * fb * 0.6 + 0.02, A[2] * fb * 0.6 + 0.02);
+        SH.uFogCol.value.set((A[0] * 0.5 + Hh[0] * 0.5) * fb * 0.6 + 0.02, (A[1] * 0.5 + Hh[1] * 0.5) * fb * 0.6 + 0.02, (A[2] * 0.5 + Hh[2] * 0.5) * fb * 0.6 + 0.02);   // horizon tint = pal.hi, zenith = pal.atmo
         SH.uFogK.value = Math.pow(ps.depth, 1.6) * 2.8 / R;
         a.domeU.uUp.value.copy(tmpV); a.domeU.uSun.value = sunTerm;
         a.domeU.uAlpha.value = Math.pow(ps.depth, 0.8) * 0.95;
@@ -993,6 +1320,7 @@ export function createPlanetSurface(engine, L) {
         toObjDir(pos, tmpA);
         var dx = tmpA.x, dy = tmpA.y, dz = tmpA.z;
         var h = hFrac(dx, dy, dz);
+        lastLand = !isGas && _lastN > sea;
         // normal by finite differences along the tangent plane (object space), then rotate to world
         var ref0 = Math.abs(dy) < 0.9;
         var e1x, e1y, e1z;
@@ -1017,14 +1345,35 @@ export function createPlanetSurface(engine, L) {
         return out;
     };
 
+    // landing support: ok = over land, gentle slope (1 - n.up < 0.25), within LAND_ALT ship lengths of the ground
+    ps.landable = function (pos) {
+        var res = { ok: false, r: 0, n: new THREE.Vector3(0, 1, 0), slope: 1, onPad: false };
+        if (!node || !alloc) return res;
+        var fo = ps.floorAt(pos, { r: 0, n: new THREE.Vector3() });
+        var land = lastLand;
+        res.r = fo.r; res.n.copy(fo.n);
+        var cx = node.anchor.position.x, cy = node.anchor.position.y, cz = node.anchor.position.z;
+        var ux = pos.x - cx, uy = pos.y - cy, uz = pos.z - cz, ul = Math.hypot(ux, uy, uz) || 1;
+        res.slope = 1 - (fo.n.x * ux + fo.n.y * uy + fo.n.z * uz) / ul;
+        var alt = ul - fo.r;
+        toObjDir(pos, tmpA);
+        for (var i = 0; i < pads.length; i++) {
+            var pd = pads[i], ch = Math.hypot(tmpA.x - pd.d.x, tmpA.y - pd.d.y, tmpA.z - pd.d.z);
+            if (ch * R < PAD_L * L) { res.onPad = true; land = true; }
+        }
+        res.ok = land && res.slope < LAND_SLOPE && alt < LAND_ALT * L;
+        return res;
+    };
+
     ps.dispose = function () {
         deactivate();
         if (alloc) {
-            [alloc.patch, alloc.flora, alloc.creat, alloc.dome, alloc.streaks, alloc.scarG].forEach(function (m) {
-                scene.remove(m); if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose();
+            [alloc.patch, alloc.flora, alloc.creat, alloc.pads, alloc.blds, alloc.beac, alloc.dome, alloc.streaks, alloc.scarG].forEach(function (m) {
+                scene.remove(m); if (m.parent) m.parent.remove(m); if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose();
                 if (m.dispose) m.dispose();
                 if (m === alloc.scarG) m.children.forEach(function (c) { c.geometry.dispose(); c.material.dispose(); });
             });
+            scene.remove(alloc.ride);
             alloc = null;
         }
     };

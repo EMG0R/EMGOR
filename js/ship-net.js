@@ -53,7 +53,7 @@ export function connect(engine, hooks) {
     var prefs = (hooks.getPrefs && hooks.getPrefs(id)) || {};
     var myName = prefs.name || ('PILOT-' + id.slice(-4)).toUpperCase();
     var myColor = prefs.color != null ? prefs.color : DEFAULT_COLOR;
-    var myState = 'docked';
+    var myState = 'docked', myMode = 'fly';      // rev 14: myMode fly | landed | foot (sub-state of 'piloting')
 
     var ws = null, open = false, kicked = false, destroyed = false, fails = 0;
     var retryTimer = 0, hbTimer = 0, lastAttempt = 0, lastSent = 0, lastPos = 0, lastFire = 0, infoLogged = false;
@@ -85,7 +85,7 @@ export function connect(engine, hooks) {
     var vP = new THREE.Vector3(), qP = new THREE.Quaternion(), vF = new THREE.Vector3(), qQ = new THREE.Quaternion();
 
     function makeGhost(rec) {
-        var g = { id: rec.id, name: '', color: -1, s: 'docked', hp: 100, hpShown: 100, st: 0, samples: [], root: new THREE.Group(), hull: null, glow: null, label: null, nameEl: null, pipU: null, shown: false, lblShown: true, lx: -1e9, ly: -1e9, placed: false, sc: 0 };
+        var g = { id: rec.id, name: '', color: -1, s: 'docked', hp: 100, hpShown: 100, st: 0, samples: [], fsamples: [], mode: 'fly', human: null, mk2: null, root: new THREE.Group(), hull: null, glow: null, label: null, nameEl: null, pipU: null, shown: false, lblShown: true, lx: -1e9, ly: -1e9, placed: false, sc: 0 };
         g.root.name = 'ship-ghost'; g.root.visible = false;
         try { g.hull = hooks.buildGhost(); } catch (e) { g.hull = null; }
         if (g.hull) { g.hull.traverse(function (o) { o.frustumCulled = false; }); g.root.add(g.hull); }
@@ -103,6 +103,7 @@ export function connect(engine, hooks) {
     }
     function disposeGhost(g) {
         scene.remove(g.root);
+        if (g.human) { scene.remove(g.human.group); try { g.human.dispose(); } catch (e) { /* ignore */ } g.human = null; }
         g.root.traverse(function (o) {
             if (o.geometry) o.geometry.dispose();
             if (o.material) { if (o.material.map === glowTex) o.material.map = null; o.material.dispose(); }
@@ -119,6 +120,13 @@ export function connect(engine, hooks) {
             g.label.style.color = hex6(g.color); g.label.style.borderColor = hex6(g.color) + '66';
         }
     }
+    function pushFoot(g, p, now) {          // rev 14: on-foot players: a separate sample list so their landed ship stays where it parked
+        var last = g.fsamples[g.fsamples.length - 1];
+        if (last) { var dx = p.x - last.x, dy = p.y - last.y, dz = p.z - last.z; if (dx * dx + dy * dy + dz * dz > SNAP_DIST * SNAP_DIST) g.fsamples.length = 0; }
+        g.fsamples.push({ t: now, x: p.x, y: p.y, z: p.z, qx: p.qx, qy: p.qy, qz: p.qz, qw: p.qw, v: 0 });
+        if (g.fsamples.length > 3) g.fsamples.shift();
+        g.fst = p.st | 0;
+    }
     function pushSample(g, p, now) {
         var last = g.samples[g.samples.length - 1];
         if (last) {
@@ -131,8 +139,8 @@ export function connect(engine, hooks) {
         if (typeof p.hp === 'number') g.hp = p.hp;
     }
     // interpolated pose at render time rt into vP/qP
-    function sampleAt(g, rt) {
-        var s = g.samples, n = s.length, a, b, k;
+    function sampleAt(g, rt, arr) {
+        var s = arr || g.samples, n = s.length, a, b, k;
         if (n === 1 || rt <= s[0].t) { a = s[0]; vP.set(a.x, a.y, a.z); qP.set(a.qx, a.qy, a.qz, a.qw); return; }
         b = s[n - 1];
         if (rt >= b.t) {
@@ -168,7 +176,8 @@ export function connect(engine, hooks) {
             var flying = g.s === 'piloting' && g.samples.length > 0;
             if (flying) { sampleAt(g, rt); tmpPos.copy(vP); tmpQuat.copy(qP); }
             else { hooks.dockSlot((dockA || 0) + 2 * Math.PI * (i + 1) / (n + 1), tmpPos, tmpQuat); }
-            var dead = flying && (g.st & 4) !== 0;
+            var foot = g.mode === 'foot' && g.fsamples.length > 0 && hooks.buildHuman;
+            var dead = flying && !foot && (g.st & 4) !== 0;
             g.root.position.copy(tmpPos); g.root.quaternion.copy(tmpQuat);
             // minimum on-screen size so a ghost reads from the orbit camera too
             var dist = camera.position.distanceTo(tmpPos);
@@ -182,6 +191,23 @@ export function connect(engine, hooks) {
             var vis = !dead;
             if (g.hull) g.hull.visible = vis && fade > 0.35;       // opaque shader hull: cannot alpha-fade, so drop it early
             g.root.visible = true;
+            // rev 14: on foot -> a humanoid at their own pose (0.09 L tall; never smaller than a few pixels), label + mark follow the human
+            if (foot) {
+                if (!g.human) { try { g.human = hooks.buildHuman(g.color >= 0 ? g.color : DEFAULT_COLOR); scene.add(g.human.group); } catch (e) { g.human = null; } }
+                if (g.human) {
+                    sampleAt(g, rt, g.fsamples);
+                    var hs = Math.max(0.09 * L, camera.position.distanceTo(vP) * 0.004);
+                    g.human.group.position.copy(vP); g.human.group.quaternion.copy(qP); g.human.group.scale.setScalar(hs);
+                    g.human.group.visible = fade > 0.35;
+                    var fs = g.fst | 0;
+                    g.human.update(dt, { moving: !!(fs & 1), running: !!(fs & 2), airborne: !!(fs & 4), speed: (fs & 2) ? 1 : ((fs & 1) ? 0.5 : 0), facing: 0 });
+                    g.mk2 = g.human.group; tmpPos.copy(vP);
+                    g.glow.material.opacity = 0;
+                }
+            } else {
+                if (g.human) g.human.group.visible = false;
+                g.mk2 = null;
+            }
             g.hpShown += (g.hp - g.hpShown) * Math.min(1, 6 * Math.max(dt, 0.016));
             // label
             vP.copy(tmpPos).project(camera);
@@ -293,7 +319,7 @@ export function connect(engine, hooks) {
                     applyLook(g, r);
                     g.s = r.s === 'piloting' ? 'piloting' : (r.s === 'away' ? 'away' : 'docked');
                     if (g.s === 'piloting' && typeof r.x === 'number' && !g.samples.length) pushSample(g, r, now);
-                    if (g.s !== 'piloting') g.samples.length = 0;
+                    if (g.s !== 'piloting') { g.samples.length = 0; g.fsamples.length = 0; g.mode = 'fly'; }
                 }
                 ghosts.forEach(function (gg, gid) { if (!seen[gid]) { disposeGhost(gg); ghosts.delete(gid); } });
                 fadeAt = 0;
@@ -306,7 +332,8 @@ export function connect(engine, hooks) {
                 g = ghosts.get(m.id);
                 if (!g) return;
                 if (g.s !== 'piloting') g.s = 'piloting';
-                pushSample(g, m, now);
+                g.mode = m.mode === 'foot' ? 'foot' : (m.mode === 'landed' ? 'landed' : 'fly');
+                if (g.mode === 'foot') pushFoot(g, m, now); else { g.fsamples.length = 0; pushSample(g, m, now); }
                 break;
             case 'chat':
                 if (typeof m.text === 'string' && hooks.onChat) hooks.onChat(String(m.from || 'PILOT').slice(0, 24), m.text.slice(0, 200));
@@ -342,10 +369,15 @@ export function connect(engine, hooks) {
         if (now - lastPos < POS_MS) return;
         lastPos = now;
         var p = hooks.getPose();
-        send({ t: 'pos', id: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), qx: r4(p.qx), qy: r4(p.qy), qz: r4(p.qz), qw: r4(p.qw), v: Math.round(p.v * 10) / 10, st: p.st | 0, hp: Math.max(0, Math.min(255, Math.round(p.hp))) });
+        var o = { t: 'pos', id: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), qx: r4(p.qx), qy: r4(p.qy), qz: r4(p.qz), qw: r4(p.qw), v: Math.round(p.v * 10) / 10, st: p.st | 0, hp: Math.max(0, Math.min(255, Math.round(p.hp))) };
+        if (myMode !== 'fly') o.mode = myMode;          // rev 14: 'landed' | 'foot' (foot: x/y/z/q are the HUMAN's pose, st bits 1 moving 2 running 4 airborne)
+        if (myMode === 'foot') { o.x = r4(p.x); o.y = r4(p.y); o.z = r4(p.z); }
+        send(o);
     }
+    function setMode(m) { myMode = m === 'foot' || m === 'landed' ? m : 'fly'; lastPos = 0; }
     function setState(s) {
         myState = s;
+        if (s !== 'piloting') myMode = 'fly';
         maybeClock(true);                                  // enter/exit is the invisible cut for a pending clock snap
         if (s === 'piloting') { lastPos = 0; return; }
         send({ t: 'st', s: s === 'away' ? 'away' : 'docked' });
@@ -390,7 +422,7 @@ export function connect(engine, hooks) {
         get id() { return id; },
         get ghosts() { return ghosts; },
         get clockOn() { return clockOn; },
-        update: update, sendPos: sendPos, setState: setState, sendFire: sendFire, sendKill: sendKill, sendChat: sendChat, sendGor: sendGor,
+        update: update, sendPos: sendPos, setState: setState, setMode: setMode, sendFire: sendFire, sendKill: sendKill, sendChat: sendChat, sendGor: sendGor,
         setName: setName, setColor: setColor, onRoster: onRoster, destroy: destroy
     };
     current = net;
