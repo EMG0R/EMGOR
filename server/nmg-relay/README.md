@@ -8,7 +8,7 @@ Netlify is unchanged; the site only needs the client files (`js/ship-net.js` + t
 
     cd server/nmg-relay && npm install && node server.js        # port 8796
     # pages served from localhost / 127.0.0.1 automatically use ws://127.0.0.1:8796
-    # health: curl http://127.0.0.1:8796/healthz   ->  {"n":<clients>}
+    # health: curl http://127.0.0.1:8797/healthz   ->  {"n":<clients>}
 
 Env: `PORT` (8796), `HOST` (127.0.0.1), `ALLOW_NO_ORIGIN=1` (test bots without an Origin header only).
 
@@ -18,7 +18,7 @@ Env: `PORT` (8796), `HOST` (127.0.0.1), `ALLOW_NO_ORIGIN=1` (test bots without a
 
        ssh server@gorcave.lan
        tailscale funnel status
-       ss -ltnp | grep -E '8787|8790|8795|8796'      # 8796 must be free
+       ss -ltnp | grep -E '8787|8790|8795|8796'      # 8797 must be free (8796 is taken by the /m sync service)
        node -v                                        # needs >= 18; install nodejs if missing
 
 2. From the Mac, copy the relay (skip node_modules, the Pi installs its own):
@@ -33,20 +33,20 @@ Env: `PORT` (8796), `HOST` (127.0.0.1), `ALLOW_NO_ORIGIN=1` (test bots without a
        sudo systemctl daemon-reload
        sudo systemctl enable --now nmg-relay
        systemctl status nmg-relay --no-pager
-       curl -s http://127.0.0.1:8796/healthz           # {"n":0}
+       curl -s http://127.0.0.1:8797/healthz           # {"n":0}
 
 4. Expose it as a path on 443. Additive only, do not touch the 8787/8790/8795 mappings. Pick ONE branch
    matching what step 1 showed:
 
    A. Paths are tailscale entries (most likely):
 
-          sudo tailscale funnel --bg --set-path /nmg http://127.0.0.1:8796
+          sudo tailscale funnel --bg --set-path /nmg http://127.0.0.1:8797
           tailscale funnel status                      # /nmg must appear beside /api/...
 
       (serve strips the /nmg prefix; the relay ignores the path anyway.)
 
    B. Paths come from Caddy: add `handle /nmg* { reverse_proxy 127.0.0.1:8796 }` and reload Caddy.
-      nginx: `location /nmg { proxy_pass http://127.0.0.1:8796; proxy_http_version 1.1;
+      nginx: `location /nmg { proxy_pass http://127.0.0.1:8797; proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_read_timeout 120s; }`
 
 5. Verify:

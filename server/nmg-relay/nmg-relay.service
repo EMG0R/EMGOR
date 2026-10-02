@@ -6,7 +6,7 @@ After=network.target
 User=server
 WorkingDirectory=/home/server/nmg-relay
 ExecStart=/usr/bin/node server.js
-Environment=PORT=8796
+Environment=PORT=8797
 Environment=NODE_ENV=production
 EnvironmentFile=-/home/server/nmg-relay/.env
 Restart=always
