@@ -390,7 +390,9 @@ export function bossAttacksFor(seed, tier) {
 //   length (L units) = refRL * clamp(0.05 * wave, 0.15, 1.0). Plan = hash(name) % 5 unless forced.
 //   Plans: serpent | crab | jelly | leviathan | hydra. <= 2 merged meshes (opaque + translucent jelly dome) + eye sprites.
 //   attacks = bossAttacksFor(...) objects ({id, tele, dmg}). Nose -Z, up +Y, contents in L units (root scaled by length).
-export const BOSS_PLANS = ['serpent', 'crab', 'jelly', 'leviathan', 'hydra'];
+// rev 19: the default pool is the five abstract plans (wraith monolith maw hive seraph); the old animals (LEGACY_PLANS) roll 1 in 6, stable per name.
+export const BOSS_PLANS = ['wraith', 'monolith', 'maw', 'hive', 'seraph'];
+export const LEGACY_PLANS = ['serpent', 'crab', 'jelly', 'leviathan', 'hydra'];
 export function bossHash(name) {
   let h = 2166136261;
   for (let i = 0; i < name.length; i++) { h ^= name.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -408,9 +410,13 @@ function bossBuild(THREE, name, wave, opts, LOD) {
   const hsh = bossHash(String(name || 'BOSS'));
   const r = mulberry(hsh);
   let plan = BOSS_PLANS[hsh % BOSS_PLANS.length];
-  if (BOSS_PLANS.includes(opts.plan)) plan = opts.plan; else if (BOSS_PLANS.includes(kindS)) plan = kindS;
+  const ALLP = BOSS_PLANS.concat(LEGACY_PLANS);
+  if (ALLP.includes(kindS)) plan = kindS;                              // a plan named in `kind` is forced exactly
+  else {
+    if (ALLP.includes(opts.plan)) plan = opts.plan;
+    if (BOSS_PLANS.includes(plan) && !opts.exact && ((hsh >>> 5) % 6) === 0) plan = LEGACY_PLANS[(hsh >>> 9) % LEGACY_PLANS.length];   // 1 in 6 rolls an old animal
+  }
   const titan = kindS === 'titan';
-  if (titan) plan = 'leviathan';
   const tier = titan ? BOSS_TIERS.titan : (kindS === 'giant' || wave >= 12 ? BOSS_TIERS.giant : BOSS_TIERS.mini);
   const length = refRL
     ? (titan ? 1.5 * refRL : refRL * Math.min(1.0, Math.max(0.15, 0.05 * wave)))
@@ -468,9 +474,11 @@ function bossBuild(THREE, name, wave, opts, LOD) {
   // rev 18: ship-parts pieces dropped into the boss through the same add() pipeline (limb weights / flex fx / hinge pivots apply to them as to any geometry)
   const partRng = mulberry(hsh ^ 0x51ed270b);
   let partPal = null;
-  function addPart(name, params, pos, dir, fx, piv) {
+  function addPart(name, params, pos, dir, fx, piv, roll) {
     const res = PARTS[name](THREE, Object.assign({ pal: partPal, lod: LO ? 'lo' : 'hi' }, params, LO ? { lod: 'lo' } : null), partRng);
-    const m = new THREE.Matrix4().compose(pos, new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize()), new THREE.Vector3(1, 1, 1));
+    const dn = dir.clone().normalize(), qq = new THREE.Quaternion().setFromUnitVectors(up, dn);
+    if (roll) qq.premultiply(new THREE.Quaternion().setFromAxisAngle(dn, roll));
+    const m = new THREE.Matrix4().compose(pos, qq, new THREE.Vector3(1, 1, 1));
     for (const k of ['geo', 'emissive']) {
       const g = res[k]; if (!g) continue;
       g.applyMatrix4(m); for (const a of ['aFx', 'aPiv', 'aLm']) g.deleteAttribute(a);
@@ -483,8 +491,8 @@ function bossBuild(THREE, name, wave, opts, LOD) {
     eyeRecs.push({ pos: [x, y, z], r: er, fx: fx && fx[2] === 2 ? fx : null, lm: lmCur ? lmCur.id : -1, lw: lmCur ? lmCur.w(x, y, z) : 0 });
   }
   const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  const hue0 = { serpent: 0.38, crab: 0.025, jelly: 0.88, leviathan: 0.58, hydra: 0.11 }[plan] + jit(0.09);
-  eyeC = col({ serpent: 0.13, crab: 0.5, jelly: 0.5, leviathan: 0.03, hydra: 0.78 }[plan], 1, 0.7);
+  const hue0 = ({ serpent: 0.38, crab: 0.025, jelly: 0.88, leviathan: 0.58, hydra: 0.11 }[plan] || 0.7) + jit(0.09);
+  eyeC = col(({ serpent: 0.13, crab: 0.5, jelly: 0.5, leviathan: 0.03, hydra: 0.78 }[plan] || 0.7), 1, 0.7);
   partPal = { base: col(hue0, 0.6, 0.32), panel: col(hue0, 0.65, 0.2), accent: col(hue0 + 0.04, 1, 0.56), glow: eyeC, dark: col(hue0, 0.7, 0.08), metal: col(hue0, 0.2, 0.45) };
   P = { amp: [0, 0, 0], sp: 1, k: 0, breath: 0, hsp: 1, pulse: 0 };
   let extra = [];
@@ -493,7 +501,7 @@ function bossBuild(THREE, name, wave, opts, LOD) {
   const reachU = Math.min(0.5, 20 / length);
   function defLimb(o) {
     o.id = limbs.length; o.glow = 0; o.ax = V3(0, 1, 0); o.ang = 0; o.tz = 0; o.rest = false;
-    o.r = o.r; o.A = o.A || 1.0; o.reach = o.reach || reachU;
+    o.sl = o.sl || [0, 0]; o.A = o.A || 1.0; o.reach = o.reach || reachU;
     const f = o.back ? -1 : 1, atk = {};
     const k = {
       sweep: { wind: { yaw: f * o.A }, strike: { yaw: -f * o.A } },
@@ -537,7 +545,231 @@ function bossBuild(THREE, name, wave, opts, LOD) {
     xf(lm, lm.wa, lm.a0, cp.a).multiplyScalar(length); xf(lm, lm.wb, lm.b0, cp.b).multiplyScalar(length);
   }
 
-  if (plan === 'serpent') {
+  if (BOSS_PLANS.includes(plan)) {
+    // ═════ rev 19 abstract plans ═════ near-black bodies, ONE saturated emissive accent per boss, emissive flicker/glitch (P.gl -> uGl),
+    // slow eerie idle (shader modes 6/7/8 orbit / rotate / pulse + rare twitch) and sudden snaps on the limb swings. All geometry is non-animal.
+    const gr = mulberry(hsh ^ 0x7f4a7c15), g01 = () => gr(), gn = (a, b) => a + gr() * (b - a);
+    const AH = { wraith: 0.77, monolith: 0.035, maw: 0.24, hive: 0.9, seraph: 0.095 }[plan] + gn(-0.012, 0.012);
+    const acc = col(AH, 1, 0.5), hot = col(AH, 0.8, 0.82);
+    const body = col(AH, 0.3, 0.03), body2 = col(AH, 0.35, 0.06), voidC = col(AH, 0.2, 0.006);
+    eyeC = col(AH, 1, 0.66);
+    partPal = { base: body, panel: body2, accent: acc.clone().multiplyScalar(0.8), glow: eyeC, dark: voidC, metal: col(AH, 0.25, 0.1) };
+    P.gl = 1; P.rim = acc.clone().multiplyScalar(0.2); P.glc = acc.clone().lerp(hot, 0.25);
+    const emi = (g, k, fx, piv) => add(g, (c) => c.copy(acc).multiplyScalar(k || 2.3), fx || null, piv || null);
+    const orbEye = (x, y, z, R, fx) => { emi(ball(x, y, z, R, R, R, 10, 7), 2.6, fx); eyeRecs.push({ pos: [x, y, z], r: R * 1.1, fx: null, lm: lmCur ? lmCur.id : -1, lw: lmCur ? lmCur.w(x, y, z) : 0 }); };
+    const O0 = V3(0, 0, 0);
+    const rigid = (id) => { lmCur = { id, w: () => 1 }; };
+    const prog = (a, b) => { const d = b.clone().sub(a), l2 = d.lengthSq(); return (x, y, z) => Math.min(1, Math.max(0, ((x - a.x) * d.x + (y - a.y) * d.y + (z - a.z) * d.z) / l2)); };
+
+    if (plan === 'wraith') {
+      // a drifting cloud of obsidian shards orbiting a single vertical slit eye; two shard-blades and a lance snap out on strikes
+      P.amp = [0.012, 0.016, 0.01]; P.sp = 0.8; P.k = 2;
+      const NS = LO ? 34 : 74;
+      for (let i = 0; i < 74; i++) {
+        const rr = 0.17 + 0.27 * Math.pow(g01(), 0.8), an = gn(0, 6.283), y = gn(-0.5, 0.5) * 0.62 * (1.05 - rr), len = gn(0.07, 0.17), spd = (0.12 + 0.3 * g01()) * (g01() < 0.5 ? -1 : 1) * (1.25 - rr * 1.6), ph = gn(0, 6.283);
+        if (i >= NS) continue;
+        const pos = V3(Math.cos(an) * rr, y, Math.sin(an) * rr * 1.15), dir = V3(-Math.sin(an) + gn(-.5, .5), gn(-1, 1), Math.cos(an) + gn(-.5, .5));
+        addPart('shard', { len, w: len * 0.2, th: len * 0.06, glint: i % 5 === 0, tip: acc }, pos, dir, [gn(0.015, 0.05), ph, 6, spd], O0, gn(0, 6.28));
+      }
+      add(new THREE.IcosahedronGeometry(0.075, LO ? 0 : 1), (c, x, y, z) => c.copy(body2).multiplyScalar(0.6 + 0.8 * Math.abs(Math.sin(x * 60 + y * 40))), [0.1, 1, 2, 0]);
+      emi(ball(0, 0.0, -0.082, 0.014, 0.1, 0.02, 8, 6), 2.8, [0, 0, 2, 0]);        // the slit
+      eyeRecs.push({ pos: [0, 0, -0.098], r: 0.05, fx: null, lm: -1, lw: 0 });
+      for (const s of [-1, 1]) addPart('shard', { len: 0.2, w: 0.05, th: 0.012, tip: acc, tipK: 0.8 }, V3(s * 0.05, 0.1, -0.06), V3(s * 0.7, 0.9, -0.2), [0, 0, 2, 0], null, 0);   // brow shards
+      const blades = [];
+      for (const s of [-1, 1]) {
+        const id = defLimb({ name: s < 0 ? 'blade L' : 'blade R', kind: 'blade', pivot: V3(0, 0, 0), a: V3(s * 0.1, 0, -0.03), b: V3(s * 0.58, 0.01, -0.16), r: 0.055, wa: 1, wb: 1, sl: [0, 0], A: 1.15, back: s > 0, allow: ['sweep'] });
+        rigid(id);
+        const sw = [0, 0, 2, 0];
+        addPart('shard', { len: 0.62, w: 0.075, th: 0.012, mid: 0.3, tip: acc, tipK: 0.9, glint: true }, V3(s * 0.08, 0.0, -0.02), V3(s * 1, 0.06, -0.26), sw, null, 0);
+        addPart('shard', { len: 0.34, w: 0.05, th: 0.01, mid: 0.4, tip: acc, tipK: 0.8 }, V3(s * 0.1, 0.03, 0.02), V3(s * 1, 0.5, 0.15), sw, null, 0);
+        addPart('shard', { len: 0.3, w: 0.045, th: 0.01, mid: 0.4, tip: acc, tipK: 0.8 }, V3(s * 0.1, -0.03, 0.02), V3(s * 1, -0.5, 0.1), sw, null, 0);
+        lmCur = null;
+      }
+      const idL = defLimb({ name: 'lance', kind: 'lance', pivot: V3(0, 0, 0), a: V3(0, 0, -0.14), b: V3(0, 0, -0.6), r: 0.05, wa: 1, wb: 1, sl: [0.45, -0.55], allow: ['lunge', 'slam'] });
+      rigid(idL);
+      addPart('shard', { len: 0.5, w: 0.05, th: 0.05, mid: 0.25, tip: acc, tipK: 0.9, glint: true }, V3(0, 0, -0.11), V3(0, 0.01, -1), [0, 0, 2, 0], null, 0);
+      addPart('shard', { len: 0.22, w: 0.025, th: 0.025, mid: 0.3, tip: acc }, V3(0.04, 0.03, -0.1), V3(0.45, 0.2, -1), [0, 0, 2, 0], null, 0);
+      addPart('shard', { len: 0.22, w: 0.025, th: 0.025, mid: 0.3, tip: acc }, V3(-0.04, -0.03, -0.1), V3(-0.45, -0.2, -1), [0, 0, 2, 0], null, 0);
+      lmCur = null;
+    }
+
+    else if (plan === 'monolith') {
+      // black obelisk, vertical eye, three counter-rotating tilted rings; strikes are ring slams (the ring hinges on its back edge)
+      P.amp = [0.004, 0.008, 0.004]; P.sp = 0.6; P.k = 1; P.breath = 0.008;
+      const yb = -0.46, yt = 0.3, ya = 0.5;
+      const sq = (y, hw) => { const o = []; for (let i = 0; i < 4; i++) { const a = i / 4 * 6.283 + 0.785; o.push(V3(Math.cos(a) * hw * 1.4142, y, Math.sin(a) * hw * 1.4142)); } return o; };
+      const lg = (rings) => {
+        const pos = [];
+        for (let i = 0; i < rings.length - 1; i++) for (let k = 0; k < 4; k++) {
+          const a = rings[i][k], b = rings[i][(k + 1) % 4], c = rings[i + 1][(k + 1) % 4], d = rings[i + 1][k];
+          pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z, a.x, a.y, a.z, c.x, c.y, c.z, d.x, d.y, d.z);
+        }
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return g;
+      };
+      const apex = [V3(0, ya, 0), V3(0, ya, 0), V3(0, ya, 0), V3(0, ya, 0)];
+      const slab = (y) => { const f = (y - yb) / (yt - yb); return 0.16 - 0.075 * f; };
+      const prof = LO ? [yb, yt] : [yb, -0.2, 0.05, yt];
+      const bodyGeo = lg(prof.map((y) => sq(y, slab(y))).concat([apex]));
+      add(bodyGeo, (c, x, y, z) => { c.copy(body).lerp(body2, 0.5 + 0.5 * Math.sin(y * 38 + x * 6)).multiplyScalar(y > yt ? 1.5 : 0.7 + 0.5 * smooth(-0.5, 0.2, y)); }, [0.0, 0, 2, 0]);
+      for (const [cx, cz] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {     // corner seams: thin self-lit strips
+        const g = new THREE.BoxGeometry(0.008, yt - yb, 0.008); g.translate(cx * (0.16 - 0.0) * 0.71 * 0.93, (yt + yb) / 2, cz * 0.16 * 0.71 * 0.93);
+        g.rotateZ(0); emi(g, 2.0, [0, 0, 2, 0]);
+      }
+      emi(ball(0, 0.06, -0.118, 0.017, 0.11, 0.018, 8, 8), 2.8, [0, 0, 2, 0]);                  // the vertical eye
+      eyeRecs.push({ pos: [0, 0.06, -0.125], r: 0.055, fx: null, lm: -1, lw: 0 });
+      add(new THREE.BoxGeometry(0.05, 0.3, 0.012).translate(0, 0.06, -0.108), flat(voidC), [0, 0, 2, 0]);   // dark socket plate
+      const RY = [-0.2, 0.04, 0.27], RR = [0.31, 0.37, 0.27], SPD = [0.2, -0.14, 0.1], SLM = [[0.5, -0.5], [0.6, -0.55], [0.5, -0.5]];
+      const ALW = [['slam', 'sweep'], ['slam'], ['slam', 'lunge']];
+      for (let k = 0; k < 3; k++) {
+        const y = RY[k], R = RR[k];
+        const id = defLimb({ name: ['upper ring', 'middle ring', 'lower ring'][2 - k], kind: 'ring', pivot: V3(0, y, R), a: V3(0, y, -0.02), b: V3(0, y, -R * 0.96), r: 0.075, wa: 1, wb: 1, sl: SLM[k], A: 0.9, allow: ALW[k] });
+        rigid(id);
+        const fx = [0, 0, 6, SPD[k]];
+        const tg = new THREE.TorusGeometry(R, 0.026, LO ? 4 : 6, LO ? 14 : 30); tg.rotateX(Math.PI / 2); tg.rotateX(0.1 * (k - 1)); tg.translate(0, y, 0);
+        add(tg, (c, x, yy, z) => c.copy(body2).multiplyScalar(0.8 + 0.6 * Math.abs(Math.sin(Math.atan2(z, x) * 12))), fx, O0);
+        const NN = LO ? 4 : 8;
+        for (let i = 0; i < NN; i++) {
+          const a = i / NN * 6.283;
+          if (i % 2 === 0) add(coneGeo(V3(Math.cos(a) * R, y, Math.sin(a) * R), V3(Math.cos(a), 0.12, Math.sin(a)), 0.026, 0.1, 4), flat(body), fx, O0);
+          else { const g = new THREE.BoxGeometry(0.05, 0.012, 0.018); g.rotateY(-a); g.translate(Math.cos(a) * R, y + 0.028, Math.sin(a) * R); emi(g, 2.2, fx, O0); }
+        }
+        lmCur = null;
+      }
+    }
+
+    else if (plan === 'maw') {
+      // a ring of teeth around a void, with a bellows throat and four trailing tendrils; lunge = the ring opens and lurches; tendrils whip
+      P.amp = [0.012, 0.016, 0.02]; P.sp = 0.7; P.k = 5; P.breath = 0.01;
+      const Z0 = -0.26, RR = 0.34, TH = Z0 + 0.24;
+      const idM = defLimb({ name: 'maw', kind: 'maw', pivot: V3(0, 0, TH), a: V3(0, RR * 0.72, Z0), b: V3(0, -RR * 0.72, Z0), r: 0.17, wa: 1, wb: 1, sl: [0.35, -0.5], allow: ['lunge', 'slam'] });
+      rigid(idM);
+      const OP = 0.35;
+      const fxO = [0, 0.4, 7, 0.07], piv = V3(0, 0, OP);
+      const tg = new THREE.TorusGeometry(RR, 0.05, LO ? 5 : 8, LO ? 16 : 32); tg.translate(0, 0, Z0);
+      add(tg, (c, x, y) => c.copy(body2).multiplyScalar(0.35 + 0.35 * Math.abs(Math.sin(Math.atan2(y, x) * 9))), fxO, piv);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283 + 0.3, g = new THREE.BoxGeometry(0.03, 0.012, 0.02); g.rotateZ(a); g.translate(Math.cos(a) * RR * 1.02, Math.sin(a) * RR * 1.02, Z0 - 0.052); emi(g, 2.1, fxO, piv); }
+      const nT = LO ? 9 : 18, nI = LO ? 6 : 11;
+      for (let i = 0; i < nT; i++) {
+        const a = i / nT * 6.283, long = i % 2 === 0;
+        addPart('tooth', { len: long ? 0.2 : 0.14, r: 0.028, hook: 0.35, tip: acc }, V3(Math.cos(a) * (RR - 0.015), Math.sin(a) * (RR - 0.015), Z0), V3(-Math.cos(a), -Math.sin(a), -0.28), fxO, piv, 0);
+      }
+      const fxI = [0, 1.7, 7, -0.16];
+      for (let i = 0; i < nI; i++) {
+        const a = i / nI * 6.283 + 0.2, R2 = 0.21;
+        addPart('tooth', { len: 0.11, r: 0.02, hook: 0.3, tip: acc }, V3(Math.cos(a) * R2, Math.sin(a) * R2, Z0 + 0.07), V3(-Math.cos(a), -Math.sin(a), -0.12), fxI, piv, 0);
+      }
+      add(new THREE.CylinderGeometry(0.2, 0.2, 0.02, sd(20)).rotateX(Math.PI / 2).translate(0, 0, Z0 + 0.1), flat(voidC), null);     // the void
+      const ir = new THREE.TorusGeometry(0.17, 0.007, 4, LO ? 14 : 28); ir.translate(0, 0, Z0 + 0.085); emi(ir, 2.1, [0, 0, 7, 0.0], V3(0, 0, 0.2));
+      orbEye(0, 0, Z0 + 0.14, 0.042);
+      // throat: dark bellows from the ring back to the tendril root, stretching on the lunge (weight 1 -> 0)
+      lmCur = { id: idM, w: (x, y, z) => Math.min(1, Math.max(0, 1 - (z - Z0) / 0.24)) };
+      for (let j = 0; j < (LO ? 2 : 4); j++) {
+        const t0 = j / (LO ? 2 : 4), t1 = (j + 1) / (LO ? 2 : 4), r0 = RR * (1 - 0.7 * t0) * 0.82, r1 = RR * (1 - 0.7 * t1) * 0.82;
+        const g = new THREE.CylinderGeometry(r1 * 1.0, r0 * 1.0, 0.24 / (LO ? 2 : 4), sd(12), 1, true); g.rotateX(Math.PI / 2); g.translate(0, 0, Z0 + 0.24 * (t0 + t1) / 2 + 0.015);
+        add(g, (c, x, y, z) => c.copy(body).multiplyScalar(0.6 + 0.8 * (j % 2)), [0, 0, 2, 0]);
+      }
+      lmCur = null;
+      // tendrils: two limbs of two
+      for (const s of [-1, 1]) {
+        const ln = defLimb({ name: s < 0 ? 'tendrils L' : 'tendrils R', kind: 'tendril', pivot: V3(s * 0.05, 0, TH), a: V3(s * 0.18, 0, TH + 0.3), b: V3(s * 0.3, 0.02, TH + 0.64), r: 0.045, wa: 0.45, wb: 1, back: s > 0, A: 1, allow: ['whip'] });
+        for (const yy of [0.07, -0.07]) {
+          const pts = new THREE.CatmullRomCurve3([V3(s * 0.05, yy * 0.6, TH), V3(s * 0.12, yy, TH + 0.2), V3(s * 0.2 + gn(-.03, .03), yy * 1.8, TH + 0.42), V3(s * 0.3, yy * 2.2 + gn(-.05, .05), TH + 0.66)]).getPoints(LO ? 4 : 9);
+          const ph = gn(0, 6.28);
+          for (let j = 0; j < pts.length - 1; j++) {
+            const a = pts[j], b = pts[j + 1], w0 = j / (pts.length - 1), w1 = (j + 1) / (pts.length - 1);
+            lmCur = { id: ln, w: prog(pts[0], pts[pts.length - 1]) };
+            add(tubeGeo(a, b, 0.03 * (1 - 0.8 * w0), 0.03 * (1 - 0.8 * w1), 5), (c) => c.copy(j % 3 === 0 ? body2 : body).multiplyScalar(1.1), (x, y, z) => { const u = lmCur.w(x, y, z); return [u * u, ph, 2, 0]; });
+          }
+          const e = pts[pts.length - 1];
+          emi(ball(e.x, e.y, e.z, 0.014, 0.014, 0.014, 5, 4), 2.4, [1, ph, 2, 0]);
+        }
+        lmCur = null;
+      }
+    }
+
+    else if (plan === 'hive') {
+      // a cluster of pulsing dark orbs linked by glowing threads; two whip filaments and one heavy flail orb on a taut chain
+      P.amp = [0.014, 0.012, 0.012]; P.sp = 0.75; P.k = 2; P.breath = 0.018;
+      const NO = LO ? 6 : 11, orbs = [{ p: V3(0, 0, 0), r: 0.15 }];
+      for (let i = 1; i < 11; i++) {
+        const y = 1 - (i - 0.5) / 5.5, rad = Math.sqrt(Math.max(0, 1 - y * y)), an = i * 2.39996 + gn(-.2, .2), d = gn(0.2, 0.3), R = gn(0.06, 0.12);
+        orbs.push({ p: V3(Math.cos(an) * rad * d * 1.1, y * d * 0.85, Math.sin(an) * rad * d * 1.1 + (i < 4 ? 0 : 0)), r: R });
+      }
+      orbs.slice(0, NO).forEach((o, i) => {
+        const dir = o.p.lengthSq() > 1e-4 ? o.p.clone() : V3(0, 1, 0);
+        addPart('orb', { r: o.r, tip: acc, pore: i ? 0.26 : 0.001 }, o.p, dir, [gn(0.06, 0.12), gn(0, 6.28), 8, gn(0.9, 2.1)], o.p.clone());
+      });
+      orbEye(0, 0.02, -0.158, 0.062);
+      for (let i = 0; i < NO; i++) {   // threads between each orb and its two nearest neighbours
+        const d = orbs.slice(0, NO).map((o, j) => [o.p.distanceTo(orbs[i].p), j]).filter((q) => q[1] > i).sort((a, b) => a[0] - b[0]).slice(0, 2);
+        for (const [dd, j] of d) emi(tubeGeo(orbs[i].p, orbs[j].p, 0.0035, 0.0035, 3), 2.0, [0, 0, 2, 0]);
+      }
+      for (const s of [-1, 1]) {
+        const ln = defLimb({ name: s < 0 ? 'filaments L' : 'filaments R', kind: 'filament', pivot: V3(s * 0.18, 0.03, 0.05), a: V3(s * 0.4, 0.04, 0.0), b: V3(s * 0.6, 0.06, -0.34), r: 0.045, wa: 0.45, wb: 1, back: s > 0, A: 1, allow: ['whip'] });
+        for (const k of [0, 1]) {
+          const base = V3(s * 0.18, 0.03 + k * 0.04, 0.05), pts = new THREE.CatmullRomCurve3([base, V3(s * 0.34, 0.1 - k * 0.1, 0.06), V3(s * 0.5, 0.1 + k * 0.08, -0.1), V3(s * 0.62 + k * 0.04, 0.05 + k * 0.1, -0.36 - k * 0.04)]).getPoints(LO ? 4 : 9);
+          const ph = gn(0, 6.28), pr = prog(base, pts[pts.length - 1]);
+          for (let j = 0; j < pts.length - 1; j++) {
+            const a = pts[j], b = pts[j + 1], w0 = j / (pts.length - 1), w1 = (j + 1) / (pts.length - 1);
+            lmCur = { id: ln, w: pr };
+            add(tubeGeo(a, b, 0.012 * (1 - 0.7 * w0), 0.012 * (1 - 0.7 * w1), 4), (c) => c.copy(acc).multiplyScalar(2.0), (x, y, z) => { const u = pr(x, y, z); return [u * u, ph, 2, 0]; });
+          }
+          const e = pts[pts.length - 1];
+          emi(ball(e.x, e.y, e.z, 0.02, 0.02, 0.02, 6, 4), 2.6, [1, ph, 2, 0]);
+        }
+        lmCur = null;
+      }
+      const ln = defLimb({ name: 'flail orb', kind: 'orb', pivot: V3(0, 0.26, 0.04), a: V3(0, 0.2, -0.3), b: V3(0, 0.12, -0.54), r: 0.13, wa: 1, wb: 1, sl: [0.55, -0.75], allow: ['slam', 'lunge'] });
+      rigid(ln);
+      const ch = new THREE.CatmullRomCurve3([V3(0, 0.18, 0.0), V3(0, 0.3, -0.1), V3(0, 0.27, -0.3), V3(0, 0.15, -0.44)]).getPoints(LO ? 3 : 7);
+      for (let j = 0; j < ch.length - 1; j++) add(tubeGeo(ch[j], ch[j + 1], 0.012, 0.012, 4), flat(body2), [0, 0, 2, 0]);
+      addPart('orb', { r: 0.14, tip: acc, pore: 0.3 }, V3(0, 0.12, -0.55), V3(0, 0.3, -1), [0, 0, 2, 0], null, 0);
+      for (let i = 0; i < (LO ? 3 : 6); i++) { const a = i / 6 * 6.283; addPart('shard', { len: 0.1, w: 0.02, th: 0.02, tip: acc }, V3(Math.cos(a) * 0.12, 0.12 + Math.sin(a) * 0.12, -0.55), V3(Math.cos(a), Math.sin(a), -0.3), [0, 0, 2, 0], null, 0); }
+      lmCur = null;
+    }
+
+    else {   // seraph
+      // a vertical stack of six counter-rotating fan-tiers of fin-wings around a core eye, no body; two scythe-wings sweep, a halo lunges
+      P.amp = [0.0, 0.012, 0.0]; P.sp = 0.7; P.k = 1; P.breath = 0.012;
+      const spin = (y, rr) => { const o = []; for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; o.push(V3(Math.cos(a) * rr, y, Math.sin(a) * rr)); } return o; };
+      const cg = (() => {
+        const rings = [spin(-0.5, 0.0001), spin(-0.3, 0.04), spin(-0.05, 0.075), spin(0.2, 0.04), spin(0.5, 0.0001)], pos = [];
+        for (let i = 0; i < 4; i++) for (let k = 0; k < 6; k++) {
+          const a = rings[i][k], b = rings[i][(k + 1) % 6], c = rings[i + 1][(k + 1) % 6], d = rings[i + 1][k];
+          pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z, a.x, a.y, a.z, c.x, c.y, c.z, d.x, d.y, d.z);
+        }
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return g;
+      })();
+      add(cg, (c, x, y) => c.copy(body2).multiplyScalar(0.7 + 0.6 * Math.abs(Math.sin(y * 40))), [0, 0, 2, 0]);
+      orbEye(0, 0, -0.045, 0.062);
+      const NT = 6, WT = LO ? 2 : 4;
+      for (let t = 0; t < NT; t++) {
+        const y = -0.36 + t * 0.145, sp = (t % 2 ? 1 : -1) * (0.22 + 0.05 * t), prof = 0.55 + 0.45 * Math.sin(Math.PI * (t + 0.5) / NT);
+        for (let w = 0; w < WT; w++) {
+          const a = w / WT * 6.283 + t * 0.5, dir = V3(Math.cos(a), (t < 3 ? 0.14 : -0.14), Math.sin(a));
+          addPart('finwing', { len: 0.2 * prof + 0.06, w: 0.1 * prof + 0.03, sweep: 0.55, th: 0.007, edge: acc }, V3(Math.cos(a) * 0.05, y, Math.sin(a) * 0.05), dir, [0.012, gn(0, 6.28), 6, sp], O0, 0);
+        }
+      }
+      for (const s of [-1, 1]) {
+        const id = defLimb({ name: s < 0 ? 'wing L' : 'wing R', kind: 'wing', pivot: V3(s * 0.06, 0, 0.0), a: V3(s * 0.15, 0, -0.04), b: V3(s * 0.6, 0.02, -0.2), r: 0.06, wa: 1, wb: 1, sl: [0, 0], A: 1.1, back: s > 0, allow: ['sweep'] });
+        rigid(id);
+        const fx = [0, 0, 2, 0];
+        addPart('finwing', { len: 0.56, w: 0.26, sweep: 0.55, th: 0.01, edge: acc }, V3(s * 0.07, 0.0, 0.02), V3(s * 1, 0.05, -0.04), fx, null, 0);
+        addPart('finwing', { len: 0.38, w: 0.17, sweep: 0.5, th: 0.008, edge: acc }, V3(s * 0.07, 0.07, 0.05), V3(s * 1, 0.5, 0.0), fx, null, 0);
+        addPart('finwing', { len: 0.38, w: 0.17, sweep: 0.5, th: 0.008, edge: acc }, V3(s * 0.07, -0.07, 0.05), V3(s * 1, -0.5, 0.0), fx, null, 0);
+        lmCur = null;
+      }
+      const ih = defLimb({ name: 'halo', kind: 'halo', pivot: V3(0, 0, 0.0), a: V3(0, 0.2, -0.16), b: V3(0, -0.2, -0.16), r: 0.1, wa: 1, wb: 1, sl: [0.4, -0.5], allow: ['lunge', 'slam'] });
+      rigid(ih);
+      const hg = new THREE.TorusGeometry(0.22, 0.012, 4, LO ? 16 : 36); hg.translate(0, 0, -0.16);
+      add(hg, (c, x, y) => c.copy(body2).multiplyScalar(1.1), [0, 0, 2, 0]);
+      for (let i = 0; i < (LO ? 4 : 8); i++) { const a = i / (LO ? 4 : 8) * 6.283; emi(new THREE.BoxGeometry(0.036, 0.01, 0.014).rotateZ(a).translate(Math.cos(a) * 0.22, Math.sin(a) * 0.22, -0.16), 2.3, [0, 0, 2, 0]); }
+      lmCur = null;
+    }
+    lmCur = null;
+  }
+
+  else if (plan === 'serpent') {
     // long spine of 9-13 tapered segments, dense dorsal fins, pectoral fins, tail fan; travelling sine wave down the body
     P.amp = [0.1, 0.03, 0]; P.sp = 2.4; P.k = 7; P.hsp = 3.0;
     const hull = col(hue0, 0.7, 0.3), belly = col(hue0 - 0.06, 0.55, 0.55), band = col(hue0 + 0.03, 0.8, 0.18), fin = col(hue0 + 0.42, 0.85, 0.5), glowC = col(hue0 + 0.3, 1, 0.6);
@@ -742,6 +974,7 @@ function bossBuild(THREE, name, wave, opts, LOD) {
   uniforms.uAmp.value.set(P.amp[0], P.amp[1], P.amp[2]); uniforms.uSp.value = P.sp; uniforms.uK.value = P.k;
   uniforms.uBreath.value = P.breath; uniforms.uHsp.value = P.hsp; uniforms.uPulse.value = P.pulse;
   for (let i = 0; i < 8; i++) if (limbs[i]) uniforms.uSwP.value[i].copy(limbs[i].pivot);
+  if (P.gl) { uniforms.uGl.value = P.gl; uniforms.uRim.value.set(P.rim.r, P.rim.g, P.rim.b); uniforms.uGlC.value.set(P.glc.r * 1.3, P.glc.g * 1.3, P.glc.b * 1.3); }
   // attack state (ship.js writes it every frame): which limb(s) move and how far through telegraph / strike / recover they are
   const att = { type: '', limb: -1, ph: 'idle', u: 0, side: 1 };
   // seeded combo: 2-4 moves picked from the limb set (sweep / slam / lunge / whip, plus a full-body spin when >= 2 limbs can swing)

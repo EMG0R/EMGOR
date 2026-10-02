@@ -28,12 +28,13 @@ var TERRAIN_DMG = 30, TERRAIN_INV = 0.8;    // terrain / body hit with a normal 
 var VEL_CHASE = 2.2, TURN_MAX = 8, GSHAKE_AT = 0.8;   // velocity chases the thrust vector at VEL_CHASE/s; max turn rate rad/s; g-shake above 0.8 of it
 var FLIP_T = 0.8, FLIP_CD = 1.5, DRIFT_T = 1.2, DRIFT_CD = 1.5, DRIFT_CHASE = 0.18, DRIFT_TURN = 1.6;   // maneuvers: Immelmann flip (dbl-tap S), drift turn (hold Ctrl)
 var ATM_R = 1.4, LF_ON = 1.6, LF_OFF = 1.7;     // rev 18: atmosphere top / local-frame engage / release (x R)
-var ATM_BOOST = 12, ATM_PULSE = 40, ENTRY_T = 2, HOVER_L = 3, PROMPT_L = 1.5, CLEAR_L = 0.8, SUB_L = 0.45, APP_T = 0.5, ATM_FOV = 8;   // atmosphere speed caps (u/s), entry brake (s), hover / prompt altitude (L), hull clearance (L), substep (L), approach governor (s), fov gain
+var ATM_BOOST = 12, ATM_PULSE = 40, ENTRY_T = 2, HOVER_L = 3, PROMPT_L = 3, CLEAR_L = 0.8, SUB_L = 0.45, APP_T = 0.5, ATM_FOV = 8;   // atmosphere speed caps (u/s), entry brake (s), hover / prompt altitude (L), hull clearance (L), substep (L), approach governor (s), fov gain
 var BOUNDARY_F = 3.5;              // soft edge, x root.sysR
 var TARGET_CONE = 6 * Math.PI / 180;
 // combat
 var HP_MAX = 100, REGEN = 8 * 0.4;       // rev 9c: passive regen at 40 %, kills feed the rest
 var P_BOLT_SPEED = 270, P_BOLT_RANGE = 120, P_BOLT_DMG = 8, P_FIRE_RATE = 6;   // L/s, L, hp, volleys/s (2 bolts each)
+var P_BOLT_LIFE = 20, P_BOLT_CULL = 3000;   // rev 19: player bolts inherit the ship's velocity, live 20 s, and are culled beyond 3000 L from the pilot
 var E_BOLT_PER_LEN = 22, E_BOLT_MIN = 80, E_BOLT_MAX = 200;                    // enemy bolt speed = 22 L/s per L of body length, clamped (L/s)
 var E_FIRE_PER_LEN = 18, E_RANGE_X = 1.5;                                      // fire range = 18 x body length; bolt range = 1.5 x fire range
 var AGGRO_L = 120;
@@ -96,6 +97,20 @@ function segDistSq(ax, ay, az, bx, by, bz, cx, cy, cz) {
     if (l2 > 1e-9) t = clamp(((cx - ax) * dx + (cy - ay) * dy + (cz - az) * dz) / l2, 0, 1);
     var ex = ax + dx * t - cx, ey = ay + dy * t - cy, ez = az + dz * t - cz;
     return ex * ex + ey * ey + ez * ez;
+}
+
+// squared distance between segments a-b and c-d (Ericson, Real-Time Collision Detection 5.1.9), plain numbers
+function segSegDistSq(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz) {
+    var ux = bx - ax, uy = by - ay, uz = bz - az, vx = dx - cx, vy = dy - cy, vz = dz - cz, wx = ax - cx, wy = ay - cy, wz = az - cz;
+    var a = ux * ux + uy * uy + uz * uz, b = ux * vx + uy * vy + uz * vz, c = vx * vx + vy * vy + vz * vz, d = ux * wx + uy * wy + uz * wz, e = vx * wx + vy * wy + vz * wz;
+    var D = a * c - b * b, sN, sD = D, tN, tD = D;
+    if (D < 1e-12 * (a * c + 1e-30)) { sN = 0; sD = 1; tN = e; tD = c; }
+    else { sN = b * e - c * d; tN = a * e - b * d; if (sN < 0) { sN = 0; tN = e; tD = c; } else if (sN > sD) { sN = sD; tN = e + b; tD = c; } }
+    if (tN < 0) { tN = 0; if (-d < 0) sN = 0; else if (-d > a) sN = sD; else { sN = -d; sD = a; } }
+    else if (tN > tD) { tN = tD; if ((-d + b) < 0) sN = 0; else if ((-d + b) > a) sN = sD; else { sN = -d + b; sD = a; } }
+    var sc = Math.abs(sN) < 1e-12 ? 0 : sN / sD, tc = Math.abs(tN) < 1e-12 ? 0 : tN / tD;
+    var rx = wx + sc * ux - tc * vx, ry = wy + sc * uy - tc * vy, rz = wz + sc * uz - tc * vz;
+    return rx * rx + ry * ry + rz * rz;
 }
 
 // wave table: difficulty curve from the design doc (creature size, hp, speed, damage and turn come from generateEnemy now;
@@ -341,7 +356,7 @@ export default function mount(engine) {
     var C_P = 0x00f0ff, C_E = 0xff2a1a, C_A = 0xb888ff, BURST_COL = [0x00f0ff, 0xff7a2a, 0xc8ff3a];
     var bolts = [], vBp = new THREE.Vector3(), vFb = new THREE.Vector3(), vFd = new THREE.Vector3();
     (function buildBolts() {
-        for (var i = 0; i < BOLT_MAX; i++) bolts.push({ id: -1, prev: new THREE.Vector3(), active: false, enemy: false, dmg: 0, remote: false, owner: null, boss: false, gz: 0 });
+        for (var i = 0; i < BOLT_MAX; i++) bolts.push({ t0: 0, id: -1, prev: new THREE.Vector3(), active: false, enemy: false, dmg: 0, remote: false, owner: null, boss: false, gz: 0 });
     })();
     function killBolts() { for (var i = 0; i < bolts.length; i++) if (bolts[i].active) { bolts[i].active = false; fx.killBolt(bolts[i].id); } }
     // boss homing orbs (pooled)
@@ -623,7 +638,7 @@ export default function mount(engine) {
         if (pulsing !== cPulsing) { cPulsing = pulsing; hud.classList.toggle('is-pulsing', pulsing); }
         var ts = '';
         if (cTargetEnemy) ts = cTargetEnemy;
-        else if (target) ts = (target.node.title || target.node.id || '').toUpperCase() + '  ·  ' + fmtDist(target.dist);
+        else if (target) ts = (target.node.title || target.node.id || '').toUpperCase() + '  ·  ' + fmtDist(target.dist) + (target.R < MOON_L * L ? '  ·  moonlet' : '');
         if (ts !== cTarget) { cTarget = ts; elTarget.textContent = ts; }
         // combat readouts
         var h = Math.max(0, Math.round(hp));
@@ -1181,7 +1196,7 @@ export default function mount(engine) {
         mM.lookAt(ORIGIN, vD, Y);
         e.g.quaternion.setFromRotationMatrix(mM);
         if (isB) {
-            e.home.copy(vAim); e.gcyc = 4 + Math.random() * 8;
+            e.home.copy(vAim); e.gcyc = 4 + Math.random() * 8; e.chaseD = vAim.distanceTo(shipRoot.position);      // rev 19: a boss keeps closing as long as the player is within 1.3 x its spawn distance
             e.fstate = 'boss'; e.state = 1; e.bphase = 1; e.cyc = 6; e.side = 1; e.flip = 6; e.orbCd = 6; e.fireCd = 3; e.curSpeed = 0;
             e.atk = bossAttacksFor(seed, tier); e.atkI = 0; e.nextAtk = -1; e.sigCd = 1e9;
             e.ms = 'idle'; e.mt = 0; e.mcd = 1.5 + Math.random() * 1.5; e.mi = 0; e.mv = null; e.hitDone = false; e.escT = 8 + Math.random() * 4; e.thrCd = 5 + Math.random() * 5;
@@ -1229,6 +1244,7 @@ export default function mount(engine) {
         randDir(dirA);
         for (i = 0; i < 6; i++) { randDir(dirB); if (dirA.dot(dirB) < 0.1) break; }
         qN = 0;
+        planFormation(kinds, tiers, titles, bodies);
         for (i = 0; i < roles.length; i++) {                       // bosses now; roles stagger: interceptors now, others 4-6.5 s later
             var at = kinds[i] ? gt + i * 0.3 : gt + (roles[i] === 0 ? i * 0.25 : 4 + Math.random() * 2.5);
             qPush(at, roles[i], tiers[i], seeds[i], kinds[i], titles[i]);
@@ -1242,11 +1258,49 @@ export default function mount(engine) {
         writeSave();
         pumpQueue(bodies);
     }
+    // rev 19: boss formation. Several bosses spawn on an arc around the player: the biggest is the LEAD straight ahead (0.7 length + 120-180 L out),
+    // the others are WINGS swung out to +/- 70 degrees (and further for a 4th / 5th) and pushed out just far enough that every pair is at least 1.65 x the
+    // longer of the two apart (the game then enforces 1.5 x). The whole formation is rotated until it clears every planet shell and the arena edge.
+    var formPos = {}, fpA = new THREE.Vector3(), fpB = new THREE.Vector3(), fpU = new THREE.Vector3();
+    function planFormation(kinds, tiers, titles, bodies) {
+        formPos = {};
+        var idx = [], i, j;
+        for (i = 0; i < kinds.length; i++) if (kinds[i] === 1 || kinds[i] === 2) idx.push(i);
+        if (!idx.length) return;
+        var lens = {}; idx.forEach(function (k) { lens[k] = genLen(tiers[k], kinds[k]); });
+        idx.sort(function (a, b) { return lens[b] - lens[a]; });
+        var base = new THREE.Vector3().copy(dirA); base.y *= 0.3; base.normalize();
+        for (var attempt = 0; attempt < 14; attempt++) {
+            var yaw = attempt * 0.55 * (attempt & 1 ? -1 : 1), cy = Math.cos(yaw), sy = Math.sin(yaw);
+            var placed = [], ok = true;
+            for (i = 0; i < idx.length && ok; i++) {
+                var k = idx[i], len = lens[k], rBase = 0.7 * len + (120 + 60 * (((k * 2654435761) >>> 0) % 100) / 100) * L;
+                var ang = i === 0 ? 0 : (i % 2 ? 1 : -1) * 1.22 * Math.ceil(i / 2);                  // 70 deg per wing rank
+                var ca = Math.cos(ang), sa = Math.sin(ang);
+                fpU.set(base.x * ca + base.z * sa, base.y, -base.x * sa + base.z * ca);               // base rotated about world Y by the wing angle
+                fpU.set(fpU.x * cy + fpU.z * sy, fpU.y, -fpU.x * sy + fpU.z * cy).normalize();         // whole formation yawed by the attempt
+                var r = rBase;
+                for (j = 0; j < placed.length; j++) {
+                    var o = placed[j], sep = 1.65 * Math.max(len, o.len), up = fpU.x * o.p.x + fpU.y * o.p.y + fpU.z * o.p.z;
+                    var disc = up * up - o.p.lengthSq() + sep * sep;
+                    if (disc > 0) r = Math.max(r, up + Math.sqrt(disc));
+                }
+                var pos = new THREE.Vector3().copy(shipRoot.position).addScaledVector(fpU, r), rel = new THREE.Vector3().copy(fpU).multiplyScalar(r);
+                if (pos.length() > EDGE_R * 0.97) { ok = false; break; }
+                for (j = 0; j < bodies.length; j++) { var rb = bodies[j].R * 1.1 + 0.45 * len; if (pos.distanceToSquared(bodies[j].node.anchor.position) < rb * rb) { ok = false; break; } }
+                if (!ok) break;
+                placed.push({ k: k, len: len, p: rel, w: pos });
+            }
+            if (ok) { placed.forEach(function (pl) { formPos[titles[pl.k]] = pl.w; }); return; }
+        }
+        // nothing fit (cramped arena): fall back to the plain per-boss placement in placeSpawn
+    }
     // a titan spawns far out along the wave's approach direction (it is bigger than a planet: no body test); everything else uses pickSpawn
     function placeSpawn(bodies, i) {
         var kind = qKind[i];
         spawnPad = genLen(qTier[i], kind);
         if (kind === 3) { vAim.copy(shipRoot.position).addScaledVector(dirA, 1.4 * spawnPad + 400 * L); return true; }
+        if (kind > 0 && formPos[qTitle[i]]) { vAim.copy(formPos[qTitle[i]]); return true; }
         if (kind > 0) {          // rev 14: a static boss parks 0.7 x its length + 160 L out, clear of every planet shell
             for (var tr = 0; tr < 14; tr++) {
                 vD.copy((i & 1) ? dirB : dirA);
@@ -1314,15 +1368,20 @@ export default function mount(engine) {
 
     // ─── projectiles / debris ───────────────────────────────────────
     function fireBolt(ox, oy, oz, dx, dy, dz, spd, life, enemy, dmg, len, wid, col) {
+        var oldest = null;
         for (var i = 0; i < bolts.length; i++) {
             var b = bolts[i];
-            if (b.active) continue;
+            if (b.active) { if (!enemy && !b.enemy && !b.remote && (!oldest || b.t0 < oldest.t0)) oldest = b; continue; }
             vFb.set(ox, oy, oz); vFd.set(dx, dy, dz);
             var id = fx.spawnBolt(vFb, vFd, col != null ? col : (enemy ? C_E : effColor()), spd, life);
             if (id < 0) return null;
-            b.id = id; b.active = true; b.enemy = enemy; b.dmg = dmg; b.remote = false; b.owner = null; b.boss = false; b.gz = 0;
+            b.id = id; b.active = true; b.enemy = enemy; b.dmg = dmg; b.remote = false; b.owner = null; b.boss = false; b.gz = 0; b.t0 = gt;
             b.prev.copy(vFb);
             return b;
+        }
+        if (!enemy && oldest) {          // rev 19: 20 s bolts fill the pool: the oldest player bolt makes room
+            oldest.active = false; fx.killBolt(oldest.id);
+            return fireBolt(ox, oy, oz, dx, dy, dz, spd, life, enemy, dmg, len, wid, col);
         }
         return null;
     }
@@ -1331,7 +1390,7 @@ export default function mount(engine) {
         var k = Math.max(1, Math.round(n / 8)), size = clamp((sz || 1) * speedL / 10, 0.5, 5);
         for (var i = 0; i < k; i++) fx.impact(p, BURST_COL[matIdx] || 0xffffff, size);
     }
-    var god = false;
+    var god = false, vBI = new THREE.Vector3(), boltsFired = 0, boltHits = 0, boltFrame = 0;
     var SAFE_R = DOCK_R * root.sysR * 1.2;    // pilots inside the dock radius cannot be hurt by other pilots
     function hurtPlayer(dmg, by, mult, raw) {
         if (dead || god) return;
@@ -2123,6 +2182,32 @@ export default function mount(engine) {
             e.imp.scale.setScalar(Math.max(1, e.len / e.sc) * 1.2); e.imp.visible = true;
         } else if (e.imp) e.imp.visible = false;
     }
+    // world-space limb capsules of a boss, cached per frame: [ax ay az bx by bz r] x capN
+    function bossCaps(e) {
+        var limbs = e.cr.limbs, n = limbs.length;
+        if (!e.capW || e.capW.length < n * 7) e.capW = new Float64Array(n * 7);
+        e.g.updateMatrixWorld(true);
+        for (var i = 0; i < n; i++) {
+            var cp = limbs[i].capsule, o = i * 7;
+            vC1.copy(cp.a); e.cr.group.localToWorld(vC1); vC2.copy(cp.b); e.cr.group.localToWorld(vC2);
+            e.capW[o] = vC1.x; e.capW[o + 1] = vC1.y; e.capW[o + 2] = vC1.z; e.capW[o + 3] = vC2.x; e.capW[o + 4] = vC2.y; e.capW[o + 5] = vC2.z; e.capW[o + 6] = cp.r * e.sc;
+        }
+        e.capN = n;
+    }
+    var BOSS_CLOSE = 0.3;            // rev 19: u/s
+    function bossSep(a, b) { return 1.5 * Math.max(a.len, b.len); }
+    // would moving boss e by `step` along -dir (toward the player) bring it inside the separation of another boss (while getting closer)?
+    function formationFree(e, step, dir) {
+        var px = e.g.position.x - dir.x * step, py = e.g.position.y - dir.y * step, pz = e.g.position.z - dir.z * step;
+        for (var i = 0; i < enemies.length; i++) {
+            var o = enemies[i]; if (o === e || !o.alive || !o.isBoss) continue;
+            var sp = bossSep(e, o), dx = px - o.g.position.x, dy = py - o.g.position.y, dz = pz - o.g.position.z, dn = dx * dx + dy * dy + dz * dz;
+            if (dn >= sp * sp) continue;
+            dx = e.g.position.x - o.g.position.x; dy = e.g.position.y - o.g.position.y; dz = e.g.position.z - o.g.position.z;
+            if (dn < dx * dx + dy * dy + dz * dz) return false;
+        }
+        return true;
+    }
     function updateBoss(e, dt, bodies) {
         var P = shipRoot.position, pos = e.g.position, cr = e.cr, att = cr && cr.att, moves = cr && cr.moves;
         e.prev.copy(pos);
@@ -2146,8 +2231,12 @@ export default function mount(engine) {
                 var minReach = 1e30;
                 for (i = 0; i < moves.length; i++) minReach = Math.min(minReach, moves[i].reachL * e.sc);
                 var stopD = Math.max(minReach * 0.9, e.R * 1.08 + 2 * L);
-                if (!dead && dist < e.len * 2 + 700 * L) {
-                    if (dist > stopD && !(thr.ph === 'tele' && thr.e === e)) pos.addScaledVector(vD, -Math.min(dist - stopD, clamp(e.len * 0.02, 10 * L, 60 * L) * dt));
+                if (!dead && dist < Math.max(e.len * 2 + 700 * L, (e.chaseD || 0) * 1.3)) {
+                    if (dist > stopD && !(thr.ph === 'tele' && thr.e === e)) {
+                        // rev 19: bosses CLOSE SLOWLY (0.3 u/s) and in formation; a step that would bring two bosses nearer than 1.5 x the longer length is skipped
+                        var cstep = Math.min(dist - stopD, e.kind === 3 ? clamp(e.len * 0.02, 10 * L, 60 * L) * dt : BOSS_CLOSE * dt);
+                        if (formationFree(e, cstep, vD)) pos.addScaledVector(vD, -cstep);
+                    }
                 } else {
                     vS.subVectors(e.home, pos);
                     var hd = vS.length();
@@ -2879,6 +2968,7 @@ export default function mount(engine) {
             if (!dead && lf.entryT > 0) heatT = clamp(0.3 + 0.7 * lf.entryT / ENTRY_T, 0.3, 1);       // rev 18: the burn is the ENTRY brake
         } else if (!dead && spd > BOOST) {
             for (i = 0; i < bodies.length; i++) {
+                if (bodies[i].R < MOON_L * L) continue;      // moonlets: no atmosphere, no entry burn
                 vTmp.subVectors(P, bodies[i].node.anchor.position);
                 var rr = 1.4 * bodies[i].R;
                 if (vTmp.lengthSq() < rr * rr) { heatT = clamp(0.4 + (spd - BOOST) / 400, 0.4, 1); break; }
@@ -2890,7 +2980,7 @@ export default function mount(engine) {
             ensureSheath().visible = true;
             var u = sheathMat.uniforms;
             u.uHeat.value = lf.on ? clamp(lf.entryT / ENTRY_T, 0, 1) * 0.85 : clamp((spd - BOOST) / 360, 0, 1); u.uI.value = entryHeat * 1.7; u.uTime.value = gt;
-            shake = Math.max(shake, 0.22 * L * entryHeat); fovKick = Math.max(fovKick, 1.5 * entryHeat);
+            shake = Math.max(shake, 0.033 * L * entryHeat); fovKick = Math.max(fovKick, 1.5 * entryHeat);      // rev 19: entry / exit rumble at 15 % of the old amplitude (0.22 L -> 0.033 L)
         } else if (sheath && sheath.visible) sheath.visible = false;
         var en = entryHeat > 0.15;
         if (en !== cEntry) { cEntry = en; elEntry.classList.toggle('is-on', en); }
@@ -2901,7 +2991,7 @@ export default function mount(engine) {
     // orbit carried by node.mesh.quaternion / node.anchor.position), so a parked ship and a walking human stay glued to the terrain.
     // ship-human.js (createHuman) and ps.landable arrive from other modules: both have fallbacks.
     var gmode = 'fly', landOk = false, landCheckT = 0, legDrop = 0.4, jumpHeld = false;
-    var land = { node: null, gDir: new THREE.Vector3(), r0: 0, rg: 0, t: 0, T: 2.2, qFrom: new THREE.Quaternion(), qTo: new THREE.Quaternion(), sPos: new THREE.Vector3(), sQuat: new THREE.Quaternion(), off: new THREE.Vector3() };
+    var land = { settle: 0, dustT: 0, node: null, gDir: new THREE.Vector3(), r0: 0, rg: 0, t: 0, T: 2.2, qFrom: new THREE.Quaternion(), qTo: new THREE.Quaternion(), sPos: new THREE.Vector3(), sQuat: new THREE.Quaternion(), off: new THREE.Vector3() };
     var hum = { obj: null, pos: new THREE.Vector3(), hr: 0, gr: 0, vv: 0, air: false, hf: new THREE.Vector3(0, 0, -1), face: new THREE.Vector3(0, 0, -1), pitch: 0.3, moving: false, running: false, w: new THREE.Vector3(), up: new THREE.Vector3() };
     var gQ = new THREE.Quaternion(), gQi = new THREE.Quaternion(), gA = new THREE.Vector3(), gB = new THREE.Vector3(), gC = new THREE.Vector3(), gD = new THREE.Vector3(), gE = new THREE.Vector3();
     var camRel = new THREE.Vector3(), camRelInit = false, gFo = { r: 0, n: new THREE.Vector3() };
@@ -2938,7 +3028,7 @@ export default function mount(engine) {
         gA.divideScalar(r0);                                         // world up at the site
         legDrop = hullDrop();
         gQi.copy(node.mesh.quaternion).invert();
-        land.node = node; land.r0 = r0; land.rg = fo.r + legDrop * L; land.t = 0;
+        land.node = node; land.r0 = r0; land.rg = fo.r + legDrop * L; land.t = 0; land.settle = 0; land.dustT = 0;
         land.gDir.copy(gA).applyQuaternion(gQi);
         gB.copy(NEG_Z).applyQuaternion(shipRoot.quaternion); gB.addScaledVector(gA, -gB.dot(gA));
         if (gB.lengthSq() < 1e-6) gB.crossVectors(gA, X);
@@ -2958,9 +3048,13 @@ export default function mount(engine) {
         gA.copy(land.gDir).applyQuaternion(land.node.mesh.quaternion);
         gB.copy(shipRoot.position).addScaledVector(gA, -legDrop * L);
         for (var i = 0; i < 3; i++) fx.impact(gB, 0xc8b89a, 3);
-        shake = Math.max(shake, 0.4 * L);
-        exOff(exMe);
+        shake = Math.max(shake, 0.06 * L);
+        land.settle = LAND_SETTLE; land.dustT = 0;
     }
+    // rev 19: the landing sequence. The hull ships as ONE merged mesh (legs are not separate), so the legs "deploy" as the hull group sinking
+    // 0.15 L onto them during the descent, then a damped settle (1.2 s) with dust puffs and the engine winding down.
+    var LAND_SETTLE = 1.2;
+    function hullY(y) { if (hullObj && hullObj.position.y !== y) hullObj.position.y = y; }
     function exitShip() {
         if (gmode !== 'landed' || !land.node) return;
         if (!hum.obj) {
@@ -2998,7 +3092,7 @@ export default function mount(engine) {
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
         combatRoot.visible = true; setGround(false, false);
         vel.copy(gA).multiplyScalar(2.5 * CRUISE); speed = 1.5; throttle = 0.5; pulse = 0; pulseT = 0;
-        shake = Math.max(shake, 0.5 * L);
+        shake = Math.max(shake, 0.075 * L); land.settle = 0; hullY(0);
         net && net.setMode && net.setMode('fly');
     }
     function leaveGround() {                    // Esc from any ground state: hand the ship back to the exit cinematic from where the player is
@@ -3008,7 +3102,7 @@ export default function mount(engine) {
         }
         if (hum.obj) hum.obj.group.visible = false;
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
-        gmode = 'fly'; landOk = false; lfOff(); setGround(false, false);
+        gmode = 'fly'; landOk = false; lfOff(); setGround(false, false); land.settle = 0; hullY(0);
         net && net.setMode && net.setMode('fly');
     }
     // The engine runs the pilot step BEFORE updateBodies, so node.anchor / node.mesh.rotation are one frame stale here. For anything glued to a
@@ -3032,7 +3126,9 @@ export default function mount(engine) {
         c0: new THREE.Vector3(), holdAlt: 0, relNext: false, fromLand: false, jump: 0, maxStep: 0, prevW: new THREE.Vector3(), prevOk: false, subN: 0
     };
     var lfQi = new THREE.Quaternion(), lfQt = new THREE.Quaternion(), lfA = new THREE.Vector3(), lfB = new THREE.Vector3(), lfC = new THREE.Vector3(), lfD = new THREE.Vector3(), lfU = new THREE.Vector3();
-    function hasSurface(n) { var u = n.mesh && n.mesh.material && n.mesh.material.uniforms; return !!(u && u.uSeed && n.anchor && n.anchor.visible); }
+    var MOON_L = 200;     // MOONLET rule: pilot rendered radius < 200 L = no atmosphere, no landing, hard sphere only
+    function isMoonlet(n) { return realRadius(n) < MOON_L * L; }
+    function hasSurface(n) { if (isMoonlet(n)) return false; var u = n.mesh && n.mesh.material && n.mesh.material.uniforms; return !!(u && u.uSeed && n.anchor && n.anchor.visible); }
     function lfOmega(n, p, c, out) { var w = reducedM ? 0 : n.spinRate; return out.set(w * (p.z - c.z), 0, -w * (p.x - c.x)); }   // spin is about world Y: w x r
     function carryWorld(ddx, ddy, ddz) {
         var i, P = shipRoot.position;
@@ -3157,13 +3253,14 @@ export default function mount(engine) {
         if (lf.entryT > 0 && r > (ATM_R - 0.03) * lf.R) { var vo = vel.dot(lfA); if (vo > 0) vel.addScaledVector(lfA, -vo); bounceV.addScaledVector(lfA, -Math.max(0, bounceV.dot(lfA))); }   // ENTRY: nothing pushes you back out
     }
     // swept, substepped motion in the LOCAL frame against the local height function (ps.floorLocal is a pure function of the local position)
+    var deckMsgT = -9, deckBounces = 0;
     function lfMove(dt) {
         var n = lf.node, c = n.anchor.position, q = n.mesh.quaternion, R = lf.R, P = shipRoot.position;
         lfQi.copy(q).invert();
         var lp = lf.lp, lv = lfB.copy(vel).add(bounceV).applyQuaternion(lfQi), lv0x = lv.x, lv0y = lv.y, lv0z = lv.z;
         lp.copy(P).sub(c).applyQuaternion(lfQi);
         lfU.copy(lp).normalize().applyQuaternion(q);                                 // world up before the move (for the horizon transport)
-        var rem = dt, it = 0, zone = 1.25 * R, atmR = ATM_R * R, MAXIT = 24, sub = 0, hit = false;
+        var rem = dt, it = 0, zone = 1.25 * R, atmR = ATM_R * R, MAXIT = 24, sub = 0, hit = false, gasN = n.biome === 'gas', deckHit = false;
         while (rem > 1e-9 && it++ < MAXIT) {
             var sp = lv.length(), r = lp.length(), h = rem;
             if (sp > 1e-9) {
@@ -3183,11 +3280,13 @@ export default function mount(engine) {
                     lp.multiplyScalar(fl / r2);
                     lfC.copy(lp).divideScalar(fl);
                     var vn = lv.dot(lfC);
-                    if (vn < 0) { if (-vn > BOOST) { lfD.copy(lfC).applyQuaternion(q); terrainHit(-vn, lfD); } lv.addScaledVector(lfC, -vn); }
+                    if (gasN) { if (vn < 0) { lv.addScaledVector(lfC, -vn * 1.3); deckHit = true; } }      // rev 19: a gas giant has no ground: the cloud deck at 1.15 R is a soft bounce, never damage
+                    else if (vn < 0) { if (-vn > BOOST) { lfD.copy(lfC).applyQuaternion(q); terrainHit(-vn, lfD); } lv.addScaledVector(lfC, -vn); }
                 }
             }
         }
         lf.subN = sub;
+        if (deckHit && gt - deckMsgT > 1.5) { deckMsgT = gt; announce('NO SURFACE · GAS GIANT'); deckBounces++; }
         if (lf.hover && lf.cap) {
             // hover = terrain following: keep the altitude above the ground under the ship (the user's own climb / dive still moves it)
             var rr = lp.length(), fl2 = (ps && ps.active === n) ? ps.floorLocal(lp.x, lp.y, lp.z) : R * 1.04, vrad = (lv.x * lp.x + lv.y * lp.y + lv.z * lp.z) / (rr || 1);
@@ -3247,7 +3346,7 @@ export default function mount(engine) {
         var r = lf.lp.length();
         if (lf.cap) {
             if (r > ATM_R * R) {
-                if (!lf.leaving && lf.entryT <= 0 && lf.lv.dot(lf.lp) > 0) { lf.leaving = true; announce('LEAVING ATMOSPHERE'); shake = Math.max(shake, 1.1 * L); fovKick = Math.max(fovKick, 3); }
+                if (!lf.leaving && lf.entryT <= 0 && lf.lv.dot(lf.lp) > 0) { lf.leaving = true; announce('LEAVING ATMOSPHERE'); shake = Math.max(shake, 0.165 * L); fovKick = Math.max(fovKick, 3); }      // rev 19: shake 15 % of 1.1 L
             } else lf.leaving = false;
             if (r > LF_OFF * R) { lfRelease(); return; }
         } else if (r > LF_OFF * R) { lfRelease(); return; }
@@ -3263,8 +3362,31 @@ export default function mount(engine) {
         else if (gmode === 'landed') exitShip();
         else if (gmode === 'foot' && nearShip()) boardShip();
     }
-    function nearShip() { return hum.obj && hum.obj.group.position.distanceTo(shipRoot.position) < 0.6 * L + 3 * 0.09 * L; }
-    function setPrompt(t) { if (t !== cLandTxt) { cLandTxt = t; elLand.textContent = t; elLand.classList.toggle('is-on', !!t); } }
+    // rev 19: "near the ship" = within BOARD_L ship lengths of the spot on the ground directly under the hull (the old test measured to the hull origin, ~1.1 L above the feet, so it was never true on foot)
+    var BOARD_L = 3.5, nsV = new THREE.Vector3();
+    function nearShip() {
+        if (!hum.obj || !land.node || gmode !== 'foot') return false;
+        var sl = land.sPos.length() || 1;
+        nsV.copy(land.sPos).multiplyScalar((sl - legDrop * L) / sl);
+        return hum.pos.distanceTo(nsV) < BOARD_L * L;
+    }
+    // rev 19: lift the camera out of the ground. Works in world space against the active planet's floor under the camera.
+    var ccFo = { r: 0, n: new THREE.Vector3() }, ccV = new THREE.Vector3();
+    function clampCamToGround(clearL) {
+        if (!ps || !ps.active) return;
+        var n = ps.active, c = n.anchor.position, cp = camera.position;
+        ccV.subVectors(cp, c); var r = ccV.length(); if (r > 1.3 * n.mesh.scale.x || r < 1e-6) return;
+        var fo = null; try { fo = ps.floorAt(cp, ccFo); } catch (e) { fo = null; }
+        if (!fo || !(fo.r > 0)) return;
+        var minR = fo.r + clearL * L;
+        if (r < minR) cp.copy(c).addScaledVector(ccV, minR / r);
+    }
+    var cLandBig = false;
+    function setPrompt(t, big) {        // rev 19: big = the huge centred E · LAND / E · BOARD call to action
+        big = !!big && !!t;
+        if (t !== cLandTxt) { cLandTxt = t; elLand.textContent = t; elLand.classList.toggle('is-on', !!t); }
+        if (big !== cLandBig) { cLandBig = big; elLand.classList.toggle('is-big', big); }
+    }
     // first-person-ish third-person orbit camera helper: camera follows `focus` with its offset smoothed in the focus frame (the world moves under us)
     function groundCam(dt, focus, tp, tq, rate) {
         if (!camRelInit) { camRel.copy(camera.position).sub(focus); camRelInit = true; }
@@ -3326,7 +3448,7 @@ export default function mount(engine) {
         gD.copy(gC).addScaledVector(gA, FOOT_CAM * H);                 // wanted camera position
         vTmp.subVectors(gD, c);
         var cr = vTmp.length(), cfo = null; try { cfo = ps.floorAt(gD, gFo); } catch (e) { cfo = null; }
-        if (cfo && cfo.r > 0 && cr < cfo.r + 0.3 * H) gD.copy(c).addScaledVector(vTmp.divideScalar(cr || 1), cfo.r + 0.3 * H);
+        if (cfo && cfo.r > 0 && cr < cfo.r + 0.12 * L) gD.copy(c).addScaledVector(vTmp.divideScalar(cr || 1), cfo.r + 0.12 * L);      // rev 19: 0.12 L (1.3 human heights): above the patch's tessellation error, else the near plane slices the mesh and a wedge of ground vanishes
         mM.lookAt(gD, gC, gB); gQ.setFromRotationMatrix(mM);
         groundCam(dt, gC, gD, gQ, 16);
         return gC;
@@ -3345,28 +3467,52 @@ export default function mount(engine) {
             var k = clamp(land.t / land.T, 0, 1), e = easeInOut(k);
             P.copy(land.gDir).multiplyScalar(land.r0 + (land.rg - land.r0) * e).applyQuaternion(qM).add(c).addScaledVector(land.off, 1 - e);
             gQ.copy(land.qFrom).slerp(land.qTo, e); shipRoot.quaternion.copy(qM).multiply(gQ);
+            hullY(0.15 * easeInOut(clamp(k / 0.25, 0, 1)) * (1 - easeInOut(clamp((k - 0.25) / 0.75, 0, 1))));       // legs deploy: the hull sinks onto them
             exMe.holder.visible = true; exUpdate(exMe, P, shipRoot.quaternion, L, 0.6 * (1 - e) + 0.2);
             chaseTargets(dt); camera.position.copy(camPos); camera.quaternion.copy(camQuat);
             if (k >= 1) touchdown();
         } else {
             P.copy(land.sPos).applyQuaternion(qM).add(c); shipRoot.quaternion.copy(qM).multiply(land.sQuat);
-            exOff(exMe);
+            if (land.settle > 0) {
+                land.settle = Math.max(0, land.settle - dt);
+                var ss = 1 - land.settle / LAND_SETTLE;
+                hullY(-0.035 * Math.sin(Math.PI * Math.min(1, ss * 1.6)) * (1 - ss));                  // damped dip onto the struts
+                if (land.settle > 0) { exMe.holder.visible = true; exUpdate(exMe, P, shipRoot.quaternion, L, 0.2 * (1 - ss) * (1 - ss)); } else { exOff(exMe); hullY(0); }      // engine winds down
+                land.dustT -= dt;
+                if (land.dustT <= 0 && ss < 0.85) {                                                       // dust puffs rolling out from under the hull
+                    land.dustT = 0.11; gA.copy(land.sPos).applyQuaternion(qM).normalize();
+                    gB.copy(P).addScaledVector(gA, -legDrop * L);
+                    gC.copy(X).applyQuaternion(shipRoot.quaternion).multiplyScalar((Math.random() < 0.5 ? -1 : 1) * (0.5 + 0.9 * ss) * L);
+                    gD.copy(NEG_Z).applyQuaternion(shipRoot.quaternion).multiplyScalar((Math.random() - 0.5) * 1.6 * L);
+                    gB.add(gC).add(gD); fx.impact(gB, 0xc8b89a, 3);
+                }
+            } else exOff(exMe);
             if (gmode === 'foot') focus = footStep(dt, c, qM);
-            else { chaseTargets(dt); groundCam(dt, P, camPos, camQuat, 6); }
+            else {                                                                                       // low 3/4 view from the front-right, near the ground
+                gA.copy(NEG_Z).applyQuaternion(shipRoot.quaternion); gB.copy(X).applyQuaternion(shipRoot.quaternion); gC.copy(Y).applyQuaternion(shipRoot.quaternion);
+                gD.copy(P).addScaledVector(gA, 1.5 * L).addScaledVector(gB, 3.3 * L).addScaledVector(gC, (0.55 - legDrop) * L);
+                gE.copy(P).addScaledVector(gC, -0.1 * L);
+                mM.lookAt(gD, gE, gC); gQ.setFromRotationMatrix(mM);
+                groundCam(dt, P, gD, gQ, 2.6);
+            }
         }
         vel.set(0, 0, 0); speed = 0;
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { gA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake); camera.position.add(gA); }
         fov += (baseFov - fov) * damp(4, dt);
-        var gNear = gmode === 'foot' ? Math.min(baseNear, 0.15 * L) : baseNear;      // a human is ~0.0055 u tall: the 0.05 near plane would clip it
+        var gNear = gmode === 'foot' ? 0.01 * L : 0.02 * L;      // a human is ~0.0055 u tall: the 0.05 near plane would clip it
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== gNear) { camera.fov = fov; camera.near = gNear; camera.updateProjectionMatrix(); }
+        if (gmode !== 'foot') clampCamToGround(0.5);
         camera.updateMatrixWorld(true);
         if (ps) { try { ps.update(dt, gmode === 'foot' ? hum.w : P); } catch (e2) { planetFail(e2); } }
         if (rollCd > 0) rollCd -= dt;
         if (waveMsgT > 0) waveMsgT -= dt;
         fx.setMotion(vel, 0, false); fx.update(dt, camera);
         // prompt
-        setPrompt(gmode === 'landing' ? 'LANDING' : (gmode === 'landed' ? 'E  EXIT SHIP     ·     W  LIFT OFF' : (nearShip() ? 'E  BOARD' : '')));
+        if (gmode === 'landing' || (gmode === 'landed' && land.settle > 0)) setPrompt('LANDING', false);
+        else if (gmode === 'landed') setPrompt('LANDED  ·  E EXIT SHIP  ·  W LIFT OFF', false);
+        else if (nearShip()) setPrompt('E · BOARD', true);
+        else setPrompt('', false);
         if (net) { net.sendPos(); net.update(dt, dockA); ghostFx(); }
         updateHud(0, aliveCount());
         updatePlayerMarks();
@@ -3586,8 +3732,8 @@ export default function mount(engine) {
         var psA = null;
         if (ps) {
             try {
-                ps.update(dt, P); psA = ps.active;
-                if (psA && ps.shake > 0.01) shake = Math.max(shake, ps.shake * 0.5 * L * Math.min(1, vel.length() / BOOST));      // atmospheric entry rumble
+                ps.moonMin = MOON_L * L; ps.update(dt, P); psA = ps.active;
+                if (psA && ps.shake > 0.01) shake = Math.max(shake, ps.shake * 0.075 * L * Math.min(1, vel.length() / BOOST));      // atmospheric entry rumble (rev 19: 15 % of 0.5 L)
             } catch (e) { planetFail(e); psA = null; }
         }
         if (rolling) {          // rev 14: the roll IS the dodge: ROLL_SIDE (4) L sideways over ROLL_T, wing-thruster puff at the opposite wingtip
@@ -3680,10 +3826,20 @@ export default function mount(engine) {
         landCheckT -= dt;
         if (landCheckT <= 0) {
             landCheckT = 0.12; landOk = false;
-            if (ps && psA && !dead && lf.on && lf.cap && lf.alt < PROMPT_L * L && vel.length() < 1) {     // rev 18: below 1.5 L and nearly still
-                try { landOk = !!ps.landable(P).ok; } catch (e) { landOk = false; }
+            var lmsg = '';
+            if (ps && psA && !dead && lf.on && lf.cap && lf.alt < PROMPT_L * L && vel.length() < 2) {     // rev 19: hovering (under 3 L) and nearly still
+                try {
+                    var lr = ps.landable(P); landOk = !!lr.ok;
+                    lmsg = landOk ? 'E · LAND' : (lr.why === 'gas' ? 'NO SURFACE · GAS GIANT' : (lr.why === 'water' ? 'WATER · FIND LAND' : (lr.why === 'slope' ? 'TOO STEEP · MOVE ON' : '')));
+                } catch (e) { landOk = false; }
             }
-            setPrompt(landOk ? 'E  LAND' : '');
+            if (!lmsg && !dead) {       // MOONLET: within 3 R of a body too small to land on
+                for (i = 0; i < bodies.length; i++) {
+                    var mb = bodies[i];
+                    if (mb.R < MOON_L * L && P.distanceToSquared(mb.node.anchor.position) < 9 * mb.R * mb.R) { lmsg = 'MOONLET · TOO SMALL TO LAND'; break; }
+                }
+            }
+            setPrompt(lmsg, landOk);
         }
         // chase camera (rigid) + fov
         chaseTargets(dt);
@@ -3691,11 +3847,13 @@ export default function mount(engine) {
         camera.quaternion.copy(camQuat);
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { vA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake).applyQuaternion(camQuat); camera.position.add(vA); }
+        clampCamToGround(0.5);                     // rev 19: the chase camera never sits inside the terrain (hills rise behind the ship)
         var amv = dt / ENTRY_T;                    // rev 18: fov 42 -> 50 over the entry (ENTRY_T), back down on the way out
         lf.atmK += clamp(((lf.on && lf.cap && !lf.leaving) ? 1 : 0) - lf.atmK, -amv, amv);
         var fovT = baseFov + (boosting ? FOV_BOOST : 0) + FOV_PULSE * pulse + (focusing ? 3 : 0) + fovKick + ATM_FOV * lf.atmK;
         fov += (fovT - fov) * damp(4, dt);
-        if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+        var fNear = (lf.on && lf.cap) ? 0.02 * L : baseNear;     // rev 19: near plane 0.02 L inside the atmosphere (log depth keeps it precise) so ground right under the camera is never clipped
+        if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== fNear) { camera.fov = fov; camera.near = fNear; camera.updateProjectionMatrix(); }
         camera.updateMatrixWorld(true);
 
         // exhaust cones at every thruster, streaks from velocity
@@ -3731,7 +3889,12 @@ export default function mount(engine) {
                         vTmp.copy(muzzles[side]).multiplyScalar(L).applyQuaternion(shipRoot.quaternion).add(P);
                         vD.subVectors(vAim, vTmp).normalize();
                         fx.flash(vTmp, effColor());
-                        fireBolt(vTmp.x, vTmp.y, vTmp.z, vD.x, vD.y, vD.z, P_BOLT_SPEED * L, P_BOLT_RANGE / P_BOLT_SPEED, false, pdmg, L * 2.7, L * 0.15);
+                        // rev 19: bolt velocity = ship velocity + muzzle velocity (never slower than the ship), 20 s life
+                        vBI.copy(vD).multiplyScalar(P_BOLT_SPEED * L).add(vel);
+                        var bsp = Math.max(vBI.length(), vel.length() * 1.02 + 0.25 * P_BOLT_SPEED * L);
+                        vBI.normalize();
+                        fireBolt(vTmp.x, vTmp.y, vTmp.z, vBI.x, vBI.y, vBI.z, bsp, P_BOLT_LIFE, false, pdmg, L * 2.7, L * 0.15);
+                        boltsFired++;
                     }
                     shake = Math.min(shake + 0.03 * L, 0.6 * L);          // rev 9: a touch of kick per volley
                     if (net) { vB.subVectors(vAim, P).normalize(); net.sendFire(0, P.x, P.y, P.z, vB.x, vB.y, vB.z); }   // one announce per volley; victims decide hits
@@ -3764,7 +3927,8 @@ export default function mount(engine) {
         updatePeril(dt);
         if (prof.on) { tA0 = performance.now(); prof.ai += tA0 - tM; }
         // projectiles: move, planets eat bolts, hits
-        var pr = 0.45 * L, nearR = 20 * L;
+        var pr = 0.45 * L, nearR = 20 * L, cullR2 = P_BOLT_CULL * L * P_BOLT_CULL * L;
+        boltFrame++;
         fx.update(wdt, camera);                      // moves every bolt once, animates cones/streaks/sparks
         if (prof.on) { tM = performance.now(); prof.fx += tM - tA0; }
         for (i = 0; i < bolts.length; i++) {
@@ -3787,10 +3951,11 @@ export default function mount(engine) {
                         if (P.length() >= SAFE_R) hurtPlayer(bo.dmg, bo.owner);
                     }
                 } else if (!bo.enemy) {
+                    if (vBp.distanceToSquared(P) > cullR2) { bo.active = false; fx.killBolt(bo.id); continue; }      // rev 19: gone beyond 3000 L
                     for (j = 0; j < enemies.length; j++) {
                         en = enemies[j];
                         if (!en.alive) continue;
-                        var ep = en.g.position, dmg = bo.dmg, crit = false, k;
+                        var ep = en.g.position, dmg = bo.dmg, crit = false, k, limbHit = false;
                         // eye cores are the weak points (x2). Bosses only show them while exposed (the windup / mid-attack); closed, the carapace takes 0.5x.
                         for (k = 0; k < en.eyeN; k++) {
                             var ew = en.eyeW[k], er = en.cr.eyes[k].userData.r * en.sc;
@@ -3798,8 +3963,16 @@ export default function mount(engine) {
                         }
                         if (en.isBoss) { if (crit && en.open) dmg *= 2; else { crit = false; dmg *= 0.5; } }
                         else if (crit) dmg *= 2;
-                        if (crit || segDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, ep.x, ep.y, ep.z) < en.R * en.R) {
-                            dead1 = true;
+                        if (!crit && en.isBoss && en.cr && en.cr.limbs && en.cr.limbs.length) {          // rev 19: boss limbs (capsules) are solid too
+                            if (en.capFrame !== boltFrame) { bossCaps(en); en.capFrame = boltFrame; }
+                            var cw = en.capW;
+                            for (k = 0; k < en.capN; k++) {
+                                var co = k * 7, cr2 = cw[co + 6];
+                                if (segSegDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, cw[co], cw[co + 1], cw[co + 2], cw[co + 3], cw[co + 4], cw[co + 5]) < cr2 * cr2) { limbHit = true; break; }
+                            }
+                        }
+                        if (crit || limbHit || segDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, ep.x, ep.y, ep.z) < en.R * en.R) {
+                            dead1 = true; boltHits++;
                             damageEnemy(en, dmg, crit, bp);
                             break;
                         }
@@ -3995,7 +4168,9 @@ export default function mount(engine) {
             shipRoot.position.copy(lf.lp).applyQuaternion(lf.node.mesh.quaternion).add(lf.node.anchor.position); lf.endP.copy(shipRoot.position);
             shipRoot.quaternion.copy(lf.node.mesh.quaternion).multiply(lf.lq); lf.endQ.copy(shipRoot.quaternion); lf.qEnd.copy(lf.node.mesh.quaternion);
             lf.hover = false; lf.holdAlt = 0; lfAlt(); return true;
-        }, bounce: bounceV, vel: vel, speedNow: function () { return speed; }, inject: function (x, y) { mdx += x; mdy += y; }, setSpeed: function (v) { speed = v; }, setPulseT: function (v) { pulseT = v; }, pulseTNow: function () { return pulseT; }, PULSE_FULL: PULSE_E * PULSE_LN, setThrottle: function (v) { throttle = v; }, syncPlanet: syncPlanet, keys: function () { return keys; }, setKeys: function (k) { keys = k; } },     // rev 18 test hooks
+        }, bounce: bounceV, vel: vel, speedNow: function () { return speed; }, inject: function (x, y) { mdx += x; mdy += y; }, setSpeed: function (v) { speed = v; }, setPulseT: function (v) { pulseT = v; }, pulseTNow: function () { return pulseT; }, PULSE_FULL: PULSE_E * PULSE_LN, setThrottle: function (v) { throttle = v; }, syncPlanet: syncPlanet, keys: function () { return keys; }, setKeys: function (k) { keys = k; },
+            fire: function (on) { firing = !!on; if (on) fireCd = 0; }, enemies: enemies, liveBolts: function () { var out = []; for (var i = 0; i < bolts.length; i++) if (bolts[i].active && !bolts[i].enemy) { var bp = fx.boltPos(bolts[i].id, new THREE.Vector3()); if (bp) out.push({ id: bolts[i].id, p: bp, age: gt - bolts[i].t0 }); } return out; } },     // rev 18/19 test hooks
+        get bossList() { return enemies.filter(function (e) { return e.alive && e.isBoss; }).map(function (e) { return { p: e.g.position.toArray(), len: e.len, dist: e.g.position.distanceTo(shipRoot.position), R: e.R, state: e.ms, reachD: (function () { var r = 1e30; if (e.cr && e.cr.moves) for (var i = 0; i < e.cr.moves.length; i++) r = Math.min(r, e.cr.moves[i].reachL * e.sc); return Math.max(r * 0.9, e.R * 1.08 + 2 * L); })() }; }); }, get hullObjY() { return hullObj ? hullObj.position.y : 0; }, get shakeNow() { return shake; }, get boltStats() { return { fired: boltsFired, hits: boltHits }; }, get deckBounces() { return deckBounces; },
         get maneuver() { return { flipT: flipT, flipCd: flipCd, driftOn: driftOn, driftLeft: driftLeft, driftCd: driftCd, vel: vel.length(), speed: speed, terrInv: terrInv }; },
         flip: function () { return startFlip(); },
         get sigDbg() { return { org: bsig.org.toArray(), dir: bsig.dir.toArray(), ax: bsig.ax.toArray(), P: shipRoot.position.toArray(), beamVis: sigBeam.visible }; },

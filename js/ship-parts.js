@@ -595,7 +595,77 @@ function pad(T, p, r) {
 }
 const padPos = (i, R, h) => { const a = i / 6 * 6.283 + 0.26; return [Math.cos(a) * R * 0.62, h * 1.3, Math.sin(a) * R * 0.62]; };
 
-export const PARTS = { fin, wing, spike, plate, pod, antenna, engine, eye, tentacle, claw, shell, dome, strut, canopy, leg, barrel, block, tank, tower, hull, spine, pad, ring, slot };
+// ---- rev 19 abstract-boss parts. All grow along +Y; chord along Z, thickness along X.
+// shard: elongated obsidian bipyramid sliver (obsidian body, accent-tinted tip, optional thin emissive glint along the spine)
+function shard(T, p, r) {
+  const b = mkB(T, p, r), c = b.c, L = b.lo;
+  const len = p.len ?? 0.2, w = p.w ?? len * 0.22, th = p.th ?? w * 0.35, n = L ? 3 : 4, mid = p.mid ?? 0.36;
+  const tipC = new T.Color(p.tip !== undefined ? p.tip : c.accent);
+  const ring = (y, k) => { const o = []; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + 0.5; o.push(V(T, Math.cos(a) * th * k, y, Math.sin(a) * w * k)); } return o; };
+  const pt = (y) => { const o = []; for (let i = 0; i < n; i++) o.push(V(T, 0, y, 0)); return o; };
+  b.add(loft(T, [pt(0), ring(len * mid, 1), pt(len)], false, false), c.base,
+    { jit: 0.2, cf: (col, x, y) => { const t = y / len; if (t > 0.62) col.lerp(tipC, (t - 0.62) / 0.38 * (p.tipK ?? 0.55)); } });
+  if (p.glint && !L) b.glow(boxC(T, th * 0.5, len * 0.7, 0.003), { m: M4(T, [0, len * 0.45, 0]), col: tipC });
+  b.sock('tip', [0, len, 0], [0, 1, 0]);
+  return b.done();
+}
+// orb: faceted dark sphere (icosahedron) with an emissive pore on +Y
+function orb(T, p, r) {
+  const b = mkB(T, p, r), c = b.c, L = b.lo, R = p.r ?? 0.08;
+  const g = new T.IcosahedronGeometry(R, L ? 0 : 1);
+  b.add(g, c.base, { jit: 0.25, cf: (col, x, y, z) => { const k = hash3(x, y, z); if (k > 0.8) col.lerp(c.panel, 0.7); } });
+  const pc = new T.Color(p.tip !== undefined ? p.tip : c.accent);
+  b.glow(new T.IcosahedronGeometry(R * (p.pore ?? 0.26), 0), { m: M4(T, [0, R * 0.92, 0], null, [1, 0.5, 1]), col: pc });
+  b.sock('top', [0, R, 0], [0, 1, 0]);
+  return b.done();
+}
+// filament: thin curved tapered thread along +Y with an emissive bead at the tip. emi:true makes the whole thread self-lit.
+function filament(T, p, r) {
+  const b = mkB(T, p, r), c = b.c, L = b.lo;
+  const len = p.len ?? 0.4, R = p.r ?? 0.006, n = L ? 3 : 6, seg = L ? 3 : 4, bx = p.bend ?? 0, bz = p.bendZ ?? 0;
+  const rings = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, rr = R * (1 - 0.8 * t), cx = bx * t * t, cz = bz * Math.sin(t * Math.PI), pts = [];
+    for (let k = 0; k < seg; k++) { const a = k / seg * Math.PI * 2; pts.push(V(T, cx + Math.cos(a) * rr, t * len, cz + Math.sin(a) * rr)); }
+    rings.push(pts);
+  }
+  const col = new T.Color(p.tip !== undefined ? p.tip : c.accent);
+  b.add(loft(T, rings, false, false), p.emi ? col : c.dark, { emi: !!p.emi, jit: 0.1 });
+  if (p.bead !== false) b.glow(new T.IcosahedronGeometry(R * 2.2, 0), { m: M4(T, [bx, len, 0]), col });
+  b.sock('tip', [bx, len, 0], [0, 1, 0]);
+  return b.done();
+}
+// tooth: hooked fang, curves toward +Z, accent-tinted point
+function tooth(T, p, r) {
+  const b = mkB(T, p, r), c = b.c, L = b.lo;
+  const len = p.len ?? 0.15, R = p.r ?? 0.025, hook = p.hook ?? 0.3, n = L ? 2 : 4, seg = L ? 3 : 4;
+  const tipC = new T.Color(p.tip !== undefined ? p.tip : c.accent);
+  const rings = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, rr = R * Math.pow(1 - t, 0.8) + 0.0001, cz = hook * len * t * t, pts = [];
+    for (let k = 0; k < seg; k++) { const a = k / seg * Math.PI * 2 + 0.78; pts.push(V(T, Math.cos(a) * rr * 0.8, t * len, cz + Math.sin(a) * rr)); }
+    rings.push(pts);
+  }
+  b.add(loft(T, rings, true, false), c.base, { jit: 0.2, cf: (col, x, y) => { const t = y / len; if (t > 0.55) col.lerp(tipC, (t - 0.55) / 0.45 * 0.7); } });
+  b.sock('tip', [0, len, hook * len], [0, 1, 0]);
+  return b.done();
+}
+// finwing: flat kite blade (thin in X, chord along Z), dark with an emissive edge strip along the leading edge
+function finwing(T, p, r) {
+  const b = mkB(T, p, r), c = b.c, L = b.lo;
+  const len = p.len ?? 0.3, w = p.w ?? 0.12, sw = p.sweep ?? 0.4, th = p.th ?? 0.008;
+  const prof = [[0, 0.45, 0], [0.5, 1, sw * 0.5], [1, 0.0, sw]];
+  const rings = prof.map(([t, k, o]) => { const ch = w * k, y = t * len, tk = th * (1 - 0.6 * t); return [V(T, 0, y, -ch / 2 + o * len * 0.5), V(T, tk, y, o * len * 0.5), V(T, 0, y, ch / 2 + o * len * 0.5), V(T, -tk, y, o * len * 0.5)]; });
+  b.add(loft(T, rings, true, false), c.base, { jit: 0.2 });
+  if (!L) {
+    const edge = p.edge !== undefined ? new T.Color(p.edge) : c.accent;
+    b.glow(boxC(T, th * 1.1, len * 0.95, 0.004), { m: M4(T, [0, len * 0.5, -w * 0.18 + sw * len * 0.12], [0, 0, 0]), col: edge });
+  }
+  b.sock('tip', [0, len, sw * len * 0.5], [0, 1, 0]);
+  return b.done();
+}
+
+export const PARTS = { fin, wing, spike, plate, pod, antenna, engine, eye, tentacle, claw, shell, dome, strut, canopy, leg, barrel, block, tank, tower, hull, spine, pad, ring, slot, shard, orb, filament, tooth, finwing };
 
 // ---------------------------------------------------------------- compose
 function socketMatrix(T, s, extraRoll) {
@@ -676,7 +746,7 @@ export function mergeLit(T, res, k = 2.0) {
 const VERT_FLEX = /* glsl */`
 uniform float uTime; uniform float uPh; uniform float uWave;
 uniform vec3 uAmp; uniform float uSp; uniform float uK; uniform float uBreath; uniform float uHsp; uniform float uPulse;
-uniform vec4 uSwA[8]; uniform vec4 uSwT[8]; uniform vec3 uSwP[8];
+uniform vec4 uSwA[8]; uniform vec4 uSwT[8]; uniform vec3 uSwP[8]; uniform float uGl;
 attribute vec4 aFx; attribute vec3 aPiv; attribute vec2 aLm;
 varying vec3 vC; varying vec3 vV; varying float vGl;
 #include <common>
@@ -685,7 +755,7 @@ void main(){
   vC = color;
   vec3 p = position;
   float md = aFx.z;
-  if (md < 0.5 || md > 4.5) {
+  if (md < 0.5 || abs(md - 5.0) < 0.5) {
     float tail = smoothstep(-0.25, 0.45, p.z) * uWave;
     p.x += sin(p.z * 9.0 - uTime * 3.2 + uPh) * 0.03 * tail;
     p.y += sin(p.z * 7.0 - uTime * 2.4 + uPh) * 0.022 * tail;
@@ -711,11 +781,28 @@ void main(){
     p = aPiv + vec3(q.x * c - q.y * s, q.x * s + q.y * c, q.z);
   } else if (abs(md - 4.0) < 0.5) {
     p.xy *= 1.0 + uPulse * sin(uTime * 1.7);
+  } else if (md > 5.5 && md < 8.5) {
+    // rev 19 abstract bosses. 6 = orbit about Y through aPiv.xz (+ bob), 7 = rotate about Z through aPiv.xy, 8 = scale pulse about aPiv.
+    // aFx = (amp, phase, mode, speed). A rare sudden twitch (pow of a slow sine) is added to the angle: slow, then a snap.
+    float tw = pow(abs(sin(uTime * 0.31 + aFx.y)), 26.0) * 0.5 * sign(aFx.w);
+    if (md < 6.5) {
+      float a = uTime * aFx.w + tw; vec3 q = p - vec3(aPiv.x, 0.0, aPiv.z); float c = cos(a), s = sin(a);
+      p = vec3(aPiv.x, 0.0, aPiv.z) + vec3(q.x * c + q.z * s, q.y + sin(uTime * 0.7 + aFx.y) * aFx.x, -q.x * s + q.z * c);
+    } else if (md < 7.5) {
+      float a = uTime * aFx.w + tw; vec2 q = p.xy - aPiv.xy; float c = cos(a), s = sin(a);
+      p.xy = aPiv.xy + vec2(q.x * c - q.y * s, q.x * s + q.y * c);
+      p.z += sin(uTime * 0.6 + aFx.y) * aFx.x;
+    } else {
+      float k = 1.0 + aFx.x * (sin(uTime * aFx.w + aFx.y) + 0.6 * tw * 4.0);
+      p = aPiv + (p - aPiv) * k;
+    }
   }
+  if (uGl > 0.0) { float gs = floor(uTime * 11.0 + aFx.y); float gh = fract(sin(gs * 12.9898 + uPh * 78.233) * 43758.5453); p.x += uGl * 0.012 * step(0.955, gh) * sin(p.y * 61.0 + gs); }
   vGl = 0.0;
   if (aLm.x > 0.5) {
     int li = int(aLm.x + 0.5) - 1;
     vec4 sa = uSwA[li]; vec4 sw = uSwT[li]; vec3 pv = uSwP[li];
+    if (abs(md - 7.0) < 0.5) p.xy *= 1.0 + aPiv.z * sw.w;       // iris: the ring opens with the telegraph glow
     float ang = sa.w * aLm.y; vec3 q2 = p - pv; float cc = cos(ang), ss = sin(ang);
     p = pv + q2 * cc + cross(sa.xyz, q2) * ss + sa.xyz * dot(sa.xyz, q2) * (1.0 - cc) + sw.xyz * aLm.y;
     vGl = sw.w;
@@ -739,7 +826,7 @@ void main(){
   #include <logdepthbuf_vertex>
 }`;
 const FRAG_LIT = /* glsl */`
-uniform float uTime; uniform float uPh; uniform float uHit; uniform vec3 uRim;
+uniform float uTime; uniform float uPh; uniform float uHit; uniform vec3 uRim; uniform float uGl; uniform vec3 uGlC;
 varying vec3 vC; varying vec3 vV; varying float vGl;
 #include <common>
 #include <logdepthbuf_pars_fragment>
@@ -751,9 +838,14 @@ void main(){
   float rim = pow(1.0 - max(0.0, dot(n, normalize(-vV))), 3.0);
   vec3 col = vC * d + rim * uRim;
   float em = step(1.15, max(vC.r, max(vC.g, vC.b)));
-  col = mix(col, vC * (0.85 + 0.3 * sin(uTime * 5.0 + uPh)), em);
+  float fl = 1.0;
+  if (uGl > 0.0) {   // rev 19: subtle emissive flicker + rare dropout slices
+    float gs = floor(uTime * 14.0), gh = fract(sin(gs * 12.9898 + uPh * 78.233) * 43758.5453);
+    fl = 1.0 - uGl * (0.62 * step(0.93, gh) + 0.1 * sin(uTime * 31.0 + uPh * 5.0 + vC.g * 9.0));
+  }
+  col = mix(col, vC * (0.85 + 0.3 * sin(uTime * 5.0 + uPh)) * fl, em);
   col += uHit * vec3(1.0, 0.65, 0.5);
-  col += vGl * vec3(1.15, 0.4, 0.12) * (0.65 + 0.35 * sin(uTime * 26.0));
+  col += vGl * uGlC * (0.65 + 0.35 * sin(uTime * 26.0));
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -786,7 +878,7 @@ const _mats = new Map();
 // rim light colours (premultiplied): creatures warm orange, hulls cool violet
 export const RIM_WARM = [0.315, 0.105, 0.0525], RIM_COOL = [0.14, 0.084, 0.238];
 function uniformSet(T, flex, rim) {
-  const u = { uTime: { value: 0 }, uPh: { value: 0 }, uHit: { value: 0 }, uRim: { value: new T.Vector3(rim[0], rim[1], rim[2]) } };
+  const u = { uTime: { value: 0 }, uPh: { value: 0 }, uHit: { value: 0 }, uRim: { value: new T.Vector3(rim[0], rim[1], rim[2]) }, uGl: { value: 0 }, uGlC: { value: new T.Vector3(1.15, 0.4, 0.12) } };
   if (flex) {
     u.uWave = { value: 1 }; u.uAmp = { value: new T.Vector3() }; u.uSp = { value: 1 }; u.uK = { value: 0 }; u.uBreath = { value: 0 }; u.uHsp = { value: 1 }; u.uPulse = { value: 0 };
     u.uSwA = { value: [] }; u.uSwT = { value: [] }; u.uSwP = { value: [] };

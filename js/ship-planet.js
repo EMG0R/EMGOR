@@ -40,6 +40,7 @@ var FADE_IN_A = 2.7, FADE_IN_B = 1.95;    // patch alpha 0 -> 1 across these (x 
 var GRID = 128;                           // patch grid cells per side
 var AMP = 0.09;                           // terrain amplitude, fraction of R
 var BIAS = 0.0015;                        // minimum radius above the orbital sphere (no z-fight)
+var GAS_DECK = 0.15;                      // rev 19: a gas giant has no surface: its 'floor' is a cloud deck at 1.15 R (the patch grows to it between 1.75 R and 1.45 R)
 var FLORA_MAX = 700, CREAT_MAX = 40, ROCK_MAX = 400;
 var FLORA_R = 1.3, CREAT_R = 1.2;         // x R
 var NPAD = 3;                             // outposts per planet (max)
@@ -123,13 +124,13 @@ var PATCH_VERT = [
     '    float rim = max(abs(s.x), abs(s.y));',
     '    float taper = 1.0 - smoothstep(0.8, 1.0, rim);',  // relief fades to the sphere at the rim
     '    float h = hfunP(d);',
-    '    h = mix(uBias, h, taper);',
+    '    h = mix(uBias, h, taper) - 0.02 * smoothstep(0.97, 1.0, rim);',   // rev 19: skirt: the outermost ring dips below the orbital sphere so no sliver of space shows between patch and globe
     '    vH = h;',
     '    vec3 ref = abs(d.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
     '    vec3 e1 = normalize(cross(d, ref)); vec3 e2 = cross(d, e1);',
     '    float eps = 0.0012;',
     '    vec3 db = normalize(d + e1 * eps); vec3 dc = normalize(d + e2 * eps);',
-    '    float hb = mix(uBias, hfunP(db), taper); float hc = mix(uBias, hfunP(dc), taper);',
+    '    float hb = mix(uBias, hfunP(db), taper) - 0.02 * smoothstep(0.97, 1.0, rim); float hc = mix(uBias, hfunP(dc), taper) - 0.02 * smoothstep(0.97, 1.0, rim);',
     '    vec3 pa = d * (1.0 + h); vec3 pb = db * (1.0 + hb); vec3 pc = dc * (1.0 + hc);',
     '    vec3 nl = normalize(cross(pb - pa, pc - pa));',
     '    if (dot(nl, d) < 0.0) nl = -nl;',
@@ -699,7 +700,7 @@ export function createPlanetSurface(engine, L) {
         };
         a.patchMat = new THREE.ShaderMaterial({
             uniforms: a.patchU, vertexShader: PATCH_VERT, fragmentShader: PATCH_FRAG,
-            transparent: true, depthWrite: true, toneMapped: false,
+            transparent: true, depthWrite: true, toneMapped: false, side: THREE.DoubleSide,      // rev 19: double-sided (a camera that dips under a ridge sees the ground's underside, not space)
             polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
         });
         a.patch = new THREE.Mesh(pg, a.patchMat);
@@ -1018,8 +1019,8 @@ export function createPlanetSurface(engine, L) {
         alloc.patchMat.uniformsNeedUpdate = true;
         seedV = u.uSeed.value; freq = u.uFreq.value; warp = u.uWarp.value; sea = u.uSeaLevel.value;
         isGas = u.uBiome.value > 0.5;
-        amp = isGas ? 0 : AMP; bias = BIAS;
-        pu.uAmp.value = amp; pu.uBias.value = bias; pu.uDetK.value = R / L;
+        amp = isGas ? 0 : AMP; bias = isGas ? GAS_DECK : BIAS;
+        pu.uAmp.value = amp; pu.uBias.value = isGas ? 0 : bias; pu.uDetK.value = R / L;
         look = lookFromPalette(col3(u.uColLow.value), col3(u.uColHigh.value)); pu.uLook.value = look;
         var A = col3(u.uAtmo.value);
         alloc.domeU.uAtmo.value.setRGB(A[0], A[1], A[2]);
@@ -1359,6 +1360,7 @@ export function createPlanetSurface(engine, L) {
     }
 
     // ─── per-frame ─────────────────────────────────────────────────────────────────
+    ps.moonMin = 0;
     ps.update = function (dt, shipPos) {
         t += dt; SH.uTime.value = t;
         // pick the active body: nearest real body inside 3 R (3.25 R to leave)
@@ -1366,7 +1368,7 @@ export function createPlanetSurface(engine, L) {
         for (var i = 0; i < list.length; i++) {
             var n = list[i];
             if (!n.mesh || !n.anchor || !n.anchor.visible || !n.mesh.material || !n.mesh.material.uniforms || !n.mesh.material.uniforms.uSeed) continue;
-            var Rn = n.mesh.scale.x; if (!(Rn > 0)) continue;
+            var Rn = n.mesh.scale.x; if (!(Rn > 0) || Rn < ps.moonMin) continue;      // moonlets (< 200 L) never get a surface
             var dx = shipPos.x - n.anchor.position.x, dy = shipPos.y - n.anchor.position.y, dz = shipPos.z - n.anchor.position.z;
             var ratio = Math.sqrt(dx * dx + dy * dy + dz * dz) / Rn;
             if (ratio < (n === node ? NEAR_OFF : NEAR_R) && ratio < bd) { bd = ratio; best = n; }
@@ -1377,6 +1379,9 @@ export function createPlanetSurface(engine, L) {
         R = node.mesh.scale.x;
         if (outR && Math.abs(R / outR - 1) > 0.004) { clearOutposts(); seedOutposts(); }   // planet rescaled (pilot blend): re-lay at the new radius
         var ratioD = bd;
+        var deckF = isGas ? GAS_DECK * smoothstep(1.75, 1.45, ratioD) : 0;      // rev 19: effective radius of a gas giant's cloud deck (x R above the globe)
+        a.patchU.uBias.value = isGas ? deckF : BIAS;
+        var ratioE = ratioD / (1 + deckF);
 
         // keep the patch in the planet's (spinning) frame
         a.patchU.uR.value = R; a.beacU.uR.value = R;
@@ -1388,7 +1393,7 @@ export function createPlanetSurface(engine, L) {
         }
 
         toObjDir(shipPos, dirObj);
-        var horizon = Math.acos(Math.min(1, 1 / Math.max(ratioD, 1.0001)));
+        var horizon = Math.acos(Math.min(1, 1 / Math.max(ratioE, 1.0001)));
         var wantHalf = Math.min(1.4, Math.max(0.12, horizon * 1.5 + 0.05));
         if (!patchSet || C.angleTo(dirObj) > halfAng * 0.125 || Math.abs(wantHalf / halfAng - 1) > 0.25) {
             C.copy(dirObj); tangentFrame(C, T1, T2);
@@ -1409,7 +1414,7 @@ export function createPlanetSurface(engine, L) {
         updateStreaks(dt, shipPos);
 
         // atmosphere: depth 0 at 1.4 R -> 1 at the floor
-        var floorR = R * (1 + BIAS);
+        var floorR = R * (1 + (isGas ? GAS_DECK : BIAS));
         var distC = bd * R;
         ps.depth = Math.max(0, Math.min(1, (ATMO_R * R - distC) / (ATMO_R * R - floorR)));
         var A = col3o(node.mesh.material.uniforms.uAtmo.value, _cA), Hh = col3o(node.mesh.material.uniforms.uColHigh.value, _cH);
@@ -1424,7 +1429,7 @@ export function createPlanetSurface(engine, L) {
         SH.uNight.value = 1 - sunTerm;
         a.domeU.uUp.value.copy(tmpV); a.domeU.uSun.value = sunTerm;
         a.domeU.uAlpha.value = Math.pow(ps.depth, 0.8) * 0.95;
-        a.domeU.uHor.value = -Math.sqrt(Math.max(0, 1 - 1 / (ratioD * ratioD)));   // sin(elevation) of the geometric horizon
+        a.domeU.uHor.value = -Math.sqrt(Math.max(0, 1 - 1 / (ratioE * ratioE)));   // sin(elevation) of the geometric horizon
         a.dome.position.copy(camera.position); a.dome.updateMatrixWorld();
         updateScars(dt);
 
@@ -1502,6 +1507,7 @@ export function createPlanetSurface(engine, L) {
         return !isGas && _lastN > sea;
     };
     Object.defineProperty(ps, 'radius', { get: function () { return R; } });
+    Object.defineProperty(ps, 'isGas', { get: function () { return isGas; } });
 
     // landing support: ok = over land, gentle slope (1 - n.up < 0.25), within LAND_ALT ship lengths of the ground
     ps.landable = function (pos) {
@@ -1520,11 +1526,46 @@ export function createPlanetSurface(engine, L) {
             if (ch * R < PAD_L * L) { res.onPad = true; land = true; }
         }
         res.ok = land && res.slope < LAND_SLOPE && alt < LAND_ALT * L;
+        res.why = res.ok ? '' : (isGas ? 'gas' : (!land ? 'water' : (res.slope >= LAND_SLOPE ? 'slope' : 'alt')));      // rev 19: why not (HUD message)
         return res;
     };
 
-    ps.info = function () { return { amp: amp, look: look, rocks: alloc ? alloc.rocks.count : 0, flora: alloc ? alloc.flora.count : 0, grid: gridN, active: node ? node.id : null }; };
+    ps.info = function () { return { amp: amp, look: look, rocks: alloc ? alloc.rocks.count : 0, flora: alloc ? alloc.flora.count : 0, creatures: alloc ? alloc.creat.count : 0, grid: gridN, active: node ? node.id : null }; };
     ps.lookOf = function (n) { var u = n.mesh.material.uniforms; return lookFromPalette(col3(u.uColLow.value), col3(u.uColHigh.value)) === 0 ? 'rocky' : (lookFromPalette(col3(u.uColLow.value), col3(u.uColHigh.value)) === 1 ? 'lush' : 'icy'); };
+
+    // rev 19: id pass for the "never see through the ground" test. Renders ONLY the active planet's ground (patch, flora, creatures, rocks, pads, buildings,
+    // and the orbital sphere itself) as flat white into a small render target and returns its RGBA bytes (R = 1 where terrain / an object on it was drawn,
+    // 0 = sky / space). Additive overlays (beacons, scars, streaks) and the dome are left out. Everything else in the scene is hidden for the pass and restored.
+    ps.idPass = function (renderer, cam, W, H, withSphere) {
+        if (!node || !alloc) return null;
+        var rt = new THREE.WebGLRenderTarget(W, H), saved = [], kids = scene.children, i, restore = [];
+        var idFrag = '#include <common>\n#include <logdepthbuf_pars_fragment>\nvoid main() {\n#include <logdepthbuf_fragment>\n gl_FragColor = vec4(1.0);\n}';
+        var ids = [];
+        for (i = 0; i < kids.length; i++) { saved.push(kids[i].visible); kids[i].visible = (kids[i] === alloc.ride || kids[i] === node.anchor); }
+        alloc.ride.traverse(function (o) {
+            if (!o.isMesh) return;
+            var m = o.material;
+            if (m.blending === THREE.AdditiveBlending || o === alloc.dome) { restore.push([o, 'vis', o.visible]); o.visible = false; return; }
+            var im = new THREE.ShaderMaterial({ uniforms: m.uniforms, vertexShader: m.vertexShader, fragmentShader: idFrag, side: THREE.DoubleSide, depthWrite: true, transparent: false });
+            restore.push([o, 'mat', m]); o.material = im; ids.push(im);
+        });
+        var nm = node.mesh, oldMat = nm.material, kidVis = nm.children.map(function (c) { return c.visible; });
+        nm.children.forEach(function (c) { c.visible = false; });
+        var bm = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }); nm.material = bm; var nmVis = nm.visible; if (!withSphere) nm.visible = false;      // strict mode: the orbital sphere does not count as ground
+        var oldBg = scene.background; scene.background = null;
+        var oldRT = renderer.getRenderTarget(), oldCol = renderer.getClearColor(new THREE.Color()), oldA = renderer.getClearAlpha();
+        renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear();
+        var buf = new Uint8Array(W * H * 4);
+        try { renderer.render(scene, cam); renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf); }
+        finally {
+            renderer.setRenderTarget(oldRT); renderer.setClearColor(oldCol, oldA);
+            scene.background = oldBg; nm.visible = nmVis; nm.material = oldMat; nm.children.forEach(function (c, k) { c.visible = kidVis[k]; });
+            for (i = 0; i < restore.length; i++) { var r = restore[i]; if (r[1] === 'mat') r[0].material = r[2]; else r[0].visible = r[2]; }
+            for (i = 0; i < kids.length; i++) kids[i].visible = saved[i];
+            ids.forEach(function (m) { m.dispose(); }); bm.dispose(); rt.dispose();
+        }
+        return buf;
+    };
 
     ps.dispose = function () {
         deactivate();

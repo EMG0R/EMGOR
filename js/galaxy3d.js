@@ -225,7 +225,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             for (i = 0; i < N; i++) {
                 k = kids[i];
                 var t = N === 1 ? 0.6 : i / (N - 1);
-                k.orbF = ORBIT_MIN + (ORBIT_MAX - ORBIT_MIN) * t;   // even spread, not center-bunched
+                k.orbF = ORBIT_MIN + (ORBIT_MAX - ORBIT_MIN) * t;
+                k.spreadT = t;   // even spread, not center-bunched
                 var rng = mulberry32(hash32(k.id));
                 k.homeA = sysRot + (i / N) * TAU;
                 // RADIAL breathing only — the orbit radius gently pulses
@@ -1306,9 +1307,51 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     function computePositions() {
         var nk = nudgeLastT === null ? 1 : Math.exp(-Math.max(0, time - nudgeLastT) / NUDGE_TAU);
         nudgeLastT = time;
-        for (var i = 0; i < drawOrder.length; i++) {
-            var n = drawOrder[i];
-            var p = n.parentNode;
+        var i, n, p, base;
+        // pilot layout pre-pass: _pF (full-pilot rendered radius, children
+        // capped to 0.3x their inflated parent) top-down, then _ext (radius
+        // of the node's whole system incl. a landing margin) bottom-up.
+        // drawOrder is parent-first. Allocation-free.
+        if (pilot && pilotBlend > 0) {
+            for (i = 0; i < drawOrder.length; i++) {
+                n = drawOrder[i]; p = n.parentNode;
+                base = uniformSizeFor(n, p);
+                n._pF = p === root ? base * PILOT_PLANET_SCALE.root : Math.min(base * PILOT_PLANET_SCALE.deep, 0.3 * p._pF);
+                n._ext = n._pF * 1.5;
+            }
+            for (i = drawOrder.length - 1; i >= 0; i--) {
+                n = drawOrder[i]; p = n.parentNode;
+                if (p === root) continue;
+                var rk = Math.max(n.orbF * p.sysR * (1 + n.vibDepth), p._pF * (PILOT_CLEAR0 + 0.55 * (n.spreadT || 0)), n.kids.length ? 1.65 * p._pF + n._ext : 0) + n._ext;
+                if (rk > p._ext) p._ext = rk;
+            }
+        }
+        // pilot: whole root-level systems (planet + every moon shell) must not
+        // overlap each other, so spread the root ring radially just enough.
+        // Every root orbit scales by the same factor, so pair distances scale
+        // linearly and one max over pairs is exact.
+        var rootS = 1;
+        if (pilot && pilotBlend > 0) {
+            var rk0 = root.kids, ia, ib, ka, kb, ra, rb, dx0, dy0, need;
+            for (ia = 0; ia < rk0.length; ia++) {
+                ka = rk0[ia];
+                ra = ka.orbF * root.sysR * (1 + Math.sin(time * ka.vibF + ka.vibPh) * ka.vibDepth);
+                ka._ux = Math.cos(ka.homeA + time * BASE_ROT) * ra; ka._uy = Math.sin(ka.homeA + time * BASE_ROT) * ra;
+                if (ka._ext < 1.6 * ka._pF) ka._ext = 1.6 * ka._pF;
+            }
+            for (ia = 0; ia < rk0.length; ia++) {
+                ka = rk0[ia];
+                for (ib = ia + 1; ib < rk0.length; ib++) {
+                    kb = rk0[ib]; dx0 = ka._ux - kb._ux; dy0 = ka._uy - kb._uy;
+                    need = (ka._ext + kb._ext) * 1.05 / Math.max(1, Math.sqrt(dx0 * dx0 + dy0 * dy0));
+                    if (need > rootS) rootS = need;
+                }
+            }
+            rootS = 1 + (rootS - 1) * pilotBlend;
+        }
+        for (i = 0; i < drawOrder.length; i++) {
+            n = drawOrder[i];
+            p = n.parentNode;
             // angle advances at a constant rate only — da/dt === BASE_ROT,
             // always the same sign, so the body always sweeps the same way
             // around its orbit. Any "liveliness" comes from the radius
@@ -1317,6 +1360,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             // never breathe one orbit shell into a neighbour's).
             var a = n.homeA + time * BASE_ROT;
             var r = n.orbF * p.sysR * (1 + Math.sin(time * n.vibF + n.vibPh) * n.vibDepth);
+            // pilot layout: planets render inflated, so a child's orbit must
+            // clear its parent's inflated globe (and the child itself is
+            // capped to 0.3x the parent's). drawOrder is parent-first so
+            // p._pF is already fresh. Blended by pilotBlend; angle untouched.
+            var pb = pilot ? pilotBlend : 0;
+            if (pb > 0 && p !== root) {
+                var rp = p._pF * (PILOT_CLEAR0 + 0.55 * (n.spreadT || 0));
+                // a node carrying moons must also carry them clear of its parent's globe
+                if (n.kids.length) rp = Math.max(rp, 1.65 * p._pF + n._ext);
+                if (rp > r) r += (rp - r) * pb;
+            }
+            if (p === root) r *= rootS;
             if (n.nx || n.ny || n.nz) {
                 n.nx *= nk; n.ny *= nk; n.nz *= nk;
                 if (Math.abs(n.nx) + Math.abs(n.ny) + Math.abs(n.nz) < 1e-4) n.nx = n.ny = n.nz = 0;
@@ -1423,7 +1478,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 // ship mode: everything fully present at its on-screen-truth
                 // size, intro reveal ignored (focus/trans stay untouched)
                 a = 1;
-                targetR = uniformSizeFor(n, n.parentNode) * pilotMul(n);
+                targetR = renderedRadius(n);
             } else {
                 a = alphaFor(n, focus);
                 if (trans) a = lerp(alphaFor(n, trans.from), a, easeInOut(clamp(trans.t, 0, 1)));
@@ -2335,11 +2390,14 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // rev 14: planets grow while piloting (PILOT_PLANET_SCALE: x3 root-level, x2 deeper), blended 0..1 by the ship (boarding / exit cinematics).
     // renderedRadius(node, true) = the unscaled radius.
     var PILOT_PLANET_SCALE = { root: 3, deep: 2 }, pilotBlend = 1;
+    var PILOT_CLEAR0 = 1.65;   // pilot orbit clearance (x parent rendered radius) at spread t=0, +0.55 t; keeps a 1.45R landing approach outside the parent's 1.6R sphere
     function pilotScaleOf(n) { return !n.parentNode ? 1 : (n.parentNode === root ? PILOT_PLANET_SCALE.root : PILOT_PLANET_SCALE.deep); }
     function pilotMul(n) { return 1 + (pilotScaleOf(n) - 1) * pilotBlend; }
     function renderedRadius(node, raw) {
         var r = uniformSizeFor(node, node.parentNode || node);
-        return (pilot && !raw) ? r * pilotMul(node) : r;
+        if (!pilot || raw) return r;
+        if (node._pF !== undefined && node.parentNode) return r + (node._pF - r) * pilotBlend;
+        return r * pilotMul(node);
     }
 
     function makeBody(spec) {

@@ -3,6 +3,8 @@
 //   const t = await import('./js/ship-planet-tests.js');
 //   const res = await t.runAll(window.EMGOR_GALAXY.engine, window.EMGOR_SHIP);          // all seven guarantees
 //   await t.runAll(engine, ship, { only: ['g2', 'g4'], minutes: 5, trials: 20 });
+// rev 19 (docs/ship-mode.md "Revision 19 -> A"): g8 every-planet landing sweep, g9 never-see-through (id-pass readback), g10 land/foot/board/lift-off on 3 sites,
+//   g11 entry/exit shake at 15 %, g12 honest blasters, g13 boss formation.  Keys: only: ['g8'] ... ; runAll(.., { only: ['g12'] }).
 //
 // Drives the real game: window.EMGOR_GALAXY.step(dt) frames, key events on window, the ship's debug hooks (ship.dbg / ship.lf).
 // Every guarantee returns { pass, ...numbers }. Safe to run on the dev server; it sets /user claude and /peaceful (no enemies) and enters ship mode.
@@ -49,6 +51,56 @@ function mk(engine, ship, opts) {
             }
             return T.rdir();
         },
+        // rev 19: geometric reachability. A planet can be approached when some point 1.45 R out has every OTHER body farther than 1.6 of its own radii
+        // (otherwise a bigger body wins ps.active / hard-spheres the ship out). Sub-system planets orbit INSIDE their parent's globe in pilot scale: not reachable.
+        reachable: function (node) {
+            var all = T.planets(), c = node.anchor.position, R = node.mesh.scale.x;
+            for (var k = 0; k < 120; k++) {
+                var d = T.rdir(), p = d.clone().multiplyScalar(1.45 * R).add(c), ok = true;
+                for (var i = 0; i < all.length; i++) { var o = all[i]; if (o === node) continue; if (p.distanceTo(o.anchor.position) < 1.6 * o.mesh.scale.x) { ok = false; break; } }
+                if (ok) return true;
+            }
+            return false;
+        },
+        isGas: function (node) { return node.biome === 'gas'; },
+        // open space: a spot at least 12 radii from every planet (for the combat tests); the ship is parked there, still, nose along -Z
+        clearSpace: function () {
+            T.fly(); var all = T.planets(), best = null, bd = -1;
+            for (var k = 0; k < 400; k++) {
+                var p = T.rdir().multiplyScalar(300 + T.rng() * 2500), m = 1e9;
+                for (var i = 0; i < all.length; i++) m = Math.min(m, p.distanceTo(all[i].anchor.position) / all[i].mesh.scale.x);
+                if (m > bd) { bd = m; best = p; } if (m > 12) break;
+            }
+            ship.shipRoot.position.copy(best); ship.shipRoot.quaternion.identity(); ship.dbg.vel.set(0, 0, 0); ship.dbg.setSpeed(0); ship.dbg.setPulseT(0); T.step(8);
+            return bd;
+        },
+        hasLand: function (node) { var ps = ship.ps; for (var i = 0; i < 600; i++) { var d = T.rdir(); if (ps.landLocal(d.x, d.y, d.z)) return true; } return false; },
+        hasSea: function (node) { var ps = ship.ps; for (var i = 0; i < 600; i++) { var d = T.rdir(); if (!ps.landLocal(d.x, d.y, d.z)) return d; } return null; },
+        text: function (sel) { var el = document.querySelector(sel); return el ? el.textContent : ''; },
+        // fraction of sampled screen pixels (rays that hit the planet's base sphere) NOT covered by terrain / ground objects, from the strict id pass (the orbital globe does not count)
+        seeThru: function (N) {
+            var cam = engine.camera, node = ship.ps.active, W = 96, H = 54, b = ship.ps.idPass(engine.renderer, cam, W, H, false);
+            if (!b) return { bad: 0, tot: 0 };
+            cam.updateMatrixWorld(true); cam.updateProjectionMatrix();
+            var c = node.anchor.position, R = node.mesh.scale.x, o = cam.position, bad = 0, tot = 0, tries = 0, v = new THREE.Vector3(), oc = new THREE.Vector3();
+            while (tot < (N || 64) && tries++ < 6000) {
+                var px = Math.floor(T.rng() * W), py = Math.floor(T.rng() * H);
+                v.set((px + 0.5) / W * 2 - 1, (py + 0.5) / H * 2 - 1, 0.5).unproject(cam).sub(o).normalize();
+                oc.copy(o).sub(c); var bq = oc.dot(v), cq = oc.lengthSq() - R * R, disc = bq * bq - cq;
+                if (disc < 0 || (-bq - Math.sqrt(disc)) < 0) continue;
+                tot++; if (b[(py * W + px) * 4] < 128) bad++;
+            }
+            return { bad: bad, tot: tot };
+        },
+        idAscii: function () {      // debug picture of the strict id pass: # covered ground, X UNCOVERED ground (a hole), o covered sky-side, . sky
+            var cam = engine.camera, node = ship.ps.active, W = 96, H = 54, b = ship.ps.idPass(engine.renderer, cam, W, H, false), c = node.anchor.position, R = node.mesh.scale.x, o = cam.position, rows = [], v = new THREE.Vector3(), oc = new THREE.Vector3();
+            for (var py = H - 1; py >= 0; py -= 2) { var r = ''; for (var px = 0; px < W; px += 2) { v.set((px + 0.5) / W * 2 - 1, (py + 0.5) / H * 2 - 1, 0.5).unproject(cam).sub(o).normalize(); oc.copy(o).sub(c); var bq = oc.dot(v), disc = bq * bq - (oc.lengthSq() - R * R), hit = disc >= 0 && (-bq - Math.sqrt(disc)) > 0, id = b[(py * W + px) * 4] > 128; r += hit ? (id ? '#' : 'X') : (id ? 'o' : '.'); } rows.push(r); }
+            return rows.join('|');
+        },
+        camClear: function () {      // camera height above the terrain under it (world units); negative = inside the ground
+            var node = ship.ps.active, cam = engine.camera, fo = ship.ps.floorAt(cam.position, { r: 0, n: new THREE.Vector3() });
+            return cam.position.distanceTo(node.anchor.position) - fo.r;
+        },
         clearKeys: function () { ship.dbg.setKeys(Object.create(null)); },
         aim: function (node) {
             var m = new THREE.Matrix4();
@@ -78,9 +130,31 @@ function mk(engine, ship, opts) {
         rng: (function () { var s = 123456789; return function () { s = (Math.imul(s, 1664525) + 1013904223) | 0; return (s >>> 0) / 4294967296; }; })(),
         rdir: function () { var z = T.rng() * 2 - 1, a = T.rng() * 6.2831853, r = Math.sqrt(1 - z * z); return new THREE.Vector3(r * Math.cos(a), z, r * Math.sin(a)); },
         // a land point (unit local direction) with a gentle slope; returns local direction
+        // back to plain flight from any ground state (foot -> board, landed -> lift off)
+        fly: function () {
+            T.clearKeys();
+            if (ship.gmode === 'foot') {
+                T.kd('KeyE'); T.ku('KeyE'); T.step(3);
+                if (ship.gmode === 'foot') { var h = ship._g.hum, l = ship._g.land; h.pos.copy(l.sPos).normalize().multiplyScalar(h.hr); T.step(3); T.kd('KeyE'); T.ku('KeyE'); T.step(3); }
+            }
+            if (ship.gmode === 'landed') { T.kd('KeyW'); T.ku('KeyW'); T.step(40); }
+            if (ship.gmode === 'landing') { T.step(200); if (ship.gmode === 'landed') { T.kd('KeyW'); T.ku('KeyW'); T.step(40); } }
+        },
+        // rev 19: put the ship inside 1.45 R of `node` with the local frame AND the surface on that body. Sub-system planets sit close to bigger ones, so the
+        // approach direction is searched until `node` has the smallest ratio of any body (ps picks the active body by smallest ratio) and nothing hard-spheres us out.
+        // Returns false when the planet is embedded in a bigger body (every direction is inside a parent's hard sphere): no approach exists.
+        engage: function (node) {
+            T.fly();
+            for (var k = 0; k < 60; k++) {
+                var d = k < 20 ? T.safeWorldDir(node, 1.45) : T.rdir();
+                T.place(node, 1.45, d, 0); T.step(6);
+                if (ship.lf.on && ship.lf.node === node && ship.ps.active === node) return true;
+            }
+            return false;
+        },
         near: function (node) {   // bring the ship inside 3 R so the planet surface (ps) activates on this body
             if (ship.ps.active === node) return;
-            T.place(node, 2.2, T.safeWorldDir(node, 2.2), 0); T.step(6);
+            if (!T.engage(node)) throw new Error('cannot approach ' + node.id + ' (embedded in a larger body)');
         },
         landDir: function (node) {
             var ps = ship.ps; T.near(node);
@@ -100,8 +174,9 @@ function mk(engine, ship, opts) {
         // place the ship hovering at altL ship-lengths above the terrain at local direction d, nose along the horizon (exact: written into the local frame)
         hoverAt: function (node, d, altL) {
             var ps = ship.ps, L = T.L(), lf = ship.lf;
+            if (ship.gmode !== 'fly') T.fly();
             if (!(lf.on && lf.node === node)) { T.place(node, 1.45, d.clone().applyQuaternion(node.mesh.quaternion), 0); T.step(4); }
-            if (!(lf.on && lf.node === node)) throw new Error('local frame did not engage');
+            if (!(lf.on && lf.node === node) && !T.engage(node)) throw new Error('local frame did not engage (' + node.id + ' is embedded in a larger body)');
             var r = ps.floorLocal(d.x, d.y, d.z) + altL * L, ref = Math.abs(d.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
             var right = new THREE.Vector3().crossVectors(d, ref).normalize(), back = new THREE.Vector3().crossVectors(right, d).normalize();      // X right, Y up, Z back (right-handed): the nose (-Z) lies on the horizon
             var lq = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, d, back));
@@ -235,7 +310,7 @@ async function g3(T, o) {
     T.clearKeys(); T.hoverAt(node, d, 1.2); T.step(40);
     res.altAtPrompt_L = +(ship.lf.alt / L).toFixed(2);
     res.landPrompt = document.querySelector('.sh-land').textContent;
-    if (!/E\s+LAND/.test(res.landPrompt)) fail('landPrompt', res.landPrompt);
+    if (!/E\s*·?\s*LAND/.test(res.landPrompt)) fail('landPrompt', res.landPrompt);
     // nose follows the horizon: level run for 12 s at boost, elevation angle stays small and altitude does not run away
     var attempt = 0, hz = null;
     while (attempt++ < 8 && !(hz && hz.valid)) {
@@ -353,7 +428,7 @@ async function g6(T, o) {
         T.hoverAt(node, sea, 1); T.step(30);
         var lres = ps.landable(ship.shipRoot.position); res.seaLandable = lres.ok; res.seaPrompt = document.querySelector('.sh-land').textContent;
         var h1 = ps.heightLocal(sea.x, sea.y, sea.z), h2 = ps.heightLocal(sea.x * 1.001, sea.y, sea.z); res.seaHeight = +h1.toFixed(5);
-        if (lres.ok || /LAND/.test(res.seaPrompt)) res.pass = false;
+        if (lres.ok || /E\s*·\s*LAND/.test(res.seaPrompt) || !/WATER/.test(res.seaPrompt)) res.pass = false;
     } else { res.pass = false; res.noSeaFound = true; }
     return res;
 }
@@ -386,11 +461,254 @@ async function g7(T, o) {
     return res;
 }
 
+// ─── 8. every planet lands or says why ─────────────────────────────────────────────────
+async function g8(T, o) {
+    var ship = T.ship, THREE = T.THREE, all = T.planets(), rows = [], fails = [], embedded = [], gas = 0, terra = 0, moonlets = 0;
+    for (var n = 0; n < all.length; n++) {
+        var node = all[n], id = node.id, isGas = T.isGas(node);
+        if (!T.reachable(node)) { embedded.push(id.split('.').pop()); continue; }
+        await T.pause(); T.fly(); T.clearKeys();
+        if (node.mesh.scale.x < 200 * T.L()) {      // MOONLET: < 200 L rendered radius: hard sphere only, no atmosphere, no landing
+            moonlets++; row = { id: id.split('.').pop(), biome: node.biome, R: +node.mesh.scale.x.toFixed(2), status: 'moonlet' };
+            T.place(node, 1.6, T.safeWorldDir(node, 1.6), 0); T.step(6);
+            if (ship.ps.active === node) { row.status = 'moonlet-has-ps'; fails.push({ id: id, row: row }); }
+            T.fly(); rows.push(row); continue;
+        }
+        if (!T.engage(node)) { fails.push({ id: id, why: 'engage failed on a reachable planet' }); continue; }
+        var row = { id: id.split('.').pop(), biome: node.biome, R: +node.mesh.scale.x.toFixed(1) };
+        if (isGas) {
+            gas++;
+            var hp0 = ship.stats.hp, b0 = ship.deckBounces, minRatio = 9, d = T.rdir();
+            T.place(node, 1.3, d, 0); T.step(4);
+            T.kd('KeyW'); T.kd('ShiftLeft');
+            for (var i = 0; i < 1400 && ship.deckBounces === b0; i++) { T.step(1, 0.05); minRatio = Math.min(minRatio, T.ratio(node)); }
+            T.step(6, 0.05); T.ku('KeyW'); T.ku('ShiftLeft');
+            row.deckBounces = ship.deckBounces - b0; row.minRatio = +minRatio.toFixed(4); row.message = T.text('.sh-wave'); row.hpLoss = hp0 - ship.stats.hp;
+            if (!(row.deckBounces > 0) || !/NO SURFACE/.test(row.message) || row.minRatio < 1.1499 || row.hpLoss !== 0) fails.push({ id: id, row: row });
+        } else {
+            terra++;
+            var land = T.hasLand(node), sea = T.hasSea(node);
+            if (land) {
+                // landDir's flatness probe is in unit-sphere epsilon (not ship lengths): a rare pick still reads TOO STEEP, so try up to 8 spots
+                var dd = null;
+                for (var tries = 0; tries < 8; tries++) { dd = T.landDir(node); if (!dd) break; T.hoverAt(node, dd, 2); T.step(40); if (/LAND/.test(T.text('.sh-land'))) break; }
+                row.prompt = T.text('.sh-land'); row.tries = tries + 1; row.big = document.querySelector('.sh-land').classList.contains('is-big');
+                T.kd('KeyE'); T.ku('KeyE');
+                for (var j = 0; j < 700 && ship.gmode !== 'landed'; j++) T.step(1);
+                row.landed = ship.gmode === 'landed'; row.landedText = T.text('.sh-land');
+                if (!/E\s*·\s*LAND/.test(row.prompt) || !row.big || !row.landed) fails.push({ id: id, row: row });
+            }
+            if (sea) {
+                T.fly(); T.hoverAt(node, sea, 1.2); T.step(40);
+                row.seaPrompt = T.text('.sh-land');
+                if (!/WATER/.test(row.seaPrompt)) fails.push({ id: id, seaPrompt: row.seaPrompt });
+            }
+            if (!land && !sea) fails.push({ id: id, why: 'neither land nor sea found' });
+        }
+        T.fly(); rows.push(row);
+    }
+    return { pass: fails.length === 0 && rows.length > 0, planets: all.length, reachable: rows.length, gas: gas, terra: terra, moonlets: moonlets, failures: fails, embeddedInParent: embedded.length, embeddedNote: 'sub-system planets orbit inside their parent globe in pilot scale (galaxy3d layout): no approach exists', rows: rows };
+}
+
+// ─── 9. never see through the ground ───────────────────────────────────────────────────
+async function g9(T, o) {
+    var ship = T.ship, THREE = T.THREE, L = T.L(), engine0 = T.engine, poses = o.poses || 200, nodes = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n); });
+    if (!nodes.length) return { pass: false, why: 'no reachable terra planet' };
+    // the "jellyfish planet" = the one with the most creatures near the ground
+    var best = nodes[0], bestC = -1;
+    nodes.forEach(function (n) { try { T.fly(); T.near(n); var dd = T.landDir(n); if (dd) { T.hoverAt(n, dd, 2); T.step(10); var c = ship.ps.info().creatures; if (c > bestC) { bestC = c; best = n; } } } catch (e) { /* skip */ } });
+    var by = { hover: { poses: 0, bad: 0, px: 0 }, landed: { poses: 0, bad: 0, px: 0 }, foot: { poses: 0, bad: 0, px: 0 } }, camUnder = 0, minCam = 1e9, worst = [], p = 0;
+    function check(mode, label) {
+        var r = T.seeThru(64), cc = T.camClear() / L; minCam = Math.min(minCam, cc);
+        by[mode].poses++; by[mode].px += r.tot; by[mode].bad += r.bad; if (cc < -1e-6) camUnder++;
+        if (r.bad && worst.length < 6) worst.push({ mode: mode, bad: r.bad, tot: r.tot, camClear_L: +cc.toFixed(3), label: label, picture: worst.length < 2 ? T.idAscii() : undefined, near_L: +(engine0.camera.near / L).toFixed(4), info: ship.ps.info() });
+        p++;
+    }
+    var nHover = Math.round(poses * 0.7), nSite = Math.round((poses - nHover) / 2);
+    for (var i = 0; i < nHover; i++) {
+        if (i % 10 === 0) await T.pause();
+        var node = i % 3 === 0 ? best : nodes[i % nodes.length];
+        var d = T.rdir(); T.hoverAt(node, d, 0.9 + T.rng() * 2.1);
+        var lq = ship.lf.lq.clone(), ax = d.clone().applyQuaternion(lq.clone().invert());      // local up in ship axes
+        lq.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (T.rng() - 0.5) * 6.28)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), (T.rng() - 0.6) * 0.7));
+        var lp = ship.lf.lp; ship.dbg.setLocal(lp.x, lp.y, lp.z, lq.x, lq.y, lq.z, lq.w);
+        T.step(5); check('hover', node.id.split('.').pop() + ' alt ' + (ship.lf.alt / L).toFixed(1));
+    }
+    for (var sI = 0; sI < nSite; sI++) {
+        await T.pause();
+        var nd = sI % 2 ? best : nodes[sI % nodes.length];
+        T.fly(); T.near(nd); var dl = T.landDir(nd); if (!dl) continue;
+        T.hoverAt(nd, dl, 2.5); T.step(30);
+        if (!ship.land()) continue;
+        for (var q = 0; q < 700 && ship.gmode !== 'landed'; q++) T.step(1);
+        T.step(120); if (ship.gmode !== 'landed') continue;
+        check('landed', 'landed on ' + nd.id.split('.').pop());
+        T.kd('KeyE'); T.ku('KeyE'); T.step(6);
+        if (ship.gmode !== 'foot') continue;
+        for (var w = 0; w < 3; w++) {
+            T.kd('KeyW'); for (var f = 0; f < 40; f++) { if (f % 10 === 0) ship.dbg.inject(10 + T.rng() * 60, (T.rng() - 0.5) * 20); T.step(1); } T.ku('KeyW'); T.step(8);
+            check('foot', 'foot on ' + nd.id.split('.').pop());
+        }
+    }
+    T.fly();
+    var tot = by.hover.bad + by.landed.bad + by.foot.bad;
+    return { pass: tot === 0 && camUnder === 0 && p >= poses * 0.8, poses: p, pixelsSampled: by.hover.px + by.landed.px + by.foot.px, badPixels: tot, cameraUnderGround: camUnder, minCameraClearance_L: +minCam.toFixed(3), byMode: by, jellyfishPlanet: best.id, creaturesThere: bestC, worst: worst };
+}
+
+// ─── 10. land -> exit -> walk 20 L -> back -> board -> lift off, on 3 sites ────────────────
+async function g10(T, o) {
+    var ship = T.ship, THREE = T.THREE, L = T.L(), nodes = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n); }), sites = [], rows = [], fails = [];
+    for (var s = 0; s < 3; s++) sites.push(nodes[s % nodes.length]);
+    for (var si = 0; si < sites.length; si++) {
+        var node = sites[si], row = { planet: node.id.split('.').pop() }, big = function () { return document.querySelector('.sh-land').classList.contains('is-big'); };
+        await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) { fails.push({ site: si, why: 'no land dir' }); continue; }
+        T.hoverAt(node, d, 2); T.step(40);
+        row.hoverPrompt = T.text('.sh-land'); row.hoverBig = big();
+        T.kd('KeyE'); T.ku('KeyE'); T.step(3); row.afterE = ship.gmode;
+        var t0 = 0; for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) { T.step(1); t0++; }
+        row.landed = ship.gmode === 'landed';
+        // 1.2 s settle: hull dips, then rests; the HUD line appears when it is done
+        var settleSeen = false, dipMin = 0; for (i = 0; i < 120; i++) { T.step(1, 0.016); var hy = ship.hullObjY; if (hy < dipMin) dipMin = hy; if (/LANDING/.test(T.text('.sh-land'))) settleSeen = true; }
+        T.step(60);
+        row.landedHud = T.text('.sh-land'); row.settleSeen = settleSeen; row.hullDip_L = +dipMin.toFixed(3);
+        T.kd('KeyE'); T.ku('KeyE'); T.step(5); row.foot = ship.gmode === 'foot';
+        var hum = ship._g.hum, land = ship._g.land, start = hum.pos.clone(), dist = 0, k;
+        for (k = 0; k < 1200 && dist < 20 * L; k++) { if (k % 40 === 0) ship.dbg.inject((T.rng() - 0.5) * 30, 0); T.kd('KeyW'); T.kd('ShiftLeft'); T.step(1, 0.05); dist = hum.pos.distanceTo(start); }
+        T.ku('KeyW'); T.ku('ShiftLeft'); T.step(5);
+        row.walked_L = +(hum.pos.distanceTo(start) / L).toFixed(1);
+        var farPrompt = T.text('.sh-land'); row.farPrompt = farPrompt;
+        // turn back toward the ship and run until the BOARD prompt shows
+        var boardSeen = false, bigBoard = false;
+        for (k = 0; k < 1500 && !boardSeen; k++) {
+            var sl = land.sPos.length(), tgt = land.sPos.clone().multiplyScalar((sl - 0.3 * L) / sl), up = hum.pos.clone().normalize(), dir = tgt.sub(hum.pos);
+            dir.addScaledVector(up, -dir.dot(up)); if (dir.lengthSq() > 1e-12) hum.hf.copy(dir.normalize());
+            T.kd('KeyW'); T.kd('ShiftLeft'); T.step(1, 0.05);
+            if (/BOARD/.test(T.text('.sh-land')) && T.text('.sh-land') !== '') { boardSeen = true; bigBoard = big(); }
+        }
+        T.ku('KeyW'); T.ku('ShiftLeft'); T.step(5);
+        row.boardPrompt = T.text('.sh-land'); row.boardBig = bigBoard;
+        T.kd('KeyE'); T.ku('KeyE'); T.step(5); row.reboarded = ship.gmode === 'landed';
+        T.kd('KeyW'); T.ku('KeyW'); T.step(40); row.flying = ship.gmode === 'fly';
+        var ok = /E\s*·\s*LAND/.test(row.hoverPrompt) && row.hoverBig && row.landed && settleSeen && /LANDED/.test(row.landedHud) && /EXIT SHIP/.test(row.landedHud) && /LIFT OFF/.test(row.landedHud) &&
+            row.foot && row.walked_L >= 19.5 && /E\s*·\s*BOARD/.test(row.boardPrompt) && row.boardBig && row.reboarded && row.flying;
+        if (!ok) fails.push({ site: si, row: row });
+        rows.push(row); T.fly();
+    }
+    return { pass: fails.length === 0 && rows.length === 3, sites: rows.length, failures: fails, rows: rows };
+}
+
+// ─── 11. entry / exit shake at 15 % ─────────────────────────────────────────────────────
+async function g11(T, o) {
+    var ship = T.ship, L = T.L(), node = T.pick(), THREE = T.THREE, res = { pass: true }, old = { entry: 0.5 * L, leaving: 1.1 * L };
+    // entry: 6 pulse / boost approaches from 4 R, max camera-shake amplitude while the ENTRY burn / rim pass runs
+    var maxEntry = 0, hp0 = ship.stats.hp;
+    for (var t = 0; t < 6; t++) {
+        await T.pause(); T.fly(); T.clearKeys(); ship.dbg.setPulseT(0);
+        var spd = t % 2 ? 1500 : 600, d = T.safeWorldDir(node, 4); T.place(node, 4, d, spd);
+        ship.dbg.setPulseT(ship.dbg.PULSE_FULL); T.kd('Space'); T.kd('KeyW');
+        var cross = -1;
+        for (var i = 0; i < 520; i++) { T.step(1); if (cross < 0 && ship.lf.cap) cross = i; if (cross >= 0) maxEntry = Math.max(maxEntry, ship.shakeNow); if (cross >= 0 && i > cross + 160) break; }
+        T.ku('Space'); T.ku('KeyW');
+    }
+    res.entryMax_L = +(maxEntry / L).toFixed(4); res.entryOld_L = +(old.entry / L).toFixed(3); res.entryRatioToOld = +(maxEntry / old.entry).toFixed(3);
+    if (maxEntry > 0.15 * old.entry * 1.0005) { res.pass = false; res.entryTooStrong = true; }
+    // leaving: climb out at boost, shake while LEAVING ATMOSPHERE shows
+    T.fly(); T.clearKeys(); var d0 = T.landDir(node); T.hoverAt(node, d0, 400); T.step(30);
+    var up0 = ship.shipRoot.position.clone().sub(node.anchor.position).normalize(), rg = new THREE.Vector3(1, 0, 0).applyQuaternion(ship.shipRoot.quaternion); rg.addScaledVector(up0, -rg.dot(up0)).normalize();
+    ship.shipRoot.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(rg, new THREE.Vector3().crossVectors(up0.clone().negate(), rg), up0.clone().negate()));
+    T.kd('KeyW'); T.kd('ShiftLeft'); var maxLeave = 0, seen = false;
+    for (i = 0; i < 6000; i++) { T.step(1, 0.05); if (/LEAVING ATMOSPHERE/.test(T.text('.sh-wave'))) { seen = true; maxLeave = Math.max(maxLeave, ship.shakeNow); } if (!ship.lf.on) break; }
+    T.ku('KeyW'); T.ku('ShiftLeft');
+    res.leavingSeen = seen; res.leavingMax_L = +(maxLeave / L).toFixed(4); res.leavingOld_L = +(old.leaving / L).toFixed(3); res.leavingRatioToOld = +(maxLeave / old.leaving).toFixed(3);
+    if (!seen || maxLeave > 0.15 * old.leaving * 1.0005) { res.pass = false; res.leavingTooStrong = true; }
+    res.hpLoss = hp0 - ship.stats.hp;
+    return res;
+}
+
+// ─── 12. honest blasters ─────────────────────────────────────────────────────────────────
+async function g12(T, o) {
+    var ship = T.ship, L = T.L(), THREE = T.THREE, res = { pass: true }, G = T.G;
+    T.fly(); T.clearKeys(); ship.god = true; ship.cmd('/peaceful'); res.clearance_R = +T.clearSpace().toFixed(1);
+    // (a) at pulse 1500 u/s the bolts lead the ship
+    var f = new THREE.Vector3(0, 0, -1).applyQuaternion(ship.shipRoot.quaternion);
+    ship.dbg.vel.copy(f).multiplyScalar(1500); ship.dbg.setSpeed(1500); ship.dbg.setPulseT(ship.dbg.PULSE_FULL); T.kd('Space'); T.kd('KeyW');
+    T.step(10); ship.dbg.fire(true); T.step(20); ship.dbg.fire(false);
+    var b0 = ship.dbg.liveBolts(), P0 = ship.shipRoot.position.clone(), pos0 = {}; b0.forEach(function (b) { pos0[b.id] = b.p.clone(); });
+    T.step(1, 0.05);
+    var b1 = ship.dbg.liveBolts(), minBolt = 1e9, minRel = 1e9, shipSpd = ship.dbg.vel.length(), n = 0;
+    var fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(ship.shipRoot.quaternion);
+    b1.forEach(function (b) { if (!pos0[b.id]) return; var v = b.p.clone().sub(pos0[b.id]).multiplyScalar(1 / 0.05), sp = v.length(); n++; minBolt = Math.min(minBolt, sp); minRel = Math.min(minRel, v.dot(fwd) - ship.dbg.vel.dot(fwd)); });
+    var ahead = 0; T.step(30); ship.dbg.liveBolts().forEach(function (b) { ahead = Math.max(ahead, b.p.clone().sub(ship.shipRoot.position).dot(fwd)); });
+    T.ku('Space'); T.ku('KeyW');
+    res.speed = { ship_us: +shipSpd.toFixed(1), slowestBolt_us: +minBolt.toFixed(1), boltsMeasured: n, slowestRelativeToShip_us: +minRel.toFixed(2), maxAheadAfter1s_u: +ahead.toFixed(1) };
+    if (!(n >= 4 && minBolt > shipSpd && ahead > 0)) { res.pass = false; res.speedFail = true; }
+    ship.dbg.vel.set(0, 0, 0); ship.dbg.setSpeed(0); ship.dbg.setPulseT(0); ship.dbg.liveBolts().forEach(function () {});
+    // (b) 100 bolts at a parked wave-8 boss from 50 L
+    ship.cmd('/hostile'); ship.cmd('/wave 8'); T.step(60);
+    var E = ship.dbg.enemies, boss = null;
+    for (var i = 0; i < 400 && !boss; i++) { T.step(1, 0.05); for (var k = 0; k < E.length; k++) if (E[k].alive && E[k].isBoss && (!boss || E[k].len > boss.len)) boss = E[k]; }
+    if (!boss) { res.pass = false; res.noBoss = true; return res; }
+    var limbs = boss.cr.limbs ? boss.cr.limbs.length : 0, hp0 = boss.hp;
+    var fired0 = ship.boltStats.fired, hits0 = ship.boltStats.hits;
+    for (i = 0; i < 400; i++) {
+        boss.hp = boss.maxHp;                                                    // keep it alive for the count
+        var u = new THREE.Vector3(Math.sin(i * 0.37), 0.2, Math.cos(i * 0.37)).normalize();
+        ship.shipRoot.position.copy(boss.g.position).addScaledVector(u, boss.R + 50 * L);
+        var m = new THREE.Matrix4().lookAt(ship.shipRoot.position, boss.g.position, new THREE.Vector3(0, 1, 0)); ship.shipRoot.quaternion.setFromRotationMatrix(m);
+        ship.dbg.vel.set(0, 0, 0); ship.dbg.setSpeed(0);
+        ship.dbg.fire(true); T.step(1, 0.016);
+        if (ship.boltStats.fired - fired0 >= 100) break;
+    }
+    ship.dbg.fire(false); T.step(240, 0.05);           // let the last bolts land
+    var fired = ship.boltStats.fired - fired0, hits = ship.boltStats.hits - hits0;
+    res.hitTest = { bossLen_L: +(boss.len / L).toFixed(0), bossHitR_L: +(boss.R / L).toFixed(0), limbCapsules: limbs, firedTotal: fired, registered: hits, parkedAt_L: 50 };
+    if (!(fired >= 100 && hits >= 90 * Math.min(1, fired / 100))) { res.pass = false; res.hitFail = true; }
+    ship.cmd('/peaceful'); ship.god = false;
+    return res;
+}
+
+// ─── 13. boss formation ──────────────────────────────────────────────────────────────────
+async function g13(T, o) {
+    var ship = T.ship, L = T.L(), THREE = T.THREE, res = { pass: true };
+    T.fly(); T.clearKeys(); ship.god = true; res.clearance_R = +T.clearSpace().toFixed(1); var home = ship.shipRoot.position.clone();
+    ship.cmd('/hostile'); ship.cmd('/wave 20');
+    var E = ship.dbg.enemies, bosses = [];
+    for (var i = 0; i < 700; i++) { T.step(1, 0.05); ship.dbg.vel.set(0, 0, 0); ship.shipRoot.position.copy(home); bosses = E.filter(function (e) { return e.alive && e.isBoss; }); if (bosses.length >= 3) break; }
+    res.bosses = bosses.length;
+    if (bosses.length < 3) { res.pass = false; res.tooFewBosses = true; return res; }
+    function reachMin(b) { var r = 1e30; if (b.cr && b.cr.moves) for (var i = 0; i < b.cr.moves.length; i++) r = Math.min(r, b.cr.moves[i].reachL * b.sc); return r; }
+    var P = ship.shipRoot.position, n = bosses.length, maxLen = Math.max.apply(null, bosses.map(function (b) { return b.len; })), need = 1.5 * maxLen;
+    var prev = bosses.map(function (b) { return b.g.position.distanceTo(P); }), startD = prev.slice(), minSep = 1e9, nonDec = 0, reached = 0, samples = 0;
+    for (var s = 0; s < 1200; s++) {                      // 60 s of simulated time
+        T.step(1, 0.05); ship.dbg.vel.set(0, 0, 0); ship.dbg.setSpeed(0); ship.shipRoot.position.copy(home);
+        for (var a = 0; a < n; a++) for (var b = a + 1; b < n; b++) minSep = Math.min(minSep, bosses[a].g.position.distanceTo(bosses[b].g.position));
+        if (s % 20 === 19) {                              // once a second: the distance to the player has to be shrinking until the boss reaches melee
+            samples++;
+            for (a = 0; a < n; a++) {
+                var dnow = bosses[a].g.position.distanceTo(P);
+                if (!bosses[a].alive) continue;
+                var bb = bosses[a], stopD = Math.max(reachMin(bb) * 0.9, bb.R * 1.08 + 2 * L);
+                if (dnow >= prev[a] - 1e-9 && dnow > stopD * 1.001 + 0.05) nonDec++;
+                prev[a] = dnow;
+            }
+        }
+    }
+    var end = bosses.map(function (b) { return b.g.position.distanceTo(P); });
+    res.formation = { maxLen_u: +maxLen.toFixed(1), maxLen_L: +(maxLen / L).toFixed(0), required_u: +need.toFixed(1), minPairwise_u: +minSep.toFixed(1), ratio: +(minSep / maxLen).toFixed(3), startDist_u: startD.map(function (v) { return +v.toFixed(1); }), endDist_u: end.map(function (v) { return +v.toFixed(2); }), closed_u: startD.map(function (v, i) { return +(v - end[i]).toFixed(2); }), expectedClose_u: 18, nonDecreasingSamples: nonDec, seconds: 60 };
+    if (minSep < need - 1e-6) { res.pass = false; res.tooClose = true; }
+    if (nonDec > 0) { res.pass = false; res.notClosing = true; }
+    res.formation.meleeReach_u = bosses.map(function (b) { return +Math.max(reachMin(b) * 0.9, b.R * 1.08 + 2 * L).toFixed(1); });
+    if (!startD.every(function (v, i) { return end[i] < v - 5 || end[i] <= res.formation.meleeReach_u[i] * 1.01; })) { res.pass = false; res.slow = true; }
+    ship.cmd('/peaceful'); ship.god = false;
+    return res;
+}
+
 export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
-    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7]];
+    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13]];
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         try { out[list[i][0]] = await list[i][1](T, opts); }
@@ -401,5 +719,5 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7 };
+export var tests = { g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13 };
 export { mk as makeHarness };

@@ -662,3 +662,51 @@ interesting, GUARANTEED stable surfaces. These are the guarantees, each with a t
 7. **Transition polish**: camera FOV eases from space (42) to atmosphere (50) over the
    entry; fog/sky ramp as before; the orbital globe's atmo halo fades as you enter so
    the horizon is the terrain, not the halo.
+
+## Revision 19 (2026-10-02) — landing you can feel, solid ground, scary bosses, honest blasters
+
+Emory's play report: landing failed on the orange planet; ground was see-through on a
+jellyfish planet; never found the way out of the ship; wave 20 spawned 3 bosses on top
+of each other that didn't approach; bolts slower than the ship and not hitting bosses;
+bosses should be abstract and scary; entry/exit vibration far too strong.
+
+### A. Planet + flight (ship.js, ship-planet.js, ship-planet-tests.js)
+1. **Every planet lands or says why.** Terra planets: landable everywhere on land.
+   Gas giants: no surface; descending below 1.15 R hits a cloud deck (soft bounce,
+   HUD "NO SURFACE · GAS GIANT"). Sea: HUD "WATER · FIND LAND". *Test:* for every
+   node in drawOrder: approach, descend, land or get the right message; 0 failures.
+2. **Never see through the ground.** Causes to kill: camera near plane vs ground
+   (near = 0.02 L in atmosphere/foot), patch rim taper (patch must extend past the
+   horizon at every altitude; no taper to 0), back-face/holes in the patch (double-
+   sided + a solid "skirt" ring below the rim), creatures/flora rendering over terrain
+   with depthTest off (fix), dome/fog drawn in front of terrain (depth order). *Test:*
+   from 200 random ground poses, sample 64 screen pixels in the lower half; the
+   fragment must be terrain or an object on it, never sky/space (readback via a tiny
+   render target with an id pass, or depth > horizon check).
+3. **Getting out is obvious.** While hovering under 3 L with speed < 2, a big centered
+   prompt "E · LAND". Press E: legs deploy, 1.2 s settle, dust, engine wind-down,
+   camera drops to a low 3/4 view, HUD "LANDED · E EXIT SHIP · W LIFT OFF". E → on
+   foot with "E BOARD" when near the ship. *Test:* scripted: hover → E → landed → E →
+   foot → walk 20 L → back → E → landed → W → flying, on 3 planets.
+4. **Entry/exit shake at 15 %** of current amplitude; same for LEAVING ATMOSPHERE.
+5. **Blasters**: bolt velocity = ship velocity + muzzle speed (never slower than the
+   ship), infinite range (life 20 s, culled beyond 3000 L), swept hit test each frame
+   against every enemy/boss body sphere + boss limb capsules + eyes (eye = ×2).
+   *Test:* at pulse 1500 u/s, bolts lead the ship; parked 50 L from a wave-8 boss,
+   100 bolts → ≥ 90 register.
+6. **Bosses in formation, slowly closing**: multiple bosses spawn on an arc 120–180 L
+   out, spaced ≥ 1.5 boss lengths, hold formation (lead + wings), and close toward
+   the player at 0.3 u/s until inside melee reach, then hold. Never overlap: pairwise
+   separation enforced.
+
+### B. Abstract, scary bosses (ship-enemies.js, ship-parts.js)
+New body plans replace the animal ones as the default pool (old plans stay as rare
+rolls, 1 in 6): **wraith** (a drifting cloud of 40–80 obsidian shards around a single
+slit eye; shards snap into a blade for strikes), **monolith** (a black obelisk with
+3 slowly counter-rotating rings and a vertical eye; strikes are ring slams),
+**maw** (a ring of teeth around a void, tendrils trailing; lunge = the ring opens),
+**hive** (a cluster of pulsing dark orbs linked by filaments; sweeps are filament
+whips), **seraph** (a vertical stack of 6 rotating fin-wings around a core eye, no
+body). Palette: near-black bodies, one saturated emissive accent (violet/ember/acid),
+subtle flicker/glitch on the emissive, slow idle motion with sudden snaps on telegraph.
+Same limb/capsule/move contract. Names unchanged (they're loved).
