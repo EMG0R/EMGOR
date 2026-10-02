@@ -15,7 +15,7 @@
 //   <id>/current     -> JSON {version, savedAt, html}
 // =============================================================================
 
-const { getStore } = require('@netlify/blobs');
+const { getStore, connectLambda } = require('@netlify/blobs');
 
 const IDS = ['digital-luthier', 'neptr-performance-system', 'neuralgrid', 'demiurgeos',
     'thesis', 'nam-csound', 'bouba', 'omniplex', 'open-pedal'];
@@ -114,6 +114,7 @@ exports.IDS = IDS;
 
 exports.handler = async function (event) {
     try {
+        connectLambda(event);
         const store = getStore('papers');
 
         if (event.httpMethod === 'GET') {
