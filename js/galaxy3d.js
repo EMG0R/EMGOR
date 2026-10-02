@@ -1653,6 +1653,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var warpEl = null;
     function launchTo(node) {
         if (!node.launch) return;
+        if (node.launch.charAt(0) === '#') { go(node.launch.slice(1)); return; }   // duplicate planet: jump to another node
         if (warpEl) warpEl.classList.add('is-on');
         setTimeout(function () { window.location.href = node.launch; },
             reducedMotion || !warpEl ? 0 : 320);

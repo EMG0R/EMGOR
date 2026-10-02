@@ -1,17 +1,12 @@
 ---
 id: emgor.papers.neptr-performance-system.neuralgrid
-title: neuralGrid
+title: NeuralGrid
 blurb: A monome-style grid that rewrites its own interface on the downbeat
 parent: emgor.papers.neptr-performance-system
 source: ______2026NEW/neuralGrid/
-downloads:
-  - files/neuralgrid-protocol.md
-  - files/neuralgrid-grid_link.ino
-links:
-  - { label: "Download resources (.zip)", url: "papers/zips/neuralgrid-device.zip" }
-  - { label: "Dimensional architecture map", url: "neuralgrid.html" }
 tags: [grid, neural, raspberry-pi, esp32, nime, research]
 updated: 2026-07-17
+launch: "#/papers/neuralgrid"
 draft: false
 ---
 

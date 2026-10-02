@@ -24,7 +24,7 @@ own build doc, bill of materials, wiring map, and an honest account of where it 
 | [THE WATCH](#/hardware/the-watch) | Forearm AMOLED smartwatch + RF multitool, dual-ESP32 | Design locked, pre-build |
 | [Pocket OpGorator](#/hardware/pocket-opgorator) | Pocket-Operator-format Daisy sampler/synth | PCB + housing designed, assembly pending |
 | [neuralGrid](#/hardware/neuralgrid) | Monome-style grid that rewrites its own UI on the beat | Phases 1–4 running on hardware |
-| [4-i-Gor](#/hardware/4-i-gor) | Teensy 4.0 quad-I/O USB audio interface | Firmware written, PCB spec'd |
+| [4-i-Gor](#/archive/4-i-gor) | Teensy 4.0 quad-I/O USB audio interface | Firmware written, PCB spec'd |
 | [We-Remote](#/hardware/we-remote) | Open-source Wii remote, ESP32-S3 BLE | Firmware complete, shell printed |
 | [DIY HEMI](#/papers/neptr-performance-system/diy-hemi) | 10" coaxial hemisphere speaker, 360° | Physically built, in debug |
 | [hyperGuitar](#/hardware/hyperguitar) | Bela-embedded augmented headless 6-string | Design locked, body on order |

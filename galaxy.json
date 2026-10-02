@@ -26,7 +26,7 @@
       "path": "universe/archive/_index.md",
       "route": "/archive",
       "depth": 1,
-      "children": 5,
+      "children": 6,
       "downloads": [],
       "links": [],
       "tags": [
@@ -555,6 +555,35 @@
       "order": 4
     },
     {
+      "id": "emgor.archive.4-i-gor",
+      "title": "4-i-Gor",
+      "blurb": "Teensy 4.0 quad-in / quad-out USB audio interface with MIDI",
+      "parent": "emgor.archive",
+      "path": "universe/archive/4-i-gor/_index.md",
+      "route": "/archive/4-i-gor",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "4-i-gor.ino",
+          "url": "universe/archive/4-i-gor/files/4-i-gor.ino"
+        },
+        {
+          "name": "4-i-gor-pcb.md",
+          "url": "universe/archive/4-i-gor/files/4-i-gor-pcb.md"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "audio-interface",
+        "teensy",
+        "i2s",
+        "midi",
+        "pcb"
+      ],
+      "updated": "2026-04-07"
+    },
+    {
       "id": "emgor.archive.speak",
       "title": "SPEAK — neptr's voice",
       "blurb": "Speak-&-Spell singing synth + a fully offline AI companion on a Pi",
@@ -777,7 +806,7 @@
       "path": "universe/papers/neptr-performance-system/_index.md",
       "route": "/papers/neptr-performance-system",
       "depth": 2,
-      "children": 10,
+      "children": 9,
       "downloads": [],
       "links": [],
       "tags": [],
@@ -800,40 +829,6 @@
       "read": "papers/edit.html?id=neptr-performance-system",
       "zip": "papers/zips/neptr-performance-system.zip",
       "order": 0
-    },
-    {
-      "id": "emgor.papers.neptr-performance-system.4-i-gor",
-      "title": "4-i-Gor",
-      "blurb": "Teensy 4.0 quad-in / quad-out USB audio interface with MIDI",
-      "parent": "emgor.papers.neptr-performance-system",
-      "path": "universe/papers/neptr-performance-system/4-i-gor.md",
-      "route": "/papers/neptr-performance-system/4-i-gor",
-      "depth": 3,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "4-i-gor.ino",
-          "url": "universe/papers/neptr-performance-system/files/4-i-gor.ino"
-        },
-        {
-          "name": "4-i-gor-pcb.md",
-          "url": "universe/papers/neptr-performance-system/files/4-i-gor-pcb.md"
-        }
-      ],
-      "links": [
-        {
-          "label": "Download resources (.zip)",
-          "url": "papers/zips/4-i-gor.zip"
-        }
-      ],
-      "tags": [
-        "audio-interface",
-        "teensy",
-        "i2s",
-        "midi",
-        "pcb"
-      ],
-      "updated": "2026-04-07"
     },
     {
       "id": "emgor.papers.neptr-performance-system.diy-hemi",
@@ -976,33 +971,15 @@
     },
     {
       "id": "emgor.papers.neptr-performance-system.neuralgrid",
-      "title": "neuralGrid",
+      "title": "NeuralGrid",
       "blurb": "A monome-style grid that rewrites its own interface on the downbeat",
       "parent": "emgor.papers.neptr-performance-system",
       "path": "universe/papers/neptr-performance-system/neuralgrid.md",
       "route": "/papers/neptr-performance-system/neuralgrid",
       "depth": 3,
       "children": 0,
-      "downloads": [
-        {
-          "name": "neuralgrid-protocol.md",
-          "url": "universe/papers/neptr-performance-system/files/neuralgrid-protocol.md"
-        },
-        {
-          "name": "neuralgrid-grid_link.ino",
-          "url": "universe/papers/neptr-performance-system/files/neuralgrid-grid_link.ino"
-        }
-      ],
-      "links": [
-        {
-          "label": "Download resources (.zip)",
-          "url": "papers/zips/neuralgrid-device.zip"
-        },
-        {
-          "label": "Dimensional architecture map",
-          "url": "neuralgrid.html"
-        }
-      ],
+      "downloads": [],
+      "links": [],
       "tags": [
         "grid",
         "neural",
@@ -1011,7 +988,8 @@
         "nime",
         "research"
       ],
-      "updated": "2026-07-17"
+      "updated": "2026-07-17",
+      "launch": "#/papers/neuralgrid"
     },
     {
       "id": "emgor.papers.neptr-performance-system.ofoots",
@@ -1121,6 +1099,7 @@
       "tags": [],
       "updated": "2026-09-21",
       "read": "papers/edit.html?id=neuralgrid",
+      "zip": "papers/zips/neuralgrid.zip",
       "order": 3
     },
     {

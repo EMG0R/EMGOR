@@ -20,7 +20,8 @@ const PAPERS = {
   'neptr-performance-system': { dir: 'neptr-performance-system', subtree: true },
   // NEPTR node "current" button: just the phase-4 spine + live.conf
   'neptr-current': { dir: 'neptr-performance-system', list: ['files/neptrPhase4.csd', 'files/live.conf'] },
-  'neuralgrid': { dir: '.', own: 'neuralgrid' },
+  // the device files ride with the paper; the device planet under Performance System just links here
+  'neuralgrid': { dir: 'neptr-performance-system', list: ['files/neuralgrid-protocol.md', 'files/neuralgrid-grid_link.ino'] },
   'demiurgeos': { dir: 'demiurgeos', subtree: true },
   // DemiurgeOS parts, folded into the paper planet as download buttons (no subplanets)
   'demiurgeos-os-core': { dir: 'demiurgeos', list: ['files/os/50-demiurge.conf', 'files/os/demiurge-clock.cpp', 'files/os/demiurge-virtual.conf', 'files/os/demiurge.conf.default', 'files/os/demiurge.service', 'files/os/live.conf'] },
@@ -35,12 +36,12 @@ const PAPERS = {
 };
 
 // one resource zip per device subplanet: every path in its md's `downloads:` list, resolved relative to the md
-const DEVICES = ['4-i-gor', 'hyperguitar', 'hypertrumpet', 'neuralgrid', 'ofoots', 'pocket-opgorator', 'diy-hemi', 'we-remote'];
+const DEVICES = ['hyperguitar', 'hypertrumpet', 'ofoots', 'pocket-opgorator', 'diy-hemi', 'we-remote'];
 for (const d of DEVICES) {
   const md = await fs.readFile(path.join(papersDir, 'neptr-performance-system', d + '.md'), 'utf8');
   const fm = md.split(/^---$/m)[1] || '';
   const block = (fm.match(/^downloads:\n((?:  - .*\n?)+)/m) || [, ''])[1];
-  PAPERS[d === 'neuralgrid' ? 'neuralgrid-device' : d] = { dir: 'neptr-performance-system', list: block.split('\n').map((l) => l.replace(/^  - /, '').trim()).filter(Boolean) };
+  PAPERS[d] = { dir: 'neptr-performance-system', list: block.split('\n').map((l) => l.replace(/^  - /, '').trim()).filter(Boolean) };
 }
 
 async function walk(dir, out = []) {
