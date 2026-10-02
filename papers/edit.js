@@ -28,7 +28,7 @@
   }
   $('title').textContent = IDS[id];
   document.title = 'Edit: ' + IDS[id];
-  $('back').href = '../index.html#/papers/' + id;
+  $('back').href = '../index.html#/papers/' + (['nam-csound', 'bouba', 'omniplex', 'open-pedal'].indexOf(id) >= 0 ? '2027/' : '') + id;
 
   // ---- sanitize (same allowlist as the server) ----
   var ALLOWED = { P: 1, DIV: 1, BR: 1, B: 1, STRONG: 1, I: 1, EM: 1, UL: 1, OL: 1, LI: 1, H1: 1, H2: 1, H3: 1, A: 1 };

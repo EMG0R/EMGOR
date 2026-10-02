@@ -9,5 +9,3 @@ read: papers/edit.html?id=demiurgeos
 zip: papers/zips/demiurgeos.zip
 draft: false
 ---
-
-A flashable, audio-first operating system for the Raspberry Pi 5 — the modern successor to Stanford CCRMA's Satellite. Every major audio language ships pre-installed and pre-wired: Csound, Pure Data, SuperCollider, ChucK, Faust, Strudel, C++, Python, plus RNBO and NAM profiles as first-class stages. Edit one file, reboot, perform.

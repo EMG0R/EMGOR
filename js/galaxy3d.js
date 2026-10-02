@@ -1812,7 +1812,10 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                     if (fm.meta.blurb) ovBlurb.textContent = fm.meta.blurb;
                     renderMeta(node, fm.meta);
                 }
-                ovBody.innerHTML = window.MDLITE.render(fm.body);
+                if (node.read && /edit\.html/.test(node.read)) {
+                    ovBody.innerHTML = '';
+                    paperAbstract(node.read).then(function (h) { if (overlayNode === node) ovBody.innerHTML = h; });
+                } else ovBody.innerHTML = window.MDLITE.render(fm.body);
             })
             .catch(function () {
                 if (overlayNode !== node) return;
@@ -1824,6 +1827,47 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
     function closeOverlay(navigate) {
         if (!overlayNode) return;
+    // Paper planets show the paper's own "Abstract" section, live from the latest save
+    // (papers/edit.html?id=X -> paper function, falling back to the seed) or from the rendered page.
+    function paperAbstract(readUrl) {
+        var m = /edit\.html\?id=([\w-]+)/.exec(readUrl);
+        var src = m
+            ? fetch('/.netlify/functions/paper?id=' + m[1], { cache: 'no-store' })
+                .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+                .then(function (j) { return j.html || ''; })
+                .catch(function () { return fetch('papers/seed/' + m[1] + '.html').then(function (r) { return r.ok ? r.text() : ''; }); })
+            : fetch(readUrl).then(function (r) { return r.ok ? r.text() : ''; });
+        return src.then(function (html) {
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            doc.querySelectorAll('script,style,iframe,object,embed,nav,header').forEach(function (el) { el.remove(); });
+            var isHead = function (el) {
+                if (/^H[1-6]$/.test(el.tagName)) return true;
+                var b = el.querySelector('b,strong');
+                return el.tagName !== 'LI' && !!b && b.textContent.trim() === el.textContent.trim() && el.textContent.trim() !== '';
+            };
+            var blocks = doc.body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,div,ul,ol');
+            var start = null;
+            for (var i = 0; i < blocks.length; i++) {
+                if (/^abstract:?$/i.test(blocks[i].textContent.trim())) { start = blocks[i]; break; }
+                var lead = blocks[i].firstElementChild;
+                if (blocks[i].tagName === 'P' && lead && /^(B|STRONG)$/.test(lead.tagName) &&
+                    /^abstract:?$/i.test(lead.textContent.trim()) && blocks[i].textContent.indexOf(lead.textContent) === blocks[i].textContent.search(/\S/)) {
+                    lead.remove();
+                    return '<p>' + blocks[i].innerHTML.replace(/^\s*[:\u2014-]?\s*/, '') + '</p>';
+                }
+            }
+            if (!start) return '';
+            var out = '';
+            for (var el = start.nextElementSibling; el && !isHead(el); el = el.nextElementSibling) {
+                Array.prototype.forEach.call(el.querySelectorAll('*'), function (c) {
+                    Array.prototype.slice.call(c.attributes).forEach(function (a) { if (/^on/i.test(a.name)) c.removeAttribute(a.name); });
+                });
+                out += el.outerHTML;
+            }
+            return out;
+        }).catch(function () { return ''; });
+    }
+
         var node = overlayNode;
         overlayNode = null;
         ovRoot.classList.remove('is-open');
