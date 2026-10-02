@@ -22,6 +22,10 @@ const PAPERS = {
   'neptr-current': { dir: 'neptr-performance-system', list: ['files/neptrPhase4.csd', 'files/live.conf'] },
   'neuralgrid': { dir: '.', own: 'neuralgrid' },
   'demiurgeos': { dir: 'demiurgeos', subtree: true },
+  // DemiurgeOS parts, folded into the paper planet as download buttons (no subplanets)
+  'demiurgeos-os-core': { dir: 'demiurgeos', list: ['files/os/50-demiurge.conf', 'files/os/demiurge-clock.cpp', 'files/os/demiurge-virtual.conf', 'files/os/demiurge.conf.default', 'files/os/demiurge.service', 'files/os/live.conf'] },
+  'demiurgeos-launcher': { dir: 'demiurgeos', list: ['files/launcher/Cargo.toml', 'files/launcher/live.rs'] },
+  'demiurgeos-web-ui': { dir: 'demiurgeos', list: ['files/web/demiurge_web.py', 'files/web/demiurge-web.service'] },
   'thesis': { dir: '.', own: 'thesis' },
   // previously listed in downloads: universe/papers/files/** (PDF + opcode source)
   'nam-csound': { dir: '.', filesDir: 'files' },

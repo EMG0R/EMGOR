@@ -334,6 +334,15 @@ async function main() {
     }
   }
 
+  // A planet with subplanets zooms in on click and never opens its panel, so a paper
+  // summary (`read`/`zip`) on it can't be shown. Put the paper on its own child planet.
+  const hasKids = new Set(nodes.map((n) => n.parent).filter(Boolean));
+  for (const n of nodes) {
+    if ((n.read || n.zip) && hasKids.has(n.id)) {
+      errors.push(`${n.path}: "read"/"zip" on a planet with subplanets — the UI can't show it; move the paper to a child planet`);
+    }
+  }
+
   for (const w of warnings) console.warn('  WARN: ' + w);
   if (errors.length) fail(errors);
 

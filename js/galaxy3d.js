@@ -1645,7 +1645,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var parts = ['emgor'];
         var chain = [];
         var n = focus;
-        while (n && n !== root) { chain.unshift(n.title.toLowerCase()); n = n.parentNode; }
+        while (n && n !== root) { chain.unshift(lcTitle(n.title)); n = n.parentNode; }
         crumbEl.textContent = parts.concat(chain).join(' / ');
         homeBtn.classList.toggle('is-dim', focus === root && !overlayNode);
     }
@@ -1673,7 +1673,6 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         if (node === root || node.kids.length > 0) {
             closeOverlay(false);
             focusTo(node, animate);
-            if (node.read) openOverlay(node);   // paper planet with children: frame the system AND show its paper panel
         } else if (node.launch) {
             closeOverlay(false);
             focusTo(node.parentNode, animate);
@@ -1736,6 +1735,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         ovMeta.innerHTML = bits.join('');
     }
 
+    // Site style is lowercase, but camel-case names keep their capitals (DemiurgeOS, NeuralGrid, hyperGuitar).
+    function lcTitle(t) {
+        return String(t).split(/(\s+)/).map(function (w) { return /[a-z][A-Z]/.test(w) ? w : w.toLowerCase(); }).join('');
+    }
+
     function fileName(u) {
         var s = String(u); var i = s.lastIndexOf('/');
         return i === -1 ? s : s.slice(i + 1);
@@ -1761,6 +1765,15 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 zp.innerHTML = '<span class="ov-dl-arrow">↓</span> Download resources (.zip)';
                 ovDl.appendChild(zp);
             }
+            (node.links || []).forEach(function (l) {
+                var a = document.createElement('a');
+                a.className = 'ov-dl';
+                a.href = l.url;
+                if (/\.zip$/i.test(l.url)) a.setAttribute('download', '');
+                a.innerHTML = '<span class="ov-dl-arrow">↓</span> ';
+                a.appendChild(document.createTextNode(l.label || l.url));
+                ovDl.appendChild(a);
+            });
             return;
         }
         (node.downloads || []).forEach(function (d) {
@@ -1787,7 +1800,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     function openOverlay(node) {
         overlayNode = node;
         lastFocusedEl = document.activeElement;
-        ovTitle.textContent = node.title.toLowerCase();
+        ovTitle.textContent = lcTitle(node.title);
         ovBlurb.textContent = node.blurb;
         renderMeta(node, null);
         renderDownloadsLinks(node);
@@ -1807,7 +1820,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             .then(function (text) {
                 if (overlayNode !== node) return;
                 var fm = window.MDLITE.parseFrontmatter(text);
-                if (fm.meta.title) ovTitle.textContent = String(fm.meta.title).toLowerCase();
+                if (fm.meta.title) ovTitle.textContent = lcTitle(String(fm.meta.title));
                 if (node.read) { ovBlurb.textContent = ''; ovMeta.innerHTML = ''; }
                 else {
                     if (fm.meta.blurb) ovBlurb.textContent = fm.meta.blurb;
@@ -1944,7 +1957,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         el.href = node.launch ? node.launch : '#' + node.route;
         el.draggable = false;
         el.innerHTML =
-            '<span class="pl-name">' + node.title.toLowerCase() + '</span>' +
+            '<span class="pl-name">' + lcTitle(node.title) + '</span>' +
             (node.kids.length
                 ? '<span class="pl-sub">' + node.kids.length + ' bodies</span>'
                 : (node.launch

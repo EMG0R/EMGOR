@@ -60,7 +60,6 @@ body.is-grabbing .planet-label { cursor: grabbing; }
     border-radius: 12px;
     text-align: center;
     letter-spacing: 0.14em;
-    text-transform: lowercase;
     will-change: transform, opacity;
     -webkit-tap-highlight-color: rgba(168, 85, 247, 0.25);
     touch-action: none;
@@ -294,7 +293,6 @@ body.is-grabbing .planet-label { cursor: grabbing; }
 .ov-title {
     font-size: 26px;
     letter-spacing: 0.14em;
-    text-transform: lowercase;
     color: #fff;
     text-shadow: 0 0 14px rgba(168, 85, 247, 0.8), 0 0 40px rgba(123, 47, 190, 0.5);
 }
