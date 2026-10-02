@@ -621,3 +621,44 @@ Target: 60 fps on a Chromebook-class GPU, 120 fps on the M4, same look where pos
   (flight, combat, waves, hud, chat, net glue) WITHOUT behavior change, via a
   documented module map in docs/ship-architecture.md. Done last, by one agent, with
   a before/after test.
+
+## Revision 18 (2026-10-01) — planet flight model (guaranteed)
+
+Emory: landing still isn't right; needs a smoother transition, a guaranteed entrance below
+the atmosphere, different flying logic with lots of air above the surface, and big,
+interesting, GUARANTEED stable surfaces. These are the guarantees, each with a test.
+
+1. **Local-frame simulation.** Inside 1.6 R of a planet the ship (and the human, and
+   landed ghosts) are simulated in the planet's LOCAL frame: position/orientation stored
+   relative to the planet's anchor and spin quaternion; world pose derived at render
+   time (same hook as ship-planet's ground objects). The old "frame drag" is deleted.
+   Entering: world→local (subtract planet velocity). Leaving at 1.7 R: local→world
+   (add planet velocity). *Test:* park on the surface for 120 s of stepped time: local
+   position drift = 0, world position tracks the planet exactly, terrain height under
+   the ship constant.
+2. **Guaranteed entry.** Crossing 1.4 R inbound at any speed starts ENTRY: speed is
+   auto-braked to ≤ boost over 2 s with the burn effect, controls stay live, nothing can
+   push you back above 1.4 R during ENTRY. *Test:* 20 random approach vectors at pulse
+   from 4 R all end inside 1.4 R, alive unless the dive is steeper than 60° at > boost.
+3. **Atmospheric flight model** (inside 1.4 R): speed caps cruise 4 / boost 12 / pulse
+   40 (pulse here is a sprint, no ramp); lift: nose follows the horizon unless you
+   pitch; altitude HUD (in L); below 3 L the ship HOVERS (no sink, strafe with A/D held
+   + no roll); below 1.5 L and speed < 1 → auto "E LAND" prompt. Airspace: with planets
+   at 8× scale the shell 1.0–1.4 R is ~2000 ship lengths deep; keep it. Leaving: pitch
+   up + boost climbs; at 1.4 R outbound you get a short "LEAVING ATMOSPHERE" shake and
+   speeds unlock at 1.7 R.
+4. **Surface never clips.** Collision is a swept sphere against the terrain height
+   function in the local frame, substepped so a frame can never tunnel (substep when
+   displacement > 0.5 L). *Test:* 5 min of random flight inputs at all speeds inside
+   the atmosphere: ship radius never below floor + 0.5 L, no NaNs, no teleports (max
+   per-frame displacement ≤ speed·dt·1.5).
+5. **Terrain continuity.** Patch recenters never pop: height at any world point is a
+   pure function of local direction; re-centering only changes which points are
+   tessellated. *Test:* sample height at 1000 fixed local points before/after 50
+   re-centers: identical.
+6. **Interesting surfaces**: relief AMP 0.09 with ridged mountains, 3 biome looks by
+   palette (rocky/lush/icy) via slope+height coloring, scattered rocks (instanced, 300),
+   outposts as before. Sea is flat and landable-false.
+7. **Transition polish**: camera FOV eases from space (42) to atmosphere (50) over the
+   entry; fog/sky ramp as before; the orbital globe's atmo halo fades as you enter so
+   the horizon is the terrain, not the halo.

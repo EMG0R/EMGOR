@@ -23,6 +23,10 @@
 //                            The patch / flora / creatures are displaced or instanced in their shaders, so their geometry bounds are
 //                            meaningless: they stay frustumCulled=false (hidden via .visible instead); the sky dome is a camera-attached
 //                            sphere and likewise uncullable. There is no fog sampling loop (fog is one analytic exp per fragment).
+//   rev 18 (local-frame flight, docs/ship-mode.md): ps.floorLocal(x,y,z) / ps.heightLocal(dx,dy,dz) / ps.landLocal(x,y,z) answer in the planet's OBJECT
+//   space (pure functions of the local direction: no anchor, no spin, no patch state), ps.radius = R of the active body. ps.info() = {amp, look,
+//   rocks, flora, grid, active}; ps.lookOf(node) = 'rocky' | 'lush' | 'icy' from the palette (lookFromPalette, exported). Surface colouring uses
+//   slope + height per look (uLook); 300 instanced rocks (100/200/300/300 by quality tier); the orbital halo fades to nothing by 1.1 R.
 //   ps.dispose()
 //   ps.sampleHeight(dx,dy,dz,uniforms) / NOISE_GLSL / HEIGHT_GLSL exported for verification.
 
@@ -36,7 +40,7 @@ var FADE_IN_A = 2.7, FADE_IN_B = 1.95;    // patch alpha 0 -> 1 across these (x 
 var GRID = 128;                           // patch grid cells per side
 var AMP = 0.09;                           // terrain amplitude, fraction of R
 var BIAS = 0.0015;                        // minimum radius above the orbital sphere (no z-fight)
-var FLORA_MAX = 500, CREAT_MAX = 40;
+var FLORA_MAX = 500, CREAT_MAX = 40, ROCK_MAX = 300;
 var FLORA_R = 1.3, CREAT_R = 1.2;         // x R
 var NPAD = 3;                             // outposts per planet (max)
 var PAD_L = 6, BLD_S = 0.55, PAD_FLAT = 15, PAD_BLEND = 22, NPC_OFF = 7.8, BLD_OFF = 11;   // x L
@@ -143,7 +147,7 @@ var PATCH_FRAG = [
     'uniform vec3 uColHigh; uniform vec3 uColLow; uniform vec3 uColSea; uniform vec3 uAtmo; uniform vec3 uAccent;',
     'uniform float uBiome; uniform float uBandFreq; uniform float uSpeckle; uniform vec3 uLightDir;',
     'uniform vec3 uSeed; uniform float uFreq; uniform float uWarp; uniform float uSeaLevel;',
-    'uniform float uFade; uniform vec3 uFogCol; uniform float uFogK;',
+    'uniform float uFade; uniform vec3 uFogCol; uniform float uFogK; uniform float uLook;',
     'varying vec3 vDir; varying vec3 vN; varying vec3 vView; varying float vRim; varying float vH; varying vec3 vUp;',
     '#include <common>',
     '#include <logdepthbuf_pars_fragment>',
@@ -178,15 +182,35 @@ var PATCH_FRAG = [
     '        col += uAccent * spk * 1.7;',
     '    }',
     '    vec3 N = normalize(vN);',
+    // rev 18 biome looks (uLook 0 rocky / 1 lush / 2 icy), driven by slope + height on top of the palette; terra only
+    '    float slope = 1.0 - clamp(dot(N, normalize(vUp)), 0.0, 1.0);',
+    '    float hh = smoothstep(0.03, 0.2, vH);',
+    '    float steep = smoothstep(0.035, 0.2, slope);',
+    '    float tn = fbm(sp * uFreq * 24.0 + uSeed);',
+    '    if (uBiome < 0.5) {',
+    '        vec3 rockC = mix(uColLow, uColHigh, 0.4) * vec3(0.42, 0.38, 0.4) + 0.045;',
+    '        if (uLook < 0.5) {',                                                   // rocky: dusty plains, banded dark cliffs, pale summits
+    '            col = mix(col, col * (0.82 + 0.4 * tn) + 0.02, 0.6);',
+    '            col = mix(col, rockC * (0.8 + 0.6 * tn), steep);',
+    '            col = mix(col, col * 1.28 + 0.05, hh * (1.0 - steep) * 0.7);',
+    '        } else if (uLook < 1.5) {',                                            // lush: saturated lowlands, grey cliffs, snow on the peaks
+    '            col = mix(col, uColLow * (1.05 + 0.35 * tn) + 0.015, (1.0 - hh) * 0.6);',
+    '            col = mix(col, vec3(0.34, 0.33, 0.35) * (0.8 + 0.5 * tn), steep * 0.85);',
+    '            col = mix(col, vec3(0.92, 0.95, 1.0), smoothstep(0.62, 0.9, hh) * (1.0 - steep * 0.8) * 0.85);',
+    '        } else {',                                                             // icy: pale snow plains, deep blue crevasse walls, glints
+    '            vec3 snow = mix(vec3(0.78, 0.88, 1.0), vec3(0.95, 0.98, 1.0), tn);',
+    '            col = mix(col, snow * (0.8 + 0.2 * hh), (1.0 - steep) * 0.62);',
+    '            col = mix(col, uAtmo * 0.28 + rockC * 0.35, steep * 0.9);',
+    '        }',
+    '    }',
     '    float ndl = dot(N, uLightDir) * 0.5 + 0.5;',
     '    float lightAmt = mix(0.24, 0.96, smoothstep(0.08, 0.92, ndl));',
     '    col *= lightAmt;',
     '    vec3 V = normalize(vView);',
     '    float fr = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.6);',
     '    col += uAtmo * fr * 0.3;',
-    // slope: steep faces pick up a darker rock tint (vN vs the radial direction)
-    '    float slope = 1.0 - clamp(dot(N, normalize(vUp)), 0.0, 1.0);',
-    '    col = mix(col, col * vec3(0.55, 0.5, 0.58), smoothstep(0.04, 0.22, slope) * step(uBiome, 0.5));',
+    '    if (uBiome < 0.5 && uLook > 1.5) col += vec3(0.8, 0.9, 1.0) * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 6.0) * 0.25 * (1.0 - steep);',   // icy glint at grazing angles
+    '    col = mix(col, col * vec3(0.7, 0.66, 0.72), smoothstep(0.04, 0.22, slope) * step(uBiome, 0.5) * 0.5);',
     '    float dist = length(vView);',
     '    float f = 1.0 - exp(-pow(dist * uFogK, 2.0));',
     '    f = min(f, 0.93);',
@@ -222,7 +246,7 @@ var INST_FRAG = [
 
 var FLORA_VERT = [
     'attribute float aVar; attribute float aPart; attribute float aSel; attribute vec3 aCol;',
-    'uniform float uFadeA; uniform float uFadeB;',
+    'uniform float uFadeA; uniform float uFadeB; uniform float uNearA; uniform float uNearB;',
     'varying vec3 vCol; varying vec3 vN; varying vec3 vView;',
     '#include <common>',
     '#include <logdepthbuf_pars_vertex>',
@@ -231,6 +255,7 @@ var FLORA_VERT = [
     '    vec4 iw = modelMatrix * vec4(instanceMatrix[3].xyz, 1.0);',
     '    float dd = distance(cameraPosition, iw.xyz);',
     '    float k = 1.0 - smoothstep(uFadeA, uFadeB, dd);',
+    '    k *= smoothstep(uNearA, uNearB, dd / max(length(instanceMatrix[0].xyz), 1e-9));',   // rev 18: an instance the camera is inside (or about to be) shrinks away
     '    if (abs(aVar - aSel) > 0.5) k = 0.0;',
     '    pos *= k;',
     '    mat4 M = modelMatrix * instanceMatrix;',
@@ -544,7 +569,18 @@ function hash01(i, j, k, s) {
 function nodeSeed(node) { var s = 0, id = String(node.id); for (var i = 0; i < id.length; i++) s = (Math.imul(s, 31) + id.charCodeAt(i)) | 0; return s; }
 function col3(c) { return c && c.r !== undefined ? [c.r, c.g, c.b] : [c.x, c.y, c.z]; }
 function col3o(c, o) { if (c && c.r !== undefined) { o[0] = c.r; o[1] = c.g; o[2] = c.b; } else { o[0] = c.x; o[1] = c.y; o[2] = c.z; } return o; }
-var Q_GRID = [64, 96, 128, 128], Q_FLORA = [150, 300, 500, 500], Q_CREAT = [10, 20, 40, 40];
+var Q_GRID = [64, 96, 128, 128], Q_FLORA = [150, 300, 500, 500], Q_CREAT = [10, 20, 40, 40], Q_ROCK = [100, 200, 300, 300];
+
+// palette -> surface look: 0 rocky (reds / oranges / browns), 1 lush (greens / teals), 2 icy (blues / violets / pale)
+export function lookFromPalette(lo, hi) {
+    var r = (lo[0] + hi[0]) / 2, g = (lo[1] + hi[1]) / 2, b = (lo[2] + hi[2]) / 2, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    var sat = mx > 0 ? d / mx : 0, hue = 0;
+    if (d > 1e-5) { if (mx === r) hue = ((g - b) / d + 6) % 6; else if (mx === g) hue = (b - r) / d + 2; else hue = (r - g) / d + 4; hue *= 60; }
+    if (sat < 0.28 && mx > 0.55) return 2;
+    if (hue >= 65 && hue < 185) return 1;
+    if (hue >= 185 && hue < 300) return 2;
+    return 0;
+}
 
 // ═════════════════════════════════════════════════════════════════════════════════
 export function createPlanetSurface(engine, L) {
@@ -576,7 +612,7 @@ export function createPlanetSurface(engine, L) {
     var C = new THREE.Vector3(0, 1, 0), T1 = new THREE.Vector3(1, 0, 0), T2 = new THREE.Vector3(0, 0, 1);
     var halfAng = 0.3, patchSet = false;
     // flora / creature seed centres (object-space unit directions)
-    var floraC = new THREE.Vector3(), floraSet = false, creatC = new THREE.Vector3(), creatSet = false;
+    var floraC = new THREE.Vector3(), floraSet = false, creatC = new THREE.Vector3(), creatSet = false, rockC = new THREE.Vector3(), rockSet = false, rockLim = Q_ROCK[3], look = 0;
 
     // outpost pads (local dir, flat chord, blend chord, height frac) -- mirrors hfunP in the patch shader
     var pads = [], outR = 0, lastLand = false, rideKey = [NaN, 0, 0, 0, 0, 0, 0];
@@ -617,12 +653,12 @@ export function createPlanetSurface(engine, L) {
         t = t < 0 ? 0 : t > 3 ? 3 : Math.round(t);
         if (t === qTier && alloc) return;
         qTier = t; ps.quality = t;
-        floraLim = Q_FLORA[t]; creatLim = Q_CREAT[t];
+        floraLim = Q_FLORA[t]; creatLim = Q_CREAT[t]; rockLim = Q_ROCK[t];
         if (Q_GRID[t] !== gridN) {
             gridN = Q_GRID[t];
             if (alloc) { var old = alloc.patch.geometry; alloc.patch.geometry = makePatchGeo(gridN); old.dispose(); }
         }
-        floraSet = false; creatSet = false;       // re-seed against the new caps on the next update
+        floraSet = false; creatSet = false; rockSet = false;       // re-seed against the new caps on the next update
     };
 
     function build() {
@@ -632,7 +668,7 @@ export function createPlanetSurface(engine, L) {
         a.patchU = {
             uSeed: { value: new THREE.Vector3() }, uColHigh: { value: new THREE.Color() }, uColLow: { value: new THREE.Color() },
             uColSea: { value: new THREE.Color() }, uAtmo: { value: new THREE.Color() }, uAccent: { value: new THREE.Color() },
-            uBiome: { value: 0 }, uFreq: { value: 3 }, uWarp: { value: 1 }, uBandFreq: { value: 8 }, uSeaLevel: { value: 0.5 },
+            uBiome: { value: 0 }, uLook: { value: 0 }, uFreq: { value: 3 }, uWarp: { value: 1 }, uBandFreq: { value: 8 }, uSeaLevel: { value: 0.5 },
             uSpeckle: { value: 0 }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK,
             uAmp: { value: AMP }, uBias: { value: BIAS }, uR: { value: 1 },
             uC: { value: C }, uT1: { value: T1 }, uT2: { value: T2 }, uTan: { value: 0.3 }, uFade: { value: 1 },
@@ -669,7 +705,7 @@ export function createPlanetSurface(engine, L) {
         a.floraCol = new THREE.InstancedBufferAttribute(fa, 3);
         a.floraSel = new THREE.InstancedBufferAttribute(fs, 1);
         fg.setAttribute('aCol', a.floraCol); fg.setAttribute('aSel', a.floraSel);
-        a.floraU = { uFadeA: { value: 130 * L }, uFadeB: { value: 190 * L }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK };
+        a.floraU = { uFadeA: { value: 130 * L }, uFadeB: { value: 190 * L }, uNearA: { value: 0 }, uNearB: { value: 1e-4 }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK };
         a.flora = new THREE.InstancedMesh(fg, new THREE.ShaderMaterial({
             uniforms: a.floraU, vertexShader: FLORA_VERT, fragmentShader: INST_FRAG, side: THREE.DoubleSide, toneMapped: false
         }), FLORA_MAX);
@@ -708,6 +744,22 @@ export function createPlanetSurface(engine, L) {
         a.creatData = [];
         for (var q = 0; q < CREAT_MAX; q++) a.creatData.push({ home: new THREE.Vector3(), t1: new THREE.Vector3(), t2: new THREE.Vector3(), r: 1, ax: 0, ay: 0, wx: 0, wy: 0, px: 0, py: 0, v: 0, hover: 0, sz: 1, active: false });
         a.creatRR = 0;
+
+        // rocks (rev 18): 300 instanced lumpy boulders scattered on the land near the ship (same shader as the flora, one variant)
+        var rk = new GeoBuilder();
+        rk.sphere(0, 0.28, 0, 0.72, 0.5, 0.62, 5, 3, 0, Math.PI, 0, 1, 0, 0, 0);
+        rk.sphere(0.46, 0.18, 0.22, 0.38, 0.3, 0.32, 4, 2, 0, Math.PI, 0, 1, 0, 0, 0);
+        rk.sphere(-0.4, 0.14, -0.2, 0.3, 0.24, 0.28, 4, 2, 0, Math.PI, 0, 1, 0, 0, 0);
+        var rg = finishGeo(THREE, rk, { part: true });
+        a.rockCol = new THREE.InstancedBufferAttribute(new Float32Array(ROCK_MAX * 3), 3);
+        a.rockSel = new THREE.InstancedBufferAttribute(new Float32Array(ROCK_MAX), 1);
+        rg.setAttribute('aCol', a.rockCol); rg.setAttribute('aSel', a.rockSel);
+        a.rockU = { uFadeA: { value: 90 * L }, uFadeB: { value: 150 * L }, uNearA: { value: 1.6 }, uNearB: { value: 3.0 }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK };
+        a.rocks = new THREE.InstancedMesh(rg, new THREE.ShaderMaterial({
+            uniforms: a.rockU, vertexShader: FLORA_VERT, fragmentShader: INST_FRAG, side: THREE.DoubleSide, toneMapped: false
+        }), ROCK_MAX);
+        a.rocks.count = 0; a.rocks.frustumCulled = false; a.rocks.renderOrder = 2;
+        a.rocks.onBeforeRender = syncRide; a.ride.add(a.rocks);
 
         // atmosphere dome (camera-attached inverted sphere)
         a.domeU = { uFogCol: SH.uFogCol, uAtmo: { value: new THREE.Color() }, uUp: { value: new THREE.Vector3(0, 1, 0) }, uAlpha: { value: 0 }, uSun: { value: 1 }, uHor: { value: -0.3 }, uSunDir: SH.uLightDir };
@@ -936,15 +988,16 @@ export function createPlanetSurface(engine, L) {
         pu.uSeaLevel = u.uSeaLevel; pu.uSpeckle = u.uSpeckle; pu.uLightDir = u.uLightDir;
         alloc.patchMat.uniforms = pu;
         SH.uLightDir.value = u.uLightDir.value;
-        alloc.floraU.uLightDir = u.uLightDir; alloc.creatU.uLightDir = u.uLightDir;
+        alloc.floraU.uLightDir = u.uLightDir; alloc.creatU.uLightDir = u.uLightDir; alloc.rockU.uLightDir = u.uLightDir;
         alloc.patchMat.uniformsNeedUpdate = true;
         seedV = u.uSeed.value; freq = u.uFreq.value; warp = u.uWarp.value; sea = u.uSeaLevel.value;
         isGas = u.uBiome.value > 0.5;
         amp = isGas ? 0 : AMP; bias = BIAS;
         pu.uAmp.value = amp; pu.uBias.value = bias;
+        look = lookFromPalette(col3(u.uColLow.value), col3(u.uColHigh.value)); pu.uLook.value = look;
         var A = col3(u.uAtmo.value);
         alloc.domeU.uAtmo.value.setRGB(A[0], A[1], A[2]);
-        alloc.floraSet = false;
+        alloc.floraSet = false; rockSet = false;
     }
 
     // halo: updateBodies() rewrites the atmo uAlpha / glow opacity+scale every frame AFTER the pilot, so the
@@ -963,7 +1016,7 @@ export function createPlanetSurface(engine, L) {
             var m = gs.material, sx = gs.scale.x;
             if (m.opacity !== h.lastO) h.baseO = m.opacity;
             if (sx !== h.lastS) h.baseS = sx;
-            h.lastO = m.opacity = Math.min(1, h.baseO + 0.2 * haloT * haloAlphaK);
+            h.lastO = m.opacity = Math.min(1, (h.baseO + 0.2 * haloT) * haloAlphaK);
             h.lastS = sx = h.baseS * (1 + 0.45 * haloT);
             gs.scale.set(sx, sx, 1); gs.updateMatrixWorld(true);
         };
@@ -981,7 +1034,7 @@ export function createPlanetSurface(engine, L) {
         if (!alloc) return;
         alloc.patch.visible = on; alloc.dome.visible = on; alloc.streaks.visible = on && rimI > 0.002;
         for (var si = 0; si < NSCAR; si++) alloc.scars[si].mesh.visible = on && alloc.scars[si].ttl > 0;
-        alloc.flora.visible = on && alloc.flora.count > 0; alloc.creat.visible = on && alloc.creat.count > 0;
+        alloc.flora.visible = on && alloc.flora.count > 0; alloc.creat.visible = on && alloc.creat.count > 0; alloc.rocks.visible = on && alloc.rocks.count > 0;
         alloc.pads.visible = alloc.blds.visible = alloc.beac.visible = on && alloc.pads.count > 0;
     }
 
@@ -998,7 +1051,7 @@ export function createPlanetSurface(engine, L) {
     function deactivate() {
         unhookHalo(); killScars(); clearOutposts();
         node = null; ps.active = null; ps.depth = 0;
-        if (alloc) { showObjs(false); alloc.domeU.uAlpha.value = 0; alloc.flora.count = 0; alloc.creat.count = 0; }
+        if (alloc) { showObjs(false); alloc.domeU.uAlpha.value = 0; alloc.flora.count = 0; alloc.creat.count = 0; alloc.rocks.count = 0; rockSet = false; }
     }
 
     function tangentFrame(c, t1, t2) {
@@ -1063,6 +1116,54 @@ export function createPlanetSurface(engine, L) {
         a.flora.count = cnt;
         a.flora.instanceMatrix.needsUpdate = true; a.floraCol.needsUpdate = true; a.floraSel.needsUpdate = true;
         floraSet = true;
+    }
+
+    // ─── rocks: lattice-hashed on the shell like the flora (stable per place), land only, smaller cells, size 0.6-2.2 L with the odd boulder
+    function seedRocks() {
+        var a = alloc, Rr = R, cell = 9 * L, E = 130 * L, m = Math.ceil(E / cell);
+        var cx = rockC.x * Rr, cy = rockC.y * Rr, cz = rockC.z * Rr;
+        var ci = Math.floor(cx / cell), cj = Math.floor(cy / cell), ck = Math.floor(cz / cell);
+        var seed = nodeSeed(node) + 4242, cands = [];
+        for (var i = ci - m; i <= ci + m; i++) for (var j = cj - m; j <= cj + m; j++) for (var k = ck - m; k <= ck + m; k++) {
+            var px = (i + hash01(i, j, k, seed + 1)) * cell, py = (j + hash01(i, j, k, seed + 2)) * cell, pz = (k + hash01(i, j, k, seed + 3)) * cell;
+            var rl = Math.hypot(px, py, pz);
+            if (Math.abs(rl - Rr) > cell * 0.5) continue;
+            var d2 = (px - cx) * (px - cx) + (py - cy) * (py - cy) + (pz - cz) * (pz - cz);
+            cands.push([d2, px / rl, py / rl, pz / rl, i, j, k]);
+        }
+        cands.sort(function (p, q) { return p[0] - q[0]; });
+        var cnt = 0, mat = a.rocks.instanceMatrix.array, ca = a.rockCol.array;
+        var u = node.mesh.material.uniforms, lo = col3(u.uColLow.value), hi = col3(u.uColHigh.value);
+        for (var c = 0; c < cands.length && cnt < rockLim; c++) {
+            var cd = cands[c], dx = cd[1], dy = cd[2], dz = cd[3];
+            var h = hFrac(dx, dy, dz);
+            if (isGas || _lastN < sea + 0.004) continue;                      // dry land only
+            if (pads.length && nearPad(dx, dy, dz, 3)) continue;
+            var r1 = hash01(cd[4], cd[5], cd[6], seed + 4), r2 = hash01(cd[4], cd[5], cd[6], seed + 5), r3 = hash01(cd[4], cd[5], cd[6], seed + 6);
+            var big = r1 > 0.93 ? 2.6 : 1, sw = (0.6 + r2 * 1.6) * L * big, sh = sw * (0.55 + r3 * 0.5);
+            var rad = Rr * (1 + h) - 0.2 * sh;
+            var ref0 = Math.abs(dy) < 0.9 ? 0 : 1, rx, ry, rz;
+            if (ref0 === 0) { rx = dz; ry = 0; rz = -dx; } else { rx = 0; ry = -dz; rz = dy; }
+            var rl2 = Math.hypot(rx, ry, rz); rx /= rl2; ry /= rl2; rz /= rl2;
+            var fx = ry * dz - rz * dy, fy = rz * dx - rx * dz, fz = rx * dy - ry * dx;
+            var yaw = r3 * 6.2832, cyw = Math.cos(yaw), syw = Math.sin(yaw);
+            var ux = rx * cyw + fx * syw, uy = ry * cyw + fy * syw, uz = rz * cyw + fz * syw;
+            var vx = -rx * syw + fx * cyw, vy = -ry * syw + fy * cyw, vz = -rz * syw + fz * cyw;
+            var o = cnt * 16;
+            mat[o] = ux * sw; mat[o + 1] = uy * sw; mat[o + 2] = uz * sw; mat[o + 3] = 0;
+            mat[o + 4] = dx * sh; mat[o + 5] = dy * sh; mat[o + 6] = dz * sh; mat[o + 7] = 0;
+            mat[o + 8] = vx * sw * (0.7 + 0.5 * r1); mat[o + 9] = vy * sw * (0.7 + 0.5 * r1); mat[o + 10] = vz * sw * (0.7 + 0.5 * r1); mat[o + 11] = 0;
+            mat[o + 12] = dx * rad; mat[o + 13] = dy * rad; mat[o + 14] = dz * rad; mat[o + 15] = 1;
+            var tt = 0.7 + 0.6 * r2, hi2 = hFrac(dx, dy, dz) > 0.07;
+            for (var q = 0; q < 3; q++) {
+                var base = look === 2 ? [0.62, 0.7, 0.8][q] : (look === 1 ? [0.36, 0.35, 0.34][q] : (lo[q] * 0.35 + hi[q] * 0.25 + 0.1));
+                ca[cnt * 3 + q] = Math.min(1, base * tt * (hi2 ? 1.15 : 1));
+            }
+            cnt++;
+        }
+        a.rocks.count = cnt;
+        a.rocks.instanceMatrix.needsUpdate = true; a.rockCol.needsUpdate = true;
+        rockSet = true;
     }
 
     // ─── creature seeding + animation ──────────────────────────────────────────────
@@ -1272,7 +1373,7 @@ export function createPlanetSurface(engine, L) {
 
         // entry transition: halo brightens/expands 2.2 R -> 1.4 R, then dims once you are inside it (dome takes over)
         haloT = smoothstep(HALO_A, HALO_B, ratioD);
-        haloAlphaK = 1 - 0.7 * smoothstep(1.2, 1.07, ratioD);
+        haloAlphaK = 1 - smoothstep(1.45, 1.1, ratioD);           // rev 18: the orbital halo fades out completely by 1.1 R, so the horizon is the terrain
         if (haloH && haloH.atmo) haloH.atmo.scale.setScalar(1.07 + 0.05 * haloT);
         // rim pass envelope (ramps in 1.65 -> 1.55 R, out 1.45 -> 1.35 R)
         rimI = smoothstep(RIM_A, RIM_A - 0.1, ratioD) * (1 - smoothstep(RIM_B + 0.1, RIM_B, ratioD));
@@ -1297,6 +1398,10 @@ export function createPlanetSurface(engine, L) {
         a.dome.position.copy(camera.position); a.dome.updateMatrixWorld();
         updateScars(dt);
 
+        // rocks: within ~260 L of the ground
+        if (ratioD < 1 + 280 * L / R && !isGas) {
+            if (!rockSet || dirObj.angleTo(rockC) * R > 40 * L) { rockC.copy(dirObj); seedRocks(); }
+        } else if (a.rocks.count) { a.rocks.count = 0; rockSet = false; }
         // flora (< 1.3 R) and creatures (< 1.2 R), pooled + seeded by lattice hash
         if (ratioD < FLORA_R && !isGas) {
             if (!floraSet || dirObj.angleTo(floraC) * R > 40 * L) { floraC.copy(dirObj); seedFlora(); }
@@ -1345,6 +1450,29 @@ export function createPlanetSurface(engine, L) {
         return out;
     };
 
+    // rev 18: LOCAL-frame queries. (x,y,z) is a position in the planet's own object space (the frame the mesh spins in), so the answer is a
+    // pure function of the local direction: no anchor, no spin, no patch state. floorLocal -> surface radius (world units) under that point,
+    // heightLocal -> height as a fraction of R for a unit direction, landLocal -> true over land (sea / gas = false).
+    ps.heightLocal = function (dx, dy, dz) {
+        if (!node || !alloc) return 0;
+        var l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+        var h = hFrac(dx / l, dy / l, dz / l);
+        lastLand = !isGas && _lastN > sea;
+        return h;
+    };
+    ps.floorLocal = function (x, y, z) {
+        if (!node || !alloc) return 0;
+        var l = Math.sqrt(x * x + y * y + z * z) || 1;
+        return R * (1 + hFrac(x / l, y / l, z / l));
+    };
+    ps.landLocal = function (x, y, z) {
+        if (!node || !alloc) return false;
+        var l = Math.sqrt(x * x + y * y + z * z) || 1;
+        hFrac(x / l, y / l, z / l);
+        return !isGas && _lastN > sea;
+    };
+    Object.defineProperty(ps, 'radius', { get: function () { return R; } });
+
     // landing support: ok = over land, gentle slope (1 - n.up < 0.25), within LAND_ALT ship lengths of the ground
     ps.landable = function (pos) {
         var res = { ok: false, r: 0, n: new THREE.Vector3(0, 1, 0), slope: 1, onPad: false };
@@ -1365,10 +1493,13 @@ export function createPlanetSurface(engine, L) {
         return res;
     };
 
+    ps.info = function () { return { amp: amp, look: look, rocks: alloc ? alloc.rocks.count : 0, flora: alloc ? alloc.flora.count : 0, grid: gridN, active: node ? node.id : null }; };
+    ps.lookOf = function (n) { var u = n.mesh.material.uniforms; return lookFromPalette(col3(u.uColLow.value), col3(u.uColHigh.value)) === 0 ? 'rocky' : (lookFromPalette(col3(u.uColLow.value), col3(u.uColHigh.value)) === 1 ? 'lush' : 'icy'); };
+
     ps.dispose = function () {
         deactivate();
         if (alloc) {
-            [alloc.patch, alloc.flora, alloc.creat, alloc.pads, alloc.blds, alloc.beac, alloc.dome, alloc.streaks, alloc.scarG].forEach(function (m) {
+            [alloc.patch, alloc.flora, alloc.creat, alloc.rocks, alloc.pads, alloc.blds, alloc.beac, alloc.dome, alloc.streaks, alloc.scarG].forEach(function (m) {
                 scene.remove(m); if (m.parent) m.parent.remove(m); if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose();
                 if (m.dispose) m.dispose();
                 if (m === alloc.scarG) m.children.forEach(function (c) { c.geometry.dispose(); c.material.dispose(); });

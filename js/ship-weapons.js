@@ -1,6 +1,6 @@
 // Procedural weapons for NO MANS GOR. Seeded: same (seed, tier) -> same weapon.
 // Stats units: dmg per projectile, rate shots/s, spread degrees, count projectiles per shot, speed & range in hull-lengths (L)/s and L.
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { compose, makeMaterials, mulberry as pmul } from './ship-parts.js';
 
 function mulberry(a) {
   return function () {
@@ -92,84 +92,43 @@ export function weaponSetFor(outpostId, n = 4) {
   return out;
 }
 
-const VERT = /* glsl */`
-varying vec3 vC; varying vec3 vV;
-#include <common>
-#include <logdepthbuf_pars_vertex>
-void main(){
-  vC = color;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  vV = mv.xyz;
-  gl_Position = projectionMatrix * mv;
-  #include <logdepthbuf_vertex>
-}`;
-const FRAG = /* glsl */`
-varying vec3 vC; varying vec3 vV;
-#include <common>
-#include <logdepthbuf_pars_fragment>
-void main(){
-  #include <logdepthbuf_fragment>
-  vec3 n = normalize(cross(dFdx(vV), dFdy(vV)));
-  vec3 L = normalize(mat3(viewMatrix) * normalize(vec3(-0.62, 0.52, 0.4)));
-  float d = max(0.0, dot(n, L)) * 0.7 + 0.3;
-  float rim = pow(1.0 - max(0.0, dot(n, normalize(-vV))), 3.0) * 0.28;
-  gl_FragColor = vec4(vC * d + rim * vec3(0.5, 0.3, 0.85), 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`;
-
-// Tiny gun pod, nose -Z, ~0.12 long, origin at its mount point (top centre). <= 300 tris.
-export function buildWeaponModel(THREE, weapon) {
-  const lit = [], emi = [];
-  const put = (geo, hex, e) => {
-    geo = geo.index ? geo.toNonIndexed() : geo;
-    geo.deleteAttribute('normal'); geo.deleteAttribute('uv');
-    const c = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
-    geo.setAttribute('color', new THREE.BufferAttribute(a, 3));
-    (e ? emi : lit).push(geo);
-  };
-  const tint = new THREE.Color(weapon.color), dark = 0x2A2430, mid = 0x4A4256;
-  const cylZ = (rt, rb, len, seg, x, y, z, hex, e) => { const g = new THREE.CylinderGeometry(rt, rb, len, seg); g.rotateX(Math.PI / 2); g.translate(x, y, z); put(g, hex, e); };
-  const box = (w, h, d, x, y, z, hex, e, rx = 0, rz = 0) => {
-    const g = new THREE.BoxGeometry(w, h, d);
-    if (rx || rz) g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rx, 0, rz)));
-    g.translate(x, y, z); put(g, hex, e);
-  };
-  // mount + body
-  box(0.03, 0.012, 0.05, 0, 0, 0, dark);
-  cylZ(0.022, 0.026, 0.09, 8, 0, -0.025, 0.0, mid);
-  box(0.03, 0.006, 0.03, 0, -0.025, 0.04, tint.getHex());                    // tinted tail plate
-  const tip = -0.045;
+const WPAL = (hex) => ({ base: 0x4A4256, panel: 0x2A2430, accent: hex, glow: hex, dark: 0x1B1722, metal: 0x6A6478 });
+function weaponRecipe(weapon, lod) {
+  const hex = weapon.color, tip = -0.045, Y = -0.025, kids = [];
+  const n = (part, params, o) => kids.push(Object.assign({ part, params: Object.assign({ lod: 'lo' }, params) }, o));      // small attachments always use the cheap variant
+  const fwd = [-Math.PI / 2, 0, 0];                                  // part +Y -> hull -Z
+  n('pod', { len: 0.1, r: 0.02, glowCol: hex, lod }, { rot: fwd, offset: [0, Y, 0.05] });          // body
+  n('plate', { w: 0.026, d: 0.034, th: 0.006, glow: false }, { offset: [0, Y + 0.02, 0.03] });  // tail plate
+  n('fin', { len: 0.026, w: 0.034, sweep: 0.5, thick: 0.004, taper: 0.5, tip: hex }, { mirror: 'x', rot: [0, 0, -Math.PI / 2], offset: [0.016, Y, 0.022], id: 'wing' });
   switch (weapon.shape) {
     case 'needle':
-      cylZ(0.006, 0.01, 0.10, 6, 0, -0.025, tip - 0.05, dark);
-      cylZ(0.003, 0.003, 0.02, 6, 0, -0.025, tip - 0.11, tint.getHex(), true);
+      n('barrel', { len: 0.115, r: 0.0055, glowCol: hex }, { rot: fwd, offset: [0, Y, tip + 0.005] });
       break;
-    case 'orb': {
-      cylZ(0.012, 0.016, 0.03, 6, 0, -0.025, tip - 0.015, dark);
-      const g = new THREE.SphereGeometry(0.02, 8, 6); g.translate(0, -0.025, tip - 0.045); put(g, tint.getHex(), true);
+    case 'orb':
+      n('barrel', { len: 0.026, r: 0.012, glowCol: hex }, { rot: fwd, offset: [0, Y, tip + 0.005] });
+      n('eye', { r: 0.017, glowCol: hex }, { rot: fwd, offset: [0, Y, tip - 0.03] });
       break;
-    }
     case 'shard':
-      for (let i = -1; i <= 1; i++) box(0.006, 0.006, 0.07, i * 0.016, -0.025, tip - 0.035, dark, false, 0, i * 0.12);
-      box(0.045, 0.004, 0.012, 0, -0.025, tip - 0.07, tint.getHex(), true);
-      box(0.03, 0.025, 0.02, 0, -0.025, tip - 0.01, mid);
+      for (let i = -1; i <= 1; i++) n('spike', { len: 0.075, r: 0.0075, tip: hex }, { rot: [-Math.PI / 2, 0, -i * 0.14], offset: [i * 0.015, Y, tip + 0.012], id: 'sh' + i });
       break;
-    default: // bolt: twin barrels
-      cylZ(0.008, 0.01, 0.07, 6, -0.014, -0.025, tip - 0.035, dark);
-      cylZ(0.008, 0.01, 0.07, 6, 0.014, -0.025, tip - 0.035, dark);
-      cylZ(0.005, 0.005, 0.01, 6, -0.014, -0.025, tip - 0.075, tint.getHex(), true);
-      cylZ(0.005, 0.005, 0.01, 6, 0.014, -0.025, tip - 0.075, tint.getHex(), true);
+    default:   // bolt: twin barrels
+      n('barrel', { len: 0.075, r: 0.0085, glowCol: hex }, { rot: fwd, offset: [0.014, Y, tip + 0.005], mirror: 'x', id: 'bar' });
   }
-  // side fins, glow strip
-  box(0.05, 0.004, 0.03, 0, -0.025, 0.02, dark);
-  box(0.004, 0.004, 0.05, 0, -0.049, -0.005, tint.getHex(), true);
-  const group = new THREE.Group();
-  const mat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, vertexColors: true });
-  const emat = new THREE.MeshBasicMaterial({ vertexColors: true });
-  const m1 = new THREE.Mesh(mergeGeometries(lit), mat), m2 = new THREE.Mesh(mergeGeometries(emi), emat);
-  group.add(m1, m2);
-  group.userData.dispose = () => { m1.geometry.dispose(); m2.geometry.dispose(); mat.dispose(); emat.dispose(); };
+  return { part: 'plate', params: { w: 0.03, d: 0.05, th: 0.012 }, palette: WPAL(hex), lod, flex: false, children: kids };
+}
+function weaponBuild(THREE, weapon, lod) {
+  const res = compose(THREE, weaponRecipe(weapon, lod), pmul(7));
+  const mats = makeMaterials(THREE, { flex: false });
+  const group = new THREE.Group(), meshes = [];
+  const m1 = new THREE.Mesh(res.geo, mats.lit); group.add(m1); meshes.push(m1);
+  if (res.emissive) { const m2 = new THREE.Mesh(res.emissive, mats.emissive); group.add(m2); meshes.push(m2); }
+  group.userData.dispose = () => { meshes.forEach((m) => m.geometry.dispose()); };     // materials are shared (ship-parts makeMaterials)
+  group.userData.triangles = res.tris;
   return group;
+}
+export function buildWeaponModel(THREE, weapon) {
+  const g = weaponBuild(THREE, weapon, 'hi');
+  let lo = null;
+  Object.defineProperty(g, 'lo', { enumerable: false, configurable: true, get() { return lo || (lo = weaponBuild(THREE, weapon, 'lo')); } });
+  return g;
 }

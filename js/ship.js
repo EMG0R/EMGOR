@@ -27,6 +27,8 @@ var PULSE_LOOK = 1.0, PULLUP_LOOK = 1.6, PULLUP_RATE = 25 * Math.PI / 180;   // 
 var TERRAIN_DMG = 30, TERRAIN_INV = 0.8;    // terrain / body hit with a normal speed above BOOST: HP + bounce
 var VEL_CHASE = 2.2, TURN_MAX = 8, GSHAKE_AT = 0.8;   // velocity chases the thrust vector at VEL_CHASE/s; max turn rate rad/s; g-shake above 0.8 of it
 var FLIP_T = 0.8, FLIP_CD = 1.5, DRIFT_T = 1.2, DRIFT_CD = 1.5, DRIFT_CHASE = 0.18, DRIFT_TURN = 1.6;   // maneuvers: Immelmann flip (dbl-tap S), drift turn (hold Ctrl)
+var ATM_R = 1.4, LF_ON = 1.6, LF_OFF = 1.7;     // rev 18: atmosphere top / local-frame engage / release (x R)
+var ATM_BOOST = 12, ATM_PULSE = 40, ENTRY_T = 2, HOVER_L = 3, PROMPT_L = 1.5, CLEAR_L = 0.8, SUB_L = 0.45, APP_T = 0.5, ATM_FOV = 8;   // atmosphere speed caps (u/s), entry brake (s), hover / prompt altitude (L), hull clearance (L), substep (L), approach governor (s), fov gain
 var BOUNDARY_F = 3.5;              // soft edge, x root.sysR
 var TARGET_CONE = 6 * Math.PI / 180;
 // combat
@@ -564,7 +566,7 @@ export default function mount(engine) {
         '<div class="sh-graze"><span>GRAZE</span><b><u></u></b></div><div class="sh-focus"><span>FOCUS</span><b><u></u></b></div>' +
         '<div class="sh-atmo"><span>ATMOSPHERE</span><b><u></u></b></div><div class="sh-ram"></div>' +
         '<div class="sh-incoming"><i></i><span>PLANET INCOMING</span></div>' +
-        '<div class="sh-entry">ENTRY</div><div class="sh-land"></div>' +
+        '<div class="sh-entry">ENTRY</div><div class="sh-land"></div><div class="sh-alt"></div>' +
         '<div class="sh-stats"><div class="sh-st-wave"></div><div class="sh-st-en"></div><div class="sh-st-al"></div><div class="sh-st-kills"></div></div>' +
         '<div class="sh-speed"></div>' +
         '<div class="sh-bars">' +
@@ -688,7 +690,7 @@ export default function mount(engine) {
             var n = d[i];
             if (!n.anchor) continue;
             var rec = realRecs.get(n);
-            if (!rec) { rec = { node: n, R: 0, dist: 0, px: 0, py: 0, pz: 0, pN: -9 }; realRecs.set(n, rec); }
+            if (!rec) { rec = { node: n, R: 0, dist: 0, px: 0, py: 0, pz: 0, pN: -9, vx: 0, vy: 0, vz: 0 }; realRecs.set(n, rec); }
             rec.R = realRadius(n);
             out[c++] = rec;
         }
@@ -977,6 +979,7 @@ export default function mount(engine) {
     function enter() {
         if (state === 'piloting') return;
         stepN += 2;                                        // drop stale body-frame history
+        lfOff();
         scaleChecks = 3;                                   // re-read the planet radius on the first piloting frames (rev 13)
         enteredAt = performance.now();                     // engine Esc may call us while already flying
         try {
@@ -2763,6 +2766,7 @@ export default function mount(engine) {
         if (sp < 0.2) return -1;
         for (i = 0; i < bodies.length; i++) {
             var b = bodies[i], c = b.node.anchor.position, reach = b.R * 1.3 + sp * H;
+            if (ps && hasSurface(b.node)) continue;                       // rev 18: surface planets are handled by the approach governor + local-frame collision
             var dx = c.x - P0.x, dy = c.y - P0.y, dz = c.z - P0.z;
             if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
             if (ps && ps.active === b.node) {
@@ -2795,9 +2799,9 @@ export default function mount(engine) {
     }
     function targetSpeed(boosting) {
         // throttle in [THROTTLE_MIN,0] maps to [-REVERSE,0]
-        var base = throttle >= 0 ? throttle * CRUISE : (throttle / THROTTLE_MIN) * -REVERSE;
-        if (boosting && throttle > 0.02) base *= BOOST / CRUISE;
-        else if (boosting && throttle < -0.02) base = (throttle / THROTTLE_MIN) * -0.7 * BOOST;     // rev 9: reverse boost = 0.7 x boost
+        var base = throttle >= 0 ? throttle * CRUISE : (throttle / THROTTLE_MIN) * -REVERSE, bst = lf.cap ? ATM_BOOST : BOOST;    // rev 18: atmosphere boost cap
+        if (boosting && throttle > 0.02) base *= bst / CRUISE;
+        else if (boosting && throttle < -0.02) base = (throttle / THROTTLE_MIN) * -0.7 * bst;     // rev 9: reverse boost = 0.7 x boost
         return base;
     }
     // rev 13: renderedRadius can differ before vs during pilot mode, so the first piloting frames re-read it; if it moved, everything that baked L
@@ -2824,7 +2828,7 @@ export default function mount(engine) {
     // Inside 1.4 R above BOOST speed: a copy of the hull (shared geometry, scale 1.08) with an additive fresnel fire shader wraps the ship,
     // orange -> white with speed; heat streaks ride fx.setMotion; the planet's rim rumble and a HUD "ENTRY" ride along.
     var entryHeat = 0, sheath = null, sheathHull = null, sheathMat = null;
-    var elEntry = hud.querySelector('.sh-entry'), elLand = hud.querySelector('.sh-land'), cEntry = false, cLandTxt = '';
+    var elEntry = hud.querySelector('.sh-entry'), elLand = hud.querySelector('.sh-land'), elAlt = hud.querySelector('.sh-alt'), cEntry = false, cLandTxt = '', cAltTxt = '';
     function ensureSheath() {
         if (sheath && sheathHull === hullObj) return sheath;
         if (sheath) shipRoot.remove(sheath);
@@ -2871,7 +2875,9 @@ export default function mount(engine) {
     }
     function updateEntry(dt, P, spd, bodies) {
         var heatT = 0, i;
-        if (!dead && spd > BOOST) {
+        if (lf.on) {
+            if (!dead && lf.entryT > 0) heatT = clamp(0.3 + 0.7 * lf.entryT / ENTRY_T, 0.3, 1);       // rev 18: the burn is the ENTRY brake
+        } else if (!dead && spd > BOOST) {
             for (i = 0; i < bodies.length; i++) {
                 vTmp.subVectors(P, bodies[i].node.anchor.position);
                 var rr = 1.4 * bodies[i].R;
@@ -2883,7 +2889,7 @@ export default function mount(engine) {
         if (entryHeat > 0) {
             ensureSheath().visible = true;
             var u = sheathMat.uniforms;
-            u.uHeat.value = clamp((spd - BOOST) / 360, 0, 1); u.uI.value = entryHeat * 1.7; u.uTime.value = gt;
+            u.uHeat.value = lf.on ? clamp(lf.entryT / ENTRY_T, 0, 1) * 0.85 : clamp((spd - BOOST) / 360, 0, 1); u.uI.value = entryHeat * 1.7; u.uTime.value = gt;
             shake = Math.max(shake, 0.22 * L * entryHeat); fovKick = Math.max(fovKick, 1.5 * entryHeat);
         } else if (sheath && sheath.visible) sheath.visible = false;
         var en = entryHeat > 0.15;
@@ -2940,7 +2946,7 @@ export default function mount(engine) {
         mM.makeBasis(gC, gA, gD); gQ.setFromRotationMatrix(mM);      // upright, nose along the old heading
         land.qFrom.copy(gQi).multiply(shipRoot.quaternion);
         land.qTo.copy(gQi).multiply(gQ);
-        gmode = 'landing'; landOk = false; firing = false; mdx = mdy = 0;
+        lfOff(); gmode = 'landing'; landOk = false; firing = false; mdx = mdy = 0;
         vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; pulseT = 0;
         killBolts(); combatRoot.visible = false;
         setGround(true, false);
@@ -2988,7 +2994,7 @@ export default function mount(engine) {
         gA.copy(land.sPos).applyQuaternion(land.node.mesh.quaternion).normalize();     // world up
         gB.copy(shipRoot.position).addScaledVector(gA, -legDrop * L);
         for (var i = 0; i < 3; i++) fx.impact(gB, 0xc8b89a, 3);
-        gmode = 'fly'; landOk = false; landCheckT = 0.6;
+        gmode = 'fly'; landOk = false; landCheckT = 0.6; lfOff(); lf.fromLand = true; lf.relNext = true;
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
         combatRoot.visible = true; setGround(false, false);
         vel.copy(gA).multiplyScalar(2.5 * CRUISE); speed = 1.5; throttle = 0.5; pulse = 0; pulseT = 0;
@@ -3002,7 +3008,7 @@ export default function mount(engine) {
         }
         if (hum.obj) hum.obj.group.visible = false;
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
-        gmode = 'fly'; landOk = false; setGround(false, false);
+        gmode = 'fly'; landOk = false; lfOff(); setGround(false, false);
         net && net.setMode && net.setMode('fly');
     }
     // The engine runs the pilot step BEFORE updateBodies, so node.anchor / node.mesh.rotation are one frame stale here. For anything glued to a
@@ -3013,6 +3019,243 @@ export default function mount(engine) {
         if (!n || !n.anchor || !n.mesh) return;
         n.anchor.position.set(n.wx, n.ny || 0, n.wy);
         n.mesh.rotation.z = n.spinTilt; n.mesh.rotation.y = (reducedM ? 0 : engine.time) * n.spinRate + n.spinPhase;
+    }
+
+    // ─── rev 18: LOCAL-FRAME flight (docs/ship-mode.md "Revision 18") ─────────────────────────────────────────────
+    // Inside LF_ON x R of a surface planet the ship is simulated in the planet's own rotating frame: lp / lq / lv are stored relative to the
+    // planet anchor and its spin quaternion, and the world pose is derived at the START of every step from the planet's CURRENT pose (syncPlanet,
+    // the same values updateBodies is about to write), so nothing is ever one frame stale and the old frame drag is gone. Everything else in
+    // the fight rides the frame's translation (carryWorld). vel while the frame is on = the rotating-frame velocity in world axes.
+    var lf = {
+        on: false, node: null, rec: null, R: 0, cap: false, leaving: false, entryT: 0, entryV0: 0, hover: false, alt: 1e9, floorR: 0, atmK: 0,
+        lp: new THREE.Vector3(), lq: new THREE.Quaternion(), lv: new THREE.Vector3(), endV: new THREE.Vector3(), endP: new THREE.Vector3(), endQ: new THREE.Quaternion(), qEnd: new THREE.Quaternion(),
+        c0: new THREE.Vector3(), holdAlt: 0, relNext: false, fromLand: false, jump: 0, maxStep: 0, prevW: new THREE.Vector3(), prevOk: false, subN: 0
+    };
+    var lfQi = new THREE.Quaternion(), lfQt = new THREE.Quaternion(), lfA = new THREE.Vector3(), lfB = new THREE.Vector3(), lfC = new THREE.Vector3(), lfD = new THREE.Vector3(), lfU = new THREE.Vector3();
+    function hasSurface(n) { var u = n.mesh && n.mesh.material && n.mesh.material.uniforms; return !!(u && u.uSeed && n.anchor && n.anchor.visible); }
+    function lfOmega(n, p, c, out) { var w = reducedM ? 0 : n.spinRate; return out.set(w * (p.z - c.z), 0, -w * (p.x - c.x)); }   // spin is about world Y: w x r
+    function carryWorld(ddx, ddy, ddz) {
+        var i, P = shipRoot.position;
+        for (i = 0; i < enemies.length; i++) if (enemies[i].alive && !enemies[i].isBoss) { enemies[i].g.position.x += ddx; enemies[i].g.position.y += ddy; enemies[i].g.position.z += ddz; enemies[i].wander.x += ddx; enemies[i].wander.y += ddy; enemies[i].wander.z += ddz; enemies[i].base.x += ddx; enemies[i].base.y += ddy; enemies[i].base.z += ddz; enemies[i].home.x += ddx; enemies[i].home.y += ddy; enemies[i].home.z += ddz; }
+        bsig.org.x += ddx; bsig.org.y += ddy; bsig.org.z += ddz;
+        for (i = 0; i < mines.length; i++) if (mines[i].active) { mines[i].m.position.x += ddx; mines[i].m.position.y += ddy; mines[i].m.position.z += ddz; }
+        for (i = 0; i < allies.length; i++) if (allies[i].alive) { allies[i].g.position.x += ddx; allies[i].g.position.y += ddy; allies[i].g.position.z += ddz; }
+        for (i = 0; i < drops.length; i++) if (drops[i].active) { drops[i].m.position.x += ddx; drops[i].m.position.y += ddy; drops[i].m.position.z += ddz; }
+        for (i = 0; i < orbs.length; i++) if (orbs[i].active) { orbs[i].m.position.x += ddx; orbs[i].m.position.y += ddy; orbs[i].m.position.z += ddz; }
+        var bpa = fx.bolts.geometry.attributes.aPos.array;
+        for (i = 0; i < bolts.length; i++) if (bolts[i].active) { var bi3 = bolts[i].id * 3; bpa[bi3] += ddx; bpa[bi3 + 1] += ddy; bpa[bi3 + 2] += ddz; bolts[i].prev.x += ddx; bolts[i].prev.y += ddy; bolts[i].prev.z += ddz; }
+    }
+    function lfOff() { lf.on = false; lf.cap = false; lf.leaving = false; lf.entryT = 0; lf.hover = false; lf.alt = 1e9; lf.prevOk = false; }
+    function lfEntry(v0) { lf.cap = true; lf.entryT = ENTRY_T; lf.entryV0 = Math.max(v0, ATM_BOOST); lf.leaving = false; }
+    // gather: current pose of every body + its world velocity (history), then (re)derive the ship's world pose from the local state
+    function lfBegin(dt, bodies, P) {
+        var i, rb, ap;
+        stepN++;
+        for (i = 0; i < bodies.length; i++) {
+            rb = bodies[i]; syncPlanet(rb.node); ap = rb.node.anchor.position;
+            if (rb.pN === stepN - 1 && dt > 1e-5) { rb.vx = (ap.x - rb.px) / dt; rb.vy = (ap.y - rb.py) / dt; rb.vz = (ap.z - rb.pz) / dt; } else { rb.vx = rb.vy = rb.vz = 0; }
+            rb.px = ap.x; rb.py = ap.y; rb.pz = ap.z; rb.pN = stepN;
+        }
+        var n, c, q, Rn;
+        if (lf.on) {
+            n = lf.node; c = n.anchor.position; q = n.mesh.quaternion; Rn = n.mesh.scale.x;
+            if (!(Rn > 0) || !n.anchor.visible) lfOff();
+            else {
+                if (Math.abs(Rn / lf.R - 1) > 1e-7) { lf.lp.multiplyScalar(Rn / lf.R); lf.R = Rn; }
+                lfQi.copy(q).invert();
+                if (vel.distanceToSquared(lf.endV) > 1e-12) lf.lv.copy(vel).applyQuaternion(lfQi);                                                      // velocity set from outside (debug / liftoff): take it as the local velocity
+                if (Math.abs(shipRoot.quaternion.dot(lf.endQ)) < 1 - 1e-10) { lfQt.copy(lf.qEnd).invert(); lf.lq.copy(lfQt).multiply(shipRoot.quaternion); }      // orientation set from outside (debug): keep it
+                if (P.distanceToSquared(lf.endP) > 1e-6 * L * L) {                                                                                      // position set from outside (respawn / debug): re-derive
+                    lf.lp.copy(P).sub(c).applyQuaternion(lfQi); lf.jump++;
+                    if (lf.lp.length() > LF_ON * Rn) { lfOff(); n = null; }
+                }
+                if (n === null) { /* teleported out of the frame: fall through to the engage test with the world pose as it is */ }
+                else {
+                var dx = c.x - lf.c0.x, dy = c.y - lf.c0.y, dz = c.z - lf.c0.z;
+                P.copy(lf.lp).applyQuaternion(q).add(c);
+                shipRoot.quaternion.copy(q).multiply(lf.lq);
+                vel.copy(lf.lv).applyQuaternion(q);
+                if (lf.prevOk) carryWorld(dx, dy, dz);
+                lf.prevOk = true;
+                return;
+                }
+            }
+        }
+        // not in a frame: engage on the nearest surface planet inside LF_ON x R (needs ps active on the same body)
+        if (!ps) return;
+        var best = null, bd = LF_ON, br = null;
+        for (i = 0; i < bodies.length; i++) {
+            rb = bodies[i]; n = rb.node;
+            if (!hasSurface(n)) continue;
+            Rn = n.mesh.scale.x; if (!(Rn > 0)) continue;
+            var d = P.distanceTo(n.anchor.position) / Rn;
+            if (d < bd) { bd = d; best = n; br = rb; }
+        }
+        if (!best || ps.active !== best) { lf.fromLand = false; lf.relNext = false; return; }
+        n = best; c = n.anchor.position; q = n.mesh.quaternion; Rn = n.mesh.scale.x;
+        lfQi.copy(q).invert();
+        lf.node = n; lf.rec = br; lf.R = Rn;
+        if (lf.fromLand && land.node === n) {
+            lf.lp.copy(land.sPos); lf.lq.copy(land.sQuat); lf.lv.copy(land.sPos).normalize().multiplyScalar(2.5 * CRUISE);
+        } else {
+            lf.lp.copy(P).sub(c).applyQuaternion(lfQi);
+            lf.lq.copy(lfQi).multiply(shipRoot.quaternion);
+            lfA.copy(vel);
+            if (!lf.relNext) { lfA.x -= br.vx; lfA.y -= br.vy; lfA.z -= br.vz; lfOmega(n, P, c, lfB); lfA.sub(lfB); }          // world -> local: subtract the planet's velocity and the spin
+            lf.lv.copy(lfA).applyQuaternion(lfQi);
+        }
+        lf.fromLand = false; lf.relNext = false;
+        lf.on = true; lf.cap = false; lf.leaving = false; lf.entryT = 0; lf.c0.copy(c); lf.prevOk = false; lf.atmK = 0;
+        P.copy(lf.lp).applyQuaternion(q).add(c); shipRoot.quaternion.copy(q).multiply(lf.lq); vel.copy(lf.lv).applyQuaternion(q);
+        if (lf.lp.length() < ATM_R * Rn) lfEntry(lf.lv.length());
+        lfAlt();
+    }
+    function lfAlt() {
+        var n = lf.node, r = lf.lp.length();
+        lf.floorR = (ps && ps.active === n) ? ps.floorLocal(lf.lp.x, lf.lp.y, lf.lp.z) : lf.R * 1.04;
+        lf.alt = r - lf.floorR;
+        var hv = lf.cap && lf.alt < (lf.hover ? 1.2 : 1) * HOVER_L * L;          // hysteresis: in at 3 L, out at 3.6 L
+        if (hv && !lf.hover) lf.holdAlt = Math.max(CLEAR_L, lf.alt / L);
+        lf.hover = hv;
+    }
+    // approach governor + atmosphere caps: nothing arrives at the 1.4 R shell faster than ATM_PULSE (the radial/total speed is limited by the
+    // distance left to the shell / APP_T), and once ENTRY starts the speed spools down to ATM_BOOST over ENTRY_T and can never leave the shell.
+    function lfGovern(dt, bodies, P) {
+        var i;
+        if (!lf.cap) {
+            if (!ps) return;
+            for (i = 0; i < bodies.length; i++) {
+                var b = bodies[i], n = b.node;
+                if (!hasSurface(n)) continue;
+                var Rn = n.mesh.scale.x, c = n.anchor.position;
+                lfA.subVectors(P, c); var d = lfA.length();
+                if (d > 8 * Rn || d < ATM_R * Rn) continue;
+                lfA.divideScalar(d);
+                var own = lf.on && lf.node === n;
+                lfB.copy(vel); if (!own) { lfB.x -= b.vx; lfB.y -= b.vy; lfB.z -= b.vz; }
+                if (lfB.dot(lfA) > -0.2) continue;                                     // not closing
+                var vcap = Math.max(ATM_PULSE, (d - ATM_R * Rn) / APP_T), vt = lfB.length();
+                if (vt > vcap) {
+                    lfB.multiplyScalar(vcap / vt);
+                    if (!own) { lfB.x += b.vx; lfB.y += b.vy; lfB.z += b.vz; }
+                    vel.copy(lfB);
+                    if (Math.abs(speed) > vcap) speed = speed < 0 ? -vcap : vcap;
+                    pulseT = Math.min(pulseT, PULSE_E * Math.log(vcap / CRUISE));
+                }
+            }
+            return;
+        }
+        if (lf.entryT > 0) lf.entryT = Math.max(0, lf.entryT - dt);
+        var vmax = ATM_PULSE;
+        if (lf.entryT > 0) { var f = lf.entryT / ENTRY_T; vmax = ATM_BOOST + (lf.entryV0 - ATM_BOOST) * f * f; }
+        var vl = vel.length();
+        if (vl > vmax) vel.multiplyScalar(vmax / vl);
+        if (Math.abs(speed) > vmax) speed = speed < 0 ? -vmax : vmax;
+        lfA.subVectors(P, lf.node.anchor.position); var r = lfA.length(); lfA.divideScalar(r || 1);
+        var dd = -vel.dot(lfA), ddm = Math.max(ATM_PULSE, lf.alt / APP_T);            // descent governor: you can always stop before the floor
+        if (dd > ddm) vel.addScaledVector(lfA, dd - ddm);
+        if (lf.entryT > 0 && r > (ATM_R - 0.03) * lf.R) { var vo = vel.dot(lfA); if (vo > 0) vel.addScaledVector(lfA, -vo); bounceV.addScaledVector(lfA, -Math.max(0, bounceV.dot(lfA))); }   // ENTRY: nothing pushes you back out
+    }
+    // swept, substepped motion in the LOCAL frame against the local height function (ps.floorLocal is a pure function of the local position)
+    function lfMove(dt) {
+        var n = lf.node, c = n.anchor.position, q = n.mesh.quaternion, R = lf.R, P = shipRoot.position;
+        lfQi.copy(q).invert();
+        var lp = lf.lp, lv = lfB.copy(vel).add(bounceV).applyQuaternion(lfQi), lv0x = lv.x, lv0y = lv.y, lv0z = lv.z;
+        lp.copy(P).sub(c).applyQuaternion(lfQi);
+        lfU.copy(lp).normalize().applyQuaternion(q);                                 // world up before the move (for the horizon transport)
+        var rem = dt, it = 0, zone = 1.25 * R, atmR = ATM_R * R, MAXIT = 24, sub = 0, hit = false;
+        while (rem > 1e-9 && it++ < MAXIT) {
+            var sp = lv.length(), r = lp.length(), h = rem;
+            if (sp > 1e-9) {
+                if (r - zone < sp * h * 1.05) h = Math.min(h, Math.max(SUB_L * L / sp, dt / MAXIT));
+                if (!lf.cap && r > atmR) {
+                    var b = lp.dot(lv), a = sp * sp, cc = r * r - atmR * atmR, disc = b * b - a * cc;
+                    if (b < 0 && disc >= 0) { var tc = (-b - Math.sqrt(disc)) / a; if (tc >= 0 && tc <= h) { h = tc; hit = true; } }
+                }
+            }
+            lp.addScaledVector(lv, h); rem -= h; sub++;
+            if (hit) { hit = false; lfEntry(lv.length()); lp.multiplyScalar(atmR * 0.999999 / lp.length()); }
+            var r2 = lp.length();
+            if (lf.entryT > 0 && r2 > atmR * 0.99999) { lp.multiplyScalar(atmR * 0.99999 / r2); r2 = atmR * 0.99999; }
+            if (r2 < zone) {
+                var fl = ((ps && ps.active === n) ? ps.floorLocal(lp.x, lp.y, lp.z) : R * 1.04) + CLEAR_L * L;
+                if (r2 < fl) {
+                    lp.multiplyScalar(fl / r2);
+                    lfC.copy(lp).divideScalar(fl);
+                    var vn = lv.dot(lfC);
+                    if (vn < 0) { if (-vn > BOOST) { lfD.copy(lfC).applyQuaternion(q); terrainHit(-vn, lfD); } lv.addScaledVector(lfC, -vn); }
+                }
+            }
+        }
+        lf.subN = sub;
+        if (lf.hover && lf.cap) {
+            // hover = terrain following: keep the altitude above the ground under the ship (the user's own climb / dive still moves it)
+            var rr = lp.length(), fl2 = (ps && ps.active === n) ? ps.floorLocal(lp.x, lp.y, lp.z) : R * 1.04, vrad = (lv.x * lp.x + lv.y * lp.y + lv.z * lp.z) / (rr || 1);
+            lf.holdAlt = clamp(lf.holdAlt + vrad * dt / L, CLEAR_L, 1.2 * HOVER_L + 0.2);
+            var tr = fl2 + lf.holdAlt * L;
+            var rn = rr + (tr - rr) * damp(8, dt); rn = Math.max(rn, fl2 + CLEAR_L * L);
+            lp.multiplyScalar(rn / rr);
+        }
+        P.copy(lp).applyQuaternion(q).add(c);
+        lfC.set(lv.x - lv0x, lv.y - lv0y, lv.z - lv0z).applyQuaternion(q);          // what the floor took away (local axes -> world)
+        vel.add(lfC);
+        if (bounceV.lengthSq() > 1e-12) bounceV.multiplyScalar(Math.exp(-2.5 * dt));
+        if (lf.cap) {
+            // the horizon follows: parallel-transport the attitude and velocity as the ship moves over the curved ground
+            lfD.copy(lp).normalize().applyQuaternion(q);
+            lfQt.setFromUnitVectors(lfU, lfD);
+            shipRoot.quaternion.premultiply(lfQt); vel.applyQuaternion(lfQt);
+        }
+    }
+    // lift: with no pitch input the nose eases to the horizon (a climb attitude steeper than ~30 deg is held), and the wings level out
+    function lfLevel(dt) {
+        if (!lf.cap || dead || flipT > 0) return;
+        var q = lf.node.mesh.quaternion, c = lf.node.anchor.position;
+        lfA.subVectors(shipRoot.position, c).normalize();
+        vF.copy(NEG_Z).applyQuaternion(shipRoot.quaternion);
+        var e = Math.asin(clamp(vF.dot(lfA), -1, 1)), wP = (Math.abs(pitRate) < 0.12 ? 1 : 0) * (1 - clamp((Math.abs(e) - 0.45) / 0.35, 0, 1));
+        if (wP > 0 && Math.abs(e) > 1e-4) {
+            lfB.copy(vF).addScaledVector(lfA, -vF.dot(lfA)); var bl = lfB.length();
+            if (bl > 1e-5) { lfB.divideScalar(bl); lfQt.setFromUnitVectors(vF, lfB); qA.identity().slerp(lfQt, 1 - Math.exp(-1.6 * wP * dt)); shipRoot.quaternion.premultiply(qA).normalize(); vF.copy(NEG_Z).applyQuaternion(shipRoot.quaternion); }
+        }
+        if (!keys.KeyA && !keys.KeyD && rollT <= 0 && Math.abs(vF.dot(lfA)) < 0.95) {
+            lfB.crossVectors(vF, lfA).normalize();                                    // level right
+            lfC.copy(X).applyQuaternion(shipRoot.quaternion);                          // actual right
+            var ang = Math.atan2(lfD.crossVectors(lfC, lfB).dot(vF), lfC.dot(lfB)), wR = 1 - clamp(Math.abs(yawRate) / 0.5, 0, 1);
+            shipRoot.quaternion.premultiply(qA.setFromAxisAngle(vF, ang * (1 - Math.exp(-2.2 * wR * dt)))).normalize();
+        }
+    }
+    function lfRelease() {
+        var n = lf.node, c = n.anchor.position, q = n.mesh.quaternion, P = shipRoot.position;
+        vel.copy(lf.lv).applyQuaternion(q);
+        if (lf.rec) { vel.x += lf.rec.vx; vel.y += lf.rec.vy; vel.z += lf.rec.vz; }
+        lfOmega(n, P, c, lfB); vel.add(lfB);
+        lfOff();
+    }
+    function lfCommit(dt) {
+        if (!lf.on) return;
+        var n = lf.node, c = n.anchor.position, q = n.mesh.quaternion, P = shipRoot.position, R = lf.R;
+        lfQi.copy(q).invert();
+        lf.lp.copy(P).sub(c).applyQuaternion(lfQi);
+        if (lf.cap || lf.lp.length() < 1.25 * R) {                          // whatever moved the ship after lfMove (dodge sidestep, ram) may not leave it inside the ground
+            var rr0 = lf.lp.length(), fl0 = (ps && ps.active === n) ? ps.floorLocal(lf.lp.x, lf.lp.y, lf.lp.z) : R * 1.04;
+            if (rr0 < fl0 + CLEAR_L * L) { lf.lp.multiplyScalar((fl0 + CLEAR_L * L) / rr0); P.copy(lf.lp).applyQuaternion(q).add(c); }
+        }
+        lf.lq.copy(lfQi).multiply(shipRoot.quaternion);
+        lf.lv.copy(vel).applyQuaternion(lfQi);
+        lf.endP.copy(P); lf.endV.copy(vel); lf.endQ.copy(shipRoot.quaternion); lf.qEnd.copy(q); lf.c0.copy(c);
+        var r = lf.lp.length();
+        if (lf.cap) {
+            if (r > ATM_R * R) {
+                if (!lf.leaving && lf.entryT <= 0 && lf.lv.dot(lf.lp) > 0) { lf.leaving = true; announce('LEAVING ATMOSPHERE'); shake = Math.max(shake, 1.1 * L); fovKick = Math.max(fovKick, 3); }
+            } else lf.leaving = false;
+            if (r > LF_OFF * R) { lfRelease(); return; }
+        } else if (r > LF_OFF * R) { lfRelease(); return; }
+        lfAlt();
+        // HUD altitude
+        var txt = '';
+        if (lf.cap || lf.alt < 4 * R * 0.4) { var aL = lf.alt / L; txt = 'ALT ' + (aL < 10 ? aL.toFixed(1) : (aL >= 1000 ? (aL / 1000).toFixed(1) + 'k' : Math.round(aL))) + ' L' + (lf.hover ? '  ·  HOVER' : '') + (lf.entryT > 0 ? '  ·  ENTRY' : ''); }
+        if (txt !== cAltTxt) { cAltTxt = txt; elAlt.textContent = txt; elAlt.classList.toggle('is-on', !!txt); }
     }
     var landReq = false;
     function onKeyE() {
@@ -3137,6 +3380,7 @@ export default function mount(engine) {
         if (gmode !== 'fly') { groundStep(dt); return; }
         var i, bodies = gatherBodies();
         var P = shipRoot.position;
+        lfBegin(dt, bodies, P);                    // rev 18: current pose of every body + local-frame state -> world pose
         gt += dt; psCalls = 0;
         var tS = prof.on ? performance.now() : 0, tM = 0, tA0 = 0;
         // rev 9c #3: Focus (hold Q) slows the WORLD (enemies, bolts, allies) to 0.35x; your flight and mouse stay real-time.
@@ -3161,7 +3405,7 @@ export default function mount(engine) {
             deathT -= dt;
             if (deathT <= 0) {
                 // restart at the dock: waves, kills, hp reset; still piloting
-                placeAtDock();
+                placeAtDock(); lfOff();
                 resetGame(shownWave(), kills);
                 vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; mdx = mdy = 0;
                 shipRoot.visible = true;
@@ -3205,13 +3449,14 @@ export default function mount(engine) {
         var gk = clamp((Math.sqrt(yawRate * yawRate + pitRate * pitRate) / turnCap - GSHAKE_AT) / (1 - GSHAKE_AT), 0, 1);
         if (gk > 0) { shake = Math.max(shake, gk * 0.25 * L); fovKick = Math.max(fovKick, gk * 1.2); }
         var yawA = yawRate * dt, pitA = pitRate * dt;
-        var rollA = dead ? 0 : ((keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0)) * ROLL_RATE * dt;
+        var hov = lf.on && lf.hover && !dead;                // rev 18: below 3 L the ship hovers: A/D strafe instead of rolling
+        var rollA = (dead || hov) ? 0 : ((keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0)) * ROLL_RATE * dt;
         if (dead) { yawA = pitA = 0; }
         // rev 9b #3: dodge roll = one full barrel roll over ROLL_T s (damage cut applied in hurtPlayer), plus a 6 L sidestep below
         var rolling = rollT > 0 && !dead, rollP = rolling ? 1 - rollT / ROLL_T : 0;
         if (rolling) { var rdt = Math.min(dt, rollT); rollA += rollDir * 6.2832 * rdt / ROLL_T; rollT = Math.max(0, rollT - dt); }
         // bank: the hull leans into the turn (roll chases BANK_K x yawRate; only the change is applied, so it returns level)
-        var bankT = dead ? 0 : clamp(BANK_K * yawRate * (driftOn ? 1.6 : 1), -BANK_MAX, BANK_MAX), bankN = bank + (bankT - bank) * damp(BANK_SPRING, dt);
+        var bankT = (dead || hov) ? 0 : clamp(BANK_K * yawRate * (driftOn ? 1.6 : 1), -BANK_MAX, BANK_MAX), bankN = bank + (bankT - bank) * damp(BANK_SPRING, dt);
         if (flipping) {
             // scripted: q = q0 * Rx(pi s) * Rz(pi s), s eased over FLIP_T (heading reverses, ends upright)
             flipT = Math.max(0, flipT - dt);
@@ -3288,41 +3533,12 @@ export default function mount(engine) {
         }
         target = best;
 
-        // frame drag: every body orbits at ~15-20 u/s, faster than boost (5 u/s), so near a body the
-        // ship rides that body's motion (blended in by proximity). Without this a planet can
-        // never be reached at NMS speeds. Skipped if a rec was not stepped last frame.
-        stepN++;
-        var dragB = null, dragW = 0;
-        for (i = 0; i < bodies.length; i++) {
-            var db = bodies[i];
-            if (db.pN === stepN - 1 && !dead) {
-                var w = clamp((10 * db.R - db.dist) / (8 * db.R), 0, 1);
-                if (w > dragW) { dragW = w; dragB = db; }
-            }
-        }
-        if (dragB) {
-            var dcp = dragB.node.anchor.position;
-            var ddx = (dcp.x - dragB.px) * dragW, ddy = (dcp.y - dragB.py) * dragW, ddz = (dcp.z - dragB.pz) * dragW;
-            P.x += ddx; P.y += ddy; P.z += ddz;
-            // everything in the fight rides the same frame, or enemies would be left behind at 20 u/s
-            for (i = 0; i < enemies.length; i++) if (enemies[i].alive && !enemies[i].isBoss) { enemies[i].g.position.x += ddx; enemies[i].g.position.y += ddy; enemies[i].g.position.z += ddz; enemies[i].wander.x += ddx; enemies[i].wander.y += ddy; enemies[i].wander.z += ddz; enemies[i].base.x += ddx; enemies[i].base.y += ddy; enemies[i].base.z += ddz; enemies[i].home.x += ddx; enemies[i].home.y += ddy; enemies[i].home.z += ddz; }
-            bsig.org.x += ddx; bsig.org.y += ddy; bsig.org.z += ddz;       // rev 12: world-anchored points ride the same frame
-            for (i = 0; i < mines.length; i++) if (mines[i].active) { mines[i].m.position.x += ddx; mines[i].m.position.y += ddy; mines[i].m.position.z += ddz; }
-            for (i = 0; i < allies.length; i++) if (allies[i].alive) { allies[i].g.position.x += ddx; allies[i].g.position.y += ddy; allies[i].g.position.z += ddz; }
-            for (i = 0; i < drops.length; i++) if (drops[i].active) { drops[i].m.position.x += ddx; drops[i].m.position.y += ddy; drops[i].m.position.z += ddz; }
-            for (i = 0; i < orbs.length; i++) if (orbs[i].active) { orbs[i].m.position.x += ddx; orbs[i].m.position.y += ddy; orbs[i].m.position.z += ddz; }
-            var bpa = fx.bolts.geometry.attributes.aPos.array;
-            for (i = 0; i < bolts.length; i++) if (bolts[i].active) { var bi3 = bolts[i].id * 3; bpa[bi3] += ddx; bpa[bi3 + 1] += ddy; bpa[bi3 + 2] += ddz; bolts[i].prev.x += ddx; bolts[i].prev.y += ddy; bolts[i].prev.z += ddz; }
-        }
-        for (i = 0; i < bodies.length; i++) {
-            var db2 = bodies[i], dc2 = db2.node.anchor.position;
-            db2.px = dc2.x; db2.py = dc2.y; db2.pz = dc2.z; db2.pN = stepN;
-        }
+        // rev 18: the old frame drag is gone. Inside LF_ON x R the whole step runs in the planet's local frame (lfBegin / lfMove / lfCommit).
 
         // rev 13 pulse anywhere: no altitude rules. The swept path (current velocity, PULLUP_LOOK s ahead) is tested against every body's shell and,
         // inside an active planet's atmosphere, the actual terrain. Pulse drops only if that path hits within PULSE_LOOK s; before that a gentle auto
         // pull-up (max 25 deg/s) tilts the nose away so shallow approaches skim and steep ones do not.
-        var hitT = dead ? -1 : pathHit(P, vel, PULLUP_LOOK, bodies), cut = hitT >= 0 && hitT <= PULSE_LOOK;
+        var hitT = (dead || lf.cap) ? -1 : pathHit(P, vel, PULLUP_LOOK, bodies), cut = hitT >= 0 && hitT <= PULSE_LOOK;
         if (hitT >= 0 && !dead && vel.length() > BOOST * 0.7) {
             vU.crossVectors(vF, phN);
             var pl = vU.length();
@@ -3337,6 +3553,7 @@ export default function mount(engine) {
         // (speed = base + (PULSE_SPEED - base) x pulse); release bleeds it off over 1 s; a projected hit drops it in ~0.3 s
         if (pulseHeld) pulseT = Math.min(pulseT + dt, PULSE_E * PULSE_LN);
         else pulseT = Math.max(0, pulseT - dt * (cut ? 60 : PULSE_BLEED));
+        if (lf.cap) pulseT = pulseHeld ? PULSE_E * Math.log(ATM_PULSE / CRUISE) : Math.min(pulseT, PULSE_E * Math.log(ATM_PULSE / CRUISE));      // rev 18: in the atmosphere pulse is a 40 u/s sprint, no ramp
         var pulseSpd = 0;
         if (pulseT > 0) { pulseSpd = Math.min(PULSE_MAX, CRUISE * Math.exp(pulseT / PULSE_E)); pulse = clamp(Math.log(pulseSpd / CRUISE) / PULSE_LN, 0, 1); } else pulse = 0;
 
@@ -3344,6 +3561,7 @@ export default function mount(engine) {
         if (pulseSpd > 0) { var psT = throttle < -0.02 ? -0.6 * pulseSpd : pulseSpd; if (Math.abs(psT) > Math.abs(tgt)) tgt = psT; }      // rev 14: exponential pulse speed; reverse pulse = 0.6 x
         // drift-turn exit = +25 % speed for 1 s, decaying
         if (driftBoost > 0) { tgt *= 1 + DRIFT_BOOST * driftBoost; driftBoost = Math.max(0, driftBoost - dt); }
+        if (lf.cap) tgt = clamp(tgt, -ATM_PULSE, pulseSpd > 0 ? ATM_PULSE : ATM_BOOST);
         // thrust is acceleration: the commanded speed spools up (1.4/s), and the velocity then chases the thrust vector at VEL_CHASE/s
         var rate = tgt >= speed ? (pulseT > 0 ? 6 : 1.4) : (pulseT > 0 ? 4 : 2.2);
         if (cut && Math.abs(speed) > CRUISE * 2) rate = 6;                       // brake when pulse was cut by a body ahead
@@ -3351,11 +3569,17 @@ export default function mount(engine) {
 
         // velocity chases forward*speed: it carries through turns (mass). A drift turn drops the chase to 0.18/s: the nose swings, the velocity does not.
         vA.copy(vF).multiplyScalar(speed);
+        if (hov && !cmdOpen) { var sdv = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0); if (sdv) vA.addScaledVector(vB.copy(X).applyQuaternion(shipRoot.quaternion), sdv * CRUISE); }     // hover strafe
         vel.lerp(vA, damp(driftOn ? DRIFT_CHASE : VEL_CHASE, dt));
+        lfGovern(dt, bodies, P);                   // rev 18: approach governor / atmosphere caps / ENTRY brake
 
         vP0.copy(P);
-        if (!dead) P.addScaledVector(vel, dt);
-        if (bounceV.lengthSq() > 1e-12) { P.addScaledVector(bounceV, dt); bounceV.multiplyScalar(Math.exp(-2.5 * dt)); }
+        if (lf.on) { if (!dead) { lfMove(dt); lfLevel(dt); } }          // rev 18: swept + substepped in the local frame
+        else {
+            if (!dead) P.addScaledVector(vel, dt);
+            if (bounceV.lengthSq() > 1e-12) { P.addScaledVector(bounceV, dt); bounceV.multiplyScalar(Math.exp(-2.5 * dt)); }
+        }
+        lf.step = P.distanceTo(vP0);
         if (ramInv > 0) ramInv -= dt;
         if (terrInv > 0) terrInv -= dt;
         if (ramFlash > 0) ramFlash -= dt;
@@ -3379,6 +3603,7 @@ export default function mount(engine) {
         for (var pass = 0; pass < 2; pass++) {
             for (i = 0; i < bodies.length; i++) {
                 var cb = bodies[i], c = cb.node.anchor.position, shell = HARD_F * cb.R;
+                if (lf.on && cb.node === lf.node) continue;       // rev 18: the local-frame planet is collided inside lfMove (terrain floor)
                 if (psA && cb.node === psA) {                       // rev 12: inside 1.25 R the hard shell becomes the terrain floor + 1.5 L (slide along it)
                     vD.subVectors(P, c);
                     var pdd = vD.length();
@@ -3455,11 +3680,8 @@ export default function mount(engine) {
         landCheckT -= dt;
         if (landCheckT <= 0) {
             landCheckT = 0.12; landOk = false;
-            if (ps && psA && !dead && vel.length() < CRUISE * 1.3) {
-                try {
-                    if (typeof ps.landable === 'function') landOk = !!ps.landable(P).ok;
-                    else { var lf = psFloor(P); landOk = !!lf && P.distanceTo(psA.anchor.position) - lf.r < 12 * L; }
-                } catch (e) { landOk = false; }
+            if (ps && psA && !dead && lf.on && lf.cap && lf.alt < PROMPT_L * L && vel.length() < 1) {     // rev 18: below 1.5 L and nearly still
+                try { landOk = !!ps.landable(P).ok; } catch (e) { landOk = false; }
             }
             setPrompt(landOk ? 'E  LAND' : '');
         }
@@ -3469,7 +3691,9 @@ export default function mount(engine) {
         camera.quaternion.copy(camQuat);
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { vA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake).applyQuaternion(camQuat); camera.position.add(vA); }
-        var fovT = baseFov + (boosting ? FOV_BOOST : 0) + FOV_PULSE * pulse + (focusing ? 3 : 0) + fovKick;
+        var amv = dt / ENTRY_T;                    // rev 18: fov 42 -> 50 over the entry (ENTRY_T), back down on the way out
+        lf.atmK += clamp(((lf.on && lf.cap && !lf.leaving) ? 1 : 0) - lf.atmK, -amv, amv);
+        var fovT = baseFov + (boosting ? FOV_BOOST : 0) + FOV_PULSE * pulse + (focusing ? 3 : 0) + fovKick + ATM_FOV * lf.atmK;
         fov += (fovT - fov) * damp(4, dt);
         if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
         camera.updateMatrixWorld(true);
@@ -3628,6 +3852,7 @@ export default function mount(engine) {
         updateHud(vel.length(), aliveCount());
         hudCombat(wdt);
         updatePlayerMarks();
+        lfCommit(dt);                              // rev 18: final world pose -> local state (also the exit at LF_OFF x R)
         if (prof.on) { var tE = performance.now(); prof.net += tH - tN; prof.hud += tE - tH; prof.total += tE - tS; prof.n++; }
     }
 
@@ -3758,6 +3983,19 @@ export default function mount(engine) {
         get dock() { vA.copy(shipRoot.position).project(camera); return { ndc: [vA.x, vA.y], scale: shipScale, glide: dk.glide, follow: dk.follow, recov: dk.recov, still: +dk.still.toFixed(2) }; },
         get scale() { return { L: L, refR: refR, refR0: refR0, live: readRefR() }; },
         get ps() { return ps; },
+        get lf() { return lf; },
+        dbg: { setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: place the ship at an exact LOCAL position (and local attitude) inside the active frame
+            if (!lf.on) return false;
+            lf.lp.set(lx, ly, lz); lf.lv.set(0, 0, 0); lf.endV.set(0, 0, 0); vel.set(0, 0, 0);
+            if (qw !== undefined) lf.lq.set(qx, qy, qz, qw);
+            var inAtm = lf.lp.length() < ATM_R * lf.R;
+            if (inAtm && !lf.cap) { lf.cap = true; lf.entryT = 0; lf.leaving = false; }
+            if (!inAtm && lf.cap && lf.lp.length() > LF_OFF * lf.R) { lf.cap = false; }
+            lf.endQ.set(9, 9, 9, 9);        // force the world pose to be re-derived from lq / lp on the next step
+            shipRoot.position.copy(lf.lp).applyQuaternion(lf.node.mesh.quaternion).add(lf.node.anchor.position); lf.endP.copy(shipRoot.position);
+            shipRoot.quaternion.copy(lf.node.mesh.quaternion).multiply(lf.lq); lf.endQ.copy(shipRoot.quaternion); lf.qEnd.copy(lf.node.mesh.quaternion);
+            lf.hover = false; lf.holdAlt = 0; lfAlt(); return true;
+        }, bounce: bounceV, vel: vel, speedNow: function () { return speed; }, inject: function (x, y) { mdx += x; mdy += y; }, setSpeed: function (v) { speed = v; }, setPulseT: function (v) { pulseT = v; }, pulseTNow: function () { return pulseT; }, PULSE_FULL: PULSE_E * PULSE_LN, setThrottle: function (v) { throttle = v; }, syncPlanet: syncPlanet, keys: function () { return keys; }, setKeys: function (k) { keys = k; } },     // rev 18 test hooks
         get maneuver() { return { flipT: flipT, flipCd: flipCd, driftOn: driftOn, driftLeft: driftLeft, driftCd: driftCd, vel: vel.length(), speed: speed, terrInv: terrInv }; },
         flip: function () { return startFlip(); },
         get sigDbg() { return { org: bsig.org.toArray(), dir: bsig.dir.toArray(), ax: bsig.ax.toArray(), P: shipRoot.position.toArray(), beamVis: sigBeam.visible }; },

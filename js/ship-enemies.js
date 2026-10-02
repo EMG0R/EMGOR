@@ -20,6 +20,7 @@
 // Pure geometry + material + name generator. Unit length 1.0 along Z, nose -Z, up +Y.
 // Geometry is built once per palette and pooled by ship.js; the shader does the flex.
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { PARTS, compose, makeMaterials, mergeLit, mulberry as pmul } from './ship-parts.js';
 
 const PALS = [
   { hull: 0xC2331A, hull2: 0x8A2410, dark: 0x3A0A08, acc: 0xFF8A2A, eye: 0xFFE070 },   // ember
@@ -255,185 +256,82 @@ function glowTexture(THREE) {
   return _glowTex;
 }
 
-// flex shader v2: aFx = (tentacle sway weight, phase, fin-flap flag). Same fragment shader as the legacy material.
-const VERT2 = /* glsl */`
-uniform float uTime; uniform float uPh;
-attribute vec3 aFx;
-varying vec3 vC; varying vec3 vV;
-#include <common>
-#include <logdepthbuf_pars_vertex>
-void main(){
-  vC = color;
-  vec3 p = position;
-  float tail = smoothstep(-0.25, 0.45, p.z);
-  p.x += sin(p.z * 9.0 - uTime * 3.2 + uPh) * 0.03 * tail;
-  p.y += sin(p.z * 7.0 - uTime * 2.4 + uPh) * 0.022 * tail;
-  float w = aFx.x;
-  p.x += sin(uTime * 2.3 + aFx.y + w * 4.5) * 0.11 * w * w;
-  p.y += cos(uTime * 1.8 + aFx.y * 1.3 + w * 3.5) * 0.08 * w * w;
-  p.z += sin(uTime * 2.0 + aFx.y + w * 3.0) * 0.05 * w * w;
-  float fin = abs(p.x);
-  p.y += aFx.z * sin(uTime * 3.0 + uPh + fin * 6.0) * fin * 0.22 * smoothstep(0.05, 0.25, fin);
-  p.xy *= 1.0 + 0.03 * sin(uTime * 2.2 + uPh + p.z * 6.0);
-  vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  vV = mv.xyz;
-  gl_Position = projectionMatrix * mv;
-  #include <logdepthbuf_vertex>
-}`;
-function makeEnemyMaterial(THREE) {
-  return new THREE.ShaderMaterial({
-    vertexShader: VERT2, fragmentShader: FRAG, vertexColors: true, side: THREE.DoubleSide,
-    uniforms: { uTime: { value: 0 }, uPh: { value: 0 }, uHit: { value: 0 } },
-  });
-}
-
-export function generateEnemy(THREE, seed, tier, role) {
-  tier = Math.max(1, tier | 0 || 1);
+// ── Rev 18: creatures are composed from js/ship-parts.js (spine + fins + spikes + tentacles + claws + shells + eyes), one lit mesh on a
+//    per-creature instance of the shared flex material (same GL program as every boss). `lo` = lazily built low-LOD twin from the parts' lo variants.
+function enemyBuild(THREE, seed, tier, role, lod) {
   const P = params(seed, role), r = P.r; role = P.role;
   const F = FAMILY[role];
-  const length = 6 * Math.pow(1.6, tier - 1);
   // palette
   const hue = (F.h + rn(r, -0.03, 0.03) + 1) % 1;
   const hullC = new THREE.Color().setHSL(hue, 0.7, 0.36), hull2C = new THREE.Color().setHSL((hue + 0.02) % 1, 0.75, 0.24);
   const darkC = new THREE.Color().setHSL(hue, 0.7, 0.07), accC = new THREE.Color().setHSL((hue + 0.03) % 1, 1, 0.56);
-  const eyeC = new THREE.Color().setHSL(F.eyeH, 1, 0.72);
-  const hash = (x, y, z) => { const q = Math.sin(Math.round(x * 60) * 12.9898 + Math.round(y * 60) * 78.233 + Math.round(z * 60) * 37.719) * 43758.5453; return q - Math.floor(q); };
-  const body = [], fx = [], em = [];
-  function finish(list, g, colorFn, fxFn) {
-    if (g.index) g = g.toNonIndexed();
-    g.deleteAttribute('normal'); g.deleteAttribute('uv');
-    const p = g.attributes.position, n = p.count, col = new Float32Array(n * 3), f = new Float32Array(n * 3), c = new THREE.Color();
-    for (let i = 0; i < n; i++) {
-      colorFn(c, p.getX(i), p.getY(i), p.getZ(i), i);
-      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
-      if (fxFn) { const q = fxFn(p.getX(i), p.getY(i), p.getZ(i), i); f[i * 3] = q[0]; f[i * 3 + 1] = q[1]; f[i * 3 + 2] = q[2]; }
-    }
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    g.setAttribute('aFx', new THREE.BufferAttribute(f, 3));
-    list.push(g);
-  }
-  // ── spine: 3-9 tapered ellipsoid segments along a seeded curve ──
+  const eyeC = new THREE.Color().setHSL(F.eyeH, 1, 0.72), metalC = new THREE.Color().setHSL(hue, 0.25, 0.42);
   const n = P.segs;
   let R = rn(r, 0.085, 0.15);
   if (role === 'lancer') R = rn(r, 0.035, 0.05);
   if (role === 'brood') R = rn(r, 0.18, 0.23);
   if (role === 'interceptor') R *= 0.85;
-  const curveA = role === 'lancer' ? 0.01 : rn(r, 0.02, 0.09), curveP = rn(r, 0, 6.28), curveK = rn(r, 0.8, 2.2);
-  const zNose = -0.46, zTail = 0.46, spacing = (zTail - zNose) / (n - 1);
-  const cy = (t) => Math.sin(t * Math.PI * curveK + curveP) * curveA;
-  const cx = (t) => Math.cos(t * Math.PI * curveK * 0.7 + curveP) * curveA * 0.6;
-  const segs = [];
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1), prof = Math.sin(Math.PI * (0.12 + 0.78 * Math.pow(t, 0.9)));
-    let rad = R * (0.35 + 0.65 * prof) * (i === 0 ? 1.12 : 1);
-    if (role === 'brood') rad *= 0.8 + 0.5 * Math.sin(Math.PI * t) ;
-    const rz = Math.max(spacing * (role === 'lancer' ? 0.95 : 0.78), rad * 1.05);
-    segs.push({ t, x: cx(t), y: cy(t), z: zNose + i * spacing, rx: rad * (role === 'brood' ? 1.1 : 1), ry: rad * (role === 'sniper' ? 0.85 : 1), rz });
-  }
-  segs.forEach((s, i) => {
-    const g = new THREE.SphereGeometry(1, 12, 8); g.scale(s.rx, s.ry, s.rz); g.translate(s.x, s.y, s.z);
-    const bandF = 3 + (seed & 3);
-    finish(body, g, (c, x, y, z) => {
-      const band = Math.sin((z - s.z) / s.rz * bandF) > 0.25;
-      c.copy(y - s.y < -s.ry * 0.3 ? darkC : (band ? hull2C : hullC)).multiplyScalar(1 - 0.25 * hash(x, y, z));
-    });
-  });
-  const head = segs[0];
-  // ── eyes: 1-3 real, primary front-top of head ──
   const nEyes = role === 'interceptor' ? 1 : role === 'brood' ? 3 : ri(r, 1, 3);
-  const eyeR = Math.max(0.03, head.rx * 0.33) * (role === 'brood' ? 0.8 : 1);
-  const eyePos = [[head.x, head.y + head.ry * 0.38, head.z - head.rz * 0.8]];
-  if (nEyes > 1) eyePos.push([head.x - head.rx * 0.62, head.y + head.ry * 0.2, head.z - head.rz * 0.62]);
-  if (nEyes > 2) eyePos.push([head.x + head.rx * 0.62, head.y + head.ry * 0.2, head.z - head.rz * 0.62]);
-  const glowK = 2.3;
-  eyePos.forEach(([x, y, z], i) => {
-    const g = new THREE.SphereGeometry(eyeR * (i ? 0.75 : 1), 8, 6); g.translate(x, y, z);
-    finish(em, g, (c) => c.copy(eyeC).multiplyScalar(glowK));
-  });
-  if (role === 'brood') for (let i = 0; i < 9; i++) {   // clustered small eyes
-    const a = rn(r, 0, 6.28), b = rn(r, -0.3, 1.0);
-    const g = new THREE.SphereGeometry(eyeR * 0.32, 5, 4);
-    g.translate(head.x + Math.cos(a) * head.rx * 0.8, head.y + Math.sin(a) * head.ry * 0.8 + 0.01, head.z - head.rz * (0.45 + 0.4 * b));
-    finish(em, g, (c) => c.copy(eyeC).multiplyScalar(2.0));
-  }
-  // biolum spots along the spine
-  segs.forEach((s, i) => {
-    if (i === 0 || (i + (seed & 1)) % 2) return;
-    const g = new THREE.SphereGeometry(Math.max(0.012, s.rx * 0.16), 5, 4); g.translate(s.x, s.y + s.ry * 0.97, s.z);
-    finish(em, g, (c) => c.copy(accC).multiplyScalar(1.9));
-  });
-  // ── fin-wing pairs: thin extruded fins with seeded sweep/dihedral ──
+  const eyeR = Math.max(0.03, R * 0.36) * (role === 'brood' ? 0.8 : 1);
+  const kids = [];
+  const nodeEye = (id, at, k, mirror) => kids.push({ part: 'eye', id, params: { r: eyeR * k, glowCol: eyeC }, at, mirror: mirror ? 'x' : undefined });
+  nodeEye('eyeP', 'eyeC', 1.0, false);
+  if (nEyes === 2) nodeEye('eyeS', 'eyeA', 0.75, false);
+  if (nEyes === 3) nodeEye('eyeS', 'eyeA', 0.75, true);
+  if (role === 'brood') for (let i = 0; i < 4; i++) kids.push({ part: 'eye', id: 'eyeB' + i, params: { r: eyeR * 0.36, glowCol: eyeC }, at: 'eyeC', offset: [rn(r, -1, 1) * R * 0.5, -R * 0.1, rn(r, -0.3, 0.9) * R * 0.5], rot: [rn(r, -0.4, 0.4), 0, rn(r, -0.5, 0.5)] });
+  // mandibles
+  kids.push({ part: 'spike', at: 'jawA', mirror: 'x', params: { len: rn(r, 0.07, 0.14), r: Math.max(0.014, R * 0.16), bend: 0.3, tip: accC } });
+  // fin-wing pairs
+  const flankIdx = (k) => Math.min(n - 1, Math.max(0, Math.round((0.2 + (P.fins === 1 ? 0.25 : k / (P.fins - 1) * 0.55)) * (n - 1))));
   for (let k = 0; k < P.fins; k++) {
-    const si = Math.min(n - 1, Math.max(0, Math.round((0.2 + (P.fins === 1 ? 0.25 : k / (P.fins - 1) * 0.55)) * (n - 1))));
-    const sg = segs[si];
-    const span = rn(r, 0.2, 0.5) * (role === 'sniper' ? 0.8 : 1) * (1 - k * 0.12), chord = rn(r, 0.12, 0.3), sweep = rn(r, 0.05, 0.28), dih = rn(r, -0.35, 0.5);
-    const sh = new THREE.Shape();
-    sh.moveTo(0, -chord * 0.4); sh.quadraticCurveTo(span * 0.55, -chord * 0.35 + sweep * 0.2, span, sweep);
-    sh.quadraticCurveTo(span * 0.65, chord * 0.2 + sweep * 0.5, 0, chord * 0.6); sh.lineTo(0, -chord * 0.4);
-    for (const side of [-1, 1]) {
-      const g = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: false, curveSegments: 6 });
-      g.rotateX(Math.PI / 2); g.rotateZ(dih);
-      g.scale(side, 1, 1); g.translate(side * sg.rx * 0.7 + sg.x, sg.y, sg.z);
-      finish(fx, g, (c, x, y, z) => { const q = Math.min(1, Math.abs(x - sg.x) / span); c.copy(darkC).lerp(q > 0.85 ? accC : hull2C, q).multiplyScalar(0.85 + 0.3 * hash(x, y, z)); },
-        (x, y, z) => [0, 0, 1]);
-    }
+    const span = rn(r, 0.2, 0.5) * (role === 'sniper' ? 0.8 : 1) * (1 - k * 0.12), chord = rn(r, 0.12, 0.3), sweep = rn(r, 0.05, 0.28) / span * 1.6, dih = rn(r, -0.35, 0.5);
+    kids.push({ part: 'fin', at: 'flank' + flankIdx(k), mirror: 'x', rot: [0, 0, -dih], params: { len: span, w: chord, sweep: Math.min(1.1, sweep), thick: 0.016, taper: rn(r, 0.25, 0.5), flap: true, glow: k === 0, tip: accC } });
   }
-  // ── spikes + tentacles (tapered, tip-glowing) ──
+  // spikes + tentacles
   const nTent = P.spikes ? Math.floor(P.spikes * (role === 'lancer' ? 0 : role === 'brood' ? 0.7 : rn(r, 0.2, 0.7))) : 0;
-  const up = new THREE.Vector3(0, 1, 0);
-  function limb(anchor, dir, len, rBase, tentacle, tint) {
-    const g = new THREE.CylinderGeometry(tentacle ? rBase * 0.12 : 0.0005, rBase, len, tentacle ? 6 : 5, tentacle ? 10 : 1, true);
-    g.translate(0, len / 2, 0);
-    const m = new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize()));
-    g.applyMatrix4(m); g.translate(anchor.x, anchor.y, anchor.z);
-    const ph = rn(r, 0, 6.28);
-    const d = dir.clone().normalize();
-    finish(fx, g, (c, x, y, z) => {
-      const w = Math.max(0, Math.min(1, ((x - anchor.x) * d.x + (y - anchor.y) * d.y + (z - anchor.z) * d.z) / len));
-      c.copy(darkC).lerp(tint, Math.pow(w, 1.4));
-      if (tentacle && w > 0.8) c.copy(accC).multiplyScalar(1.9);        // glowing tentacle tips
-    }, (x, y, z) => {
-      if (!tentacle) return [0, 0, 0];
-      const w = Math.max(0, Math.min(1, ((x - anchor.x) * d.x + (y - anchor.y) * d.y + (z - anchor.z) * d.z) / len));
-      return [w, ph, 0];
-    });
-  }
-  const tail = segs[n - 1];
   let sp = 0;
-  if (role === 'lancer') for (const s of [-1, 1]) {   // 2 long forward lances
-    limb(new THREE.Vector3(head.x + s * head.rx * 0.45, head.y, head.z - head.rz * 0.6), new THREE.Vector3(s * 0.05, 0.0, -1), 0.4 + R, 0.03, false, accC); sp++;
-  }
+  if (role === 'lancer') for (let s = 0; s < 1; s++) { kids.push({ part: 'spike', at: 'head', mirror: 'x', offset: [R * 0.45, 0, R * 0.2], params: { len: 0.4 + R, r: 0.03, bend: 0, tip: accC } }); sp++; }
   for (let i = 0; i < nTent; i++, sp++) {
-    const a = (i / Math.max(1, nTent)) * 6.28 + rn(r, 0, 1), rear = i % 2 === 0;
-    const sg = rear ? tail : segs[Math.max(1, n - 2 - (i % Math.max(1, n - 2)))];
-    limb(new THREE.Vector3(sg.x + Math.cos(a) * sg.rx * 0.6, sg.y + Math.sin(a) * sg.ry * 0.6, sg.z),
-      new THREE.Vector3(Math.cos(a) * 0.5, Math.sin(a) * 0.4, rear ? 1 : 0.6), rn(r, 0.28, 0.55), Math.max(0.012, R * 0.2), true, hullC);
+    const rear = i % 2 === 0, segI = rear ? n - 1 : Math.max(1, n - 2 - (i % Math.max(1, n - 2)));
+    const a = (i / Math.max(1, nTent)) * 6.28 + rn(r, 0, 1);
+    kids.push({ part: 'tentacle', at: rear ? 'tail' : 'belly' + segI, rot: rear ? [0, 0, 0] : [0.5 * Math.sin(a), a, 0], params: { len: rn(r, 0.28, 0.55), r: Math.max(0.014, R * 0.22), tip: accC } });
   }
-  for (; sp < P.spikes; sp++) {
-    const sg = segs[ri(r, 0, n - 1)], a = rn(r, -1.2, 1.2) + (sp % 2 ? 0 : Math.PI);
-    const dirv = new THREE.Vector3(Math.sin(a) * 0.7, Math.abs(Math.cos(a)) * 0.9 + 0.3, rn(r, 0.1, 0.9));
-    limb(new THREE.Vector3(sg.x + Math.sin(a) * sg.rx * 0.8, sg.y + sg.ry * 0.7, sg.z), dirv, rn(r, 0.1, 0.24), Math.max(0.014, sg.rx * 0.22), false, accC);
-  }
-  // ── assemble: <= 3 merged meshes + eye sprites, under a length-scaled root ──
+  for (; sp < P.spikes; sp++) kids.push({ part: 'spike', at: 'dorsal' + ri(r, 0, n - 1), rot: [rn(r, 0.1, 0.9), 0, rn(r, -0.6, 0.6)], params: { len: rn(r, 0.08, 0.2), r: Math.max(0.014, R * 0.2), bend: 0.25, tip: accC } });
+  // role identity pieces
+  if (role === 'spitter') kids.push({ part: 'pod', at: 'dorsal' + (n - 2), rot: [Math.PI / 2, 0, 0], offset: [0, 0, -R * 0.2], params: { len: R * 2.2, r: R * 0.9 } });
+  if (role === 'brood') { kids.push({ part: 'shell', at: 'dorsal' + Math.max(1, Math.floor(n / 2)), offset: [0, -R * 0.35, 0], params: { rx: R * 0.9, ry: R * 0.55, rz: Math.min(0.3, R * 1.6) } }); kids.push({ part: 'claw', at: 'flank0', mirror: 'x', params: { r: 0.045, open: 0.5 } }); }
+  if (role === 'sniper') kids.push({ part: 'barrel', at: 'dorsal' + Math.min(n - 1, 2), rot: [-Math.PI / 2, 0, 0], params: { len: 0.2, r: 0.012, glowCol: eyeC } });
+  if (role === 'interceptor' && n > 3) kids.push({ part: 'plate', at: 'dorsal' + Math.floor(n / 2), params: { w: R * 0.9, d: 0.18, th: 0.02 } });
+  const curveA = role === 'lancer' ? 0.01 : rn(r, 0.02, 0.09);
+  const recipe = {
+    part: 'spine', palette: { base: hullC, panel: hull2C, accent: accC, glow: eyeC, dark: darkC, metal: metalC }, lod,
+    params: { segs: n, len: 0.96, r: R * 1.15, curve: curveA, wid: role === 'brood' ? 1.15 : 1, hgt: role === 'sniper' ? 0.85 : 1, bodyFx: 0.55, stretch: role === 'lancer' ? 0.95 : 0.78, glowCol: eyeC },
+    paint: { lines: 0, stripes: 0, grime: 0.22, base: hullC, accent: accC, panel: hull2C },
+    children: kids,
+  };
+  return { recipe, P, F, role, eyeC, eyeR, nEyes, phase: rn(r, 0, 6.28) };
+}
+
+export function generateEnemy(THREE, seed, tier, role) {
+  tier = Math.max(1, tier | 0 || 1);
+  const B = enemyBuild(THREE, seed, tier, role, 'hi'), P = B.P, F = B.F; role = B.role;
+  const length = 6 * Math.pow(1.6, tier - 1);
+  const res = compose(THREE, B.recipe, pmul((seed | 0) * 40503 + 11));
+  const mats = makeMaterials(THREE, { flex: true });
+  const mat = mats.cloneMaterial(mats.lit); mat.uniforms.uPh.value = B.phase;
   const group = new THREE.Group(), root = new THREE.Group();
   root.scale.setScalar(length); group.add(root);
-  const mat = makeEnemyMaterial(THREE); mat.uniforms.uPh.value = rn(r, 0, 6.28);
-  const geoms = [];
-  let tris = 0;
-  for (const list of [body, fx, em]) {
-    if (!list.length) continue;
-    const g = mergeGeometries(list); g.computeBoundingSphere(); g.boundingSphere.radius *= 1.25;
-    const m = new THREE.Mesh(g, mat); root.add(m); geoms.push(g); tris += g.attributes.position.count / 3;
-    list.forEach((q) => q.dispose());
-  }
-  const smat = new THREE.SpriteMaterial({ map: glowTexture(THREE), color: eyeC, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
-  const eyes = eyePos.map(([x, y, z], i) => {
-    const sp2 = new THREE.Sprite(smat); sp2.position.set(x, y, z);
-    const sz = eyeR * (i ? 0.75 : 1) * 7; sp2.scale.set(sz, sz, 1); sp2.userData.base = sz;
-    sp2.userData.r = eyeR * 1.6 * length;   // hit radius, L units
+  const geo = mergeLit(THREE, res, 2.0); geo.computeBoundingSphere(); geo.boundingSphere.radius *= 1.25;
+  const mesh = new THREE.Mesh(geo, mat); root.add(mesh);
+  const tris = geo.attributes.position.count / 3;
+  const smat = new THREE.SpriteMaterial({ map: glowTexture(THREE), color: B.eyeC, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+  const eyeSock = ['eyeP.front', 'eyeS.front', 'eyeSM.front'].filter((k) => res.sockets[k]);
+  const eyes = eyeSock.map((k, i) => {
+    const q = res.sockets[k].pos, sp2 = new THREE.Sprite(smat); sp2.position.set(q.x, q.y, q.z);
+    const sz = B.eyeR * (i ? 0.75 : 1) * 7; sp2.scale.set(sz, sz, 1); sp2.userData.base = sz;
+    sp2.userData.r = B.eyeR * 1.6 * length;   // hit radius, L units
     root.add(sp2); return sp2;
   });
-  // ── stats ──
   const stats = {
     hp: Math.round(40 * Math.pow(1.9, tier - 1) * F.hp),
     speed: +(14 * Math.pow(0.9, tier - 1) * F.sp).toFixed(2),
@@ -443,15 +341,30 @@ export function generateEnemy(THREE, seed, tier, role) {
   if (role === 'brood') stats.spawnOnDeath = 3;
   const attacks = F.atk.slice(0, tier >= 3 ? 2 : 1);
   const ph0 = mat.uniforms.uPh.value;
-  return {
+  let lo = null;
+  const out = {
     group, length, hitR: length * 0.55, eye: eyes[0], eyes, stats, attacks, tier, role, seed,
     signature: P.segs + '-' + P.fins + '-' + P.spikes, tris,
     update(t, dt) {
       mat.uniforms.uTime.value = t;
       for (let i = 0; i < eyes.length; i++) { const k = 1 + 0.18 * Math.sin(t * 4.0 + ph0 + i * 1.7); eyes[i].scale.set(eyes[i].userData.base * k, eyes[i].userData.base * k, 1); }
     },
-    dispose() { geoms.forEach((g) => g.dispose()); mat.dispose(); smat.dispose(); },
+    dispose() { geo.dispose(); mat.dispose(); smat.dispose(); if (lo) lo.userData.geo.dispose(); },
   };
+  // rev 18 LOD: low variant (parts' lo geometry, same material instance so hit flash / flex stay in sync), built on first access
+  Object.defineProperty(out, 'lo', {
+    enumerable: true,
+    get() {
+      if (!lo) {
+        const b2 = enemyBuild(THREE, seed, tier, role, 'lo'), r2 = compose(THREE, b2.recipe, pmul((seed | 0) * 40503 + 11));
+        const g2 = mergeLit(THREE, r2, 2.0); g2.computeBoundingSphere(); g2.boundingSphere.radius *= 1.25;
+        lo = new THREE.Group(); const rt = new THREE.Group(); rt.scale.setScalar(length); lo.add(rt);
+        rt.add(new THREE.Mesh(g2, mat)); lo.userData.geo = g2; lo.userData.tris = g2.attributes.position.count / 3;
+      }
+      return lo;
+    },
+  });
+  return out;
 }
 
 // ── boss attack sets: ordered, telegraph seconds + damage grow with tier ──
@@ -483,68 +396,10 @@ export function bossHash(name) {
   for (let i = 0; i < name.length; i++) { h ^= name.charCodeAt(i); h = Math.imul(h, 16777619); }
   return h >>> 0;
 }
+// (rev 18: the boss shaders live in ship-parts.js makeMaterials({flex:true}) - ONE program for every creature and boss.)
 // aFx = (sway weight, phase, mode, param). mode 1 jaw hinge about Y, 2 sway, 3 fin flap about Z, 4 bell pulse.
-const VERT3 = /* glsl */`
-uniform float uTime; uniform float uPh; uniform vec3 uAmp; uniform float uSp; uniform float uK;
-uniform float uBreath; uniform float uHsp; uniform float uPulse;
-uniform vec4 uSwA[8]; uniform vec4 uSwT[8]; uniform vec3 uSwP[8];   // rev 17 limb swing: axis+angle, translate+glow, pivot
-attribute vec4 aFx; attribute vec3 aPiv; attribute vec2 aLm;
-varying vec3 vC; varying vec3 vV; varying float vGl;
-#include <common>
-#include <logdepthbuf_pars_vertex>
-void main(){
-  vC = color;
-  vec3 p = position;
-  float md = aFx.z;
-  if (abs(md - 1.0) < 0.5) {
-    float a = aFx.w * (0.5 + 0.5 * sin(uTime * uHsp + aFx.y));
-    vec3 q = p - aPiv; float c = cos(a), s = sin(a);
-    p = aPiv + vec3(q.x * c + q.z * s, q.y, -q.x * s + q.z * c);
-  } else if (abs(md - 2.0) < 0.5) {
-    vec3 off = vec3(sin(uTime * uSp + aFx.y + aFx.w * uK) * uAmp.x,
-                    cos(uTime * uSp * 0.8 + aFx.y * 1.3 + aFx.w * uK) * uAmp.y,
-                    sin(uTime * uSp * 0.6 + aFx.y) * uAmp.z);
-    p += off * aFx.x;
-    p.xy *= 1.0 + uPulse * sin(uTime * 1.7) * (1.0 - aFx.x);
-  } else if (abs(md - 3.0) < 0.5) {
-    float a = aFx.w * sin(uTime * uHsp + aFx.y);
-    vec3 q = p - aPiv; float c = cos(a), s = sin(a);
-    p = aPiv + vec3(q.x * c - q.y * s, q.x * s + q.y * c, q.z);
-  } else if (abs(md - 4.0) < 0.5) {
-    p.xy *= 1.0 + uPulse * sin(uTime * 1.7);
-  }
-  vGl = 0.0;
-  if (aLm.x > 0.5) {
-    int li = int(aLm.x + 0.5) - 1;
-    vec4 sa = uSwA[li]; vec4 sw = uSwT[li]; vec3 pv = uSwP[li];
-    float ang = sa.w * aLm.y; vec3 q2 = p - pv; float cc = cos(ang), ss = sin(ang);
-    p = pv + q2 * cc + cross(sa.xyz, q2) * ss + sa.xyz * dot(sa.xyz, q2) * (1.0 - cc) + sw.xyz * aLm.y;
-    vGl = sw.w;
-  }
-  p *= 1.0 + uBreath * sin(uTime * 0.9);
-  vec4 mv = modelViewMatrix * vec4(p, 1.0);
-  vV = mv.xyz;
-  gl_Position = projectionMatrix * mv;
-  #include <logdepthbuf_vertex>
-}`;
-const FRAG3 = FRAG.replace('varying vec3 vC; varying vec3 vV;', 'varying vec3 vC; varying vec3 vV; varying float vGl;')
-  .replace('gl_FragColor = vec4(col, 1.0);', 'col += vGl * vec3(1.15, 0.4, 0.12) * (0.65 + 0.35 * sin(uTime * 26.0));\n  gl_FragColor = vec4(col, 1.0);');
-const FRAG_GLASS = /* glsl */`
-uniform float uTime; uniform float uPh; uniform float uHit;
-varying vec3 vC; varying vec3 vV;
-#include <common>
-#include <logdepthbuf_pars_fragment>
-void main(){
-  #include <logdepthbuf_fragment>
-  vec3 n = normalize(cross(dFdx(vV), dFdy(vV)));
-  float rim = pow(1.0 - abs(dot(n, normalize(-vV))), 2.0);
-  vec3 col = vC * (0.7 + 0.3 * sin(uTime * 1.7)) + rim * vec3(0.5, 0.95, 1.0) * 0.9 + uHit * vec3(1.0, 0.6, 0.5);
-  gl_FragColor = vec4(col, 0.2 + 0.5 * rim);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`;
-
-export function generateBoss(THREE, name, wave, opts) {
+function bossBuild(THREE, name, wave, opts, LOD) {
+  const LO = LOD === 'lo';
   if (typeof opts === 'string') opts = { kind: opts };
   opts = opts || {};
   const kindS = typeof opts.kind === 'string' ? opts.kind : (opts.kind && opts.kind.kind) || '';
@@ -566,14 +421,15 @@ export function generateBoss(THREE, name, wave, opts) {
   const solid = [], glass = [];
   const jit = (a) => rn(r, -a, a);
   let lmCur = null;      // rev 17: {id, w(x,y,z)} while a limb's geometry is being added
-  function add(g, colorFn, fx, piv, list) {
+  function add(g, colorFn, fx, piv, list, boost) {
     if (g.index) g = g.toNonIndexed();
     g.deleteAttribute('normal'); g.deleteAttribute('uv');
     const p = g.attributes.position, n = p.count, col = new Float32Array(n * 3), f = new Float32Array(n * 4), pv = new Float32Array(n * 3), lmA = new Float32Array(n * 2), c = new THREE.Color();
+    const keep = colorFn === null ? g.attributes.color.array : null;      // colorFn null = keep the part's own vertex colours (boost scales emissive ones past the self-lit threshold)
     for (let i = 0; i < n; i++) {
       const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-      colorFn(c, x, y, z);
-      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+      if (keep) { const k = boost || 1; col[i * 3] = keep[i * 3] * k; col[i * 3 + 1] = keep[i * 3 + 1] * k; col[i * 3 + 2] = keep[i * 3 + 2] * k; }
+      else { colorFn(c, x, y, z); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
       const q = typeof fx === 'function' ? fx(x, y, z) : (fx || [0, 0, 0, 0]);
       f[i * 4] = q[0]; f[i * 4 + 1] = q[1]; f[i * 4 + 2] = q[2]; f[i * 4 + 3] = q[3];
       if (piv) { pv[i * 3] = piv.x; pv[i * 3 + 1] = piv.y; pv[i * 3 + 2] = piv.z; }
@@ -588,33 +444,48 @@ export function generateBoss(THREE, name, wave, opts) {
   const col = (h, s, l) => new THREE.Color().setHSL(((h % 1) + 1) % 1, s, l);
   const flat = (c0) => (c) => c.copy(c0);
   // tapered cylinder between two points (top at b)
+  const sd = (k) => LO ? Math.max(3, k >> 1) : k;      // low-LOD: half the radial / ring segments
   function tubeGeo(a, b, ra, rb, sides) {
     const d = b.clone().sub(a), len = d.length();
-    const g = new THREE.CylinderGeometry(rb, ra, len, sides || 6, 1, true);
+    const g = new THREE.CylinderGeometry(rb, ra, len, sd(sides || 6), 1, true);
     g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(up, d.clone().normalize())));
     g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
     return g;
   }
   // cone with tip along dir, base centred at pos
   function coneGeo(pos, dir, rad, len, sides, flatten) {
-    const g = new THREE.ConeGeometry(rad, len, sides || 5);
+    const g = new THREE.ConeGeometry(rad, len, sd(sides || 5));
     g.translate(0, len / 2, 0);
     if (flatten) g.scale(flatten[0], 1, flatten[1]);
     g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize())));
     g.translate(pos.x, pos.y, pos.z);
     return g;
   }
-  const ball = (x, y, z, rx, ry, rz, w, h) => { const g = new THREE.SphereGeometry(1, w || 12, h || 8); g.scale(rx, ry, rz); g.translate(x, y, z); return g; };
+  const ball = (x, y, z, rx, ry, rz, w, h) => { const g = new THREE.SphereGeometry(1, sd(w || 12), sd(h || 8)); g.scale(rx, ry, rz); g.translate(x, y, z); return g; };
   const eyeRecs = [];
   let eyeC, P = {};     // per plan uniforms
   // eyes: emissive ball + record for the sprite
-  function eye(x, y, z, er, fx) {
-    add(ball(x, y, z, er, er, er, 8, 6), (c) => c.copy(eyeC).multiplyScalar(2.3), fx || null);
+  // rev 18: ship-parts pieces dropped into the boss through the same add() pipeline (limb weights / flex fx / hinge pivots apply to them as to any geometry)
+  const partRng = mulberry(hsh ^ 0x51ed270b);
+  let partPal = null;
+  function addPart(name, params, pos, dir, fx, piv) {
+    const res = PARTS[name](THREE, Object.assign({ pal: partPal, lod: LO ? 'lo' : 'hi' }, params, LO ? { lod: 'lo' } : null), partRng);
+    const m = new THREE.Matrix4().compose(pos, new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize()), new THREE.Vector3(1, 1, 1));
+    for (const k of ['geo', 'emissive']) {
+      const g = res[k]; if (!g) continue;
+      g.applyMatrix4(m); for (const a of ['aFx', 'aPiv', 'aLm']) g.deleteAttribute(a);
+      add(g, null, fx || null, piv || null, null, k === 'emissive' ? 2.0 : 1);
+    }
+  }
+  function eye(x, y, z, er, fx, dir) {
+    const d = (dir || V3(0, 0.25, -1)).clone().normalize();
+    addPart('eye', { r: er * 0.8, glowCol: eyeC }, V3(x - d.x * er * 0.55, y - d.y * er * 0.55, z - d.z * er * 0.55), d, fx || null);
     eyeRecs.push({ pos: [x, y, z], r: er, fx: fx && fx[2] === 2 ? fx : null, lm: lmCur ? lmCur.id : -1, lw: lmCur ? lmCur.w(x, y, z) : 0 });
   }
   const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   const hue0 = { serpent: 0.38, crab: 0.025, jelly: 0.88, leviathan: 0.58, hydra: 0.11 }[plan] + jit(0.09);
   eyeC = col({ serpent: 0.13, crab: 0.5, jelly: 0.5, leviathan: 0.03, hydra: 0.78 }[plan], 1, 0.7);
+  partPal = { base: col(hue0, 0.6, 0.32), panel: col(hue0, 0.65, 0.2), accent: col(hue0 + 0.04, 1, 0.56), glow: eyeC, dark: col(hue0, 0.7, 0.08), metal: col(hue0, 0.2, 0.45) };
   P = { amp: [0, 0, 0], sp: 1, k: 0, breath: 0, hsp: 1, pulse: 0 };
   let extra = [];
   // ── rev 17 limbs: rigid/progressive swing about a pivot, driven by shared uniform arrays (GPU) that the hit capsules read too (CPU) ──
@@ -687,7 +558,7 @@ export function generateBoss(THREE, name, wave, opts) {
       }, s.fx);
       if (i > 0) {   // dorsal fin
         const h = 0.06 + 0.07 * Math.sin(Math.PI * Math.min(1, t01(s.t))) ;
-        add(coneGeo(V3(0, s.rad * 0.7, s.z), V3(0, 1, 0.35), 0.035, h + 0.02, 4, [0.22, 1.4]), (c, x, y) => c.copy(fin).lerp(glowC, Math.max(0, (y - s.rad) / 0.12) * 0.6), s.fx);
+        addPart('fin', { len: h + 0.03, w: 0.075, sweep: 0.55, thick: 0.012, taper: 0.4, base: fin, tip: glowC, lod: i % 3 === 1 ? 'hi' : 'lo' }, V3(0, s.rad * 0.7, s.z), V3(0, 1, 0.35), s.fx);
         if (i % 2 === 0) add(ball(0, s.rad * 1.0, s.z, 0.011, 0.011, 0.011, 5, 4), (c) => c.copy(glowC).multiplyScalar(1.9), s.fx);
       }
     });
@@ -704,8 +575,8 @@ export function generateBoss(THREE, name, wave, opts) {
     const hd = segs[0];
     lmCur = { id: lHead, w: () => 1 };
     add(coneGeo(V3(0, -0.01, hd.z - hd.rz * 0.5), V3(0, -0.05, -1), hd.rad * 0.75, 0.1, 6, [1, 0.7]), (c) => c.copy(hull).multiplyScalar(0.85), hd.fx);
-    for (const side of [-1, 1]) add(coneGeo(V3(side * hd.rad * 0.5, hd.rad * 0.7, hd.z + 0.01), V3(side * 0.5, 0.9, 0.7), 0.014, 0.1, 4), (c) => c.copy(band).lerp(glowC, 0.5), hd.fx);
-    for (const side of [-1, 1]) eye(side * hd.rad * 0.72, hd.rad * 0.3, hd.z - hd.rz * 0.55, 0.026, null);
+    for (const side of [-1, 1]) { addPart('spike', { len: 0.11, r: 0.017, bend: 0.3, base: band, tip: glowC }, V3(side * hd.rad * 0.5, hd.rad * 0.7, hd.z + 0.01), V3(side * 0.5, 0.9, 0.7), hd.fx); addPart('spike', { len: 0.05, r: 0.008, lod: 'lo', base: band, tip: fin }, V3(side * hd.rad * 0.3, -hd.rad * 0.35, hd.z - hd.rz * 0.8), V3(side * 0.1, -0.5, -1), hd.fx); }
+    for (const side of [-1, 1]) eye(side * hd.rad * 0.72, hd.rad * 0.3, hd.z - hd.rz * 0.55, 0.026, null, V3(side * 0.7, 0.3, -0.6));
     lmCur = null;
   }
 
@@ -715,9 +586,10 @@ export function generateBoss(THREE, name, wave, opts) {
     const shell = col(hue0, 0.8, 0.34), dome = col(hue0 + 0.02, 0.75, 0.46), dark = col(hue0, 0.8, 0.12), tip = col(0.1, 0.35, 0.82), claw = col(hue0 - 0.01, 0.85, 0.27);
     add(ball(0, 0, 0.04, 0.4, 0.1, 0.27, 18, 10), (c, x, y, z) => c.copy(y < -0.03 ? dark : shell).multiplyScalar(0.9 + 0.2 * Math.abs(Math.sin(x * 40) * Math.cos(z * 37))));
     add(ball(0, 0.06, 0.05, 0.27, 0.09, 0.19, 14, 8), (c) => c.copy(dome));
+    addPart('shell', { rx: 0.17, ry: 0.07, rz: 0.12, base: dome, panel: shell, accent: tip }, V3(0, 0.12, 0.06), V3(0, 1, 0));
     for (let i = 0; i < 9; i++) {   // rim spikes
       const a = Math.PI * 0.12 + i * Math.PI * 0.095 + (i > 4 ? 0.02 : 0), ca = Math.cos(a), sa = Math.sin(a);
-      for (const side of [-1, 1]) if (!(i === 0 && side === 1)) add(coneGeo(V3(side * 0.38 * sa * 0.95, 0.04, 0.04 + 0.26 * ca * 0.95 + 0.0), V3(side * sa, 0.6, ca), 0.022, 0.09, 4), (c) => c.copy(tip).lerp(shell, 0.4));
+      for (const side of [-1, 1]) if (!(i === 0 && side === 1)) addPart('spike', { len: 0.1, r: 0.024, lod: 'lo', base: shell, tip: tip }, V3(side * 0.38 * sa * 0.95, 0.04, 0.04 + 0.26 * ca * 0.95), V3(side * sa, 0.6, ca));
     }
     function jaws(w, s, len, yaw, amp, ph) {
       add(ball(0, 0, 0, s * 0.9, s * 0.6, s * 0.9, 8, 6).translate(w.x, w.y, w.z), flat(claw));
@@ -745,7 +617,7 @@ export function generateBoss(THREE, name, wave, opts) {
     for (const side of [-1, 1]) {   // eye stalks (sway)
       const b = V3(side * 0.09, 0.08, -0.2), tp = V3(side * 0.1, 0.2, -0.24), fxS = [1, side * 1.3, 2, 0];
       add(tubeGeo(b, tp, 0.018, 0.014, 5), flat(shell), fxS);
-      eye(tp.x, tp.y + 0.01, tp.z - 0.005, 0.03, fxS);
+      eye(tp.x, tp.y + 0.01, tp.z - 0.005, 0.03, fxS, V3(side * 0.25, 0.5, -0.8));
     }
   }
 
@@ -753,34 +625,34 @@ export function generateBoss(THREE, name, wave, opts) {
     // translucent bell facing forward, glowing core, rim + ribs, 12 trailing tentacles + 4 oral arms
     P.amp = [0.05, 0.05, 0.03]; P.sp = 1.7; P.k = 4.5; P.hsp = 1.7; P.pulse = 0.09;
     const flesh = col(hue0, 0.6, 0.62), deep = col(hue0 - 0.05, 0.7, 0.3), glowC = col(0.52, 1, 0.65), zc = -0.18;
-    const dome = new THREE.SphereGeometry(1, 26, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+    const dome = new THREE.SphereGeometry(1, sd(26), sd(12), 0, Math.PI * 2, 0, Math.PI / 2);
     dome.scale(0.34, 0.3, 0.34); dome.rotateX(-Math.PI / 2); dome.translate(0, 0, zc);
     add(dome, (c, x, y, z) => c.copy(flesh).lerp(deep, 0.5 * (1 - Math.min(1, Math.hypot(x, y) / 0.34))), [0, 0, 4, 0], null, glass);
-    const rim = new THREE.TorusGeometry(0.34, 0.013, 5, 36); rim.translate(0, 0, zc);
+    const rim = new THREE.TorusGeometry(0.34, 0.013, sd(5), sd(36)); rim.translate(0, 0, zc);
     add(rim, (c) => c.copy(glowC).multiplyScalar(1.8), [0, 0, 4, 0]);
     for (let k = 0; k < 8; k++) {   // ribs
       const phi = k / 8 * Math.PI * 2, pts = [];
       for (let j = 0; j <= 6; j++) { const th = j / 6 * Math.PI / 2; pts.push(V3(0.345 * Math.sin(th) * Math.cos(phi), 0.345 * Math.sin(th) * Math.sin(phi), zc - 0.305 * Math.cos(th))); }
-      add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.005, 4), (c) => c.copy(glowC).multiplyScalar(1.6), [0, 0, 4, 0]);
+      add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), sd(10), 0.005, sd(4)), (c) => c.copy(glowC).multiplyScalar(1.6), [0, 0, 4, 0]);
     }
     const nT = 12;
     for (let i = 0; i < nT; i++) {
       const a = i / nT * Math.PI * 2 + 0.2, len = rn(r, 0.55, 0.7), ph = rn(r, 0, 6.28), x0 = Math.cos(a) * 0.29, y0 = Math.sin(a) * 0.29;
-      const g = new THREE.CylinderGeometry(0.003, 0.014, len, 5, 14, true); g.rotateX(Math.PI / 2); g.translate(x0, y0, zc + len / 2);
+      const g = new THREE.CylinderGeometry(0.003, 0.014, len, sd(5), sd(14), true); g.rotateX(Math.PI / 2); g.translate(x0, y0, zc + len / 2);
       const wf = (z) => Math.min(1, Math.max(0, (z - zc) / len));
       add(g, (c, x, y, z) => { const w = wf(z); c.copy(flesh).lerp(deep, w * 0.6); if (w > 0.82) c.copy(glowC).multiplyScalar(1.9); }, (x, y, z) => { const w = wf(z); return [w * w, ph, 2, w]; });
     }
     for (let i = 0; i < 4; i++) {   // thick oral arms
       const a = i / 4 * Math.PI * 2 + 0.6, len = rn(r, 0.7, 0.8), ph = rn(r, 0, 6.28), x0 = Math.cos(a) * 0.07, y0 = Math.sin(a) * 0.07;
-      const g = new THREE.CylinderGeometry(0.008, 0.032, len, 6, 12, true); g.rotateX(Math.PI / 2); g.translate(x0, y0, zc + len / 2 - 0.03);
+      const g = new THREE.CylinderGeometry(0.008, 0.032, len, sd(6), sd(12), true); g.rotateX(Math.PI / 2); g.translate(x0, y0, zc + len / 2 - 0.03);
       const wf = (z) => Math.min(1, Math.max(0, (z - zc) / len));
       lmCur = { id: defLimb({ name: 'oral arm ' + (i + 1), kind: 'tentacle', pivot: V3(x0, y0, zc), a: V3(x0, y0, zc + 0.12), b: V3(x0, y0, zc + len), r: 0.075, wa: 0.15, wb: 1, sl: [-1.6, -3.0], allow: ['slam', 'sweep'],
         keys: { slam: { wind: { pitch: -1.6 }, strike: { pitch: -3.0 } }, sweep: { wind: { pitch: -2.4, yaw: 1.1 }, strike: { pitch: -2.7, yaw: -1.1 } } } }), w: (x, y, z) => wf(z) };
       add(g, (c, x, y, z) => { const w = wf(z); c.copy(deep).lerp(flesh, 0.4 + 0.4 * Math.abs(Math.sin(z * 60))); if (w > 0.9) c.copy(glowC).multiplyScalar(1.7); }, (x, y, z) => { const w = wf(z); return [w * w * 0.8, ph, 2, w]; });
       lmCur = null;
     }
-    eye(0, 0, zc - 0.1, 0.075, null);
-    eye(-0.15, 0.05, zc - 0.12, 0.04, null); eye(0.15, 0.05, zc - 0.12, 0.04, null);
+    eye(0, 0, zc - 0.1, 0.075, null, V3(0, 0, -1));
+    eye(-0.15, 0.05, zc - 0.12, 0.04, null, V3(-0.4, 0.1, -1)); eye(0.15, 0.05, zc - 0.12, 0.04, null, V3(0.4, 0.1, -1));
     extra.push({ pos: [0, 0, zc - 0.08], size: 0.6, color: col(0.52, 1, 0.55) });   // inner glow
   }
 
@@ -794,14 +666,15 @@ export function generateBoss(THREE, name, wave, opts) {
     for (let i = 0; i < m; i++) {
       lmCur = i <= 1 ? { id: lH, w: () => [1, 0.5][i] } : (i >= m - 3 ? { id: lT, w: () => [0.3, 0.65, 1][i - (m - 3)] } : null);
       const t = i / (m - 1), rx = 0.2 * (0.6 + 0.4 * Math.sin(Math.PI * (0.15 + 0.7 * t))) * (1 - 0.5 * t * t), ry = rx * 0.82, zc = z0 + (i + 0.5) * st;
-      const g = new THREE.CylinderGeometry(rx * 0.95, rx, st * 0.98, 12, 1, false); g.rotateX(Math.PI / 2); g.scale(1, ry / rx, 1); g.translate(0, 0, zc);
+      const g = new THREE.CylinderGeometry(rx * 0.95, rx, st * 0.98, sd(12), 1, false); g.rotateX(Math.PI / 2); g.scale(1, ry / rx, 1); g.translate(0, 0, zc);
       add(g, (c, x, y, z) => c.copy(i % 2 ? plate : steel).multiplyScalar(0.85 + 0.3 * Math.abs(Math.sin(x * 50 + z * 20))));
-      const tr = new THREE.TorusGeometry(rx * 1.0, 0.006, 4, 16); tr.scale(1, ry / rx, 1); tr.translate(0, 0, z0 + i * st);
+      const tr = new THREE.TorusGeometry(rx * 1.0, 0.006, sd(4), sd(16)); tr.scale(1, ry / rx, 1); tr.translate(0, 0, z0 + i * st);
       add(tr, (c) => c.copy(glowC).multiplyScalar(1.8));
+      if (i > 0) addPart('plate', { w: rx * 1.3, d: st * 0.85, th: 0.018, lod: 'lo', base: plate, panel: steel }, V3(0, ry * 0.97, zc), V3(0, 1, 0));
       for (const row of [-1, 0, 1]) {   // spike rows: dorsal ridge + two shoulder rows
         const a = Math.PI / 2 - row * 0.62, dir = V3(Math.cos(a) * 0.6 * (row ? 1 : 0), 1, -0.5).normalize();
         const sx = Math.cos(a) * rx * 0.95 * (row ? 1 : 0), sy = Math.sin(a) * ry * 0.95;
-        add(coneGeo(V3(sx, sy, zc), row ? V3(row * 0.6, 1, 0.3) : V3(0, 1, 0.35), 0.026 * (row ? 1 : 1.3), (row ? 0.1 : 0.15) * (1 - 0.4 * t) + 0.03, 4), (c, x, y) => c.copy(bone));
+        addPart('spike', { len: (row ? 0.1 : 0.15) * (1 - 0.4 * t) + 0.03, r: 0.028 * (row ? 1 : 1.3), lod: 'lo', base: bone, tip: glowC }, V3(sx, sy, zc), row ? V3(row * 0.6, 1, 0.3) : V3(0, 1, 0.35));
       }
     }
     // armored prow wedge + brow plates
@@ -809,19 +682,18 @@ export function generateBoss(THREE, name, wave, opts) {
     const prow = new THREE.ConeGeometry(0.2, 0.3, 6); prow.rotateX(-Math.PI / 2); prow.scale(1, 0.82, 1); prow.translate(0, 0, -0.43);
     add(prow, (c, x, y, z) => c.copy(steel).lerp(plate, smooth(-0.5, -0.3, z) * 0.0 + 0.2).multiplyScalar(0.9 + 0.2 * Math.abs(Math.sin(x * 70))));
     for (const side of [-1, 1]) {
-      const br = new THREE.BoxGeometry(0.1, 0.02, 0.1); br.rotateZ(side * 0.3); br.translate(side * 0.11, 0.095, -0.33);
-      add(br, flat(plate));
-      add(coneGeo(V3(side * 0.17, -0.02, -0.34), V3(side * 0.4, -0.1, -1), 0.03, 0.17, 5), flat(bone));   // tusks
+      addPart('plate', { w: 0.1, d: 0.1, th: 0.02, base: plate, panel: steel }, V3(side * 0.11, 0.095, -0.33), V3(side * 0.3, 1, 0));      // brow plates
+      addPart('spike', { len: 0.18, r: 0.033, bend: 0.15, base: bone, tip: bone }, V3(side * 0.17, -0.02, -0.34), V3(side * 0.4, -0.1, -1));   // tusks
     }
     lmCur = { id: lT, w: () => 1 };
-    add(coneGeo(V3(0, 0, z1), V3(0, 0.05, 1), 0.1, 0.2, 6), flat(plate));      // tail spike
+    addPart('spike', { len: 0.22, r: 0.1, base: plate, tip: glowC }, V3(0, 0, z1), V3(0, 0.05, 1));      // tail spike
     lmCur = null;
     for (const [zi, side] of [[2, -1], [2, 1], [5, -1], [5, 1]]) {   // slow paddle fins
       const zc = z0 + (zi + 0.5) * st, piv = V3(side * 0.17, -0.02, zc);
       add(coneGeo(piv, V3(side, -0.25, 0.5), 0.07, 0.28, 4, [0.2, 1.8]), (c, x) => c.copy(plate).lerp(glowC, 0.12 + 0.2 * smooth(0.12, 0.4, Math.abs(x))), [0, side * zi, 3, 0.28], piv);
     }
     lmCur = { id: lH, w: () => 1 };
-    eye(0, 0.065, -0.4, 0.04, null); eye(-0.1, 0.04, -0.34, 0.03, null); eye(0.1, 0.04, -0.34, 0.03, null);
+    eye(0, 0.065, -0.4, 0.04, null, V3(0, 0.2, -1)); eye(-0.1, 0.04, -0.34, 0.03, null, V3(-0.5, 0.1, -1)); eye(0.1, 0.04, -0.34, 0.03, null, V3(0.5, 0.1, -1));
     lmCur = null;
   }
 
@@ -831,7 +703,8 @@ export function generateBoss(THREE, name, wave, opts) {
     const hide = col(hue0, 0.55, 0.3), belly = col(hue0, 0.45, 0.5), dark = col(hue0 + 0.02, 0.6, 0.12), horn = col(0.1, 0.2, 0.75), mouth = col(0.95, 0.8, 0.45), spot = col(0.78, 0.8, 0.5);
     add(ball(0, 0, 0.18, 0.27, 0.19, 0.3, 16, 10), (c, x, y, z) => c.copy(y < -0.06 ? belly : hide).multiplyScalar(0.88 + 0.24 * Math.abs(Math.sin(x * 35) * Math.cos(z * 31))));
     add(coneGeo(V3(0, 0, 0.4), V3(0, 0.12, 1), 0.12, 0.28, 6), flat(dark));
-    for (let i = 0; i < 6; i++) add(coneGeo(V3((i % 2 - 0.5) * 0.14, 0.17, 0.05 + i * 0.07), V3(0, 1, 0.3), 0.025, 0.09, 4), flat(horn));
+    addPart('shell', { rx: 0.2, ry: 0.07, rz: 0.2, base: hide, panel: dark, accent: spot }, V3(0, 0.15, 0.2), V3(0, 1, 0));
+    for (let i = 0; i < 6; i++) addPart('spike', { len: 0.1, r: 0.027, lod: 'lo', base: horn, tip: horn }, V3((i % 2 - 0.5) * 0.14, 0.17, 0.05 + i * 0.07), V3(0, 1, 0.3));
     for (const [x, z] of [[-0.2, 0.0], [0.2, 0.0], [-0.2, 0.34], [0.2, 0.34]]) { add(tubeGeo(V3(x, -0.1, z), V3(x * 1.1, -0.26, z), 0.06, 0.07, 6), flat(dark)); add(ball(x * 1.1, -0.27, z - 0.02, 0.08, 0.025, 0.1, 8, 4), flat(dark)); }
     const heads = [[0, 0.25, -0.48], [-0.32, 0.09, -0.4], [0.32, 0.09, -0.4]];
     heads.forEach(([hx, hy, hz], k) => {
@@ -852,10 +725,10 @@ export function generateBoss(THREE, name, wave, opts) {
       add(coneGeo(V3(H.x, H.y - 0.005, H.z - 0.06), V3(0, -0.15, -1), 0.045, 0.09, 6, [1, 0.7]), flat(hide), fxH);                // snout
       add(coneGeo(V3(H.x, H.y - 0.045, H.z - 0.04), V3(0, -0.4, -1), 0.04, 0.1, 5, [1, 0.5]), flat(mouth), fxH);               // jaw
       for (const side of [-1, 1]) {
-        add(coneGeo(V3(H.x + side * 0.04, H.y + 0.04, H.z + 0.02), V3(side * 0.5, 0.8, 0.9), 0.015, 0.1, 4), flat(horn), fxH);
-        add(coneGeo(V3(H.x + side * 0.02, H.y - 0.03, H.z - 0.1), V3(0, -1, -0.2), 0.008, 0.035, 3), flat(horn), fxH);          // fangs
+        addPart('spike', { len: 0.11, r: 0.017, bend: 0.3, base: horn, tip: horn }, V3(H.x + side * 0.04, H.y + 0.04, H.z + 0.02), V3(side * 0.5, 0.8, 0.9), fxH);
+        addPart('spike', { len: 0.04, r: 0.009, lod: 'lo', base: horn, tip: horn }, V3(H.x + side * 0.02, H.y - 0.03, H.z - 0.1), V3(0, -1, -0.2), fxH);          // fangs
       }
-      eye(H.x, H.y + 0.03, H.z - 0.07, 0.027, fxH);
+      eye(H.x, H.y + 0.03, H.z - 0.07, 0.027, fxH, V3(0, 0.3, -1));
       lmCur = null;
     });
   }
@@ -863,16 +736,12 @@ export function generateBoss(THREE, name, wave, opts) {
   // ── assemble ──
   const group = new THREE.Group(), root = new THREE.Group();
   root.scale.setScalar(length); group.add(root);
-  const uniforms = {
-    uTime: { value: 0 }, uPh: { value: rn(r, 0, 6.28) }, uHit: { value: 0 },
-    uAmp: { value: new THREE.Vector3(...P.amp) }, uSp: { value: P.sp }, uK: { value: P.k },
-    uBreath: { value: P.breath }, uHsp: { value: P.hsp }, uPulse: { value: P.pulse },
-    uSwA: { value: [] }, uSwT: { value: [] }, uSwP: { value: [] },
-  };
-  for (let i = 0; i < 8; i++) {
-    uniforms.uSwA.value.push(new THREE.Vector4(0, 1, 0, 0)); uniforms.uSwT.value.push(new THREE.Vector4(0, 0, 0, 0));
-    uniforms.uSwP.value.push(limbs[i] ? limbs[i].pivot.clone() : new THREE.Vector3());
-  }
+  const mats0 = makeMaterials(THREE, { flex: true });
+  const bmat = mats0.cloneMaterial(mats0.lit), uniforms = bmat.uniforms;      // per-boss instance of the shared flex material (own uniforms, same GL program as every creature)
+  uniforms.uPh.value = rn(r, 0, 6.28); uniforms.uWave.value = 0;
+  uniforms.uAmp.value.set(P.amp[0], P.amp[1], P.amp[2]); uniforms.uSp.value = P.sp; uniforms.uK.value = P.k;
+  uniforms.uBreath.value = P.breath; uniforms.uHsp.value = P.hsp; uniforms.uPulse.value = P.pulse;
+  for (let i = 0; i < 8; i++) if (limbs[i]) uniforms.uSwP.value[i].copy(limbs[i].pivot);
   // attack state (ship.js writes it every frame): which limb(s) move and how far through telegraph / strike / recover they are
   const att = { type: '', limb: -1, ph: 'idle', u: 0, side: 1 };
   // seeded combo: 2-4 moves picked from the limb set (sweep / slam / lunge / whip, plus a full-body spin when >= 2 limbs can swing)
@@ -890,12 +759,12 @@ export function generateBoss(THREE, name, wave, opts) {
     }
     return { type: c.type, limb: c.limb, name: (c.limb >= 0 ? limbs[c.limb].name + ' ' : 'whole body ') + c.type, tele: +rn(r, 0.8, 1.5).toFixed(2), dmg: ri(r, 25, 45), cd: +rn(r, 2, 4).toFixed(2), dur: DUR[c.type], rec: 0.55, reachL: reach * length };
   });
-  const mats = [new THREE.ShaderMaterial({ vertexShader: VERT3, fragmentShader: FRAG3, vertexColors: true, side: THREE.DoubleSide, uniforms })];
+  const mats = [bmat];
   const geoms = [];
   let tris = 0;
   const lists = [[solid, mats[0]]];
   if (glass.length) {
-    const gm = new THREE.ShaderMaterial({ vertexShader: VERT3, fragmentShader: FRAG_GLASS, vertexColors: true, side: THREE.DoubleSide, transparent: true, depthWrite: false, uniforms });
+    const gm = mats0.cloneMaterial(mats0.glass); gm.uniforms = uniforms;
     mats.push(gm); lists.push([glass, gm]);
   }
   for (const [list, mt] of lists) {
@@ -953,4 +822,28 @@ export function generateBoss(THREE, name, wave, opts) {
     },
     dispose() { geoms.forEach((g) => g.dispose()); mats.forEach((m) => m.dispose()); smat.dispose(); if (xmat) xmat.dispose(); },
   };
+}
+
+// generateBoss = the hi build + a lazily built `lo` Group (same limb ids / weights / materials, parts' lo variants + half-res primitives).
+export function generateBoss(THREE, name, wave, opts) {
+  const out = bossBuild(THREE, name, wave, opts, 'hi');
+  let lo = null;
+  Object.defineProperty(out, 'lo', {
+    enumerable: true,
+    get() {
+      if (!lo) {
+        const b = bossBuild(THREE, name, wave, opts, 'lo');
+        lo = new THREE.Group(); const rt = new THREE.Group(); rt.scale.copy(out.group.children[0].scale); lo.add(rt);
+        const meshes = b.group.children[0].children.filter((o) => o.isMesh);
+        meshes.forEach((m, i) => { m.material = out.mats[i] || out.mats[0]; rt.add(m); });
+        lo.userData.geoms = meshes.map((m) => m.geometry);
+        lo.userData.tris = meshes.reduce((a, m) => a + m.geometry.attributes.position.count / 3, 0);
+        b.mats.forEach((m) => m.dispose());
+      }
+      return lo;
+    },
+  });
+  const dis = out.dispose;
+  out.dispose = () => { dis(); if (lo) lo.userData.geoms.forEach((g) => g.dispose()); };
+  return out;
 }

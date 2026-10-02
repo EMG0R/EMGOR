@@ -518,3 +518,13 @@ body.is-piloting .ship-online { display: none; }
 #ship-hud.is-ground .sh-roll, #ship-hud.is-ground .sh-flip, #ship-hud.is-ground .sh-drift, #ship-hud.is-ground .sh-chain,
 #ship-hud.is-ground .sh-speed, #ship-hud.is-ground .sh-hp { display: none; }
 #ship-hud.is-foot .sh-ret { display: none; }
+
+/* ─── rev 18: altitude readout (atmosphere flight) ─────────── */
+.sh-alt {
+    position: absolute; right: 28px; top: calc(7vh + 146px); text-align: right;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.26em; color: #7fe8c8;
+    text-shadow: 0 0 8px rgba(127, 232, 200, 0.55), 0 1px 2px rgba(2, 0, 8, 0.95);
+    opacity: 0; transition: opacity 0.3s ease; white-space: pre;
+}
+.sh-alt.is-on { opacity: 1; }
+#ship-hud.is-ground .sh-alt { display: none; }

@@ -17,7 +17,7 @@
    (default world Z, X when dir is parallel to Z) projected perpendicular to dir.
 
    Parts: fin wing spike plate pod antenna engine eye tentacle claw shell dome strut canopy leg
-          barrel block tank tower hull spine pad
+          barrel block tank tower hull spine pad ring slot
           (hull = fuselage 'dart'|'brick'|'disc', length 1, nose -Z; spine = creature body chain;
            pad = outpost platform)
 
@@ -30,8 +30,9 @@
      (mirror flags inside an already-mirrored pass are ignored). Result is exactly two geometries (lit + emissive).
      Result sockets: root sockets by name, descendants as "<id>.<socket>" (mirrored instance: "<id>M.<socket>").
 
-   makeMaterials(THREE, { flex }) -> { lit, emissive, tick(t) }   shared per options (cached). flex=true uses the
-     ship-enemies flex shader (aFx driven sway / fin flap, uniforms uTime uPh uHit) so creatures + hulls share programs.
+   makeMaterials(THREE, { flex }) -> { lit, emissive, glass|null, cloneMaterial(m), tick(t) }   shared per options (cached). flex=true is the
+     one creature+boss shader (aFx/aPiv/aLm, uSw* limb uniforms); flex=false the static hull/weapon shader. cloneMaterial gives a per-creature
+     instance (own uniforms, same GL program). compose() recipe flag flex:false strips aFx/aPiv/aLm for static models.
    paint(geo, { base, accent, panel, rng, grime, lines, stripes }) -> geo   seeded panel lines / accent stripes / grime
      per triangle on any geometry (colours kept if the geometry already has a colour attribute). Use the return value.
    seededRecipe(kind, rng) -> recipe, kind in fighter hauler explorer creature boss-claw outpost gunpod
@@ -112,7 +113,7 @@ function mkB(T, p, r) {
     const g = geo.index ? geo.toNonIndexed() : geo;
     if (o.m) g.applyMatrix4(o.m);
     g.deleteAttribute('uv'); g.deleteAttribute('normal'); g.computeVertexNormals();
-    const P = g.attributes.position, n = P.count, C = new Float32Array(n * 3), F = new Float32Array(n * 3);
+    const P = g.attributes.position, n = P.count, C = new Float32Array(n * 3), F = new Float32Array(n * 4), PV = new Float32Array(n * 3), LM = new Float32Array(n * 2);
     const base = col.isColor ? col : tmp.set(col), bc = base.clone(), jit = o.jit === undefined ? 0.14 : o.jit;
     for (let i = 0; i + 2 < n; i += 3) {
       const cx = (P.getX(i) + P.getX(i + 1) + P.getX(i + 2)) / 3, cy = (P.getY(i) + P.getY(i + 1) + P.getY(i + 2)) / 3, cz = (P.getZ(i) + P.getZ(i + 1) + P.getZ(i + 2)) / 3;
@@ -121,11 +122,12 @@ function mkB(T, p, r) {
       for (let k = 0; k < 3; k++) {
         const j = (i + k) * 3;
         C[j] = t.r * f; C[j + 1] = t.g * f; C[j + 2] = t.b * f;
-        F[j] = typeof o.fxw === 'function' ? o.fxw(P.getX(i + k), P.getY(i + k), P.getZ(i + k)) : (o.fxw || 0);
-        F[j + 1] = b.ph; F[j + 2] = o.flap ? 1 : 0;
+        const j4 = (i + k) * 4;
+        F[j4] = typeof o.fxw === 'function' ? o.fxw(P.getX(i + k), P.getY(i + k), P.getZ(i + k)) : (o.fxw || 0);
+        F[j4 + 1] = b.ph; F[j4 + 2] = o.flap ? 5 : 0;
       }
     }
-    g.setAttribute('color', new T.BufferAttribute(C, 3)); g.setAttribute('aFx', new T.BufferAttribute(F, 3));
+    g.setAttribute('color', new T.BufferAttribute(C, 3)); g.setAttribute('aFx', new T.BufferAttribute(F, 4)); g.setAttribute('aPiv', new T.BufferAttribute(PV, 3)); g.setAttribute('aLm', new T.BufferAttribute(LM, 2));
     (o.emi ? b.emi : b.lit).push(g);
   };
   b.glow = (geo, o = {}) => b.add(geo, o.col || b.c.glow, Object.assign({ emi: true }, o));
@@ -343,8 +345,8 @@ function canopy(T, p, r) {
   const len = p.len ?? 0.26, hw = p.wid ?? 0.1, h = p.h ?? 0.08;
   const S = L ? [[-0.5, 0.35, 0.3], [-0.15, 1, 1], [0.5, 0.9, 0.3]] : [[-0.5, 0.3, 0.25], [-0.32, 0.72, 0.78], [-0.05, 1, 1], [0.25, 1, 0.8], [0.5, 0.85, 0.2]];
   const rings = S.map(([t, w, k]) => [V(T, -hw * w, 0, t * len), V(T, hw * w, 0, t * len), V(T, hw * w * 0.7, h * k, t * len), V(T, -hw * w * 0.7, h * k, t * len)]);
-  const glass = new T.Color(p.glass !== undefined ? p.glass : c.dark).lerp(c.glow, 0.12);
-  b.add(loft(T, rings, true, true), glass, { jit: 0.08, cf: (col, x, y) => col.lerp(c.glow, clamp(y / h, 0, 1) * 0.25) });
+  const gk = p.tintK ?? 1, glass = new T.Color(p.glass !== undefined ? p.glass : c.dark).lerp(c.glow, 0.12 * gk);
+  b.add(loft(T, rings, true, true), glass, { jit: 0.08, cf: (col, x, y) => col.lerp(c.glow, clamp(y / h, 0, 1) * 0.25 * gk) });
   b.add(boxG(T, hw * 2.3, h * 0.12, len * 0.96), c.panel, { m: M4(T, [0, -h * 0.1, 0]), jit: 0.1 });
   if (!L) {
     for (const t of [-0.26, 0.06, 0.28]) b.add(boxC(T, hw * 1.7, h * 0.09, len * 0.03), c.metal, { m: M4(T, [0, h * 0.82, t * len]), jit: 0.05 });
@@ -384,7 +386,7 @@ function barrel(T, p, r) {
   return b.done();
 }
 function block(T, p, r) {
-  const b = mkB(T, p, r), c = b.c, L = b.lo;
+  const b = mkB(T, p, r), c = b.c, L = b.lo || !!p.simple;
   const w = p.w ?? 0.16, h = p.h ?? 0.12, d = p.d ?? 0.16, k = 0.92;
   const rect = (hw, hd, y) => [V(T, -hw, y, -hd), V(T, hw, y, -hd), V(T, hw, y, hd), V(T, -hw, y, hd)];
   b.add(loft(T, [rect(w / 2, d / 2, 0), rect(w / 2 * k, d / 2 * k, h)], true, true), p.wall !== undefined ? p.wall : c.base, { jit: 0.16 });
@@ -432,12 +434,55 @@ function tower(T, p, r) {
   return b.done();
 }
 
+// ---- big circular engine ring (hauler main engine): grows along +Y, exhaust face at +Y
+function ring(T, p, r) {
+  const b = mkB(T, p, r), c = b.c, L = b.lo;
+  const R = p.r ?? 0.12, len = p.len ?? 0.1, seg = L ? 10 : 16, nt = L ? 8 : 16;
+  b.add(cyl(T, R, R, len, seg), c.dark, { jit: 0.1 });
+  b.add(cyl(T, R * 1.07, R * 1.07, len * 0.18, seg), c.metal, { jit: 0.1 });
+  b.add(cyl(T, R * 0.9, R * 0.9, len * 0.1, seg), c.panel, { m: M4(T, [0, len * 0.98, 0]), jit: 0.1 });
+  const tA = new T.Color(p.tileA !== undefined ? p.tileA : 0x4A7CFF), tB = new T.Color(p.tileB !== undefined ? p.tileB : 0x3A66E0);
+  for (let i = 0; i < nt; i++) {
+    const a = i / nt * Math.PI * 2;
+    b.glow(new T.PlaneGeometry(R * 0.27 * (16 / nt), R * 0.18).rotateX(-Math.PI / 2), { m: M4(T, [Math.cos(a) * R * 0.72, len * 1.1, Math.sin(a) * R * 0.72], [0, -a - Math.PI / 2, 0]), col: i % 2 ? tB : tA });
+  }
+  if (!L) for (let i = 0; i < 24; i++) {
+    const a = i / 24 * Math.PI * 2;
+    b.glow(new T.PlaneGeometry(R * 0.06, R * 0.06).rotateX(-Math.PI / 2), { m: M4(T, [Math.cos(a) * R * 0.5, len * 1.09, Math.sin(a) * R * 0.5]), col: 0xB8C8FF });
+  }
+  b.glow(new T.CircleGeometry(R * 0.38, seg).rotateX(-Math.PI / 2).translate(0, len * 1.14, 0), { col: 0xB070FF });
+  b.glow(new T.CircleGeometry(R * 0.27, seg).rotateX(-Math.PI / 2).translate(0, len * 1.2, 0), { col: p.coreCol !== undefined ? p.coreCol : 0xF2E6FF });
+  b.sock('exhaust', [0, len * 1.2, 0], [0, 1, 0]);
+  b.sock('base', [0, 0, 0], [0, -1, 0]);
+  return b.done();
+}
+// ---- thruster slot: dark frame with a glowing pane; face normal +Y
+function slot(T, p, r) {
+  const b = mkB(T, p, r), c = b.c, L = b.lo;
+  const w = p.w ?? 0.08, h = p.h ?? 0.06, th = p.th ?? 0.008;
+  b.add(boxG(T, w, th, h), c.dark, { jit: 0.1 });
+  b.glow(boxC(T, w * 0.85, th * 0.8, h * 0.8), { m: M4(T, [0, th * 1.1, 0]), col: p.glowCol || c.glow });
+  if (!L) {
+    b.add(boxG(T, w * 1.06, th * 0.6, h * 0.12), c.metal, { m: M4(T, [0, 0, h * 0.5]), jit: 0.1 });
+    b.add(boxG(T, w * 1.06, th * 0.6, h * 0.12), c.metal, { m: M4(T, [0, 0, -h * 0.5]), jit: 0.1 });
+  }
+  b.sock('exhaust', [0, th * 1.5, 0], [0, 1, 0]);
+  return b.done();
+}
+
 // ---- hull (length 1, nose -Z, tail +Z)
 const HK = {
   dart:  [[0, .012, -.02, .02], [.08, .05, -.05, .06], [.25, .11, -.08, .10], [.5, .15, -.09, .12], [.75, .14, -.09, .11], [.92, .11, -.08, .09], [1, .10, -.07, .08]],
   brick: [[0, .10, -.06, .04], [.07, .20, -.14, .13], [.3, .24, -.16, .17], [.8, .245, -.16, .18], [.95, .23, -.15, .17], [1, .21, -.13, .15]],
   disc:  [[0, .03, -.02, .02], [.12, .24, -.05, .05], [.35, .40, -.08, .09], [.55, .43, -.09, .10], [.82, .30, -.06, .07], [.95, .16, -.04, .05], [1, .10, -.03, .04]],
 };
+// profile lookup for decals: half-width / bottom / top of a hull kind at u (0 nose .. 1 tail), same scaling as the hull part
+export function hullSection(kind, u, wid = 1, hgt = 1) {
+  const K = HK[kind] || HK.dart;
+  let i = 0; while (i < K.length - 2 && u > K[i + 1][0]) i++;
+  const a = K[i], q = K[i + 1], t = clamp((u - a[0]) / (q[0] - a[0] || 1), 0, 1);
+  return { w: (a[1] + (q[1] - a[1]) * t) * wid, yb: (a[2] + (q[2] - a[2]) * t) * hgt, yt: (a[3] + (q[3] - a[3]) * t) * hgt };
+}
 function hull(T, p, r) {
   const b = mkB(T, p, r), c = b.c, L = b.lo, kind = p.kind || 'dart', wid = p.wid ?? 1, hgt = p.hgt ?? 1;
   const K = HK[kind] || HK.dart;
@@ -447,7 +492,7 @@ function hull(T, p, r) {
     return { w: (a[1] + (q[1] - a[1]) * t) * wid, yb: (a[2] + (q[2] - a[2]) * t) * hgt, yt: (a[3] + (q[3] - a[3]) * t) * hgt };
   };
   const ring8 = (u) => {
-    const s = samp(u), z = -0.5 + u, ch = Math.min(s.w, (s.yt - s.yb) / 2) * 0.5, w = s.w, yb = s.yb, yt = s.yt;
+    const s = samp(u), z = -0.5 + u, ch = Math.min(s.w, (s.yt - s.yb) / 2) * (p.chamfer ?? 0.5), w = s.w, yb = s.yb, yt = s.yt;
     return [V(T, -w + ch, yt, z), V(T, w - ch, yt, z), V(T, w, yt - ch, z), V(T, w, yb + ch, z), V(T, w - ch, yb, z), V(T, -w + ch, yb, z), V(T, -w, yb + ch, z), V(T, -w, yt - ch, z)];
   };
   const us = L ? [0, 0.12, 0.3, 0.55, 0.8, 1] : [0, 0.06, 0.14, 0.24, 0.36, 0.5, 0.62, 0.75, 0.87, 0.95, 1];
@@ -500,31 +545,32 @@ function hull(T, p, r) {
 // ---- creature spine: head -Z, tail +Z, gentle seeded S-curve
 function spine(T, p, r) {
   const b = mkB(T, p, r), c = b.c, L = b.lo;
-  const n = L ? 5 : Math.min(7, p.segs ?? 7), len = p.len ?? 1, R = p.r ?? 0.1, curve = p.curve ?? rn(r, -0.08, 0.08), ph = r() * 6;
+  const n = L ? Math.min(5, p.segs ?? 5) : Math.min(9, p.segs ?? 7), len = p.len ?? 1, R = p.r ?? 0.1, sx = p.wid ?? 1, sy = p.hgt ?? 1, bodyFx = p.bodyFx ?? 0.9, curve = p.curve ?? rn(r, -0.08, 0.08), ph = r() * 6;
   const ws = L ? 5 : 7, hs = L ? 3 : 4;
   const taper = t => R * (0.55 + 0.55 * Math.sin(Math.PI * clamp(t * 1.25 + 0.05, 0, 1))) * (1 - 0.65 * t * t);
   const info = [];
   for (let i = 0; i < n; i++) {
     const t = (i + 0.5) / n, z = -len / 2 + t * len, rad = taper(t), dz = len / n;
     const x = Math.sin(t * 4.2 + ph) * curve * len, y = Math.sin(t * 3 + ph * 0.7) * curve * len * 0.4;
-    info.push({ t, z, x, y, rad, dz });
-    b.add(ball(T, rad, rad * 0.82, dz * 0.78, ws, hs), i % 2 ? c.panel : c.base, {
-      m: M4(T, [x, y, z]), fxw: (px, py, pz) => clamp(((pz + len / 2) / len), 0, 1) * 0.9,
+    info.push({ t, z, x, y, rad, dz, rx: rad * sx, ry: rad * 0.82 * sy });
+    b.add(ball(T, rad * sx, rad * 0.82 * sy, dz * (p.stretch ?? 0.78), ws, hs), i % 2 ? c.panel : c.base, {
+      m: M4(T, [x, y, z]), fxw: (px, py, pz) => clamp(((pz + len / 2) / len), 0, 1) * bodyFx,
       cf: (col, px, py) => { if (py < y - rad * 0.2) col.lerp(c.dark, 0.5); if (py > y + rad * 0.45) col.lerp(c.accent, 0.12); },
     });
-    if (!L && i > 0 && i < n - 1 && i % 2 === 1) for (const s of [-1, 1]) b.glow(boxC(T, rad * 0.06, rad * 0.14, dz * 0.25), { m: M4(T, [x + s * rad * 0.97, y + rad * 0.1, z]), col: p.glowCol || c.glow, fxw: t });
+    if (!L && i > 0 && i < n - 1 && i % 2 === 1) for (const s of [-1, 1]) b.glow(boxC(T, rad * 0.06, rad * 0.14, dz * 0.25), { m: M4(T, [x + s * rad * sx * 0.97, y + rad * 0.1, z]), col: p.glowCol || c.glow, fxw: t });
   }
   const h = info[0], tl = info[n - 1];
   b.sock('head', [h.x, h.y, h.z - h.dz * 0.7], [0, 0, -1]);
   b.sock('tail', [tl.x, tl.y, tl.z + tl.dz * 0.7], [0, 0, 1]);
-  b.sock('eyeA', [h.x + h.rad * 0.45, h.y + h.rad * 0.35, h.z - h.dz * 0.5], [0.55, 0.35, -0.75]);
-  b.sock('eyeC', [h.x, h.y + h.rad * 0.55, h.z - h.dz * 0.2], [0, 0.8, -0.6]);
-  b.sock('jawA', [h.x + h.rad * 0.35, h.y - h.rad * 0.35, h.z - h.dz * 0.6], [0.35, -0.3, -0.9]);
+  b.sock('eyeA', [h.x + h.rx * 0.45, h.y + h.ry * 0.45, h.z - h.dz * 0.5], [0.55, 0.35, -0.75]);
+  b.sock('eyeC', [h.x, h.y + h.ry * 0.8, h.z - h.dz * 0.25], [0, 0.8, -0.6]);
+  b.sock('jawA', [h.x + h.rx * 0.35, h.y - h.ry * 0.4, h.z - h.dz * 0.6], [0.35, -0.3, -0.9]);
   info.forEach((q, i) => {
-    b.sock('dorsal' + i, [q.x, q.y + q.rad * 0.78, q.z], [0, 1, 0]);
-    b.sock('flank' + i, [q.x + q.rad * 0.9, q.y, q.z], [1, 0, 0], [0, 0, 1]);
-    b.sock('belly' + i, [q.x + q.rad * 0.15, q.y - q.rad * 0.78, q.z], [0, -1, 0]);
+    b.sock('dorsal' + i, [q.x, q.y + q.ry * 0.92, q.z], [0, 1, 0]);
+    b.sock('flank' + i, [q.x + q.rx * 0.9, q.y, q.z], [1, 0, 0], [0, 0, 1]);
+    b.sock('belly' + i, [q.x + q.rx * 0.15, q.y - q.ry * 0.92, q.z], [0, -1, 0]);
   });
+  b.info = info;
   b.nseg = n;
   return b.done();
 }
@@ -549,7 +595,7 @@ function pad(T, p, r) {
 }
 const padPos = (i, R, h) => { const a = i / 6 * 6.283 + 0.26; return [Math.cos(a) * R * 0.62, h * 1.3, Math.sin(a) * R * 0.62]; };
 
-export const PARTS = { fin, wing, spike, plate, pod, antenna, engine, eye, tentacle, claw, shell, dome, strut, canopy, leg, barrel, block, tank, tower, hull, spine, pad };
+export const PARTS = { fin, wing, spike, plate, pod, antenna, engine, eye, tentacle, claw, shell, dome, strut, canopy, leg, barrel, block, tank, tower, hull, spine, pad, ring, slot };
 
 // ---------------------------------------------------------------- compose
 function socketMatrix(T, s, extraRoll) {
@@ -606,31 +652,75 @@ export function compose(T, recipe, rng) {
   emit(recipe, new T.Matrix4(), null, false, '', true);
   let geo = mergeGeometries(lit, false);
   if (recipe.paint) geo = paint(geo, Object.assign({ rng }, recipe.paint));
-  const emissive = emi.length ? mergeGeometries(emi, false) : null;
+  let emissive = emi.length ? mergeGeometries(emi, false) : null;
+  for (const g of [geo, emissive]) if (g) g.deleteAttribute('normal');
+  if (recipe.flex === false) for (const g of [geo, emissive]) if (g) { g.deleteAttribute('aFx'); g.deleteAttribute('aPiv'); g.deleteAttribute('aLm'); }
   const tris = (geo.attributes.position.count + (emissive ? emissive.attributes.position.count : 0)) / 3;
   return { geo, emissive, sockets, tris, parts };
 }
+// fold the emissive geometry into the lit one (colours pushed past 1.15 so the lit shader draws them self-lit and pulsing): ONE mesh, ONE material.
+export function mergeLit(T, res, k = 2.0) {
+  if (!res.emissive) return res.geo;
+  const e = res.emissive, C = e.attributes.color.array;
+  for (let i = 0; i < C.length; i++) C[i] *= k;
+  const g = mergeGeometries([res.geo, e], false);
+  e.dispose(); res.geo.dispose();
+  return g;
+}
 
 // ---------------------------------------------------------------- materials
+// ONE flex vertex shader serves creatures AND bosses (superset), ONE static vertex shader serves hulls / weapons / outposts.
+//   aFx = (sway weight, phase, mode, param). mode 0 = parts sway (weight) + body wave (uWave), 5 = fin flap (+ sway + wave),
+//   1 = jaw hinge about Y, 2 = boss sway (uAmp/uSp/uK), 3 = fin flap about Z, 4 = bell pulse.  aPiv = hinge pivot. aLm = (limb id+1, weight):
+//   boss limbs swing about uSwP[i] by uSwA[i] (axis xyz, angle w) + uSwT[i].xyz translate, uSwT[i].w = telegraph glow.
 const VERT_FLEX = /* glsl */`
-uniform float uTime; uniform float uPh;
-attribute vec3 aFx;
-varying vec3 vC; varying vec3 vV;
+uniform float uTime; uniform float uPh; uniform float uWave;
+uniform vec3 uAmp; uniform float uSp; uniform float uK; uniform float uBreath; uniform float uHsp; uniform float uPulse;
+uniform vec4 uSwA[8]; uniform vec4 uSwT[8]; uniform vec3 uSwP[8];
+attribute vec4 aFx; attribute vec3 aPiv; attribute vec2 aLm;
+varying vec3 vC; varying vec3 vV; varying float vGl;
 #include <common>
 #include <logdepthbuf_pars_vertex>
 void main(){
   vC = color;
   vec3 p = position;
-  float tail = smoothstep(-0.25, 0.45, p.z);
-  p.x += sin(p.z * 9.0 - uTime * 3.2 + uPh) * 0.03 * tail;
-  p.y += sin(p.z * 7.0 - uTime * 2.4 + uPh) * 0.022 * tail;
-  float w = aFx.x;
-  p.x += sin(uTime * 2.3 + aFx.y + w * 4.5) * 0.11 * w * w;
-  p.y += cos(uTime * 1.8 + aFx.y * 1.3 + w * 3.5) * 0.08 * w * w;
-  p.z += sin(uTime * 2.0 + aFx.y + w * 3.0) * 0.05 * w * w;
-  float fin = abs(p.x);
-  p.y += aFx.z * sin(uTime * 3.0 + uPh + fin * 6.0) * fin * 0.22 * smoothstep(0.05, 0.25, fin);
-  p.xy *= 1.0 + 0.03 * sin(uTime * 2.2 + uPh + p.z * 6.0);
+  float md = aFx.z;
+  if (md < 0.5 || md > 4.5) {
+    float tail = smoothstep(-0.25, 0.45, p.z) * uWave;
+    p.x += sin(p.z * 9.0 - uTime * 3.2 + uPh) * 0.03 * tail;
+    p.y += sin(p.z * 7.0 - uTime * 2.4 + uPh) * 0.022 * tail;
+    float w = aFx.x;
+    p.x += sin(uTime * 2.3 + aFx.y + w * 4.5) * 0.11 * w * w;
+    p.y += cos(uTime * 1.8 + aFx.y * 1.3 + w * 3.5) * 0.08 * w * w;
+    p.z += sin(uTime * 2.0 + aFx.y + w * 3.0) * 0.05 * w * w;
+    if (md > 4.5) { float fin = abs(p.x); p.y += sin(uTime * 3.0 + uPh + fin * 6.0) * fin * 0.22 * smoothstep(0.05, 0.25, fin); }
+    p.xy *= 1.0 + 0.03 * uWave * sin(uTime * 2.2 + uPh + p.z * 6.0);
+  } else if (abs(md - 1.0) < 0.5) {
+    float a = aFx.w * (0.5 + 0.5 * sin(uTime * uHsp + aFx.y));
+    vec3 q = p - aPiv; float c = cos(a), s = sin(a);
+    p = aPiv + vec3(q.x * c + q.z * s, q.y, -q.x * s + q.z * c);
+  } else if (abs(md - 2.0) < 0.5) {
+    vec3 off = vec3(sin(uTime * uSp + aFx.y + aFx.w * uK) * uAmp.x,
+                    cos(uTime * uSp * 0.8 + aFx.y * 1.3 + aFx.w * uK) * uAmp.y,
+                    sin(uTime * uSp * 0.6 + aFx.y) * uAmp.z);
+    p += off * aFx.x;
+    p.xy *= 1.0 + uPulse * sin(uTime * 1.7) * (1.0 - aFx.x);
+  } else if (abs(md - 3.0) < 0.5) {
+    float a = aFx.w * sin(uTime * uHsp + aFx.y);
+    vec3 q = p - aPiv; float c = cos(a), s = sin(a);
+    p = aPiv + vec3(q.x * c - q.y * s, q.x * s + q.y * c, q.z);
+  } else if (abs(md - 4.0) < 0.5) {
+    p.xy *= 1.0 + uPulse * sin(uTime * 1.7);
+  }
+  vGl = 0.0;
+  if (aLm.x > 0.5) {
+    int li = int(aLm.x + 0.5) - 1;
+    vec4 sa = uSwA[li]; vec4 sw = uSwT[li]; vec3 pv = uSwP[li];
+    float ang = sa.w * aLm.y; vec3 q2 = p - pv; float cc = cos(ang), ss = sin(ang);
+    p = pv + q2 * cc + cross(sa.xyz, q2) * ss + sa.xyz * dot(sa.xyz, q2) * (1.0 - cc) + sw.xyz * aLm.y;
+    vGl = sw.w;
+  }
+  p *= 1.0 + uBreath * sin(uTime * 0.9);
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vV = mv.xyz;
   gl_Position = projectionMatrix * mv;
@@ -638,19 +728,19 @@ void main(){
 }`;
 const VERT_STATIC = /* glsl */`
 uniform float uTime; uniform float uPh;
-varying vec3 vC; varying vec3 vV;
+varying vec3 vC; varying vec3 vV; varying float vGl;
 #include <common>
 #include <logdepthbuf_pars_vertex>
 void main(){
-  vC = color;
+  vC = color; vGl = 0.0;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vV = mv.xyz;
   gl_Position = projectionMatrix * mv;
   #include <logdepthbuf_vertex>
 }`;
 const FRAG_LIT = /* glsl */`
-uniform float uTime; uniform float uPh; uniform float uHit;
-varying vec3 vC; varying vec3 vV;
+uniform float uTime; uniform float uPh; uniform float uHit; uniform vec3 uRim;
+varying vec3 vC; varying vec3 vV; varying float vGl;
 #include <common>
 #include <logdepthbuf_pars_fragment>
 void main(){
@@ -658,18 +748,19 @@ void main(){
   vec3 n = normalize(cross(dFdx(vV), dFdy(vV)));
   vec3 L = normalize(mat3(viewMatrix) * normalize(vec3(-0.62, 0.52, 0.4)));
   float d = max(0.0, dot(n, L)) * 0.7 + 0.3;
-  float rim = pow(1.0 - max(0.0, dot(n, normalize(-vV))), 3.0) * 0.35;
-  vec3 col = vC * d + rim * vec3(0.9, 0.3, 0.15);
+  float rim = pow(1.0 - max(0.0, dot(n, normalize(-vV))), 3.0);
+  vec3 col = vC * d + rim * uRim;
   float em = step(1.15, max(vC.r, max(vC.g, vC.b)));
   col = mix(col, vC * (0.85 + 0.3 * sin(uTime * 5.0 + uPh)), em);
   col += uHit * vec3(1.0, 0.65, 0.5);
+  col += vGl * vec3(1.15, 0.4, 0.12) * (0.65 + 0.35 * sin(uTime * 26.0));
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
 const FRAG_EMI = /* glsl */`
 uniform float uTime; uniform float uPh;
-varying vec3 vC; varying vec3 vV;
+varying vec3 vC; varying vec3 vV; varying float vGl;
 #include <common>
 #include <logdepthbuf_pars_fragment>
 void main(){
@@ -677,14 +768,47 @@ void main(){
   gl_FragColor = vec4(vC * (0.92 + 0.12 * sin(uTime * 4.0 + uPh)), 1.0);
   #include <colorspace_fragment>
 }`;
+const FRAG_GLASS = /* glsl */`
+uniform float uTime; uniform float uPh; uniform float uHit;
+varying vec3 vC; varying vec3 vV; varying float vGl;
+#include <common>
+#include <logdepthbuf_pars_fragment>
+void main(){
+  #include <logdepthbuf_fragment>
+  vec3 n = normalize(cross(dFdx(vV), dFdy(vV)));
+  float rim = pow(1.0 - abs(dot(n, normalize(-vV))), 2.0);
+  vec3 col = vC * (0.7 + 0.3 * sin(uTime * 1.7)) + rim * vec3(0.5, 0.95, 1.0) * 0.9 + uHit * vec3(1.0, 0.6, 0.5);
+  gl_FragColor = vec4(col, 0.2 + 0.5 * rim);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
 const _mats = new Map();
+// rim light colours (premultiplied): creatures warm orange, hulls cool violet
+export const RIM_WARM = [0.315, 0.105, 0.0525], RIM_COOL = [0.14, 0.084, 0.238];
+function uniformSet(T, flex, rim) {
+  const u = { uTime: { value: 0 }, uPh: { value: 0 }, uHit: { value: 0 }, uRim: { value: new T.Vector3(rim[0], rim[1], rim[2]) } };
+  if (flex) {
+    u.uWave = { value: 1 }; u.uAmp = { value: new T.Vector3() }; u.uSp = { value: 1 }; u.uK = { value: 0 }; u.uBreath = { value: 0 }; u.uHsp = { value: 1 }; u.uPulse = { value: 0 };
+    u.uSwA = { value: [] }; u.uSwT = { value: [] }; u.uSwP = { value: [] };
+    for (let i = 0; i < 8; i++) { u.uSwA.value.push(new T.Vector4(0, 1, 0, 0)); u.uSwT.value.push(new T.Vector4()); u.uSwP.value.push(new T.Vector3()); }
+  }
+  return u;
+}
+// ShaderMaterial.clone() copies uniform arrays shallowly; this deep-copies the Vector arrays so per-creature limb state never leaks. Same shader text = same GL program.
+export function cloneMaterial(T, mat) {
+  const m = mat.clone();
+  for (const k in m.uniforms) { const v = m.uniforms[k].value; if (Array.isArray(v)) m.uniforms[k].value = v.map(q => (q && q.clone) ? q.clone() : q); }
+  return m;
+}
+// shared: mats.lit / mats.emissive (+ mats.glass for flex). opts.flex picks the creature program; the static program is for hulls / weapons / outposts.
 export function makeMaterials(T, opts) {
   const flex = !!(opts && opts.flex), key = T.REVISION + (flex ? ':f' : ':s');
   if (_mats.has(key)) return _mats.get(key);
-  const U = () => ({ uTime: { value: 0 }, uPh: { value: 0 }, uHit: { value: 0 } });
-  const lit = new T.ShaderMaterial({ vertexShader: flex ? VERT_FLEX : VERT_STATIC, fragmentShader: FRAG_LIT, vertexColors: true, side: T.DoubleSide, uniforms: U() });
-  const emissive = new T.ShaderMaterial({ vertexShader: flex ? VERT_FLEX : VERT_STATIC, fragmentShader: FRAG_EMI, vertexColors: true, side: T.DoubleSide, uniforms: U() });
-  const out = { lit, emissive, flex, tick(t, ph) { for (const m of [lit, emissive]) { m.uniforms.uTime.value = t; if (ph !== undefined) m.uniforms.uPh.value = ph; } } };
+  const rim = flex ? RIM_WARM : RIM_COOL;
+  const mk = (frag, extra) => new T.ShaderMaterial(Object.assign({ vertexShader: flex ? VERT_FLEX : VERT_STATIC, fragmentShader: frag, vertexColors: true, side: T.DoubleSide, uniforms: uniformSet(T, flex, rim) }, extra || {}));
+  const lit = mk(FRAG_LIT), emissive = mk(FRAG_EMI);
+  const out = { lit, emissive, flex, glass: flex ? mk(FRAG_GLASS, { transparent: true, depthWrite: false }) : null, cloneMaterial: m => cloneMaterial(T, m || lit),
+    tick(t, ph) { for (const m of [lit, emissive]) { m.uniforms.uTime.value = t; if (ph !== undefined) m.uniforms.uPh.value = ph; } } };
   _mats.set(key, out);
   return out;
 }
