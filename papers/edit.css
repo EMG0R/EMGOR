@@ -17,8 +17,9 @@ button:disabled { color: var(--dim); cursor: default; }
 #histpanel div span { color: var(--dim); }
 #doc { max-width: 720px; margin: 0 auto; padding: 32px 16px 30vh; outline: none; min-height: 60vh; overflow-wrap: break-word; }
 #doc[contenteditable="false"] { color: var(--dim); }
-#doc h1 { font-size: 1.6em; line-height: 1.25; margin: 0.8em 0 0.4em; }
-#doc h2 { font-size: 1.3em; line-height: 1.3; margin: 1.2em 0 0.4em; }
-#doc h3 { font-size: 1.1em; margin: 1em 0 0.3em; }
+/* two sizes only: body 16px, bold and headings 20px */
+#doc h1, #doc h2, #doc h3 { font-size: 20px; font-weight: bold; line-height: 1.4; margin: 1em 0 0.3em; }
+#doc b, #doc strong { font-size: 20px; }
+#doc h1 b, #doc h1 strong, #doc h2 b, #doc h2 strong, #doc h3 b, #doc h3 strong { font-size: inherit; }
 #doc p, #doc div { margin: 0 0 0.9em; }
 #doc ul, #doc ol { margin: 0 0 0.9em; padding-left: 1.6em; }
