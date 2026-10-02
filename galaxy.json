@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-01",
+  "generated": "2026-10-02",
   "nodes": [
     {
       "id": "emgor",
@@ -715,12 +715,7 @@
       "depth": 1,
       "children": 9,
       "downloads": [],
-      "links": [
-        {
-          "label": "Papers page",
-          "url": "papers.html"
-        }
-      ],
+      "links": [],
       "tags": [
         "research",
         "writing",
@@ -742,26 +737,10 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as paper",
-          "url": "papers/nime/digital-luthier.html"
-        },
-        {
-          "label": "Full rendered manuscript",
-          "url": "papers/nime/render/rotura/index.html"
-        }
-      ],
-      "tags": [
-        "rotura",
-        "methodology",
-        "digital-lutherie",
-        "fabrication",
-        "interaction-design",
-        "neptr",
-        "bouba"
-      ],
+      "links": [],
+      "tags": [],
       "updated": "2026-09-21",
+      "read": "papers/nime/render/rotura/index.html",
       "order": 1
     },
     {
@@ -774,25 +753,11 @@
       "depth": 2,
       "children": 1,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as paper",
-          "url": "papers/nime/neptr-performance-system.html"
-        },
-        {
-          "label": "NEPTR on the site",
-          "url": "NEPTR.html"
-        }
-      ],
-      "tags": [
-        "performance",
-        "csound",
-        "raspberry-pi",
-        "hyper-instruments",
-        "diy",
-        "icmc"
-      ],
+      "links": [],
+      "tags": [],
       "updated": "2026-09-21",
+      "read": "papers/edit.html?id=neptr-performance-system",
+      "zip": "papers/zips/neptr-performance-system.zip",
       "order": 2
     },
     {
@@ -1277,26 +1242,10 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as paper",
-          "url": "papers/nime/neuralgrid.html"
-        },
-        {
-          "label": "NeuralGrid design document",
-          "url": "neuralgrid.html"
-        }
-      ],
-      "tags": [
-        "neural-models",
-        "sequencer",
-        "machine-lab",
-        "raspberry-pi",
-        "nime",
-        "tabla",
-        "protocol"
-      ],
+      "links": [],
+      "tags": [],
       "updated": "2026-09-21",
+      "read": "papers/edit.html?id=neuralgrid",
       "order": 3
     },
     {
@@ -1309,26 +1258,11 @@
       "depth": 2,
       "children": 4,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as paper",
-          "url": "papers/nime/demiurgeos.html"
-        },
-        {
-          "label": "Full source: DEMIURGE_OS git repo (local for now)",
-          "url": "file:///Users/emgor/Documents/_EMGOR_SYNTH/______2026NEW/DEMIURGE_OS"
-        }
-      ],
-      "tags": [
-        "raspberry-pi",
-        "linux-audio",
-        "pipewire",
-        "os",
-        "live-performance",
-        "dsp",
-        "tooling"
-      ],
+      "links": [],
+      "tags": [],
       "updated": "2026-09-21",
+      "read": "papers/edit.html?id=demiurgeos",
+      "zip": "papers/zips/demiurgeos.zip",
       "order": 4
     },
     {
@@ -1473,20 +1407,10 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as draft",
-          "url": "papers/nime/thesis.html"
-        }
-      ],
-      "tags": [
-        "thesis",
-        "calarts",
-        "digital-lutherie",
-        "practice-based",
-        "in-development"
-      ],
+      "links": [],
+      "tags": [],
       "updated": "2026-09-25",
+      "read": "papers/edit.html?id=thesis",
       "order": 5
     },
     {
@@ -1498,72 +1422,12 @@
       "route": "/papers/nam-csound",
       "depth": 2,
       "children": 0,
-      "downloads": [
-        {
-          "name": "nam-csound-icsc.pdf",
-          "url": "universe/papers/files/nam-csound-icsc.pdf"
-        },
-        {
-          "name": "csound_nam_opcode.cpp",
-          "url": "universe/papers/files/nam-opcode/csound_nam_opcode.cpp"
-        },
-        {
-          "name": "nam_loader.cpp",
-          "url": "universe/papers/files/nam-opcode/nam_loader.cpp"
-        },
-        {
-          "name": "nam_loader.h",
-          "url": "universe/papers/files/nam-opcode/nam_loader.h"
-        },
-        {
-          "name": "kweight.h",
-          "url": "universe/papers/files/nam-opcode/kweight.h"
-        },
-        {
-          "name": "di_probe.h",
-          "url": "universe/papers/files/nam-opcode/di_probe.h"
-        },
-        {
-          "name": "CMakeLists.txt",
-          "url": "universe/papers/files/nam-opcode/CMakeLists.txt"
-        },
-        {
-          "name": "build-on-pi.sh",
-          "url": "universe/papers/files/nam-opcode/build-on-pi.sh"
-        },
-        {
-          "name": "test_nam_passthrough.csd",
-          "url": "universe/papers/files/nam-opcode/test_nam_passthrough.csd"
-        },
-        {
-          "name": "nam_bench.csd",
-          "url": "universe/papers/files/nam-opcode/nam_bench.csd"
-        },
-        {
-          "name": "analyze.py",
-          "url": "universe/papers/files/nam-opcode/analyze.py"
-        }
-      ],
-      "links": [
-        {
-          "label": "Read as paper",
-          "url": "papers/nime/nam-csound.html"
-        },
-        {
-          "label": "The paper (PDF)",
-          "url": "papers/nime/render/nam/nam-csound-icsc.pdf"
-        }
-      ],
-      "tags": [
-        "csound",
-        "neural-amp-modeler",
-        "dsp",
-        "raspberry-pi",
-        "cabbage",
-        "opcode",
-        "complete"
-      ],
+      "downloads": [],
+      "links": [],
+      "tags": [],
       "updated": "2026-09-21",
+      "read": "papers/edit.html?id=nam-csound",
+      "zip": "papers/zips/nam-csound.zip",
       "order": 6
     },
     {
@@ -1576,21 +1440,10 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as paper",
-          "url": "papers/nime/bouba.html"
-        }
-      ],
-      "tags": [
-        "music-therapy",
-        "generative",
-        "teensy",
-        "quadraphonic",
-        "tangible-interface",
-        "wellbeing"
-      ],
+      "links": [],
+      "tags": [],
       "updated": "2026-09-21",
+      "read": "papers/edit.html?id=bouba",
       "order": 7
     },
     {
@@ -1603,24 +1456,10 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as paper",
-          "url": "papers/nime/omniplex.html"
-        }
-      ],
-      "tags": [
-        "rust",
-        "protocol",
-        "usb",
-        "quic",
-        "systems",
-        "usb-c",
-        "networking",
-        "low-latency",
-        "streaming"
-      ],
+      "links": [],
+      "tags": [],
       "updated": "2026-09-21",
+      "read": "papers/edit.html?id=omniplex",
       "order": 8
     },
     {
@@ -1633,21 +1472,10 @@
       "depth": 2,
       "children": 0,
       "downloads": [],
-      "links": [
-        {
-          "label": "Read as paper",
-          "url": "papers/nime/open-pedal.html"
-        }
-      ],
-      "tags": [
-        "planned",
-        "open-source",
-        "diy",
-        "pcb",
-        "dsp",
-        "guitar-pedal"
-      ],
+      "links": [],
+      "tags": [],
       "updated": "2026-09-21",
+      "read": "papers/edit.html?id=open-pedal",
       "order": 9
     },
     {

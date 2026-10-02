@@ -1,0 +1,30 @@
+<h1>NeuralGrid</h1>
+<p><strong>Status: mid-build.</strong> First encoder working on hardware; sensor smoothing and interpolation producing a coherent output format. Target venue: NIME. With Ajay Kapur and Jake Cheng.</p>
+<h2>The instrument</h2>
+<p>A sensor-dense physical controller — a grid of pads, ribbons along the edges, lidar at the corners, contact mics inside — running on a Raspberry Pi. Sensor input is smoothed and interpolated into a coherent output format defined by the dimensional space those sensors actually represent, rather than by what each sensor happens to emit.</p>
+<p>Its original context is the Machine Lab: a universal controller pre-mapped to the OSC addresses around the room, able to launch and manage the server itself, so anyone new can walk in and play every instrument in the room. The room as an instrument, not a composition platform.</p>
+<h2>Two layers, and the first one is language</h2>
+<p><strong>The symbolic layer.</strong> The design turned on a realization about <em>bols</em> — the spoken vocabulary of strokes in tabla. Tabla already formalizes what generative pattern variation tries to do: <em>theka</em> and <em>taal</em> hold a cycle, while <em>tihai</em> and <em>kaida</em> act as geometric transforms over sequences of bols. That is a complete, tested, centuries-old grammar for playing, combining, and varying phrases, and it is <em>spoken</em> — the vocabulary is vocally synthesizable by construction.</p>
+<p>So the first model interprets gesture from spatial input through a symbolic vocabulary of this kind: recognizing phrases, holding a consistent cycle, and applying generative modulation as transforms over the symbol sequence rather than over audio. The output can be spoken aloud as readily as played, and there is room to extend the vocabulary into English symbolism.</p>
+<p>This is a borrowing from a living tradition, and the paper treats it as one — named as such, cited to the tabla scholarship, not presented as a found abstraction. It is also well-precedented ground for this collaboration: Ajay Kapur's ETabla, Electronic Dholak, and MahaDeviBot work is exactly the translation of North Indian percussion into controllers and robots.</p>
+<p><strong>The translator layer.</strong> The second model maps symbolic output onto any synthesis engine through seven perceptual axes — frequency, loudness, harmonicity, rate, scale, space, and time. Hardcoded regions of the translator's behavior define specific <em>instruments</em>; loosening them lets more of the instrument be generatively shaped, until the whole thing is authored by the translator's reactions to the player.</p>
+<p>The translator is <strong>deaf</strong>: it never hears what it renders. It responds to the player and to the symbol stream, not to the resulting sound. That separation is the point — it keeps model latency structurally out of the audio path, because a model that never listens never has to keep up.</p>
+<h2>Why the split matters</h2>
+<p>The model never sits in the hot path. A real-time layer reads sensors, plays notes, and drives LEDs without blocking on anything; the models run beside it and stage their results, which get swapped in on a boundary. If a model takes 200 ms, nothing is late.</p>
+<h2>What's next</h2>
+<p>Extend from the working encoder to the full sensor complement; implement the symbolic vocabulary and its transforms; then the translator and the seven-axis mapping. The Machine Lab renderer and a browser-based controller/renderer pair are the two deployment targets that would let a reader try it without building anything.</p>
+<h2>People</h2>
+<p>Emory Smith, Ajay Kapur, Jake Cheng.</p>
+Paper not yet written 
+<h2>Structure</h2>
+<ol>
+<li>Introduction — the Machine Lab, and the case for a universal controller</li>
+<li>Related work — grid controllers, gestural mapping, and computational models of tabla</li>
+<li>The symbolic layer — bols as vocabulary, theka as cycle, tihai and kaida as transforms</li>
+<li>The translator — seven perceptual axes, and what it means for a model to be deaf</li>
+<li>Instruments as constraint — hardcoding regions of translator behavior</li>
+<li>Hardware — pads, FSRs, ribbons, lidar, contact mics, and the sensor-to-space mapping</li>
+<li>Architecture — keeping every model out of the hot path</li>
+<li>Evaluation — latency of the fast plane; whether the axes are independently steerable</li>
+<li>Future work — Machine Lab renderer, browser controller/renderer pair</li>
+</ol>

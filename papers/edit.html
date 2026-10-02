@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Edit paper</title>
+<link rel="stylesheet" href="edit.css">
+</head>
+<body>
+<div id="bar">
+  <a id="back" href="../index.html">&larr; back</a>
+  <span id="title"></span>
+  <span id="status"></span>
+  <button id="save" type="button">Save</button>
+  <button id="hist" type="button">History</button>
+</div>
+<div id="preview" hidden>
+  <span id="pvlabel"></span>
+  <button id="restore" type="button">Restore this version</button>
+  <button id="current" type="button">Back to current</button>
+</div>
+<div id="histpanel" hidden></div>
+<div id="doc" contenteditable="true" spellcheck="true"></div>
+<script src="edit.js"></script>
+</body>
+</html>

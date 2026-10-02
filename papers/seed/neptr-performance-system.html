@@ -1,0 +1,29 @@
+<h1>Performance System of a Modern Digital Luthier</h1>
+<p><strong>Status: running.</strong> The instrument is on stage now. Paper in progress — targets ICMC.</p>
+<h2>Abstract</h2>
+<p>NEPTR is the brain at the center of the performance system, linking audio interfaces, DIY controllers, and hyper-instruments with internal DSP and a graphical interface. It replaces the laptop, the synthesizer, and the pedalboard onstage. This paper documents the system as a whole rather than the box alone: the operating layer beneath it, the effect architecture inside it, and the family of DIY satellites around it.</p>
+<h2>The system, in three layers</h2>
+<p><strong>Underneath — a custom Rust supervisor.</strong> The instrument boots from <a href="../index.html#/papers/demiurgeos">DEMIURGE</a>, a flashable audio-first OS whose launcher is a zero-dependency Rust patch-graph engine. It parses one config file into a directed graph of live programs, links audio and MIDI between them, and hot-reloads on save: untouched stages keep their PIDs, dead ones are routed around. The instrument survives power pulls, hot-plugs, and field gigs because the supervisor treats failure as a routing problem rather than a crash.</p>
+<p><strong>The engine — Csound.</strong> One .csd entry point includes the globals, the signal chain, and a MIDI handler, then pulls in the effect library. <strong>63 effect modules</strong> are implemented as individual Csound files, spanning circuit-modeled drive and preamp stages, granular and spectral processors, pitch-tracked synthesis, convolution reverb, delays, a multi-channel looper, and a Neural Amp Modeler stage built on the <a href="../index.html#/papers/nam-csound">NAMProcess opcode</a>. Bypassed effects are turned off and cost no CPU.</p>
+<p><strong>On top — a Python interface.</strong> A touchscreen UI written in Python, mirrored over OSC, presents 20 menus of toggleable effect slots. Encoder rotation drives the parameters of whichever effect was last toggled, and the expression pedal follows the same last-toggled-wins rule. A consistency test suite fails the build if the UI tables, the MIDI handler, and the reference documentation disagree with each other.</p>
+<p>There is deliberate crossover between the layers — the OS work and the instrument work are the same work, done from different ends.</p>
+<h2>Latency</h2>
+<p><strong>6 ms</strong> round trip, guitar to amplifier: instrument → interface → Csound → interface → amp, at 48 kHz with a 128-sample period.</p>
+<h2>The performance system</h2>
+<p>Around the brain sit the DIY satellites, each documented as a hardware planet on this site: the hyper-trumpet and hyper-guitar, the Quadro Punch Packer hemispherical speakers, the We-Remote BLE controller, the 4-i-Gor DIY audio interface, and the oFOOTS foot controller. Nothing onstage is bought that could be built.</p>
+<h2>A note on NEPTR's two lives</h2>
+<p>The <a href="../index.html#/papers/digital-luthier">Luthier paper</a> documents an earlier NEPTR — ChucK for synthesis, a Python GUI over OSC, a Teensy 4.0 on audio I/O and a Teensy 4.1 on controls. That case study captures the prototype at the moment it demonstrated the workflow. This paper documents what it became.</p>
+<p>Both are true of their own moment, and the distance between them is itself evidence for the workflow argument: the instrument was rebuilt underneath without being replaced.</p>
+<h2>People</h2>
+<p>Emory Smith.</p>
+Paper not yet written 
+<h2>Structure</h2>
+<ol>
+<li>Introduction — the laptop, the synth, and the pedalboard, and why none of them are onstage</li>
+<li>Runtime — Csound on the Pi 5, 6&nbsp;ms round trip, the Rust supervisor beneath</li>
+<li>Control surface — Teensy encoders, 20 menus, last-toggled-wins, the consistency test suite</li>
+<li>The effect roster — 63 hand-written modules; drive, spectral, granular, looper, NAM</li>
+<li>The performance system — hyper-trumpet, hyper-guitar, hemi speakers, We-Remote, 4-i-Gor, oFOOTS</li>
+<li>Evaluation — what survives a gig</li>
+<li>Future work</li>
+</ol>

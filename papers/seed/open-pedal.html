@@ -1,0 +1,21 @@
+<h1>Open-Pedal: An Accessible System for Modularly Creating Guitar Pedals and Synthesizers</h1>
+<p><strong>Status: PLANNED</strong> — target venues: NIME, TEI, ACM CHI, ICMC.</p>
+<h2>Abstract</h2>
+<p>The goal is to support disruption of the hold capitalism has on digital instruments and DSP through an open-source, DIY framework for creating powerful instruments and effect processors. The system's modularity means people pay only for the sensors and compute they need, while thoughtfully designed PCBs, software (an Arduino IDE fork with example programs and preinstalled libraries), and interactive guides provide a simple path to powerful digital interfaces.</p>
+<h2>The argument</h2>
+<p>With coding, engineering, and technology becoming steadily more accessible, this framework bridges the gap between high-value electronics and the general population. Custom PCBs and 3D-printed components make swapping components and microcontrollers approachable; the custom IDE handles the libraries and microcontroller profiles so users can experiment with an interactive DSP library while programming their devices. A full, comprehensive system built for future improvement.</p>
+<h2>People</h2>
+<p>Emory Smith (primary), with Nina (MIT); Andrew, Ajay, and Todd possible.</p>
+<h2>1. Introduction</h2>
+<p>With the rising accessibility of coding, engineering, and technology overall, this framework contributes to bridging the gap between high-value electronics and the general population. Commercial digital pedals and synthesizers bundle sensors, compute, and DSP behind a fixed price and a closed enclosure; Open-Pedal unbundles them, so a builder pays only for the parts their instrument actually needs and owns the whole stack from schematic to firmware.</p>
+<h2>2. Design</h2>
+<ul>
+<li><em>Hardware.</em> Custom PCBs and 3D-printed components allow accessible swapping of components and microcontrollers to build custom devices — the same board family underlies a fuzz pedal, a granular sampler, or a standalone synth.</li>
+<li><em>Software.</em> A custom IDE forked from Arduino handles all required libraries and microcontroller profiles, so users can experiment with an interactive library of DSP while programming their devices, without toolchain setup.</li>
+<li><em>Guides.</em> Interactive build and DSP guides walk newcomers from a bare board to a playable device, treating each example program as a teaching object.</li>
+</ul>
+<p>The intent is a full, comprehensive system built for future improvement — a platform others can extend rather than a one-off product.</p>
+<h2>3. Current Status</h2>
+<p><em>Concept.</em> Open-Pedal exists as the proposal above and has no repository of its own yet — the one thing on this planet that is still only an argument. The practice it formalizes, however, is already live across the EMGOR hardware planets: DIY PCB-based instruments such as the Pocket OpGorator (Daisy), 4-i-Gor (Teensy audio interface), and oFOOTS (Teensy foot controller) are effectively pre-Open-Pedal case studies, and their build files are public on this site.</p>
+<h2>4. Future Work</h2>
+<p>First milestones: define the core PCB family and its swappable sensor/compute modules; fork and strip the IDE; port one existing EMGOR device onto the framework as a reference build; then run the guides with first-time builders. Target venues: NIME, TEI, ACM CHI, or ICMC.</p>

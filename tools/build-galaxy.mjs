@@ -218,6 +218,17 @@ async function main() {
       }
     }
 
+    // Optional paper-panel URLs: `read` (primary "Read the paper" button) and `zip`
+    // (resource download). Plain non-empty strings, passed through to galaxy.json.
+    const strField = (k) => {
+      if (fm[k] === undefined) return undefined;
+      if (typeof fm[k] === 'string' && fm[k].trim()) return fm[k].trim();
+      warnings.push(`${repoRel}: "${k}" must be a non-empty string — ignored`);
+      return undefined;
+    };
+    const read = strField('read');
+    const zip = strField('zip');
+
     // Optional sibling sort order (number). Lower sorts first; ties fall back to route.
     let order;
     if (fm.order !== undefined) {
@@ -243,6 +254,8 @@ async function main() {
       updated,
       ...(size !== undefined ? { size } : {}),
       ...(launch !== undefined ? { launch } : {}),
+      ...(read !== undefined ? { read } : {}),
+      ...(zip !== undefined ? { zip } : {}),
       ...(order !== undefined ? { order } : {}),
     };
 

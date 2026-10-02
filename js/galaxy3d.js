@@ -193,6 +193,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             node.sizeF = clamp(sz, 0.5, 2.5);
             byId[node.id] = node;
             byRoute[node.route] = node;
+                read: typeof n.read === 'string' ? n.read : '',
+                zip: typeof n.zip === 'string' ? n.zip : '',
         });
         nodes.forEach(function (n) {
             var node = byId[n.id];
@@ -1674,8 +1676,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 if (overlayNode !== node) return;
                 var fm = window.MDLITE.parseFrontmatter(text);
                 if (fm.meta.title) ovTitle.textContent = String(fm.meta.title).toLowerCase();
-                if (fm.meta.blurb) ovBlurb.textContent = fm.meta.blurb;
-                renderMeta(node, fm.meta);
+                if (node.read) { ovBlurb.textContent = ''; ovMeta.innerHTML = ''; }
+                else {
+                    if (fm.meta.blurb) ovBlurb.textContent = fm.meta.blurb;
+                    renderMeta(node, fm.meta);
+                }
                 ovBody.innerHTML = window.MDLITE.render(fm.body);
             })
             .catch(function () {
@@ -1685,6 +1690,26 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                     'hasn\'t been synced yet.</p>';
             });
     }
+        ovLinks.innerHTML = '';
+        ovRoot.classList.toggle('is-paper', !!node.read);
+        // paper panels: title, abstract, then the buttons underneath
+        if (node.read) ovBody.after(ovDl); else ovLinks.before(ovDl);
+        if (node.read) {
+            var rd = document.createElement('a');
+            rd.className = 'ov-dl ov-read';
+            rd.href = node.read;
+            rd.textContent = 'Read the paper';
+            ovDl.appendChild(rd);
+            if (node.zip) {
+                var zp = document.createElement('a');
+                zp.className = 'ov-dl ov-zip';
+                zp.href = node.zip;
+                zp.setAttribute('download', '');
+                zp.innerHTML = '<span class="ov-dl-arrow">↓</span> Download resources (.zip)';
+                ovDl.appendChild(zp);
+            }
+            return;
+        }
 
     function closeOverlay(navigate) {
         if (!overlayNode) return;
@@ -1713,6 +1738,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     }
     // approximate on-screen pixel radius of a world-space sphere radius r
     // centered at (wx,wy,wz), for label sizing / hit-testing (no lookAt
+        if (node.read) { ovBlurb.textContent = ''; ovMeta.innerHTML = ''; }
     // dependency — pure perspective-projection math, correct from any angle)
     function projectRadius(wx, wy, wz, r) {
         var d = camera.position.distanceTo(new THREE.Vector3(wx, wy, wz));
