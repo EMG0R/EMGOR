@@ -1,0 +1,10 @@
+{
+  "name": "nmg-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NO MANS GOR multiplayer relay: dumb WebSocket fan-out + presence. See docs/multiplayer-plan.md",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" }
+}

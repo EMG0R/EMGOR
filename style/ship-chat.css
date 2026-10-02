@@ -1,0 +1,54 @@
+/* ship-chat.css — Minecraft-style chat for ship mode (rev 11). Lazy-linked by js/ship.js at mount.
+   Monocraft (OFL, IdreesInc/Monocraft) loads from jsDelivr only when the chat first paints text; monospace until then. */
+
+@font-face {
+    font-family: 'Monocraft';
+    src: url('https://cdn.jsdelivr.net/gh/IdreesInc/Monocraft@main/dist/Monocraft-ttf/Monocraft.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+#ship-chat {
+    position: absolute;
+    left: 20px;
+    bottom: 92px;                 /* above the speed readout and hint line */
+    width: min(560px, 70vw);
+    font-family: 'Monocraft', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.35;
+    letter-spacing: 0;
+    text-transform: none;
+    pointer-events: none;
+}
+#ship-chat .sc-log { display: flex; flex-direction: column; justify-content: flex-end; }
+#ship-chat .sc-row {
+    padding: 2px 6px;
+    background: rgba(40, 40, 44, 0.5);
+    color: #e6e6ea;
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.75);
+    overflow-wrap: anywhere;
+    opacity: 1;
+    transition: opacity 1s ease;
+}
+#ship-chat .sc-row.is-faded { opacity: 0; }
+#ship-chat.is-open .sc-row { opacity: 1; }           /* input open: the whole history shows */
+#ship-chat .sc-n { color: #ffffff; }
+#ship-chat .sc-row.is-sys { color: #a8a8b0; }
+#ship-chat .sc-row.is-err { color: #ff6a6a; }
+#ship-chat .sc-row.is-gor, #ship-chat .sc-row.is-gor .sc-n { color: #b888ff; }
+
+/* the input is the chat line: same pixel font, grey translucent bar bottom-left */
+#ship-cmd {
+    font-family: 'Monocraft', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 13px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #f2f2f6;
+    caret-color: #f2f2f6;
+    background: rgba(20, 20, 24, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 0;
+    box-shadow: none;
+    padding: 6px 8px;
+}

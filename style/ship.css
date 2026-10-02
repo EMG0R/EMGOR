@@ -1,0 +1,470 @@
+/* ship.css — ship mode label + HUD. Injected by js/ship.js at mount, so first
+   paint never pays for it. Vars come from galaxy.css (:root). */
+
+.ship-label {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 11;                       /* just above #labels (10), under .hud (40) */
+    pointer-events: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    background: rgba(13, 2, 33, 0.35);
+    border: 1px solid rgba(168, 85, 247, 0.55);
+    border-radius: 12px;
+    padding: 3px 10px 3px 13px;        /* right pad offsets the trailing letter-spacing */
+    cursor: pointer;
+    will-change: transform;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: rgba(168, 85, 247, 0.25);
+    text-shadow: 0 1px 2px rgba(2, 0, 8, 0.95), 0 0 10px rgba(0, 240, 255, 0.55);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+@media (hover: hover) {
+    .ship-label:hover {
+        border-color: var(--lavender);
+        box-shadow: 0 0 18px rgba(168, 85, 247, 0.55);
+    }
+}
+.ship-label:focus-visible { outline: 1px dashed var(--lavender); outline-offset: 4px; }
+
+body.is-piloting #labels,
+body.is-piloting .hud,
+body.is-piloting .ship-label { display: none; }
+body.is-piloting { cursor: none; }
+
+/* ─── flight HUD ───────────────────────────────────────────── */
+
+#ship-hud {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    display: none;
+    pointer-events: none;
+    font-family: var(--mono);
+    color: var(--pale);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px rgba(2, 0, 8, 0.95), 0 0 8px rgba(2, 0, 8, 0.8);
+}
+#ship-hud.is-on { display: block; }
+
+/* pulse vignette: pure CSS, no extra WebGL */
+#ship-hud::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(ellipse at center,
+        rgba(0, 240, 255, 0) 38%, rgba(123, 47, 190, 0.1) 72%, rgba(0, 240, 255, 0.14) 100%);
+}
+#ship-hud.is-pulsing::after { opacity: 1; }
+
+/* reticle: two thin rings + four ticks */
+.sh-ret {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+    border: 1px solid rgba(0, 240, 255, 0.6);
+    border-radius: 50%;
+}
+.sh-ret::before {
+    content: '';
+    position: absolute;
+    inset: 15px;
+    border: 1px solid rgba(168, 85, 247, 0.85);
+    border-radius: 50%;
+}
+.sh-ret i {
+    position: absolute;
+    background: rgba(0, 240, 255, 0.7);
+}
+.sh-ret i:nth-child(1) { top: -9px; left: 22px; width: 1px; height: 7px; }
+.sh-ret i:nth-child(2) { bottom: -9px; left: 22px; width: 1px; height: 7px; }
+.sh-ret i:nth-child(3) { left: -9px; top: 22px; width: 7px; height: 1px; }
+.sh-ret i:nth-child(4) { right: -9px; top: 22px; width: 7px; height: 1px; }
+
+.sh-target {
+    position: absolute;
+    top: 7vh;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--cyan);
+    min-height: 1.2em;
+}
+
+.sh-speed {
+    position: absolute;
+    left: 28px;
+    bottom: 56px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--lavender);
+}
+.is-pulsing .sh-speed { color: var(--cyan); }
+
+.sh-bars {
+    position: absolute;
+    right: 28px;
+    bottom: 52px;
+    width: 170px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.sh-bar { display: flex; flex-direction: column; gap: 4px; }
+.sh-bar span { font-size: 9px; letter-spacing: 0.3em; color: rgba(216, 196, 245, 0.75); }
+.sh-bar b {
+    display: block;
+    height: 4px;
+    background: rgba(61, 29, 142, 0.55);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    overflow: hidden;
+}
+.sh-bar u {
+    display: block;
+    height: 100%;
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
+    background: var(--violet);
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.7);
+}
+.sh-pul u { background: var(--cyan); box-shadow: 0 0 8px rgba(0, 240, 255, 0.7); }
+.sh-thr.is-rev u { background: var(--lavender); }
+
+.sh-hint {
+    position: absolute;
+    bottom: 18px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.28em;
+    color: rgba(216, 196, 245, 0.6);
+}
+
+
+/* ─── combat HUD ───────────────────────────────────────────── */
+
+.sh-hp {
+    position: absolute;
+    top: 7vh;
+    left: 28px;
+    width: 200px;
+}
+.sh-hp span { display: block; font-size: 9px; letter-spacing: 0.3em; color: rgba(216, 196, 245, 0.75); margin-bottom: 4px; }
+.sh-hp em { font-style: normal; color: var(--lavender); margin-left: 8px; }
+.sh-hp b {
+    display: block;
+    height: 6px;
+    background: rgba(61, 29, 142, 0.55);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    overflow: hidden;
+}
+.sh-hp u {
+    display: block;
+    height: 100%;
+    width: 100%;
+    transform-origin: left center;
+    background: var(--cyan);
+    box-shadow: 0 0 8px rgba(0, 240, 255, 0.7);
+    transition: transform 0.12s linear;
+}
+.sh-hp.is-low u { background: #ff3a4a; box-shadow: 0 0 10px rgba(255, 58, 74, 0.85); }
+.sh-hp.is-low em { color: #ff6a76; }
+
+.sh-stats {
+    position: absolute;
+    top: 7vh;
+    right: 28px;
+    text-align: right;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    line-height: 1.8;
+    color: var(--lavender);
+}
+.sh-st-en { color: var(--cyan); }
+
+.sh-wave {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(50% - 120px);
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.4em;
+    color: var(--pale);
+    opacity: 0;
+    transition: opacity 1.1s ease;
+    text-shadow: 0 0 14px rgba(168, 85, 247, 0.9), 0 1px 2px rgba(2, 0, 8, 0.95);
+}
+.sh-wave.is-show { opacity: 1; transition-duration: 0.15s; }
+
+.sh-edge {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(7vh + 28px);
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: #ffb04a;
+    min-height: 1.2em;
+}
+.sh-edge.is-on { animation: sh-blink 1.1s ease-in-out infinite; }
+@keyframes sh-blink { 50% { opacity: 0.35; } }
+
+/* death flash: full-screen red-violet overlay */
+#ship-hud::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.9s ease;
+    background: radial-gradient(ellipse at center, rgba(255, 40, 70, 0.55) 0%, rgba(150, 20, 120, 0.8) 60%, rgba(60, 4, 70, 0.95) 100%);
+}
+#ship-hud.is-dead::before { opacity: 1; transition-duration: 0.12s; }
+
+@media (max-width: 900px) {
+    .sh-speed { left: 16px; }
+    .sh-bars { right: 16px; width: 120px; }
+    .sh-hp { left: 16px; width: 140px; }
+    .sh-stats { right: 16px; }
+}
+
+/* ─── revision 3: boss bar, allies, reset link ─────────────── */
+.sh-boss {
+    position: absolute;
+    top: calc(7vh - 38px);
+    left: 50%;
+    width: min(560px, 60vw);
+    transform: translateX(-50%);
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+.sh-boss.is-on { opacity: 1; }
+.sh-boss span {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.34em;
+    color: #ff8a3a;
+    margin-bottom: 5px;
+    text-shadow: 0 0 12px rgba(255, 90, 40, 0.8), 0 1px 2px rgba(2, 0, 8, 0.95);
+}
+.sh-boss b {
+    display: block;
+    height: 9px;
+    background: rgba(70, 12, 8, 0.6);
+    border: 1px solid rgba(255, 120, 60, 0.55);
+    overflow: hidden;
+}
+.sh-boss u {
+    display: block;
+    height: 100%;
+    width: 100%;
+    transform-origin: left center;
+    background: linear-gradient(90deg, #ff3a2a, #ffb04a);
+    box-shadow: 0 0 12px rgba(255, 110, 40, 0.85);
+    transition: transform 0.12s linear;
+}
+.sh-st-al { color: #b888ff; }
+
+.ship-reset {
+    position: fixed;
+    left: 20px;
+    bottom: 18px;
+    z-index: 11;
+    pointer-events: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: rgba(216, 196, 245, 0.55);
+    background: none;
+    border: 0;
+    border-bottom: 1px dotted rgba(216, 196, 245, 0.35);
+    padding: 2px 0;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, color 0.2s ease;
+}
+.ship-reset:hover, .ship-reset:focus-visible { opacity: 1; color: var(--lavender); }
+body.is-piloting .ship-reset { display: none; }
+
+/* aim assist engaged: subtle cyan halo */
+.sh-ret.is-locked {
+    border-color: rgba(0, 240, 255, 0.95);
+    box-shadow: 0 0 10px 1px rgba(0, 240, 255, 0.45), inset 0 0 8px rgba(0, 240, 255, 0.3);
+}
+
+/* ─── chat / slash line (rev 6, restyled in ship-chat.css) ──── */
+
+#ship-cmd {
+    position: absolute;
+    left: 20px;
+    bottom: 14px;
+    width: min(560px, 70vw);
+    box-sizing: border-box;
+    display: none;
+    padding: 9px 14px;
+    font: 14px/1.2 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    letter-spacing: 0.08em;
+    color: #00f0ff;
+    caret-color: #00f0ff;
+    background: rgba(8, 4, 20, 0.78);
+    border: 1px solid #a855f7;
+    border-radius: 3px;
+    outline: none;
+    box-shadow: 0 0 14px rgba(168, 85, 247, 0.45);
+    pointer-events: auto;
+}
+#ship-hud.is-cmd #ship-cmd { display: block; }
+#ship-hud.is-cmd .sh-hint { opacity: 0; }
+body.is-piloting:has(#ship-hud.is-cmd) { cursor: auto; }
+
+/* ─── multiplayer ghosts (js/ship-net.js) ──────────────────── */
+.ship-ghost-label {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 11;
+    pointer-events: none;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--lavender);
+    background: rgba(13, 2, 33, 0.3);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    border-radius: 12px;
+    padding: 2px 9px 2px 11px;
+    cursor: default;
+    will-change: transform;
+    user-select: none;
+    -webkit-user-select: none;
+    text-shadow: 0 1px 2px rgba(2, 0, 8, 0.95);
+}
+.ship-ghost-label i { display: block; height: 2px; margin-top: 2px; background: rgba(168, 85, 247, 0.25); }
+.ship-ghost-label u { display: block; height: 100%; background: var(--cyan); transform-origin: left; text-decoration: none; }
+body.is-piloting .ship-ghost-label { opacity: 0.6; pointer-events: none; }
+.ship-online {
+    position: fixed;
+    right: 20px;
+    bottom: 18px;
+    z-index: 11;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.28em;
+    color: rgba(216, 196, 245, 0.55);
+    pointer-events: none;
+}
+body.is-piloting .ship-online { display: none; }
+
+/* ─── revision 9 / 9b / 9c: combat feel HUD ────────────────── */
+
+/* reticle ticks grow + brighten with the hit combo (--tk set by ship.js); hot during Overdrive */
+.sh-ret i { transform: scale(var(--tk, 1)); filter: brightness(var(--tk, 1)); transition: background 0.15s ease; }
+.sh-ret.is-hot { border-color: rgba(255, 150, 60, 0.95); box-shadow: 0 0 12px 1px rgba(255, 120, 40, 0.5); }
+.sh-ret.is-hot i { background: #ffb04a; }
+
+/* dodge-roll cooldown ring beside the reticle */
+.sh-roll {
+    position: absolute; left: calc(50% + 34px); top: calc(50% + 26px); width: 14px; height: 14px; border-radius: 50%;
+    background: conic-gradient(rgba(0, 240, 255, 0.95) var(--p, 100%), rgba(61, 29, 142, 0.55) 0);
+    -webkit-mask: radial-gradient(circle, transparent 4px, #000 5px); mask: radial-gradient(circle, transparent 4px, #000 5px);
+    opacity: 0.5;
+}
+.sh-roll.is-ready { opacity: 0.95; }
+
+.sh-chain {
+    position: absolute; left: 0; right: 0; top: calc(50% + 42px); text-align: center;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.22em; color: #d8b8ff; min-height: 1.2em;
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.9), 0 1px 2px rgba(2, 0, 8, 0.95);
+}
+
+/* lead pip + target bracket */
+.sh-pip {
+    position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; box-sizing: border-box; display: none;
+    border: 2px solid #ffd24a; border-radius: 50%; opacity: 0.8; will-change: transform;
+}
+.sh-pip.is-solid { background: rgba(255, 210, 74, 0.85); box-shadow: 0 0 12px rgba(255, 210, 74, 0.9); opacity: 1; }
+.sh-lock {
+    position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; box-sizing: border-box; display: none;
+    border: 1px solid rgba(255, 70, 80, 0.85); border-radius: 6px; will-change: transform;
+    box-shadow: 0 0 8px rgba(255, 58, 74, 0.35);
+}
+
+/* bearing chevrons toward off-screen hostiles (pooled; max 10) + wingman in peril */
+.sh-arrows { position: absolute; inset: 0; pointer-events: none; }
+.sh-arr {
+    position: absolute; left: -9px; top: -14px; width: 0; height: 0; display: none; will-change: transform;
+    border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 16px solid #ff3a4a;
+    filter: drop-shadow(0 0 5px rgba(255, 58, 74, 0.85));
+}
+.sh-arr.is-ally { border-bottom-color: #b888ff; filter: drop-shadow(0 0 6px rgba(184, 136, 255, 0.95)); }
+
+/* graze / overdrive + focus meters under the shield bar */
+.sh-graze, .sh-focus { position: absolute; left: 28px; width: 200px; }
+.sh-graze { top: calc(7vh + 46px); }
+.sh-focus { top: calc(7vh + 80px); }
+.sh-graze span, .sh-focus span { display: block; font-size: 9px; letter-spacing: 0.3em; color: rgba(216, 196, 245, 0.75); margin-bottom: 3px; }
+.sh-graze b, .sh-focus b { display: block; height: 4px; background: rgba(61, 29, 142, 0.55); border: 1px solid rgba(168, 85, 247, 0.35); overflow: hidden; }
+.sh-graze u, .sh-focus u { display: block; height: 100%; width: 100%; transform-origin: left center; transform: scaleX(0); background: var(--violet); box-shadow: 0 0 8px rgba(168, 85, 247, 0.7); }
+.sh-focus u { background: #7fa8ff; box-shadow: 0 0 8px rgba(127, 168, 255, 0.7); }
+.sh-graze.is-od span { color: #ffb04a; }
+.sh-graze.is-od u { background: #ff8a3a; box-shadow: 0 0 10px rgba(255, 138, 58, 0.9); }
+
+/* focus (slow time): cool vignette */
+.sh-tint {
+    position: absolute; inset: 0; opacity: 0; transition: opacity 0.25s ease;
+    background: radial-gradient(ellipse at center, rgba(90, 120, 255, 0) 38%, rgba(70, 70, 200, 0.28) 100%);
+}
+#ship-hud.is-focus .sh-tint { opacity: 1; }
+
+/* boss bar: phase pips at 66 / 33 %, phase readout */
+.sh-boss b { position: relative; }
+.sh-boss s { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255, 255, 255, 0.75); text-decoration: none; }
+.sh-boss s:nth-of-type(1) { left: 66%; }
+.sh-boss s:nth-of-type(2) { left: 33%; }
+.sh-boss em { display: block; font-style: normal; font-size: 9px; letter-spacing: 0.3em; margin-top: 4px; color: rgba(255, 176, 74, 0.8); }
+.sh-boss.is-open em { color: #fff; text-shadow: 0 0 8px rgba(255, 255, 255, 0.9); }
+
+@media (max-width: 900px) {
+    .sh-graze, .sh-focus { left: 16px; width: 140px; }
+}
+
+/* ─── rev 12: ram flash + atmosphere readout ─────────────────── */
+.sh-ram {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(255, 40, 50, 0) 35%, rgba(255, 40, 50, 0.55) 100%);
+    transition: opacity 0.7s ease-out;
+}
+.sh-ram::after {
+    content: "DON'T RAM"; position: absolute; left: 50%; top: 32%; transform: translateX(-50%);
+    font-size: 22px; font-weight: 700; letter-spacing: 0.35em; color: #ff4a58; text-shadow: 0 0 14px rgba(255, 58, 74, 0.9);
+}
+.sh-ram.is-on { opacity: 1; transition: none; }
+.sh-atmo { position: absolute; right: 28px; top: calc(7vh + 120px); width: 140px; opacity: 0; transition: opacity 0.4s ease; }
+.sh-atmo.is-on { opacity: 1; }
+.sh-atmo span { display: block; font-size: 9px; letter-spacing: 0.3em; color: rgba(216, 196, 245, 0.75); margin-bottom: 3px; }
+.sh-atmo b { display: block; height: 2px; background: rgba(61, 29, 142, 0.55); overflow: hidden; }
+.sh-atmo u { display: block; height: 100%; width: 100%; transform-origin: left center; transform: scaleX(0); background: #7fe8c8; box-shadow: 0 0 6px rgba(127, 232, 200, 0.7); }

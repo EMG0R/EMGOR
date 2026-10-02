@@ -1,0 +1,23 @@
+[Unit]
+Description=NO MANS GOR multiplayer relay (WebSocket fan-out, no persistence)
+After=network.target
+
+[Service]
+User=server
+WorkingDirectory=/home/server/nmg-relay
+ExecStart=/usr/bin/node server.js
+Environment=PORT=8796
+Environment=NODE_ENV=production
+EnvironmentFile=-/home/server/nmg-relay/.env
+Restart=always
+RestartSec=2
+Nice=10
+CPUQuota=25%
+MemoryMax=64M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

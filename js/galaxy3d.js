@@ -114,6 +114,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var W = 0, H = 0, DPR = 1;
     var availX = 0, availY = 0;
     var time = 0, lastTs = 0, frame = 0;
+    var clockFn = null;
     var FOV = 42, fovRad = FOV * Math.PI / 180;
 
     var root = null;
@@ -132,6 +133,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     var yaw = 0, pitch = PITCH_REST;
     var yawV = 0, pitchV = 0;
     var ROT_V_MAX = 8;
+
+    // ─── ship mode port: closure state (see docs/ship-mode.md) ───
+    var pilot = null;               // fn(dt) | null — drives the camera instead of the orbit rig
+    var camBlend = null;            // {pos, quat, t} — blend from a captured camera pose into the orbit rig
+    var escapeHandler = null;       // fn | null — galaxy-view Esc override (ship re-entry)
+    var pilotWarned = false;
 
     var intro = null;
     var overlayNode = null;
@@ -1043,9 +1050,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // ("stars — anchored background, fully decoupled from scene
     // rotation/zoom"). This is not a regression: it was always meant to be
     // an unrotated backdrop, not part of the navigable 3D scene. ─────────
-    var starN = 0, starX, starY, starR, starPh, starW, starTw, starLayer, starTint;
+    var starSky = null, starUniforms = null;
     var nebulaSprites = [];
-    var STAR_COLORS = ['rgba(235,225,255,', 'rgba(192,132,252,', 'rgba(110,235,255,'];
 
     function makeNebulaSprites() {
         nebulaSprites = [];
@@ -1066,30 +1072,70 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         }
     }
 
-    function makeStars() {
-        var target = clamp(Math.floor((W * H) / 5200), 140, 460);
-        starN = target;
-        starX = new Float32Array(starN); starY = new Float32Array(starN);
-        starR = new Float32Array(starN); starPh = new Float32Array(starN);
-        starW = new Float32Array(starN); starTw = new Uint8Array(starN);
-        starLayer = new Uint8Array(starN); starTint = new Uint8Array(starN);
-        var rng = mulberry32(hash32('emgor::stars'));
-        var cx = W / 2, cy = H / 2, clearR = Math.min(W, H) * 0.36;
-        for (var i = 0; i < starN; i++) {
-            var x = rng() * W, y = rng() * H, tries = 0;
-            while (tries < 3 && Math.hypot(x - cx, y - cy) < clearR && rng() < 0.68) {
-                x = rng() * W; y = rng() * H; tries++;
-            }
-            starX[i] = x; starY[i] = y;
+    // real 3D sky: unit-sphere points, recentered on the camera each frame
+    // (translates with it, never rotates) so stars sweep with every turn.
+    function buildStarSky() {
+        var N = 2500, R = 90000;
+        var rng = mulberry32(hash32('emgor::stars3d'));
+        var pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+        var lay = new Float32Array(N), ph = new Float32Array(N), alp = new Float32Array(N);
+        var tints = [[0.92, 0.88, 1.0], [0.75, 0.52, 0.99], [0.43, 0.92, 1.0]];
+        for (var i = 0; i < N; i++) {
+            var u = rng() * 2 - 1, t = rng() * TAU, r = Math.sqrt(1 - u * u);
+            pos[i * 3] = r * Math.cos(t) * R; pos[i * 3 + 1] = u * R; pos[i * 3 + 2] = r * Math.sin(t) * R;
             var l = rng();
-            starLayer[i] = l < 0.5 ? 0 : (l < 0.83 ? 1 : 2);
-            starR[i] = 0.4 + starLayer[i] * 0.45 + rng() * 0.7;
-            starPh[i] = rng() * TAU;
-            starW[i] = TAU / (6 + rng() * 14);
-            starTw[i] = rng() < 0.3 ? 1 : 0;
-            var t = rng();
-            starTint[i] = t < 0.07 ? 2 : (t < 0.26 ? 1 : 0);
+            var layer = l < 0.5 ? 0 : (l < 0.83 ? 1 : 2);
+            lay[i] = layer; ph[i] = rng() * TAU;
+            alp[i] = 0.2 + layer * 0.12 + rng() * 0.25;
+            var tt = rng(), tc = tints[tt < 0.07 ? 2 : (tt < 0.26 ? 1 : 0)];
+            col[i * 3] = tc[0]; col[i * 3 + 1] = tc[1]; col[i * 3 + 2] = tc[2];
         }
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+        geo.setAttribute('aLayer', new THREE.BufferAttribute(lay, 1));
+        geo.setAttribute('aPhase', new THREE.BufferAttribute(ph, 1));
+        geo.setAttribute('aAlpha', new THREE.BufferAttribute(alp, 1));
+        starUniforms = { uTime: { value: 0 }, uDPR: { value: DPR || 1 } };
+        var mat = new THREE.ShaderMaterial({
+            uniforms: starUniforms,
+            transparent: true, depthWrite: false, depthTest: false,
+            blending: THREE.AdditiveBlending,
+            vertexShader: [
+                'attribute vec3 aColor; attribute float aLayer; attribute float aPhase; attribute float aAlpha;',
+                'uniform float uTime; uniform float uDPR;',
+                'varying vec3 vCol; varying float vA;',
+                '#include <common>',
+                '#include <logdepthbuf_pars_vertex>',
+                'void main(){',
+                '  vec4 mv = modelViewMatrix * vec4(position,1.0);',
+                '  gl_Position = projectionMatrix * mv;',
+                '  #include <logdepthbuf_vertex>',
+                '  float tw = 0.5 + 0.5*sin(uTime*(0.4+0.5*fract(aPhase*7.0)) + aPhase);',
+                '  vA = aAlpha * (0.45 + 0.55*pow(tw,1.4));',
+                '  vCol = aColor;',
+                '  gl_PointSize = (1.4 + aLayer*0.7) * uDPR;',
+                '}'].join('\n'),
+            fragmentShader: [
+                'varying vec3 vCol; varying float vA;',
+                '#include <common>',
+                '#include <logdepthbuf_pars_fragment>',
+                'void main(){',
+                '  #include <logdepthbuf_fragment>',
+                '  float d = length(gl_PointCoord-0.5)*2.0;',
+                '  float a = smoothstep(1.0,0.0,d); a*=a;',
+                '  gl_FragColor = vec4(vCol*0.7, a*vA);',
+                '}'].join('\n')
+        });
+        starSky = new THREE.Points(geo, mat);
+        starSky.frustumCulled = false;
+        starSky.renderOrder = -1000;
+        scene.add(starSky);
+    }
+
+    function camYaw() {
+        var f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        return Math.atan2(f.x, -f.z);
     }
 
     function drawBackdrop() {
@@ -1097,25 +1143,15 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         bgCtx.fillRect(0, 0, W, H);
         bgCtx.globalCompositeOperation = 'lighter';
         var d = Math.max(W, H);
+        var cyaw = camYaw();
         for (var i = 0; i < nebulaSprites.length; i++) {
             var ph = time * 0.012 + i * 2.1;
             var bx = W * (0.18 + 0.64 * (0.5 + 0.5 * Math.sin(ph + i * 1.7)));
+            bx += cyaw * W * 0.08 * (0.5 + i * 0.25);
+            bx = ((bx % W) + W) % W;
             var by = H * (0.2 + 0.6 * (0.5 + 0.5 * Math.cos(ph * 0.8 + i * 2.3)));
             var s = d * (0.7 + i * 0.22);
             bgCtx.drawImage(nebulaSprites[i], bx - s / 2, by - s / 2, s, s);
-        }
-        for (var j = 0; j < starN; j++) {
-            var a;
-            if (reducedMotion) { a = 0.4; }
-            else {
-                var sN = 0.5 + 0.5 * Math.sin(time * starW[j] + starPh[j]);
-                a = Math.pow(sN, 1.6) * (0.55 + starLayer[j] * 0.15);
-                if (starTw[j]) a *= 0.82 + 0.18 * Math.sin(time * 2.7 + starPh[j] * 3.1);
-            }
-            if (a <= 0.015) continue;
-            bgCtx.fillStyle = STAR_COLORS[starTint[j]] + a.toFixed(3) + ')';
-            var r = starR[j];
-            bgCtx.fillRect(starX[j] - r, starY[j] - r, r * 2, r * 2);
         }
         bgCtx.globalCompositeOperation = 'source-over';
     }
@@ -1200,7 +1236,19 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // every node's position is always its true absolute place in the one
     // shared coordinate space. Nothing here depends on `focus`: the camera
     // is what moves through this space, not the space itself.
+    // nudgeBody (ship titans): per-node world offsets node.nx/ny/nz that decay
+    // exponentially to 0 (15 s time constant => ~2% left after 60 s).
+    // wx/wy get nx/nz added (children inherit via parent.wx); ny is applied in updateBodies.
+    var NUDGE_TAU = 15, nudgeLastT = null;
+    function nudgeBody(node, dx, dy, dz) {
+        if (!node) return;
+        node.nx = (node.nx || 0) + (dx || 0);
+        node.ny = (node.ny || 0) + (dy || 0);
+        node.nz = (node.nz || 0) + (dz || 0);
+    }
     function computePositions() {
+        var nk = nudgeLastT === null ? 1 : Math.exp(-Math.max(0, time - nudgeLastT) / NUDGE_TAU);
+        nudgeLastT = time;
         for (var i = 0; i < drawOrder.length; i++) {
             var n = drawOrder[i];
             var p = n.parentNode;
@@ -1212,8 +1260,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             // never breathe one orbit shell into a neighbour's).
             var a = n.homeA + time * BASE_ROT;
             var r = n.orbF * p.sysR * (1 + Math.sin(time * n.vibF + n.vibPh) * n.vibDepth);
-            n.wx = p.wx + Math.cos(a) * r;
-            n.wy = p.wy + Math.sin(a) * r;
+            if (n.nx || n.ny || n.nz) {
+                n.nx *= nk; n.ny *= nk; n.nz *= nk;
+                if (Math.abs(n.nx) + Math.abs(n.ny) + Math.abs(n.nz) < 1e-4) n.nx = n.ny = n.nz = 0;
+            }
+            n.wx = p.wx + Math.cos(a) * r + (n.nx || 0);
+            n.wy = p.wy + Math.sin(a) * r + (n.nz || 0);
         }
     }
 
@@ -1293,6 +1345,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         return lerp(n.bodyR, uniformR, UNIFORM_MIX) * sizeFVar * varMix;
     }
     function alphaFor(n, f) {
+        // procedural (ship-mode) focus is not in the tree: real nodes sit
+        // at an ambient floor instead of vanishing, n === f still wins.
+        if (f && f._proc) return n === f ? 0.95 : 0.16;
         if (n === f) return 0.95;
         if (n.parentNode === f) return 1;
         if (n.parentNode && n.parentNode.parentNode === f) return 0.55;
@@ -1304,28 +1359,35 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     function updateBodies() {
         for (var i = 0; i < drawOrder.length; i++) {
             var n = drawOrder[i];
-            var a = alphaFor(n, focus);
-            if (trans) a = lerp(alphaFor(n, trans.from), a, easeInOut(clamp(trans.t, 0, 1)));
+            var a, targetR;
             var anc = n;
             while (anc.parentNode && anc.parentNode !== root) anc = anc.parentNode;
-            a *= (intro ? anc.rev : 1);
+            if (pilot) {
+                // ship mode: everything fully present at its on-screen-truth
+                // size, intro reveal ignored (focus/trans stay untouched)
+                a = 1;
+                targetR = uniformSizeFor(n, n.parentNode);
+            } else {
+                a = alphaFor(n, focus);
+                if (trans) a = lerp(alphaFor(n, trans.from), a, easeInOut(clamp(trans.t, 0, 1)));
+                a *= (intro ? anc.rev : 1);
+                targetR = trans
+                    ? lerp(uniformSizeFor(n, trans.from), uniformSizeFor(n, focus), easeInOut(clamp(trans.t, 0, 1)))
+                    : uniformSizeFor(n, focus);
+            }
             n.alpha = a;
-
-            var targetR = trans
-                ? lerp(uniformSizeFor(n, trans.from), uniformSizeFor(n, focus), easeInOut(clamp(trans.t, 0, 1)))
-                : uniformSizeFor(n, focus);
 
             var visible = a > 0.01;
             n.anchor.visible = visible;
             if (!visible) continue;
 
             var wx = n.wx, wy = n.wy;
-            var revScale = intro && anc !== root ? anc.rev : 1;
-            if (intro && n.parentNode === root) {
+            var revScale = !pilot && intro && anc !== root ? anc.rev : 1;
+            if (!pilot && intro && n.parentNode === root) {
                 // resolve outward from the true origin during the big bang
                 n.anchor.position.set(lerp(0, wx, n.rev), 0, lerp(0, wy, n.rev));
             } else {
-                n.anchor.position.set(wx, 0, wy);
+                n.anchor.position.set(wx, n.ny || 0, wy);
             }
             targetR *= revScale;
             n.mesh.scale.setScalar(targetR);
@@ -1463,6 +1525,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     }
 
     function updateCrumb() {
+        if (focus && focus._proc) {          // procedural (ship-mode) focus: just its title
+            crumbEl.textContent = focus.title;
+            homeBtn.classList.remove('is-dim');
+            return;
+        }
         var parts = ['emgor'];
         var chain = [];
         var n = focus;
@@ -1505,6 +1572,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
     function zoomOut() {
         if (overlayNode) { closeOverlay(true); return; }
+        if (focus._proc) { go('/'); return; }   // procedural focus has no route chain
         if (focus !== root && focus.parentNode) {
             go(focus.parentNode === root ? '/' : focus.parentNode.route);
         }
@@ -1696,8 +1764,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         for (id in labelPool) labelPool[id]._keep = false;
         labArr.length = 0;
         var e = trans ? easeInOut(clamp(trans.t, 0, 1)) : 1;
-        collectLabels(focus.kids, trans ? e : 1);
-        if (trans) collectLabels(trans.from.kids, 1 - e, focus.kids);
+        // procedural nodes never get DOM labels (ship HUD names them)
+        if (!focus._proc) collectLabels(focus.kids, trans ? e : 1);
+        if (trans && !trans.from._proc) collectLabels(trans.from.kids, 1 - e, focus.kids);
         layoutLabels();
         for (id in labelPool) {
             var el = labelPool[id];
@@ -1811,7 +1880,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         camera.fov = FOV;
         camera.updateProjectionMatrix();
 
-        makeStars();
+        if (starUniforms) starUniforms.uDPR.value = DPR;
         applyVignette();
     }
 
@@ -1884,34 +1953,56 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
     function frameStep(dt) {
         frame++;
-        if (!reducedMotion) time += dt;
+        if (!reducedMotion) time = clockFn ? clockFn(time, dt) : time + dt;   // clockFn: multiplayer shared orbital clock (ship-net); null = local
 
         computePositions();
 
-        var targetVec;
-        if (trans) {
-            trans.t += dt / FLY_DUR;
-            var e = easeInOut(clamp(trans.t, 0, 1));
-            var tx = lerp(trans.from.wx, trans.to.wx, e);
-            var tz = lerp(trans.from.wy, trans.to.wy, e);
-            targetVec = new THREE.Vector3(tx, 0, tz);
-            camDist = Math.exp(lerp(Math.log(trans.dFrom), Math.log(trans.dTo), e));
-            if (trans.t >= 1) trans = null;
-        } else {
-            targetVec = new THREE.Vector3(focus.wx, 0, focus.wy);
-            var tDist = distanceFor(focus);
-            camDist += (tDist - camDist) * Math.min(1, dt * 5);
+        if (pilot) {
+            // ship mode: the pilot owns the camera. Orbit rig + trans/focus
+            // are skipped (and left untouched) until setPilot(null).
+            try { pilot(dt); }
+            catch (err) {
+                if (!pilotWarned && window.console) console.warn('galaxy3d: pilot threw, dropping it', err);
+                pilotWarned = true;
+                setPilot(null);
+            }
         }
+        if (!pilot) {
+            var targetVec;
+            if (trans) {
+                trans.t += dt / FLY_DUR;
+                var e = easeInOut(clamp(trans.t, 0, 1));
+                var fp = focusPoint(trans.from), tp = focusPoint(trans.to);
+                targetVec = new THREE.Vector3(lerp(fp.x, tp.x, e), lerp(fp.y, tp.y, e), lerp(fp.z, tp.z, e));
+                camDist = Math.exp(lerp(Math.log(trans.dFrom), Math.log(trans.dTo), e));
+                if (trans.t >= 1) trans = null;
+            } else {
+                targetVec = focusPoint(focus);
+                var tDist = distanceFor(focus);
+                camDist += (tDist - camDist) * Math.min(1, dt * 5);
+            }
 
-        if (!dragging && !reducedMotion && (yawV !== 0 || pitchV !== 0)) {
-            yaw = wrapAngle(yaw + yawV * dt);
-            pitch = wrapAngle(pitch + pitchV * dt);
-            var sfr = Math.pow(0.5, dt * 1.6);
-            yawV *= sfr; pitchV *= sfr;
-            if (Math.abs(yawV) + Math.abs(pitchV) < 0.01) { yawV = 0; pitchV = 0; }
+            if (!dragging && !reducedMotion && (yawV !== 0 || pitchV !== 0)) {
+                yaw = wrapAngle(yaw + yawV * dt);
+                pitch = wrapAngle(pitch + pitchV * dt);
+                var sfr = Math.pow(0.5, dt * 1.6);
+                yawV *= sfr; pitchV *= sfr;
+                if (Math.abs(yawV) + Math.abs(pitchV) < 0.01) { yawV = 0; pitchV = 0; }
+            }
+
+            buildCameraTransform(targetVec, camDist);
+
+            // ship -> orbit hand-off: ease from the captured ship-cam pose to
+            // the rig pose just built for the new focus
+            if (camBlend) {
+                camBlend.t += dt / FLY_DUR;
+                var be = easeInOut(clamp(camBlend.t, 0, 1));
+                var rigP = camera.position.clone(), rigQ = camera.quaternion.clone();
+                camera.position.lerpVectors(camBlend.pos, rigP, be);
+                camera.quaternion.slerpQuaternions(camBlend.quat, rigQ, be);
+                if (camBlend.t >= 1) camBlend = null;
+            }
         }
-
-        buildCameraTransform(targetVec, camDist);
         updateBodies();
         updateOrbitRings();
 
@@ -1939,14 +2030,20 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         if (haloSprite) haloSprite.material.opacity = 0.13 + 0.03 * Math.sin(bt * 0.9);
         updateBlackHoleFade();
 
+        if (starSky) {
+            starSky.position.copy(camera.position);
+            starUniforms.uTime.value = reducedMotion ? 0 : time;
+        }
         drawBackdrop();
         if (intro) drawIntroFx(dt);
 
         if (composer) composer.render();
         else renderer.render(scene, camera);
 
-        projectAllBodies();
-        syncLabels();
+        if (!pilot) {
+            projectAllBodies();
+            syncLabels();
+        }
     }
 
     // ─── input ─────────────────────────────────────────────────
@@ -1964,6 +2061,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
     function setupInput() {
         document.addEventListener('pointerdown', function (e) {
+            if (pilot) return;
             if (!grabbable(e.target)) return;
             dragConsumed = false;
             pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
@@ -1983,6 +2081,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         });
 
         window.addEventListener('pointermove', function (e) {
+            if (pilot) return;
             var p = pointers[e.pointerId];
             if (!p) return;
             p.x = e.clientX; p.y = e.clientY;
@@ -2007,6 +2106,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         });
 
         function endPointer(e) {
+            if (pilot) return;
             if (!pointers[e.pointerId]) return;
             delete pointers[e.pointerId];
             if (pointerCount() === 0) {
@@ -2019,12 +2119,14 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         window.addEventListener('pointercancel', endPointer);
 
         document.addEventListener('click', function (e) {
+            if (pilot) return;
             if (dragConsumed) { e.preventDefault(); e.stopPropagation(); dragConsumed = false; }
         }, true);
 
         var wheelAcc = 0, wheelCooldown = 0;
         renderer.domElement.addEventListener('wheel', function (e) {
             e.preventDefault();
+            if (pilot) return;
             var now = performance.now();
             if (now < wheelCooldown) return;
             wheelAcc += e.deltaY;
@@ -2038,6 +2140,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         }, { passive: false });
 
         renderer.domElement.addEventListener('click', function (e) {
+            if (pilot) return;
             if (dragMoved) return;
             var n = nearestChild(e.clientX, e.clientY);
             if (n) {
@@ -2052,12 +2155,15 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         window.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 if (overlayNode) closeOverlay(true);
+                else if (pilot) return;                 // pointer-lock release is the exit signal
+                else if (escapeHandler) escapeHandler();
                 else zoomOut();
             }
         });
 
         homeBtn.addEventListener('click', function (e) {
             e.preventDefault();
+            if (pilot) return;
             if (overlayNode) { closeOverlay(true); return; }
             if (focus !== root) go('/');
         });
@@ -2085,6 +2191,168 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             if (d < bd) { bd = d; best = k; }
         }
         return best;
+    }
+
+
+    // ─── ship mode port ───
+    // Everything ship.js needs from the engine, nothing else. Additive:
+    // with no pilot set, none of this changes a single frame (docs/ship-mode.md).
+
+    // world point the orbit rig aims at for a node. Real nodes live on the
+    // y=0 plane at (wx, wy); procedural ones animate anchor.position
+    // themselves (and may sit off-plane), so read that when present.
+    function focusPoint(node) {
+        if (node._proc && node.anchor) {
+            return new THREE.Vector3(node.anchor.position.x, node.anchor.position.y, node.anchor.position.z);
+        }
+        return new THREE.Vector3(node.wx, 0, node.wy);
+    }
+
+    // on-screen-truth radius. Real/proc nodes with a parent: exactly what
+    // updateBodies draws while piloting. A parentless procedural node (a
+    // sun) has no sibling ring to be sized against, so treat it as the
+    // focused "sun" of its own system: sysR * SUN_ROLE (uniformSizeFor(n, n)).
+    function renderedRadius(node) {
+        return uniformSizeFor(node, node.parentNode || node);
+    }
+
+    function makeBody(spec) {
+        var sysR = spec.sysR;
+        var sizeF = spec.sizeF || 1;
+        var node = {
+            id: spec.id, title: spec.title || spec.id, blurb: '', route: '',
+            parentNode: spec.parentNode || null, depth: spec.depth || 1, kids: [],
+            sysR: sysR, sizeF: sizeF, bodyR: sysR * BODY_F * sizeF,
+            wx: spec.wx || 0, wy: spec.wy || 0,
+            launch: '', downloads: [], links: [], tags: [], updated: '',
+            sx: 0, sy: 0, sr: 0, alpha: 1, rev: 1,
+            orbF: 0, homeA: 0, vibDepth: 0, vibF: 0, vibPh: 0,
+            _proc: true
+        };
+        seedIdentity(node, mulberry32(hash32(node.id)));
+        if (spec.biome === 'gas' || spec.biome === 'terra') node.biome = spec.biome;   // optional override, before the material reads it
+        buildBodyObjects(node);
+        node.anchor.position.set(node.wx, spec.y || 0, node.wy);
+        // start at on-screen-truth size so the body is right before the
+        // caller's first animation tick
+        var r = renderedRadius(node);
+        node.mesh.scale.setScalar(r);
+        if (node.ringMesh) node.ringMesh.scale.setScalar(r);
+        node.glowSprite.scale.setScalar(r * 2.2);
+        return node;
+    }
+
+    // materials are per-node; sphere geometry + ring/glow textures are
+    // pooled/shared and never touched. The ring geometry is per-node
+    // (not pooled) so it is disposed too.
+    function disposeBody(node) {
+        if (!node || !node.anchor) return;
+        scene.remove(node.anchor);
+        if (node.mesh && node.mesh.material) node.mesh.material.dispose();
+        if (node.atmoMat) node.atmoMat.dispose();
+        if (node.ringMesh) {
+            node.ringMesh.material.dispose();
+            node.ringMesh.geometry.dispose();
+        }
+        if (node.glowSprite) node.glowSprite.material.dispose();
+        node.anchor = null; node.mesh = null; node.atmoMat = null;
+        node.ringMesh = null; node.glowSprite = null;
+    }
+
+    function setPilot(fn) {
+        pilot = typeof fn === 'function' ? fn : null;
+        pilotWarned = false;
+        document.body.classList.toggle('is-piloting', !!pilot);
+        if (labelsEl) labelsEl.style.display = pilot ? 'none' : '';
+        if (pilot) {
+            // drop any half-finished galaxy drag so it can't stick
+            dragging = false; pointers = {}; yawV = 0; pitchV = 0;
+            camBlend = null;
+            document.body.classList.remove('is-grabbing');
+        }
+    }
+
+    function focusNode(node, fromCamera) {
+        if (!node) return;
+        var real = byId[node.id] === node;
+        var target = node;
+        if (real) {
+            // leaves have no system to frame — frame their parent, like applyRoute
+            if (node !== root && !node.kids.length) target = node.parentNode;
+            closeOverlay(false);
+            var route = target === root ? '/' : target.route;
+            if (location.hash !== '#' + route) {
+                suppressHash = true;            // URL follows, hashchange must not re-run navigation
+                location.hash = '#' + route;
+            }
+        }
+        if (fromCamera && !reducedMotion) {
+            camBlend = { pos: camera.position.clone(), quat: camera.quaternion.clone(), t: 0 };
+        } else {
+            camBlend = null;
+        }
+        if (target === focus) {
+            // same focus, but a hand-off still needs the settle distance
+            trans = null;
+            camDist = distanceFor(target);
+            updateCrumb();
+            return;
+        }
+        focusTo(target, true);
+    }
+
+    function nearestSystem(x, y, z) {
+        var best = null, bd = Infinity;
+        for (var i = 0; i < drawOrder.length; i++) {
+            var n = drawOrder[i];
+            var dx = x - n.wx, dy = y, dz = z - n.wy;
+            var d = Math.sqrt(dx * dx + dy * dy + dz * dz) / n.sysR;
+            if (d < bd) { bd = d; best = n; }
+        }
+        return best;
+    }
+
+    function buildEngine() {
+        return {
+            THREE: THREE, scene: scene, camera: camera, renderer: renderer,
+            get composer() { return composer; },
+            get time() { return time; },
+            root: root, byId: byId, drawOrder: drawOrder,
+            renderedRadius: renderedRadius,
+            nudgeBody: nudgeBody,
+            makeBody: makeBody,
+            disposeBody: disposeBody,
+            setPilot: setPilot,
+            setClock: function (fn) { clockFn = typeof fn === 'function' ? fn : null; },
+            focusNode: focusNode,
+            openOverlay: function (node) { openOverlay(node); },
+            nearestSystem: nearestSystem,
+            onEscape: function (fn) { escapeHandler = typeof fn === 'function' ? fn : null; }
+        };
+    }
+
+    // lazy-load the ship after first paint. Phones never load it: coarse
+    // pointer, no pointer lock, or a narrow window.
+    function loadShip() {
+        try {
+            var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+            if (coarse || !document.body.requestPointerLock || window.innerWidth < 900) return;
+            var go = function () {
+                try {
+                    import('./ship.js').then(function (mod) {
+                        if (mod && typeof mod.default === 'function') mod.default(window.EMGOR_GALAXY.engine);
+                    }).catch(function (err) {
+                        if (window.console) console.warn('galaxy3d: ship unavailable', err);
+                    });
+                } catch (err) {
+                    if (window.console) console.warn('galaxy3d: ship unavailable', err);
+                }
+            };
+            if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 4000 });
+            else setTimeout(go, 1500);
+        } catch (err) {
+            if (window.console) console.warn('galaxy3d: ship gate failed', err);
+        }
     }
 
     // ─── boot ──────────────────────────────────────────────────
@@ -2131,6 +2399,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         GLOW_TEX = buildGlowTexture();
         TUBE_GLOW_TEX = buildTubeGlowTexture();
         buildBlackHole();
+        buildStarSky();
         setupPost();
     }
 
@@ -2203,6 +2472,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         loadData().then(function (data) {
             buildTree(data);
             drawOrder.forEach(buildBodyObjects);
+            window.EMGOR_GALAXY.engine = buildEngine();
 
             focus = root;
             camDist = distanceFor(root);
@@ -2220,6 +2490,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             updateCrumb();
             requestAnimationFrame(tick);
             document.body.classList.add('galaxy-ready');
+            loadShip();
         }).catch(function (err) {
             var fb = document.getElementById('fallback');
             if (fb) fb.hidden = false;
