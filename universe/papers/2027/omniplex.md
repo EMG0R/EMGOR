@@ -1,6 +1,6 @@
 ---
 id: emgor.papers.omniplex
-title: 8. OMNIPLEX
+title: OMNIPLEX
 order: 8
 blurb: One cable for audio, video, and control — a Rust transport, now folding into DemiurgeOS.
 parent: emgor.papers.future

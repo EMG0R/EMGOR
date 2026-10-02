@@ -3,23 +3,23 @@
   var IDS = {
     'digital-luthier': 'Workflow of a Modern Digital Luthier',
     'neptr-performance-system': 'Performance System of a Modern Digital Luthier',
-    'neuralgrid': 'neuralGrid',
-    'demiurgeos': 'DemiurgeOS',
-    'thesis': 'Digital Lutherie and Expression (thesis)',
-    'nam-csound': 'Integrating Neural Amp Modeling Into Csound',
-    'bouba': 'BOUBA',
-    'omniplex': 'Omniplex',
-    'open-pedal': 'Open-Pedal'
+    'neuralgrid': 'NeuralGrid: A Physical Interface for Live Sequencing and Improvisation',
+    'demiurgeos': 'DemiurgeOS: A Thoughtfully Designed System for DSP on the Raspberry Pi',
+    'thesis': 'Digital Lutherie and Expression for the Electronic Artist: A 2027 Retrospective and Prospectus',
+    'nam-csound': 'Integrating Neural Amp Modeling into Csound',
+    'bouba': 'BOUBA: An Intuitive System for Accessing the Benefits of Music Therapy',
+    'omniplex': 'OMNIPLEX: A Unified System for Streaming Realtime Data',
+    'open-pedal': 'Open-Pedal: An Accessible System for Modularly Creating Guitar Pedals and Synthesizers'
   };
   var API = '/.netlify/functions/paper';
   var id = new URLSearchParams(location.search).get('id');
   var $ = function (s) { return document.getElementById(s); };
-  var doc = $('doc'), statusEl = $('status');
+  var doc = $('doc'), ptitle = $('ptitle'), statusEl = $('status');
   var dirty = false, previewing = false, previewHtml = '', savedAt = null, current = '';
 
   if (!IDS.hasOwnProperty(id)) {
     $('title').textContent = 'Unknown paper';
-    doc.contentEditable = 'false';
+    doc.contentEditable = 'false'; ptitle.hidden = true;
     doc.innerHTML = '<p>Pick one:</p><ul>' + Object.keys(IDS).map(function (k) {
       return '<li><a href="edit.html?id=' + k + '">' + IDS[k] + '</a></li>';
     }).join('') + '</ul>';
@@ -75,7 +75,23 @@
     setStatus('saved ' + new Date(savedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(' ', ''));
   }
 
-  function setDoc(html) { doc.innerHTML = sanitize(html); }
+  // The title is its own single-line field above the body. Saved html = <h1>title</h1> + body.
+  function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function titleText() { return ptitle.textContent.replace(/\s+/g, ' ').trim() || IDS[id]; }
+  function syncTitle() { var t = titleText(); $('title').textContent = t; document.title = 'Edit: ' + t; }
+  function full() { return '<h1>' + esc(titleText()) + '</h1>' + doc.innerHTML; }
+  function setDoc(html) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = sanitize(html);
+    var t = IDS[id], first = tmp.firstElementChild;
+    if (first && first.tagName === 'H1') {
+      var ft = first.textContent.replace(/\s+/g, ' ').trim();
+      if (!/^abstract$/i.test(ft)) { if (ft) t = ft; first.remove(); }
+    }
+    ptitle.textContent = t;
+    doc.innerHTML = tmp.innerHTML;
+    syncTitle();
+  }
 
   // ---- load ----
   function load() {
@@ -104,7 +120,7 @@
   }
   function save() {
     if (previewing) return;
-    post(doc.innerHTML).then(function (j) {
+    post(full()).then(function (j) {
       savedAt = j.savedAt; markSaved();
       if (!$('histpanel').hidden) loadHistory();
     }).catch(function (e) { setStatus('save failed: ' + e.message); });
@@ -127,10 +143,10 @@
   }
   function openVersion(v) {
     fetch(API + '?id=' + id + '&version=' + v.version, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
-      if (!previewing) current = doc.innerHTML;
+      if (!previewing) current = full();
       previewing = true; previewHtml = j.html;
       setDoc(j.html);
-      doc.contentEditable = 'false';
+      doc.contentEditable = 'false'; ptitle.contentEditable = 'false';
       $('preview').hidden = false; $('histpanel').hidden = true;
       $('pvlabel').textContent = 'Viewing v' + v.version + ', ' + fmt(v.savedAt) + ' (read only)';
       $('save').disabled = true;
@@ -139,7 +155,7 @@
   function backToCurrent() {
     previewing = false;
     setDoc(current);
-    doc.contentEditable = 'true';
+    doc.contentEditable = 'true'; ptitle.contentEditable = 'true';
     $('preview').hidden = true; $('save').disabled = false;
   }
   $('hist').onclick = function () {
@@ -158,6 +174,24 @@
   // ---- editing behaviour ----
   try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch (e) {}
   doc.addEventListener('input', markDirty);
+  ptitle.addEventListener('input', function () { syncTitle(); markDirty(); });
+  ptitle.addEventListener('keydown', function (e) {
+    var mod = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
+    if (mod && k === 's') { e.preventDefault(); save(); return; }
+    if (mod && (k === 'b' || k === 'i')) { e.preventDefault(); return; }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      doc.focus();
+      var r = document.createRange(); r.setStart(doc, 0); r.collapse(true);
+      var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+  });
+  ptitle.addEventListener('paste', function (e) {
+    e.preventDefault();
+    var t = (e.clipboardData || window.clipboardData).getData('text/plain').replace(/\s+/g, ' ');
+    document.execCommand('insertText', false, t);
+  });
+  ptitle.addEventListener('drop', function (e) { e.preventDefault(); });
 
   function blockOf(node) {
     while (node && node !== doc) {

@@ -1,11 +1,13 @@
 ---
-id: emgor.papers.neptr-performance-system.neptr.hypertrumpet
+id: emgor.papers.neptr-performance-system.hypertrumpet
 title: hyperTrumpet
 blurb: Augmented trumpet — Teensy 4.1 sensor rig into Max, everything on channel 3
-parent: emgor.papers.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system
 source: ______2026NEW/hyperTrumpet/
 downloads:
   - files/hypertrumpet.ino
+links:
+  - { label: "Download resources (.zip)", url: "papers/zips/hypertrumpet.zip" }
 tags: [augmented-instrument, teensy, midi, max-msp, trumpet]
 updated: 2026-03-27
 draft: false

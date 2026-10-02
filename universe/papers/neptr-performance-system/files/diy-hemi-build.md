@@ -1,4 +1,4 @@
-# Quadro Punch Packer — 10" Hemisphere Speaker (v2: Coaxial)
+# DIY HEMI — 10" Hemisphere Speaker (v2: Coaxial)
 
 **Project: EMGOR SYNTH | Date: 3/25/26 | Updated: 5/8/26 | Target Done: 7/1/26**
 
@@ -761,7 +761,7 @@ Effective room SPL at loud volume: 92-98 dB
 
 ### Comparison
 
-| Spec | Quadro Punch Packer | JBL Charge 5 (~$180) | JBL Xtreme 3 (~$350) |
+| Spec | DIY HEMI | JBL Charge 5 (~$180) | JBL Xtreme 3 (~$350) |
 |------|--------------------|-----------------------|----------------------|
 | Drivers | 4x 3.5" coax + 4" sub | 1x racetrack + 2 passive radiators | 2x 70mm + 2x tweeters + 2 passive radiators |
 | SPL (room level) | **92-98 dB** | 80-86 dB | 85-92 dB |

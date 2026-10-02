@@ -1673,6 +1673,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         if (node === root || node.kids.length > 0) {
             closeOverlay(false);
             focusTo(node, animate);
+            if (node.read) openOverlay(node);   // paper planet with children: frame the system AND show its paper panel
         } else if (node.launch) {
             closeOverlay(false);
             focusTo(node.parentNode, animate);
@@ -1825,12 +1826,23 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             });
     }
 
-    function closeOverlay(navigate) {
-        if (!overlayNode) return;
     // Paper planets show the paper's own "Abstract" section, live from the latest save
     // (papers/edit.html?id=X -> paper function, falling back to the seed) or from the rendered page.
     function paperAbstract(readUrl) {
         var m = /edit\.html\?id=([\w-]+)/.exec(readUrl);
+        var esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+        var parse = function (html) {
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            doc.querySelectorAll('script,style,iframe,object,embed,nav,header').forEach(function (el) { el.remove(); });
+            return doc;
+        };
+        // official title = the leading h1 unless it is just "Abstract"
+        var leadTitle = function (doc) {
+            var h = doc.body.firstElementChild;
+            if (!h || h.tagName !== 'H1') return '';
+            var t = h.textContent.replace(/\s+/g, ' ').trim();
+            return /^abstract:?$/i.test(t) ? '' : t;
+        };
         var src = m
             ? fetch('/.netlify/functions/paper?id=' + m[1], { cache: 'no-store' })
                 .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -1838,8 +1850,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 .catch(function () { return fetch('papers/seed/' + m[1] + '.html').then(function (r) { return r.ok ? r.text() : ''; }); })
             : fetch(readUrl).then(function (r) { return r.ok ? r.text() : ''; });
         return src.then(function (html) {
-            var doc = new DOMParser().parseFromString(html, 'text/html');
-            doc.querySelectorAll('script,style,iframe,object,embed,nav,header').forEach(function (el) { el.remove(); });
+            var doc = parse(html);
+            var title = leadTitle(doc);
+            if (title || !m) return title;
+            return fetch('papers/seed/' + m[1] + '.html').then(function (r) { return r.ok ? r.text() : ''; })
+                .then(function (t) { return leadTitle(parse(t)); }).catch(function () { return ''; });
+        }).then(function (title) {
+            return src.then(function (html) { return { title: title, body: abstractOf(parse(html)) }; });
+        }).then(function (r) {
+            return (r.title ? '<h3 class="ov-ptitle">' + esc(r.title) + '</h3>' : '') + r.body;
+        }).catch(function () { return ''; });
+
+        function abstractOf(doc) {
             var isHead = function (el) {
                 if (/^H[1-6]$/.test(el.tagName)) return true;
                 var b = el.querySelector('b,strong');
@@ -1865,9 +1887,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 out += el.outerHTML;
             }
             return out;
-        }).catch(function () { return ''; });
+        }
     }
 
+    function closeOverlay(navigate) {
+        if (!overlayNode) return;
         var node = overlayNode;
         overlayNode = null;
         ovRoot.classList.remove('is-open');

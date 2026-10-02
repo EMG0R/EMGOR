@@ -1,6 +1,6 @@
 ---
 id: emgor.papers.nam-csound
-title: 6. NAM × Csound
+title: NAM × Csound
 order: 6
 blurb: NAMProcess — real-time Neural Amp Modeler inference as a Csound opcode, with live volume compensation. Complete.
 parent: emgor.papers.future

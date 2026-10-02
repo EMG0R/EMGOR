@@ -1,18 +1,20 @@
 ---
-id: emgor.papers.neptr-performance-system.neptr.quadro-punch-packer
-title: Quadro Punch Packer
+id: emgor.papers.neptr-performance-system.diy-hemi
+title: DIY HEMI
 blurb: 10" printed hemisphere speaker — 4 coaxials at the cube-vertex angle plus a sub
-parent: emgor.papers.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system
 source: ______2026NEW/Quadro-Punch-Packer/
 downloads:
-  - files/quadro-punch-packer-build.md
-  - files/quadro-punch-packer-circuit.png
+  - files/diy-hemi-build.md
+  - files/diy-hemi-circuit.png
+links:
+  - { label: "Download resources (.zip)", url: "papers/zips/diy-hemi.zip" }
 tags: [speaker, quad, 3d-print, amplifier, battery]
 updated: 2026-05-08
 draft: false
 ---
 
-# Quadro Punch Packer
+# DIY HEMI
 
 A 10" printed hemisphere speaker with 360° coverage. Four 3.5" coaxial two-way drivers around
 the dome plus a 4" sub in the base firing down into the floor. Quad input from two 1/8" jacks,

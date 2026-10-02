@@ -1,11 +1,13 @@
 ---
-id: emgor.papers.neptr-performance-system.neptr.hyperguitar
+id: emgor.papers.neptr-performance-system.hyperguitar
 title: hyperGuitar
 blurb: Headless semi-hollow 6-string with a Bela Gem Multi living inside it
-parent: emgor.papers.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system
 source: ______2026NEW/hyperGuitar/
 downloads:
   - files/hyperguitar-design.md
+links:
+  - { label: "Download resources (.zip)", url: "papers/zips/hyperguitar.zip" }
 tags: [augmented-instrument, bela, guitar, dsp, hexaphonic]
 updated: 2026-05-22
 draft: false

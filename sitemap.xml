@@ -172,6 +172,12 @@
     <priority>0.3</priority>
   </url>
   <url>
+    <loc>https://emgor.online/#/archive/speak</loc>
+    <lastmod>2026-07-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://emgor.online/#/gorcave</loc>
     <lastmod>2026-08-27</lastmod>
     <changefreq>monthly</changefreq>
@@ -226,91 +232,55 @@
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr</loc>
-    <lastmod>2026-09-29</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/4-i-gor</loc>
+    <loc>https://emgor.online/#/papers/neptr-performance-system/4-i-gor</loc>
     <lastmod>2026-04-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/hyperguitar</loc>
-    <lastmod>2026-05-22</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/hypertrumpet</loc>
-    <lastmod>2026-03-27</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/neuralgrid</loc>
-    <lastmod>2026-07-17</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/ofoots</loc>
-    <lastmod>2026-01-23</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/phase-1</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/phase-2</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/phase-3</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/phase-3/cheese</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/phase-4</loc>
-    <lastmod>2026-07-28</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/pocket-opgorator</loc>
-    <lastmod>2026-06-10</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/quadro-punch-packer</loc>
+    <loc>https://emgor.online/#/papers/neptr-performance-system/diy-hemi</loc>
     <lastmod>2026-05-08</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/speak</loc>
-    <lastmod>2026-07-28</lastmod>
+    <loc>https://emgor.online/#/papers/neptr-performance-system/hyperguitar</loc>
+    <lastmod>2026-05-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr/we-remote</loc>
+    <loc>https://emgor.online/#/papers/neptr-performance-system/hypertrumpet</loc>
+    <lastmod>2026-03-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/neptr-performance-system/neptr</loc>
+    <lastmod>2026-10-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/neptr-performance-system/neuralgrid</loc>
+    <lastmod>2026-07-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/neptr-performance-system/ofoots</loc>
+    <lastmod>2026-01-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/neptr-performance-system/pocket-opgorator</loc>
+    <lastmod>2026-06-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/neptr-performance-system/we-remote</loc>
     <lastmod>2026-05-19</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
@@ -358,25 +328,31 @@
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/nam-csound</loc>
+    <loc>https://emgor.online/#/papers/2027</loc>
+    <lastmod>2026-10-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://emgor.online/#/papers/2027/nam-csound</loc>
     <lastmod>2026-09-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/bouba</loc>
+    <loc>https://emgor.online/#/papers/2027/bouba</loc>
     <lastmod>2026-09-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/omniplex</loc>
+    <loc>https://emgor.online/#/papers/2027/omniplex</loc>
     <lastmod>2026-09-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://emgor.online/#/papers/open-pedal</loc>
+    <loc>https://emgor.online/#/papers/2027/open-pedal</loc>
     <lastmod>2026-09-21</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>

@@ -26,7 +26,7 @@
       "path": "universe/archive/_index.md",
       "route": "/archive",
       "depth": 1,
-      "children": 4,
+      "children": 5,
       "downloads": [],
       "links": [],
       "tags": [
@@ -555,6 +555,32 @@
       "order": 4
     },
     {
+      "id": "emgor.archive.speak",
+      "title": "SPEAK — neptr's voice",
+      "blurb": "Speak-&-Spell singing synth + a fully offline AI companion on a Pi",
+      "parent": "emgor.archive",
+      "path": "universe/archive/speak/_index.md",
+      "route": "/archive/speak",
+      "depth": 2,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "persona.md",
+          "url": "universe/archive/speak/files/persona.md"
+        }
+      ],
+      "links": [],
+      "tags": [
+        "speech-synthesis",
+        "lpc",
+        "tms5100",
+        "llm",
+        "offline-ai",
+        "raspberry-pi"
+      ],
+      "updated": "2026-07-28"
+    },
+    {
       "id": "emgor.gorcave",
       "title": "GORCAVE SERVER",
       "blurb": "A chat line into the machine watching the room",
@@ -729,7 +755,7 @@
     },
     {
       "id": "emgor.papers.digital-luthier",
-      "title": "1. Digital Luthier",
+      "title": "Digital Lutherie",
       "blurb": "The methodology paper — embedded audio, fabrication, and interaction design as one workflow. In submission to ROTURA.",
       "parent": "emgor.papers",
       "path": "universe/papers/digital-luthier.md",
@@ -745,13 +771,13 @@
     },
     {
       "id": "emgor.papers.neptr-performance-system",
-      "title": "2. Performance System of a Modern Digital Luthier",
+      "title": "Performance System",
       "blurb": "The instrument as it exists now — Csound on DEMIURGE, a Python interface, a Rust supervisor, no laptop onstage.",
       "parent": "emgor.papers",
       "path": "universe/papers/neptr-performance-system/_index.md",
       "route": "/papers/neptr-performance-system",
       "depth": 2,
-      "children": 1,
+      "children": 9,
       "downloads": [],
       "links": [],
       "tags": [],
@@ -761,52 +787,30 @@
       "order": 2
     },
     {
-      "id": "emgor.papers.neptr-performance-system.neptr",
-      "title": "NEPTR",
-      "blurb": "Performance system of a modern digital luthier — the brain, and every device built around it",
-      "parent": "emgor.papers.neptr-performance-system",
-      "path": "universe/papers/neptr-performance-system/neptr/_index.md",
-      "route": "/papers/neptr-performance-system/neptr",
-      "depth": 3,
-      "children": 13,
-      "downloads": [],
-      "links": [
-        {
-          "label": "NEPTR web (RNBO export)",
-          "url": "NEPTR.html"
-        }
-      ],
-      "tags": [
-        "instrument",
-        "guitar",
-        "raspberry-pi",
-        "csound",
-        "chuck",
-        "max",
-        "live-performance"
-      ],
-      "updated": "2026-09-29"
-    },
-    {
-      "id": "emgor.papers.neptr-performance-system.neptr.4-i-gor",
+      "id": "emgor.papers.neptr-performance-system.4-i-gor",
       "title": "4-i-Gor",
       "blurb": "Teensy 4.0 quad-in / quad-out USB audio interface with MIDI",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/4-i-gor.md",
-      "route": "/papers/neptr-performance-system/neptr/4-i-gor",
-      "depth": 4,
+      "parent": "emgor.papers.neptr-performance-system",
+      "path": "universe/papers/neptr-performance-system/4-i-gor.md",
+      "route": "/papers/neptr-performance-system/4-i-gor",
+      "depth": 3,
       "children": 0,
       "downloads": [
         {
           "name": "4-i-gor.ino",
-          "url": "universe/papers/neptr-performance-system/neptr/files/4-i-gor.ino"
+          "url": "universe/papers/neptr-performance-system/files/4-i-gor.ino"
         },
         {
           "name": "4-i-gor-pcb.md",
-          "url": "universe/papers/neptr-performance-system/neptr/files/4-i-gor-pcb.md"
+          "url": "universe/papers/neptr-performance-system/files/4-i-gor-pcb.md"
         }
       ],
-      "links": [],
+      "links": [
+        {
+          "label": "Download resources (.zip)",
+          "url": "papers/zips/4-i-gor.zip"
+        }
+      ],
       "tags": [
         "audio-interface",
         "teensy",
@@ -817,21 +821,60 @@
       "updated": "2026-04-07"
     },
     {
-      "id": "emgor.papers.neptr-performance-system.neptr.hyperguitar",
+      "id": "emgor.papers.neptr-performance-system.diy-hemi",
+      "title": "DIY HEMI",
+      "blurb": "10\" printed hemisphere speaker — 4 coaxials at the cube-vertex angle plus a sub",
+      "parent": "emgor.papers.neptr-performance-system",
+      "path": "universe/papers/neptr-performance-system/diy-hemi.md",
+      "route": "/papers/neptr-performance-system/diy-hemi",
+      "depth": 3,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "diy-hemi-build.md",
+          "url": "universe/papers/neptr-performance-system/files/diy-hemi-build.md"
+        },
+        {
+          "name": "diy-hemi-circuit.png",
+          "url": "universe/papers/neptr-performance-system/files/diy-hemi-circuit.png"
+        }
+      ],
+      "links": [
+        {
+          "label": "Download resources (.zip)",
+          "url": "papers/zips/diy-hemi.zip"
+        }
+      ],
+      "tags": [
+        "speaker",
+        "quad",
+        "3d-print",
+        "amplifier",
+        "battery"
+      ],
+      "updated": "2026-05-08"
+    },
+    {
+      "id": "emgor.papers.neptr-performance-system.hyperguitar",
       "title": "hyperGuitar",
       "blurb": "Headless semi-hollow 6-string with a Bela Gem Multi living inside it",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/hyperguitar.md",
-      "route": "/papers/neptr-performance-system/neptr/hyperguitar",
-      "depth": 4,
+      "parent": "emgor.papers.neptr-performance-system",
+      "path": "universe/papers/neptr-performance-system/hyperguitar.md",
+      "route": "/papers/neptr-performance-system/hyperguitar",
+      "depth": 3,
       "children": 0,
       "downloads": [
         {
           "name": "hyperguitar-design.md",
-          "url": "universe/papers/neptr-performance-system/neptr/files/hyperguitar-design.md"
+          "url": "universe/papers/neptr-performance-system/files/hyperguitar-design.md"
         }
       ],
-      "links": [],
+      "links": [
+        {
+          "label": "Download resources (.zip)",
+          "url": "papers/zips/hyperguitar.zip"
+        }
+      ],
       "tags": [
         "augmented-instrument",
         "bela",
@@ -842,21 +885,26 @@
       "updated": "2026-05-22"
     },
     {
-      "id": "emgor.papers.neptr-performance-system.neptr.hypertrumpet",
+      "id": "emgor.papers.neptr-performance-system.hypertrumpet",
       "title": "hyperTrumpet",
       "blurb": "Augmented trumpet — Teensy 4.1 sensor rig into Max, everything on channel 3",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/hypertrumpet.md",
-      "route": "/papers/neptr-performance-system/neptr/hypertrumpet",
-      "depth": 4,
+      "parent": "emgor.papers.neptr-performance-system",
+      "path": "universe/papers/neptr-performance-system/hypertrumpet.md",
+      "route": "/papers/neptr-performance-system/hypertrumpet",
+      "depth": 3,
       "children": 0,
       "downloads": [
         {
           "name": "hypertrumpet.ino",
-          "url": "universe/papers/neptr-performance-system/neptr/files/hypertrumpet.ino"
+          "url": "universe/papers/neptr-performance-system/files/hypertrumpet.ino"
         }
       ],
-      "links": [],
+      "links": [
+        {
+          "label": "Download resources (.zip)",
+          "url": "papers/zips/hypertrumpet.zip"
+        }
+      ],
       "tags": [
         "augmented-instrument",
         "teensy",
@@ -867,25 +915,74 @@
       "updated": "2026-03-27"
     },
     {
-      "id": "emgor.papers.neptr-performance-system.neptr.neuralgrid",
+      "id": "emgor.papers.neptr-performance-system.neptr",
+      "title": "NEPTR",
+      "blurb": "The instrument — Csound on a Pi 5 (DEMIURGE), between a guitar and a real amplifier",
+      "parent": "emgor.papers.neptr-performance-system",
+      "path": "universe/papers/neptr-performance-system/neptr.md",
+      "route": "/papers/neptr-performance-system/neptr",
+      "depth": 3,
+      "children": 0,
+      "downloads": [
+        {
+          "name": "neptrPhase4.csd",
+          "url": "universe/papers/neptr-performance-system/files/neptrPhase4.csd"
+        },
+        {
+          "name": "live.conf",
+          "url": "universe/papers/neptr-performance-system/files/live.conf"
+        }
+      ],
+      "links": [
+        {
+          "label": "Download current (DEMIURGE)",
+          "url": "papers/zips/neptr-current.zip"
+        },
+        {
+          "label": "Download legacy (phases 1–3)",
+          "url": "papers/zips/neptr-legacy-phases-1-3.zip"
+        },
+        {
+          "label": "NEPTR web (RNBO export)",
+          "url": "NEPTR.html"
+        }
+      ],
+      "tags": [
+        "instrument",
+        "guitar",
+        "raspberry-pi-5",
+        "csound",
+        "nam",
+        "teensy",
+        "looper",
+        "live-performance"
+      ],
+      "updated": "2026-10-02"
+    },
+    {
+      "id": "emgor.papers.neptr-performance-system.neuralgrid",
       "title": "neuralGrid",
       "blurb": "A monome-style grid that rewrites its own interface on the downbeat",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/neuralgrid.md",
-      "route": "/papers/neptr-performance-system/neptr/neuralgrid",
-      "depth": 4,
+      "parent": "emgor.papers.neptr-performance-system",
+      "path": "universe/papers/neptr-performance-system/neuralgrid.md",
+      "route": "/papers/neptr-performance-system/neuralgrid",
+      "depth": 3,
       "children": 0,
       "downloads": [
         {
           "name": "neuralgrid-protocol.md",
-          "url": "universe/papers/neptr-performance-system/neptr/files/neuralgrid-protocol.md"
+          "url": "universe/papers/neptr-performance-system/files/neuralgrid-protocol.md"
         },
         {
           "name": "neuralgrid-grid_link.ino",
-          "url": "universe/papers/neptr-performance-system/neptr/files/neuralgrid-grid_link.ino"
+          "url": "universe/papers/neptr-performance-system/files/neuralgrid-grid_link.ino"
         }
       ],
       "links": [
+        {
+          "label": "Download resources (.zip)",
+          "url": "papers/zips/neuralgrid-device.zip"
+        },
         {
           "label": "Dimensional architecture map",
           "url": "neuralgrid.html"
@@ -902,21 +999,26 @@
       "updated": "2026-07-17"
     },
     {
-      "id": "emgor.papers.neptr-performance-system.neptr.ofoots",
+      "id": "emgor.papers.neptr-performance-system.ofoots",
       "title": "DUODECIMUS",
       "blurb": "Ten-encoder foot controller — 8 pages, 64 CCs, one expression pedal",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/ofoots.md",
-      "route": "/papers/neptr-performance-system/neptr/ofoots",
-      "depth": 4,
+      "parent": "emgor.papers.neptr-performance-system",
+      "path": "universe/papers/neptr-performance-system/ofoots.md",
+      "route": "/papers/neptr-performance-system/ofoots",
+      "depth": 3,
       "children": 0,
       "downloads": [
         {
           "name": "ofoots.ino",
-          "url": "universe/papers/neptr-performance-system/neptr/files/ofoots.ino"
+          "url": "universe/papers/neptr-performance-system/files/ofoots.ino"
         }
       ],
-      "links": [],
+      "links": [
+        {
+          "label": "Download resources (.zip)",
+          "url": "papers/zips/ofoots.zip"
+        }
+      ],
       "tags": [
         "controller",
         "midi",
@@ -927,222 +1029,30 @@
       "updated": "2026-01-23"
     },
     {
-      "id": "emgor.papers.neptr-performance-system.neptr.phase-1",
-      "title": "Phase 1 — Pi + RNBO",
-      "blurb": "Max patches compiled onto a Raspberry Pi — the era that proved the idea",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/phase-1/_index.md",
-      "route": "/papers/neptr-performance-system/neptr/phase-1",
-      "depth": 4,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "BMO.py",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-1/files/BMO.py"
-        },
-        {
-          "name": "_COMBINED_UI_YAYY.py",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-1/files/_COMBINED_UI_YAYY.py"
-        }
-      ],
-      "links": [
-        {
-          "label": "NEPTR web (RNBO export of this era)",
-          "url": "NEPTR.html"
-        }
-      ],
-      "tags": [
-        "max",
-        "rnbo",
-        "raspberry-pi",
-        "kivy",
-        "pcb",
-        "icmc"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.papers.neptr-performance-system.neptr.phase-2",
-      "title": "Phase 2 — Csound on the Pi",
-      "blurb": "The engine rewritten by hand in Csound, with robot faces and a Bela detour",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/phase-2/_index.md",
-      "route": "/papers/neptr-performance-system/neptr/phase-2",
-      "depth": 4,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "NEPTR_PHASE2_PIinto.csd",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-2/files/NEPTR_PHASE2_PIinto.csd"
-        },
-        {
-          "name": "PHASE2_UI.py",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-2/files/PHASE2_UI.py"
-        },
-        {
-          "name": "bela1-neptr-phase2.csd",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-2/files/bela1-neptr-phase2.csd"
-        },
-        {
-          "name": "FACE1.png",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-2/files/FACE1.png"
-        },
-        {
-          "name": "FACE4.png",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-2/files/FACE4.png"
-        },
-        {
-          "name": "FACE7.png",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-2/files/FACE7.png"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "csound",
-        "raspberry-pi",
-        "kivy",
-        "osc",
-        "bela",
-        "protofaces"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.papers.neptr-performance-system.neptr.phase-3",
-      "title": "Phase 3 — ChucK",
-      "blurb": "Strongly-timed rewrite — ChuckTer, neptrSYNTH1, Teensy I/O, a new body",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/phase-3/_index.md",
-      "route": "/papers/neptr-performance-system/neptr/phase-3",
-      "depth": 4,
-      "children": 1,
-      "downloads": [
-        {
-          "name": "neptrSYNTH1.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/neptrSYNTH1.ck"
-        },
-        {
-          "name": "ChuckTer_v1.2_noGL.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/ChuckTer_v1.2_noGL.ck"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "chuck",
-        "teensy",
-        "3d-print",
-        "synthesis",
-        "live-coding"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.papers.neptr-performance-system.neptr.phase-3.cheese",
-      "title": "CHEESE",
-      "blurb": "Modular ChucK FX library — nine stereo effects, one shared brain",
-      "parent": "emgor.papers.neptr-performance-system.neptr.phase-3",
-      "path": "universe/papers/neptr-performance-system/neptr/phase-3/cheese.md",
-      "route": "/papers/neptr-performance-system/neptr/phase-3/cheese",
-      "depth": 5,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "chorus.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/chorus.ck"
-        },
-        {
-          "name": "delay1.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/delay1.ck"
-        },
-        {
-          "name": "phaser.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/phaser.ck"
-        },
-        {
-          "name": "reverb1.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/reverb1.ck"
-        },
-        {
-          "name": "ringmod.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/ringmod.ck"
-        },
-        {
-          "name": "spectralWah.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/spectralWah.ck"
-        },
-        {
-          "name": "pitchShifter.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/pitchShifter.ck"
-        },
-        {
-          "name": "vibrato.ck",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/vibrato.ck"
-        },
-        {
-          "name": "ANALYSIS.md",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-3/files/ANALYSIS.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "chuck",
-        "fx",
-        "modular",
-        "midi"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.papers.neptr-performance-system.neptr.phase-4",
-      "title": "Phase 4 — DEMIURGE",
-      "blurb": "The current machine — Csound on a Pi 5, NAM, 19 menus, ~7 ms round trip",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/phase-4/_index.md",
-      "route": "/papers/neptr-performance-system/neptr/phase-4",
-      "depth": 4,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "neptrPhase4.csd",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-4/files/neptrPhase4.csd"
-        },
-        {
-          "name": "live.conf",
-          "url": "universe/papers/neptr-performance-system/neptr/phase-4/files/live.conf"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "csound",
-        "raspberry-pi-5",
-        "nam",
-        "teensy",
-        "looper",
-        "live-performance",
-        "current"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.papers.neptr-performance-system.neptr.pocket-opgorator",
+      "id": "emgor.papers.neptr-performance-system.pocket-opgorator",
       "title": "PMOR",
       "blurb": "Pocket-Operator-format Daisy sampler/synth with a velocity NeoTrellis grid",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/pocket-opgorator.md",
-      "route": "/papers/neptr-performance-system/neptr/pocket-opgorator",
-      "depth": 4,
+      "parent": "emgor.papers.neptr-performance-system",
+      "path": "universe/papers/neptr-performance-system/pocket-opgorator.md",
+      "route": "/papers/neptr-performance-system/pocket-opgorator",
+      "depth": 3,
       "children": 0,
       "downloads": [
         {
           "name": "pocket-opgorator-spec.md",
-          "url": "universe/papers/neptr-performance-system/neptr/files/pocket-opgorator-spec.md"
+          "url": "universe/papers/neptr-performance-system/files/pocket-opgorator-spec.md"
         },
         {
           "name": "pocket-opgorator.ino",
-          "url": "universe/papers/neptr-performance-system/neptr/files/pocket-opgorator.ino"
+          "url": "universe/papers/neptr-performance-system/files/pocket-opgorator.ino"
         }
       ],
-      "links": [],
+      "links": [
+        {
+          "label": "Download resources (.zip)",
+          "url": "papers/zips/pocket-opgorator.zip"
+        }
+      ],
       "tags": [
         "synth",
         "sampler",
@@ -1153,76 +1063,26 @@
       "updated": "2026-06-10"
     },
     {
-      "id": "emgor.papers.neptr-performance-system.neptr.quadro-punch-packer",
-      "title": "Quadro Punch Packer",
-      "blurb": "10\" printed hemisphere speaker — 4 coaxials at the cube-vertex angle plus a sub",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/quadro-punch-packer.md",
-      "route": "/papers/neptr-performance-system/neptr/quadro-punch-packer",
-      "depth": 4,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "quadro-punch-packer-build.md",
-          "url": "universe/papers/neptr-performance-system/neptr/files/quadro-punch-packer-build.md"
-        },
-        {
-          "name": "quadro-punch-packer-circuit.png",
-          "url": "universe/papers/neptr-performance-system/neptr/files/quadro-punch-packer-circuit.png"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "speaker",
-        "quad",
-        "3d-print",
-        "amplifier",
-        "battery"
-      ],
-      "updated": "2026-05-08"
-    },
-    {
-      "id": "emgor.papers.neptr-performance-system.neptr.speak",
-      "title": "SPEAK — neptr's voice",
-      "blurb": "Speak-&-Spell singing synth + a fully offline AI companion on a Pi",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/speak/_index.md",
-      "route": "/papers/neptr-performance-system/neptr/speak",
-      "depth": 4,
-      "children": 0,
-      "downloads": [
-        {
-          "name": "persona.md",
-          "url": "universe/papers/neptr-performance-system/neptr/speak/files/persona.md"
-        }
-      ],
-      "links": [],
-      "tags": [
-        "speech-synthesis",
-        "lpc",
-        "tms5100",
-        "llm",
-        "offline-ai",
-        "raspberry-pi"
-      ],
-      "updated": "2026-07-28"
-    },
-    {
-      "id": "emgor.papers.neptr-performance-system.neptr.we-remote",
+      "id": "emgor.papers.neptr-performance-system.we-remote",
       "title": "We-Remote",
       "blurb": "Open-source Wii remote — BLE gamepad, keyboard, and MIDI CC in one shell",
-      "parent": "emgor.papers.neptr-performance-system.neptr",
-      "path": "universe/papers/neptr-performance-system/neptr/we-remote.md",
-      "route": "/papers/neptr-performance-system/neptr/we-remote",
-      "depth": 4,
+      "parent": "emgor.papers.neptr-performance-system",
+      "path": "universe/papers/neptr-performance-system/we-remote.md",
+      "route": "/papers/neptr-performance-system/we-remote",
+      "depth": 3,
       "children": 0,
       "downloads": [
         {
           "name": "we-remote.ino",
-          "url": "universe/papers/neptr-performance-system/neptr/files/we-remote.ino"
+          "url": "universe/papers/neptr-performance-system/files/we-remote.ino"
         }
       ],
-      "links": [],
+      "links": [
+        {
+          "label": "Download resources (.zip)",
+          "url": "papers/zips/we-remote.zip"
+        }
+      ],
       "tags": [
         "controller",
         "esp32-s3",
@@ -1234,7 +1094,7 @@
     },
     {
       "id": "emgor.papers.neuralgrid",
-      "title": "3. NeuralGrid",
+      "title": "NeuralGrid",
       "blurb": "A grid, ribbon, and lidar controller that speaks a symbolic vocabulary before it speaks sound.",
       "parent": "emgor.papers",
       "path": "universe/papers/neuralgrid.md",
@@ -1250,7 +1110,7 @@
     },
     {
       "id": "emgor.papers.demiurgeos",
-      "title": "4. DemiurgeOS",
+      "title": "DemiurgeOS",
       "blurb": "Flashable audio-first OS for Raspberry Pi 5 — successor to CCRMA Satellite, and the paper about it",
       "parent": "emgor.papers",
       "path": "universe/papers/demiurgeos/_index.md",
@@ -1399,7 +1259,7 @@
     },
     {
       "id": "emgor.papers.thesis",
-      "title": "5. Digital Lutherie and Expression",
+      "title": "Thesis",
       "blurb": "A 2027 Retrospective and Prospectus. The binding argument — the OS, the instrument, and the methodology as one practice.",
       "parent": "emgor.papers",
       "path": "universe/papers/thesis.md",
@@ -1430,7 +1290,7 @@
     },
     {
       "id": "emgor.papers.nam-csound",
-      "title": "6. NAM × Csound",
+      "title": "NAM × Csound",
       "blurb": "NAMProcess — real-time Neural Amp Modeler inference as a Csound opcode, with live volume compensation. Complete.",
       "parent": "emgor.papers.future",
       "path": "universe/papers/2027/nam-csound.md",
@@ -1447,7 +1307,7 @@
     },
     {
       "id": "emgor.papers.bouba",
-      "title": "7. BOUBA",
+      "title": "BOUBA",
       "blurb": "A quadraphonic therapeutic sound object, built — plus a new accessible prototype and a free web version.",
       "parent": "emgor.papers.future",
       "path": "universe/papers/2027/bouba.md",
@@ -1463,7 +1323,7 @@
     },
     {
       "id": "emgor.papers.omniplex",
-      "title": "8. OMNIPLEX",
+      "title": "OMNIPLEX",
       "blurb": "One cable for audio, video, and control — a Rust transport, now folding into DemiurgeOS.",
       "parent": "emgor.papers.future",
       "path": "universe/papers/2027/omniplex.md",
@@ -1479,7 +1339,7 @@
     },
     {
       "id": "emgor.papers.open-pedal",
-      "title": "9. Open-Pedal",
+      "title": "Open-Pedal",
       "blurb": "An open-source, modular framework for building guitar pedals and synths. Planned.",
       "parent": "emgor.papers.future",
       "path": "universe/papers/2027/open-pedal.md",

@@ -26,7 +26,7 @@ own build doc, bill of materials, wiring map, and an honest account of where it 
 | [neuralGrid](#/hardware/neuralgrid) | Monome-style grid that rewrites its own UI on the beat | Phases 1–4 running on hardware |
 | [4-i-Gor](#/hardware/4-i-gor) | Teensy 4.0 quad-I/O USB audio interface | Firmware written, PCB spec'd |
 | [We-Remote](#/hardware/we-remote) | Open-source Wii remote, ESP32-S3 BLE | Firmware complete, shell printed |
-| [Quadro Punch Packer](#/hardware/quadro-punch-packer) | 10" coaxial hemisphere speaker, 360° | Physically built, in debug |
+| [DIY HEMI](#/papers/neptr-performance-system/diy-hemi) | 10" coaxial hemisphere speaker, 360° | Physically built, in debug |
 | [hyperGuitar](#/hardware/hyperguitar) | Bela-embedded augmented headless 6-string | Design locked, body on order |
 | [hyperTrumpet](#/hardware/hypertrumpet) | Augmented trumpet, Teensy 4.1 + Max | Built and performed |
 | [LITE](#/hardware/lite) | Teensy 4.1 + NeoPixel light instrument (BIGNS) | Working instrument |

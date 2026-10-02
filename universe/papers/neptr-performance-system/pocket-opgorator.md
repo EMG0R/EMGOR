@@ -1,12 +1,14 @@
 ---
-id: emgor.papers.neptr-performance-system.neptr.pocket-opgorator
+id: emgor.papers.neptr-performance-system.pocket-opgorator
 title: PMOR
 blurb: Pocket-Operator-format Daisy sampler/synth with a velocity NeoTrellis grid
-parent: emgor.papers.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system
 source: ______2026NEW/Pocket-OpGorator/
 downloads:
   - files/pocket-opgorator-spec.md
   - files/pocket-opgorator.ino
+links:
+  - { label: "Download resources (.zip)", url: "papers/zips/pocket-opgorator.zip" }
 tags: [synth, sampler, daisy, neotrellis, 3d-print]
 updated: 2026-06-10
 draft: false

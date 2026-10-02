@@ -1,6 +1,6 @@
 ---
 id: emgor.papers.thesis
-title: 5. Digital Lutherie and Expression
+title: Thesis
 order: 5
 blurb: A 2027 Retrospective and Prospectus. The binding argument — the OS, the instrument, and the methodology as one practice.
 parent: emgor.papers

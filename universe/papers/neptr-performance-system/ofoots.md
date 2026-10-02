@@ -1,11 +1,13 @@
 ---
-id: emgor.papers.neptr-performance-system.neptr.ofoots
+id: emgor.papers.neptr-performance-system.ofoots
 title: DUODECIMUS
 blurb: Ten-encoder foot controller — 8 pages, 64 CCs, one expression pedal
-parent: emgor.papers.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system
 source: ____oFOOTS/
 downloads:
   - files/ofoots.ino
+links:
+  - { label: "Download resources (.zip)", url: "papers/zips/ofoots.zip" }
 tags: [controller, midi, foot-controller, tft, neopixel]
 updated: 2026-01-23
 draft: false

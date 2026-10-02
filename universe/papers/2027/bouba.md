@@ -1,6 +1,6 @@
 ---
 id: emgor.papers.bouba
-title: 7. BOUBA
+title: BOUBA
 order: 7
 blurb: A quadraphonic therapeutic sound object, built — plus a new accessible prototype and a free web version.
 parent: emgor.papers.future

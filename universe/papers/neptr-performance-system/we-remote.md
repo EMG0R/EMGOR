@@ -1,11 +1,13 @@
 ---
-id: emgor.papers.neptr-performance-system.neptr.we-remote
+id: emgor.papers.neptr-performance-system.we-remote
 title: We-Remote
 blurb: Open-source Wii remote — BLE gamepad, keyboard, and MIDI CC in one shell
-parent: emgor.papers.neptr-performance-system.neptr
+parent: emgor.papers.neptr-performance-system
 source: ______2026NEW/We-Remote/
 downloads:
   - files/we-remote.ino
+links:
+  - { label: "Download resources (.zip)", url: "papers/zips/we-remote.zip" }
 tags: [controller, esp32-s3, ble, midi, 3d-print]
 updated: 2026-05-19
 draft: false

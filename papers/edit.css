@@ -23,3 +23,6 @@ button:disabled { color: var(--dim); cursor: default; }
 #doc h1 b, #doc h1 strong, #doc h2 b, #doc h2 strong, #doc h3 b, #doc h3 strong { font-size: inherit; }
 #doc p, #doc div { margin: 0 0 0.9em; }
 #doc ul, #doc ol { margin: 0 0 0.9em; padding-left: 1.6em; }
+#ptitle { max-width: 720px; margin: 0 auto; padding: 32px 16px 0; outline: none; font-size: 20px; font-weight: bold; line-height: 1.4; overflow-wrap: break-word; }
+#ptitle + #doc { padding-top: 12px; min-height: 50vh; }
+#ptitle[contenteditable="false"] { color: var(--dim); }

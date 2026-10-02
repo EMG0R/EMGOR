@@ -1,6 +1,6 @@
 ---
 id: emgor.papers.open-pedal
-title: 9. Open-Pedal
+title: Open-Pedal
 order: 9
 blurb: An open-source, modular framework for building guitar pedals and synths. Planned.
 parent: emgor.papers.future
