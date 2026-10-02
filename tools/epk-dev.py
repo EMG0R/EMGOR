@@ -148,6 +148,16 @@ class H(SimpleHTTPRequestHandler):
             with open(os.path.join(PHOTOS, 'originals', pid + oext), 'wb') as f:
                 f.write(raw)
             return self._json(200, {'path': 'epk/photos/' + fn, 'w': w, 'h': h})
+        if path == '/__epk/bio':
+            page = os.path.join(ROOT, 'epk.html')
+            html = open(page).read()
+            start = html.index('<div class="col bio">')
+            h2end = html.index('</h2>', start) + len('</h2>')
+            end = html.index('\n            </div>', h2end)
+            new = '\n' + req.get('html', '').strip('\n') + '\n'
+            with open(page, 'w') as f:
+                f.write(html[:h2end] + new + html[end + 1:])
+            return self._json(200, {'ok': True})
         if path == '/__epk/draft':
             with open(DRAFT, 'w') as f:
                 json.dump(req.get('layout', {}), f, indent=2)

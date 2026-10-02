@@ -176,6 +176,20 @@
 
   function enableEditor() {
     editing = true;
+    var bio = document.querySelector('.col.bio');
+    if (bio) {
+      bio.contentEditable = 'true'; bio.spellcheck = false;
+      var bioT = null;
+      bio.addEventListener('input', function () {
+        clearTimeout(bioT);
+        bioT = setTimeout(function () {
+          var clone = bio.cloneNode(true); var h = clone.querySelector('h2'); if (h) h.remove();
+          post('/__epk/bio', { html: clone.innerHTML.replace(/^\s*\n/, '').replace(/\n\s*$/, '') })
+            .then(function () { setStatus('bio saved to epk.html'); })
+            .catch(function () { setStatus('bio NOT saved — is tools/epk-dev.py running?'); });
+        }, 500);
+      });
+    }
     document.documentElement.classList.add('editing');
     editbar.hidden = false;
     document.getElementById('publish').addEventListener('click', function () {

@@ -48,6 +48,9 @@ section { margin-bottom: 52px; }
 }
 
 /* editor chrome (localhost only) */
+html.editing .col.bio { outline: 1px dashed rgba(143, 217, 255, 0.35); outline-offset: 8px; border-radius: 4px; cursor: text; }
+html.editing .col.bio:focus { outline-color: var(--sky); }
+html.editing .col.bio h2 { pointer-events: none; }
 html.editing .frame { cursor: grab; touch-action: none; outline: 1px dashed rgba(143, 217, 255, 0.4); outline-offset: 3px; }
 html.editing .frame.empty::after { content: attr(data-size); position: absolute; inset: 0; display: grid; place-items: center; color: var(--sky); opacity: 0.7; font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; }
 html.editing .frame.dragging { cursor: grabbing; }
