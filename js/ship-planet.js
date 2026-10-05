@@ -106,7 +106,7 @@ export var HEIGHT_GLSL = [
 ].join('\n');
 
 var PATCH_VERT = [
-    'uniform float uR; uniform vec3 uC; uniform vec3 uT1; uniform vec3 uT2; uniform float uTan; uniform float uRel;',
+    'uniform float uR; uniform vec3 uC; uniform vec3 uT1; uniform vec3 uT2; uniform float uTan; uniform float uRel; uniform float uTime;',
     'varying vec3 vDir; varying vec3 vN; varying vec3 vView; varying float vRim; varying float vH; varying vec3 vUp;',
     '#include <common>',
     '#include <logdepthbuf_pars_vertex>',
@@ -130,11 +130,16 @@ var PATCH_VERT = [
     '    float rim = max(abs(s.x), abs(s.y));',
     '    float taper = 1.0 - smoothstep(0.8, 1.0, rim);',  // relief fades to the sphere at the rim
     '    float h = hfunP(d);',
+    // rev 25: sea surface waves (vertex): two long swells, 0 .. -0.002 R below the flat floor (never above it, so the hover/collision floor stays dry)
+    '    float seaV = 1.0 - smoothstep(0.3, 0.55, (h - uBias) / (uAmp * 0.1 + 1e-5));',
+    '    float wv = 0.5 + 0.25 * sin(dot(d, vec3(0.9, 0.2, 0.4)) * 190.0 + uTime * 0.6) + 0.25 * sin(dot(d, vec3(-0.3, 0.8, 0.5)) * 330.0 - uTime * 0.85);',
+    '    h -= 0.002 * (1.0 - wv) * seaV * uRel;',
     '    h = mix(uBias, h, taper) - 0.02 * smoothstep(0.97, 1.0, rim);',   // rev 19: skirt: the outermost ring dips below the orbital sphere so no sliver of space shows between patch and globe
     '    vH = h;',
     '    vec3 ref = abs(d.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
     '    vec3 e1 = normalize(cross(d, ref)); vec3 e2 = cross(d, e1);',
-    '    float eps = uEps;',
+    '    float cell = uTan * (0.04 + 3.84 * max(abs(s.x), abs(s.y)) * max(abs(s.x), abs(s.y)) * max(abs(s.x), abs(s.y))) / 56.0;',   // rev 25: angular size of a patch cell here; the normal probe never goes finer than ~1.3 cells (finer = aliased, streaky slope shading at altitude)
+    '    float eps = max(uEps, cell * 1.3);',
     '    vec3 db = normalize(d + e1 * eps); vec3 dc = normalize(d + e2 * eps);',
     '    float hb = mix(uBias, hfunP(db), taper) - 0.02 * smoothstep(0.97, 1.0, rim); float hc = mix(uBias, hfunP(dc), taper) - 0.02 * smoothstep(0.97, 1.0, rim);',
     '    vec3 pa = d * (1.0 + h); vec3 pb = db * (1.0 + hb); vec3 pc = dc * (1.0 + hc);',
@@ -166,13 +171,13 @@ var PATCH_FRAG = [
     '    vec3 q = vec3(fbm(p + vec3(0.0, 3.1, 1.7)),',
     '                  fbm(p + vec3(5.2, 1.3, 2.8)),',
     '                  fbm(p + vec3(1.7, 9.2, 4.6)));',
-    '    vec3 col; float seaM = 0.0;',
+    '    vec3 col; float seaM = 0.0; float landM = 1.0; float nn = 0.5; float wM = 0.0;',
     '    if (uBiome < 0.5) {',
     '        float n = fbm(p + (q - 0.5) * uWarp);',
     '        n += (fbm(p * 3.7 + q * 2.0) - 0.5) * 0.22;',
     '        float land = smoothstep(uSeaLevel - 0.035, uSeaLevel + 0.035, n);',
     '        float high = smoothstep(uSeaLevel + 0.12, uSeaLevel + 0.2, n);',
-    '        seaM = 1.0 - land;',
+    '        seaM = 1.0 - land; landM = land; nn = n; wM = 1.0 - smoothstep(0.38, 0.5, land);',
     '        col = mix(uColSea, uColLow, land);',
     '        col = mix(col, uColHigh, high);',
     '        col += (fbm(p * 6.3) - 0.5) * 0.07;',
@@ -241,6 +246,23 @@ var PATCH_FRAG = [
     '        col *= 1.0 + (pf - 0.5) * 0.36 * dk2;',
     '        col += uColHigh * smoothstep(0.62, 0.9, sw) * 0.08;',
     '    }',
+    // rev 25: water. depth gradient (shallow teal near the coast -> darker deep tone), two moving wave-normal layers, coast foam
+    '    vec3 Nw = N; float foam = 0.0; float wAtt = 1.0 - smoothstep(uDetD, uDetD * 5.0, dist);',
+    '    if (uBiome < 0.5 && wM > 0.001) {',
+    '        float dep = smoothstep(0.0, 1.0, clamp((uSeaLevel - nn) / 0.06, 0.0, 1.0));',
+    '        vec3 shallow = uColSea * 1.7 + vec3(0.0, 0.03, 0.03);',
+    '        vec3 deepC = uColSea * 0.38;',
+    '        col = mix(col, mix(shallow, deepC, dep), wM);',
+    '        vec3 gp2 = sp * uDetK;',
+    '        vec3 pw = vec3(sin(dot(gp2, vec3(0.9, 0.2, 0.4)) * 0.9 + uTime * 1.3) + sin(dot(gp2, vec3(0.2, -0.7, 0.6)) * 2.3 - uTime * 1.9),',
+    '                       sin(dot(gp2, vec3(-0.3, 0.8, 0.5)) * 1.4 - uTime * 1.6) + sin(dot(gp2, vec3(0.7, 0.4, -0.5)) * 3.1 + uTime * 2.4),',
+    '                       sin(dot(gp2, vec3(0.5, -0.6, 0.7)) * 2.0 + uTime * 1.1) + sin(dot(gp2, vec3(-0.6, 0.1, 0.8)) * 3.7 - uTime * 2.1));',
+    '        pw = pw - N * dot(pw, N);',
+    '        Nw = normalize(N + pw * 0.11 * wM * wAtt);',
+    '        float cb = smoothstep(0.36, 0.46, landM) * (1.0 - smoothstep(0.5, 0.56, landM));',
+    '        float rip = 0.5 + 0.5 * sin(nn * 340.0 - uTime * 1.6 + vnoise(gp2 * 0.4) * 7.0);',
+    '        foam = cb * (0.5 + 0.5 * rip) * (1.0 - smoothstep(uDetD * 4.0, uDetD * 14.0, dist));',
+    '    }',
     '    float ndl = dot(N, uLightDir) * 0.5 + 0.5;',
     '    float lightAmt = mix(0.14, 0.98, smoothstep(0.2, 0.88, ndl));',
     '    col *= lightAmt;',
@@ -248,8 +270,10 @@ var PATCH_FRAG = [
     '    col += uAtmo * fr * 0.18;',
     '    if (uBiome < 0.5) {',
     '        vec3 Hh = normalize(uLightDir + V);',
-    '        float sp2 = pow(max(dot(N, Hh), 0.0), 60.0) * smoothstep(0.3, 0.6, ndl);',
-    '        col += seaM * (vec3(1.0, 0.97, 0.9) * sp2 * 0.7 + uAtmo * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.5) * 0.45 * (0.3 + 0.7 * ndl));',
+    '        float sp2 = pow(max(dot(Nw, Hh), 0.0), 140.0) * smoothstep(0.3, 0.6, ndl);',
+    '        float sp3 = pow(max(dot(Nw, Hh), 0.0), 18.0) * smoothstep(0.3, 0.6, ndl);',
+    '        col += wM * (vec3(1.0, 0.97, 0.9) * (sp2 * 1.3 + sp3 * 0.12) + uAtmo * pow(1.0 - clamp(dot(Nw, V), 0.0, 1.0), 3.5) * 0.24 * (0.3 + 0.7 * ndl));',
+    '        col = mix(col, vec3(0.95, 0.98, 1.0) * (0.35 + 0.65 * ndl), foam * 0.72);',
     '    }',
     '    if (uBiome < 0.5 && uLook > 1.5) col += vec3(0.8, 0.9, 1.0) * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 6.0) * 0.25 * (1.0 - steep);',
     '    col = mix(col, col * vec3(0.55, 0.52, 0.58), smoothstep(0.04, 0.2, slope) * step(uBiome, 0.5) * 0.75);',
@@ -258,6 +282,7 @@ var PATCH_FRAG = [
     '    col = gcol;',
     '    float f = 1.0 - exp(-pow(dist * uFogK, 2.0));',
     '    f = min(f, 0.93);',
+    '    f *= 1.0 - 0.45 * wM * uSurf;',      // rev 25: water keeps its own (darker) tone at distance, so the horizon line against the sky survives the haze
     '    col = mix(col, uFogCol, f);',
     '    float alpha = uFade * (1.0 - smoothstep(0.8, 1.0, vRim));',
     '    gl_FragColor = vec4(col, alpha);',
@@ -503,7 +528,7 @@ var DOME_FRAG = [
     '    vec3 sc = floor(v * 260.0); float sh = fract(sin(dot(sc, vec3(12.9898, 78.233, 37.719))) * 43758.5453);',
     '    float star = step(0.9965, sh) * smoothstep(0.35, 0.85, z) * night * (0.35 + 0.65 * fract(sh * 91.7));',
     '    col += vec3(0.85, 0.9, 1.0) * star;',
-    '    float wash = smoothstep(uHor - 0.02, uHor + 0.1, c);',     // sky only; the ground below is the patch + fog
+    '    float wash = smoothstep(uHor + 0.002, uHor + 0.07, c);',     // sky only; the ground below is the patch + fog
     '    float sd = dot(v, normalize(uSunDir));',
     '    float glow = pow(max(sd, 0.0), 2.5) * 0.10 * uSun;',            // rev 19: soft directional brightening toward the light, no disc / sprite
     '    col += uFogCol * glow;',

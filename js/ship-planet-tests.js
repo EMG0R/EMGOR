@@ -12,6 +12,7 @@
 var THREE_ = null;
 function mk(engine, ship, opts) {
     var THREE = THREE_ = engine.THREE, G = window.EMGOR_GALAXY;
+    try { if (ship.rev25) ship.rev25.noInterior = true; } catch (e) { /* older ship.js */ }      // rev 25: tap F near the ship enters the interior; the harness wants the old board
     var T = {
         engine: engine, ship: ship, G: G, THREE: THREE, opts: opts || {},
         step: function (n, dt) { dt = dt || 0.016; for (var i = 0; i < n; i++) G.step(dt); },
@@ -547,7 +548,7 @@ async function g9(T, o) {
     for (var i = 0; i < nHover; i++) {
         if (i % 10 === 0) await T.pause();
         var node = i % 3 === 0 ? best : nodes[i % nodes.length];
-        var d = T.rdir(); T.hoverAt(node, d, 0.9 + T.rng() * 2.1);
+        var d = T.safeDir(node, 1.02); T.hoverAt(node, d, 0.9 + T.rng() * 2.1);      // rev 25: a random direction can sit inside a bigger neighbour's shell (that body then owns ps.active); sample only clear sites
         var lq = ship.lf.lq.clone(), ax = d.clone().applyQuaternion(lq.clone().invert());      // local up in ship axes
         lq.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (T.rng() - 0.5) * 6.28)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), (T.rng() - 0.6) * 0.7));
         var lp = ship.lf.lp; ship.dbg.setLocal(lp.x, lp.y, lp.z, lq.x, lq.y, lq.z, lq.w);

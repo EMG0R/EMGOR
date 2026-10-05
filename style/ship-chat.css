@@ -137,3 +137,25 @@
 .sh-fxl .fx-r { display: flex; justify-content: space-between; gap: 8px; padding: 2px 6px; margin-bottom: 2px; background: rgba(40, 40, 44, 0.5); border-left: 3px solid #b98cff; color: #e6e6ea; }
 .sh-fxl .fx-r b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh-fxl .fx-r u { text-decoration: none; color: #ffd36a; }
+
+/* ─── rev 25: crafting grid, MODS row, interior menus ─── */
+.sh-inv .si-mods { display: flex; align-items: center; gap: 0; margin-top: 4px; }
+.sh-inv .si-mods b { font-weight: 400; font-size: 10px; letter-spacing: 0.12em; color: #a8a8b0; width: 54px; }
+.sh-inv .si-mods .sm-s { width: calc(var(--s) * 1.5); height: var(--s); display: flex; align-items: center; justify-content: center; }
+.sh-inv .si-mods .sm-s span { font-size: 9px; letter-spacing: 0.06em; color: #6a6a78; pointer-events: none; }
+.sh-inv .si-mods .sm-s.is-eq span { color: #fff; }
+.sh-inv .si-craft { margin-top: 12px; }
+.sh-inv .sc-h { font-size: 10px; letter-spacing: 0.12em; color: #b98cff; margin: 0 4px 4px; }
+.sh-inv .sc-b { display: flex; align-items: center; gap: 18px; }
+.sh-inv .sc-grid { display: grid; grid-template-columns: repeat(3, var(--s)); grid-auto-rows: var(--s); }
+.sh-inv .sc-b i { font-style: normal; color: #b98cff; font-size: 22px; }
+.sh-inv .sc-out .si-s { width: calc(var(--s) * 1.3); height: calc(var(--s) * 1.3); }
+.sh-imenu { display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); min-width: 360px; max-width: 90vw; padding: 12px 14px; background: rgba(18, 12, 34, 0.94); border: 2px solid #8a5cff; color: #e8e4f4; font: 13px/1.5 monospace; z-index: 40; pointer-events: auto; }
+.sh-imenu.is-on { display: block; }
+.sh-imenu .im-h { color: #ffd36a; letter-spacing: 0.1em; margin-bottom: 8px; }
+.sh-imenu .im-r { display: flex; gap: 10px; padding: 3px 6px; cursor: pointer; }
+.sh-imenu .im-r i { font-style: normal; color: #77748a; width: 14px; }
+.sh-imenu .im-r span { flex: 1; }
+.sh-imenu .im-r em { font-style: normal; color: #a8a8c0; }
+.sh-imenu .im-r.is-sel, .sh-imenu .im-r:hover { background: rgba(138, 92, 255, 0.35); }
+.sh-imenu .im-f { margin-top: 8px; font-size: 10px; color: #77748a; }

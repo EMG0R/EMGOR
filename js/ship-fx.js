@@ -26,7 +26,15 @@ var STREAK_VS = [
 '  vec3 rel = mod(position * uBox - uCamPos, uBox) - 0.5 * uBox;',
 '  vec3 w = cameraPosition + rel;',
 '  float len = uStretch * (0.5 + aRnd);',
-'  w -= uVelDir * len * aEnd;',
+// rev 25: a streak never spans more than 40 % of the screen height: project head + tail, shorten the tail if it would
+'  vec4 c0 = projectionMatrix * (viewMatrix * vec4(w, 1.0));',
+'  vec4 c1 = projectionMatrix * (viewMatrix * vec4(w - uVelDir * len, 1.0));',
+'  float tl = 1.0;',
+'  if (c0.w > 0.01 && c1.w > 0.01) {',
+'    vec2 dd = (c1.xy / c1.w - c0.xy / c0.w) * vec2(projectionMatrix[1][1] / projectionMatrix[0][0], 1.0);',
+'    tl = min(1.0, 0.4 / max(length(dd) * 0.5, 1e-4));',
+'  }',
+'  w -= uVelDir * len * tl * aEnd;',
 '  float edge = 1.0 - smoothstep(0.34, 0.5, max(abs(rel.x), max(abs(rel.y), abs(rel.z))) / uBox);',
 '  float near = smoothstep(1.5 * uL, 6.0 * uL, length(rel));',
 '  vA = uAlpha * edge * near * (0.45 + 0.55 * aRnd) * (1.0 - 0.9 * aEnd);',
@@ -159,7 +167,7 @@ export function createFx(THREE, scene, camera, L) {
     sg.setAttribute('aEnd', new THREE.BufferAttribute(se, 1));
     sg.setAttribute('aRnd', new THREE.BufferAttribute(sr, 1));
     var smat = new THREE.ShaderMaterial({
-        vertexShader: STREAK_VS, fragmentShader: STREAK_FS, transparent: true, depthWrite: false, depthTest: false,
+        vertexShader: STREAK_VS, fragmentShader: STREAK_FS, transparent: true, depthWrite: false, depthTest: true,
         blending: THREE.AdditiveBlending,
         uniforms: {
             uCamPos: { value: new THREE.Vector3() }, uVelDir: { value: new THREE.Vector3(0, 0, -1) },
@@ -170,6 +178,8 @@ export function createFx(THREE, scene, camera, L) {
     streaks.frustumCulled = false; streaks.renderOrder = 20; streaks.visible = false;
     scene.add(streaks); track(streaks, sg, smat);
     fx.streaks = streaks;
+    var atmoD = 0;
+    fx.setAtmo = function (depth) { atmoD = depth > 0 ? (depth > 1 ? 1 : depth) : 0; };   // rev 25: planet atmosphere depth 0..1 (0 = space, default); streaks fade out by depth 0.2
     var mSpeed = 0, mPulse = 0, mPulseTgt = 0, mSpeedTgt = 0;
     fx.setMotion = function (vel, speedNorm, pulsing) {
         var l = vel.length();
@@ -344,9 +354,10 @@ export function createFx(THREE, scene, camera, L) {
         mSpeed += (mSpeedTgt - mSpeed) * k;
         mPulse += (mPulseTgt - mPulse) * (1 - Math.exp(-dt * (mPulseTgt > mPulse ? 14 : 5)));
         var a = (mSpeed - 0.3) / 0.7; a = a < 0 ? 0 : a > 1 ? 1 : a;
-        u.uAlpha.value = a * (0.55 + 0.45 * mPulse);
+        var atm = 1 - atmoD / 0.2; atm = atm < 0 ? 0 : atm; atm = atm * atm * (3 - 2 * atm);
+        u.uAlpha.value = a * (0.55 + 0.45 * mPulse) * atm;
         u.uStretch.value = L * (0.15 + 0.85 * a * a * 1.2 + 11 * mPulse);
-        streaks.visible = a > 0.002;
+        streaks.visible = a * atm > 0.002;
         for (var i = 0; i < cones.length; i++) {
             coneCur[i] += (coneTgt[i] - coneCur[i]) * (1 - Math.exp(-dt * 10));
             var c = cones[i], len = coneLen(coneCur[i]);

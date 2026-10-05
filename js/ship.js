@@ -8,6 +8,7 @@ import { createFx } from './ship-fx.js';
 import * as ITM from './ship-items.js';
 import * as LNG from './ship-lingo.js';
 import * as ENM from './ship-enemies.js';
+import * as CRF from './ship-craft.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
 // ─── tuning (world units / seconds; L = ship length) ────────────────
@@ -477,25 +478,40 @@ export default function mount(engine) {
     var difficulty = 2, peaceful = false;
     // rev 11+: every save blob and profile carries a schema version `v`; ONE migrate() fills missing fields with defaults
     // and never deletes unknown fields (a newer/older game version round-trips them untouched).
-    var SCHEMA_V = 1;
+    var SCHEMA_V = 2;      // rev 25: v2 = gorCoin (profile.gor, migrated from units), stacks may carry a full item (rec.it), crew / pets / pens / missions
     var COLOR_NAMES = { orange: 0xFF7A1A, violet: 0x8a5cff, cyan: 0x00f0ff, red: 0xff3a2a, green: 0x3aff7a, white: 0xffffff };
     function pget(o, k, d) { var v = o ? o[k] : undefined; return (v === undefined || v === null) ? d : v; }   // accessor: never read raw
     function migrateProfile(p) {
         var o = (p && typeof p === 'object' && !Array.isArray(p)) ? p : {};
+        var legacy = !(o.v >= 2);
         if (!(o.v >= 1)) o.v = SCHEMA_V;
+        if (legacy) { o.gor = Math.max(0, (o.gor | 0) || (o.units | 0)); o.v = SCHEMA_V; }      // rev 25: units -> gorCoin (the old field stays untouched)
+        o.gor = Math.max(0, o.gor | 0);
         if (typeof o.color !== 'number') o.color = null;
         if (typeof o.hull !== 'string') o.hull = 'hauler';
         if (!o.upgrades || typeof o.upgrades !== 'object') o.upgrades = {};
         if (!o.weapon || typeof o.weapon !== 'object' || !o.weapon.stats) o.weapon = null;           // rev 20: the equipped weapon (a generateWeapon() object) and every one owned
         if (!Array.isArray(o.weapons)) o.weapons = [];
         o.weapons = o.weapons.filter(function (w) { return w && typeof w === 'object' && w.stats && w.id; }).slice(-24);
-        o.kills = Math.max(0, o.kills | 0); o.bestWave = Math.max(0, o.bestWave | 0); o.units = Math.max(0, o.units | 0);
+        o.kills = Math.max(0, o.kills | 0); o.bestWave = Math.max(0, o.bestWave | 0); 
         if (!o.shards || typeof o.shards !== 'object' || Array.isArray(o.shards)) o.shards = { day: '', ids: [] };      // rev 22: taken shard ids, reset when the date key changes
         if (typeof o.shards.day !== 'string') o.shards.day = '';
         if (!Array.isArray(o.shards.ids)) o.shards.ids = [];
         o.shieldTier = clamp(o.shieldTier | 0, 0, 3); o.engineTier = clamp(o.engineTier | 0, 0, 3);
         if (!Array.isArray(o.items)) o.items = [];       // rev 23: inventory stacks {id, seed, n, d (dealer variant)}
-        o.items = o.items.filter(function (r) { return r && typeof r === 'object' && typeof r.id === 'string' && r.n > 0 && typeof r.seed === 'number'; }).map(function (r) { return { id: r.id, seed: r.seed >>> 0, n: Math.min(9999, r.n | 0), d: r.d ? 1 : 0 }; }).slice(-400);
+        o.items = o.items.filter(function (r) { return r && typeof r === 'object' && typeof r.id === 'string' && r.n > 0 && (typeof r.seed === 'number' || (r.it && typeof r.it === 'object')); }).map(function (r) { var q = { id: r.id, seed: (r.seed >>> 0) || 0, n: Math.min(9999, r.n | 0), d: r.d ? 1 : 0 }; if (r.it && typeof r.it === 'object') q.it = r.it; return q; }).slice(-400);
+        if (!Array.isArray(o.crew)) o.crew = [];          // rev 25: [{id,name,role,color,rank,lines[],busy}] cap 4
+        o.crew = o.crew.filter(function (c) { return c && typeof c === 'object' && typeof c.name === 'string'; }).slice(0, 4);
+        if (!Array.isArray(o.petPens)) o.petPens = [];    // rev 25: pet items living in the pens (index = pen)
+        o.petPens = o.petPens.slice(0, 4);
+        if (!Array.isArray(o.taken)) o.taken = [];        // rev 25: tamed creatures hidden on their planet [{n: planet id, x,y,z: planet-local}]
+        o.taken = o.taken.filter(function (t) { return t && typeof t.n === 'string' && isFinite(t.x + t.y + t.z); }).slice(-40);
+        if (!o.board || typeof o.board !== 'object' || Array.isArray(o.board)) o.board = { seed: 0, day: '', list: [] };      // rev 25: mission board {seed, day, list[{id,name,kind,minutes,gor,crewId,start,end}]}
+        if (!Array.isArray(o.board.list)) o.board.list = [];
+        o.board.list = o.board.list.filter(function (m) { return m && typeof m === 'object' && typeof m.id === 'string'; }).slice(0, 6);
+        if (!o.harv || typeof o.harv !== 'object' || Array.isArray(o.harv)) o.harv = {};      // rev 25: harvested resource nodes {id:{n,at}} (the world respawns them 20 min after `at`)
+        o.visits = Math.max(0, o.visits | 0);             // Burger House visits (every 3rd offers a recruit)
+        o.pens = Math.max(0, o.pens | 0); o.pods = Math.max(0, o.pods | 0);
         if (!Array.isArray(o.known)) o.known = [];       // rev 23: learned lingo words
         o.known = o.known.filter(function (w) { return typeof w === 'string'; }).slice(0, 400);
         o.glowUntil = (typeof o.glowUntil === 'number' && isFinite(o.glowUntil)) ? o.glowUntil : 0;     // rev 23: fries glow expiry (epoch ms)
@@ -647,6 +663,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     var elHpU = hud.querySelector('.sh-hp u'), elHpN = hud.querySelector('.sh-hp em'), elHp = hud.querySelector('.sh-hp');
     var elStWave = hud.querySelector('.sh-st-wave'), elStEn = hud.querySelector('.sh-st-en'), elStKills = hud.querySelector('.sh-st-kills');
     var elStAl = hud.querySelector('.sh-st-al'), cAl = '', elStU = hud.querySelector('.sh-st-u'), cUnits = '';
+    var bossLive = [], cBossPips = '', elBossPips = document.createElement('div');
+    elBossPips.className = 'sh-bpips'; hud.querySelector('.sh-bosses').appendChild(elBossPips);
     var BOSS_ROWS = 4, bossRows = [];      // rev 13: one pooled HP bar per live boss, stacked (titan, giants, minis)
     (function buildBossRows() {
         var host = hud.querySelector('.sh-bosses');
@@ -712,16 +730,17 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var als = na ? 'ALLIES ' + na : '';
         if (als !== cAl) { cAl = als; elStAl.textContent = als; }
         var rowN = 0, kk, bi;                                    // stacked boss bars: titan, then giants, then minis
-        for (kk = 3; kk >= 1; kk--) {
-            for (bi = 0; bi < enemies.length && rowN < BOSS_ROWS; bi++) {
-                var be = enemies[bi];
-                if (be.alive && be.kind === kk) setBossRow(bossRows[rowN++], be);
-            }
-        }
+        bossLive.length = 0;
+        for (bi = 0; bi < enemies.length; bi++) { var be = enemies[bi]; if (be.alive && be.kind >= 1) { be.bd = be.g.position.distanceToSquared(shipRoot.position); bossLive.push(be); } }
+        bossLive.sort(function (a, b) { return a.bd - b.bd; });          // rev 25: only the 2 nearest bosses get a bar, the rest are pips
+        for (bi = 0; bi < bossLive.length && rowN < 2; bi++) setBossRow(bossRows[rowN++], bossLive[bi]);
+        var pk = '';
+        for (bi = 2; bi < bossLive.length; bi++) pk += '◆ ' + String(bossLive[bi].title).slice(0, 14) + ' ' + Math.round(bossLive[bi].hp / bossLive[bi].maxHp * 100) + '%   ';
+        if (pk !== cBossPips) { cBossPips = pk; elBossPips.textContent = pk; }
         for (; rowN < BOSS_ROWS; rowN++) if (bossRows[rowN].on) { bossRows[rowN].on = false; bossRows[rowN].el.classList.remove('is-on'); }
         var ks = 'KILLS ' + kills;
         if (ks !== cKills) { cKills = ks; elStKills.textContent = ks; }
-        var us = 'UNITS ' + unitsNow();
+        var us = CRF.fmt(unitsNow());
         if (us !== cUnits) { cUnits = us; elStU.textContent = us; }
         if (edgeNow !== cEdge) { cEdge = edgeNow; elEdge.textContent = ''; elEdge.classList.toggle('is-on', edgeNow); }
         var show = waveMsgT > 0;
@@ -759,7 +778,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function announce() { /* rev 20b: status titles are gone from the HUD (LEAVING ATMOSPHERE, WAVE n, EQUIPPED, KILL, USER, OVERDRIVE ...); only boss names are shown: announceBoss */ }
     function announceBoss(msg) {
-        waveMsgT = 2.8;
+        waveMsgT = 1.5;
         if (msg !== cWaveMsg) { cWaveMsg = msg; elWave.textContent = msg; }
     }
 
@@ -844,6 +863,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     document.addEventListener('mouseup', function (e) { if (e.button === 0) firing = false; }, true);
     window.addEventListener('contextmenu', function (e) { if (state === 'piloting') e.preventDefault(); }, true);   // Ctrl+click would open the menu while drifting
     window.addEventListener('keydown', function (e) {
+        if (state === 'piloting' && menuOpen) { menuKey(e); return; }
         if (state === 'piloting' && storeOpen) { storeKey(e); return; }
         if (state === 'piloting' && invOpen) { invKey(e); return; }
         if (state !== 'piloting' || cmdOpen) return;
@@ -1096,7 +1116,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; pulseT = 0;
         mdx = mdy = 0; firing = false;
         keys = Object.create(null);
-        if (rs) { try { inFrame = applyResume(rs); } catch (err) { console.info('[ship] resume', err); inFrame = false; } }
+        if (rs && rs.f === 'world') { try { inFrame = applyResume(rs); } catch (err) { console.info('[ship] resume', err); inFrame = false; } }
+        else if (rs) { resumePend = rs; resumeWait = 3; inFrame = true; }      // planet / station frames: the bodies only take their piloting-scale pose after the first engine frames, so the pose is applied then
         // boarding cinematic: from wherever the camera is right now to the chase pose, hull log-lerping galaxy scale -> true L
         cineS0 = shipScale; cineQ0.copy(camera.quaternion);
         cineR0.copy(camera.position).sub(shipRoot.position);
@@ -1128,6 +1149,15 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
 
     // ─── rev 24: Esc resumes exactly. exit() freezes the pose in its current frame; enter() restores it relative to the moved planet / station ───
+    var resumePend = null, resumeWait = 0, resumeAlt = -1;
+    function resumeTick() {
+        if (--resumeWait > 0) return;
+        var rs = resumePend, ok = false; resumePend = null;
+        try { ok = applyResume(rs); } catch (err) { console.info('[ship] resume', err); }
+        if (!ok) pushOutOfBodies(shipRoot.position, gatherBodies(), 2.2);
+        lfOff(); if (ok && rs.f === 'planet' && rs.mode === 'fly') lf.relNext = true;
+        mdx = mdy = 0; fov = camera.fov; chaseTargets(0); camera.position.copy(camPos); camera.quaternion.copy(camQuat);
+    }
     var resumeSnap = null, fadeEl = document.createElement('div');
     fadeEl.className = 'sh-fade'; document.body.appendChild(fadeEl);
     function fadeIn() { fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; void fadeEl.offsetWidth; fadeEl.style.transition = 'opacity 0.7s ease'; fadeEl.style.opacity = '0'; }
@@ -1142,7 +1172,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             resumeSnap = { f: 'planet', node: land.node, mode: gmode === 'foot' ? 'foot' : 'landed', sPos: sp, sQuat: (gmode === 'landing' ? land.qTo : land.sQuat).clone(), rg: land.rg };
             if (gmode === 'foot' && hum.obj) resumeSnap.hum = { pos: hum.pos.clone(), hr: hum.hr, gr: hum.gr, hf: hum.hf.clone(), face: hum.face.clone(), pitch: hum.pitch };
         } else if (gmode === 'fly' && lf.on && lf.node) {
-            resumeSnap = { f: 'planet', node: lf.node, mode: 'fly', lp: lf.lp.clone(), lq: lf.lq.clone() };
+            resumeSnap = { f: 'planet', node: lf.node, mode: 'fly', lp: lf.lp.clone(), lq: lf.lq.clone(), R: lf.R, alt: lf.alt };
         } else if (gmode === 'fly') {
             resumeSnap = { f: 'world', pos: P.clone(), quat: shipRoot.quaternion.clone() };
         }
@@ -1170,7 +1200,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!n || !n.anchor || !n.mesh || !(n.mesh.scale.x > 0)) return false;
         syncPlanet(n); c = n.anchor.position; q = n.mesh.quaternion;
         if (rs.mode === 'fly') {
-            P.copy(rs.lp).applyQuaternion(q).add(c); shipRoot.quaternion.copy(q).multiply(rs.lq);
+            P.copy(rs.lp).multiplyScalar(rs.R > 0 ? n.mesh.scale.x / rs.R : 1).applyQuaternion(q).add(c); shipRoot.quaternion.copy(q).multiply(rs.lq);
+            resumeAlt = rs.alt > 0 && isFinite(rs.alt) ? rs.alt : -1;
             gmode = 'fly'; lf.relNext = true; lf.fromLand = false; landCheckT = 0.6;
             return true;
         }
@@ -1256,8 +1287,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             var sx = gdW.x, sy = gdW.y, edge = !front || Math.abs(sx) > 0.9 || Math.abs(sy) > 0.88;
             if (edge) { if (!front) { sx = -sx; sy = -sy; } var k = Math.max(Math.abs(sx) / 0.9, Math.abs(sy) / 0.86, 1e-6); sx = sx / k; sy = sy / k; }
             var px = Math.round((sx * 0.5 + 0.5) * W), py = Math.round((-sy * 0.5 + 0.5) * H);
-            px = clamp(px, 110, W - 110); py = clamp(py, 40, edge ? H - 90 : H - 40);
-            for (var gq = 0; gq < i && edge; gq++) { var o2 = gdPool[gq]; if (o2.on && o2.edge && Math.abs(o2.tx - px) < 240 && Math.abs(o2.ty - py) < 30) { py -= 34; gq = -1; if (py < 40) break; } }      // edge labels never stack on each other
+            px = clamp(px, 110, W - 110); py = clamp(py, px > W - 330 ? 150 : 40, edge ? H - 90 : H - 40);      // rev 25: the top-right band belongs to the WAVE / ENEMIES panel
+            for (var gq = 0; gq < i && edge; gq++) { var o2 = gdPool[gq]; if (o2.on && o2.edge && Math.abs(o2.tx - px) < 240 && Math.abs(o2.ty - py) < 30) { py -= 34; gq = -1; if (py < 150) break; } }      // edge labels never stack on each other
             if (!m.on) { m.on = true; m.el.classList.add('is-on'); m.key = ''; }
             if (m.edge !== edge) { m.edge = edge; m.el.classList.toggle('is-edge', edge); }
             if (m.key !== it.kind) { var ic = gdIcon(it.kind); if (ic) { m.key = it.kind; m.cv.getContext('2d').clearRect(0, 0, 16, 16); m.cv.getContext('2d').drawImage(ic, 0, 0); } }
@@ -1301,7 +1332,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     // Leaving reverses the boarding move; the camera is only handed back (finishExit) once the hull is galaxy-scale again.
     function exit(focus) {
         if (state !== 'piloting' || exiting) return;
-        closeInv(); closeStore(); fxReset();
+        r25MenuClose(); closeInv(); closeStore(); fxReset();
+        if (gmode === 'ifoot') leaveInterior(false);
         takeSnap();
         if (sk.mode) skAbort(); else if (gmode !== 'fly') leaveGround();
         aEngine({ throttle: 0, boost: false, pulse: 0, inAtmo: false });
@@ -1435,7 +1467,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (kind > 0 && typeof ENM.generateBoss === 'function') {       // rev 14 bosses: body plans (serpent, crab, jelly, leviathan, hydra); falls back to a big generateEnemy
             try {
                 var bnm = name || ('B' + seed), bpl = ENM.BOSS_PLANS[ENM.bossHash(bnm) % ENM.BOSS_PLANS.length];
-                if (bpl === lastBossPlan) bpl = ENM.BOSS_PLANS[(ENM.BOSS_PLANS.indexOf(bpl) + 1) % ENM.BOSS_PLANS.length];
+                for (var pt = 0; pt < ENM.BOSS_PLANS.length && (bpl === lastBossPlan || wavePlans.indexOf(bpl) >= 0); pt++) bpl = ENM.BOSS_PLANS[(ENM.BOSS_PLANS.indexOf(bpl) + 1) % ENM.BOSS_PLANS.length];      // rev 25: distinct plans within a wave
+                wavePlans.push(bpl);
                 lastBossPlan = bpl;
                 cr = ENM.generateBoss(THREE, bnm, wave, { kind: kind, refRL: refR / L, plan: bpl }); e.plan = (cr && cr.plan) ? String(cr.plan) : ''; } catch (err) { console.warn('[ship] generateBoss failed', err); cr = null; }
         }
@@ -1492,9 +1525,9 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         e.g.quaternion.setFromRotationMatrix(mM);
         if (isB) {
             e.home.copy(vAim); e.gcyc = 4 + Math.random() * 8; e.chaseD = vAim.distanceTo(shipRoot.position);      // rev 19: a boss keeps closing as long as the player is within 1.3 x its spawn distance
-            e.fstate = 'boss'; e.state = 1; e.bphase = 1; e.cyc = 6; e.side = 1; e.flip = 6; e.orbCd = 6; e.fireCd = 3; e.curSpeed = 0;
+            e.fstate = 'boss'; e.state = 1; e.bphase = 1; e.cyc = 6; e.side = 1; e.flip = 6; e.orbCd = 6; e.fireCd = 3; e.curSpeed = 0; e.reachMax = 0;
             e.atk = bossAttacksFor(seed, tier); e.atkI = 0; e.nextAtk = -1; e.sigCd = 1e9;
-            e.ms = 'idle'; e.mt = 0; e.mcd = 1.5 + Math.random() * 1.5; e.mi = 0; e.mv = null; e.hitDone = false; e.escT = 8 + Math.random() * 4; e.thrCd = 5 + Math.random() * 5;
+            e.ms = 'idle'; e.mt = 0; e.mcd = 0.3 + Math.random() * 0.4; e.mi = 0; e.mv = null; e.hitDone = false; e.escT = 8 + Math.random() * 4; e.thrCd = 5 + Math.random() * 5;
             mM.lookAt(vAim, shipRoot.position, Y);
             e.g.quaternion.setFromRotationMatrix(mM);
         } else if (role === 0 && wave >= 3 && tier > 1 && Math.random() < 0.4) {   // some interceptors hunt a wingman instead of you
@@ -1519,7 +1552,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var l = squadLead[e.squad];
         return (l && l.alive && l.leader && l.squad === e.squad) ? l : null;
     }
-    var bossCtr = 0, lastBossPlan = '';
+    var bossCtr = 0, lastBossPlan = '', wavePlans = [];
     function bossSeedName() {           // rev 17: every boss spawn is unique: seed = hash(wave, spawn counter, relay epoch)
         var h = 2166136261, ep = (net && net.epoch) | 0, a = [wave, ++bossCtr, ep, (Math.random() * 1e6) | 0];
         for (var i = 0; i < a.length; i++) { h ^= a[i] | 0; h = Math.imul(h, 16777619); h ^= h >>> 13; }
@@ -1530,7 +1563,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var i, bk = bossKind(wave + 1);
         var quiet = !peaceful && (wave + 1) % QUIET_EVERY === 0 && bk <= 1;      // rev 21 director: every 5th wave is a quiet one: a single elite squad, longer breather
         if (quiet) bk = 0;
-        wave++; wavePending = false; playerFired = false; waveActive = true; waveStartT = gt; waveQuiet = quiet;
+        wave++; wavePending = false; playerFired = false; waveActive = true; waveStartT = gt; waveQuiet = quiet; wavePlans.length = 0;
         curWave = waveParams(WAVE_X * wave);
         bossWave = bk > 0;
         var D = DIFFS[difficulty], nn = Math.max(2, Math.min(10, curWave.n + D.n));
@@ -1589,13 +1622,14 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!idx.length) return;
         var lens = {}; idx.forEach(function (k) { lens[k] = genLen(tiers[k], kinds[k]); });
         idx.sort(function (a, b) { return lens[b] - lens[a]; });
-        var base = new THREE.Vector3().copy(dirA); base.y *= 0.3; base.normalize();
+        var base = new THREE.Vector3().copy(NEG_Z).applyQuaternion(shipRoot.quaternion); base.y *= 0.5; base.normalize();      // rev 25: in FRONT of the ship, within +/-40 degrees
+        var yaw0 = (Math.random() * 2 - 1) * 0.69, c0 = Math.cos(yaw0), s0 = Math.sin(yaw0); base.set(base.x * c0 + base.z * s0, base.y, -base.x * s0 + base.z * c0).normalize();
         for (var attempt = 0; attempt < 14; attempt++) {
-            var yaw = attempt * 0.55 * (attempt & 1 ? -1 : 1), cy = Math.cos(yaw), sy = Math.sin(yaw);
+            var yaw = attempt * 0.12 * (attempt & 1 ? -1 : 1), cy = Math.cos(yaw), sy = Math.sin(yaw);
             var placed = [], ok = true;
             for (i = 0; i < idx.length && ok; i++) {
-                var k = idx[i], len = lens[k], rBase = 0.7 * len + (120 + 60 * (((k * 2654435761) >>> 0) % 100) / 100) * L;
-                var ang = i === 0 ? 0 : (i % 2 ? 1 : -1) * 1.22 * Math.ceil(i / 2);                  // 70 deg per wing rank
+                var k = idx[i], len = lens[k], rBase = 0.7 * len + (90 + 50 * (((k * 2654435761) >>> 0) % 100) / 100) * L;
+                var ang = i === 0 ? 0 : (i % 2 ? 1 : -1) * 0.35 * Math.ceil(i / 2);                  // rev 25: 20 deg per wing rank (stay in front)
                 var ca = Math.cos(ang), sa = Math.sin(ang);
                 fpU.set(base.x * ca + base.z * sa, base.y, -base.x * sa + base.z * ca);               // base rotated about world Y by the wing angle
                 fpU.set(fpU.x * cy + fpU.z * sy, fpU.y, -fpU.x * sy + fpU.z * cy).normalize();         // whole formation yawed by the attempt
@@ -1623,9 +1657,9 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (kind > 0 && formPos[qTitle[i]]) { vAim.copy(formPos[qTitle[i]]); return true; }
         if (kind > 0) {          // rev 14: a static boss parks 0.7 x its length + 160 L out, clear of every planet shell
             for (var tr = 0; tr < 14; tr++) {
-                vD.copy((i & 1) ? dirB : dirA);
+                vD.copy(NEG_Z).applyQuaternion(shipRoot.quaternion); vD.applyAxisAngle(Y, (Math.random() * 2 - 1) * 0.69);
                 if (tr > 3) { vD.x += (Math.random() - 0.5) * 1.2; vD.y += (Math.random() - 0.5) * 0.6; vD.z += (Math.random() - 0.5) * 1.2; vD.normalize(); }
-                vAim.copy(shipRoot.position).addScaledVector(vD, 0.7 * spawnPad + 160 * L);
+                vAim.copy(shipRoot.position).addScaledVector(vD, 0.7 * spawnPad + (90 + Math.random() * 50) * L);
                 var okB = vAim.length() < EDGE_R * 0.97;
                 for (var jb = 0; okB && jb < bodies.length; jb++) { var rb = bodies[jb].R * 1.1 + 0.45 * spawnPad; if (vAim.distanceToSquared(bodies[jb].node.anchor.position) < rb * rb) okB = false; }
                 if (okB) return true;
@@ -1804,7 +1838,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         d.el.style.display = 'block';
     }
     // ─── rev 21: units, floating text, scanner (V), shards, NPC lines, music ───────────────────────────────────────────
-    function unitsNow() { return pget(curProfile(), 'units', 0) | 0; }
+    function unitsNow() { return pget(curProfile(), 'gor', 0) | 0; }
     var unitSaveT = 0;
     function floatText(txt, pos, col, big) {              // pooled with the damage numbers (24 DOM nodes)
         var d = dnPool[dnCur]; dnCur = (dnCur + 1) % DN_MAX;
@@ -1815,8 +1849,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function addUnits(n, pos, big) {
         n = Math.round(n); if (!(n > 0)) return;
         var pf = ensureProfile(userName()); if (!curUser) curUser = userName();
-        pf.units = Math.max(0, pf.units | 0) + n;
-        if (pos) floatText('+' + n + ' U', pos, null, big);
+        pf.gor = Math.max(0, pf.gor | 0) + n;
+        if (pos) floatText('+' + n + ' ɢ', pos, null, big);
         aPlay('units', { n: Math.min(12, chainN | 0) });
         if (!unitSaveT) unitSaveT = setTimeout(function () { unitSaveT = 0; writeSave(); }, 900);      // coalesced: kills come in bursts
     }
@@ -1871,6 +1905,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (w && w.stores) for (var si = 0; si < w.stores.length; si++) { locToWorld(w.stores[si].pos, vHl2); if (vHl2.distanceToSquared(pp) < (10 * L) * (10 * L)) { dup = true; break; } }
             if (!dup) hlMark(pp, 'post', String(op0.name || 'OUTPOST').toUpperCase(), org);
         }
+        if (w && typeof w.scanTargets === 'function') { try { var stg = w.scanTargets(), rn2 = 0; for (i = 0; i < stg.length && rn2 < 16; i++) { var tg = stg[i]; if (tg.type !== 'resource') continue; locToWorld(tg.pos, vHl2); if (vHl2.distanceToSquared(org) > (120 * L) * (120 * L)) continue; hlMark(vHl2, 'resource', String(tg.name || tg.kind).toUpperCase(), org); rn2++; } } catch (e0) { /* ignore */ } }
         if (w && w.shards) { var sn = 0; for (i = 0; i < w.shards.length && sn < 14; i++) { var sh = w.shards[i]; if (!sh || sh.taken) continue; hlMark(locToWorld(sh.pos, vHl2), 'shard', 'SHARD', org); sn++; } }
         if (station && station.group.visible) {
             var sst = station.interior.stores[0];
@@ -2040,7 +2075,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             for (var si = 0; si < enemies.length; si++) { var m = enemies[si]; if (m !== e && m.alive && m.squad === sqId && m.state === 0 && m.grace <= 0) { m.state = 1; m.rpSet = false; m.near = 0; } }
         }
         hideEnemy(e); kills++;
-        addUnits(uGain, vKill, wasBoss || wasLead);
+        addUnits(uGain, vKill, wasBoss || wasLead); r25Scrap(wasBoss ? 3 : 0);
         var ksz = clamp(len / L / 6, 1, 4);
         burst(vKill, wasBoss ? 30 : 14, col, wasBoss ? 30 : 14, ksz);
         deathBooms(vKill, len, eR, wasBoss, BURST_COL[col] || 0xff7a2a);
@@ -3060,12 +3095,14 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (ms === 'idle' || ms === 'turn') {
                 // approach: close to the nearest move's reach, never into the ram shell; drift home when the pilot is far
                 var minReach = 1e30;
-                for (i = 0; i < moves.length; i++) minReach = Math.min(minReach, moves[i].reachL * e.sc);
+                var maxReach = 0;
+                for (i = 0; i < moves.length; i++) { minReach = Math.min(minReach, moves[i].reachL * e.sc); maxReach = Math.max(maxReach, moves[i].reachL * e.sc); }
+                e.reachMax = maxReach;
                 var stopD = Math.max(minReach * 0.9, e.R * 1.08 + 2 * L);
                 if (!dead && dist < Math.max(e.len * 2 + 700 * L, (e.chaseD || 0) * 1.3)) {
                     if (dist > stopD && !(thr.ph === 'tele' && thr.e === e)) {
                         // rev 19: bosses CLOSE SLOWLY (0.3 u/s) and in formation; a step that would bring two bosses nearer than 1.5 x the longer length is skipped
-                        var cstep = Math.min(dist - stopD, e.kind === 3 ? clamp(e.len * 0.02, 10 * L, 60 * L) * dt : BOSS_CLOSE * dt);
+                        var cstep = Math.min(dist - stopD, e.kind === 3 ? clamp(e.len * 0.02, 10 * L, 60 * L) * dt : BOSS_CLOSE * (dist > 40 * L ? 4 : 1) * dt);
                         formationStep(e, cstep, vD, dist);
                     }
                 } else {
@@ -4097,6 +4134,10 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         P.copy(lf.lp).applyQuaternion(q).add(c); shipRoot.quaternion.copy(q).multiply(lf.lq); vel.copy(lf.lv).applyQuaternion(q);
         if (lf.lp.length() < ATM_R * Rn) lfEntry(lf.lv.length());
         lfAlt();
+        if (resumeAlt >= 0) {            // rev 25: Esc / re-enter keeps the altitude above the (re-seeded) ground, not the raw radius
+            lf.lp.setLength(lf.floorR + resumeAlt); resumeAlt = -1;
+            P.copy(lf.lp).applyQuaternion(q).add(c); lfAlt();
+        }
     }
     function lfAlt() {
         var n = lf.node, r = lf.lp.length();
@@ -4253,6 +4294,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (cmdOpen || dead || boarding || exiting || state !== 'piloting') return '';
         if (gmode === 'fly') return (lf.on && lf.cap && lf.alt < EH_ALT * L) ? 'exit' : '';
         if (gmode === 'foot') return nearShip() ? 'board' : '';
+        if (gmode === 'sfoot' && sk.mode === 'deck' && !storeOpen) return stationInteract().kind === 'ship' ? 'board' : '';
         return '';
     }
     function ehShow(p, ctx) {
@@ -4277,6 +4319,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (eh.t < EH_T) { ehShow(eh.t / EH_T, c); return; }
         eh.on = false; eh.t = 0; ehShow(0, '');
         if (c === 'exit') ehExit();
+        else if (gmode === 'sfoot') beginLaunch();
         else { boardShip(); liftOff(); }
     }
     function onKeyF() {
@@ -4285,8 +4328,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         else if (gmode === 'foot') {
             var ft = footTarget();
             if (ft.kind === 'store') openStore(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'dealer') openDealer(ft.obj);
-            else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj); else if (nearShip()) boardShip();
+            else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj); else if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); }
+            else if (ft.kind === 'creature') tameStart(ft.obj);
+            else if (ft.kind === 'resource') harvStart(ft.obj);
         }
+        else if (gmode === 'ifoot') interiorF();
         else if (gmode === 'sfoot') stationE();
     }
     // rev 19: "near the ship" = within BOARD_L ship lengths of the spot on the ground directly under the hull (the old test measured to the hull origin, ~1.1 L above the feet, so it was never true on foot)
@@ -4498,14 +4544,14 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== gNear) { camera.fov = fov; camera.near = gNear; camera.updateProjectionMatrix(); }
         if (gmode !== 'foot') clampCamToGround(0.5);
         camera.updateMatrixWorld(true);
-        if (ps) { try { ps.footMode = gmode === 'foot'; ps.update(dt, gmode === 'foot' ? hum.w : P); } catch (e2) { planetFail(e2); } }
+        if (ps) { try { ps.footMode = gmode === 'foot'; ps.update(dt, gmode === 'foot' ? hum.w : P); r25HideTaken(); } catch (e2) { planetFail(e2); } }
         if (rollCd > 0) rollCd -= dt;
         if (waveMsgT > 0) waveMsgT -= dt;
-        fx.setMotion(vel, 0, false); fx.update(dt, camera);
+        fx.setMotion(vel, 0, false); try { fx.setAtmo(ps && ps.active ? ps.depth : 0); } catch (e0) { /* ignore */ } fx.update(dt, camera);
         // prompt
         if (gmode === 'landing' || gmode === 'landed') setPrompt('', false);
         else if (gmode === 'foot' && !storeOpen && !invOpen && footTarget().kind) setPrompt(ftI.label, true);
-        else if (nearShip()) setPrompt('F · BOARD', true);
+        else if (nearShip()) setPrompt(R25.mod ? 'F · ENTER SHIP · HOLD LIFT OFF' : 'F · BOARD', true);
         else setPrompt('', false);
         if (net) { net.sendPos(); net.update(dt, dockA); ghostFx(); }
         aEngine({ throttle: 0, inAtmo: true });
@@ -4520,14 +4566,16 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function step(dt) {
         if (dt > 0.05) dt = 0.05;
         if (dt <= 0) return;
+        if (resumePend) { resumeTick(); return; }
         if (scaleChecks > 0) { scaleChecks--; refreshScale(); }
         if (station && station.group.visible) { try { station.update(engine.time, dt, shipRoot.position); } catch (e) { console.info('[ship] station.update', e); station.setVisible(false); } }
         if (sk.cd > 0) sk.cd -= dt;
-        worldSync();
+        worldSync(); r25Tick(dt);
         fxTick(dt); glowTick(dt); escTick(dt); guideTick(dt);
         if (boarding || exiting) { cinematicStep(dt); return; }
         if (landReq) { landReq = false; startLanding(); }
         ehTick(dt);
+        if (gmode === 'ifoot') { interiorStep(dt); return; }
         if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') { stationStep(dt); return; }
         if (gmode !== 'fly') { groundStep(dt); return; }
         var i, bodies = gatherBodies();
@@ -4924,7 +4972,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         exMe.holder.visible = !dead;
         exUpdate(exMe, P, shipRoot.quaternion, L, exI);
         aEngine({ throttle: dead ? 0 : Math.abs(throttle), boost: boosting, pulse: pulse, inAtmo: lf.on && lf.cap });
-        fx.setMotion(vel, Math.min(1, Math.abs(speed) / (0.6 * BOOST)), pulse > 0.5 || entryHeat > 0.3);
+        fx.setMotion(vel, Math.min(1, Math.abs(speed) / (0.6 * BOOST)), pulse > 0.5 || entryHeat > 0.3); try { fx.setAtmo(ps && ps.active ? ps.depth : 0); } catch (e0) { /* ignore */ }
 
         // ─── combat ───
         var en;
@@ -5055,7 +5103,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                                 if (segSegDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, cw[co], cw[co + 1], cw[co + 2], cw[co + 3], cw[co + 4], cw[co + 5]) < cr2 * cr2) { limbHit = true; limbI = k; break; }
                             }
                         }
-                        var bodyR = (en.isBoss && en.limbHp && !en.noLimbs) ? en.R * 0.5 : en.R;      // rev 20: with limbs alive the bolt-eating body core is half the ram shell, so bolts reach the limb capsules inside it
+                        var bodyR = (en.isBoss && en.limbHp && !en.noLimbs && vBp.distanceToSquared(ep) < (en.reachMax || 0) * (en.reachMax || 0)) ? en.R * 0.5 : en.R;      // rev 25: the halved core only applies inside the limbs' reach; from range the whole hitR eats bolts      // rev 20: with limbs alive the bolt-eating body core is half the ram shell, so bolts reach the limb capsules inside it
                         if (crit || limbHit || segDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, ep.x, ep.y, ep.z) < bodyR * bodyR) {
                             dead1 = true; boltHits++;
                             if (!en.isBoss && en.cr && en.cr.stats && en.cr.stats.shield) {       // rev 21 back-shield rule: the front dish eats bolts, the glowing back is the weak point (x1.5)
@@ -5169,7 +5217,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (pf.shards.ids.indexOf(sh.id) >= 0) { sh.taken = true; return; }
         pf.shards.ids.push(sh.id); sh.taken = true;
         locToWorld(sh.pos, vSh);
-        addUnits(UNIT_SHARD, vSh, false); aPlay('shard'); fx.flash(vSh, 0xffd36a);
+        addUnits(UNIT_SHARD, vSh, false); giveItem(R25_SHARD, 1); aPlay('shard'); fx.flash(vSh, 0xffd36a);
     }
     function worldSync() {
         if (!world || !world.node) { wShardsRef = null; return; }
@@ -5177,6 +5225,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             wShardsRef = world.shards;
             var pf = curProfile();
             if (pf && pf.shards && pf.shards.day === dayKey()) world.markTaken(pf.shards.ids);
+            if (pf && pf.harv && typeof world.markHarvested === 'function') { try { world.markHarvested(pf.harv); } catch (e0) { /* ignore */ } }
         }
     }
     // fly / walk into a shard (the world also auto-takes within 1.6 L of the player; both paths end in grantShard)
@@ -5195,13 +5244,14 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     // ─── upgrades applied from the profile ──────────────────────────────────────────────────────────────────────────────────────────
     function applyUpgrades() {
         var pf = curProfile(), st = clamp(pget(pf, 'shieldTier', 0) | 0, 0, 3), et = clamp(pget(pf, 'engineTier', 0) | 0, 0, 3);
-        HP_MAX = HP_BASE + 20 * st; engMul = 1 + 0.1 * et;
+        HP_MAX = HP_BASE + 20 * st + 10 * (pget(pf && pf.upgrades, 'shield', 0) | 0); engMul = 1 + 0.1 * et + 0.03 * (pget(pf && pf.upgrades, 'engine', 0) | 0);
         if (hp > HP_MAX) hp = HP_MAX;
     }
     // ─── rev 23: items, lingo, inventory (E), eating effects, fries glow ───────────────────────────────────────────────────────────
     var itemCache = Object.create(null);
     function itemOf(rec) {
         if (!rec) return null;
+        if (rec.it) return rec.it;      // rev 25: crafted / part / pet stacks carry the whole item
         var key = rec.id + (rec.d ? 'd' : ''), it = itemCache[key];
         if (it) return it;
         try { it = rec.id === 'fries' ? ITM.FRIES : ITM.generateItem(rec.seed >>> 0, rec.d ? { dealer: true } : undefined); } catch (e0) { it = null; }
@@ -5211,9 +5261,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function giveItem(it, n) {
         var pf = ensureProfile(userName()), i, r;
         if (!curUser) curUser = userName();
-        for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; if (r.id === it.id && !!r.d === !!it.dealer) { r.n += n; return r; } }
-        r = { id: it.id, seed: it.seed >>> 0, n: n, d: it.dealer ? 1 : 0 };
-        pf.items.push(r); itemCache[it.id + (it.dealer ? 'd' : '')] = it;
+        var sk0 = CRF.stackKeyOf(it);
+        for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; if (r.id === sk0 && !!r.d === !!it.dealer) { r.n = Math.min(9999, r.n + n); return r; } }
+        r = { id: sk0, seed: (it.seed >>> 0) || 0, n: n, d: it.dealer ? 1 : 0 };
+        if (it.kind === 'part' || it.kind === 'material' || it.category || it.pet || it.stackKey) r.it = JSON.parse(JSON.stringify(it));
+        pf.items.push(r); if (!r.it) itemCache[it.id + (it.dealer ? 'd' : '')] = it;
         if (pf.items.length > 400) pf.items.shift();
         return r;
     }
@@ -5374,7 +5426,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     import('./ship-icons.js').then(function (m) { iconsMod = m; if (invOpen) invFill(); }).catch(function (e) { console.info('[ship] ship-icons unavailable', e); });
     var elInv = document.createElement('div');
     elInv.className = 'sh-inv';
-    elInv.innerHTML = '<div class="si-h"><b>Inventory</b><span class="si-u"></span></div><div class="si-grid"></div><div class="si-wrow"></div><div class="si-f">Right click eat / drink · Left click equip · Wheel scroll · E / Esc close</div>';
+    elInv.innerHTML = '<div class="si-h"><b>Inventory</b><span class="si-u"></span></div><div class="si-grid"></div><div class="si-wrow"></div><div class="si-f">Right click eat / drink / fit mod · Left click equip · Wheel scroll · E / Esc close</div>';
     hud.appendChild(elInv);
     var elInvTip = document.createElement('div'); elInvTip.className = 'si-tip'; hud.appendChild(elInvTip);
     var elInvGrid = elInv.querySelector('.si-grid'), elInvW = elInv.querySelector('.si-wrow'), elInvU = elInv.querySelector('.si-u'), invTipKey = '';
@@ -5393,7 +5445,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         sl.k = key; sl.ctx.clearRect(0, 0, 16, 16);
         if (ic) sl.ctx.drawImage(ic, 0, 0);
     }
-    function invSlotOf(t) { while (t && t !== elInv && !(t.getAttribute && t.getAttribute('data-i') != null)) t = t.parentNode; return (t && t !== elInv) ? t : null; }
+    function invSlotOf(t) { while (t && t !== elInv && !(t.getAttribute && (t.getAttribute('data-i') != null || t.getAttribute('data-c') != null || t.getAttribute('data-o') != null || t.getAttribute('data-m') != null))) t = t.parentNode; return (t && t !== elInv) ? t : null; }
     function invFill() {
         var pf = ensureProfile(userName()), items = pf.items, ws = pf.weapons, i, s, rec, it, w, rows = Math.max(INV_ROWS, Math.ceil(items.length / INV_COLS));
         invTop = clamp(invTop, 0, Math.max(0, rows - INV_ROWS)); invWTop = clamp(invWTop, 0, Math.max(0, ws.length - INV_COLS));
@@ -5403,7 +5455,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 s.el.classList.remove('is-empty');
                 var ic = null; try { ic = iconsMod ? iconsMod.iconFor(it) : null; } catch (e0) { ic = null; }
                 invPaint(s, ic, ic ? 'I' + it.id + (it.dealer ? 'd' : '') : '');
-                s.n.textContent = rec.n > 1 ? String(rec.n) : '';
+                var shown = rec.n - r25Reserved(rec.id); s.n.textContent = shown > 1 ? String(shown) : ''; s.el.style.opacity = shown > 0 ? '' : '0.4';
             } else { s.el.classList.add('is-empty'); invPaint(s, null, ''); s.n.textContent = ''; }
         }
         for (i = 0; i < INV_COLS; i++) {
@@ -5415,13 +5467,15 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 s.n.textContent = ''; s.el.classList.toggle('is-eq', !!(pf.weapon && pf.weapon.id === w.id));
             } else { s.el.classList.add('is-empty'); s.el.classList.remove('is-eq'); invPaint(s, null, ''); s.n.textContent = ''; }
         }
-        elInvU.textContent = (pf.units | 0) + ' units · ' + items.reduce(function (a, r) { return a + r.n; }, 0) + ' items';
+        r25Fill();
+        elInvU.textContent = CRF.fmt(pf.gor) + ' · ' + items.reduce(function (a, r) { return a + r.n; }, 0) + ' items';
     }
     function invTip(sl) {
         var pf = ensureProfile(userName()), t = '', rec, it, w;
         if (sl) {
-            if (sl.getAttribute('data-w') != null) { w = pf.weapons[invWTop + (+sl.getAttribute('data-w'))]; if (w) t = w.name + '\n' + (wpnMod && wpnMod.weaponLine ? wpnMod.weaponLine(w) : '') + '\nLeft click to equip'; }
-            else { rec = pf.items[invTop * INV_COLS + (+sl.getAttribute('data-i'))]; it = rec ? itemOf(rec) : null; if (it) t = ITM.describe(it).replace(/\nPrice: .*$/, '') + '\nx' + rec.n + ' · right click to ' + (it.kind === 'drink' ? 'drink' : 'eat'); }
+            if (sl.getAttribute('data-c') != null || sl.getAttribute('data-o') != null || sl.getAttribute('data-m') != null) t = r25Tip(sl);
+            else if (sl.getAttribute('data-w') != null) { w = pf.weapons[invWTop + (+sl.getAttribute('data-w'))]; if (w) t = w.name + '\n' + (wpnMod && wpnMod.weaponLine ? wpnMod.weaponLine(w) : '') + '\nLeft click to equip'; }
+            else { rec = pf.items[invTop * INV_COLS + (+sl.getAttribute('data-i'))]; it = rec ? itemOf(rec) : null; if (it) t = describeItem(it).replace(/\nPrice: .*$/, '') + '\nx' + rec.n + invAct(it); }
         }
         if (t === invTipKey) return;
         invTipKey = t;
@@ -5441,6 +5495,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function eatSlot(idx) {
         var pf = ensureProfile(userName()), rec = pf.items[idx], it = rec ? itemOf(rec) : null;
         if (!it) return;
+        if (r25Use(it, rec, idx)) return;       // rev 25: mods / upgrades / pets are not food
         rec.n--; if (rec.n <= 0) pf.items.splice(idx, 1);
         aPlay('ui', { vel: 0.7 }); aPlay('hit', { pitch: 0.35, vel: 0.5 });
         fxStart(it);
@@ -5450,7 +5505,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     elInv.addEventListener('mouseover', function (e) { invTip(invSlotOf(e.target)); invTipPos(e); });
     elInv.addEventListener('mousemove', function (e) { invTipPos(e); });
     elInv.addEventListener('mouseleave', function () { invTip(null); });
-    elInv.addEventListener('contextmenu', function (e) { e.preventDefault(); var s = invSlotOf(e.target); if (s && s.getAttribute('data-w') == null) eatSlot(invTop * INV_COLS + (+s.getAttribute('data-i'))); });
+    elInv.addEventListener('contextmenu', function (e) { e.preventDefault(); var s = invSlotOf(e.target); if (s && s.getAttribute('data-i') != null) eatSlot(invTop * INV_COLS + (+s.getAttribute('data-i'))); });
     elInv.addEventListener('click', function (e) {
         var s = invSlotOf(e.target); if (!s || s.getAttribute('data-w') == null) return;
         var w = ensureProfile(userName()).weapons[invWTop + (+s.getAttribute('data-w'))];
@@ -5468,11 +5523,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         keys = Object.create(null); firing = false; mdx = mdy = 0; eh.on = false; eh.t = 0; ehShow(0, '');
         if (locked()) { try { document.exitPointerLock(); } catch (e0) { /* ignore */ } }
         hud.classList.add('is-inv'); elInv.classList.add('is-on');
-        invTop = 0; invWTop = 0; invFill(); invTip(null); aPlay('ui', { vel: 0.5 });
+        invTop = 0; invWTop = 0; r25CraftAvail(); invFill(); invTip(null); aPlay('ui', { vel: 0.5 });
     }
     function closeInv() {
         if (!invOpen) return;
-        invOpen = false; cmdOpen = false;
+        invOpen = false; cmdOpen = false; r25ClearGrid();
         hud.classList.remove('is-inv'); elInv.classList.remove('is-on'); invTip(null);
         keys = Object.create(null); mdx = mdy = 0;
         aPlay('ui', { vel: 0.4 });
@@ -5487,13 +5542,494 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (c === 'KeyE' || c === 'Backspace') { closeInv(); return; }
         if (c === 'ArrowDown') { invTop++; invFill(); } else if (c === 'ArrowUp') { invTop--; invFill(); }
     }
+    // ─── rev 25: gorCoin stacks, 3x3 crafting, interior, pets, crew, missions (ship-craft.js / ship-interior.js, guarded) ──────────────────────────
+    var R25 = { mod: null, int: null, L: 0, craftOn: false, force: false, cand: null, t: 0, ctm: null, ctF: 0, tdt: 0 };
+    var ix = { on: false, snap: 0, from: '', w: new THREE.Vector3(), q: new THREE.Quaternion(), sc: 1 };
+    var ik = { hp: new THREE.Vector3(), yaw: 0, pitch: 0.3, vv: 0, air: false, jumpHeld: false, moving: false, running: false };
+    import('./ship-interior.js').then(function (m) { R25.mod = m; }).catch(function (e) { console.info('[ship] ship-interior unavailable', e); });
+    function hash25(s) { var h = 2166136261; s = String(s); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+    function mkScrap(id, name, color, hint) { return { id: id, name: name, kind: 'junk', base: name, infusion: null, modifier: null, color: color, price: 6, tier: 1, category: 'junk', tags: ['junk'], stackKey: id, iconHint: hint, blurb: 'Bits off something that used to shoot back.', dealer: false }; }
+    var R25_SCRAP = [mkScrap('scrap-plate', 'Scrap Plate', 0x9AA0AA, 'tray'), mkScrap('scrap-wire', 'Scrap Wire', 0xFFB05C, 'bar'), mkScrap('scrap-gear', 'Scrap Gear', 0xC8C0E8, 'donut')];
+    var R25_SHARD = { id: 'signal-shard', name: 'Signal Shard', kind: 'material', base: 'Signal Shard', infusion: null, modifier: null, color: 0xFFD36A, price: 28, tier: 1, category: 'material', tags: ['material'], stackKey: 'signal-shard', iconHint: 'candy', blurb: 'A crystal that still remembers a radio station.', dealer: false };
+    function r25Scrap(bonus) {
+        var n = 1 + ((Math.random() * 3) | 0) + (bonus | 0), i;
+        if (!curUser) curUser = userName();
+        for (i = 0; i < n; i++) giveItem(R25_SCRAP[(Math.random() * 3) | 0], 1 + ((Math.random() * 2) | 0));
+        unitSaveT = unitSaveT || setTimeout(function () { unitSaveT = 0; writeSave(); }, 900);
+    }
+    function describeItem(it) {
+        if (!it) return '';
+        if (!(it.category || it.kind === 'part' || it.pet)) { try { return ITM.describe(it).replace(/ units$/, ' gorCoin'); } catch (e0) { /* fall through */ } }
+        var l = [it.name];
+        if (it.blurb) l.push(it.blurb);
+        if (it.pet) l.push('Pet · happiness ' + (it.pet.happy | 0));
+        if (it.mod) {
+            var d = it.mod.delta || {}, s = Object.keys(d).filter(function (k) { return d[k]; }).map(function (k) { return k + ' ' + (k === 'count' ? '+' + d[k] : (d[k] > 0 ? '+' : '') + Math.round(d[k] * 100) + '%'); });
+            l.push(String(it.mod.slot).toUpperCase() + ' MOD · ' + s.join(' ') + (it.mod.special ? ' · ' + it.mod.special : ''));
+        }
+        if (it.upgrade) l.push('SHIP UPGRADE · ' + String(it.upgrade.slot).toUpperCase() + ' +' + it.upgrade.level);
+        if (it.category === 'food' && it.effect) l.push('Food · ' + it.effect.duration + ' s');
+        l.push('Price: ' + CRF.fmt(it.price || 0));
+        return l.join('\n');
+    }
+    function invAct(it) {
+        if (it.category === 'weapon-mod') return ' · right click to fit your weapon';
+        if (it.category === 'ship-upgrade') return ' · right click to install';
+        if (it.pet || it.kind === 'part' || it.kind === 'material' || it.kind === 'junk') return R25.craftOn ? ' · click to place in the grid' : '';
+        return ' · right click to ' + (it.kind === 'drink' ? 'drink' : 'eat');
+    }
+    function takeKey(key, n) {
+        var pf = ensureProfile(userName()), i;
+        for (i = 0; i < pf.items.length; i++) if (pf.items[i].id === key) { pf.items[i].n -= n; if (pf.items[i].n <= 0) pf.items.splice(i, 1); return true; }
+        return false;
+    }
+    function r25Use(it, rec, idx) {
+        var pf = ensureProfile(userName()), res;
+        if (it.category === 'weapon-mod' && it.mod) {
+            var w = pf.weapon;
+            if (!w && wpnMod && wpnMod.STARTER_WEAPON) { w = JSON.parse(JSON.stringify(wpnMod.STARTER_WEAPON)); if (!w.id) w.id = 'starter'; }
+            if (!w) { addRow('', '', 'no weapon to fit', 'is-sys'); return true; }
+            res = CRF.applyMod(w, it); var nw = res.weapon;
+            pf.weapons = pf.weapons.filter(function (x) { return x.id !== nw.id; }); pf.weapons.push(nw); pf.weapon = nw;
+            rec.n--; if (rec.n <= 0) pf.items.splice(idx, 1);
+            aPlay('buy', { pitch: 1.2 }); addRow('', '', res.line, 'is-sys'); writeSave(); invFill(); invTip(null); return true;
+        }
+        if (it.category === 'ship-upgrade' && it.upgrade) {
+            res = CRF.applyUpgrade(pf, it); Object.assign(pf, res.profile); applyUpgrades();
+            rec.n--; if (rec.n <= 0) pf.items.splice(idx, 1);
+            aPlay('buy', { pitch: 1.2 }); addRow('', '', 'SHIP · ' + res.line, 'is-sys'); writeSave(); invFill(); invTip(null); return true;
+        }
+        if (it.pet || it.kind === 'part' || it.kind === 'material' || it.kind === 'junk') { addRow('', '', 'not edible: ' + it.name, 'is-sys'); return true; }
+        return false;
+    }
+    // ── crafting grid ──
+    var craftGrid = [null, null, null, null, null, null, null, null, null], craftOut = null, craftCells = [], elCraft, elCraftO, elMods, modCells = [];
+    (function buildCraft() {
+        function cellEl(attr, val) { var d = document.createElement('div'); d.className = 'si-s is-empty'; d.setAttribute(attr, String(val)); d.innerHTML = '<canvas width="16" height="16"></canvas><em></em>'; var cv = d.firstChild; return { el: d, cv: cv, ctx: cv.getContext('2d'), n: d.lastChild, k: '' }; }
+        elCraft = document.createElement('div'); elCraft.className = 'si-craft'; elCraft.style.display = 'none';
+        elCraft.innerHTML = '<div class="sc-h">CRAFTING</div><div class="sc-b"><div class="sc-grid"></div><i>&#9654;</i><div class="sc-out"></div></div>';
+        var g = elCraft.querySelector('.sc-grid'), i, c;
+        for (i = 0; i < 9; i++) { c = cellEl('data-c', i); g.appendChild(c.el); craftCells.push(c); }
+        craftOut = cellEl('data-o', 0); elCraft.querySelector('.sc-out').appendChild(craftOut.el);
+        elMods = document.createElement('div'); elMods.className = 'si-mods'; elMods.innerHTML = '<b>MODS</b>';
+        ['scope', 'coil', 'chamber'].forEach(function (sl) { var d = document.createElement('div'); d.className = 'si-s is-empty sm-s'; d.setAttribute('data-m', sl); d.innerHTML = '<span>' + sl.slice(0, 3).toUpperCase() + '</span>'; elMods.appendChild(d); modCells.push({ el: d, sl: sl, sp: d.firstChild }); });
+        var f = elInv.querySelector('.si-f'); elInv.insertBefore(elMods, f); elInv.insertBefore(elCraft, f);
+    })();
+    function r25Reserved(key) { var n = 0; for (var i = 0; i < 9; i++) if (craftGrid[i] && craftGrid[i].key === key) n += craftGrid[i].n; return n; }
+    function r25ClearGrid() { for (var i = 0; i < 9; i++) craftGrid[i] = null; }
+    function gridStacks() { return craftGrid.map(function (c) { return c ? { id: c.key, item: c.it, n: c.n } : null; }); }
+    function ixNear(o, extra) { return !!(o && o.pos && hum.w.distanceTo(o.pos) < Math.max(o.radius || 0, 0.18 * L) + (extra || 0)); }
+    function r25CraftAvail() {
+        var on = R25.force;
+        try {
+            if (gmode === 'ifoot' && R25.int && ixNear(R25.int.table, 0.1 * L)) on = true;
+            else if (gmode === 'foot' && counterNear()) on = true;
+            else if (gmode === 'sfoot' && sk.mode === 'deck' && stationInteract().kind === 'store') on = true;
+        } catch (e0) { /* ignore */ }
+        R25.craftOn = on; if (!on) r25ClearGrid();
+    }
+    function paintCell(c, it, n) {
+        if (!it) { c.el.classList.add('is-empty'); invPaint(c, null, ''); c.n.textContent = ''; return; }
+        c.el.classList.remove('is-empty');
+        var ic = null; try { ic = iconsMod ? iconsMod.iconFor(it) : null; } catch (e0) { ic = null; }
+        invPaint(c, ic, ic ? 'C' + CRF.stackKeyOf(it) + (it.color | 0) : '');
+        c.n.textContent = n > 1 ? String(n) : '';
+    }
+    function r25Fill() {
+        var pf = ensureProfile(userName()), i;
+        elCraft.style.display = R25.craftOn ? '' : 'none';
+        if (R25.craftOn) {
+            for (i = 0; i < 9; i++) paintCell(craftCells[i], craftGrid[i] && craftGrid[i].it, craftGrid[i] ? craftGrid[i].n : 0);
+            var m = null; try { m = CRF.match(gridStacks()); } catch (e1) { m = null; }
+            craftCells.matchRes = m;
+            paintCell(craftOut, m && m.output, m ? m.count : 0);
+        }
+        var w = pf.weapon;
+        for (i = 0; i < modCells.length; i++) { var md = w && w.mods && w.mods[modCells[i].sl]; modCells[i].el.classList.toggle('is-eq', !!md); modCells[i].sp.textContent = md ? String(md.name || '').split(' ')[0].slice(0, 7).toUpperCase() : modCells[i].sl.slice(0, 3).toUpperCase(); }
+    }
+    function r25Tip(sl) {
+        var pf = ensureProfile(userName()), c = sl.getAttribute('data-c'), o = sl.getAttribute('data-o'), m = sl.getAttribute('data-m');
+        if (c != null) { var cc = craftGrid[+c]; return cc ? describeItem(cc.it).replace(/\nPrice: .*$/, '') + '\nclick to take back' : ''; }
+        if (o != null) { var r = craftCells.matchRes; return r ? describeItem(r.output).replace(/\nPrice: .*$/, '') + '\nx' + r.count + ' · click to craft' + (r.recipe ? '' : ' · improvised') : ''; }
+        var md = pf.weapon && pf.weapon.mods && pf.weapon.mods[m];
+        return md ? String(m).toUpperCase() + ' · ' + md.name + '\n' + JSON.stringify(md.delta).replace(/[{}"]/g, '') + (md.special ? ' · ' + md.special : '') : String(m).toUpperCase() + ' slot · empty\nCraft a mod, right click it';
+    }
+    elInv.addEventListener('click', function (e) {
+        var s = invSlotOf(e.target); if (!s || !R25.craftOn) return;
+        var pf = ensureProfile(userName()), i, c;
+        if (s.getAttribute('data-i') != null) {
+            var rec = pf.items[invTop * INV_COLS + (+s.getAttribute('data-i'))], it = rec ? itemOf(rec) : null;
+            if (!it || it.pet || rec.n - r25Reserved(rec.id) <= 0) return;
+            for (i = 0; i < 9; i++) if (craftGrid[i] && craftGrid[i].key === rec.id) { craftGrid[i].n++; aPlay('ui', { vel: 0.5 }); invFill(); return; }
+            for (i = 0; i < 9; i++) if (!craftGrid[i]) { craftGrid[i] = { key: rec.id, it: it, n: 1 }; aPlay('ui', { vel: 0.5 }); invFill(); return; }
+        } else if (s.getAttribute('data-c') != null) {
+            c = craftGrid[+s.getAttribute('data-c')]; if (!c) return;
+            c.n--; if (c.n <= 0) craftGrid[+s.getAttribute('data-c')] = null;
+            aPlay('ui', { vel: 0.4 }); invFill(); invTip(s);
+        } else if (s.getAttribute('data-o') != null) {
+            var res = craftCells.matchRes; if (!res) return;
+            for (i = 0; i < res.consumes.length; i++) { c = craftGrid[res.consumes[i]]; if (!c) continue; takeKey(c.key, 1); c.n--; if (c.n <= 0) craftGrid[res.consumes[i]] = null; }
+            if (!curUser) curUser = userName();
+            giveItem(res.output, res.count);
+            aPlay('buy', { pitch: 1.1 }); addRow('', '', 'CRAFTED ' + res.output.name + (res.count > 1 ? ' x' + res.count : ''), 'is-sys');
+            writeSave(); invFill(); invTip(s);
+        }
+    });
+    // ── menus (kitchen, pens, pods, board) ──
+    var menuOpen = false, menuSpec = null, menuRows = [], menuSel = 0;
+    var elMenu = document.createElement('div'); elMenu.className = 'sh-imenu'; elMenu.innerHTML = '<div class="im-h"></div><div class="im-l"></div><div class="im-f">1-9 / ENTER pick · ESC close</div>'; hud.appendChild(elMenu);
+    var elMenuH = elMenu.querySelector('.im-h'), elMenuL = elMenu.querySelector('.im-l');
+    function menuRender() {
+        var b = menuSpec.build(); menuRows = b.rows; elMenuH.textContent = b.title; elMenuL.textContent = '';
+        menuSel = clamp(menuSel, 0, Math.max(0, menuRows.length - 1));
+        if (!menuRows.length) menuRows = [{ name: 'NOTHING HERE', sub: '', fn: null }];
+        menuRows.forEach(function (r, i) {
+            var d = document.createElement('div'); d.className = 'im-r' + (i === menuSel ? ' is-sel' : ''); d.innerHTML = '<i></i><span></span><em></em>';
+            d.children[0].textContent = String(i + 1); d.children[1].textContent = r.name; d.children[2].textContent = r.sub || '';
+            d.addEventListener('click', function () { menuSel = i; menuPick(); });
+            elMenuL.appendChild(d);
+        });
+    }
+    function openMenu(spec) {
+        if (menuOpen || cmdOpen || state !== 'piloting') return;
+        menuSpec = spec; menuOpen = true; cmdOpen = true; cmdGuardUntil = performance.now() + 600; menuSel = 0;
+        keys = Object.create(null); firing = false; mdx = mdy = 0; eh.on = false; eh.t = 0; ehShow(0, '');
+        if (locked()) { try { document.exitPointerLock(); } catch (e0) { /* ignore */ } }
+        elMenu.classList.add('is-on'); menuRender(); aPlay('ui', { vel: 0.6 });
+    }
+    function closeMenu() {
+        if (!menuOpen) return;
+        menuOpen = false; cmdOpen = false; menuSpec = null; elMenu.classList.remove('is-on');
+        keys = Object.create(null); mdx = mdy = 0; aPlay('ui', { vel: 0.4 }); r25Refresh();
+        if (state === 'piloting') { try { var p = document.body.requestPointerLock(); if (p && p.catch) p.catch(function () { /* keyboard only */ }); } catch (e0) { /* ignore */ } }
+    }
+    function r25MenuClose() { closeMenu(); }
+    function menuPick() {
+        var r = menuRows[menuSel]; if (!r || !r.fn) return;
+        var keep = r.fn();
+        if (keep && menuOpen) menuRender(); else closeMenu();
+    }
+    function menuKey(e) {
+        var c = e.code; e.preventDefault(); e.stopPropagation();
+        if (c === 'Escape') { e.__shipHandled = true; closeMenu(); return; }
+        if (c === 'ArrowDown' || c === 'ArrowUp') { menuSel = clamp(menuSel + (c === 'ArrowDown' ? 1 : -1), 0, menuRows.length - 1); menuRender(); return; }
+        if (e.repeat) return;
+        if (c === 'KeyF' || c === 'KeyE' || c === 'Backspace') { closeMenu(); return; }
+        if (c === 'Enter' || c === 'NumpadEnter') { menuPick(); return; }
+        var m = /^(?:Digit|Numpad)([1-9])$/.exec(c);
+        if (m && +m[1] <= menuRows.length) { menuSel = +m[1] - 1; menuPick(); }
+    }
+    // ── pets ──
+    function petItem(p) { return { id: 'pet:' + p.seed, name: p.name, kind: 'pet', base: p.name, infusion: null, modifier: null, color: p.color, price: 150 + 20 * (p.happy | 0), tier: 1, category: 'pet', tags: ['pet'], stackKey: 'pet:' + p.seed, pet: p, iconHint: 'candy', blurb: 'Follows you home for fries. Lives in a pen aboard your ship.', dealer: false }; }
+    function treatIdx(pf) {
+        for (var i = 0; i < pf.items.length; i++) { var it = itemOf(pf.items[i]); if (it && (it.kind === 'fries' || (it.effect && it.effect.extras && it.effect.extras.treat))) return i; }
+        return -1;
+    }
+    function creatMesh() {
+        if (R25.ctm && R25.ctm.parent) return R25.ctm;
+        R25.ctm = null; var now = performance.now();
+        if (now - R25.ctF < 1000) return null; R25.ctF = now;
+        for (var i = 0; i < scene.children.length; i++) { var ch = scene.children[i].children; if (!ch) continue; for (var j = 0; j < ch.length; j++) if (ch[j].isInstancedMesh && ch[j].geometry && ch[j].geometry.attributes.aInstPh) { R25.ctm = ch[j]; return R25.ctm; } }
+        return null;
+    }
+    var tame = { on: false, t: 0, col: null, T: 3 }, tcRes = { idx: -1, d: 0, col: null, v: 0, x: 0, y: 0, z: 0 }, tcT = 0;
+    function colOf(m, i) { var a = m.geometry.attributes.aCol.array; return [a[i * 3], a[i * 3 + 1], a[i * 3 + 2]]; }
+    function tameFind() {
+        if (gmode !== 'foot' || !hum.obj || !ps || !ps.active || land.node !== ps.active) return null;
+        var pf = curProfile(); if (!pf || treatIdx(pf) < 0) return null;
+        var m = creatMesh(); if (!m || !m.visible || !m.count) return null;
+        var mat = m.instanceMatrix.array, best = -1, bd = 1e30, i, o, s, d;
+        for (i = 0; i < m.count; i++) {
+            o = i * 16; s = Math.hypot(mat[o], mat[o + 1], mat[o + 2]); if (s < 1e-9) continue;
+            d = Math.hypot(mat[o + 12] - hum.pos.x, mat[o + 13] - hum.pos.y, mat[o + 14] - hum.pos.z);
+            if (d < 2.2 * s + 0.3 * L && d < bd) { bd = d; best = i; }
+        }
+        if (best < 0) return null;
+        o = best * 16; tcRes.idx = best; tcRes.d = bd; tcRes.col = colOf(m, best); tcRes.v = m.geometry.attributes.aSel ? m.geometry.attributes.aSel.array[best] : 0;
+        tcRes.x = mat[o + 12]; tcRes.y = mat[o + 13]; tcRes.z = mat[o + 14];
+        return tcRes;
+    }
+    function tameStart(c) { if (tame.on || !c) return; tame.on = true; tame.t = 0; tame.col = c.col.slice(); aPlay('ui', { vel: 0.6 }); addRow('', '', 'taming... hold still', 'is-sys'); }
+    // ── harvesting: F near a resource node = 3 s channel, chunk bursts, then the stack goes to the inventory; spent nodes persist on the profile ──
+    var harv = { on: false, t: 0, id: '', pos: new THREE.Vector3(), bt: 0 };
+    function resFind() {
+        if (gmode !== 'foot' || !hum.obj || !world || !world.node || typeof world.nearResource !== 'function' || !world.resources || !world.resources.length) return null;
+        try { return world.nearResource(hum.pos, Math.max(1.6 * L, 0.5 * L + 4 * 0.09 * L)) || null; } catch (e0) { return null; }
+    }
+    function harvStart(r) { if (harv.on || !r) return; harv.on = true; harv.t = 0; harv.id = r.id; harv.bt = 0; aPlay('ui', { vel: 0.6 }); addRow('', '', 'harvesting ' + r.kind + '...', 'is-sys'); }
+    function harvTick(dt) {
+        if (!harv.on) return;
+        var r = resFind();
+        if (!r || r.id !== harv.id) { harv.on = false; return; }
+        harv.t += dt; harv.bt -= dt;
+        locToWorld(r.pos, harv.pos);
+        if (harv.bt <= 0) { harv.bt = 0.25; fx.impact(harv.pos, r.kind === 'plant' || r.kind === 'spore' ? 0x7CFF8A : (r.kind === 'ice' ? 0xBEEFFF : (r.kind === 'ore' ? 0xC8A878 : 0xFF5CE1)), 2); aPlay('hit', { pitch: 0.5, vel: 0.3 }); }
+        if (harv.t < 3) return;
+        harv.on = false;
+        var got = null; try { got = world.harvest(r.id); } catch (e1) { got = null; }
+        if (!got || !got.item) { addRow('', '', 'nothing left', 'is-sys'); return; }
+        if (!curUser) curUser = userName();
+        var pf = ensureProfile(userName()); giveItem(got.item, got.n || 1);
+        try { var st = world.resourceState(); for (var k in st) pf.harv[k] = st[k]; } catch (e2) { /* ignore */ }
+        for (var b = 0; b < 3; b++) fx.impact(harv.pos, got.item.color || 0xffffff, 3);
+        aPlay('buy', { pitch: 1.3 }); addRow('', '', 'HARVESTED ' + (got.n || 1) + ' x ' + got.item.name, 'is-sys'); writeSave();
+    }
+    function tameTick(dt) {
+        if (!tame.on) return;
+        var c = gmode === 'foot' ? tameFind() : null;
+        if (!c || Math.abs(c.col[0] - tame.col[0]) + Math.abs(c.col[1] - tame.col[1]) + Math.abs(c.col[2] - tame.col[2]) > 0.01) { tame.on = false; addRow('', '', 'it wandered off', 'is-sys'); return; }
+        tame.t += dt;
+        if (tame.t < tame.T) return;
+        tame.on = false;
+        var pf = ensureProfile(userName()), ti = treatIdx(pf); if (ti < 0) return;
+        var rec = pf.items[ti]; rec.n--; if (rec.n <= 0) pf.items.splice(ti, 1);
+        var nm = land.node && (land.node.name || land.node.title || land.node.id) || 'Somewhere', pn = String(nm).replace(/^\w/, function (q) { return q.toUpperCase(); });
+        var pet = { seed: hash25(tame.col.join(',') + (land.node && land.node.id)), name: (c.v > 0.5 ? 'Jelly' : 'Walker') + ' of ' + pn, color: ((Math.round(tame.col[0] * 255) << 16) | (Math.round(tame.col[1] * 255) << 8) | Math.round(tame.col[2] * 255)) >>> 0, v: c.v > 0.5 ? 1 : 0, happy: 1 };
+        giveItem(petItem(pet), 1);
+        pf.taken.push({ n: String(land.node.id), x: c.x, y: c.y, z: c.z, c: tame.col.slice() }); pf.taken = pf.taken.slice(-40);
+        r25HideTaken(); aPlay('buy', { pitch: 1.4 }); addRow('', '', 'TAMED ' + pet.name + ' · pen it aboard your ship', 'is-sys'); writeSave();
+    }
+    function r25HideTaken() {
+        var pf = curProfile(); if (!pf || !pf.taken || !pf.taken.length || !ps || !ps.active) return;
+        var m = creatMesh(); if (!m || !m.count) return;
+        var id = String(ps.active.id), mat = m.instanceMatrix.array, a = m.geometry.attributes.aCol.array, ti, i, any = false;
+        for (ti = 0; ti < pf.taken.length; ti++) {
+            var t = pf.taken[ti]; if (t.n !== id || !t.c) continue;
+            for (i = 0; i < m.count; i++) if (Math.abs(a[i * 3] - t.c[0]) + Math.abs(a[i * 3 + 1] - t.c[1]) + Math.abs(a[i * 3 + 2] - t.c[2]) < 0.004) { var o = i * 16; for (var q = 0; q < 12; q++) mat[o + q] = 0; any = true; }
+        }
+        if (any) m.instanceMatrix.needsUpdate = true;
+    }
+    // ── crew + missions ──
+    function r25Cand() { var pf = curProfile(); return (R25.cand && pf && pf.crew.length < 4) ? R25.cand : null; }
+    function r25BurgerVisit(bh) {
+        var pf = ensureProfile(userName()); pf.visits = (pf.visits | 0) + 1; R25.cand = null;
+        try { if (bh && typeof bh.recruit === 'function' && pf.crew.length < 4) R25.cand = bh.recruit(pf.visits); } catch (e0) { R25.cand = null; }
+        writeSave();
+    }
+    function r25Hire() {
+        var pf = ensureProfile(userName()), c = r25Cand(); if (!c) return;
+        var m = { id: 'c' + c.seed, seed: c.seed, name: c.name, role: c.role, color: c.color, rank: 1, lines: (c.lines || []).map(String).slice(0, 3), busy: '' };
+        pf.crew.push(m); R25.cand = null;
+        try { if (world && world.burgerHouse) world.burgerHouse.candidate = null; } catch (e0) { /* ignore */ }
+        aPlay('buy', { pitch: 1.3 }); addRow(String(m.name).toUpperCase(), cssHex(m.color), m.lines[0] || 'Reporting for duty.');
+        addRow('', '', m.name + ' joined your crew (' + m.role + ') · ' + pf.crew.length + '/4', 'is-sys'); writeSave();
+    }
+    var PART_MAP = { 'plasma-coil': 'coil', 'flux-capacitor': 'capacitor', 'hull-plate': 'plate', 'logic-chip': 'chip', 'fuel-cell': 'battery' };
+    function genMission(seed) {
+        var m = null, r = mulberry32(seed);
+        try { if (station && station.interior && station.interior.missions) m = station.interior.missions(seed, 1)[0]; } catch (e0) { m = null; }
+        if (!m || !(m.title || m.name)) {
+            var kinds = [['mine', 'Mine ore on '], ['scout', 'Scout the belt of '], ['trade', 'Trade run to '], ['bounty', 'Bounty hunt over ']], k = kinds[(r() * 4) | 0], pl = ['Papers', 'Ember', 'the Rim', 'Vesper', 'Cinder'][(r() * 5) | 0], mins = 3 + ((r() * 18) | 0);
+            m = { kind: k[0], title: k[1] + pl, minutes: mins, reward: { gor: Math.round((40 + mins * (8 + r() * 10)) / 5) * 5, stacks: [{ item: 'hull-plate', n: 1 + ((r() * 3) | 0) }], itemChance: 0.25 } };
+        }
+        var rw = m.reward || {};
+        return { id: 'm' + seed.toString(36), name: String(m.title || m.name), kind: m.kind || 'mine', minutes: clamp(m.minutes | 0 || 5, 1, 30), gor: Math.max(10, rw.gor | 0 || 60), stacks: (rw.stacks || []).map(function (s) { return { k: PART_MAP[s.item] || s.item, n: Math.max(1, s.n | 0) }; }), chance: rw.itemChance || 0.2, crewId: '', start: 0, end: 0 };
+    }
+    function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+    function r25Board() {
+        var pf = ensureProfile(userName()), b = pf.board;
+        if (!b.seed) b.seed = (hash25(userName()) ^ (pf.created | 0)) >>> 0 || 7;
+        while (b.list.length < 3) { b.seed = (Math.imul(b.seed, 1664525) + 1013904223) >>> 0; b.list.push(genMission(b.seed)); }
+        return b;
+    }
+    function missionDone(pf, m, i) {
+        var c = pf.crew.filter(function (x) { return x.id === m.crewId; })[0], got = [], r = Math.random();
+        pf.gor = (pf.gor | 0) + m.gor;
+        m.stacks.forEach(function (s) {
+            var base = null, pi; for (pi = 0; pi < CRF.PARTS.length; pi++) if (CRF.PARTS[pi].id === s.k) base = CRF.PARTS[pi];
+            if (!base) base = R25_SCRAP[0]; giveItem(base, s.n); got.push(s.n + ' ' + base.name);
+        });
+        if (r < m.chance) { try { var gi = ITM.generateItem((Math.random() * 1e9) >>> 0); giveItem(gi, 1); got.push(gi.name); } catch (e0) { /* ignore */ } }
+        if (c) { c.rank = (c.rank | 0) + 1; c.busy = ''; }
+        aPlay('units', { n: 6 });
+        addRow(c ? String(c.name).toUpperCase() : 'CREW', c ? cssHex(c.color) : '#ffd36a', 'back from "' + m.name + '": +' + CRF.fmt(m.gor) + (got.length ? ', ' + got.join(', ') : '') + (c ? ' · rank ' + c.rank : ''));
+        pf.board.seed = (Math.imul(pf.board.seed || 1, 1664525) + 1013904223) >>> 0; pf.board.list[i] = genMission(pf.board.seed);
+    }
+    function missionTick() {
+        var pf = curProfile(); if (!pf || !pf.board) return;
+        var now = Date.now(), i, ch = false;
+        for (i = 0; i < pf.board.list.length; i++) { var m = pf.board.list[i]; if (m && m.end > 0 && m.end <= now) { missionDone(pf, m, i); ch = true; } }
+        if (ch) { writeSave(); r25Refresh(); }
+    }
+    function boardSync() {
+        var int = R25.int, pf = curProfile(); if (!int || !pf || !int.board || !int.board.setMissions) return;
+        var b = r25Board(), now = Date.now();
+        try { int.board.setMissions(b.list.map(function (m) { var c = pf.crew.filter(function (x) { return x.id === m.crewId; })[0]; return { title: m.name, status: m.end > 0 ? (c ? c.name : 'CREW') + ' ' + fmtT((m.end - now) / 1000) : 'OPEN ' + m.minutes + ' MIN · ' + CRF.fmt(m.gor) }; })); } catch (e0) { /* ignore */ }
+    }
+    function r25Tick(dt) {
+        if (tame.on) tameTick(dt);
+        if (harv.on) harvTick(dt);
+        R25.t += dt; if (R25.t < 1) return; R25.t = 0;
+        missionTick(); if (ix.on) boardSync();
+    }
+    // ── interior ──
+    function ensureInt() {
+        if (!R25.mod || !R25.mod.createInterior) return null;
+        if (R25.int && Math.abs(R25.L - L) < 1e-9) return R25.int;
+        try { if (R25.int) R25.int.dispose(); R25.int = R25.mod.createInterior(engine, L, { scale: 0.35 }); R25.L = L; R25.int.setVisible(false); } catch (e0) { console.info('[ship] interior failed', e0); R25.int = null; }
+        return R25.int;
+    }
+    function r25Refresh() {
+        var int = R25.int, pf = curProfile(); if (!ix.on || !int || !pf) return;
+        var i, n;
+        try {
+            int.cargo.setStacks(pf.items.slice(0, 24).map(function (r) { var it = itemOf(r); return { id: r.id, name: it ? it.name : r.id, count: r.n, color: it ? it.color : 0x888888 }; }));
+            for (i = 0; i < 4; i++) {
+                int.pens[i].clear(); var p = pf.petPens[i]; if (p) int.pens[i].setPet({ seed: p.seed, name: p.name, tier: 1 });
+                int.pods[i].clear(); var c = pf.crew[i]; if (c) int.pods[i].setCrew({ seed: c.seed, name: c.name, color: c.color });
+            }
+        } catch (e0) { console.info('[ship] interior sync', e0); }
+        boardSync();
+    }
+    function enterInterior() {
+        if (ix.on) return true;
+        if (state !== 'piloting' || boarding || exiting || dead) return false;
+        if (gmode === 'foot') { if (!nearShip()) return false; } else if (gmode === 'sfoot') { if (sk.mode !== 'deck') return false; } else return false;
+        var int = ensureInt(); if (!int) return false;
+        jetKill(); eh.on = false; eh.t = 0; ehShow(0, '');
+        if (!hum.obj) { hum.obj = makeHuman(effColor()); scene.add(hum.obj.group); }
+        ix.from = gmode; ix.w.copy(hum.w); ix.q.copy(hum.obj.group.quaternion); ix.sc = hum.obj.group.scale.x;
+        ix.on = true; gmode = 'ifoot'; shipRoot.visible = false; hum.obj.group.visible = true;
+        int.setVisible(true); int.group.updateMatrixWorld(true);
+        var sp = int.spawn, lp = sp.localPos ? sp.localPos : int.toLocal(sp.pos, new THREE.Vector3());
+        ik.hp.copy(lp); ik.hp.y = 0; ik.yaw = Math.atan2(-sp.dir.x, -sp.dir.z); ik.pitch = 0.3; ik.vv = 0; ik.air = false; ik.jumpHeld = true;
+        camRelInit = true; ix.snap = 3; mdx = mdy = 0; setGround(true, true); setPrompt('', false);
+        net && net.setMode && net.setMode('landed');
+        r25Refresh(); aPlay('land', { vel: 0.4 }); addRow('', '', 'ABOARD · F at the hatch to step out', 'is-sys');
+        return true;
+    }
+    function leaveInterior(fadeSound) {
+        if (!ix.on) return;
+        ix.on = false; gmode = ix.from; closeMenu(); closeInv();
+        if (R25.int) R25.int.setVisible(false);
+        shipRoot.visible = true;
+        if (hum.obj) { hum.w.copy(ix.w); hum.obj.group.position.copy(ix.w); hum.obj.group.quaternion.copy(ix.q); hum.obj.group.scale.setScalar(ix.sc); hum.obj.group.visible = gmode === 'foot' || gmode === 'sfoot'; }
+        camRelInit = false; mdx = mdy = 0; setPrompt('', false);
+        camera.near = 0.01 * L; camera.updateProjectionMatrix();
+        net && net.setMode && net.setMode('foot');
+        if (fadeSound !== false) aPlay('ui', { vel: 0.5 });
+    }
+    var ixI = { kind: '', obj: null, label: '', i: 0 };
+    function ixTarget() {
+        var int = R25.int, pf = curProfile(), best = null, bd = 1e30, i;
+        ixI.kind = ''; ixI.obj = null; ixI.label = '';
+        if (!int || !hum.obj || menuOpen || invOpen) return ixI;
+        function test(o, kind, label, idx) {
+            if (!o || !o.pos) return;
+            var d = hum.w.distanceTo(o.pos), lim = Math.max(o.radius || 0, 0.18 * L) + 0.1 * L;
+            if (d < lim && d / lim < bd) { bd = d / lim; best = { kind: kind, obj: o, label: label, i: idx || 0 }; }
+        }
+        test(int.hatch, 'hatch', 'F · STEP OUT');
+        test(int.table, 'table', 'F · CRAFTING TABLE');
+        test(int.kitchen, 'kitchen', 'F · KITCHEN');
+        test(int.board, 'board', 'F · MISSIONS');
+        for (i = 0; i < 4; i++) { test(int.pens[i], 'pen', 'F · PEN ' + (i + 1) + (pf && pf.petPens[i] ? ' · ' + pf.petPens[i].name : ''), i); test(int.pods[i], 'pod', 'F · POD ' + (i + 1) + (pf && pf.crew[i] ? ' · ' + pf.crew[i].name : ''), i); }
+        if (best) { ixI.kind = best.kind; ixI.obj = best.obj; ixI.label = best.label; ixI.i = best.i; }
+        return ixI;
+    }
+    function interiorF() {
+        var t = ixTarget(), pf = ensureProfile(userName());
+        if (t.kind === 'hatch') leaveInterior(true);
+        else if (t.kind === 'table') { R25.force = true; openInv(); R25.force = false; }
+        else if (t.kind === 'kitchen') openMenu({ build: function () {
+            var rows = [], p2 = ensureProfile(userName());
+            p2.items.forEach(function (r, idx) { var it = itemOf(r); if (it && (it.kind === 'food' || it.kind === 'drink' || it.kind === 'snack' || it.kind === 'fries' || it.category === 'food')) rows.push({ name: it.name, sub: 'x' + r.n, fn: function () { eatSlot(idx); return true; } }); });
+            return { title: 'KITCHEN · EAT', rows: rows };
+        } });
+        else if (t.kind === 'board') openMenu({ build: function () {
+            var p2 = ensureProfile(userName()), b = r25Board(), now = Date.now();
+            return { title: 'MISSION BOARD', rows: b.list.map(function (m, mi) {
+                var c = p2.crew.filter(function (x) { return x.id === m.crewId; })[0];
+                return { name: m.name, sub: m.end > 0 ? (c ? c.name : 'CREW') + ' · ' + fmtT((m.end - now) / 1000) : m.minutes + ' MIN · ' + CRF.fmt(m.gor), fn: function () {
+                    if (m.end > 0) return true;
+                    var free = p2.crew.filter(function (x) { return !x.busy; });
+                    if (!free.length) { addRow('', '', p2.crew.length ? 'all crew are out on missions' : 'no crew · recruit at the Burger House', 'is-sys'); return false; }
+                    closeMenu(); setTimeout(function () { openMenu({ build: function () { return { title: 'ASSIGN CREW · ' + m.name, rows: free.map(function (cw) { return { name: cw.name.toUpperCase(), sub: cw.role + ' · rank ' + cw.rank, fn: function () { m.crewId = cw.id; m.start = Date.now(); m.end = m.start + m.minutes * 60000; cw.busy = m.id; addRow(String(cw.name).toUpperCase(), cssHex(cw.color), 'on it. ' + m.minutes + ' min.'); writeSave(); boardSync(); return false; } }; }) }; } }); }, 0);
+                    return true;
+                } };
+            }) };
+        } });
+        else if (t.kind === 'pen') {
+            var pi = t.i;
+            if (pi >= Math.min(4, 1 + (pf.pens | 0))) { addRow('', '', 'pen locked · craft a Creature Pen Kit', 'is-sys'); return; }
+            openMenu({ build: function () {
+                var p2 = ensureProfile(userName()), pet = p2.petPens[pi], rows = [];
+                if (pet) {
+                    rows.push({ name: 'FEED ' + pet.name.toUpperCase(), sub: 'happiness ' + (pet.happy | 0) + ' · needs fries / treat', fn: function () { var ti = treatIdx(p2); if (ti < 0) { addRow('', '', 'nothing to feed it', 'is-sys'); return true; } var rr = p2.items[ti]; rr.n--; if (rr.n <= 0) p2.items.splice(ti, 1); pet.happy = (pet.happy | 0) + 1; addRow('', '', pet.name + ' is happier (' + pet.happy + ')', 'is-sys'); writeSave(); return true; } });
+                    rows.push({ name: 'TAKE BACK', sub: 'to your inventory', fn: function () { giveItem(petItem(pet), 1); p2.petPens[pi] = null; writeSave(); r25Refresh(); return false; } });
+                } else p2.items.forEach(function (r) { var it = itemOf(r); if (it && it.pet) rows.push({ name: it.name, sub: 'x' + r.n + ' · put in pen', fn: function () { takeKey(r.id, 1); p2.petPens[pi] = JSON.parse(JSON.stringify(it.pet)); addRow('', '', it.name + ' settles in', 'is-sys'); writeSave(); r25Refresh(); return false; } }); });
+                return { title: 'PEN ' + (pi + 1), rows: rows };
+            } });
+        } else if (t.kind === 'pod') {
+            var c = pf.crew[t.i];
+            if (!c) { addRow('', '', 'empty bunk · recruit crew at a Burger House', 'is-sys'); return; }
+            c.li = ((c.li | 0) + 1) % Math.max(1, c.lines.length);
+            addRow(String(c.name).toUpperCase(), cssHex(c.color), (c.lines[c.li] || '...') + '  [' + c.role + ' · rank ' + c.rank + (c.busy ? ' · on a mission' : '') + ']'); aPlay('npc', { seed: c.name });
+        }
+    }
+    var ikA = new THREE.Vector3(), ikB = new THREE.Vector3(), ikC = new THREE.Vector3(), ikQ = new THREE.Quaternion();
+    function ikFloor(z) { return z <= 21 ? 0 : (z >= 23.5 ? 0.8 : 0.8 * (z - 21) / 2.5); }
+    function ikCollide(p, yFoot, r, H) {
+        var w = R25.int.deck.walls, i, q;
+        p.x = clamp(p.x, -10 + r, 10 - r); p.z = clamp(p.z, -30 + r, 29.6 - r);
+        for (i = 0; i < w.length; i++) {
+            q = w[i];
+            if (yFoot >= q.max.y - 0.02 || yFoot + H <= q.min.y) continue;
+            var cx = clamp(p.x, q.min.x, q.max.x), cz = clamp(p.z, q.min.z, q.max.z), dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
+            if (d2 >= r * r) continue;
+            if (d2 > 1e-12) { var d = Math.sqrt(d2), k = (r - d) / d; p.x += dx * k; p.z += dz * k; }
+            else { var l = p.x - q.min.x, rr = q.max.x - p.x, t = p.z - q.min.z, bb = q.max.z - p.z, m = Math.min(l, rr, t, bb); if (m === l) p.x = q.min.x - r; else if (m === rr) p.x = q.max.x + r; else if (m === t) p.z = q.min.z - r; else p.z = q.max.z + r; }
+        }
+    }
+    function interiorStep(dt) {
+        var int = R25.int;
+        if (!int) { leaveInterior(false); return; }
+        var f = L / int.unit, H = 0.09 * f, rad = 0.022 * f, cmd = cmdOpen, p = ik.hp, grp = int.group;
+        if (cmd) { mdx = mdy = 0; }
+        ik.yaw -= mdx * MOUSE_SENS * 1.3; ik.pitch = clamp(ik.pitch + mdy * MOUSE_SENS * 1.3, -0.3, 1.4); mdx = mdy = 0;
+        var fw = cmd ? 0 : ((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0)), sd = cmd ? 0 : ((keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0));
+        var sy = Math.sin(ik.yaw), cy = Math.cos(ik.yaw), mx = -sy * fw + cy * sd, mz = -cy * fw - sy * sd, ml = Math.sqrt(mx * mx + mz * mz);
+        var moving = ml > 0.01, run = moving && !!(keys.ShiftLeft || keys.ShiftRight);
+        ik.moving = moving; ik.running = run;
+        var spd = (run ? 22 : 4) * H;
+        if (moving) { mx /= ml; mz /= ml; }
+        var wantJump = !cmd && !!keys.Space;
+        if (!ik.air && wantJump && !ik.jumpHeld) { ik.air = true; ik.vv = 8.5 * H; }
+        ik.jumpHeld = wantJump;
+        var nSub = clamp(Math.ceil(spd * dt / (0.2 * H)), 1, 10), h = dt / nSub, k, ceil = 8 - H;
+        for (k = 0; k < nSub; k++) {
+            if (moving) { p.x += mx * spd * h; p.z += mz * spd * h; }
+            var fl = ikFloor(p.z);
+            if (ik.air) { ik.vv -= 22 * H * h; p.y += ik.vv * h; if (p.y >= ceil) { p.y = ceil; ik.vv = Math.min(0, ik.vv); } if (p.y <= fl) { p.y = fl; ik.vv = 0; ik.air = false; } }
+            else if (p.y > fl + 0.02 * H) { ik.air = true; ik.vv = 0; } else p.y = fl;
+            ikCollide(p, p.y, rad, H);
+        }
+        grp.updateMatrixWorld(true);
+        int.toWorld(p, hum.w);
+        hum.obj.group.position.copy(hum.w);
+        ikQ.setFromAxisAngle(Y, ik.yaw); hum.obj.group.quaternion.copy(grp.quaternion).multiply(ikQ);
+        hum.obj.group.scale.setScalar(H * int.unit);
+        hum.obj.update(dt, { moving: moving, running: run, airborne: ik.air, speed: moving ? (run ? 1 : 0.5) : 0, facing: 0 });
+        var cp = Math.cos(ik.pitch), spn = Math.sin(ik.pitch), cd = 6 * H;
+        ikA.set(p.x, p.y + 0.8 * H, p.z);
+        ikB.set(ikA.x + sy * cp * cd, ikA.y + spn * cd, ikA.z + cy * cp * cd);
+        ikB.x = clamp(ikB.x, -9.9, 9.9); ikB.y = clamp(ikB.y, 0.05, 7.8); ikB.z = clamp(ikB.z, -29.8, 29.4);
+        int.toWorld(ikA, ikC); int.toWorld(ikB, vTmp);
+        vA.copy(Y).applyQuaternion(grp.quaternion);
+        mM.lookAt(vTmp, ikC, vA); gQ.setFromRotationMatrix(mM);
+        groundCam(dt, ikC, vTmp, gQ, 16);
+        if (ix.snap > 0) { ix.snap--; camera.position.copy(vTmp); camera.quaternion.copy(gQ); camRel.copy(vTmp).sub(ikC); }
+        try { int.update(performance.now() / 1000, dt, hum.w); } catch (e0) { console.info('[ship] interior.update', e0); }
+        skCommon(dt);
+        var t = ixTarget(); setPrompt(t.label, !!t.label);
+    }
     // ─── store UI v2 (chat font): scrollable item menu + gear + sell tabs; dealers (6 items) and the Burger House window (fries only) reuse it ──
     var PRICE_FB = { C: 120, B: 300, A: 700, S: 1500 }, SELL_K = 0.4;
     var storeOpen = false, shopSt = null, shopCtx = null, shopTab = 0, shopRows = [], SHOP_ROWS = 8, shopTop = 0, shopSel = 0, shopDrag = null, shopWheel = 0;
     var TAB_NAMES = ['ITEMS', 'GEAR', 'SELL'];
     var elStore = document.createElement('div');
     elStore.className = 'sh-store';
-    elStore.innerHTML = '<div class="ss-h"><b class="ss-name"></b><span class="ss-u"></span></div><div class="ss-tabs"><span>ITEMS</span><span>GEAR</span><span>SELL</span></div><div class="ss-clerk"></div><div class="ss-lw"><div class="ss-list"></div><div class="ss-sb"><u></u></div></div><div class="ss-info"></div><div class="ss-msg"></div><div class="ss-f"></div>';
+    elStore.innerHTML = '<div class="ss-h"><b class="ss-name"></b><span class="ss-u"></span></div><div class="ss-tabs"><span>ITEMS</span><span>GEAR</span><span>SELL</span><span>PARTS</span></div><div class="ss-clerk"></div><div class="ss-lw"><div class="ss-list"></div><div class="ss-sb"><u></u></div></div><div class="ss-info"></div><div class="ss-msg"></div><div class="ss-f"></div>';
     hud.appendChild(elStore);
     var elSsName = elStore.querySelector('.ss-name'), elSsU = elStore.querySelector('.ss-u'), elSsClerk = elStore.querySelector('.ss-clerk'), elSsList = elStore.querySelector('.ss-list'), elSsMsg = elStore.querySelector('.ss-msg'), elSsF = elStore.querySelector('.ss-f');
     var elSsTabs = elStore.querySelector('.ss-tabs'), elSsInfo = elStore.querySelector('.ss-info'), elSsThumb = elStore.querySelector('.ss-sb u'), elSsLw = elStore.querySelector('.ss-lw');
@@ -5530,7 +6066,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function shopScroll(d) { shopTop = clamp(shopTop + d, 0, Math.max(0, shopRows.length - SHOP_ROWS)); shopSel = clamp(shopSel, shopTop, Math.min(shopRows.length - 1, shopTop + SHOP_ROWS - 1)); shopRender(); }
     function shopSetTab(i) {
         if (!shopCtx || shopCtx.mode !== 'store') return;
-        shopTab = clamp(i, 0, 2); shopTop = 0; shopSel = 0; shopMsg(''); shopFill(); aPlay('ui', { vel: 0.5 });
+        shopTab = clamp(i, 0, 3); shopTop = 0; shopSel = 0; shopMsg(''); shopFill(); aPlay('ui', { vel: 0.5 });
     }
     function itemSub(it) {
         var p = it.effect && it.effect.params ? Object.keys(it.effect.params) : [], d = it.effect ? it.effect.duration : 0;
@@ -5543,8 +6079,9 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var tab = ctx.mode === 'store' ? shopTab : 0;
         if (tab === 0) {
             var menu = ctx.items || [];
+            if (ctx.mode === 'burger' && r25Cand()) { var cd0 = r25Cand(); shopRows.push({ k: 'r', tag: 'CR', name: 'HIRE ' + String(cd0.name).toUpperCase(), sub: String(cd0.role).toUpperCase() + ' · JOINS YOUR CREW', price: 0 }); }
             for (i = 0; i < menu.length; i++) {
-                var it = menu[i], have = 0; pf.items.forEach(function (r) { if (r.id === it.id && !!r.d === !!it.dealer) have = r.n; });
+                var it = menu[i], have = 0; pf.items.forEach(function (r) { if (r.id === CRF.stackKeyOf(it) && !!r.d === !!it.dealer) have = r.n; });
                 shopRows.push({ k: 'i', item: it, name: it.name, sub: itemSub(it), price: it.price, own: have > 0, have: have });
             }
         } else if (tab === 1 && inv) {
@@ -5555,9 +6092,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (en <= 3 && inv.upgrades.engine[en - 1]) { var eu = inv.upgrades.engine[en - 1]; shopRows.push({ k: 'e', tag: 'DR', name: eu.name, sub: 'CRUISE + BOOST +10 % · TIER ' + en + '/3', price: eu.price }); }
             else shopRows.push({ k: '-', tag: 'DR', name: 'DRIVE TUNE', sub: 'MAXED · +' + Math.round((engMul - 1) * 100) + ' %', price: null });
             if (inv.snack) shopRows.push({ k: 'f', tag: 'FD', name: inv.snack.name, sub: 'FULL SHIELD', price: inv.snack.price });
+        } else if (tab === 3) {
+            var pm = (inv && inv.parts && inv.parts.length) ? inv.parts : CRF.PARTS;
+            for (i = 0; i < pm.length; i++) { var pi = pm[i]; shopRows.push({ k: 'i', item: pi, name: pi.name, sub: String(pi.blurb || '').slice(0, 44), price: pi.price }); }
         } else if (tab === 2) {
             for (i = 0; i < pf.weapons.length; i++) { var o = pf.weapons[i]; shopRows.push({ k: 'x', i: i, tag: String(o.cls || 'C'), name: o.name, sub: (pf.weapon && pf.weapon.id === o.id) ? 'EQUIPPED' : 'OWNED', price: Math.round(shopPrice(o) * SELL_K) }); }
-            for (i = 0; i < pf.items.length; i++) { var r = pf.items[i], io = itemOf(r); if (io) shopRows.push({ k: 'xi', i: i, item: io, name: io.name, sub: 'x' + r.n + ' OWNED', price: Math.max(1, Math.round(io.price * SELL_K)) }); }
+            for (i = 0; i < pf.items.length; i++) { var r = pf.items[i], io = itemOf(r); if (io) shopRows.push({ k: 'xi', i: i, item: io, name: io.name, sub: 'x' + r.n + ' OWNED', price: (io.category || io.kind === 'part') ? CRF.sellPrice(io) : Math.max(1, Math.round(io.price * SELL_K)) }); }
             if (!shopRows.length) shopRows.push({ k: '-', tag: '--', name: 'NOTHING TO SELL', sub: '', price: null });
         }
         shopTop = clamp(shopTop, 0, Math.max(0, shopRows.length - SHOP_ROWS)); shopSel = clamp(shopSel, 0, Math.max(0, shopRows.length - 1));
@@ -5567,7 +6107,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var pf = ensureProfile(userName()), i, e, row, sell = ctxTab() === 2, n = shopRows.length;
         if (shopSel < shopTop) shopTop = shopSel; else if (shopSel > shopTop + SHOP_ROWS - 1) shopTop = shopSel - SHOP_ROWS + 1;
         shopTop = clamp(shopTop, 0, Math.max(0, n - SHOP_ROWS));
-        elSsU.textContent = 'UNITS ' + (pf.units | 0);
+        elSsU.textContent = CRF.fmt(pf.gor);
         for (i = 0; i < SHOP_ROWS; i++) {
             e = shopEls[i];
             if (shopTop + i >= n) { e.el.style.display = 'none'; continue; }
@@ -5577,14 +6117,14 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             else { e.c.textContent = row.tag || ''; e.c.style.background = ''; e.c.style.color = ''; e.s.style.visibility = 'hidden'; }
             e.p.textContent = row.price == null ? '' : (sell ? '+' : '') + row.price;
             e.el.classList.toggle('is-own', !!row.own); e.el.classList.toggle('is-sel', shopTop + i === shopSel);
-            e.el.classList.toggle('is-poor', row.price != null && !sell && row.k !== '-' && !(row.own && row.k === 'w') && (pf.units | 0) < row.price);
+            e.el.classList.toggle('is-poor', row.price != null && !sell && row.k !== '-' && !(row.own && row.k === 'w') && (pf.gor | 0) < row.price);
         }
         var sel = shopRows[shopSel];
-        elSsInfo.textContent = sel && sel.item ? ITM.describe(sel.item) : (sel && sel.sub ? sel.name + '\n' + sel.sub : '');
+        elSsInfo.textContent = sel && sel.item ? describeItem(sel.item) : (sel && sel.sub ? sel.name + '\n' + sel.sub : '');
         elSsLw.classList.toggle('has-sb', n > SHOP_ROWS);
         elSsThumb.style.height = Math.max(8, SHOP_ROWS / Math.max(SHOP_ROWS, n) * 100) + '%';
         elSsThumb.style.top = (n > SHOP_ROWS ? shopTop / (n - SHOP_ROWS) * (100 - Math.max(8, SHOP_ROWS / n * 100)) : 0) + '%';
-        for (i = 0; i < 3; i++) { elSsTabs.children[i].classList.toggle('is-on', i === ctxTab()); elSsTabs.children[i].style.display = (shopCtx && shopCtx.mode !== 'store' && i > 0) ? 'none' : ''; }
+        for (i = 0; i < 4; i++) { elSsTabs.children[i].classList.toggle('is-on', i === ctxTab()); elSsTabs.children[i].style.display = (shopCtx && shopCtx.mode !== 'store' && i > 0) ? 'none' : ''; }
         elSsF.textContent = '1-' + Math.min(SHOP_ROWS, n) + ' / ENTER ' + (sell ? 'SELL (40 %)' : 'BUY') + ' · WHEEL / ARROWS / DRAG SCROLL' + (shopCtx && shopCtx.mode === 'store' ? ' · TAB SWITCH' : '') + ' · ESC LEAVE';
     }
     function ctxTab() { return shopCtx && shopCtx.mode === 'store' ? shopTab : 0; }
@@ -5628,6 +6168,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var c = bh.clerk, line = '';
         try { line = world.npcSay('burger', 'fries') || ''; } catch (e) { line = ''; }
         if (!line && c && typeof c.say === 'function') line = c.say('fries');
+        r25BurgerVisit(bh);
         shopOpenCommon({ mode: 'burger', items: bh.menu && bh.menu.length ? bh.menu : [ITM.FRIES] }, 'BURGER HOUSE', String((c && c.name) || 'CLERK').toUpperCase(), line, 'burger');
     }
     function closeStore() {
@@ -5643,20 +6184,21 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!row || !shopCtx) return;
         if (!curUser) curUser = userName();
         if (row.k === '-') { aPlay('ui', { vel: 0.3 }); return; }
+        if (row.k === 'r') { r25Hire(); shopFill(); return; }
         if (row.k === 'x') {
             var ow = pf.weapons[row.i]; if (!ow) return;
             pf.weapons = pf.weapons.filter(function (x, j) { return j !== row.i; });
             if (pf.weapon && pf.weapon.id === ow.id) pf.weapon = null;
-            pf.units = (pf.units | 0) + row.price; aPlay('buy', { pitch: 0.8 }); writeSave(); shopMsg('SOLD ' + ow.name + ' · +' + row.price); shopFill(); return;
+            pf.gor = (pf.gor | 0) + row.price; aPlay('buy', { pitch: 0.8 }); writeSave(); shopMsg('SOLD ' + ow.name + ' · +' + row.price); shopFill(); return;
         }
         if (row.k === 'xi') {
             var rec = pf.items[row.i]; if (!rec) return;
             rec.n--; if (rec.n <= 0) pf.items.splice(row.i, 1);
-            pf.units = (pf.units | 0) + row.price; aPlay('buy', { pitch: 0.8 }); writeSave(); shopMsg('SOLD ' + row.name + ' · +' + row.price); shopFill(); return;
+            pf.gor = (pf.gor | 0) + row.price; aPlay('buy', { pitch: 0.8 }); writeSave(); shopMsg('SOLD ' + row.name + ' · +' + row.price); shopFill(); return;
         }
         if (row.k === 'i') {
-            if ((pf.units | 0) < row.price) { shopMsg('NOT ENOUGH UNITS', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
-            pf.units -= row.price; giveItem(row.item, 1);
+            if ((pf.gor | 0) < row.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+            pf.gor -= row.price; giveItem(row.item, 1);
             aPlay('buy'); shopMsg('BOUGHT ' + row.item.name); writeSave();
             learnWords(1 + Math.floor(Math.random() * 3));
             shopFill(); return;
@@ -5664,14 +6206,14 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (row.k === 'w') {
             var w = st.inventory.weapons[row.i];
             if (row.own) { var mine = pf.weapons.filter(function (x) { return x.id === w.id; })[0]; if (mine) { equipWeapon(mine); shopMsg('EQUIPPED ' + mine.name); aPlay('ui', { vel: 0.6 }); shopFill(); } return; }
-            if ((pf.units | 0) < row.price) { shopMsg('NOT ENOUGH UNITS', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
-            pf.units -= row.price;
+            if ((pf.gor | 0) < row.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+            pf.gor -= row.price;
             var copy = JSON.parse(JSON.stringify(w));
             equipWeapon(copy);
             aPlay('buy'); shopMsg('BOUGHT ' + w.name); shopFill(); return;
         }
-        if ((pf.units | 0) < row.price) { shopMsg('NOT ENOUGH UNITS', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
-        pf.units -= row.price;
+        if ((pf.gor | 0) < row.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+        pf.gor -= row.price;
         if (row.k === 's') { pf.shieldTier = clamp((pf.shieldTier | 0) + 1, 0, 3); applyUpgrades(); hp = Math.min(HP_MAX, hp + 20); shopMsg('SHIELD TIER ' + pf.shieldTier + ' · MAX ' + HP_MAX); }
         else if (row.k === 'e') { pf.engineTier = clamp((pf.engineTier | 0) + 1, 0, 3); applyUpgrades(); shopMsg('DRIVE TIER ' + pf.engineTier + ' · +' + Math.round((engMul - 1) * 100) + ' %'); }
         else if (row.k === 'f') { hp = HP_MAX; sinceHit = 99; shopMsg('SHIELD FULL'); }
@@ -5686,7 +6228,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (e.repeat) return;
         if (c === 'KeyF' || c === 'KeyE' || c === 'Backspace') { closeStore(); return; }
         if (c === 'Enter' || c === 'NumpadEnter') { shopPick(shopSel); return; }
-        if (c === 'KeyX' || c === 'Tab') { if (shopCtx && shopCtx.mode === 'store') shopSetTab((shopTab + (e.shiftKey ? 2 : 1)) % 3); return; }
+        if (c === 'KeyX' || c === 'Tab') { if (shopCtx && shopCtx.mode === 'store') shopSetTab((shopTab + (e.shiftKey ? 3 : 1)) % 4); return; }
         var m = /^(?:Digit|Numpad)([1-8])$/.exec(c);
         if (m) { var ri = shopTop + parseInt(m[1], 10) - 1; if (ri < shopRows.length) { shopSel = ri; shopPick(ri); } }
     }
@@ -5698,6 +6240,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var c = counterNear(), n, k;
         if (c) { ftI.kind = 'store'; ftI.obj = c; ftI.label = 'F · SHOP'; return ftI; }
         if (world.nearBurger) { ftI.kind = 'burger'; ftI.obj = world.nearBurger; ftI.label = 'F · FRIES'; return ftI; }
+        var rn = resFind(); if (rn) { ftI.kind = 'resource'; ftI.obj = rn; ftI.label = 'F · HARVEST ' + String(rn.kind).toUpperCase(); return ftI; }
+        var tc = tameFind(); if (tc) { ftI.kind = 'creature'; ftI.obj = tc; ftI.label = 'F · TAME'; return ftI; }
         n = world.nearNpc;
         if (n) { k = n.role === 'dealer' ? 'dealer' : 'shopper'; ftI.kind = k; ftI.obj = n; ftI.label = k === 'dealer' ? 'F · DEAL' : 'F · TALK'; return ftI; }
         c = npcNear();
@@ -5910,7 +6454,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (st0 && hw.distanceTo(st0.counter.pos) < Math.max(st0.counter.radius * 1.8, 2 * SK_H * L)) { skI.kind = 'store'; skI.obj = st0; skI.label = 'F · SHOP'; return skI; }
         for (i = 0; i < npcs.length; i++) if (hw.distanceTo(npcs[i].pos) < 1.4 * L) { skI.kind = 'npc'; skI.obj = npcs[i]; skI.label = 'F · TALK'; return skI; }
         if (hw.distanceTo(ped.pos) < ped.radius + 0.3 * L) { skI.kind = 'map'; skI.label = 'F · GALAXY MAP'; return skI; }
-        if (hw.distanceTo(shipRoot.position) < BOARD_L * L) { skI.kind = 'ship'; skI.label = 'F · LAUNCH'; return skI; }
+        if (hw.distanceTo(shipRoot.position) < BOARD_L * L) { skI.kind = 'ship'; skI.label = R25.mod ? 'F · ENTER SHIP · HOLD LAUNCH' : 'F · LAUNCH'; return skI; }
         return skI;
     }
     function stationE() {
@@ -5920,7 +6464,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             var n = si.obj; n.li = ((n.li | 0) + 1) % Math.max(1, n.lines.length);
             addRow(String(n.name).toUpperCase(), '#ffd36a', n.lines[n.li] || '...'); aPlay('npc', { seed: n.name });
         } else if (si.kind === 'map') { setPrompt('', false); exit(); }
-        else if (si.kind === 'ship') beginLaunch();
+        else if (si.kind === 'ship') { if (R25.noInt || !enterInterior()) beginLaunch(); }
     }
     var skQ = new THREE.Quaternion(), skQ2 = new THREE.Quaternion();
     function skShipPose(dt, snap, qL) {
@@ -5932,7 +6476,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { vA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake); camera.position.add(vA); }
         fov += (baseFov - fov) * damp(4, dt);
-        var near = gmode === 'sfoot' ? 0.01 * L : 0.02 * L;
+        var near = gmode === 'ifoot' ? Math.min(0.002, 0.02 * L) : (gmode === 'sfoot' ? 0.01 * L : 0.02 * L);
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== near) { camera.fov = fov; camera.near = near; camera.updateProjectionMatrix(); }
         camera.updateMatrixWorld(true);
         fx.setMotion(vel, 0, false); fx.update(dt, camera);
@@ -6122,6 +6666,16 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         window.EMGOR_NET = net;       // debug / test hook
     }).catch(function () { /* single-player */ });
     var api = {
+        rev25: {
+            set noInterior(b) { R25.noInt = !!b; },
+            get snap() { return resumeSnap; }, get lfState() { return { on: lf.on, alt: lf.alt, hover: lf.hover }; },
+            get ix() { return ix.on; }, get int() { return R25.int; }, get craftOn() { return R25.craftOn; }, get grid() { return craftGrid; },
+            enterInterior: enterInterior, leaveInterior: leaveInterior, interiorF: interiorF, ixTarget: ixTarget, forceCraft: function (b) { R25.force = !!b; r25CraftAvail(); if (invOpen) invFill(); },
+            give: function (it, n) { giveItem(it, n || 1); writeSave(); return ensureProfile(userName()).items.length; }, openInv: openInv,
+            fastForward: function () { var pf = curProfile(); pf.board.list.forEach(function (m) { if (m.end > 0) m.end = Date.now() - 1; }); missionTick(); return pf.gor; },
+            assign: function (i) { var pf = curProfile(), b = r25Board(), m = b.list[i | 0], c = pf.crew.filter(function (x) { return !x.busy; })[0]; if (!m || !c) return false; m.crewId = c.id; m.start = Date.now(); m.end = m.start + m.minutes * 60000; c.busy = m.id; boardSync(); writeSave(); return true; },
+            petItem: petItem, hire: function (c) { R25.cand = c; r25Hire(); }, tameFind: tameFind, tameStart: tameStart, get tame() { return tame; }, scrap: r25Scrap, ik: ik,
+        },
         enemies: enemies, shipRoot: shipRoot,
         destroy: function () { if (net) { net.destroy(); net = null; } },
         enter: enter, exit: exit, cmd: runCommand,

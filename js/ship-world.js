@@ -20,6 +20,11 @@
 //     world.shards            [{ id, pos, taken }]    20 per planet; pos is the resting spot (planet-local), the crystal floats ~0.9 L above it
 //     world.takeShard(id)     -> the shard (and hides it) or null if unknown / already taken.  world.markTaken([ids]) restores saved state silently.
 //     world.onShard           optional callback(shard): update() auto-takes a shard when the player is within 1.6 L and calls this
+//     world.resources         [{ id, kind: crystal|plant|ore|ice|spore, pos (planet-local, ground), n (remaining 3-8), nMax, taken, at }]  40 per planet, seeded; lush plant+crystal, rocky ore+crystal,
+//                             icy ice+crystal, gas giants spore only (floating).  world.harvest(id) -> { id, item (resourceItem), n: 1-3 } and n -= 1 (node hides + timestamps at 0) or null.
+//     world.markHarvested(ids|{id:ts|{n,at}})  restore saved state silently (after attach);  world.resourceState() -> { id: { n, at } } for the caller to persist; nodes respawn RESPAWN_MS (20 real min) after `at`.
+//     world.nearResource(p, radius) -> nearest untaken node within radius (planet-local p) or null.   world.scanTargets() -> [{ type: resource|shard|store, id, kind, name, pos, color }]  untaken only.
+//     world.setScan(0..1)     brightens resource emissives (scanner pulse)
 //     world.npcLine(id)       id of a store (or its clerk, any NPC id, 'burger'): next lingo line (string with alien-word markers, see ship-lingo render()).
 //     world.npcSay(id, ctx)   same with an explicit context ('greeting'|'pitch'|'gossip'|'warning'|'lore'|'dealer'|'cashier'|'fries'|'shopper')
 //     world.update(t, dt, playerLocalPos)   animation + proximity; sets world.nearStore (counter within reach), world.nearBurger (window within reach), world.nearNpc (nearest shopper/dealer within ~3.5 m)
@@ -30,7 +35,7 @@
 // Draw calls: stores = 4 instanced draws (bodies, emissives, signs, glass) for all outposts + 2 per human (visible only within ~30 L); shards = 1; Burger House = 3.
 // Store shell + shelves + item boxes is ONE shared geometry (see world.storeTris, <= 6000) instanced per outpost.
 import { createHuman } from './ship-human.js';
-import { storeMenu, dealerMenu, FRIES } from './ship-items.js';
+import { storeMenu, dealerMenu, partsMenu, FRIES, resourceItem } from './ship-items.js';
 import * as lingo from './ship-lingo.js';
 
 export const STORE_NAME = 'INTERGALACTIC 7/11';
@@ -358,8 +363,8 @@ function makeAssets(T) {
 function boxV(T, list) { return list.map((b) => ({ name: b.name, min: new T.Vector3(...b.min), max: new T.Vector3(...b.max) })); }
 
 // ── the crowd: clerk, 3..6 shoppers wandering the aisles, 2 dealers outside. All logic in STORE-LOCAL metres; humans live in `parent` (a group in store-local metres). ──
-const ROLES = ['shopper', 'conspiracy', 'pilot', 'kid', 'cop', 'shopper'];
-const ROLE_COLOR = { shopper: 0x8FA0FF, conspiracy: 0x66FF99, pilot: 0xFFB05C, kid: 0xFF5CE1, cop: 0x5C7AFF, dealer: 0xFFE24A, cashier: STORE_COLOR, fries: 0xD8312F };
+const ROLES = ['shopper', 'conspiracy', 'pilot', 'kid', 'cop', 'shopper', 'stationcop', 'tourist'];
+const ROLE_COLOR = { shopper: 0x8FA0FF, conspiracy: 0x66FF99, pilot: 0xFFB05C, kid: 0xFF5CE1, cop: 0x5C7AFF, stationcop: 0x3A5CFF, tourist: 0xFFA0D0, dealer: 0xFFE24A, cashier: STORE_COLOR, fries: 0xD8312F };
 function makeNpc(T, parent, o) {
   let human = null;
   try { human = createHuman(T, { color: o.color }); human.group.traverse((q) => { q.frustumCulled = false; }); parent.add(human.group); } catch (e) { human = null; }
@@ -382,7 +387,7 @@ function createCrowd(T, parent, cfg) {
   const nShop = Math.max(0, cfg.shoppers == null ? 3 + Math.floor(r() * 4) : cfg.shoppers);
   const roles = ROLES.slice().sort(() => r() - 0.5);
   for (let i = 0; i < nShop; i++) {
-    const role = i < 2 ? ['conspiracy', 'pilot', 'kid', 'cop'][(i + Math.floor(r() * 4)) % 4] : roles[i % roles.length];
+    const role = i < 2 ? ['conspiracy', 'pilot', 'kid', 'cop', 'stationcop', 'tourist'][(i + Math.floor(r() * 6)) % 6] : roles[i % roles.length];
     const lane = LANES_X[Math.floor(r() * LANES_X.length)], z = -8 + r() * 10;
     const npc = makeNpc(T, parent, { id: cfg.id + '-sh' + i, color: role === 'shopper' ? [0x8FA0FF, 0xFF8AA0, 0x8AFFD0, 0xE0A0FF, 0xFFD88A][Math.floor(r() * 5)] : ROLE_COLOR[role], role, lex, known, x: lane, z, yaw: r() * 6.28, scale: role === 'kid' ? 0.62 : 1, speed: role === 'kid' ? 2.1 : 1.3 });
     npc.state.wait = r() * 3; crowd.shoppers.push(npc); crowd.npcs.push(npc); if (role !== 'shopper') crowd.characters.push(npc);
@@ -469,6 +474,7 @@ function makeInterior(T, geoms) {
 // store record fields shared by the planet world and the station (menu, clerk, shoppers, dealers, characters)
 function fillStoreRecord(store, crowd, id) {
   store.menu = storeMenu(id, 24);
+  store.inventory = store.inventory || {}; store.inventory.parts = partsMenu(id, 6);   // dealers never stock parts
   const c = crowd.clerk;
   store.clerk = { name: c.name, seed: c.seed, role: 'cashier', known: crowd.known, lines: [c.say('greeting'), c.say('cashier'), c.say('pitch', store.menu[Math.floor(store.menu.length / 2)])], human: c.human, npc: c, say: c.say };
   store.dealers = crowd.dealers; store.shoppers = crowd.shoppers; store.characters = crowd.characters; store.crowd = crowd;
@@ -497,17 +503,147 @@ export function createStandaloneStore(THREE, opts) {
 export const STORE_DIMS = { W, D, H, floorY: FY, halfW: HW, halfD: HD };
 export { fillStoreRecord };
 
+// ── rev 25 resources: 40 harvestable nodes per planet (crystal | plant | ore | ice | spore), 1 instanced draw per kind, <= 300 tris each ──
+export const RESOURCES_PER_PLANET = 40;
+export const RESOURCE_KINDS = ['crystal', 'plant', 'ore', 'ice', 'spore'];
+export const RESPAWN_MS = 20 * 60 * 1000;
+const RES_SIZE = { crystal: 0.45, plant: 0.3, ore: 0.35, ice: 0.5, spore: 0.4 };   // height in L
+const RES_VERT = /* glsl */`
+attribute float glow;
+varying vec3 vC; varying vec3 vV; varying float vG;
+#include <common>
+#include <logdepthbuf_pars_vertex>
+void main(){
+  vC = color; vG = glow;
+  vec4 lp = vec4(position, 1.0);
+  #ifdef USE_INSTANCING
+    lp = instanceMatrix * lp;
+  #endif
+  vec4 mv = modelViewMatrix * lp;
+  vV = mv.xyz;
+  gl_Position = projectionMatrix * mv;
+  #include <logdepthbuf_vertex>
+}`;
+const RES_FRAG = /* glsl */`
+uniform float uTime; uniform float uScan;
+varying vec3 vC; varying vec3 vV; varying float vG;
+#include <common>
+#include <logdepthbuf_pars_fragment>
+void main(){
+  #include <logdepthbuf_fragment>
+  vec3 n = normalize(cross(dFdx(vV), dFdy(vV)));
+  vec3 Ld = normalize(mat3(viewMatrix) * normalize(vec3(-0.62, 0.52, 0.4)));
+  float d = max(0.0, dot(n, Ld)) * 0.65 + 0.35;
+  float pulse = 0.85 + 0.15 * sin(uTime * 2.5 + vV.x * 0.03 + vV.z * 0.02);
+  vec3 lit = vC * d;
+  vec3 emi = vC * vG * (1.3 + uScan * 2.2) * pulse;
+  gl_FragColor = vec4(mix(lit, emi, clamp(vG, 0.0, 1.0)) + emi * 0.25, 1.0);
+  #include <colorspace_fragment>
+}`;
+
+function resGeometries(T) {
+  const lerpHex = (a, b, t) => new T.Color(a).lerp(new T.Color(b), Math.max(0, Math.min(1, t)));
+  function builder() {
+    const pos = [], col = [], gl = [], rr = mulberry(1234);
+    const api = {
+      tris: 0,
+      v(p, c, g) { pos.push(p[0], p[1], p[2]); col.push(c.r, c.g, c.b); gl.push(g); },
+      tri(a, b, c, ca, cb, cc, ga, gb, gc) { api.v(a, ca, ga); api.v(b, cb, gb); api.v(c, cc, gc); api.tris++; },
+      // cone/bipyramid: ring of n at cy+ringY*h (radius r), apex (top) tilted by (tx,tz), optional bottom apex
+      spike(cx, cy, cz, r, h, n, tx, tz, bot, ringY, cLo, cHi, gLo, gHi) {
+        const ring = [], top = [cx + tx * h, cy + h, cz + tz * h], rc = lerpHex(cLo, cHi, ringY), cl = new T.Color(cLo), ch = new T.Color(cHi);
+        for (let i = 0; i < n; i++) { const a = i / n * 6.2832; ring.push([cx + tx * h * ringY + Math.cos(a) * r, cy + ringY * h, cz + tz * h * ringY + Math.sin(a) * r]); }
+        for (let i = 0; i < n; i++) {
+          const a = ring[i], b = ring[(i + 1) % n], gr = gLo + (gHi - gLo) * ringY;
+          api.tri(top, a, b, ch, rc, rc, gHi, gr, gr);
+          if (bot) api.tri([cx, cy, cz], b, a, cl, rc, rc, gLo, gr, gr);
+        }
+      },
+      blob(cx, cy, cz, rx, ry, rz, seg, rings, jit, fn) {
+        const grid = [];
+        for (let j = 0; j <= rings; j++) {
+          const th = j / rings * Math.PI, row = [];
+          for (let i = 0; i < seg; i++) {
+            const ph = i / seg * 6.2832, k = (j === 0 || j === rings) ? 1 : 1 + jit * (rr() - 0.5);
+            row.push([cx + rx * Math.sin(th) * Math.cos(ph) * k, cy + ry * Math.cos(th) * k, cz + rz * Math.sin(th) * Math.sin(ph) * k, Math.cos(th), Math.sin(ph)]);
+          }
+          grid.push(row);
+        }
+        const C = (p) => fn(p[3], p[4]);
+        for (let j = 0; j < rings; j++) for (let i = 0; i < seg; i++) {
+          const a = grid[j][i], b = grid[j][(i + 1) % seg], c = grid[j + 1][i], d = grid[j + 1][(i + 1) % seg];
+          const A = C(a), B = C(b), Cc = C(c), D = C(d);
+          if (j > 0) api.tri(a, c, b, A[0], Cc[0], B[0], A[1], Cc[1], B[1]);
+          if (j < rings - 1) api.tri(b, c, d, B[0], Cc[0], D[0], B[1], Cc[1], D[1]);
+        }
+      },
+      build() {
+        const g = new T.BufferGeometry();
+        g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+        g.setAttribute('color', new T.Float32BufferAttribute(col, 3));
+        g.setAttribute('glow', new T.Float32BufferAttribute(gl, 1));
+        g.computeBoundingSphere(); g.tris = api.tris; return g;
+      },
+    };
+    return api;
+  }
+  const C = (h) => new T.Color(h);
+  const out = {};
+  { // crystal cluster: 3 bipyramids + rock foot
+    const b = builder();
+    b.spike(0, 0, 0, 0.3, 0.14, 6, 0, 0, true, 0.9, 0x2a2440, 0x3a3258, 0, 0);
+    b.spike(0, 0.06, 0, 0.17, 1.0, 5, 0.04, 0, true, 0.35, 0x6a3cff, 0x5CE8FF, 0.35, 0.95);
+    b.spike(0.17, 0.04, 0.05, 0.12, 0.62, 5, 0.3, 0.05, true, 0.35, 0xb040ff, 0xFF5CE1, 0.35, 0.95);
+    b.spike(-0.15, 0.04, -0.08, 0.1, 0.5, 5, -0.28, -0.1, true, 0.35, 0x4a5cff, 0x8A6CFF, 0.35, 0.95);
+    out.crystal = b.build();
+  }
+  { // plant pod: stem + bulb + glowing spots + 2 leaves
+    const b = builder();
+    b.spike(0, 0, 0, 0.1, 0.5, 5, 0, 0, false, 0.2, 0x1c5a2a, 0x2f8a3c, 0, 0);
+    b.blob(0, 0.68, 0, 0.3, 0.38, 0.3, 8, 6, 0.1, (y, s) => { const spot = y > 0.35 && s > 0.2 ? 1 : 0; return [lerpHex(0x2fa05a, 0x9CFF7A, spot ? 1 : (y + 1) * 0.3), spot ? 0.95 : 0.05]; });
+    b.tri([0.05, 0.12, 0], [0.55, 0.3, 0.05], [0.07, 0.2, 0.12], C(0x1f6b34), C(0x4fc06a), C(0x2a8a46), 0, 0.1, 0);
+    b.tri([-0.05, 0.1, 0], [-0.5, 0.26, -0.1], [-0.06, 0.18, -0.1], C(0x1f6b34), C(0x4fc06a), C(0x2a8a46), 0, 0.1, 0);
+    out.plant = b.build();
+  }
+  { // ore vein boulder: lumpy rock with glowing amber veins
+    const b = builder();
+    b.blob(0, 0.28, 0, 0.5, 0.32, 0.45, 8, 5, 0.28, (y) => [lerpHex(0x3a3238, 0x6a5a58, (y + 1) * 0.5), 0]);
+    b.spike(0.12, 0.45, 0.08, 0.07, 0.3, 4, 0.2, 0.1, true, 0.3, 0xff7a1c, 0xffd84a, 0.85, 1);
+    b.spike(-0.2, 0.4, -0.05, 0.06, 0.25, 4, -0.25, 0.05, true, 0.3, 0xff7a1c, 0xffd84a, 0.85, 1);
+    b.spike(0.28, 0.25, -0.15, 0.06, 0.22, 4, 0.5, -0.1, true, 0.3, 0xff7a1c, 0xffd84a, 0.85, 1);
+    b.spike(-0.05, 0.3, 0.3, 0.06, 0.2, 4, 0, 0.5, true, 0.3, 0xff7a1c, 0xffd84a, 0.85, 1);
+    out.ore = b.build();
+  }
+  { // ice spikes: 4 cones
+    const b = builder();
+    b.spike(0, 0, 0, 0.17, 1.0, 6, 0.02, 0, false, 0.05, 0x8ad0ff, 0xeaf8ff, 0.5, 0.1);
+    b.spike(0.22, 0, 0.06, 0.12, 0.65, 6, 0.3, 0.05, false, 0.05, 0x7cc0ff, 0xdff4ff, 0.5, 0.1);
+    b.spike(-0.2, 0, -0.1, 0.12, 0.55, 6, -0.3, -0.1, false, 0.05, 0x7cc0ff, 0xdff4ff, 0.5, 0.1);
+    b.spike(0.02, 0, -0.24, 0.09, 0.4, 6, 0, -0.35, false, 0.05, 0x9ad8ff, 0xeaf8ff, 0.5, 0.1);
+    out.ice = b.build();
+  }
+  { // spore puff: 3 soft blobs
+    const b = builder(), fn = (y) => [lerpHex(0xc060ff, 0xffb0ff, (y + 1) * 0.5), 0.7];
+    b.blob(0, 0.4, 0, 0.3, 0.28, 0.3, 7, 5, 0.18, fn);
+    b.blob(0.24, 0.3, 0.1, 0.18, 0.17, 0.18, 6, 4, 0.18, fn);
+    b.blob(-0.2, 0.55, -0.1, 0.16, 0.15, 0.16, 6, 4, 0.18, fn);
+    out.spore = b.build();
+  }
+  return out;
+}
+
 export function createWorld(THREE, ps, L, mods) {
   const T = THREE, weapons = (mods && mods.weapons) || null, parts = (mods && mods.parts) || null;
   const rngOf = (seed) => (parts && parts.mulberry) ? parts.mulberry(seed) : mulberry(seed);
   const K = HUMAN_H * L / 1.75;                            // store unit = 1 m in world units (a 1.75 m human = 0.09 L)
   const group = new T.Group(); group.name = 'ship-world';
-  const world = { group, stores: [], shards: [], nearStore: null, nearBurger: null, nearNpc: null, burgerHouse: null, onShard: null, node: null, storeTris: 0, burgerTris: 0, known: new Set() };
+  const world = { group, stores: [], shards: [], nearStore: null, nearBurger: null, nearNpc: null, burgerHouse: null, onShard: null, resources: [], resGas: false, node: null, storeTris: 0, burgerTris: 0, known: new Set() };
 
   let A = null, matShard = null, shardGeo = null;
   let bodies = null, emis = null, signs = null, glasses = null, shardMesh = null;
   let burger = null;                                        // { node, meshes[], matrix, ... }
   let sites = [], taken = new Set();
+  let resMat = null, resGeos = null, resMeshes = {}; const rstate = new Map();
   const _m = new T.Matrix4(), _v = new T.Vector3(), _q = new T.Quaternion(), _q2 = new T.Quaternion(), _s = new T.Vector3(), _up = new T.Vector3(), _yAxis = new T.Vector3(0, 1, 0);
 
   function ensureShared() {
@@ -515,6 +651,8 @@ export function createWorld(THREE, ps, L, mods) {
     A = makeAssets(T); world.storeTris = A.geoms.tris;
     matShard = new T.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_EMI, vertexColors: true, side: T.DoubleSide, uniforms: { uTime: A.uniformsT } });
     shardGeo = shardGeometry(T);
+    resMat = new T.ShaderMaterial({ vertexShader: RES_VERT, fragmentShader: RES_FRAG, vertexColors: true, side: T.DoubleSide, uniforms: { uTime: A.uniformsT, uScan: { value: 0 } } });
+    resGeos = resGeometries(T);
   }
 
   // ── sites: one per outpost, or one on the flattest land found by sampling ──
@@ -626,6 +764,90 @@ export function createWorld(THREE, ps, L, mods) {
     }
   }
 
+  // ── resources ──
+  function isGas() {
+    try { if (ps.isGas === true) return true; if (ps.info && ps.info().gas) return true; const u = world.node && world.node.mesh && world.node.mesh.material.uniforms; if (u && u.uBiome && u.uBiome.value > 0.5) return true; } catch (e) { /* ignore */ }
+    return false;
+  }
+  function lookName() {
+    try { let l = ps.lookOf ? ps.lookOf(world.node) : (ps.info ? ps.info().look : 0); if (typeof l === 'number') l = ['rocky', 'lush', 'icy'][l] || 'rocky'; return l || 'rocky'; } catch (e) { return 'rocky'; }
+  }
+  function planetFlavor() { const n = world.node || {}; return String(n.name || n.title || n.label || n.id || 'planet'); }
+  function buildResources() {
+    disposeResources();
+    const id0 = world.node ? world.node.id : 'p', gas = isGas(), look = lookName(), second = look === 'lush' ? 'plant' : look === 'icy' ? 'ice' : 'ore';
+    world.resGas = gas; world.resources = [];
+    for (let i = 0; i < RESOURCES_PER_PLANET; i++) {
+      const id = id0 + '-rs' + i, r = rngOf(hashStr(id) ^ 0x5eed), kind = gas ? 'spore' : (r() < 0.4 ? 'crystal' : second);
+      const nMax = 3 + Math.floor(r() * 6), st = rstate.get(id), rec = { id, kind, pos: new T.Vector3(), n: nMax, nMax, taken: false, at: 0, dead: false, spin: r() * 6.2832, slot: 0 };
+      if (st) { rec.n = st.n; rec.at = st.at || 0; rec.taken = rec.n <= 0; }
+      world.resources.push(rec);
+    }
+    const cnt = {};
+    world.resources.forEach((q) => { q.slot = cnt[q.kind] = (cnt[q.kind] || 0) + 1; q.slot--; });
+    for (const k in cnt) {
+      const m = new T.InstancedMesh(resGeos[k], resMat, cnt[k]); m.frustumCulled = false; m.name = 'res-' + k; group.add(m); resMeshes[k] = m;
+    }
+  }
+  function disposeResources() { for (const k in resMeshes) { group.remove(resMeshes[k]); resMeshes[k].dispose(); } resMeshes = {}; world.resources = []; }
+  function layoutResources(frames) {
+    const R = ps.radius || 1, gas = world.resGas, fc = frames.map((f) => new T.Vector3(f.m.elements[12], f.m.elements[13], f.m.elements[14]));
+    const fl = (d) => ps.floorLocal(d.x, d.y, d.z), dir = new T.Vector3(), t1 = new T.Vector3(), t2 = new T.Vector3();
+    world.resources.forEach((rec, i) => {
+      const r = rngOf(hashStr(rec.id) ^ 0x1a7d);
+      let ok = false;
+      for (let tr = 0; tr < 30 && !ok; tr++) {
+        if (!gas && fc.length && (i % 3 !== 2) && tr < 20) {                 // 2/3 near a pad (14..124 L out), the rest anywhere
+          const c = fc[(i + tr) % fc.length], up = _up.copy(c).normalize();
+          t1.set(up.y, -up.x, 0); if (t1.lengthSq() < 1e-4) t1.set(0, up.z, -up.y); t1.normalize(); t2.crossVectors(up, t1);
+          const a = r() * 6.2832, rad = (14 + r() * 110) * L;
+          dir.copy(c).addScaledVector(t1, Math.cos(a) * rad).addScaledVector(t2, Math.sin(a) * rad).normalize();
+        } else { const u = r() * 2 - 1, a = r() * 6.2832, s = Math.sqrt(1 - u * u); dir.set(s * Math.cos(a), u, s * Math.sin(a)); }
+        if (!gas && ps.landLocal && !ps.landLocal(dir.x * R, dir.y * R, dir.z * R)) continue;
+        const f = fl(dir); rec.pos.copy(dir).multiplyScalar(f + (gas ? (2 + r() * 7) * L : 0));
+        if (!gas && fc.some((c) => c.distanceTo(rec.pos) < 12 * L)) continue;
+        ok = true;
+      }
+      rec.dead = !ok;
+    });
+  }
+  function resExpire(now) {
+    for (const rec of world.resources) if (rec.taken && rec.at && now - rec.at > RESPAWN_MS) { rec.taken = false; rec.n = rec.nMax; rec.at = 0; rstate.delete(rec.id); }
+  }
+  world.harvest = function (id) {
+    const rec = world.resources.find((q) => q.id === id);
+    if (!rec || rec.taken || rec.dead) return null;
+    const r = rngOf(hashStr(id) ^ (rec.n * 7919)), n = 1 + Math.floor(r() * 3);
+    rec.n -= 1;
+    if (rec.n <= 0) { rec.n = 0; rec.taken = true; rec.at = Date.now(); }
+    rstate.set(id, { n: rec.n, at: rec.at });
+    const item = resourceItem(rec.kind, planetFlavor());
+    return { id: item.id, item, n };
+  };
+  world.markHarvested = function (ids) {
+    const now = Date.now();
+    if (Array.isArray(ids)) ids.forEach((id) => rstate.set(id, { n: 0, at: now }));
+    else if (ids) for (const id in ids) { const v = ids[id]; rstate.set(id, typeof v === 'number' ? { n: 0, at: v } : { n: v.n | 0, at: v.at || 0 }); }
+    world.resources.forEach((q) => { const st = rstate.get(q.id); if (st) { q.n = st.n; q.at = st.at; q.taken = st.n <= 0; } });
+    resExpire(now);
+  };
+  world.resourceState = function () { const o = {}; rstate.forEach((v, k) => { o[k] = { n: v.n, at: v.at }; }); return o; };
+  world.nearResource = function (p, radius) {
+    let best = null, bd = radius * radius;
+    for (const q of world.resources) { if (q.taken || q.dead) continue; const d = p.distanceToSquared(q.pos); if (d < bd) { bd = d; best = q; } }
+    return best;
+  };
+  const RES_COL = { crystal: 0x5CE8FF, plant: 0x9CFF7A, ore: 0xFFB030, ice: 0xBEEFFF, spore: 0xE080FF };
+  world.scanTargets = function () {
+    const out = [];
+    for (const q of world.resources) if (!q.taken && !q.dead) out.push({ type: 'resource', id: q.id, kind: q.kind, name: resourceItem(q.kind, planetFlavor()).name, pos: q.pos, color: RES_COL[q.kind] });
+    for (const s of world.shards) if (!s.taken) out.push({ type: 'shard', id: s.id, kind: 'shard', name: 'Shard', pos: s.pos, color: 0x5CE8FF });
+    for (const s of world.stores) out.push({ type: 'store', id: s.id, kind: 'store', name: s.name, pos: s.pos, color: 0xFFD84A });
+    return out;
+  };
+  let scanV = 0;
+  world.setScan = function (v) { scanV = Math.max(0, Math.min(1, v || 0)); if (resMat) resMat.uniforms.uScan.value = scanV; };
+
   let lastKey = '';
   function frameKey(frames) { return frames.map((f) => f.key.toFixed(3)).join('|') + '@' + (ps.radius || 0).toFixed(3); }
 
@@ -645,7 +867,20 @@ export function createWorld(THREE, ps, L, mods) {
     world.burgerHouse = {
       id: (world.node ? world.node.id : 'p') + '-burger', name: 'BURGER HOUSE', pos: new T.Vector3(), windowPos: new T.Vector3(), radius: 4.2 * K, matrix: new T.Matrix4(), unit: K,
       clerk: { name: clerk.name, seed: lex, role: 'fries', known: world.known, human: clerk.human, npc: clerk, say: clerk.say, lines: [clerk.say('fries'), clerk.say('greeting'), clerk.say('fries')] },
-      menu: [FRIES], walls: boxV(T, bg.walls), lex,
+      menu: [FRIES], walls: boxV(T, bg.walls), lex, candidate: null,
+    };
+    const bhr = world.burgerHouse;
+    // every 3rd visit a seeded crew candidate stands by the window; returns it (also bhr.candidate) or null
+    bhr.recruit = (visitCount) => {
+      const v = visitCount | 0; if (v < 1 || v % 3 !== 0) { bhr.candidate = null; return null; }
+      const seed = hashStr(bhr.id + ':recruit:' + v), r = mulberry(seed), role = ['pilot', 'miner', 'chef', 'scout'][Math.floor(r() * 4)];
+      const color = [0x5CE8FF, 0xFF5CE1, 0xFFC46B, 0x7CFF8A, 0x8A6CFF, 0xFF7A3A][Math.floor(r() * 6)];
+      const npc = { seed, role, known: world.known, name: lingo.name(seed) };
+      const lines = [lingo.line(npc, 'recruit'), lingo.line(npc, 'recruit'), lingo.line(npc, 'mission')];
+      let human = null; try { human = createHuman(T, { color }); human.group.traverse((q) => { q.frustumCulled = false; }); human.group.position.set(1.6, FY, 3.9); human.group.rotation.y = Math.PI; burger.humans.add(human.group); } catch (e) { human = null; }
+      if (bhr._cHuman && bhr._cHuman.group.parent) { bhr._cHuman.group.parent.remove(bhr._cHuman.group); try { bhr._cHuman.dispose(); } catch (e) { /* ignore */ } }
+      bhr._cHuman = human;
+      return (bhr.candidate = { seed, name: npc.name, role, color, lines, human });
     };
   }
 
@@ -683,6 +918,7 @@ export function createWorld(THREE, ps, L, mods) {
       // shard records
       world.shards = [];
       for (let i = 0; i < SHARDS_PER_PLANET; i++) { const id = (world.node ? world.node.id : 'p') + '-sh' + i; world.shards.push({ id, pos: new T.Vector3(), taken: taken.has(id) }); }
+      buildResources();
       // instanced meshes
       const n = Math.max(1, sites.length);
       bodies = new T.InstancedMesh(A.geoms.body, A.matBody, n); emis = new T.InstancedMesh(A.geoms.emi, A.matEmi, n); signs = new T.InstancedMesh(A.signGeo, A.matSign, n); glasses = new T.InstancedMesh(A.glassGeo, A.matGlass, n);
@@ -698,6 +934,7 @@ export function createWorld(THREE, ps, L, mods) {
     frames.forEach((f, i) => { sites[i].pad.copy(f.m); layoutStore(sites[i]); });
     layoutBurger(sites[0]);
     layoutShards(frames);
+    layoutResources(frames);
     for (let i = 0; i < sites.length; i++) {
       bodies.setMatrixAt(i, sites[i].M); emis.setMatrixAt(i, sites[i].M); signs.setMatrixAt(i, sites[i].M); glasses.setMatrixAt(i, sites[i].M);
     }
@@ -712,10 +949,11 @@ export function createWorld(THREE, ps, L, mods) {
     sites = []; world.stores = [];
     [bodies, emis, signs, glasses, shardMesh].forEach((m) => { if (m) { group.remove(m); m.dispose(); } });
     bodies = emis = signs = glasses = shardMesh = null;
+    disposeResources();
   }
 
   world.attach = function (node) {
-    world.detach(); world.node = node; taken = new Set(); build();
+    world.detach(); world.node = node; taken = new Set(); rstate.clear(); build();
     return world;
   };
   world.detach = function () { disposeSites(); world.shards = []; world.node = null; world.nearStore = world.nearBurger = world.nearNpc = null; lastKey = ''; };
@@ -779,6 +1017,18 @@ export function createWorld(THREE, ps, L, mods) {
       _m.compose(_v, _q, _s); shardMesh.setMatrixAt(i, _m);
     }
     shardMesh.instanceMatrix.needsUpdate = true;
+    // resources: respawn, bob, shrink with remaining n
+    if (world.resources.length) {
+      resExpire(Date.now());
+      for (const q of world.resources) {
+        const m = resMeshes[q.kind]; if (!m) continue;
+        if (q.taken || q.dead) _s.set(0, 0, 0); else { const sc2 = RES_SIZE[q.kind] * L * (0.6 + 0.4 * q.n / q.nMax); _s.set(sc2, sc2, sc2); }
+        _up.copy(q.pos).normalize(); _q.setFromUnitVectors(_yAxis, _up); _q2.setFromAxisAngle(_yAxis, q.spin); _q.multiply(_q2);
+        _v.copy(q.pos); if (q.kind === 'spore') _v.addScaledVector(_up, Math.sin(t * 1.3 + q.spin * 3) * 0.4 * L);
+        _m.compose(_v, _q, _s); m.setMatrixAt(q.slot, _m);
+      }
+      for (const k in resMeshes) resMeshes[k].instanceMatrix.needsUpdate = true;
+    }
     // proximity
     world.nearStore = null; world.nearBurger = null; world.nearNpc = null;
     if (pl) {
@@ -793,6 +1043,7 @@ export function createWorld(THREE, ps, L, mods) {
   world.dispose = function () {
     world.detach();
     if (A) { A.dispose(); matShard.dispose(); shardGeo.dispose(); A = null; }
+    if (resMat) { resMat.dispose(); for (const k in resGeos) resGeos[k].dispose(); resMat = resGeos = null; }
     if (group.parent) group.parent.remove(group);
   };
   return world;

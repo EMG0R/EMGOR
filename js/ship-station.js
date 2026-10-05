@@ -169,7 +169,7 @@ export function createStation(engine, L, opts) {
     group, unit: L, lenL: 0, length: 0, pos: group.position, quat: group.quaternion, vel: new T.Vector3(),
     mouth: { pos: new T.Vector3(), dir: new T.Vector3(0, 0, 1), halfW: MOUTH_HW * L, halfH: MOUTH_HH * L, trigger: null },
     pads: [], deck: { walls: [], bounds: { min: new T.Vector3(), max: new T.Vector3() }, floorAt: null },
-    interior: { stores: [], npcs: [], mapPedestal: { pos: new T.Vector3(), radius: 0.45 * L }, windows: [] },
+    interior: { stores: [], npcs: [], mapPedestal: { pos: new T.Vector3(), radius: 0.45 * L }, windows: [], board: { pos: new T.Vector3(), radius: 0.6 * L }, missions: null },
     stats: { tris: 0, meshes: 0 },
   };
   const uTime = { value: 0 }, uPx = { value: 6.5 }, uH = { value: 900 };
@@ -204,7 +204,7 @@ export function createStation(engine, L, opts) {
   let zF = 0, zR = 0, lenL = 0, padLocal = [], storeWalls = [];
   let ss = null;                                  // the standalone INTERGALACTIC 7/11 (x1.5 scale, rotated so its glass front faces +x into the hangar)
   const STORE_S = 1.5 * HUMAN_H / 1.75;           // L per metre
-  const lay = { counter: new T.Vector3(), clerk: new T.Vector3(), ped: new T.Vector3(), npc: [] };
+  const lay = { counter: new T.Vector3(), clerk: new T.Vector3(), ped: new T.Vector3(), board: new T.Vector3(), npc: [] };
 
   function build(newLenL) {
     lenL = newLenL; st.lenL = lenL; st.length = lenL * L;
@@ -246,7 +246,11 @@ export function createStation(engine, L, opts) {
     // ── store zone (left wall), map pedestal (right wall), clerk ──
     const cz = zF - 11;
     // the INTERGALACTIC 7/11 (ship-world.js standalone store) fills the left wall here; see layoutNpcs()
-    lay.ped.set(3.7, 0, cz);
+    lay.ped.set(3.7, 0, cz); lay.board.set(HW - 0.12, 1.5, cz - 4);
+    // mission board: glowing screen on the right wall (data in st.interior.board / missions())
+    B.bx(HW - 0.1, HW - 0.04, 0.9, 2.1, cz - 4 - 0.95, cz - 4 + 0.95, C.hull3);
+    E.bx(HW - 0.14, HW - 0.1, 1.0, 2.0, cz - 4 - 0.85, cz - 4 + 0.85, C.cyan, 0.9);
+    E.bx(HW - 0.15, HW - 0.1, 2.05, 2.1, cz - 4 - 0.95, cz - 4 + 0.95, C.mag, 0.9);
     B.shape(new T.CylinderGeometry(0.1, 0.13, 0.05, 10), C.hull2, new T.Matrix4().makeTranslation(3.7, 0.025, cz));
     B.shape(new T.CylinderGeometry(0.05, 0.08, 0.04, 10), C.violet, new T.Matrix4().makeTranslation(3.7, 0.07, cz), 0.8);
     E.shape(new T.TorusGeometry(0.08, 0.006, 4, 16), C.cyan, new T.Matrix4().makeRotationX(Math.PI / 2).premultiply(new T.Matrix4().makeTranslation(3.7, 0.12, cz)));
@@ -470,7 +474,23 @@ export function createStation(engine, L, opts) {
     }
     st.interior.npcs.forEach((n) => toW(n.localPos.x, 0, n.localPos.z, n.pos));
     toW(lay.ped.x, 0, lay.ped.z, st.interior.mapPedestal.pos); st.interior.mapPedestal.radius = 0.45 * L;
+    toW(lay.board.x, lay.board.y, lay.board.z, st.interior.board.pos); st.interior.board.radius = 0.6 * L;
   }
+
+  // ── missions (rev 25 E): seeded, deterministic per seed; planetId is a real node id from engine.drawOrder ──
+  st.interior.missions = (seed, n) => {
+    n = n == null ? 3 : n; const r = mul(typeof seed === 'number' ? seed : (Array.from(String(seed)).reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 7)));
+    const nodes = (engine.drawOrder || []).filter((q) => q && q.id != null), kinds = ['mine', 'scout', 'trade', 'bounty'];
+    const ITEMS = ['fuel-cell', 'plasma-coil', 'hull-plate', 'flux-capacitor', 'logic-chip'], out = [];
+    for (let i = 0; i < n; i++) {
+      const kind = kinds[Math.floor(r() * 4)], node = nodes.length ? nodes[Math.floor(r() * nodes.length)] : null;
+      const pid = node ? node.id : 'unknown', pname = node ? (node.name || node.title || node.id) : 'the void', minutes = 3 + Math.floor(r() * 18);
+      const T2 = { mine: ['Mine ore on ', 'ore'], scout: ['Scout the belt of ', 'belt survey'], trade: ['Trade run to ', 'cargo'], bounty: ['Bounty hunt over ', 'wanted ship'] }[kind];
+      out.push({ id: 'm' + i + '-' + Math.floor(r() * 1e6).toString(36), kind, title: T2[0] + pname, planetId: pid, target: T2[1], minutes,
+        reward: { gor: Math.round((40 + minutes * (8 + r() * 10)) / 5) * 5, stacks: [{ item: ITEMS[Math.floor(r() * ITEMS.length)], n: 1 + Math.floor(r() * 4) }], itemChance: Math.round((0.1 + r() * 0.35) * 100) / 100 } });
+    }
+    return out;
+  };
 
   // ── API ──
   st.setVisible = (b) => { group.visible = !!b; };

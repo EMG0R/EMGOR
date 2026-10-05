@@ -180,24 +180,37 @@ export function describe(item) {
 
 // ── machine parts (rev 25 B): sold at 7/11s only (dealers never stock parts).  Crafting (ship-craft.js) reads item.tags. ──
 //   partsMenu(storeId, n=6) -> [{ id, kind:'part', base, name, price (gorCoin), color, blurb, tags:['part', base] }]  seeded per store
-export const PARTS = [
-  { id: 'capacitor', name: 'Flux Capacitor', color: 0x5CE8FF, base: 90, blurb: 'Stores a feeling for later. Hums at 88 Hz.' },
-  { id: 'servo', name: 'Servo Unit', color: 0xFFB05C, base: 45, blurb: 'Turns small decisions into small motions.' },
-  { id: 'coil', name: 'Plasma Coil', color: 0xFF5CE1, base: 70, blurb: 'Copper wound by someone who really cared.' },
-  { id: 'plate', name: 'Hull Plate', color: 0xA8A0C8, base: 35, blurb: 'Flat, grey, and brave about it.' },
-  { id: 'lens', name: 'Focus Lens', color: 0xBEEFFF, base: 55, blurb: 'Makes far things rude and close.' },
-  { id: 'battery', name: 'Cell Battery', color: 0x7CFF3A, base: 40, blurb: 'Charged, mostly. Do not lick.' },
-  { id: 'gyro', name: 'Gyro Stabilizer', color: 0xFFE24A, base: 65, blurb: 'Insists on knowing which way is up.' },
-  { id: 'antenna', name: 'Signal Antenna', color: 0x8A6CFF, base: 30, blurb: 'Picks up stations, rumors, and the occasional ghost.' },
-  { id: 'fin', name: 'Cooling Fin', color: 0x3AA0FF, base: 25, blurb: 'Keeps your bad ideas at a safe temperature.' },
-  { id: 'chip', name: 'Logic Chip', color: 0x3AFFB0, base: 80, blurb: 'Smarter than the clerk. Cheaper too.' },
-];
+import { PARTS as CRAFT_PARTS } from './ship-craft.js';
+export const PARTS = CRAFT_PARTS;      // ONE parts source: ship-craft.js (price field, base = id)
 export function partsMenu(storeId, n) {
   n = Math.max(1, Math.min(PARTS.length, n || 6));
   const r = mulberry(hashStr('parts:' + storeId) ^ 0x70a7), pool = PARTS.slice(), out = [];
   while (out.length < n && pool.length) {
     const p = pool.splice(Math.floor(r() * pool.length), 1)[0];
-    out.push({ id: p.id, kind: 'part', base: p.id, name: p.name, price: Math.round(p.base * (0.8 + r() * 0.5)), color: p.color, blurb: p.blurb, tags: ['part', p.id] });
+    out.push({ id: p.id, kind: 'part', base: p.id, name: p.name, price: Math.round(p.price * (0.8 + r() * 0.5)), color: p.color, blurb: p.blurb, tags: ['part', p.id] });
   }
   return out.sort((a, b) => a.price - b.price);
+}
+
+// ── resources (rev 25): harvested on planets, crafting tags 'res' + 'res:<kind>' (ship-craft.js tokens).  One stack per planet+kind via stackKey.
+//   resourceItem(kind, planetSeed) -> { id, kind:'resource', base: kind, name ("Papers Crystal"), color, price, blurb, tags:['res','res:'+kind], stackKey }
+//   planetSeed = planet name/id string (flavours the name) or a number (picks a flavour word).
+export const RESOURCE_BASE = {
+  crystal: { noun: 'Crystal', color: 0x5CE8FF, price: 40, blurb: 'Grown slowly, priced quickly.' },
+  plant: { noun: 'Pod', color: 0x9CFF7A, price: 18, blurb: 'Squishy. Mostly friendly.' },
+  ore: { noun: 'Ore', color: 0xFFB030, price: 28, blurb: 'Rock that knows what it is worth.' },
+  ice: { noun: 'Ice', color: 0xBEEFFF, price: 22, blurb: 'Cold on purpose.' },
+  spore: { noun: 'Spore', color: 0xE080FF, price: 35, blurb: 'Drifts. Do not inhale. Or do.' },
+};
+const RES_FLAVOR = ['Nebula', 'Comet', 'Void', 'Quasar', 'Plasma', 'Meteor', 'Orbit', 'Lunar'];
+export function resourceItem(kind, planetSeed) {
+  const b = RESOURCE_BASE[kind] || RESOURCE_BASE.crystal, k = RESOURCE_BASE[kind] ? kind : 'crystal';
+  let flavor, h;
+  if (typeof planetSeed === 'number') { h = planetSeed >>> 0; flavor = RES_FLAVOR[h % RES_FLAVOR.length]; }
+  else {
+    const w = String(planetSeed || 'planet').trim().split(/[\s_\-/]+/)[0].replace(/[^A-Za-z0-9]/g, '') || 'Planet';
+    flavor = w.charAt(0).toUpperCase() + w.slice(1); h = hashStr(w.toLowerCase());
+  }
+  const id = 'res-' + k + '-' + flavor.toLowerCase();
+  return { id, kind: 'resource', base: k, name: flavor + ' ' + b.noun, color: b.color, price: Math.round(b.price * (0.85 + (h % 31) / 100)), blurb: b.blurb, tags: ['res', 'res:' + k], stackKey: id };
 }
