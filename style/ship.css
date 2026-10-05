@@ -535,3 +535,105 @@ body.is-piloting .ship-online { display: none; }
 }
 .sh-alt.is-on { opacity: 1; }
 #ship-hud.is-ground .sh-alt { display: none; }
+
+/* ─── rev 20: hit marker, floating damage numbers, hold-E radial ─────────── */
+.sh-hm {
+    position: absolute; top: 50%; left: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px;
+    opacity: 0; pointer-events: none; color: #fff;
+}
+.sh-hm i { position: absolute; left: 50%; top: 50%; width: 30px; height: 2px; margin: -1px 0 0 -15px; background: currentColor; box-shadow: 0 0 6px currentColor; }
+.sh-hm i:nth-child(1) { transform: rotate(45deg); }
+.sh-hm i:nth-child(2) { transform: rotate(-45deg); }
+.sh-hm.is-on { opacity: 1; animation: sh-hmpop 0.13s ease-out; }
+.sh-hm.is-crit { width: 42px; height: 42px; margin: -21px 0 0 -21px; }
+.sh-hm.is-crit i { width: 42px; margin-left: -21px; height: 3px; }
+@keyframes sh-hmpop { 0% { transform: scale(1.7); } 100% { transform: scale(1); } }
+#ship-hud.is-foot .sh-hm { display: none; }
+.sh-dmg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.sh-dn {
+    position: absolute; left: 0; top: 0; display: none; font-style: normal; font-weight: 800; font-size: 15px; letter-spacing: 0.04em;
+    color: #e8f6ff; text-shadow: 0 0 6px rgba(0, 240, 255, 0.8), 0 1px 2px rgba(2, 0, 8, 0.95); will-change: transform, opacity; white-space: nowrap;
+}
+.sh-dn.is-crit { font-size: 26px; font-weight: 900; text-shadow: 0 0 12px currentColor, 0 0 2px #000, 0 1px 3px rgba(2, 0, 8, 0.95); }
+.sh-eh {
+    position: absolute; left: 50%; top: 58%; width: 108px; height: 108px; margin: -54px 0 0 -54px;
+    opacity: 0; pointer-events: none; transition: opacity 0.12s ease; filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.95));
+}
+.sh-eh::before {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(#e8d4ff calc(var(--p, 0) * 1%), rgba(255, 255, 255, 0.13) 0);
+    -webkit-mask: radial-gradient(circle, transparent 0 55%, #000 57%); mask: radial-gradient(circle, transparent 0 55%, #000 57%);
+}
+.sh-eh.is-on { opacity: 1; }
+.sh-eh b { position: absolute; left: 0; right: 0; top: 50%; margin-top: -0.62em; text-align: center; font-size: 30px; font-weight: 900; color: #fff; }
+.sh-eh span { position: absolute; left: -30px; right: -30px; top: 118px; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: 0.3em; color: #e8d4ff; white-space: nowrap; }
+
+/* rev 20b: no status titles on the HUD. Boss names (HP bars + their banner), the E prompts, hold-E radial, chat, damage numbers, shield / alt / speed stay. */
+#ship-hud .sh-edge, #ship-hud .sh-entry, #ship-hud .sh-atmo { display: none !important; }
+
+/* ─── rev 21: heat ring, squad leader / stalled tags, boss limb pips, scanner, units ─────────────────── */
+.sh-heat {
+    position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 50%;
+    pointer-events: none; opacity: 0; transition: opacity 0.15s ease; --p: 0;
+    background: conic-gradient(rgba(190, 150, 255, 0.95) calc(var(--p) * 1%), rgba(255, 255, 255, 0.09) 0);
+    -webkit-mask: radial-gradient(circle, transparent 0 62%, #000 64% 74%, transparent 76%); mask: radial-gradient(circle, transparent 0 62%, #000 64% 74%, transparent 76%);
+    filter: drop-shadow(0 0 5px rgba(168, 85, 247, 0.7));
+}
+.sh-heat.is-on { opacity: 0.9; }
+.sh-heat.is-hot { background: conic-gradient(rgba(255, 150, 50, 1) calc(var(--p) * 1%), rgba(255, 255, 255, 0.09) 0); filter: drop-shadow(0 0 8px rgba(255, 120, 30, 0.9)); }
+.sh-heat.is-over { background: conic-gradient(rgba(255, 50, 60, 1) calc(var(--p) * 1%), rgba(255, 255, 255, 0.09) 0); filter: drop-shadow(0 0 10px rgba(255, 40, 50, 1)); animation: sh-blink 0.35s ease-in-out infinite; }
+#ship-hud.is-foot .sh-heat { display: none; }
+
+.sh-ems { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sh-em { position: absolute; left: 0; top: 0; text-align: center; white-space: nowrap; will-change: transform; }
+.sh-em i { display: block; margin: 0 auto 2px; width: 0; height: 0; }
+.sh-em b { font-size: 11px; font-weight: 800; letter-spacing: 0.22em; text-shadow: 0 0 8px currentColor, 0 1px 2px rgba(2, 0, 8, 0.95); }
+.sh-em.is-lead { color: #c9a0ff; }
+.sh-em.is-lead i { border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 13px solid #c9a0ff; filter: drop-shadow(0 0 5px #a855f7); order: 2; }
+.sh-em.is-stall { color: #ffc24a; }
+.sh-em.is-stall b { animation: sh-blink 0.5s ease-in-out infinite; }
+.sh-em.is-lead.is-stall i { border-top-color: #ffc24a; }
+.sh-em { display: flex; flex-direction: column-reverse; align-items: center; }
+
+.sh-lp { display: flex; gap: 4px; justify-content: center; margin-top: 4px; min-height: 12px; }
+.sh-lp i { font-style: normal; font-size: 8px; font-weight: 800; letter-spacing: 0.12em; padding: 1px 5px; border: 1px solid rgba(255, 176, 74, 0.55); color: rgba(255, 190, 110, 0.9); background: rgba(10, 4, 24, 0.55); }
+.sh-lp i.is-tele { color: #fff; border-color: #ff4a7a; background: rgba(255, 60, 100, 0.55); box-shadow: 0 0 10px rgba(255, 60, 100, 0.9); animation: sh-blink 0.28s ease-in-out infinite; }
+.sh-lp i.is-dead { opacity: 0.3; text-decoration: line-through; border-color: rgba(255, 255, 255, 0.2); color: rgba(255, 255, 255, 0.5); }
+
+.sh-st-u { color: #ffd36a; }
+.sh-dn.is-unit { font-size: 14px; text-shadow: 0 0 8px rgba(255, 190, 60, 0.9), 0 1px 2px rgba(2, 0, 8, 0.95); }
+.sh-dn.is-unit.is-crit { font-size: 22px; }
+
+.sh-scan { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 2px solid rgba(0, 240, 255, 0.85); box-shadow: 0 0 24px rgba(0, 240, 255, 0.55), inset 0 0 24px rgba(0, 240, 255, 0.3); opacity: 0; pointer-events: none; }
+.sh-scan.is-on { animation: sh-scan 1.1s cubic-bezier(0.15, 0.6, 0.3, 1) forwards; }
+@keyframes sh-scan { 0% { transform: scale(0.2); opacity: 0.95; } 100% { transform: scale(60); opacity: 0; border-width: 0.2px; } }
+.sh-hls { position: absolute; inset: 0; pointer-events: none; overflow: hidden; opacity: 0; }
+.sh-hl { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; will-change: transform; }
+.sh-hl i { width: 12px; height: 12px; border: 2px solid currentColor; transform: rotate(45deg); box-shadow: 0 0 10px currentColor; background: rgba(2, 0, 8, 0.4); }
+.sh-hl b { font-size: 10px; font-weight: 800; letter-spacing: 0.2em; white-space: nowrap; color: currentColor; text-shadow: 0 0 6px currentColor, 0 1px 2px rgba(2, 0, 8, 0.95); }
+.sh-hl.k-store { color: #6aff9a; }
+.sh-hl.k-post { color: #00f0ff; }
+.sh-hl.k-shard { color: #ffd36a; }
+.sh-hl.k-shard i { width: 8px; height: 8px; background: currentColor; }
+.sh-hl.k-friend { color: #c9a0ff; }
+
+/* ─── rev 22: freighter chevrons ─────────── */
+.sh-frt { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; will-change: transform; pointer-events: none; color: #ffb35c; }
+.sh-frt i { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 11px solid currentColor; filter: drop-shadow(0 0 6px currentColor); }
+.sh-frt b { font-size: 10px; font-weight: 800; letter-spacing: 0.2em; white-space: nowrap; text-shadow: 0 0 6px currentColor, 0 1px 2px rgba(2, 0, 8, 0.95); }
+
+/* rev 24: hold-Esc ring (3 s), resume fade, guidance markers */
+.sh-eh.sh-esc { left: 50%; top: 40%; }
+.sh-eh.sh-esc b { font-size: 20px; letter-spacing: 0.05em; }
+.sh-fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 40; }
+.sh-guide { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sh-gd { position: absolute; left: 0; top: 0; display: none; will-change: transform; white-space: nowrap; font-weight: 800; font-size: 12px; letter-spacing: 0.08em; color: #e8d4ff; text-shadow: 0 0 6px rgba(168, 85, 247, 0.9), 0 1px 2px rgba(2, 0, 8, 0.95); }
+.sh-gd.is-on { display: block; }
+.sh-gd .gd-i { display: inline-block; width: 22px; height: 22px; vertical-align: middle; margin-right: 6px; image-rendering: pixelated; filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.9)); }
+.sh-gd .gd-n { display: inline-block; vertical-align: middle; }
+.sh-gd .gd-d { display: inline-block; vertical-align: middle; margin-left: 6px; color: #ffd36a; }
+.sh-gd .gd-c { display: none; position: absolute; left: -9px; top: -9px; width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 16px solid #e8d4ff; filter: drop-shadow(0 0 5px rgba(168, 85, 247, 0.95)); }
+.sh-gd.is-edge .gd-c { display: block; }
+.sh-gd .gd-t { position: absolute; left: 0; top: 0; transform: translate(-50%, 6px); }
+.sh-gd.is-edge .gd-t { transform: translate(-50%, 16px); }
+.sh-gd .gd-c { position: absolute; }

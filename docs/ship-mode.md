@@ -927,3 +927,137 @@ E = inventory (Minecraft). F = interact: tap F land, hold F land + step out, F e
 F board, F talk, F shop, F map pedestal. Q = focus slow-time, Z = allies focus, V =
 scanner, T = cycle target, Enter / `/` = chat, Space = pulse (ship) / jetpack (foot),
 Shift = boost / run, A/D double-tap roll, S double-tap flip, Ctrl drift, Esc = galaxy.
+
+## Revision 24 (2026-10-04) — resume where you were, land/water balance, clean entry, speeds, guidance, Minecraft inventory
+
+1. **Esc resumes exactly**: leaving the ship (Esc) freezes the ship's pose in its CURRENT
+   frame (planet-local if inside 1.6 R, station-local if docked, world otherwise) and
+   re-entering restores that exact pose relative to the planet/station even though it
+   moved meanwhile. Landed stays landed, on foot stays on foot (human pose too).
+2. **Land/water balance** (ship-planet.js): per-planet land fraction target seeded in
+   0.45–0.8; sea level solved against the height histogram so the fraction holds; small
+   planets (< 600 L radius) and any planet with a single outpost are ALL land. Outposts,
+   7/11s, Burger House always on land.
+3. **Clean atmosphere entry**: the terrain patch's colors must EXACTLY match the painted
+   globe (same palette function, same noise, same light), fade-in over 2.4 → 1.8 R with
+   no visible seam; dome/haze capped at alpha 0.45 and only thick near the top; at the
+   surface the sky is clear enough to see the horizon crisply; landmass shapes read the
+   same from orbit and from the air (no "weird" relief pop: relief amplitude ramps in
+   with altitude so the silhouette stays the globe's).
+4. **Speeds**: Shift boost 60 u/s; Space pulse ramps to 450; Space + Shift ramps to 675;
+   cruise 4. Pulse ramp τ 1.5 s (starts at boost speed). Governor unchanged.
+5. **Guidance**: inside 2.5 R of a planet, NMS-style HUD markers for the nearest 7/11
+   and Burger House (icon + name + distance in L), on-screen when in view, edge
+   chevrons when not; also the outposts' pads. Same for the station mouth in space
+   within 3 × coreR.
+6. **Minecraft inventory**: exact Minecraft look: dark semi-transparent grey panel with
+   the light/dark bevel, 9-column slot grid, 36 slots + a 9-slot hotbar row, slot
+   hover highlight, item tooltip (name, blurb, effect) in the Minecraft font, stack
+   counts bottom-right, right-click eat, left-click equip (weapons). Esc closes the
+   inventory (and any menu). Holding Esc for 3 s (radial fill) exits to the website
+   galaxy; a tap no longer exits.
+7. **Pixel icons** (NEW js/ship-icons.js): procedural 16×16 pixel art per item from
+   its base food/drink (cup, bag, hot dog, slice, donut, can, bottle, box, jerky strip,
+   taquito…) with infusion tint, modifier badge, dithering; weapons get a gun silhouette
+   in their color; cached canvases, drawn at 3× with image-rendering: pixelated.
+8. **Playtests**: a subagent plays scripted sessions (space, approach, entry, landing,
+   on foot, store, station) and writes docs/playtest-N.md with screenshots + a ranked
+   punch list of look/feel problems; the next pass fixes the top items.
+
+## Roadmap to a real game (2026-10-04) — what's missing, in order
+
+The game has places and enemies but no REASONS. Everything below gives reasons.
+
+### Tier 1 — the loop (do first)
+1. **Stacking inventory as the spine**: every pickup is an item with a stack (shards,
+   scrap from kills, boss cores, seeds, fuel cells, foods). Weight/slots don't matter;
+   stacking + sorting + tooltips do. Selling/buying/crafting all read the same stacks.
+2. **Resources on planets**: crystal nodes, plant pods, rock veins (instanced, scanner-
+   visible), harvested on foot with F (3 s channel + chunks flying in) → stacks.
+   Each biome yields different stuff. This is the "why land here".
+3. **Crafting at the 7/11 counter**: 15 seeded recipes per store (seasoning salt,
+   fuel cells, hull plates, bolt cores) from stacks → upgrades and sellable goods.
+4. **Bounties and deliveries (adventures)**: the station board + any NPC can hand a
+   quest: deliver N of X to planet Y's 7/11, kill a named boss, scan 3 creatures on
+   planet Z, retrieve a crate from the belt, escort a freighter. Seeded, 3 open at a
+   time, rewards: units + a rare item + lingo words. This is 80 % of "things to do".
+5. **Discoveries**: first landing / first creature scan names it; the registry is
+   shared via the relay; your profile lists them. Scanning (V) gets a payout.
+
+### Tier 2 — progression and identity
+6. Ship upgrades with visible parts (engine, wings, pods from the parts kit) bought or
+   crafted; `/ship` choice among hauler/fighter/explorer; stats matter (cargo stacks,
+   speed, guns).
+7. Weapon mods (slots: scope/coil/chamber) instead of only buying new guns.
+8. Suit upgrades for foot: jetpack boost, scanner range, sprint, storage.
+9. Rank/title from bounties shown on your ghost's label.
+
+### Tier 3 — the world feels alive
+10. Freighter convoys you can trade with or pirate (choice → reputation with the two
+    factions: 7/11 Corp vs the Dealers).
+11. Random events announced in chat: titan sighting, meteor shower on planet X (shards
+    everywhere for 5 min), fries sale, pirate blockade at the station.
+12. Creature behavior: herds, predators, a tameable one (feed it fries).
+13. Weather on planets: storms that push the ship, auroras, night glow.
+14. Derelict freighters as mini-dungeons (interior boxes, loot, a guardian).
+
+### Tier 4 — polish that sells it
+15. Music states per place (space/atmo/store/station/combat) — exists partly.
+16. Photo mode + share link (fits the portfolio site).
+17. Onboarding: the first 60 s teach fly / land / shop / fight with 4 prompts, no text
+    walls.
+18. Mobile: touch sticks + land/shop buttons (phones are currently gated out).
+19. Save/profile on the relay so a user follows you across devices (`/user NAME KEY`).
+
+Not doing yet: base building, procedural quests with branching dialog, PvP factions.
+
+## Revision 25 (2026-10-04) — gorCoin, crafting, your ship is your base, creatures, crew
+
+### A. gorCoin
+Units are renamed **gorCoin** everywhere (HUD "ɢ 1,240", chat, stores, lingo: NPCs
+mention gorCoin by name in pitches/gossip). Earned: kills, bounties, missions, selling.
+Determines what you can buy. Profile field `gor` (migrated from `units`).
+
+### B. Crafting (NEW js/ship-craft.js)
+- **3×3 crafting table** (Minecraft style) inside your ship and at every 7/11 counter.
+  Drag/click stacks from the inventory into the grid; the output slot shows the result.
+- **Parts catalog** sold at 7/11s: flux capacitor, servo, coil, plating, lens, battery,
+  gyro, antenna, cooling fin, chip (seeded prices in gorCoin).
+- **Recipes**: a hand-authored base set (≈ 40: seasoning salt, fuel cell, hull plate,
+  bolt core, scope, coil mod, chamber mod, shield cell, engine kit, jetpack booster,
+  creature treat, pen kit, crew pod kit…) + a **combination engine** for everything
+  else: `combine(stacks[])` is deterministic: it merges ingredient tags (food,
+  infusion, part, tier) into a new item with tier+1, blended effects, a generated name
+  ("Flux-Capacitor Fent Burger Mk II"), and a category inferred from the dominant tags
+  (weapon mod / ship upgrade / food / junk). Crafted things craft again, forever.
+- Outputs: weapon mods (3 slots per weapon: scope/coil/chamber), ship upgrades
+  (engine/shield/cargo/jetpack tiers with visible parts), foods, junk (sellable).
+
+### C. Your ship is your base (NEW js/ship-interior.js + ship.js)
+- From on foot beside the ship (landed or docked) press F at the hatch → the INTERIOR:
+  a freighter-scale space (~10× the ship, NMS freighter vibe) built from the parts kit:
+  cockpit (a window onto the real sky), cargo hold (your stacks shown as crates),
+  the crafting table, a kitchen counter (eat), **creature pens** (glass pods), **crew
+  pods** (bunks), a mission board, a hatch back out. Walk/jetpack inside; same foot
+  controller (floor + box walls). The interior lives in a pocket location far from the
+  galaxy (floating origin makes it free) with the outside sky still visible through
+  windows (the real scene stays rendered). Multiplayer later: friends can visit.
+- Flying still feels exactly the same; the interior is only ever entered on foot.
+
+### D. Creatures as pets
+On foot, F near a planet creature while holding fries/treats → tame (3 s channel) → it
+becomes a stack item ("Jelly of Papers") → in the interior, F at a pen → it lives there
+(animated, idle, named, happiness grows with feeding). Pens: 4, upgradeable.
+
+### E. Crew (Burger House recruits) + missions
+Every 3rd Burger House visit a seeded NPC offers to join (name, role: pilot/miner/
+chef/scout, lingo lines, a portrait color). Crew live in pods in your ship. The mission
+board lists 3 seeded missions (mine X on planet Y, scout the belt, trade run, bounty):
+assign a crew member → mission runs in REAL time (3–20 min, persisted timestamps) →
+returns gorCoin + resource stacks + sometimes an item; the crew member's rank rises.
+NMS freighter expeditions, basically.
+
+### F. Order of work
+1. Push rev 20–24 (stable) so the station/NPCs/stores are finally live.
+2. ship-craft.js + ship-interior.js + gorCoin lingo (parallel, new files).
+3. ship.js wiring: gorCoin, crafting table UI, interior enter/exit, pens, pods, board.

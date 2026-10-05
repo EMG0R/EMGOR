@@ -36,12 +36,18 @@ var HALO_A = 2.2, HALO_B = 1.4;           // atmo halo brightens/expands from HA
 var RIM_A = 1.65, RIM_B = 1.35;           // rim pass (wind streaks + rumble) envelope (x R)
 var NSTREAK = 60, NSCAR = 4, SCAR_PTS = 28;
 var DOME_L = 600;                         // sky dome radius in ship lengths
-var FADE_IN_A = 2.7, FADE_IN_B = 1.95;    // patch alpha 0 -> 1 across these (x R)
+var FADE_IN_A = 2.4, FADE_IN_B = 1.8;    // patch alpha 0 -> 1 across these (x R)
+var REL_A = 2.4, REL_B = 1.3;             // rev 24: relief amplitude ramps 0 -> 1 across these (x R), so far silhouettes stay the globe's
+var SURF_A = 2.0, SURF_B = 1.4;           // rev 24: surface colour grading (slope / biome / detail / patch lighting) blends in across these; at >= 2 R the patch IS the globe's shader
 var GRID = 128;                           // patch grid cells per side
 var AMP = 0.09;                           // terrain amplitude, fraction of R
+var AMP_GAS = 0.03;                       // rev 20: cloud-world relief (gentler, landable anywhere)
+var NSPORE = 60;                          // rev 20: floating spores over a gas giant's cloud tops
+var PATCH_FOOT_L = 700;                  // rev 20b: on foot the patch only needs to reach past the (~45 L) horizon: 3.7x finer cells, so the rendered surface hugs the height function
+var PATCH_MIN_L = 2600;                   // rev 20: the patch always reaches at least this far (L) from the ship: past the horizon at 0.8 L, into the fog
 var BIAS = 0.0015;                        // minimum radius above the orbital sphere (no z-fight)
 var GAS_DECK = 0.15;                      // rev 19: a gas giant has no surface: its 'floor' is a cloud deck at 1.15 R (the patch grows to it between 1.75 R and 1.45 R)
-var FLORA_MAX = 700, CREAT_MAX = 40, ROCK_MAX = 400;
+var FLORA_MAX = 700, CREAT_MAX = 40, ROCK_MAX = 400, SPORE_MAX = 60;
 var FLORA_R = 1.3, CREAT_R = 1.2;         // x R
 var NPAD = 3;                             // outposts per planet (max)
 var PAD_L = 6, BLD_S = 0.55, PAD_FLAT = 15, PAD_BLEND = 22, NPC_OFF = 7.8, BLD_OFF = 11;   // x L
@@ -79,7 +85,7 @@ export var NOISE_GLSL = [
 // The n expression is the exact one from PLANET_FRAG's terra branch.
 export var HEIGHT_GLSL = [
     'uniform vec3 uSeed; uniform float uFreq; uniform float uWarp; uniform float uSeaLevel;',
-    'uniform float uAmp; uniform float uBias;',
+    'uniform float uAmp; uniform float uBias; uniform float uEps; uniform float uSeaH;',
     'float terraN(vec3 sp) {',
     '    vec3 p = sp * uFreq + uSeed;',
     '    vec3 q = vec3(fbm(p + vec3(0.0, 3.1, 1.7)),',
@@ -92,7 +98,7 @@ export var HEIGHT_GLSL = [
     'float hfun(vec3 d) {',
     '    float n = terraN(d);',
     '    float land = smoothstep(uSeaLevel - 0.035, uSeaLevel + 0.035, n);',
-    '    float rel = max(n - uSeaLevel, 0.0);',
+    '    float rel = max(n - uSeaH, 0.0);',   // rev 24: relief is measured from the planet's ORIGINAL sea level, so lowering the water (land balance) adds plains, not 24 %-of-R mountains
     '    vec3 pm = vec3(d * (uFreq * 5.3) + (uSeed * 1.7 + 2.3));',   // second octave: ridged crags on the mountains
     '    float rid = 1.0 - abs(2.0 * vnoise(pm) - 1.0);',
     '    return uBias + uAmp * (0.10 * land + rel * (2.2 + 1.6 * rid * smoothstep(0.02, 0.14, rel)));',
@@ -100,7 +106,7 @@ export var HEIGHT_GLSL = [
 ].join('\n');
 
 var PATCH_VERT = [
-    'uniform float uR; uniform vec3 uC; uniform vec3 uT1; uniform vec3 uT2; uniform float uTan;',
+    'uniform float uR; uniform vec3 uC; uniform vec3 uT1; uniform vec3 uT2; uniform float uTan; uniform float uRel;',
     'varying vec3 vDir; varying vec3 vN; varying vec3 vView; varying float vRim; varying float vH; varying vec3 vUp;',
     '#include <common>',
     '#include <logdepthbuf_pars_vertex>',
@@ -112,10 +118,10 @@ var PATCH_VERT = [
     '    for (int i = 0; i < 3; i++) {',
     '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
     '    }',
-    '    return h;',
+    '    return uBias + (h - uBias) * uRel;',
     '}',
     'vec3 dirAt(vec2 s) {',
-    '    vec2 u = s * (0.25 + 0.75 * s * s);',            // dense under the ship, coarse at the rim
+    '    vec2 u = s * (0.04 + 0.96 * abs(s * s * s));',     // rev 20: very dense under the ship (cell ~1.5 L at 0.8 L altitude), coarse at the rim
     '    return normalize(uC + (uT1 * u.x + uT2 * u.y) * uTan);',
     '}',
     'void main() {',
@@ -128,7 +134,7 @@ var PATCH_VERT = [
     '    vH = h;',
     '    vec3 ref = abs(d.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
     '    vec3 e1 = normalize(cross(d, ref)); vec3 e2 = cross(d, e1);',
-    '    float eps = 0.0012;',
+    '    float eps = uEps;',
     '    vec3 db = normalize(d + e1 * eps); vec3 dc = normalize(d + e2 * eps);',
     '    float hb = mix(uBias, hfunP(db), taper) - 0.02 * smoothstep(0.97, 1.0, rim); float hc = mix(uBias, hfunP(dc), taper) - 0.02 * smoothstep(0.97, 1.0, rim);',
     '    vec3 pa = d * (1.0 + h); vec3 pb = db * (1.0 + hb); vec3 pc = dc * (1.0 + hc);',
@@ -148,7 +154,7 @@ var PATCH_FRAG = [
     'uniform vec3 uColHigh; uniform vec3 uColLow; uniform vec3 uColSea; uniform vec3 uAtmo; uniform vec3 uAccent;',
     'uniform float uBiome; uniform float uBandFreq; uniform float uSpeckle; uniform vec3 uLightDir;',
     'uniform vec3 uSeed; uniform float uFreq; uniform float uWarp; uniform float uSeaLevel;',
-    'uniform float uFade; uniform vec3 uFogCol; uniform float uFogK; uniform float uLook; uniform float uDetD; uniform float uDetK;',
+    'uniform float uFade; uniform float uSurf; uniform vec3 uFogCol; uniform float uFogK; uniform float uLook; uniform float uDetD; uniform float uDetK; uniform float uTime;',
     'varying vec3 vDir; varying vec3 vN; varying vec3 vView; varying float vRim; varying float vH; varying vec3 vUp;',
     '#include <common>',
     '#include <logdepthbuf_pars_fragment>',
@@ -183,6 +189,14 @@ var PATCH_FRAG = [
     '        float spk = step(1.0 - uSpeckle * 0.012, vnoise(p * 26.0));',
     '        col += uAccent * spk * 1.7;',
     '    }',
+    // rev 24: the GLOBE's own lighting + fresnel on the sphere normal (verbatim PLANET_FRAG), so at >= 2 R the patch is pixel-equal to the painted sphere
+    '    vec3 V = normalize(vView);',
+    '    float dist = length(vView);',
+    '    vec3 Ng = normalize(vUp);',
+    '    float ndlG = dot(Ng, uLightDir) * 0.5 + 0.5;',
+    '    vec3 gcol = col * mix(0.24, 0.96, smoothstep(0.08, 0.92, ndlG));',
+    '    gcol += uAtmo * pow(1.0 - clamp(dot(Ng, V), 0.0, 1.0), 3.6) * 0.3;',
+    '    if (uSurf > 0.001) {',
     '    vec3 N = normalize(vN);',
     // rev 18 biome looks (uLook 0 rocky / 1 lush / 2 icy), driven by slope + height on top of the palette; terra only
     '    float slope = 1.0 - clamp(dot(N, normalize(vUp)), 0.0, 1.0);',
@@ -206,7 +220,6 @@ var PATCH_FRAG = [
     '        }',
     '    }',
     // rev 19: height bands (lowland -> highland hue shift, pale cap above 70 % of the amplitude), 2-octave ground detail, stronger slope + sun shading
-    '    float dist = length(vView);',
     '    if (uBiome < 0.5) {',
     '        vec3 bandC = mix(uColLow, uColHigh, smoothstep(0.02, 0.17, vH));',
     '        col = mix(col, bandC * (0.55 + 0.9 * dot(col, vec3(0.33))) , 0.28 * (1.0 - seaM));',
@@ -216,10 +229,21 @@ var PATCH_FRAG = [
     '        float dn = vnoise(sp * uDetK / 1.6) * 0.6 + vnoise(sp * uDetK / 0.55) * 0.4;',
     '        col *= 1.0 + (dn - 0.5) * 0.55 * dk * (1.0 - seaM * 0.8);',
     '    }',
+    '    if (uBiome > 0.5) {',                                                   // rev 20: cloud world. local latitude stripes (palette bands) + domain-warped swirls + puffs, all in L
+    '        vec3 gp = sp * uDetK;',
+    '        vec3 w = vec3(fbm(gp / 260.0 + uSeed), fbm(gp / 260.0 + uSeed + 7.3), fbm(gp / 260.0 + uSeed + 3.1));',
+    '        float sb = sin(sp.y * uDetK / 38.0 + (w.x - 0.5) * 7.0 + (w.y - 0.5) * 3.0);',
+    '        col = mix(col, mix(uColLow, uColHigh, smoothstep(-0.6, 0.6, sb)), 0.7);',
+    '        float sw = fbm(gp / 90.0 + (w - 0.5) * 2.4 + vec3(uTime * 0.012));',
+    '        col = mix(col * 0.62, col * 1.25 + uAccent * 0.06, smoothstep(0.3, 0.7, sw));',
+    '        float dk2 = 1.0 - smoothstep(uDetD * 0.5, uDetD * 1.4, dist);',
+    '        float pf = vnoise(gp / 16.0 + (w - 0.5) * 5.0 + vec3(uTime * 0.03));',
+    '        col *= 1.0 + (pf - 0.5) * 0.36 * dk2;',
+    '        col += uColHigh * smoothstep(0.62, 0.9, sw) * 0.08;',
+    '    }',
     '    float ndl = dot(N, uLightDir) * 0.5 + 0.5;',
     '    float lightAmt = mix(0.14, 0.98, smoothstep(0.2, 0.88, ndl));',
     '    col *= lightAmt;',
-    '    vec3 V = normalize(vView);',
     '    float fr = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.6);',
     '    col += uAtmo * fr * 0.18;',
     '    if (uBiome < 0.5) {',
@@ -229,6 +253,9 @@ var PATCH_FRAG = [
     '    }',
     '    if (uBiome < 0.5 && uLook > 1.5) col += vec3(0.8, 0.9, 1.0) * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 6.0) * 0.25 * (1.0 - steep);',
     '    col = mix(col, col * vec3(0.55, 0.52, 0.58), smoothstep(0.04, 0.2, slope) * step(uBiome, 0.5) * 0.75);',
+    '    gcol = mix(gcol, col, uSurf);',
+    '    }',
+    '    col = gcol;',
     '    float f = 1.0 - exp(-pow(dist * uFogK, 2.0));',
     '    f = min(f, 0.93);',
     '    col = mix(col, uFogCol, f);',
@@ -406,6 +433,48 @@ var BEAC_FRAG = [
     '}'
 ].join('\n');
 
+// rev 20: gas-giant spores. Soft glowing spheres, instance matrix = (centre, uniform scale), bob + drift in the vertex shader.
+var SPORE_VERT = [
+    'attribute vec3 aCol; attribute vec3 aSp;',
+    'uniform float uTime; uniform float uFadeA; uniform float uFadeB;',
+    'varying vec3 vCol; varying vec3 vN; varying vec3 vView; varying float vK;',
+    '#include <common>',
+    '#include <logdepthbuf_pars_vertex>',
+    'void main() {',
+    '    vec3 c = instanceMatrix[3].xyz; float sc = length(instanceMatrix[0].xyz);',
+    '    vec3 up = normalize(c);',
+    '    vec3 sd = normalize(cross(up, vec3(0.267, 0.802, 0.535))); vec3 sd2 = cross(up, sd);',
+    '    float ph = aSp.x, rt = aSp.z;',
+    '    c += up * (sin(uTime * rt + ph) * aSp.y) + sd * (sin(uTime * rt * 0.37 + ph * 1.7) * aSp.y * 1.8) + sd2 * (cos(uTime * rt * 0.29 + ph) * aSp.y * 1.8);',
+    '    vec4 cw = modelMatrix * vec4(c, 1.0);',
+    '    float dd = distance(cameraPosition, cw.xyz);',
+    '    vK = (1.0 - smoothstep(uFadeA, uFadeB, dd)) * smoothstep(0.6, 2.4, dd / sc);',
+    '    float pl = 1.0 + 0.1 * sin(uTime * 1.7 + ph * 3.0);',
+    '    vec4 wp = modelMatrix * vec4(c + position * sc * pl, 1.0);',
+    '    vN = normalize(mat3(modelMatrix) * position);',
+    '    vCol = aCol; vView = cameraPosition - wp.xyz;',
+    '    gl_Position = projectionMatrix * viewMatrix * wp;',
+    '    #include <logdepthbuf_vertex>',
+    '}'
+].join('\n');
+var SPORE_FRAG = [
+    'uniform vec3 uFogCol; uniform float uFogK;',
+    'varying vec3 vCol; varying vec3 vN; varying vec3 vView; varying float vK;',
+    '#include <common>',
+    '#include <logdepthbuf_pars_fragment>',
+    'void main() {',
+    '    #include <logdepthbuf_fragment>',
+    '    vec3 N = normalize(vN), V = normalize(vView);',
+    '    float nv = clamp(dot(N, V), 0.0, 1.0);',
+    '    vec3 col = vCol * (0.25 + 0.7 * pow(nv, 1.5)) + vec3(1.0) * 0.12 * pow(nv, 12.0) + vCol * pow(1.0 - nv, 2.5) * 0.35;',
+    '    float f = min(1.0 - exp(-pow(length(vView) * uFogK, 2.0)), 0.93);',
+    '    col *= 1.0 - f * 0.85;',
+    '    gl_FragColor = vec4(col, vK * (0.2 + 0.5 * nv));',
+    '    #include <tonemapping_fragment>',
+    '    #include <colorspace_fragment>',
+    '}'
+].join('\n');
+
 var DOME_VERT = [
     'varying vec3 vP;',
     '#include <common>',
@@ -418,7 +487,7 @@ var DOME_VERT = [
     '}'
 ].join('\n');
 var DOME_FRAG = [
-    'uniform vec3 uFogCol; uniform vec3 uAtmo; uniform vec3 uUp; uniform float uAlpha; uniform float uSun; uniform float uHor; uniform vec3 uSunDir;',
+    'uniform vec3 uFogCol; uniform vec3 uAtmo; uniform vec3 uUp; uniform float uAlpha; uniform float uSun; uniform float uHor; uniform vec3 uSunDir; uniform float uStar;',
     'varying vec3 vP;',
     '#include <common>',
     '#include <logdepthbuf_pars_fragment>',
@@ -427,7 +496,7 @@ var DOME_FRAG = [
     '    vec3 v = normalize(vP);',
     '    float c = dot(v, normalize(uUp));',
     '    float z = clamp((c - uHor) / (1.0 - uHor), 0.0, 1.0);',   // 0 at the geometric horizon
-    '    vec3 zen = uAtmo * (0.18 + 0.5 * uSun);',
+    '    vec3 zen = uAtmo * (0.18 + 0.5 * uSun) * 1.5;',
     '    zen = mix(vec3(dot(zen, vec3(0.33))), zen, 0.6 + 0.4 * smoothstep(0.1, 0.8, z));',    // less saturated near the ground
     '    vec3 col = mix(uFogCol, zen, pow(z, 0.7));',
     '    float night = 1.0 - uSun;',
@@ -439,7 +508,8 @@ var DOME_FRAG = [
     '    float glow = pow(max(sd, 0.0), 2.5) * 0.10 * uSun;',            // rev 19: soft directional brightening toward the light, no disc / sprite
     '    col += uFogCol * glow;',
     '    float seeThru = mix(0.4, 0.84, uSun);',                          // planets / the black hole stay visible through the dome: ghosts by day, clearer at night
-    '    float alpha = max(uAlpha * wash * seeThru, star * 0.9 * uAlpha);',
+    '    float thick = 0.5 + 0.5 * smoothstep(0.0, 0.6, z);',
+    '    float alpha = max(uAlpha * wash * seeThru * thick, star * 0.9 * uStar);',
     '    gl_FragColor = vec4(col, alpha);',
     '    #include <tonemapping_fragment>',
     '    #include <colorspace_fragment>',
@@ -491,10 +561,10 @@ function terraN(dx, dy, dz, seed, freq, warp) {
     return n;
 }
 // height as a fraction of R (matches hfun in HEIGHT_GLSL)
-export function sampleHeight(dx, dy, dz, seed, freq, warp, sea, amp, bias) {
+export function sampleHeight(dx, dy, dz, seed, freq, warp, sea, amp, bias, seaH) {
     var n = terraN(dx, dy, dz, seed, freq, warp);
     var land = smoothstep(sea - 0.035, sea + 0.035, n);
-    var rel = Math.max(n - sea, 0);
+    var rel = Math.max(n - (seaH === undefined ? sea : seaH), 0);
     _lastN = n;
     var k = f32(f32(freq) * f32(5.3));
     var sx = f32(f32(seed.x * f32(1.7)) + f32(2.3)), sy = f32(f32(seed.y * f32(1.7)) + f32(2.3)), sz = f32(f32(seed.z * f32(1.7)) + f32(2.3));
@@ -628,20 +698,21 @@ export function createPlanetSurface(engine, L) {
     var haloT = 0, haloAlphaK = 1; // altitude ramp 0..1 (2.2 R -> 1.4 R), inside dim factor
     var rimI = 0, prevPos = new THREE.Vector3(), prevOk = false, spd = 0, flow = new THREE.Vector3(0, 1, 0);
     ps.shake = 0;
+    var _mW = new THREE.Matrix4();
     var qInv = new THREE.Quaternion(), tmpV = new THREE.Vector3(), tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
-    var dirObj = new THREE.Vector3();
-    var sea = 0.5, freq = 3, warp = 1, seedV = null, amp = AMP, bias = BIAS, isGas = false;
+    var dirObj = new THREE.Vector3(), wLocal = new THREE.Vector3();
+    var sea = 0.5, seaH = 0.5, freq = 3, warp = 1, seedV = null, amp = AMP, bias = BIAS, isGas = false;
 
     // patch state
     var C = new THREE.Vector3(0, 1, 0), T1 = new THREE.Vector3(1, 0, 0), T2 = new THREE.Vector3(0, 0, 1);
-    var halfAng = 0.3, patchSet = false;
+    var halfAng = 0.3, patchSet = false, sporeC = new THREE.Vector3(), sporeSet = false;
     // flora / creature seed centres (object-space unit directions)
     var floraC = new THREE.Vector3(), floraSet = false, creatC = new THREE.Vector3(), creatSet = false, rockC = new THREE.Vector3(), rockSet = false, rockLim = Q_ROCK[3], look = 0;
 
     // outpost pads (local dir, flat chord, blend chord, height frac) -- mirrors hfunP in the patch shader
     var pads = [], outR = 0, lastLand = false, rideKey = [NaN, 0, 0, 0, 0, 0, 0];
     function hFrac(dx, dy, dz) {
-        var h = sampleHeight(dx, dy, dz, seedV, freq, warp, sea, amp, bias);
+        var h = sampleHeight(dx, dy, dz, seedV, freq, warp, sea, amp, bias, seaH);
         for (var i = 0; i < pads.length; i++) {
             var pd = pads[i], ch = Math.sqrt((dx - pd.d.x) * (dx - pd.d.x) + (dy - pd.d.y) * (dy - pd.d.y) + (dz - pd.d.z) * (dz - pd.d.z));
             if (ch < pd.blend) { var w = 1 - smoothstep(pd.flat, pd.blend, ch); h = h * (1 - w) + pd.h * w; }
@@ -672,6 +743,7 @@ export function createPlanetSurface(engine, L) {
         return pg;
     }
 
+    ps.footMode = false;      // rev 20b: ship.js sets this while the human is out (smaller, denser patch)
     ps.quality = qTier;
     ps.setQuality = function (t) {
         t = t < 0 ? 0 : t > 3 ? 3 : Math.round(t);
@@ -694,8 +766,8 @@ export function createPlanetSurface(engine, L) {
             uColSea: { value: new THREE.Color() }, uAtmo: { value: new THREE.Color() }, uAccent: { value: new THREE.Color() },
             uBiome: { value: 0 }, uLook: { value: 0 }, uFreq: { value: 3 }, uWarp: { value: 1 }, uBandFreq: { value: 8 }, uSeaLevel: { value: 0.5 },
             uSpeckle: { value: 0 }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK,
-            uAmp: { value: AMP }, uBias: { value: BIAS }, uR: { value: 1 }, uDetD: { value: 140 * L }, uDetK: { value: 3000 },
-            uC: { value: C }, uT1: { value: T1 }, uT2: { value: T2 }, uTan: { value: 0.3 }, uFade: { value: 1 },
+            uSeaH: { value: 0.5 }, uAmp: { value: AMP }, uBias: { value: BIAS }, uEps: { value: 0.0012 }, uTime: SH.uTime, uR: { value: 1 }, uDetD: { value: 140 * L }, uDetK: { value: 3000 },
+            uC: { value: C }, uT1: { value: T1 }, uT2: { value: T2 }, uTan: { value: 0.3 }, uFade: { value: 1 }, uSurf: { value: 0 }, uRel: { value: 0 },
             uPadD: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }, uPadP: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }
         };
         a.patchMat = new THREE.ShaderMaterial({
@@ -705,7 +777,7 @@ export function createPlanetSurface(engine, L) {
         });
         a.patch = new THREE.Mesh(pg, a.patchMat);
         a.patch.frustumCulled = false;
-        a.patch.renderOrder = 1;
+        a.patch.renderOrder = -1;     // rev 24: drawn BEFORE the additive glow sprite (renderOrder 0), so the orbital glow still lays over the patch
         a.patch.matrixAutoUpdate = true;
         a.patch.onBeforeRender = syncRide;
         a.ride = new THREE.Group(); a.ride.matrixAutoUpdate = false; scene.add(a.ride);   // spins with the globe, see syncRide
@@ -788,8 +860,23 @@ export function createPlanetSurface(engine, L) {
         a.rocks.count = 0; a.rocks.frustumCulled = false; a.rocks.renderOrder = 2;
         a.rocks.onBeforeRender = syncRide; a.ride.add(a.rocks);
 
+        // spores (rev 20, gas giants): glowing drifting spheres, 60 instances, bob/drift in the vertex shader
+        var spg = new GeoBuilder();
+        spg.sphere(0, 0, 0, 1, 1, 1, 12, 8, 0, Math.PI, 0, 0, 0, 0, 0);
+        var spgeo = finishGeo(THREE, spg, {});
+        a.sporeCol = new THREE.InstancedBufferAttribute(new Float32Array(SPORE_MAX * 3), 3);
+        a.sporeSp = new THREE.InstancedBufferAttribute(new Float32Array(SPORE_MAX * 3), 3);
+        spgeo.setAttribute('aCol', a.sporeCol); spgeo.setAttribute('aSp', a.sporeSp);
+        a.sporeU = { uTime: SH.uTime, uFadeA: { value: 55 * L }, uFadeB: { value: 90 * L }, uFogCol: SH.uFogCol, uFogK: SH.uFogK };
+        a.spores = new THREE.InstancedMesh(spgeo, new THREE.ShaderMaterial({
+            uniforms: a.sporeU, vertexShader: SPORE_VERT, fragmentShader: SPORE_FRAG, side: THREE.FrontSide, toneMapped: false,
+            transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+        }), SPORE_MAX);
+        a.spores.count = 0; a.spores.frustumCulled = false; a.spores.renderOrder = 4;
+        a.spores.onBeforeRender = syncRide; a.ride.add(a.spores);
+
         // atmosphere dome (camera-attached inverted sphere)
-        a.domeU = { uFogCol: SH.uFogCol, uAtmo: { value: new THREE.Color() }, uUp: { value: new THREE.Vector3(0, 1, 0) }, uAlpha: { value: 0 }, uSun: { value: 1 }, uHor: { value: -0.3 }, uSunDir: SH.uLightDir };
+        a.domeU = { uFogCol: SH.uFogCol, uAtmo: { value: new THREE.Color() }, uUp: { value: new THREE.Vector3(0, 1, 0) }, uAlpha: { value: 0 }, uSun: { value: 1 }, uHor: { value: -0.3 }, uSunDir: SH.uLightDir, uStar: { value: 0 } };
         a.dome = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), new THREE.ShaderMaterial({
             uniforms: a.domeU, vertexShader: DOME_VERT, fragmentShader: DOME_FRAG,
             side: THREE.BackSide, transparent: true, depthWrite: false, depthTest: true, toneMapped: false
@@ -798,7 +885,7 @@ export function createPlanetSurface(engine, L) {
         // DOME_L ship lengths: the ground, trees and ship (nearer) stay crisp, everything beyond is washed by the sky.
         a.dome.scale.setScalar(Math.min(DOME_L * L, camera.far * 0.4));
         a.dome.frustumCulled = false; a.dome.renderOrder = 8;
-        a.dome.onBeforeRender = function () { a.dome.position.copy(camera.position); a.dome.updateMatrixWorld(); };
+        a.dome.onBeforeRender = function () { a.dome.position.set(camera.position.x - scene.position.x, camera.position.y - scene.position.y, camera.position.z - scene.position.z); a.dome.updateMatrixWorld(); };   // rev 20: floating origin: world = local + scene.position
         scene.add(a.dome);
 
         // wind streaks: ONE mesh, NSTREAK camera-facing quads (positions are camera-relative, mesh follows the camera)
@@ -820,7 +907,7 @@ export function createPlanetSurface(engine, L) {
             transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false
         }));
         a.streaks.frustumCulled = false; a.streaks.renderOrder = 16; a.streaks.visible = false;
-        a.streaks.onBeforeRender = function () { a.streaks.position.copy(camera.position); a.streaks.updateMatrixWorld(); };
+        a.streaks.onBeforeRender = function () { a.streaks.position.set(camera.position.x - scene.position.x, camera.position.y - scene.position.y, camera.position.z - scene.position.z); a.streaks.updateMatrixWorld(); };
         scene.add(a.streaks);
         a.st = [];
         for (var z = 0; z < NSTREAK; z++) a.st.push({ x: 0, y: 0, z: 0, len: 1, sp: 1, w: 1, init: false });
@@ -901,8 +988,10 @@ export function createPlanetSurface(engine, L) {
         k[0] = q.x; k[1] = q.y; k[2] = q.z; k[3] = q.w; k[4] = p.x; k[5] = p.y; k[6] = p.z;
         var r = alloc.ride;
         r.position.copy(p); r.quaternion.copy(q); r.updateMatrix(); r.updateMatrixWorld(true);
+        // rev 20: outposts come from the LOCAL matrices (ride.matrix x pad.matrix = true world), never matrixWorld: during a floating-origin
+        // render the scene is translated by -camera, which would shift matrixWorld (and every position derived from it) by the camera position
         for (var i = 0; i < ps.outposts.length; i++) {
-            var o = ps.outposts[i], me = o.pad.matrixWorld.elements;
+            var o = ps.outposts[i], me = _mW.multiplyMatrices(r.matrix, o.pad.matrix).elements;
             o.pos.set(me[12], me[13], me[14]);
             o.n.set(me[4], me[5], me[6]).normalize();
             o.axis.set(me[0], me[1], me[2]).normalize();
@@ -924,11 +1013,13 @@ export function createPlanetSurface(engine, L) {
         var want = 1 + Math.floor(hash01(sd, 1, 2, 3) * 3), flatA = PAD_FLAT * L / R, blendA = PAD_BLEND * L / R;
         var ringN = 6;
         var cands = [];
-        for (k = 0; k < 500; k++) {                      // sample the sphere, score each lowland site by how flat its surroundings are
+        var usedPass = 0;
+        for (var pass = 0; pass < 3 && !cands.length; pass++)      // rev 21: pass 0 = lowland, 1 = any land (more samples), 2 = anything above the waterline: every rocky planet gets >= 1 outpost
+        for (k = 0, usedPass = pass; k < (pass ? 2500 : 500); k++) {                      // sample the sphere, score each lowland site by how flat its surroundings are
             var z = hash01(k, 7, sd, 1) * 2 - 1, ph = hash01(k, 8, sd, 2) * 6.2831853, rr = Math.sqrt(1 - z * z);
             var dx = rr * Math.cos(ph), dy = z, dz = rr * Math.sin(ph);
             var hc = hFrac(dx, dy, dz);
-            if (!(_lastN > sea + 0.05 && _lastN < sea + 0.115)) continue;           // lowland, not beach / mountain
+            if (pass === 0 ? !(_lastN > sea + 0.05 && _lastN < sea + 0.115) : pass === 1 ? !(_lastN > sea + 0.02) : !(_lastN > sea + 0.002)) continue;           // lowland, not beach / mountain
             var ref0 = Math.abs(dy) < 0.9, e1x, e1y, e1z;
             if (ref0) { e1x = dz; e1y = 0; e1z = -dx; } else { e1x = 0; e1y = -dz; e1z = dy; }
             var el = Math.hypot(e1x, e1y, e1z); e1x /= el; e1y /= el; e1z /= el;
@@ -940,14 +1031,14 @@ export function createPlanetSurface(engine, L) {
                 var hh = hFrac(px / pl, py / pl, pz / pl);
                 minN = Math.min(minN, _lastN); maxd = Math.max(maxd, Math.abs(hh - hc));
             }
-            if (minN < sea + 0.012) continue;            // whole ring on land
+            if (pass < 2 && minN < sea + 0.012) continue;            // whole ring on land
             cands.push({ d: new THREE.Vector3(dx, dy, dz), h: hc, e1: [e1x, e1y, e1z], e2: [e2x, e2y, e2z], k: k, score: maxd / (blendA * 1.4) });
         }
         cands.sort(function (p, q) { return p.score - q.score; });
         for (var ci = 0; ci < cands.length && found.length < want; ci++) {
             var cd = cands[ci], okSep = true;
             for (i = 0; i < found.length; i++) if (cd.d.dot(found[i].d) > Math.cos(OUT_SEP)) { okSep = false; break; }
-            if (okSep && (found.length === 0 || cd.score < 0.35)) found.push(cd);
+            if (okSep && (found.length === 0 || (usedPass === 0 && cd.score < 0.35))) found.push(cd);
         }
         var pm = a.pads.instanceMatrix.array, bm = a.blds.instanceMatrix.array, bc = a.beac.instanceMatrix.array;
         var u = node.mesh.material.uniforms, lo = col3(u.uColLow.value), hi = col3(u.uColHigh.value), ac = col3(u.uAccent.value);
@@ -986,7 +1077,7 @@ export function createPlanetSurface(engine, L) {
             m4.makeBasis(new THREE.Vector3(ux, uy, uz), new THREE.Vector3(d.x, d.y, d.z), new THREE.Vector3(vx, vy, vz));
             padO.quaternion.setFromRotationMatrix(m4);
             padO.position.set(d.x * rad, d.y * rad, d.z * rad);
-            a.ride.add(padO);
+            padO.updateMatrix(); a.ride.add(padO);
             ps.outposts.push({
                 id: id, name: OUT_T[Math.floor(hash01(f.k, 15, sd, 8) * OUT_T.length)] + ' ' + OUT_A[Math.floor(hash01(f.k, 16, sd, 9) * OUT_A.length)] + OUT_B[Math.floor(hash01(f.k, 17, sd, 10) * OUT_B.length)],
                 pad: padO, dir: d.clone(), radius: PAD_L * L, pos: new THREE.Vector3(), n: new THREE.Vector3(0, 1, 0), axis: new THREE.Vector3(1, 0, 0),
@@ -1001,6 +1092,23 @@ export function createPlanetSurface(engine, L) {
         a.beacU.uCol.value.setRGB(ac[0], ac[1], ac[2]);
         rideKey[0] = NaN; syncRide();
     }
+    // rev 21: ship-world.js (stores, shards, NPCs) rides on the active planet: ps.attachWorld(world) -> world.attach(node) on near-mode entry, world.detach() on leave
+    ps.world = null;
+    var worldOn = false;
+    function worldAttach() {
+        var w = ps.world; if (!w || worldOn || !node || !alloc) return;
+        try { w.attach(node); if (w.group) alloc.ride.add(w.group); worldOn = true; } catch (e) { console.info('[ship-planet] world attach failed', e); }
+    }
+    function worldDetach() {
+        var w = ps.world; if (!w || !worldOn) return;
+        worldOn = false;
+        try { if (w.group && w.group.parent) w.group.parent.remove(w.group); w.detach(); } catch (e) { console.info('[ship-planet] world detach failed', e); }
+    }
+    ps.attachWorld = function (world) {
+        if (ps.world && ps.world !== world) worldDetach();
+        ps.world = world || null;
+        if (world && node) worldAttach();
+    };
     function clearOutposts() {
         for (var i = 0; i < ps.outposts.length; i++) if (ps.outposts[i].pad.parent) ps.outposts[i].pad.parent.remove(ps.outposts[i].pad);
         ps.outposts = []; pads = [];
@@ -1017,14 +1125,14 @@ export function createPlanetSurface(engine, L) {
         SH.uLightDir.value = u.uLightDir.value;
         alloc.floraU.uLightDir = u.uLightDir; alloc.creatU.uLightDir = u.uLightDir; alloc.rockU.uLightDir = u.uLightDir;
         alloc.patchMat.uniformsNeedUpdate = true;
-        seedV = u.uSeed.value; freq = u.uFreq.value; warp = u.uWarp.value; sea = u.uSeaLevel.value;
+        seedV = u.uSeed.value; freq = u.uFreq.value; warp = u.uWarp.value; sea = u.uSeaLevel.value; seaH = sea; pu.uSeaH.value = sea;
         isGas = u.uBiome.value > 0.5;
-        amp = isGas ? 0 : AMP; bias = isGas ? GAS_DECK : BIAS;
+        amp = isGas ? AMP_GAS : AMP; bias = isGas ? GAS_DECK : BIAS;
         pu.uAmp.value = amp; pu.uBias.value = isGas ? 0 : bias; pu.uDetK.value = R / L;
         look = lookFromPalette(col3(u.uColLow.value), col3(u.uColHigh.value)); pu.uLook.value = look;
         var A = col3(u.uAtmo.value);
         alloc.domeU.uAtmo.value.setRGB(A[0], A[1], A[2]);
-        alloc.floraSet = false; rockSet = false;
+        floraSet = false; rockSet = false; sporeSet = false;
     }
 
     // halo: updateBodies() rewrites the atmo uAlpha / glow opacity+scale every frame AFTER the pilot, so the
@@ -1061,24 +1169,55 @@ export function createPlanetSurface(engine, L) {
         if (!alloc) return;
         alloc.patch.visible = on; alloc.dome.visible = on; alloc.streaks.visible = on && rimI > 0.002;
         for (var si = 0; si < NSCAR; si++) alloc.scars[si].mesh.visible = on && alloc.scars[si].ttl > 0;
-        alloc.flora.visible = on && alloc.flora.count > 0; alloc.creat.visible = on && alloc.creat.count > 0; alloc.rocks.visible = on && alloc.rocks.count > 0;
+        alloc.flora.visible = on && alloc.flora.count > 0; alloc.creat.visible = on && alloc.creat.count > 0; alloc.rocks.visible = on && alloc.rocks.count > 0; alloc.spores.visible = on && alloc.spores.count > 0;
         alloc.pads.visible = alloc.blds.visible = alloc.beac.visible = on && alloc.pads.count > 0;
     }
 
+    // rev 24: land/water balance. Per planet land fraction target 0.45-0.8 (seeded); the sea level is solved against a height histogram of
+    // ~2000 sphere directions (cached per planet id) and written BACK to the painted globe's uSeaLevel so orbit and surface agree.
+    // Pilot radius < 600 L or a single outpost => all land (sea below the lowest sampled height).
+    var seaCache = {};
+    ps.solveSea = function (n) {
+        var u = n.mesh.material.uniforms;
+        if (u.uBiome.value > 0.5) return null;
+        var c = seaCache[n.id];
+        if (!c) {
+            var sd = nodeSeed(n), Rn = n.mesh.scale.x, frac = 0.45 + 0.35 * hash01(sd, 41, 43, 47);
+            var want = 1 + Math.floor(hash01(sd + 31337, 1, 2, 3) * 3);
+            var allLand = (Rn / L < 600) || want === 1, N = 2000, v = new Float32Array(N), sv = u.uSeed.value, fq = u.uFreq.value, wp = u.uWarp.value;
+            for (var i = 0; i < N; i++) {
+                var y = 1 - 2 * (i + 0.5) / N, rr = Math.sqrt(1 - y * y), ph = i * 2.399963229728653;
+                v[i] = terraN(rr * Math.cos(ph), y, rr * Math.sin(ph), sv, fq, wp);
+            }
+            v.sort();
+            var sl;
+            if (allLand) sl = v[0] - 0.09;
+            else sl = v[Math.min(N - 1, Math.max(0, Math.floor((1 - frac) * N)))];
+            var landN = 0; for (var j = 0; j < N; j++) if (v[j] > sl) landN++;
+            c = seaCache[n.id] = { sea: sl, target: allLand ? 1 : frac, frac: landN / N, allLand: allLand, old: u.uSeaLevel.value };
+        }
+        u.uSeaLevel.value = c.sea;
+        return c;
+    };
+    ps.seaInfo = function (n) { return seaCache[(n || node || {}).id] || null; };
+
     function activate(n) {
-        if (node && node !== n) { unhookHalo(); killScars(); clearOutposts(); }
+        if (node && node !== n) { worldDetach(); unhookHalo(); killScars(); clearOutposts(); }
         node = n;
         if (!alloc) alloc = build();
         hookHalo(n);
         setNodeUniforms();
-        patchSet = false; floraSet = false; creatSet = false;
+        patchSet = false; floraSet = false; creatSet = false; sporeSet = false;
         ps.active = n; R = n.mesh.scale.x;
+        if (!isGas) { var sc = ps.solveSea(n); if (sc) { sea = sc.sea; seaH = Math.max(sc.old, sc.sea); alloc.patchU.uSeaH.value = seaH; } }
         seedOutposts();
+        worldAttach();
     }
     function deactivate() {
+        worldDetach();
         unhookHalo(); killScars(); clearOutposts();
         node = null; ps.active = null; ps.depth = 0;
-        if (alloc) { showObjs(false); alloc.domeU.uAlpha.value = 0; alloc.flora.count = 0; alloc.creat.count = 0; alloc.rocks.count = 0; rockSet = false; }
+        if (alloc) { showObjs(false); alloc.domeU.uAlpha.value = 0; alloc.flora.count = 0; alloc.creat.count = 0; alloc.rocks.count = 0; alloc.spores.count = 0; rockSet = false; sporeSet = false; }
     }
 
     function tangentFrame(c, t1, t2) {
@@ -1237,6 +1376,37 @@ export function createPlanetSurface(engine, L) {
         a.creatCol.needsUpdate = true; a.creatSel.needsUpdate = true; a.creatPh.needsUpdate = true;
         creatSet = true;
     }
+    // ─── spores (gas giants): 60 nearest lattice cells around the ship, hovering 3-17 L above the cloud tops, 1-3 L across
+    function seedSpores() {
+        var a = alloc, Rr = R, cell = 14 * L, E = 100 * L, m = Math.ceil(E / cell);
+        var cx = sporeC.x * Rr, cy = sporeC.y * Rr, cz = sporeC.z * Rr;
+        var ci = Math.floor(cx / cell), cj = Math.floor(cy / cell), ck = Math.floor(cz / cell);
+        var seed = nodeSeed(node) + 9191, cands = [];
+        for (var i = ci - m; i <= ci + m; i++) for (var j = cj - m; j <= cj + m; j++) for (var k = ck - m; k <= ck + m; k++) {
+            var px = (i + hash01(i, j, k, seed + 1)) * cell, py = (j + hash01(i, j, k, seed + 2)) * cell, pz = (k + hash01(i, j, k, seed + 3)) * cell;
+            var rl = Math.hypot(px, py, pz);
+            if (Math.abs(rl - Rr) > cell * 0.5) continue;
+            var d2 = (px - cx) * (px - cx) + (py - cy) * (py - cy) + (pz - cz) * (pz - cz);
+            cands.push([d2, px / rl, py / rl, pz / rl, i, j, k]);
+        }
+        cands.sort(function (p, q) { return p[0] - q[0]; });
+        var u = node.mesh.material.uniforms, hi = col3(u.uColHigh.value), ac = col3(u.uAccent.value), cnt = 0;
+        var mat = a.spores.instanceMatrix.array;
+        for (var c = 0; c < cands.length && cnt < SPORE_MAX; c++) {
+            var cd = cands[c], h = hFrac(cd[1], cd[2], cd[3]);
+            var r1 = hash01(cd[4], cd[5], cd[6], seed + 4), r2 = hash01(cd[4], cd[5], cd[6], seed + 5), r3 = hash01(cd[4], cd[5], cd[6], seed + 6);
+            var sz = (1 + r1 * 2) * L, rad = Rr * (1 + h) + (3 + r2 * 14) * L, o = cnt * 16;
+            mat[o] = sz; mat[o + 1] = 0; mat[o + 2] = 0; mat[o + 3] = 0; mat[o + 4] = 0; mat[o + 5] = sz; mat[o + 6] = 0; mat[o + 7] = 0;
+            mat[o + 8] = 0; mat[o + 9] = 0; mat[o + 10] = sz; mat[o + 11] = 0;
+            mat[o + 12] = cd[1] * rad; mat[o + 13] = cd[2] * rad; mat[o + 14] = cd[3] * rad; mat[o + 15] = 1;
+            for (var q = 0; q < 3; q++) a.sporeCol.array[cnt * 3 + q] = Math.min(1.0, (ac[q] * (0.35 + 0.45 * r3) + hi[q] * (0.3 - 0.15 * r3)) * 0.9 + 0.04);
+            a.sporeSp.array[cnt * 3] = r3 * 6.283; a.sporeSp.array[cnt * 3 + 1] = (1.2 + r1 * 3) * L; a.sporeSp.array[cnt * 3 + 2] = 0.5 + r2 * 0.9;
+            cnt++;
+        }
+        a.spores.count = cnt;
+        a.spores.instanceMatrix.needsUpdate = true; a.sporeCol.needsUpdate = true; a.sporeSp.needsUpdate = true;
+        sporeSet = true;
+    }
     function animCreatures() {
         var a = alloc, N = a.creat.count; if (!N) return;
         var mat = a.creat.instanceMatrix.array, Rr = R, cd, i;
@@ -1321,7 +1491,7 @@ export function createPlanetSurface(engine, L) {
     // ─── scars (titan beam decals) ─────────────────────────────────────────────────
     function killScars() { if (!alloc) return; for (var i = 0; i < NSCAR; i++) { alloc.scars[i].ttl = 0; alloc.scars[i].mesh.visible = false; } }
     ps.scar = function (pos, dir, len, ttl) {
-        if (!node || !alloc || isGas) return false;
+        if (!node || !alloc) return false;
         var a = alloc, sc = a.scars[0], i;
         for (i = 0; i < NSCAR; i++) { var c = a.scars[i]; if (c.ttl <= 0) { sc = c; break; } if (c.ttl < sc.ttl) sc = c; }
         toObjDir(pos, tmpA);
@@ -1360,7 +1530,7 @@ export function createPlanetSurface(engine, L) {
     }
 
     // ─── per-frame ─────────────────────────────────────────────────────────────────
-    ps.moonMin = 0;
+    ps.moonMin = 60 * L;      // rev 20: only a body under 60 L rendered radius is a moonlet (no surface)
     ps.update = function (dt, shipPos) {
         t += dt; SH.uTime.value = t;
         // pick the active body: nearest real body inside 3 R (3.25 R to leave)
@@ -1368,7 +1538,7 @@ export function createPlanetSurface(engine, L) {
         for (var i = 0; i < list.length; i++) {
             var n = list[i];
             if (!n.mesh || !n.anchor || !n.anchor.visible || !n.mesh.material || !n.mesh.material.uniforms || !n.mesh.material.uniforms.uSeed) continue;
-            var Rn = n.mesh.scale.x; if (!(Rn > 0) || Rn < ps.moonMin) continue;      // moonlets (< 200 L) never get a surface
+            var Rn = n.mesh.scale.x; if (!(Rn > 0) || Rn < ps.moonMin) continue;      // moonlets (< 60 L) never get a surface
             var dx = shipPos.x - n.anchor.position.x, dy = shipPos.y - n.anchor.position.y, dz = shipPos.z - n.anchor.position.z;
             var ratio = Math.sqrt(dx * dx + dy * dy + dz * dz) / Rn;
             if (ratio < (n === node ? NEAR_OFF : NEAR_R) && ratio < bd) { bd = ratio; best = n; }
@@ -1392,16 +1562,24 @@ export function createPlanetSurface(engine, L) {
             op.prev.copy(op.pos); op.prevOk = true;
         }
 
+        if (ps.world && worldOn) {      // rev 21: player's planet-local position (undo the spin) for the world's streaming / interaction
+            toObjDir(shipPos, dirObj); wLocal.copy(dirObj).multiplyScalar(Math.hypot(shipPos.x - node.anchor.position.x, shipPos.y - node.anchor.position.y, shipPos.z - node.anchor.position.z));
+            try { ps.world.update(t, dt, wLocal); } catch (e) { if (!ps._wErr) { ps._wErr = 1; console.info('[ship-planet] world.update', e); } }
+        }
         toObjDir(shipPos, dirObj);
         var horizon = Math.acos(Math.min(1, 1 / Math.max(ratioE, 1.0001)));
-        var wantHalf = Math.min(1.4, Math.max(0.12, horizon * 1.5 + 0.05));
-        if (!patchSet || C.angleTo(dirObj) > halfAng * 0.125 || Math.abs(wantHalf / halfAng - 1) > 0.25) {
+        var wantHalf = Math.min(1.4, Math.max(Math.atan((ps.footMode ? PATCH_FOOT_L : PATCH_MIN_L) * L / R), horizon * 1.5 + 0.05));    // rev 20: >= 2600 L reach, so the patch is past the horizon (138 L at 0.8 L) and into the fog
+        a.patchU.uDetK.value = R / L; a.patchU.uEps.value = Math.min(0.0012, Math.max(2e-5, 1.5 * L / R));                            // normal-probe step ~1.5 L
+        if (!patchSet || C.angleTo(dirObj) * R > Math.min(40 * L, halfAng * 0.125 * R) || Math.abs(wantHalf / halfAng - 1) > 0.25) {
             C.copy(dirObj); tangentFrame(C, T1, T2);
             halfAng = wantHalf; a.patchU.uTan.value = Math.tan(halfAng); patchSet = true;
         }
         // altitude look: the patch cross-fades in over the (never hidden) orbital sphere
         var fadeIn = 1 - smoothstep(FADE_IN_B, FADE_IN_A, ratioD);
         a.patchU.uFade.value = fadeIn;
+        a.patchU.uRel.value = isGas ? 1 : Math.pow(smoothstep(REL_A, REL_B, ratioD), 2.2);
+        a.patchMat.depthWrite = fadeIn > 0.98;      // rev 24: while the patch is still fading it must not hide the orbital glow sprite behind its depth
+        a.patchU.uSurf.value = smoothstep(SURF_A, SURF_B, ratioD);
 
         // entry transition: halo brightens/expands 2.2 R -> 1.4 R, then dims once you are inside it (dome takes over)
         haloT = smoothstep(HALO_A, HALO_B, ratioD);
@@ -1424,17 +1602,20 @@ export function createPlanetSurface(engine, L) {
         var fb = 0.28 + 0.72 * sunTerm;
         SH.uFogCol.value.set((A[0] * 0.5 + Hh[0] * 0.5) * fb * 0.6 + 0.02, (A[1] * 0.5 + Hh[1] * 0.5) * fb * 0.6 + 0.02, (A[2] * 0.5 + Hh[2] * 0.5) * fb * 0.6 + 0.02);   // horizon tint = pal.hi, zenith = pal.atmo
         // rev 19: ground visibility >= 400 L (f(400 L) = 0.38, f(150 L) = 0.05); only the haze layer near the top of the atmosphere densifies, and space (depth 0) is clear
-        var haze = 1 - smoothstep(0.0, 0.3, ps.depth);
-        SH.uFogK.value = (0.78 / (400 * L)) * (0.42 + 2.4 * haze) * smoothstep(0.0, 0.04, ps.depth);
+        // rev 24: no top-of-atmosphere haze layer; fog density follows the altitude above the ground (clear from the air, f(400 L) = 0.10 on the surface)
+        var altF = Math.max(0, ratioD * R - R * (1 + hFrac(dirObj.x, dirObj.y, dirObj.z))) / L;
+        SH.uFogK.value = (0.78 / (400 * L)) * 0.42 * Math.exp(-altF / 450) * smoothstep(0.0, 0.04, ps.depth);
+        if (isGas) SH.uFogK.value *= 2.4;          // rev 20: a thicker haze layer over the cloud tops
         SH.uNight.value = 1 - sunTerm;
         a.domeU.uUp.value.copy(tmpV); a.domeU.uSun.value = sunTerm;
-        a.domeU.uAlpha.value = Math.pow(ps.depth, 0.8) * 0.95;
+        a.domeU.uAlpha.value = Math.pow(ps.depth, 0.8) * 0.45; a.domeU.uStar.value = Math.pow(ps.depth, 0.8);   // rev 24: dome alpha <= 0.45
         a.domeU.uHor.value = -Math.sqrt(Math.max(0, 1 - 1 / (ratioE * ratioE)));   // sin(elevation) of the geometric horizon
         a.dome.position.copy(camera.position); a.dome.updateMatrixWorld();
         updateScars(dt);
 
         // rocks: within ~260 L of the ground
-        if (ratioD < 1 + 280 * L / R && !isGas) {
+        var altG = ratioD * R - R * (1 + hFrac(dirObj.x, dirObj.y, dirObj.z));      // rev 20: altitude above the ACTUAL ground (mountains are 0.09 R = 1000 L high at this scale)
+        if (altG < 280 * L && !isGas) {
             if (!rockSet || dirObj.angleTo(rockC) * R > 40 * L) { rockC.copy(dirObj); seedRocks(); }
         } else if (a.rocks.count) { a.rocks.count = 0; rockSet = false; }
         // flora (< 1.3 R) and creatures (< 1.2 R), pooled + seeded by lattice hash
@@ -1445,7 +1626,24 @@ export function createPlanetSurface(engine, L) {
             if (!creatSet || dirObj.angleTo(creatC) * R > 60 * L) { creatC.copy(dirObj); seedCreatures(); }
             animCreatures();
         } else if (a.creat.count) { a.creat.count = 0; creatSet = false; }
+        if (ratioD < FLORA_R && isGas) {
+            if (!sporeSet || dirObj.angleTo(sporeC) * R > 12 * L) { sporeC.copy(dirObj); seedSpores(); }
+        } else if (a.spores.count) { a.spores.count = 0; sporeSet = false; }
         showObjs(ps.visible);
+    };
+
+    // rev 24: guidance points of interest for the active planet, world positions in the CURRENT frame (the ride group's spin applied)
+    ps.pois = function () {
+        var out = [];
+        if (!node || !alloc) return out;
+        rideKey[0] = NaN; syncRide();
+        var M = alloc.ride.matrix, w = ps.world, i;
+        if (w && worldOn) {
+            for (i = 0; w.stores && i < w.stores.length; i++) { var st = w.stores[i]; out.push({ kind: '7/11', name: st.name || '7/11', pos: st.pos.clone().applyMatrix4(M), id: st.id }); }
+            if (w.burgerHouse) out.push({ kind: 'burger', name: w.burgerHouse.name || 'Burger House', pos: w.burgerHouse.pos.clone().applyMatrix4(M), id: w.burgerHouse.id || 'burger' });
+        }
+        for (i = 0; i < ps.outposts.length; i++) out.push({ kind: 'pad', name: ps.outposts[i].name, pos: ps.outposts[i].pos.clone(), id: ps.outposts[i].id });
+        return out;
     };
 
     ps.setVisible = function (v) {
@@ -1460,7 +1658,7 @@ export function createPlanetSurface(engine, L) {
         toObjDir(pos, tmpA);
         var dx = tmpA.x, dy = tmpA.y, dz = tmpA.z;
         var h = hFrac(dx, dy, dz);
-        lastLand = !isGas && _lastN > sea;
+        lastLand = isGas || _lastN > sea;
         // normal by finite differences along the tangent plane (object space), then rotate to world
         var ref0 = Math.abs(dy) < 0.9;
         var e1x, e1y, e1z;
@@ -1492,7 +1690,7 @@ export function createPlanetSurface(engine, L) {
         if (!node || !alloc) return 0;
         var l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
         var h = hFrac(dx / l, dy / l, dz / l);
-        lastLand = !isGas && _lastN > sea;
+        lastLand = isGas || _lastN > sea;
         return h;
     };
     ps.floorLocal = function (x, y, z) {
@@ -1500,11 +1698,51 @@ export function createPlanetSurface(engine, L) {
         var l = Math.sqrt(x * x + y * y + z * z) || 1;
         return R * (1 + hFrac(x / l, y / l, z / l));
     };
+    // rev 20b: the surface as RENDERED. The patch is the height function sampled at a warped grid and drawn as linear triangles (quad diagonal v01-v10), so
+    // between vertices the visible ground differs from floorLocal by the interpolation error (more than a human's height on rough ground). This mirrors the
+    // patch exactly: invert the grid warp, take the cell's three vertices (height at each vertex direction), intersect the ray from the planet centre with that
+    // triangle. Answer = radius (world units) of the visible ground along the local direction (x,y,z); falls back to floorLocal outside the dense part of the patch.
+    var _mfV = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    function unwarp(u) {         // solve s * (0.04 + 0.96 |s|^3) = u for s in [-1, 1]
+        var lo = -1, hi = 1, m;
+        for (var i = 0; i < 28; i++) { m = (lo + hi) * 0.5; if (m * (0.04 + 0.96 * Math.abs(m * m * m)) < u) lo = m; else hi = m; }
+        return (lo + hi) * 0.5;
+    }
+    function gridVertex(i, j, G, tn, out) {
+        var sx = i / G * 2 - 1, sy = j / G * 2 - 1, ux = sx * (0.04 + 0.96 * Math.abs(sx * sx * sx)), uy = sy * (0.04 + 0.96 * Math.abs(sy * sy * sy));
+        var dx = C.x + (T1.x * ux + T2.x * uy) * tn, dy = C.y + (T1.y * ux + T2.y * uy) * tn, dz = C.z + (T1.z * ux + T2.z * uy) * tn, l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        dx /= l; dy /= l; dz /= l;
+        var h = hFrac(dx, dy, dz), r = 1 + h;
+        return out.set(dx * r, dy * r, dz * r);
+    }
+    ps.meshFloorLocal = function (x, y, z) {
+        if (!node || !alloc || !patchSet) return ps.floorLocal(x, y, z);
+        var l = Math.sqrt(x * x + y * y + z * z) || 1, dx = x / l, dy = y / l, dz = z / l;
+        var dc = dx * C.x + dy * C.y + dz * C.z;
+        if (dc < 0.2) return R * (1 + hFrac(dx, dy, dz));
+        var tn = a_tan(), vx = dx / dc - C.x, vy = dy / dc - C.y, vz = dz / dc - C.z;
+        var ux = (vx * T1.x + vy * T1.y + vz * T1.z) / tn, uy = (vx * T2.x + vy * T2.y + vz * T2.z) / tn;
+        var G = gridN;
+        if (Math.abs(ux) > 0.35 || Math.abs(uy) > 0.35) return R * (1 + hFrac(dx, dy, dz));      // outside the full-relief part of the patch (the rim tapers to the sphere)
+        var sx = unwarp(ux), sy = unwarp(uy), fi = (sx + 1) * 0.5 * G, fj = (sy + 1) * 0.5 * G;
+        var i = Math.min(G - 1, Math.max(0, Math.floor(fi))), j = Math.min(G - 1, Math.max(0, Math.floor(fj))), fx = fi - i, fy = fj - j;
+        var A, B, Cc;
+        if (fx + fy <= 1) { A = gridVertex(i, j, G, tn, _mfV[0]); B = gridVertex(i, j + 1, G, tn, _mfV[1]); Cc = gridVertex(i + 1, j, G, tn, _mfV[2]); }
+        else { A = gridVertex(i + 1, j, G, tn, _mfV[0]); B = gridVertex(i, j + 1, G, tn, _mfV[1]); Cc = gridVertex(i + 1, j + 1, G, tn, _mfV[2]); }
+        // plane through A, B, Cc; ray p = t * d
+        var e1x = B.x - A.x, e1y = B.y - A.y, e1z = B.z - A.z, e2x = Cc.x - A.x, e2y = Cc.y - A.y, e2z = Cc.z - A.z;
+        var nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+        var den = nx * dx + ny * dy + nz * dz;
+        if (Math.abs(den) < 1e-12) return R * (1 + hFrac(dx, dy, dz));
+        return R * (nx * A.x + ny * A.y + nz * A.z) / den;
+    };
+    function a_tan() { return alloc ? alloc.patchU.uTan.value : 0.3; }
+
     ps.landLocal = function (x, y, z) {
         if (!node || !alloc) return false;
         var l = Math.sqrt(x * x + y * y + z * z) || 1;
         hFrac(x / l, y / l, z / l);
-        return !isGas && _lastN > sea;
+        return isGas || _lastN > sea;
     };
     Object.defineProperty(ps, 'radius', { get: function () { return R; } });
     Object.defineProperty(ps, 'isGas', { get: function () { return isGas; } });
@@ -1526,7 +1764,7 @@ export function createPlanetSurface(engine, L) {
             if (ch * R < PAD_L * L) { res.onPad = true; land = true; }
         }
         res.ok = land && res.slope < LAND_SLOPE && alt < LAND_ALT * L;
-        res.why = res.ok ? '' : (isGas ? 'gas' : (!land ? 'water' : (res.slope >= LAND_SLOPE ? 'slope' : 'alt')));      // rev 19: why not (HUD message)
+        res.why = res.ok ? '' : (!land ? 'water' : (res.slope >= LAND_SLOPE ? 'slope' : 'alt'));      // rev 19: why not (HUD message)
         return res;
     };
 
@@ -1568,6 +1806,7 @@ export function createPlanetSurface(engine, L) {
     };
 
     ps.dispose = function () {
+        worldDetach(); ps.world = null;
         deactivate();
         if (alloc) {
             [alloc.patch, alloc.flora, alloc.creat, alloc.rocks, alloc.pads, alloc.blds, alloc.beac, alloc.dome, alloc.streaks, alloc.scarG].forEach(function (m) {

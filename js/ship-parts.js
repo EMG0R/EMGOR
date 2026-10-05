@@ -744,7 +744,7 @@ export function mergeLit(T, res, k = 2.0) {
 //   1 = jaw hinge about Y, 2 = boss sway (uAmp/uSp/uK), 3 = fin flap about Z, 4 = bell pulse.  aPiv = hinge pivot. aLm = (limb id+1, weight):
 //   boss limbs swing about uSwP[i] by uSwA[i] (axis xyz, angle w) + uSwT[i].xyz translate, uSwT[i].w = telegraph glow.
 const VERT_FLEX = /* glsl */`
-uniform float uTime; uniform float uPh; uniform float uWave;
+uniform float uTime; uniform float uPh; uniform float uWave; uniform float uTn;
 uniform vec3 uAmp; uniform float uSp; uniform float uK; uniform float uBreath; uniform float uHsp; uniform float uPulse;
 uniform vec4 uSwA[8]; uniform vec4 uSwT[8]; uniform vec3 uSwP[8]; uniform float uGl;
 attribute vec4 aFx; attribute vec3 aPiv; attribute vec2 aLm;
@@ -808,6 +808,7 @@ void main(){
     vGl = sw.w;
   }
   p *= 1.0 + uBreath * sin(uTime * 0.9);
+  if (uTn > 0.0) { p.xy *= 1.0 - 0.07 * uTn; p.z *= 1.0 + 0.05 * uTn; p.z += 0.015 * uTn * sin(uTime * 38.0 + p.x * 40.0); }   // rev 21: wind-up coil + tremble
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vV = mv.xyz;
   gl_Position = projectionMatrix * mv;
@@ -826,7 +827,7 @@ void main(){
   #include <logdepthbuf_vertex>
 }`;
 const FRAG_LIT = /* glsl */`
-uniform float uTime; uniform float uPh; uniform float uHit; uniform vec3 uRim; uniform float uGl; uniform vec3 uGlC;
+uniform float uTime; uniform float uPh; uniform float uHit; uniform vec3 uRim; uniform float uGl; uniform vec3 uGlC; uniform float uTn; uniform float uSt;
 varying vec3 vC; varying vec3 vV; varying float vGl;
 #include <common>
 #include <logdepthbuf_pars_fragment>
@@ -843,7 +844,8 @@ void main(){
     float gs = floor(uTime * 14.0), gh = fract(sin(gs * 12.9898 + uPh * 78.233) * 43758.5453);
     fl = 1.0 - uGl * (0.62 * step(0.93, gh) + 0.1 * sin(uTime * 31.0 + uPh * 5.0 + vC.g * 9.0));
   }
-  col = mix(col, vC * (0.85 + 0.3 * sin(uTime * 5.0 + uPh)) * fl, em);
+  col *= 1.0 - 0.45 * uSt;   // rev 21: stalled = dim body, slow pulsing glow
+  col = mix(col, vC * (0.85 + 0.3 * sin(uTime * 5.0 + uPh) + uTn * 0.9 + uSt * (0.5 + 0.5 * sin(uTime * 2.4)) * 1.1) * fl, em);
   col += uHit * vec3(1.0, 0.65, 0.5);
   col += vGl * uGlC * (0.65 + 0.35 * sin(uTime * 26.0));
   gl_FragColor = vec4(col, 1.0);
@@ -878,7 +880,7 @@ const _mats = new Map();
 // rim light colours (premultiplied): creatures warm orange, hulls cool violet
 export const RIM_WARM = [0.315, 0.105, 0.0525], RIM_COOL = [0.14, 0.084, 0.238];
 function uniformSet(T, flex, rim) {
-  const u = { uTime: { value: 0 }, uPh: { value: 0 }, uHit: { value: 0 }, uRim: { value: new T.Vector3(rim[0], rim[1], rim[2]) }, uGl: { value: 0 }, uGlC: { value: new T.Vector3(1.15, 0.4, 0.12) } };
+  const u = { uTime: { value: 0 }, uPh: { value: 0 }, uHit: { value: 0 }, uRim: { value: new T.Vector3(rim[0], rim[1], rim[2]) }, uGl: { value: 0 }, uTn: { value: 0 }, uSt: { value: 0 }, uGlC: { value: new T.Vector3(1.15, 0.4, 0.12) } };
   if (flex) {
     u.uWave = { value: 1 }; u.uAmp = { value: new T.Vector3() }; u.uSp = { value: 1 }; u.uK = { value: 0 }; u.uBreath = { value: 0 }; u.uHsp = { value: 1 }; u.uPulse = { value: 0 };
     u.uSwA = { value: [] }; u.uSwT = { value: [] }; u.uSwP = { value: [] };

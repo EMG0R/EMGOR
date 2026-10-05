@@ -24,7 +24,7 @@ var STREAK_VS = [
 '#include <logdepthbuf_pars_vertex>',
 'void main() {',
 '  vec3 rel = mod(position * uBox - uCamPos, uBox) - 0.5 * uBox;',
-'  vec3 w = uCamPos + rel;',
+'  vec3 w = cameraPosition + rel;',
 '  float len = uStretch * (0.5 + aRnd);',
 '  w -= uVelDir * len * aEnd;',
 '  float edge = 1.0 - smoothstep(0.34, 0.5, max(abs(rel.x), max(abs(rel.y), abs(rel.z))) / uBox);',
@@ -78,13 +78,13 @@ var CONE_FS = [
 '}'].join('\n');
 
 var BOLT_VS = [
-'attribute vec3 aPos; attribute vec3 aDir; attribute vec3 aColor; attribute vec2 aSize;',
+'uniform vec3 uTrue; attribute vec3 aPos; attribute vec3 aDir; attribute vec3 aColor; attribute vec2 aSize;',
 'varying vec2 vP; varying vec3 vC;',
 '#include <common>',
 '#include <logdepthbuf_pars_vertex>',
 'void main() {',
 '  vP = position.xy * 2.0; vC = aColor;',
-'  vec4 c = viewMatrix * vec4(aPos, 1.0);',
+'  vec4 c = viewMatrix * vec4(aPos - uTrue + cameraPosition, 1.0);',
 '  vec3 d = mat3(viewMatrix) * aDir;',
 '  vec2 dd = d.xy; float dl = length(dd);',
 '  dd = dl > 1e-4 ? dd / dl : vec2(1.0, 0.0);',
@@ -110,7 +110,7 @@ var BOLT_FS = [
 
 var PTS_VS = [
 'attribute vec3 aOrigin; attribute vec3 aVel; attribute vec3 aColor; attribute float aT; attribute float aSize;',
-'uniform float uScale; uniform float uL;',
+'uniform float uScale; uniform float uL; uniform vec3 uTrue;',
 'varying vec3 vC; varying float vT;',
 '#include <common>',
 '#include <logdepthbuf_pars_vertex>',
@@ -118,7 +118,7 @@ var PTS_VS = [
 '  vC = aColor; vT = aT;',
 '  float age = max(aT, 0.0);',
 '  vec3 p = aOrigin + aVel * (1.0 - exp(-4.0 * age)) * 0.25;',
-'  vec4 mv = viewMatrix * vec4(p, 1.0);',
+'  vec4 mv = viewMatrix * vec4(p - uTrue + cameraPosition, 1.0);',
 '  gl_Position = projectionMatrix * mv;',
 '  float s = aSize * (aVel == vec3(0.0) ? (1.0 + age * 0.6) : (1.0 - 0.7 * age));',
 '  gl_PointSize = aT < 0.0 ? 0.0 : clamp(s * uScale / max(-mv.z, 1e-6), 1.0, 160.0);',
@@ -221,7 +221,7 @@ export function createFx(THREE, scene, camera, L) {
         aColA = new THREE.InstancedBufferAttribute(bCol, 3), aSizeA = new THREE.InstancedBufferAttribute(bSize, 2);
     [aPosA, aDirA, aColA, aSizeA].forEach(function (a) { a.setUsage(THREE.DynamicDrawUsage); });
     bg.setAttribute('aPos', aPosA); bg.setAttribute('aDir', aDirA); bg.setAttribute('aColor', aColA); bg.setAttribute('aSize', aSizeA);
-    var bmat = new THREE.ShaderMaterial({ vertexShader: BOLT_VS, fragmentShader: BOLT_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    var bmat = new THREE.ShaderMaterial({ vertexShader: BOLT_VS, fragmentShader: BOLT_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uTrue: { value: new THREE.Vector3() } } });
     var bolts = new THREE.InstancedMesh(bg, bmat, BOLT_CAP);
     bolts.frustumCulled = false; bolts.renderOrder = 18; bolts.count = 0;
     scene.add(bolts); track(bolts, bg, bmat); geoms.push(q);
@@ -279,7 +279,7 @@ export function createFx(THREE, scene, camera, L) {
     pg.setAttribute('aOrigin', aO); pg.setAttribute('aVel', aV); pg.setAttribute('aColor', aC); pg.setAttribute('aT', aT); pg.setAttribute('aSize', aS);
     var pmat = new THREE.ShaderMaterial({
         vertexShader: PTS_VS, fragmentShader: PTS_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-        uniforms: { uScale: { value: 800 }, uL: { value: L } }
+        uniforms: { uScale: { value: 800 }, uL: { value: L }, uTrue: { value: new THREE.Vector3() } }
     });
     var pts = new THREE.Points(pg, pmat);
     pts.frustumCulled = false; pts.renderOrder = 19;
@@ -338,7 +338,8 @@ export function createFx(THREE, scene, camera, L) {
         cam = cam || camera; time += dt;
         var ce = cam.matrixWorld.elements;
         var u = smat.uniforms;
-        u.uCamPos.value.set(ce[12], ce[13], ce[14]);
+        u.uCamPos.value.set(ce[12], ce[13], ce[14]);   // TRUE world cam (wrap anchor); placement uses built-in cameraPosition
+        bmat.uniforms.uTrue.value.set(ce[12], ce[13], ce[14]); pmat.uniforms.uTrue.value.set(ce[12], ce[13], ce[14]);   // floating origin: shader subtracts this, adds shifted cameraPosition
         var k = 1 - Math.exp(-dt * 6);
         mSpeed += (mSpeedTgt - mSpeed) * k;
         mPulse += (mPulseTgt - mPulse) * (1 - Math.exp(-dt * (mPulseTgt > mPulse ? 14 : 5)));

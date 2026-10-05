@@ -133,7 +133,7 @@ export function connect(engine, hooks) {
             var dx = p.x - last.x, dy = p.y - last.y, dz = p.z - last.z;
             if (dx * dx + dy * dy + dz * dz > SNAP_DIST * SNAP_DIST) g.samples.length = 0;     // teleport/respawn: no lerp across it
         }
-        g.samples.push({ t: now, x: p.x, y: p.y, z: p.z, qx: p.qx, qy: p.qy, qz: p.qz, qw: p.qw, v: p.v || 0 });
+        g.samples.push({ t: now, x: p.x, y: p.y, z: p.z, qx: p.qx, qy: p.qy, qz: p.qz, qw: p.qw, v: g.sf ? 0 : (p.v || 0) });
         if (g.samples.length > 3) g.samples.shift();
         g.st = p.st | 0;
         if (typeof p.hp === 'number') g.hp = p.hp;
@@ -174,10 +174,14 @@ export function connect(engine, hooks) {
             var g = ghosts.get(sorted[i]);
             if (!g) continue;
             var flying = g.s === 'piloting' && g.samples.length > 0;
-            if (flying) { sampleAt(g, rt); tmpPos.copy(vP); tmpQuat.copy(qP); }
+            if (flying) {
+                sampleAt(g, rt); tmpPos.copy(vP); tmpQuat.copy(qP);
+                if (g.sf && !(hooks.stationToWorld && hooks.stationToWorld(tmpPos, tmpQuat))) { g.root.visible = false; if (g.lblShown) { g.lblShown = false; g.label.style.display = 'none'; } continue; }
+            }
             else { hooks.dockSlot((dockA || 0) + 2 * Math.PI * (i + 1) / (n + 1), tmpPos, tmpQuat); }
             var foot = g.mode === 'foot' && g.fsamples.length > 0 && hooks.buildHuman;
             var dead = flying && !foot && (g.st & 4) !== 0;
+            var gl = foot ? (g.fst & 8) : (flying ? (g.st & 8) : 0);      // rev 23: pose bit 8 = fries glow (light blue)
             g.root.position.copy(tmpPos); g.root.quaternion.copy(tmpQuat);
             // minimum on-screen size so a ghost reads from the orbit camera too
             var dist = camera.position.distanceTo(tmpPos);
@@ -188,6 +192,8 @@ export function connect(engine, hooks) {
             g.root.scale.setScalar(sc);
             g.glow.scale.setScalar(Math.max(0.5 * L, dist * 0.03) / sc);
             g.glow.material.opacity = fade * (dead ? 0 : 0.9);
+            if ((gl && !foot) !== !!g.glHull) { g.glHull = !!(gl && !foot); g.glow.material.color.setHex(g.glHull ? 0x7FD8FF : (g.color >= 0 ? g.color : DEFAULT_COLOR)); }
+            if (g.glHull) { g.glow.scale.multiplyScalar(2.4); g.glow.material.opacity = fade * (dead ? 0 : 1); }
             var vis = !dead;
             if (g.hull) g.hull.visible = vis && fade > 0.35;       // opaque shader hull: cannot alpha-fade, so drop it early
             g.root.visible = true;
@@ -196,6 +202,7 @@ export function connect(engine, hooks) {
                 if (!g.human) { try { g.human = hooks.buildHuman(g.color >= 0 ? g.color : DEFAULT_COLOR); scene.add(g.human.group); } catch (e) { g.human = null; } }
                 if (g.human) {
                     sampleAt(g, rt, g.fsamples);
+                    if (g.sf && hooks.stationToWorld) hooks.stationToWorld(vP, qP);
                     var hs = Math.max(0.09 * L, camera.position.distanceTo(vP) * 0.004);
                     g.human.group.position.copy(vP); g.human.group.quaternion.copy(qP); g.human.group.scale.setScalar(hs);
                     g.human.group.visible = fade > 0.35;
@@ -203,6 +210,10 @@ export function connect(engine, hooks) {
                     g.human.update(dt, { moving: !!(fs & 1), running: !!(fs & 2), airborne: !!(fs & 4), speed: (fs & 2) ? 1 : ((fs & 1) ? 0.5 : 0), facing: 0 });
                     g.mk2 = g.human.group; tmpPos.copy(vP);
                     g.glow.material.opacity = 0;
+                    if (gl) {
+                        if (!g.hglow) { g.hglow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, color: 0x7FD8FF })); g.hglow.position.set(0, 0.55, 0); g.hglow.scale.setScalar(2.6); g.hglow.frustumCulled = false; g.human.group.add(g.hglow); }
+                        g.hglow.visible = true;
+                    } else if (g.hglow) g.hglow.visible = false;
                 }
             } else {
                 if (g.human) g.human.group.visible = false;
@@ -332,6 +343,9 @@ export function connect(engine, hooks) {
                 g = ghosts.get(m.id);
                 if (!g) return;
                 if (g.s !== 'piloting') g.s = 'piloting';
+                var sf = m.v === -1 || m.frame === 'station';      // rev 22: station frame (x/y/z are station-local L units; the relay cannot carry a frame id, v = -1 is the flag)
+                if (!!g.sf !== sf) { g.samples.length = 0; g.fsamples.length = 0; }
+                g.sf = sf;
                 g.mode = m.mode === 'foot' ? 'foot' : (m.mode === 'landed' ? 'landed' : 'fly');
                 if (g.mode === 'foot') pushFoot(g, m, now); else { g.fsamples.length = 0; pushSample(g, m, now); }
                 break;
@@ -370,6 +384,7 @@ export function connect(engine, hooks) {
         lastPos = now;
         var p = hooks.getPose();
         var o = { t: 'pos', id: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), qx: r4(p.qx), qy: r4(p.qy), qz: r4(p.qz), qw: r4(p.qw), v: Math.round(p.v * 10) / 10, st: p.st | 0, hp: Math.max(0, Math.min(255, Math.round(p.hp))) };
+        if (p.v === -1) o.frame = 'station';
         if (myMode !== 'fly') o.mode = myMode;          // rev 14: 'landed' | 'foot' (foot: x/y/z/q are the HUMAN's pose, st bits 1 moving 2 running 4 airborne)
         if (myMode === 'foot') { o.x = r4(p.x); o.y = r4(p.y); o.z = r4(p.z); }
         send(o);

@@ -109,6 +109,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // ─── three.js state ────────────────────────────────────────
     var renderer, scene, camera;
     var composer = null, bloomPass = null;  // post chain (null until addons load)
+    var visionPass = null;                  // rev 23 vision effects pass (after bloom, before OutputPass)
+    var vis = { blur: 0, chroma: 0, hue: 0, wobble: 0, double: 0, contrast: 0, invert: 0, tint: [0, 0, 0], tintAmt: 0, fov: 0, timeScale: 1 };
+    var visFovApplied = 0;
     var bgCanvas, bgCtx, fxCanvas, fxCtx;   // 2D backdrop / foreground fx layers
     var labelsEl, crumbEl, homeBtn;
     var W = 0, H = 0, DPR = 1;
@@ -640,7 +643,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
     // ─── black hole (also a real Object3D at true origin, same scene) ──
     var blackHole = null, accretionMesh = null, accretionMesh2 = null, photonRing = null;
-    var bhCoreR = 0;   // real world radius of the black hole core (set in buildBlackHole)
+    var bhDiskR = 0, bhCoreR = 0;   // real world radius of the black hole core (set in buildBlackHole)
     // The black hole is a small "solar system" of its own real 3D pieces —
     // a horizon sphere, three accretion disks at DIFFERENT tilts (not all
     // coplanar, so it doesn't read as a flat 2D ring seen edge-on/face-on),
@@ -698,7 +701,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         blackHole.name = 'emgor';
 
         var core = ROOT_SYS_R * 0.14 * BH_CORE_BOOST;      // bigger, more commanding presence
-        bhCoreR = core;
+        bhCoreR = core; bhDiskR = core * 4.4;
 
         // ── The horizon is deliberately NOT a shaded orb. It is a faceted
         // void: a low-subdivision icosahedron whose interior renders as flat
@@ -895,6 +898,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // sits mostly before the fade starts, while deep sub-system zooms
     // (much smaller camera distance -> much bigger ratio) still hit the
     // fade hard and don't balloon.
+    var BH_PILOT_SCALE = 8, bhLens = 0;
     var BH_FADE_START = 0.23;   // angular-radius / (half-FOV) ratio where fade begins
     var BH_FADE_END = 0.41;     // ratio where it's fully faded out
     function updateBlackHoleFade() {
@@ -903,6 +907,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         var angR = Math.atan(bhCoreR / Math.max(1, dist));
         var ratio = angR / (fovRad / 2);
         var fade = 1 - clamp((ratio - BH_FADE_START) / (BH_FADE_END - BH_FADE_START), 0, 1);
+        var pbh = (pilot && pilotBlend > 0) ? pilotBlend : 0;   // rev 22: in flight the hole is x8 and never distance-fades
         // smoothstep for a gentler transition than linear
         fade = fade * fade * (3 - 2 * fade);
         // Opacity alone doesn't work here: the horizon material is nearly
@@ -913,10 +918,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // choose to render it does, exactly like an artist's-choice glow
         // radius, not a fake position. Floor above 0 so it never fully
         // vanishes — there's still a black hole out there, just small.
-        var scale = 0.06 + 0.94 * fade;
+        if (pbh > 0) fade = fade + (1 - fade) * pbh;
+        var scale = (0.06 + 0.94 * fade) * (1 + (BH_PILOT_SCALE - 1) * pbh);
         blackHole.scale.setScalar(scale);
         var hm = blackHole.userData.horizonMat;
-        if (hm) hm.uniforms.uFade.value = 0.4 + 0.6 * fade;
+        if (hm) hm.uniforms.uFade.value = (0.4 + 0.6 * fade) * (1 + 1.5 * bhLens);
         if (!_bhMats) {
             _bhMats = []; _bhArc = [];
             blackHole.traverse(function (obj) {
@@ -1317,12 +1323,13 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
                 n = drawOrder[i]; p = n.parentNode;
                 base = uniformSizeFor(n, p);
                 n._pF = p === root ? base * PILOT_PLANET_SCALE.root : Math.min(base * PILOT_PLANET_SCALE.deep, 0.3 * p._pF);
+                if (n._pF < PILOT_MIN_R_PER_L * shipLength) n._pF = PILOT_MIN_R_PER_L * shipLength;   // floor applied BEFORE _ext/orbit layout so nothing embeds
                 n._ext = n._pF * 1.5;
             }
             for (i = drawOrder.length - 1; i >= 0; i--) {
                 n = drawOrder[i]; p = n.parentNode;
                 if (p === root) continue;
-                var rk = Math.max(n.orbF * p.sysR * (1 + n.vibDepth), p._pF * (PILOT_CLEAR0 + 0.55 * (n.spreadT || 0)), n.kids.length ? 1.65 * p._pF + n._ext : 0) + n._ext;
+                var rk = Math.max(n.orbF * p.sysR * (1 + n.vibDepth), p._pF * (PILOT_CLEAR0 + 0.55 * (n.spreadT || 0)), p._pF + 1.15 * n._pF, n.kids.length ? 1.65 * p._pF + n._ext : 0) + n._ext;
                 if (rk > p._ext) p._ext = rk;
             }
         }
@@ -1330,14 +1337,17 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // overlap each other, so spread the root ring radially just enough.
         // Every root orbit scales by the same factor, so pair distances scale
         // linearly and one max over pairs is exact.
-        var rootS = 1;
+        var rootS = 1, need;
         if (pilot && pilotBlend > 0) {
-            var rk0 = root.kids, ia, ib, ka, kb, ra, rb, dx0, dy0, need;
+            var rk0 = root.kids, ia, ib, ka, kb, ra, rb, dx0, dy0;
             for (ia = 0; ia < rk0.length; ia++) {
                 ka = rk0[ia];
                 ra = ka.orbF * root.sysR * (1 + Math.sin(time * ka.vibF + ka.vibPh) * ka.vibDepth);
                 ka._ux = Math.cos(ka.homeA + time * BASE_ROT) * ra; ka._uy = Math.sin(ka.homeA + time * BASE_ROT) * ra;
                 if (ka._ext < 1.6 * ka._pF) ka._ext = 1.6 * ka._pF;
+                // rev 22: innermost orbit clears the x8 black hole + station (2.2 coreR) + dock margin
+                need = (bhCoreR * BH_PILOT_SCALE * 3.2 + 1.6 * ka._pF) / Math.max(1, Math.sqrt(ka._ux * ka._ux + ka._uy * ka._uy));
+                if (need > rootS) rootS = need;
             }
             for (ia = 0; ia < rk0.length; ia++) {
                 ka = rk0[ia];
@@ -1367,6 +1377,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             var pb = pilot ? pilotBlend : 0;
             if (pb > 0 && p !== root) {
                 var rp = p._pF * (PILOT_CLEAR0 + 0.55 * (n.spreadT || 0));
+                if (rp < p._pF + 1.15 * n._pF) rp = p._pF + 1.15 * n._pF;   // floored (rev 20) children can be as big as the parent: never embed
                 // a node carrying moons must also carry them clear of its parent's globe
                 if (n.kids.length) rp = Math.max(rp, 1.65 * p._pF + n._ext);
                 if (rp > r) r += (rp - r) * pb;
@@ -2199,7 +2210,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // in the counters. Reset once per frame instead so calls/triangles cover the whole frame.
         renderer.info.autoReset = false; renderer.info.reset();
         frame++;
-        if (!reducedMotion) time = clockFn ? clockFn(time, dt) : time + dt;   // clockFn: multiplayer shared orbital clock (ship-net); null = local
+        var _vdt = dt * vis.timeScale;
+        if (!reducedMotion) time = clockFn ? clockFn(time, _vdt) : time + _vdt;   // clockFn: multiplayer shared orbital clock (ship-net); null = local
 
         computePositions();
 
@@ -2284,8 +2296,38 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         if (intro) drawIntroFx(dt);
 
         var _t1 = performance.now();
+        // rev 20 floating origin (pilot only): render with the scene shifted by -cameraWorld and the camera at the
+        // origin, so GPU-side transforms are camera-relative. Applied ONLY around the render call, then restored,
+        // so all game math / projection / raycasts keep seeing true world coordinates. starSky is a scene child
+        // sitting at the true camera position, so it lands exactly on the shifted camera (world 0).
+        var _fo = !!pilot, _fx = 0, _fy = 0, _fz = 0;
+        if (_fo) {
+            var _cp = camera.position;
+            _fx = _cp.x; _fy = _cp.y; _fz = _cp.z;
+            scene.position.set(-_fx, -_fy, -_fz);
+            _cp.set(0, 0, 0);
+            scene.updateMatrixWorld(true);
+            camera.updateMatrixWorld(true);
+        }
+        // rev 23 vision: FOV breath (piloting only; restored exactly when it ends)
+        var _vf = (pilot && vis.fov > 0) ? Math.sin(time * 0.7) * vis.fov * 7 : 0;
+        if (_vf !== visFovApplied) {
+            visFovApplied = _vf; camera.fov = FOV + _vf; camera.updateProjectionMatrix();
+        }
+        if (visionPass) {
+            var _vu = visionPass.material.uniforms;
+            _vu.uTime.value = time;
+            visionPass.enabled = visionActive();
+        }
         if (composer && bloomOn) composer.render();
         else renderer.render(scene, camera);
+        if (_fo) {
+            scene.position.set(0, 0, 0);
+            camera.position.set(_fx, _fy, _fz);
+            scene.updateMatrixWorld(true);
+            camera.updateMatrixWorld(true);
+            camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+        }
         var _t2 = performance.now();
 
         if (!pilot) {
@@ -2471,7 +2513,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // focused "sun" of its own system: sysR * SUN_ROLE (uniformSizeFor(n, n)).
     // rev 14: planets grow while piloting (PILOT_PLANET_SCALE: x3 root-level, x2 deeper), blended 0..1 by the ship (boarding / exit cinematics).
     // renderedRadius(node, true) = the unscaled radius.
-    var PILOT_PLANET_SCALE = { root: 3, deep: 2 }, pilotBlend = 1;
+    var PILOT_PLANET_SCALE = { root: 6, deep: 4 }, pilotBlend = 1;
+    var shipLength = 0, PILOT_MIN_R_PER_L = 320;   // rev 20: min pilot rendered radius = 320 L for every body (engine.setShipLength)
     var PILOT_CLEAR0 = 1.65;   // pilot orbit clearance (x parent rendered radius) at spread t=0, +0.55 t; keeps a 1.45R landing approach outside the parent's 1.6R sphere
     function pilotScaleOf(n) { return !n.parentNode ? 1 : (n.parentNode === root ? PILOT_PLANET_SCALE.root : PILOT_PLANET_SCALE.deep); }
     function pilotMul(n) { return 1 + (pilotScaleOf(n) - 1) * pilotBlend; }
@@ -2582,10 +2625,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         return {
             THREE: THREE, scene: scene, camera: camera, renderer: renderer,
             get composer() { return composer; },
+            vision: visionApi,
             get time() { return time; },
             root: root, byId: byId, drawOrder: drawOrder,
             renderedRadius: renderedRadius,
             pilotScale: pilotScaleOf,
+            setShipLength: function (L) { shipLength = L > 0 ? +L : 0; },
+            lensing: function (v) { bhLens = v < 0 ? 0 : (v > 1 ? 1 : +v); },
+            blackHole: {
+                pos: new THREE.Vector3(0, 0, 0),
+                get coreR() { return bhCoreR * (1 + (BH_PILOT_SCALE - 1) * (pilot ? pilotBlend : 0)); },
+                get diskR() { return (bhDiskR || bhCoreR * 3) * (1 + (BH_PILOT_SCALE - 1) * (pilot ? pilotBlend : 0)); }
+            },
             setPilotBlend: function (t) { pilotBlend = t < 0 ? 0 : (t > 1 ? 1 : t); },
             nudgeBody: nudgeBody,
             makeBody: makeBody,
@@ -2708,12 +2759,111 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // hiccup or an old browser without importmap support just means "no
     // bloom", never a black page: frameStep falls back to a plain
     // renderer.render whenever `composer` is null. ─────────────────────
+    // ─── rev 23 vision pass: one fullscreen shader, skipped when every amplitude is 0 ───
+    function visionActive() {
+        return vis.blur > 0 || vis.chroma > 0 || vis.hue !== 0 || vis.wobble > 0 || vis.double > 0 ||
+            vis.contrast !== 0 || vis.invert > 0 || vis.tintAmt > 0;
+    }
+    var VKEYS = ['blur', 'chroma', 'hue', 'wobble', 'double', 'contrast', 'invert', 'tintAmt', 'fov', 'timeScale'];
+    var visionApi = {
+        set: function (p) {
+            if (!p || typeof p !== 'object') return;
+            for (var i = 0; i < VKEYS.length; i++) {
+                var k = VKEYS[i], v = p[k];
+                if (typeof v === 'number' && isFinite(v)) vis[k] = v;
+            }
+            if (typeof p.tint === 'number') vis.tintAmt = p.tint;   // scalar tint = amount
+            var t = p.tint;
+            if (t && typeof t === 'object' && t.length >= 3) { vis.tint[0] = +t[0] || 0; vis.tint[1] = +t[1] || 0; vis.tint[2] = +t[2] || 0; }
+            if (vis.timeScale < 0.2) vis.timeScale = 0.2; else if (vis.timeScale > 3) vis.timeScale = 3;
+            syncVisionUniforms();
+        },
+        clear: function () {
+            vis.blur = vis.chroma = vis.hue = vis.wobble = vis.double = vis.contrast = vis.invert = vis.tintAmt = vis.fov = 0;
+            vis.timeScale = 1; vis.tint[0] = vis.tint[1] = vis.tint[2] = 0;
+            syncVisionUniforms();
+            if (visionPass) visionPass.enabled = false;
+        },
+        get params() { return vis; },
+        get fov() { return vis.fov; }, set fov(v) { vis.fov = +v || 0; },
+        get timeScale() { return vis.timeScale; }, set timeScale(v) { vis.timeScale = +v > 0 ? +v : 1; }
+    };
+    function syncVisionUniforms() {
+        if (!visionPass) return;
+        var u = visionPass.material.uniforms;
+        u.uBlur.value = vis.blur; u.uChroma.value = vis.chroma; u.uHue.value = vis.hue;
+        u.uWobble.value = vis.wobble; u.uDouble.value = vis.double; u.uContrast.value = vis.contrast;
+        u.uInvert.value = vis.invert; u.uTintAmt.value = vis.tintAmt;
+        u.uTint.value.set(vis.tint[0], vis.tint[1], vis.tint[2]);
+        visionPass.enabled = visionActive();
+    }
+    function makeVisionPass(PassBase, FSQuad) {
+        var pass = new PassBase();
+        pass.material = new THREE.ShaderMaterial({
+            uniforms: {
+                tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(1, 1) },
+                uBlur: { value: 0 }, uChroma: { value: 0 }, uHue: { value: 0 }, uWobble: { value: 0 },
+                uDouble: { value: 0 }, uContrast: { value: 0 }, uInvert: { value: 0 },
+                uTint: { value: new THREE.Vector3() }, uTintAmt: { value: 0 }, uTime: { value: 0 }
+            },
+            vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }',
+            fragmentShader: [
+                'uniform sampler2D tDiffuse; uniform vec2 uRes;',
+                'uniform float uBlur, uChroma, uHue, uWobble, uDouble, uContrast, uInvert, uTintAmt, uTime;',
+                'uniform vec3 uTint; varying vec2 vUv;',
+                'vec4 tap(vec2 uv){ return texture2D(tDiffuse, uv); }',
+                'void main(){',
+                '  vec2 px = 1.0 / uRes; vec2 uv = vUv;',
+                '  uv += uWobble * 0.012 * vec2(sin(uv.y * 14.0 + uTime * 1.7), cos(uv.x * 11.0 + uTime * 1.3));',
+                '  float br = uBlur * 6.0;',
+                '  vec4 c = tap(uv);',
+                '  if (br > 0.0) {',
+                '    c = c * 0.4 + 0.15 * (tap(uv + vec2(br, 0.0) * px) + tap(uv - vec2(br, 0.0) * px) + tap(uv + vec2(0.0, br) * px) + tap(uv - vec2(0.0, br) * px));',
+                '  }',
+                '  if (uChroma > 0.0) {',
+                '    vec2 o = (uv - 0.5) * 0.0 + vec2(uChroma * 6.0, 0.0) * px;',
+                '    c.r = tap(uv + o).r; c.b = tap(uv - o).b;',
+                '  }',
+                '  if (uDouble > 0.0) {',
+                '    vec4 d = tap(uv + vec2(uDouble * 22.0, uDouble * 5.0 * sin(uTime * 0.8)) * px);',
+                '    c = vec4(mix(c.rgb, d.rgb, 0.45), max(c.a, d.a * 0.45));',
+                '  }',
+                '  if (uHue != 0.0) {',
+                '    float a = uHue * 6.2831853; float cs = cos(a), sn = sin(a);',
+                '    mat3 m = mat3(0.299 + 0.701*cs + 0.168*sn, 0.299 - 0.299*cs - 0.328*sn, 0.299 - 0.3*cs + 1.25*sn,',
+                '                  0.587 - 0.587*cs + 0.33*sn, 0.587 + 0.413*cs + 0.035*sn, 0.587 - 0.588*cs - 1.05*sn,',
+                '                  0.114 - 0.114*cs - 0.497*sn, 0.114 - 0.114*cs + 0.292*sn, 0.114 + 0.886*cs - 0.203*sn);',
+                '    c.rgb = m * c.rgb;',
+                '  }',
+                '  c.rgb = (c.rgb - 0.5) * (1.0 + uContrast) + 0.5;',
+                '  c.rgb = mix(c.rgb, c.rgb * uTint * 2.0, uTintAmt);',
+                '  c.rgb = mix(c.rgb, 1.0 - c.rgb, uInvert);',
+                '  gl_FragColor = vec4(max(c.rgb, 0.0), c.a);',
+                '}'
+            ].join('\n'),
+            depthTest: false, depthWrite: false, transparent: false
+        });
+        pass.fsQuad = new FSQuad(pass.material);
+        pass.needsSwap = true;
+        pass.render = function (r, writeBuffer, readBuffer) {
+            var u = this.material.uniforms;
+            u.tDiffuse.value = readBuffer.texture;
+            u.uRes.value.set(readBuffer.width, readBuffer.height);
+            r.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+            if (this.clear) r.clear();
+            this.fsQuad.render(r);
+        };
+        pass.enabled = false;
+        return pass;
+    }
+
     function setupPost() {
         Promise.all([
             import('three/addons/postprocessing/EffectComposer.js'),
             import('three/addons/postprocessing/RenderPass.js'),
             import('three/addons/postprocessing/UnrealBloomPass.js'),
-            import('three/addons/postprocessing/OutputPass.js')
+            import('three/addons/postprocessing/OutputPass.js'),
+            import('three/addons/postprocessing/Pass.js')
         ]).then(function (mods) {
             var c = new mods[0].EffectComposer(renderer);
             c.setPixelRatio(DPR);
@@ -2737,6 +2887,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             bloomPass.blendMaterial.blendSrcAlpha = THREE.ZeroFactor;
             bloomPass.blendMaterial.blendDstAlpha = THREE.OneFactor;
             c.addPass(bloomPass);
+            visionPass = makeVisionPass(mods[4].Pass, mods[4].FullScreenQuad);
+            c.addPass(visionPass);
             c.addPass(new mods[3].OutputPass());
             composer = c;
             applyBloomSize();

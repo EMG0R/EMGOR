@@ -76,6 +76,12 @@ export function generateWeapon(seed, tier = 0) {
   };
 }
 
+// rev 20: damage per second of a weapon (dmg x rate x projectiles per volley) and a one-line summary for chat / the /weapons list.
+export function weaponDps(w) { const st = (w && w.stats) || STARTER_WEAPON.stats; return st.dmg * st.rate * st.count; }
+export function weaponLine(w) { return String(w.cls || 'C') + ' ' + w.name + ' (' + Math.round(weaponDps(w)) + ' dps' + (w.stats && w.stats.special ? ', ' + w.stats.special : '') + ')'; }
+// loot tier by wave: bosses drop one tier above what regular kills give; both cap at S (3)
+export function lootTier(wave, boss) { return Math.max(0, Math.min(3, Math.floor((Math.max(1, wave) - (boss ? 0 : 2)) / 4))); }
+
 export function weaponSetFor(outpostId, n = 4) {
   const base = hashStr(outpostId), r = mulberry(base);
   const out = [], names = new Set(), shapes = new Set();

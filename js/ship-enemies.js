@@ -12,6 +12,8 @@
 //       update(t, dt),    // call every frame: tentacle sway / body flex (uTime), eye pulse
 //       dispose()
 //   }
+//   rev 21 (adds only): stats.behavior 'hunter'|'harasser'|'bomber' (BEHAVIOR map, bomber = brood: 150 % HP + mine rack), stats.shield (25 % seeded), shieldMesh|null,
+//     setShieldHit(), setShieldDown(), setWindup(0..1), setStalled(bool); boss limbs[i].attackId (move type the limb owns).
 //   role: 'interceptor'|'spitter'|'sniper'|'lancer'|'brood' (anything else -> picked from seed).
 //   silhouetteSignature(seed, role) -> 'segs-finpairs-spikes'; pickDistinctSeeds(baseSeed, n[, roles]) -> n seeds, pairwise-distinct signatures.
 //   ENEMY_ROLES (names), BOSS_TIERS = { mini: 4, giant: 6, titan: 8 }, bossAttacksFor(seed, tier) -> [{id, tele, dmg}] ordered.
@@ -221,6 +223,8 @@ const FAMILY = {
   lancer:      { h: 0.105, eyeH: 0.12, hp: 0.9, sp: 1.5,  tn: 0.6, dm: 1.6, atk: ['lanceCharge', 'strafe'] },
   brood:       { h: 0.77,  eyeH: 0.82, hp: 1.4, sp: 0.7,  tn: 0.7, dm: 0.8, atk: ['larvaSpawn', 'acidSpit'] },
 };
+// rev 21: visual role -> behaviour. hunter dives, harasser circles + pot shots, bomber is slow, 150 % HP, carries a mine rack.
+export const BEHAVIOR = { interceptor: 'hunter', lancer: 'hunter', spitter: 'harasser', sniper: 'harasser', brood: 'bomber' };
 const rn = (r, a, b) => a + r() * (b - a);
 const ri = (r, a, b) => a + Math.floor(r() * (b - a + 1));
 
@@ -302,6 +306,10 @@ function enemyBuild(THREE, seed, tier, role, lod) {
   if (role === 'brood') { kids.push({ part: 'shell', at: 'dorsal' + Math.max(1, Math.floor(n / 2)), offset: [0, -R * 0.35, 0], params: { rx: R * 0.9, ry: R * 0.55, rz: Math.min(0.3, R * 1.6) } }); kids.push({ part: 'claw', at: 'flank0', mirror: 'x', params: { r: 0.045, open: 0.5 } }); }
   if (role === 'sniper') kids.push({ part: 'barrel', at: 'dorsal' + Math.min(n - 1, 2), rot: [-Math.PI / 2, 0, 0], params: { len: 0.2, r: 0.012, glowCol: eyeC } });
   if (role === 'interceptor' && n > 3) kids.push({ part: 'plate', at: 'dorsal' + Math.floor(n / 2), params: { w: R * 0.9, d: 0.18, th: 0.02 } });
+  if (role === 'brood') {   // bomber: mine rack under the belly (3 glowing mines), appended last so earlier parts keep their random stream
+    for (let i = 0; i < 3; i++) kids.push({ part: 'orb', id: 'mine' + i, at: 'belly' + Math.min(n - 1, 1 + i), offset: [0, R * 0.45, 0], params: { r: Math.max(0.045, R * 0.55), tip: eyeC, pore: 0.75 } });
+    kids.push({ part: 'plate', id: 'rack', at: 'belly' + Math.min(n - 1, 2), offset: [0, -R * 0.02, 0], params: { w: R * 0.5, d: R * 3.6, th: 0.012, glow: false } });
+  }
   const curveA = role === 'lancer' ? 0.01 : rn(r, 0.02, 0.09);
   const recipe = {
     part: 'spine', palette: { base: hullC, panel: hull2C, accent: accC, glow: eyeC, dark: darkC, metal: metalC }, lod,
@@ -339,17 +347,44 @@ export function generateEnemy(THREE, seed, tier, role) {
     dmg: Math.round(8 * Math.pow(1.4, tier - 1) * F.dm),
   };
   if (role === 'brood') stats.spawnOnDeath = 3;
+  stats.behavior = BEHAVIOR[role] || 'hunter';
+  if (stats.behavior === 'bomber') stats.hp = Math.round(stats.hp * 1.5);
+  const shielded = mulberry((seed | 0) * 1597334677 + 131)() < 0.25;   // independent stream: never disturbs the body's seed
+  stats.shield = shielded;
   const attacks = F.atk.slice(0, tier >= 3 ? 2 : 1);
   const ph0 = mat.uniforms.uPh.value;
   let lo = null;
+  // rev 21: front shield dish (translucent emissive cap ahead of the nose). One extra draw, shared by the hi and lo groups.
+  let shieldMesh = null, shieldGeo = null, shieldMat = null, shHit = 0, windup = 0;
+  const shieldMeshes = [];
+  if (shielded) {
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox, rad = Math.min(0.3, Math.max(0.14, (bb.max.x - bb.min.x) * 0.36));
+    shieldGeo = new THREE.SphereGeometry(rad, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+    shieldGeo.scale(1, 0.5, 1); shieldGeo.rotateX(-Math.PI / 2);                         // pole -> -Z (the nose), bulging forward
+    shieldMat = new THREE.MeshBasicMaterial({ color: 0x55E8FF, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    shieldMesh = new THREE.Mesh(shieldGeo, shieldMat); shieldMesh.position.set(0, (bb.min.y + bb.max.y) * 0.5, bb.min.z - rad * 0.05); shieldMesh.renderOrder = 3; shieldMesh.frustumCulled = false;
+    root.add(shieldMesh); shieldMeshes.push(shieldMesh);
+  }
   const out = {
     group, length, hitR: length * 0.55, eye: eyes[0], eyes, stats, attacks, tier, role, seed,
     signature: P.segs + '-' + P.fins + '-' + P.spikes, tris,
+    shieldMesh,
+    setShieldHit() { shHit = 1; },
+    setShieldDown() { shieldMeshes.forEach((m) => { m.visible = false; }); stats.shield = false; },
+    setWindup(v) { windup = Math.max(0, Math.min(1, +v || 0)); mat.uniforms.uTn.value = windup; },
+    setStalled(b) { mat.uniforms.uSt.value = b ? 1 : 0; },
     update(t, dt) {
       mat.uniforms.uTime.value = t;
-      for (let i = 0; i < eyes.length; i++) { const k = 1 + 0.18 * Math.sin(t * 4.0 + ph0 + i * 1.7); eyes[i].scale.set(eyes[i].userData.base * k, eyes[i].userData.base * k, 1); }
+      const fl = 1 + windup * (1.1 + 0.5 * Math.sin(t * 30));
+      for (let i = 0; i < eyes.length; i++) { const k = (1 + 0.18 * Math.sin(t * 4.0 + ph0 + i * 1.7)) * fl; eyes[i].scale.set(eyes[i].userData.base * k, eyes[i].userData.base * k, 1); }
+      if (shieldMat) {
+        shHit = Math.max(0, shHit - (dt || 0.016) * 4);
+        shieldMat.opacity = 0.17 + 0.06 * Math.sin(t * 3 + ph0) + shHit * 0.6;
+        shieldMat.color.setRGB(0.33 + shHit * 0.67, 0.91, 1);
+      }
     },
-    dispose() { geo.dispose(); mat.dispose(); smat.dispose(); if (lo) lo.userData.geo.dispose(); },
+    dispose() { geo.dispose(); mat.dispose(); smat.dispose(); if (lo) lo.userData.geo.dispose(); if (shieldGeo) { shieldGeo.dispose(); shieldMat.dispose(); } },
   };
   // rev 18 LOD: low variant (parts' lo geometry, same material instance so hit flash / flex stay in sync), built on first access
   Object.defineProperty(out, 'lo', {
@@ -359,7 +394,8 @@ export function generateEnemy(THREE, seed, tier, role) {
         const b2 = enemyBuild(THREE, seed, tier, role, 'lo'), r2 = compose(THREE, b2.recipe, pmul((seed | 0) * 40503 + 11));
         const g2 = mergeLit(THREE, r2, 2.0); g2.computeBoundingSphere(); g2.boundingSphere.radius *= 1.25;
         lo = new THREE.Group(); const rt = new THREE.Group(); rt.scale.setScalar(length); lo.add(rt);
-        rt.add(new THREE.Mesh(g2, mat)); lo.userData.geo = g2; lo.userData.tris = g2.attributes.position.count / 3;
+        rt.add(new THREE.Mesh(g2, mat)); lo.userData.geo = g2;
+        if (shieldMesh) { const sm2 = new THREE.Mesh(shieldGeo, shieldMat); sm2.position.copy(shieldMesh.position); sm2.renderOrder = 3; sm2.frustumCulled = false; sm2.visible = shieldMesh.visible; rt.add(sm2); shieldMeshes.push(sm2); } lo.userData.tris = g2.attributes.position.count / 3;
       }
       return lo;
     },
@@ -397,6 +433,25 @@ export function bossHash(name) {
   let h = 2166136261;
   for (let i = 0; i < name.length; i++) { h ^= name.charCodeAt(i); h = Math.imul(h, 16777619); }
   return h >>> 0;
+}
+// rev 20: hide a destroyed limb inside a merged (non-indexed) boss geometry. Every triangle that has a vertex weighted to limb `id` (aLm = id+1, weight)
+// is collapsed to a point (all three corners = the first corner), so the GPU drops it; the limb's swing uniforms keep applying to a degenerate point.
+export function hideLimbGeom(g, id) {
+  const lm = g.attributes.aLm, pos = g.attributes.position;
+  if (!lm || !pos) return 0;
+  const a = lm.array, p = pos.array, tri = Math.floor(pos.count / 3), want = id + 1;
+  let n = 0;
+  for (let t = 0; t < tri; t++) {
+    const i0 = t * 3;
+    let hit = false;
+    for (let k = 0; k < 3 && !hit; k++) { const i = i0 + k; if (Math.abs(a[i * 2] - want) < 0.5 && a[i * 2 + 1] > 0.02) hit = true; }
+    if (!hit) continue;
+    const x = p[i0 * 3], y = p[i0 * 3 + 1], z = p[i0 * 3 + 2];
+    for (let k = 1; k < 3; k++) { const o = (i0 + k) * 3; p[o] = x; p[o + 1] = y; p[o + 2] = z; }
+    n++;
+  }
+  if (n) pos.needsUpdate = true;
+  return n;
 }
 // (rev 18: the boss shaders live in ship-parts.js makeMaterials({flex:true}) - ONE program for every creature and boss.)
 // aFx = (sway weight, phase, mode, param). mode 1 jaw hinge about Y, 2 sway, 3 fin flap about Z, 4 bell pulse.
@@ -992,6 +1047,7 @@ function bossBuild(THREE, name, wave, opts, LOD) {
     }
     return { type: c.type, limb: c.limb, name: (c.limb >= 0 ? limbs[c.limb].name + ' ' : 'whole body ') + c.type, tele: +rn(r, 0.8, 1.5).toFixed(2), dmg: ri(r, 25, 45), cd: +rn(r, 2, 4).toFixed(2), dur: DUR[c.type], rec: 0.55, reachL: reach * length };
   });
+  limbs.forEach((lm) => { const mv = moves.find((m) => m.limb === lm.id); lm.attackId = mv ? mv.type : (Object.keys(lm.atk)[0] || ''); });   // rev 21: the attack this limb owns (HUD pips)
   const mats = [bmat];
   const geoms = [];
   let tris = 0;
@@ -1024,7 +1080,24 @@ function bossBuild(THREE, name, wave, opts, LOD) {
     dmg: Math.round(8 * Math.pow(1.4, tier - 1)),
   };
   const attacks = bossAttacksFor(hsh | 0, tier);
+  // rev 20: sever a limb. Hides its triangles, hides eyes riding on it, disables its capsule (ship.js skips lm.dead) and removes its moves.
+  function setLimbDestroyed(i) {
+    const lm = limbs[i];
+    if (!lm || lm.dead) return false;
+    lm.dead = true; lm.ang = 0; lm.tz = 0; lm.glow = 0; lm.rest = true;
+    if (uniforms.uSwA.value[i]) { uniforms.uSwA.value[i].set(0, 1, 0, 0); uniforms.uSwT.value[i].set(0, 0, 0, 0); }
+    for (const g of geoms) hideLimbGeom(g, i);
+    eyeRecs.forEach((e, k) => { if (e.lm === i && eyes[k]) { eyes[k].visible = false; eyes[k].userData.dead = true; } });
+    // rev 20: keep the live eyes first (ship.js targets eyes[0..eyeN-1]); dead ones move to the tail. eyes[] and eyeRecs[] stay index-paired.
+    const pairs = eyeRecs.map((e, k) => ({ e, s: eyes[k] }));
+    pairs.sort((a, b) => (a.s.userData.dead ? 1 : 0) - (b.s.userData.dead ? 1 : 0));
+    pairs.forEach((q, k) => { eyeRecs[k] = q.e; eyes[k] = q.s; });
+    for (let k = moves.length - 1; k >= 0; k--) if (moves[k].limb === i) moves.splice(k, 1);
+    if (limbs.filter((l) => !l.dead && (l.atk.sweep || l.atk.whip)).length < 2) for (let k = moves.length - 1; k >= 0; k--) if (moves[k].type === 'spin') moves.splice(k, 1);
+    return true;
+  }
   return {
+    setLimbDestroyed,
     group, length, hitR: length * (plan === 'crab' || plan === 'hydra' ? 0.6 : 0.55), eye: eyes[0], eyes, stats, attacks,
     tier, role: 'boss', seed: hsh | 0, name, plan, signature: plan, tris, mats,
     limbs, moves, att,
@@ -1033,6 +1106,7 @@ function bossBuild(THREE, name, wave, opts, LOD) {
       uniforms.uTime.value = t;
       for (let i = 0; i < limbs.length; i++) {
         const lm = limbs[i];
+        if (lm.dead) continue;
         poseLimb(lm, att);
         const a = uniforms.uSwA.value[i], b = uniforms.uSwT.value[i];
         a.set(lm.ax.x, lm.ax.y, lm.ax.z, lm.ang); b.set(0, 0, lm.tz, lm.glow);
@@ -1070,12 +1144,19 @@ export function generateBoss(THREE, name, wave, opts) {
         const meshes = b.group.children[0].children.filter((o) => o.isMesh);
         meshes.forEach((m, i) => { m.material = out.mats[i] || out.mats[0]; rt.add(m); });
         lo.userData.geoms = meshes.map((m) => m.geometry);
+        deadIds.forEach((i) => meshes.forEach((m) => hideLimbGeom(m.geometry, i)));
         lo.userData.tris = meshes.reduce((a, m) => a + m.geometry.attributes.position.count / 3, 0);
         b.mats.forEach((m) => m.dispose());
       }
       return lo;
     },
   });
+  const baseSever = out.setLimbDestroyed, deadIds = [];
+  out.setLimbDestroyed = (i) => {
+    const ok = baseSever(i);
+    if (ok) { deadIds.push(i); if (lo) lo.userData.geoms.forEach((g) => hideLimbGeom(g, i)); }
+    return ok;
+  };
   const dis = out.dispose;
   out.dispose = () => { dis(); if (lo) lo.userData.geoms.forEach((g) => g.dispose()); };
   return out;
