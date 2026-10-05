@@ -80,34 +80,18 @@ Stop / remove: `sudo systemctl disable --now nmg-relay`; the game falls back to 
 
 ## Nerfed gorcave (`/gorcave`, gor.js)
 
-A sandboxed lobby neptr. `{t:'gor', text}` from a client -> one Anthropic Messages API call (no tools,
-system prompt = the persona file only, `claude-haiku-4-5-20251001`, 300 max tokens, last 8 exchanges kept in
-memory) -> `{t:'gor', from:'neptr', text, re:<askerName>}` broadcast to the room. It never touches the real
-gorcave agent. Plain chat: `{t:'chat', text}` (<= 200 chars) -> `{t:'chat', from, text}` to everyone.
+A sandboxed lobby neptr. `{t:'gor', text}` from a client -> one `claude -p` run -> `{t:'gor', from:'neptr', text, re:<askerName>}`
+broadcast to the room. It never touches the real gorcave agent. Plain chat: `{t:'chat', text}` (<= 200 chars) -> `{t:'chat', from, text}`.
 
-Limits: 400-char input, 1 request / 5 s per client, 60 / hour global, 20 s timeout. Any failure (no key,
-HTTP error, timeout, rate limit) replies to the asker only: `{t:'gor', from:'neptr', text:'...neptr is thinking too hard. try again.'}`.
+No API key. It uses the Pi's own Claude Code login (the subscription, same as the gorcave chat): `claude` must be
+logged in as the `server` user (`claude auth login`). Command: `claude -p --model sonnet --system-prompt <persona file>
+--tools "" --strict-mcp-config --mcp-config '{"mcpServers":{}}' --disable-slash-commands --no-session-persistence
+--output-format text -- <history + message>`; stdin closed, env stripped to PATH/HOME/LANG (no ANTHROPIC_API_KEY),
+cwd `~/nmg-relay/sandbox` (created empty), killed at 25 s. Last 8 exchanges are prepended to the prompt.
+
+Limits: 400-char input, 1 request / 5 s per client, 60 / hour global, 25 s timeout. Any failure (not logged in,
+exit error, timeout, rate limit) replies to the asker only: `{t:'gor', from:'neptr', text:'...neptr is thinking too hard. try again.'}`.
 
 Persona: env `NMG_GOR_PERSONA`, default `~/EMGOR_SKILLS/_NERFED_GORCAVE.md` (the repo is on the Pi too).
-Loaded once per process; restart the service after editing it. Model override: `NMG_GOR_MODEL`.
-
-API key (never in the repo): create the env file by hand on the Pi. The unit reads it via
-`EnvironmentFile=-/home/server/nmg-relay/.env`.
-
-    ssh server@gorcave.lan
-    umask 077 && nano ~/nmg-relay/.env        # one line: ANTHROPIC_API_KEY=sk-ant-...
-    chmod 600 ~/nmg-relay/.env
-    sudo cp ~/nmg-relay/nmg-relay.service /etc/systemd/system/ && sudo systemctl daemon-reload
-    sudo systemctl restart nmg-relay
-
-(rsync does not overwrite `.env`; the Mac copy has none.) Without a key the relay runs and `/gorcave` just
-answers with the failure line.
-
-Test locally (`ANTHROPIC_API_KEY` optional; without it you should get the failure line):
-
-    ALLOW_NO_ORIGIN=1 node server.js &
-    wscat -c ws://127.0.0.1:8796
-    > {"t":"hi","id":"abcdef123456","name":"tester"}
-    > {"t":"gor","text":"who are you?"}
-    < {"t":"gor","from":"neptr","text":"...","re":"tester"}
-    > {"t":"chat","text":"hello room"}
+Loaded once per process; restart the service after editing it. Model override: `NMG_GOR_MODEL`; binary: `CLAUDE_BIN`.
+The unit sets `Environment=PATH=...` so systemd can find `/usr/local/bin/claude`.

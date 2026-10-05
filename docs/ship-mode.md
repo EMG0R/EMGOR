@@ -710,3 +710,220 @@ whips), **seraph** (a vertical stack of 6 rotating fin-wings around a core eye, 
 body). Palette: near-black bodies, one saturated emissive accent (violet/ember/acid),
 subtle flicker/glitch on the emissive, slow idle motion with sudden snaps on telegraph.
 Same limb/capsule/move contract. Names unchanged (they're loved).
+
+## Revision 20 (2026-10-02) — scale again, visible damage, sound, everything landable
+
+### A. Engine (galaxy3d.js)
+- PILOT_PLANET_SCALE root ×6, deeper ×4 (was 3/2); pilot orbit layout already derives
+  from rendered radii, so moons/rings spread accordingly. Minimum pilot rendered
+  radius for ANY body = 320 L (L = ship length, provided by engine.setShipLength(L)
+  from ship.js) so moonlets become real worlds.
+- **Floating origin** while piloting: render with the scene translated so the camera
+  is near (0,0,0) (scene.position = −cameraWorld each frame before render, camera at
+  the residual); all game math stays in true world coordinates; labels/projection use
+  the true camera. Removes far-from-origin jitter at the new scale.
+
+### B. Ship + combat (ship.js, ship-enemies.js)
+- L = refR_pilot / 12000. Speeds unchanged in u/s (so in ship-lengths everything is
+  faster; pulse cap 1500 stays). Atmosphere caps unchanged.
+- **Every planet landable**: no gas-giant deck; ps gives gas giants a cloud-world
+  surface; moonlet rule only below 60 L (nothing is that small after the floor).
+- **NMS exit**: hold E (0.6 s, radial fill on the HUD) while under 6 L altitude → the
+  ship auto-lands and you step out in one motion; tap E still lands; E near the ship
+  boards; hold E on foot = board + lift-off.
+- **Visible damage**: hit marker (reticle X flash) on every registered hit; floating
+  damage numbers (pooled DOM, 24, ×2 crits on weak points in the accent color); boss
+  HP tuned so sustained fire kills a boss in ~90 s at its wave (HP = 90 s × player
+  DPS × 0.8); limb damage: each limb has its own HP (25 % of boss HP); at 0 the limb
+  is DESTROYED (ship-enemies: setLimbDestroyed(i) hides its parts, disables its
+  capsule, removes its moves) with a big burst + 1.5 s stagger (boss can't attack);
+  destroying all limbs exposes the eye at ×4. Enemies flinch on hit (exists), and
+  die with a chain-reaction burst scaled by size.
+- **Loot**: bosses drop a weapon pickup (procedural, from ship-weapons; glowing crate,
+  fly through to equip; shown in chat) and 3 shield orbs; regular kills 10 % chance.
+- Audio hooks: fire, hit, crit, kill, limbSever, bossRoar (on spawn + telegraph),
+  explosion, engine (throttle/boost/pulse), entry, land, liftoff, ui (prompt/chat).
+
+### C. Audio (NEW js/ship-audio.js)
+Procedural WebAudio, zero files: `createAudio()` → `{ unlock(), play(name, opts),
+engine(state), setMaster(v) }`. Synth recipes per hook (noise bursts + filtered saws
+for lasers, FM thumps for hits, layered noise + sub for explosions, a slow granular
+drone for engine that follows throttle/pulse, a sub-growl for boss roars, soft clicks
+for UI). Starts after the first click (autoplay rule); `/volume 0-10`. Spatialized by
+distance (gain) only; no reverb beyond a cheap feedback delay on explosions.
+
+### D. Planets (ship-planet.js)
+- Gas giants: surface = cloud world (height from the same noise, palette bands, no
+  trees/rocks, floating "spore" creatures), landable everywhere.
+- Scale: patch/flora/rocks/outposts re-tuned for L = refR/12000 (trees 4–8 L still).
+
+## Verification checkpoint (2026-10-02, PAUSED by Emory)
+
+Rev 20 is fully in the working tree, uncommitted. The guarantee-suite agent was paused
+mid-run. Its code is in js/ship.js, js/ship-planet.js, js/ship-planet-tests.js,
+style/ship.css and parses clean. Real bugs it fixed: stale EDGE_R boundary (shoved the
+ship toward the origin over outer worlds → drift, empty prompts, "embedded" engages,
+g4 teleports; now edgeFit()), pulse approach stalling against fast orbits (planet-
+relative thrust inside 3 R), bolt cull at 3000 L (now 12000 L). Added: pulse starts at
+boost instantly (τ 1.5 s to 300), HUD titles removed except boss names/prompts, foot
+controller = substepped capsule on ps.meshFloorLocal (exact rendered triangles), g14.
+
+Resume = the same agent (transcript retained) or a fresh one with this list:
+1. Un-hide `.sh-stats` (shield/alt/speed/wave readouts stay; only banners go).
+2. Full g1–g14 run with 60 s-per-site g14; rerun g4 on several seeds (one run showed
+   15 teleports, four later seeds showed 0 — unresolved).
+3. Screenshots: terra planet filling the frame from 3 R; gas giant at 0.8 L; two
+   standing-still frames one step apart (identical).
+4. Confirm Esc via the engine pointer-lock path.
+5. Close Chrome tab ?verify20, then commit + push (pull first; emgor-fa pushes often).
+
+## Revision 21 (2026-10-03) — make it FUN: analysis + plan
+
+### Analysis (why it isn't fun yet)
+1. Feedback arrived late (damage numbers + audio only in rev 20, untested by a human).
+2. Enemies never communicate intent or vulnerability → spraying at dots.
+3. No mid-fight decisions: one weapon, no heat, no priority target, no cover, no chosen risk.
+4. Fights happen at the wrong distance for the new planet scale.
+5. Boss limbs can be severed but there is no reason to choose a limb.
+6. Nothing to chase: no currency, shops, upgrades.
+7. On foot has nothing to do.
+8. Space between fights is empty; no music.
+
+### A. Combat core (ship.js)
+- Squads of 3–5 with a marked LEADER (bigger chevron, bonus units); engage ≤ 80 L; a
+  squad holds a loose formation and splits on the leader's call.
+- Every attack run: wind-up 0.7 s (eye flare + rising audio) → strike → STALL 1.0 s
+  (enemy glows, takes ×2 damage, HUD shows "STALLED" over it).
+- Weapon heat: 0–1, +0.07/volley, −0.35/s cooling; at 1.0 OVERHEAT 2 s (no fire,
+  steam fx, audio); the reticle ring fills with heat. Tap fire = cool rhythm.
+- Ram tool: Shift+LMB while boosting = RAM: damage = 40 + speed × 2 to the enemy,
+  12 to you, 0.8 s cooldown, big shake; replaces the 45 HP punishment for intentional
+  rams (accidental contact stays costly when not boosting).
+- Lock-on evasion: an enemy you keep in the 2.5° cone > 1 s jinks (one-off dodge roll).
+- Boss: each limb OWNS one attack; the HP bar shows limbs as pips with their attack
+  icon; severing a limb removes that attack (exists) — now telegraph which limb is
+  about to strike on the bar.
+- Director: 60 s tension curve per wave (exists) + "quiet" waves every 5th with a
+  single elite squad.
+
+### B. Enemy roles v2 (ship-enemies.js + ship.js)
+- hunter (dives), harasser (circles at 40 L, pot shots, breaks off when shot),
+  bomber (slow, 150 % HP, drops 3 mines on a pass, high units); 25 % of enemies carry
+  a BACK SHIELD (front immune; the glowing back is the weak point) — visual: a
+  translucent dish on the front.
+- Enemies use planets: hunters dive into atmosphere to shake you (exists), harassers
+  hide behind moons.
+
+### C. Economy + stores (ship.js, ship-planet.js, NEW js/ship-world.js)
+- Units: kills 10×tier, leader +20, boss 500×tier, shards on planets 25 each
+  (glowing crystals, 20 per planet near outposts, respawn daily), saved on profile.
+- **7/11 on every planet**: every outpost gets a store: low-poly convenience store
+  with a lit "7/11" sign (one string constant STORE_NAME — trademark, rename any time),
+  glass front, glowing interior, a clerk NPC humanoid behind a counter, parking pad.
+  Every planet gets ≥ 1 outpost (ps.outposts min 1, placed on land).
+- Store UI (chat font overlay, E at the counter): 4 procedural weapons (class-tagged),
+  shield upgrade (+20 max, 3 tiers), engine upgrade (+10 % cruise/boost, 3 tiers),
+  snack (full heal, 50 u), sell owned weapons at 40 %. Clerk lines: seeded personality,
+  3 lines, name from the boss name generator.
+- Crates/orbs/shards all show units gained as floating text.
+
+### D. On foot v2 (ship.js, ship-human.js)
+- Jetpack: hold Space = infinite, fast (climb 3 heights/s, forward thrust 2× run);
+  flame + audio; landing crouch. Run ×2. Scanner V: pulse ring, highlights stores,
+  shards, friends, outposts for 6 s. Shards: walk/fly into them. E at the counter →
+  store; E near an NPC → 1 line in chat.
+
+### E. Ambient (NEW js/ship-space.js, ship-audio.js)
+- Asteroid belts: 2 instanced belts between root orbits (~1200 rocks each, LOD),
+  real collision (soft), cover (enemies lose lock behind rocks ≥ 4 L).
+- Freighters: 1–2 slow NPC haulers crossing the system (parts kit 'hauler' ×30).
+- Music: procedural ambient (WebAudio): 2-voice drone + slow arps, key per planet
+  palette, intensity follows combat state; `/volume` covers it.
+
+## Revision 22 (2026-10-03) — the 7/11 space station + a real black hole
+
+### A. Black hole in flight (galaxy3d.js)
+- Pilot scale for the black hole: core ×8 (disks/arcs/halo scale with it as they do),
+  blended with pilotBlend; galaxy view unchanged.
+- Solid: `engine.blackHole` → { pos, coreR (pilot), diskR } so ship.js can collide:
+  hard sphere at 1.3 × coreR with a strong push-out + 35 HP; inside 3 × coreR a
+  gravity pull (max 0.25 × cruise) and lensing shimmer (existing shader, boosted).
+  Never fly-through-able.
+
+### B. Station (NEW js/ship-station.js + ship.js docking)
+- One NMS-style space station orbiting the black hole at ~2.2 × coreR (pilot), hidden
+  in the galaxy view, huge in flight (length ≈ 0.8 × refR): a long spine with a
+  hangar mouth (open rectangular bay facing outward, lit by landing strips), ring
+  habitat, antennas, docking lights, the 7/11 sign on the mouth. Parts kit + merged.
+- Interior: hangar deck with 4 landing pads, walkways, a 7/11 counter with a clerk,
+  2–3 idle NPC humanoids, a weapons vendor (same inventory system as planet stores,
+  tier +1), a galactic-map pedestal (opens the galaxy overlay = engine.focusNode root
+  with Esc semantics), windows showing the black hole.
+- **Auto-dock**: fly into the mouth trigger volume (speed any; governor brakes) →
+  control taken, ship follows a spline to a free pad, legs down, "DOCKED", player is
+  put on foot beside the ship on the deck (deck = floor plane; interior collision =
+  simple boxes). E near the ship → board → ship auto-launches out of the mouth on the
+  reverse spline, control returns at the mouth. Chat/commands work inside.
+- Multiplayer: other players docked show on their pads; on foot in the station they
+  render as humans (same net path as planets with a 'station' frame id).
+
+## Revision 23 (2026-10-03) — INTERGALACTIC 7/11, items, inventory, Burger House, lingo
+
+Priority: it must FEEL good to interact with. Chill and funny. All text and items come
+from seeded sentence/word recombination (no model calls, tiny CPU).
+
+### A. Vision effects (galaxy3d.js) — NEW post pass
+`engine.vision.set({ blur, chroma, hue, wobble, double, contrast, invert, tint, fov,
+timeScale })` (all 0..1 except hue in turns, timeScale 0.85–1.15) → one fullscreen
+shader pass after bloom (cheap: single-tap blur via mip, chromatic offset, hue rotate,
+sine wobble, double vision offset, contrast, invert flash, color tint, slow FOV
+breath). `engine.vision.clear()`. Zero cost when all params are 0 (pass skipped).
+
+### B. Items (NEW js/ship-items.js)
+`generateItem(seed)` → { id, name, kind ('food'|'drink'|'snack'|'fries'), base (7-11
+food: Gardetto's, Big Gulp, taquito, Slurpee, hot dog, pizza slice, donut, energy drink,
+nachos, jerky, corn dog, monster, chips…), infusion (a long comedic list of fictional
+and real drug names, e.g. "crack-infused", "fent", "ketamine", "shroom", "DMT",
+"adderall", "lean"…), modifiers ("double", "ultra", "limited edition", "expired",
+"blessed"), price, blurb (1 line, funny, recombined), effect: { duration 15–240 s,
+params for engine.vision (a seeded subset with amplitudes), extras: speed ×, jump ×,
+chat-font wobble }, color }. `storeMenu(storeId, n = 24)` → scrollable list;
+`FRIES` = Burger House fries: effect = glow light blue 45 REAL minutes (persisted as
+an expiry timestamp on the profile), no vision effect.
+
+### C. Lingo (NEW js/ship-lingo.js)
+Seeded alien lexicon per planet/station (syllable generator), sentence templates
+recombined from word lists (greeting / sales pitch / gossip / warning / lore / drug
+dealer patter / cashier line), rendered as a mix of translated words and alien words;
+the player's "known words" set (saved on the profile) grows by buying and talking, so
+NPC lines become more readable over time (NMS language mechanic). `line(npc, ctx)`
+→ string; `name(seed)`; `translate(word)`.
+
+### D. World (ship-world.js, ship-parts.js)
+- The INTERGALACTIC 7/11: cartoon-accurate but oversized: wide aisles, very high
+  ceilings (jetpack on top of aisles), shelves full of instanced item boxes in item
+  colors, slurpee machine, coffee station, cashier counter, neon sign
+  "INTERGALACTIC 7/11", glass front, parking pads; NPC shoppers wandering the aisles
+  (3–6 humans, seeded names/lines), DRUG DEALERS loitering outside (2, distinct suit
+  colors, patter lines, their own 6-item menu), funny characters (seeded roles:
+  conspiracy guy, retired pilot, kid with a ship toy, cop who doesn't care).
+  A few per planet (= per outpost) + the station one (bigger).
+- BURGER HOUSE: one per planet, Dallas Burger House look (research it: a small 1951
+  Dallas burger stand; use the vibe: red/white, retro sign, walk-up window), serves ONLY
+  fries; the fries clerk has lines about the seasoning. Buying fries = glow.
+
+### E. Inventory + eating (ship.js)
+- Q at ANY time: infinite Minecraft-style inventory: a grid of slots = owned items
+  (icons = colored item boxes with the name on hover), scroll, chat font; right-click
+  an item = eat/drink: the effect timeline starts (engine.vision + extras), stackable
+  effects blend, HUD shows active effects with timers; items persist on the profile.
+- Store UI: scrollable menu (24+ items), buy with units, sell back 40 %.
+- Fries glow: human + hull get a light-blue emissive + glow sprite until the expiry.
+- NPC lines use ship-lingo; chat rows show alien words in a different color; buying
+  teaches 1–3 words.
+
+### Keybinds (locked 2026-10-03)
+E = inventory (Minecraft). F = interact: tap F land, hold F land + step out, F exit ship,
+F board, F talk, F shop, F map pedestal. Q = focus slow-time, Z = allies focus, V =
+scanner, T = cycle target, Enter / `/` = chat, Space = pulse (ship) / jetpack (foot),
+Shift = boost / run, A/D double-tap roll, S double-tap flip, Ctrl drift, Esc = galaxy.

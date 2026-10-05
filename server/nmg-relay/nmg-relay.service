@@ -8,15 +8,17 @@ WorkingDirectory=/home/server/nmg-relay
 ExecStart=/usr/bin/node server.js
 Environment=PORT=8797
 Environment=NODE_ENV=production
-EnvironmentFile=-/home/server/nmg-relay/.env
+Environment=HOME=/home/server
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Restart=always
 RestartSec=2
 Nice=10
-CPUQuota=25%
-MemoryMax=64M
+CPUQuota=150%
+MemoryMax=400M
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=read-only
+ProtectHome=false
+ReadWritePaths=/home/server
 PrivateTmp=true
 
 [Install]

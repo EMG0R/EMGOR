@@ -1,14 +1,16 @@
-'use strict';
-/* Nerfed gorcave: the lobby neptr. One plain Anthropic Messages API call, NO tools,
-   system prompt = the persona file only. Nothing here can reach the real gorcave.
-   Env: ANTHROPIC_API_KEY (from the systemd EnvironmentFile), NMG_GOR_PERSONA, NMG_GOR_MODEL. */
+/* Nerfed gorcave: the lobby neptr. One non-interactive `claude -p` run (the Pi's own Claude Code
+   login, i.e. the subscription, no API key). ALL tools off, no MCP, scratch cwd, clean env.
+   Env: NMG_GOR_PERSONA, NMG_GOR_MODEL (default sonnet), CLAUDE_BIN, NMG_GOR_SANDBOX. */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawn } = require('child_process');
 
-const MODEL = process.env.NMG_GOR_MODEL || 'claude-haiku-4-5-20251001';
+const MODEL = process.env.NMG_GOR_MODEL || 'sonnet';
+const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
 const PERSONA_PATH = process.env.NMG_GOR_PERSONA || path.join(os.homedir(), 'EMGOR_SKILLS', '_NERFED_GORCAVE.md');
-const MAX_IN = 400, MAX_TOKENS = 300, TIMEOUT_MS = 20000;
+const SANDBOX = process.env.NMG_GOR_SANDBOX || path.join(os.homedir(), 'nmg-relay', 'sandbox');
+const MAX_IN = 400, TIMEOUT_MS = 25000;
 const PER_CLIENT_MS = 5000, GLOBAL_PER_HOUR = 60, HISTORY_PAIRS = 8;
 const FAIL = '…neptr is thinking too hard. try again.';
 
@@ -20,6 +22,25 @@ function clean(s) { return String(s == null ? '' : s).replace(/[^\x20-\x7e -￿
 function loadPersona() {
   if (persona === null) persona = fs.readFileSync(PERSONA_PATH, 'utf8');
   return persona;
+}
+
+
+// Spawn claude -p: zero tools, no MCP, no slash commands, no session saved, closed stdin, hard kill at TIMEOUT_MS.
+function runClaude(sys, prompt) {
+  return new Promise(function (resolve, reject) {
+    try { fs.mkdirSync(SANDBOX, { recursive: true }); } catch (e) {}
+    const env = { PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin', HOME: process.env.HOME || os.homedir(), LANG: 'C.UTF-8' };
+    if (process.env.USER) env.USER = process.env.USER;
+    const args = ['-p', '--model', MODEL, '--system-prompt', sys, '--tools', '', '--strict-mcp-config',
+      '--mcp-config', '{"mcpServers":{}}', '--disable-slash-commands', '--no-session-persistence',
+      '--output-format', 'text', '--', prompt];
+    const p = spawn(CLAUDE_BIN, args, { cwd: SANDBOX, env: env, stdio: ['ignore', 'pipe', 'ignore'] });
+    let buf = '', done = false;
+    const t = setTimeout(function () { if (!done) { done = true; p.kill('SIGKILL'); reject(new Error('timeout')); } }, TIMEOUT_MS);
+    p.stdout.on('data', function (d) { if (buf.length < 20000) buf += d; });
+    p.on('error', function (e) { if (!done) { done = true; clearTimeout(t); reject(e); } });
+    p.on('close', function (code) { if (done) return; done = true; clearTimeout(t); code === 0 ? resolve(buf) : reject(new Error('exit ' + code)); });
+  });
 }
 
 // client: per-connection state object (we stash gorAt / gorBusy on it)
@@ -35,19 +56,11 @@ async function handleGor(client, text, ctx) {
   client.gorAt = now; client.gorBusy = true; stamps.push(now);
   const name = clean(ctx.name).slice(0, 16) || 'pilot';
   try {
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (!key) throw new Error('no key');
     const sys = loadPersona();
-    const messages = history.slice(-HISTORY_PAIRS * 2).concat([{ role: 'user', content: name + ': ' + text }]);
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, system: sys, messages: messages }),
-      signal: AbortSignal.timeout(TIMEOUT_MS)
-    });
-    if (!res.ok) throw new Error('http ' + res.status);
-    const j = await res.json();
-    const out = clean((j.content || []).filter(function (b) { return b && b.type === 'text'; }).map(function (b) { return b.text; }).join(' ')).slice(0, 600);
+    const convo = history.slice(-HISTORY_PAIRS * 2).map(function (m) { return (m.role === 'user' ? '' : 'neptr: ') + m.content; });
+    const prompt = (convo.length ? 'Recent chat:\n' + convo.join('\n') + '\n\n' : '') + 'Reply to the latest message only.\nLatest message:\n' + name + ': ' + text;
+    const raw = await runClaude(sys, prompt);
+    const out = clean(raw).slice(0, 600);
     if (!out) throw new Error('empty');
     history.push({ role: 'user', content: name + ': ' + text }, { role: 'assistant', content: out });
     while (history.length > HISTORY_PAIRS * 2) history.shift();

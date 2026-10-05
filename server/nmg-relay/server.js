@@ -138,7 +138,9 @@ function handle(ws, c, m, now) {
       for (let i = 0; i < keys.length; i++) if (!num(m[keys[i]])) return false;
       const pos = { x: m.x, y: m.y, z: m.z, qx: m.qx, qy: m.qy, qz: m.qz, qw: m.qw, v: Math.round(m.v * 10) / 10, st: m.st & 7, hp: Math.max(0, Math.min(255, Math.round(m.hp))) };
       // mode: 'landed' | 'foot' (on-foot players send their human's pose; st bits 1/2/4 = moving/running/airborne)
-      if (m.mode === 'landed' || m.mode === 'foot') pos.mode = m.mode;
+      if (m.mode === 'landed' || m.mode === 'foot' || m.mode === 'docked') pos.mode = m.mode;
+      // frame: 'station' = pose is station-local (docked / on the station deck)
+      if (m.frame === 'station') pos.frame = 'station';
       p.pos = pos;
       broadcast(Object.assign({ t: 'pos', id: p.id }, pos), p.id);
       if (p.s !== 'piloting') { p.s = 'piloting'; broadcastRoster(); }
