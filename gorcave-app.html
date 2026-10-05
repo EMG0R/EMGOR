@@ -57,6 +57,7 @@
 <!-- LOGIN -->
 <div id="login" class="screen hidden"><div class="center">
   <div><h1>G O R C A V E</h1><div class="tag">the machine watching the room</div></div>
+  <input id="secret" class="hidden" placeholder="2FA secret (first time only)" autocomplete="off" autocapitalize="characters" spellcheck="false">
   <input id="pass" type="password" placeholder="password" autocomplete="current-password" autocapitalize="off">
   <button class="go" id="loginBtn">enter</button>
   <div class="msg" id="loginMsg"></div>
@@ -98,19 +99,44 @@ function authHdr(){const t=LS.get("gorcave_token");return t?{Authorization:"Bear
 function tokenValid(){const t=LS.get("gorcave_token"),e=+LS.get("gorcave_token_exp")||0;return t&&e>Date.now()/1000;}
 function show(id){["login","console"].forEach(s=>$("#"+s).classList.toggle("hidden",s!==id));}
 
-function boot(){ tokenValid() ? openConsole() : show("login"); }
+// --- TOTP: this device is the authenticator. Secret is pasted once, stored
+//     locally, and the 6-digit code is computed automatically at login. ---
+function b32dec(s){s=(s||"").replace(/=+$/,"").toUpperCase().replace(/\s/g,"");
+  const A="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits="";const out=[];
+  for(const c of s){const v=A.indexOf(c);if(v<0)continue;bits+=v.toString(2).padStart(5,"0");}
+  for(let i=0;i+8<=bits.length;i+=8)out.push(parseInt(bits.substr(i,8),2));return new Uint8Array(out);}
+async function totp(secret){
+  const key=await crypto.subtle.importKey("raw",b32dec(secret),{name:"HMAC",hash:"SHA-1"},false,["sign"]);
+  const ctr=Math.floor(Date.now()/1000/30);const buf=new ArrayBuffer(8);new DataView(buf).setUint32(4,ctr);
+  const sig=new Uint8Array(await crypto.subtle.sign("HMAC",key,buf));const o=sig[19]&0xf;
+  const bin=((sig[o]&0x7f)<<24)|(sig[o+1]<<16)|(sig[o+2]<<8)|sig[o+3];
+  return (bin%1000000).toString().padStart(6,"0");}
+
+function boot(){
+  if(tokenValid()){openConsole();return;}
+  $("#secret").classList.toggle("hidden", !!LS.get("gorcave_totp"));  // show enroll field only until enrolled
+  show("login");
+}
 
 $("#loginBtn").onclick=async()=>{
   const pass=$("#pass").value;
   if(!pass){$("#loginMsg").textContent="enter the password";$("#loginMsg").className="msg err";return;}
+  let secret=LS.get("gorcave_totp");
+  if(!secret){
+    secret=($("#secret").value||"").replace(/\s/g,"").toUpperCase();
+    if(secret.length<16){$("#secret").classList.remove("hidden");
+      $("#loginMsg").textContent="paste your 2FA secret (first time only)";$("#loginMsg").className="msg err";return;}
+  }
   $("#loginBtn").disabled=true;$("#loginMsg").textContent="…";$("#loginMsg").className="msg";
   try{
+    const code=await totp(secret);
     const r=await fetch(FUNNEL+"/api/gate/login",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({passphrase:pass})});
+      body:JSON.stringify({passphrase:pass,code})});
     const d=await r.json();
     if(!r.ok)throw new Error(d.detail||"denied");
+    LS.set("gorcave_totp",secret);  // enrolled: first success locks in the secret on this device
     LS.set("gorcave_token",d.token);LS.set("gorcave_token_exp",String(Math.floor(Date.now()/1000)+(d.ttl||31536000)));
-    $("#pass").value="";openConsole();
+    $("#pass").value="";$("#secret").value="";openConsole();
   }catch(e){$("#loginMsg").textContent="✗ "+e.message;$("#loginMsg").className="msg err";}
   finally{$("#loginBtn").disabled=false;}
 };
@@ -118,7 +144,7 @@ $("#pass").addEventListener("keydown",e=>{if(e.key==="Enter")$("#loginBtn").clic
 
 function openConsole(){
   show("console");
-  $("#termFrame").src="gorcave-chat.html";
+  $("#termFrame").src=FUNNEL+"/terminal?token="+encodeURIComponent(LS.get("gorcave_token")||"");
   $("#lightsFrame").src="gorcave-lights.html";
   switchTab("term");loadVitals();
 }
