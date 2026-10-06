@@ -1310,7 +1310,27 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         node.ny = (node.ny || 0) + (dy || 0);
         node.nz = (node.nz || 0) + (dz || 0);
     }
+    // rev 29: while piloting, orbits are evaluated at fixed ORBIT_T0 (planets stand still);
+    // pilotBlend lerps angle (shorter arc) + radial breathing from live time to T0.
+    var ORBIT_T0 = 0, orbitTime = 0, spinLag = 0, spinLastT = null, spinTime = 0;
+    function orbAngle(n, pb) {
+        var a = n.homeA + time * BASE_ROT;
+        if (pb <= 0) return a;
+        if (pb >= 1) return n.homeA + ORBIT_T0 * BASE_ROT;
+        var d = (ORBIT_T0 - time) * BASE_ROT; d -= TAU * Math.round(d / TAU);
+        return a + d * pb;
+    }
+    function orbVib(n, pb) {
+        var v = Math.sin(time * n.vibF + n.vibPh);
+        if (pb <= 0) return v;
+        var v0 = Math.sin(ORBIT_T0 * n.vibF + n.vibPh);
+        return pb >= 1 ? v0 : v + (v0 - v) * pb;
+    }
     function computePositions() {
+        var pbo = (pilot && pilotBlend > 0) ? pilotBlend : 0;
+        orbitTime = pbo > 0 ? time + (ORBIT_T0 - time) * pbo : time;
+        if (spinLastT !== null && pbo > 0) spinLag += Math.max(0, time - spinLastT) * 0.75 * pbo;
+        spinLastT = time; spinTime = time - spinLag;
         var nk = nudgeLastT === null ? 1 : Math.exp(-Math.max(0, time - nudgeLastT) / NUDGE_TAU);
         nudgeLastT = time;
         var i, n, p, base;
@@ -1342,8 +1362,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             var rk0 = root.kids, ia, ib, ka, kb, ra, rb, dx0, dy0;
             for (ia = 0; ia < rk0.length; ia++) {
                 ka = rk0[ia];
-                ra = ka.orbF * root.sysR * (1 + Math.sin(time * ka.vibF + ka.vibPh) * ka.vibDepth);
-                ka._ux = Math.cos(ka.homeA + time * BASE_ROT) * ra; ka._uy = Math.sin(ka.homeA + time * BASE_ROT) * ra;
+                ra = ka.orbF * root.sysR * (1 + orbVib(ka, pilotBlend) * ka.vibDepth);
+                var ua = orbAngle(ka, pilotBlend);
+                ka._ux = Math.cos(ua) * ra; ka._uy = Math.sin(ua) * ra;
                 if (ka._ext < 1.6 * ka._pF) ka._ext = 1.6 * ka._pF;
                 // rev 22: innermost orbit clears the x8 black hole + station (2.2 coreR) + dock margin
                 need = (bhCoreR * BH_PILOT_SCALE * 3.2 + 1.6 * ka._pF) / Math.max(1, Math.sqrt(ka._ux * ka._ux + ka._uy * ka._uy));
@@ -1368,8 +1389,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             // breathing gently in and out instead (vibDepth is now a small
             // fractional radial amplitude, bounded in buildTree so it can
             // never breathe one orbit shell into a neighbour's).
-            var a = n.homeA + time * BASE_ROT;
-            var r = n.orbF * p.sysR * (1 + Math.sin(time * n.vibF + n.vibPh) * n.vibDepth);
+            var a = orbAngle(n, pbo);
+            var r = n.orbF * p.sysR * (1 + orbVib(n, pbo) * n.vibDepth);
             // pilot layout: planets render inflated, so a child's orbit must
             // clear its parent's inflated globe (and the child itself is
             // capped to 0.3x the parent's). drawOrder is parent-first so
@@ -1521,7 +1542,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             // body spins gently in place, seeded per-node (rate/phase/tilt),
             // fully gated by prefers-reduced-motion via `time` itself.
             n.mesh.rotation.z = n.spinTilt;
-            n.mesh.rotation.y = (reducedMotion ? 0 : time) * n.spinRate + n.spinPhase;
+            n.mesh.rotation.y = (reducedMotion ? 0 : spinTime) * n.spinRate + n.spinPhase;
 
             var pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(time * n.pulseRate + n.pulsePhase);
             n.glowSprite.material.opacity = clamp(a * (0.09 + pulse * 0.06), 0, 1);
@@ -2627,6 +2648,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             get composer() { return composer; },
             vision: visionApi,
             get time() { return time; },
+            get orbitTime() { return orbitTime; },
             root: root, byId: byId, drawOrder: drawOrder,
             renderedRadius: renderedRadius,
             pilotScale: pilotScaleOf,
