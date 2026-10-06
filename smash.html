@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GOR BRAWL</title>
+<style>html,body{margin:0;height:100%;background:#05020a;overflow:hidden}</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+import { createGame, sfx, B, createMatch, botInput } from './js/smash-engine.js';
+import { createUI } from './js/smash-ui.js';
+
+// optional audio: wire sfx.hook to ship-audio.js if it loads; everything runs silent otherwise
+let audio = null;
+async function wireAudio() {
+  try {
+    const m = await import('./js/ship-audio.js');
+    if (m && m.createAudio) {
+      audio = m.createAudio({ master: 0.5 });
+      const MAP = { hit_light: 'hit', hit_heavy: 'hit', shot: 'laser', boost: 'boost', ko: 'explosion', jump: 'jump' };
+      sfx.hook = (n) => { try { audio.play(MAP[n] || n); } catch (e) { /* unknown cue */ } };
+      const unlock = () => { audio.unlock(); removeEventListener('pointerdown', unlock); removeEventListener('keydown', unlock); };
+      addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
+    }
+  } catch (e) { /* ship-audio absent: silent */ }
+}
+
+const ui = createUI(document.getElementById('app'));
+const game = createGame({ canvas: ui.canvas, ui });
+ui.attach(game);
+ui.onLaunch = (cfg) => game.start(cfg);
+wireAudio();
+
+// dev / test hooks (the tab may be throttled: drive the sim manually)
+window.SMASH = {
+  game, ui, B, get sim() { return game.sim; },
+  start: (cfg) => game.start(cfg),
+  step: (n) => game.step(n),
+  input: (i, mask) => { game.inject[i] = mask; },
+  bench: (n) => game.bench(n || 600),
+  renderer: () => game.R.kind,
+  debug: (v) => { game.debug = v == null ? !game.debug : v; game.render(1); },
+};
+</script>
+</body>
+</html>
