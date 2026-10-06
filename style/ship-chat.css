@@ -97,31 +97,6 @@
 #ship-chat.is-wob .sc-row:nth-child(3n) .sc-t { animation-delay: -0.9s; }
 @keyframes sc-wob { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 25% { transform: translate(calc(var(--wob, 0.3) * 3px), calc(var(--wob, 0.3) * -2px)) rotate(calc(var(--wob, 0.3) * 1.6deg)); } 75% { transform: translate(calc(var(--wob, 0.3) * -3px), calc(var(--wob, 0.3) * 2px)) rotate(calc(var(--wob, 0.3) * -1.6deg)); } }
 
-/* rev 24: inventory (E): exact Minecraft look. Dark translucent grey panel, light/dark bevel, 9-column inset slots, 36 + hotbar, floating tooltip. Icons are 16x16 canvases drawn at 3x, pixelated. */
-.sh-inv {
-    --s: min(54px, calc((100vw - 44px) / 9));
-    position: absolute; left: 50%; top: 10vh; transform: translateX(-50%); width: calc(var(--s) * 9 + 16px); display: none; pointer-events: auto; z-index: 5; padding: 8px;
-    font-family: 'Monocraft', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 14px; line-height: 1.3; color: #e0e0e0; text-shadow: 2px 2px 0 #1a1a1a;
-    background: rgba(48, 48, 52, 0.88);
-    box-shadow: inset 3px 3px 0 rgba(255, 255, 255, 0.38), inset -3px -3px 0 rgba(0, 0, 0, 0.62), 0 0 0 2px rgba(0, 0, 0, 0.85), 0 8px 30px rgba(0, 0, 0, 0.5);
-}
-.sh-inv.is-on { display: block; }
-.sh-inv .si-h { display: flex; justify-content: space-between; align-items: baseline; margin: 2px 4px 6px; }
-.sh-inv .si-h b { color: #e8e8e8; font-weight: 400; font-size: 15px; }
-.sh-inv .si-u { color: #ffd36a; font-size: 11px; }
-.sh-inv .si-grid, .sh-inv .si-wrow { display: grid; grid-template-columns: repeat(9, var(--s)); grid-auto-rows: var(--s); gap: 0; }
-.sh-inv .si-wrow { margin-top: 12px; }
-.sh-inv .si-s {
-    position: relative; box-sizing: border-box; width: var(--s); height: var(--s); cursor: pointer; background: rgba(0, 0, 0, 0.42);
-    box-shadow: inset 3px 3px 0 rgba(0, 0, 0, 0.7), inset -3px -3px 0 rgba(255, 255, 255, 0.3);
-}
-.sh-inv .si-s:hover { background: rgba(255, 255, 255, 0.42); }
-.sh-inv .si-s.is-empty { cursor: default; }
-.sh-inv .si-s.is-eq { box-shadow: inset 3px 3px 0 rgba(0, 0, 0, 0.7), inset -3px -3px 0 rgba(255, 255, 255, 0.3), inset 0 0 0 3px #6aff9a; }
-.sh-inv .si-s canvas { position: absolute; left: 3px; top: 3px; width: calc(100% - 6px); height: calc(100% - 6px); image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated; pointer-events: none; }
-.sh-inv .si-s.is-empty canvas { display: none; }
-.sh-inv .si-s em { position: absolute; right: 4px; bottom: 1px; font-style: normal; font-size: 15px; color: #fff; text-shadow: 2px 2px 0 #3f3f3f; pointer-events: none; }
-.sh-inv .si-f { margin: 8px 4px 2px; color: #a8a8b0; font-size: 10px; }
 .si-tip {
     position: fixed; left: 0; top: 0; z-index: 9; display: none; pointer-events: none; max-width: 340px; padding: 5px 9px 6px;
     font-family: 'Monocraft', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; line-height: 1.35; text-shadow: 2px 2px 0 #1a1a1a;
@@ -139,17 +114,6 @@
 .sh-fxl .fx-r u { text-decoration: none; color: #ffd36a; }
 
 /* ─── rev 25: crafting grid, MODS row, interior menus ─── */
-.sh-inv .si-mods { display: flex; align-items: center; gap: 0; margin-top: 4px; }
-.sh-inv .si-mods b { font-weight: 400; font-size: 10px; letter-spacing: 0.12em; color: #a8a8b0; width: 54px; }
-.sh-inv .si-mods .sm-s { width: calc(var(--s) * 1.5); height: var(--s); display: flex; align-items: center; justify-content: center; }
-.sh-inv .si-mods .sm-s span { font-size: 9px; letter-spacing: 0.06em; color: #6a6a78; pointer-events: none; }
-.sh-inv .si-mods .sm-s.is-eq span { color: #fff; }
-.sh-inv .si-craft { margin-top: 12px; }
-.sh-inv .sc-h { font-size: 10px; letter-spacing: 0.12em; color: #b98cff; margin: 0 4px 4px; }
-.sh-inv .sc-b { display: flex; align-items: center; gap: 18px; }
-.sh-inv .sc-grid { display: grid; grid-template-columns: repeat(3, var(--s)); grid-auto-rows: var(--s); }
-.sh-inv .sc-b i { font-style: normal; color: #b98cff; font-size: 22px; }
-.sh-inv .sc-out .si-s { width: calc(var(--s) * 1.3); height: calc(var(--s) * 1.3); }
 .sh-imenu { display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); min-width: 360px; max-width: 90vw; padding: 12px 14px; background: rgba(18, 12, 34, 0.94); border: 2px solid #8a5cff; color: #e8e4f4; font: 13px/1.5 monospace; z-index: 40; pointer-events: auto; }
 .sh-imenu.is-on { display: block; }
 .sh-imenu .im-h { color: #ffd36a; letter-spacing: 0.1em; margin-bottom: 8px; }
@@ -190,17 +154,71 @@
 .sh-store .ss-was { text-decoration: line-through; color: #77748a; margin-right: 4px; }
 .sh-store .ss-r.is-special em { color: #ff9cf0; }
 .sh-store .ss-r.is-special u { box-shadow: inset 0 0 0 1px #ff5ce1; }
-.sh-inv .si-tabs { display: flex; gap: 6px; margin: 0 4px 6px; }
-.sh-inv .si-tabs span { padding: 1px 10px; cursor: pointer; color: #9a97ab; border-bottom: 2px solid transparent; font-size: 12px; letter-spacing: 0.08em; }
-.sh-inv .si-tabs span.is-on { color: #fff; border-bottom-color: #b98cff; }
-.sh-inv .si-book { display: none; max-height: 46vh; overflow-y: auto; margin: 0 2px; padding-right: 4px; }
-.sh-inv.is-book .si-book { display: block; }
-.sh-inv.is-book .si-grid, .sh-inv.is-book .si-wrow, .sh-inv.is-book .si-craft, .sh-inv.is-book .si-mods { display: none !important; }
-.sh-inv .sb-h { color: #ffd36a; font-size: 12px; margin: 2px 0 6px; }
-.sh-inv .sb-r { display: grid; grid-template-columns: 1fr auto; padding: 4px 6px; border-left: 3px solid #6aff9a; background: rgba(0, 0, 0, 0.25); margin-bottom: 3px; }
-.sh-inv .sb-r b { color: #fff; font-weight: 400; font-size: 13px; }
-.sh-inv .sb-r em { font-style: normal; color: #9ad7ff; font-size: 12px; text-align: right; }
-.sh-inv .sb-r span { grid-column: 1 / 3; color: #b8b6c8; font-size: 11px; }
-.sh-inv .sb-r.is-lock { border-left-color: #55526a; opacity: 0.6; }
-.sh-inv .sb-r.is-lock em { color: #ff9a6a; }
 @media (max-width: 700px) { .sh-dlg { bottom: 8vh; font-size: 12px; } .sh-cart { font-size: 10px; } }
+
+/* rev 30: Minecraft survival screen. --g = GUI scale (px per MC pixel). Panel 176x166: #C6C6C6 face, #FFFFFF light / #555555 shade bevel, #373737 slot top-left, #8B8B8B slot fill. */
+.sh-inv {
+    --g: 3px;
+    position: absolute; left: 50%; top: 50%; transform: translate(calc(-50% + var(--sh, 0) * var(--g)), -50%); width: calc(var(--g) * 176); height: calc(var(--g) * 166); display: none; pointer-events: auto; z-index: 5;
+    font-family: 'Monocraft', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: calc(var(--g) * 5.5); line-height: 1.2; color: #404040; text-shadow: none; -webkit-user-select: none; user-select: none;
+}
+.sh-inv.is-on { display: block; }
+.sh-inv .si-p { position: absolute; inset: 0; background: #C6C6C6; box-shadow: 0 0 0 calc(var(--g)) #000, inset calc(var(--g) * 2) calc(var(--g) * 2) 0 #fff, inset calc(var(--g) * -2) calc(var(--g) * -2) 0 #555, 0 8px 30px rgba(0, 0, 0, 0.5); image-rendering: pixelated; }
+.sh-inv .si-p > * { position: absolute; }
+.sh-inv .si-l { font-size: calc(var(--g) * 5.5); white-space: nowrap; }
+.sh-inv .si-u { color: #6b5600; text-align: right; font-size: calc(var(--g) * 4.6); white-space: nowrap; overflow: hidden; }
+.sh-inv .si-s {
+    box-sizing: border-box; cursor: pointer; background: #8B8B8B;
+    box-shadow: inset calc(var(--g)) calc(var(--g)) 0 #373737, inset calc(var(--g) * -1) calc(var(--g) * -1) 0 #fff;
+}
+.sh-inv .si-s::after { content: ''; position: absolute; left: var(--g); top: var(--g); right: var(--g); bottom: var(--g); pointer-events: none; }
+.sh-inv .si-s:hover::after { background: rgba(255, 255, 255, 0.5); }
+.sh-inv .si-s.is-empty { cursor: default; }
+.sh-inv .si-s.is-eq { box-shadow: inset calc(var(--g)) calc(var(--g)) 0 #373737, inset calc(var(--g) * -1) calc(var(--g) * -1) 0 #fff, inset 0 0 0 calc(var(--g) * 1.5) #3fdc7a; }
+.sh-inv .si-s.is-ph canvas { opacity: 0.85; }
+.sh-inv .si-s canvas, .sh-hot .si-s canvas { position: absolute; left: var(--g); top: var(--g); width: calc(var(--g) * 16); height: calc(var(--g) * 16); image-rendering: pixelated; pointer-events: none; }
+.sh-inv .si-s.is-empty:not(.is-ph) canvas, .sh-hot .si-s.is-empty canvas { display: none; }
+.sh-inv .si-s em, .sh-hot .si-s em { position: absolute; right: calc(var(--g) * 1); bottom: calc(var(--g) * 0); font-style: normal; font-size: calc(var(--g) * 5.5); color: #fff; text-shadow: calc(var(--g) * 0.7) calc(var(--g) * 0.7) 0 #3f3f3f; pointer-events: none; z-index: 1; }
+.sh-inv .si-s.si-out canvas { left: calc(var(--g) * 4); top: calc(var(--g) * 4); }
+.sh-inv .si-pv { background: #1a1a1a; box-shadow: inset calc(var(--g)) calc(var(--g)) 0 #373737, inset calc(var(--g) * -1) calc(var(--g) * -1) 0 #fff; overflow: hidden; }
+.sh-inv .si-pv canvas { position: absolute; left: var(--g); top: var(--g); width: calc(100% - var(--g) * 2); height: calc(100% - var(--g) * 2); background: radial-gradient(ellipse at 50% 30%, #3a3050 0%, #14101c 80%); }
+.sh-inv .si-ar { display: flex; align-items: center; }
+.sh-inv .si-ar i { display: block; width: 100%; height: 100%; background: linear-gradient(#8B8B8B, #8B8B8B) 0 50% / 70% 36% no-repeat; clip-path: polygon(0 30%, 62% 30%, 62% 0, 100% 50%, 62% 100%, 62% 70%, 0 70%); background: #8B8B8B; }
+.sh-inv .si-rb { cursor: pointer; background: #b9b9b9; box-shadow: inset calc(var(--g)) calc(var(--g)) 0 #fff, inset calc(var(--g) * -1) calc(var(--g) * -1) 0 #555, 0 0 0 calc(var(--g)) #000; }
+.sh-inv .si-rb:hover { background: #d4d4d4; }
+.sh-inv .si-rb i { position: absolute; left: calc(var(--g) * 5); top: calc(var(--g) * 4); width: calc(var(--g) * 10); height: calc(var(--g) * 10); background: linear-gradient(90deg, #6b3a1e 0 45%, #333 45% 55%, #8b5a2b 55%); box-shadow: inset 0 calc(var(--g) * -2) 0 #e8e0c8; }
+.sh-inv.is-book .si-rb { background: #8d8d8d; }
+.sh-inv .si-tabs { position: absolute; left: 0; bottom: calc(100% + var(--g)); display: flex; gap: calc(var(--g)); }
+.sh-inv .si-tabs span { padding: calc(var(--g) * 2) calc(var(--g) * 5) calc(var(--g) * 2); cursor: pointer; background: #8B8B8B; color: #222; font-size: calc(var(--g) * 4.6); box-shadow: inset calc(var(--g)) calc(var(--g)) 0 #c6c6c6, inset calc(var(--g) * -1) 0 0 #555, 0 0 0 calc(var(--g) * 0.7) #000; }
+.sh-inv .si-tabs span.is-on { background: #C6C6C6; color: #000; padding-bottom: calc(var(--g) * 3); box-shadow: inset calc(var(--g) * 1) calc(var(--g) * 1) 0 #fff, inset calc(var(--g) * -1) 0 0 #555, 0 0 0 calc(var(--g) * 0.7) #000; }
+.sh-inv .si-f { display: none; position: absolute; left: 0; top: calc(100% + var(--g) * 3); width: max-content; max-width: 100%; color: #cfcfd8; font-size: calc(var(--g) * 3.6); text-shadow: calc(var(--g) * 0.5) calc(var(--g) * 0.5) 0 #111; white-space: normal; }
+.sh-inv .si-book { display: none; position: absolute; right: calc(100% + var(--g) * 3); top: 0; width: calc(var(--g) * 150); height: calc(var(--g) * 166); overflow-y: auto; background: #C6C6C6; box-shadow: 0 0 0 var(--g) #000, inset calc(var(--g) * 2) calc(var(--g) * 2) 0 #fff, inset calc(var(--g) * -2) calc(var(--g) * -2) 0 #555; padding: calc(var(--g) * 5) calc(var(--g) * 5); box-sizing: border-box; font-size: calc(var(--g) * 4.4); }
+.sh-inv.is-book .si-book { display: block; }
+.sh-inv .sb-h { color: #404040; margin-bottom: calc(var(--g) * 3); }
+.sh-inv .sb-r { display: grid; grid-template-columns: 1fr auto; padding: calc(var(--g) * 1.5) calc(var(--g) * 2); background: #8B8B8B; box-shadow: inset calc(var(--g)) calc(var(--g)) 0 #373737, inset calc(var(--g) * -1) calc(var(--g) * -1) 0 #fff; margin-bottom: calc(var(--g) * 1.5); }
+.sh-inv .sb-r b { color: #fff; font-weight: 400; text-shadow: calc(var(--g) * 0.5) calc(var(--g) * 0.5) 0 #3f3f3f; }
+.sh-inv .sb-r em { font-style: normal; color: #1b3a66; text-align: right; }
+.sh-inv .sb-r span { grid-column: 1 / 3; color: #2b2b2b; font-size: calc(var(--g) * 3.8); }
+.sh-inv .sb-r.is-lock { opacity: 0.55; }
+.sh-inv .sb-r.is-lock em { color: #7a2f10; }
+.sh-inv .si-char { color: #404040; }
+.sh-inv .si-char > * { position: absolute; }
+.sh-inv .ch-a { display: flex; align-items: center; justify-content: center; cursor: pointer; background: #8B8B8B; color: #fff; font-size: calc(var(--g) * 5); box-shadow: inset calc(var(--g)) calc(var(--g)) 0 #fff, inset calc(var(--g) * -1) calc(var(--g) * -1) 0 #373737, 0 0 0 calc(var(--g) * 0.7) #000; }
+.sh-inv .ch-a:hover { background: #a5a5a5; }
+.sh-inv .ch-a.is-off { opacity: 0.35; cursor: default; }
+.sh-inv .ch-n { display: flex; align-items: center; justify-content: center; font-size: calc(var(--g) * 6.4); color: #202020; white-space: nowrap; overflow: hidden; }
+.sh-inv .ch-p { image-rendering: pixelated; box-shadow: 0 0 0 calc(var(--g) * 0.7) #000, 0 0 0 calc(var(--g) * 1.4) #fff; }
+.sh-inv .ch-s { font-size: calc(var(--g) * 4); color: #5a4a00; white-space: nowrap; }
+.sh-inv .ch-d { font-size: calc(var(--g) * 3.9); line-height: calc(var(--g) * 8); color: #2b2b2b; overflow: hidden; }
+.sh-inv .ch-d div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-inv .sm-s { display: flex; align-items: center; justify-content: center; }
+.sh-inv .sm-s span { font-size: calc(var(--g) * 3.6); color: #404040; pointer-events: none; }
+.sh-inv .sm-s.is-eq span { color: #fff; text-shadow: calc(var(--g) * 0.5) calc(var(--g) * 0.5) 0 #3f3f3f; }
+/* persistent hotbar: bottom centre, 182x22 MC px, selected frame */
+.sh-hot { --g: 2px; position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); width: calc(var(--g) * 182); height: calc(var(--g) * 22); pointer-events: none; z-index: 3; background: rgba(50, 50, 50, 0.72); box-shadow: 0 0 0 calc(var(--g)) #111, inset 0 0 0 calc(var(--g)) #5a5a5a; font-family: 'Monocraft', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+.is-inv .sh-hot { display: none; }
+.sh-hot .si-s { position: absolute; box-sizing: border-box; background: rgba(0, 0, 0, 0.28); box-shadow: inset calc(var(--g)) calc(var(--g)) 0 rgba(0, 0, 0, 0.55), inset calc(var(--g) * -1) calc(var(--g) * -1) 0 rgba(255, 255, 255, 0.18); }
+.sh-hot .si-s canvas { left: calc(var(--g) * 2); top: calc(var(--g) * 2); }
+.sh-hot .sh-hsel { position: absolute; box-sizing: border-box; border: calc(var(--g) * 1.5) solid #fff; box-shadow: 0 0 0 calc(var(--g) * 0.6) #000, inset 0 0 0 calc(var(--g) * 0.6) #000; }
+.sh-hot .sh-hname { position: absolute; left: 0; right: 0; bottom: calc(100% + var(--g) * 5); text-align: center; color: #fff; font-size: calc(var(--g) * 6); text-shadow: calc(var(--g) * 0.7) calc(var(--g) * 0.7) 0 #3f3f3f; opacity: 0; transition: opacity 0.4s; white-space: nowrap; }
+.sh-hot .sh-hname.is-on { opacity: 1; }

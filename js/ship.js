@@ -500,6 +500,7 @@ export default function mount(engine) {
         if (typeof o.shards.day !== 'string') o.shards.day = '';
         if (!Array.isArray(o.shards.ids)) o.shards.ids = [];
         o.shieldTier = clamp(o.shieldTier | 0, 0, 3); o.engineTier = clamp(o.engineTier | 0, 0, 3);
+        o.style = (typeof o.style === 'string' && /^[a-z0-9_-]{1,16}$/i.test(o.style)) ? o.style : '';      // rev 30: character style id ('' = PILOT)
         if (!Array.isArray(o.items)) o.items = [];       // rev 23: inventory stacks {id, seed, n, d (dealer variant)}
         o.items = o.items.filter(function (r) { return r && typeof r === 'object' && typeof r.id === 'string' && r.n > 0 && (typeof r.seed === 'number' || (r.it && typeof r.it === 'object')); }).map(function (r) { var q = { id: r.id, seed: (r.seed >>> 0) || 0, n: Math.min(9999, r.n | 0), d: r.d ? 1 : 0 }; if (r.it && typeof r.it === 'object') q.it = r.it; return q; }).slice(-400);
         if (!Array.isArray(o.crew)) o.crew = [];          // rev 25: [{id,name,role,color,rank,lines[],busy}] cap 4
@@ -4007,9 +4008,9 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     var camRel = new THREE.Vector3(), camRelInit = false, gFo = { r: 0, n: new THREE.Vector3() };
     var humanMod = null;
     import('./ship-human.js').then(function (m) { humanMod = m; }).catch(function () { /* capsule fallback */ });
-    function makeHuman(color) {                 // { group (a holder, oriented + scaled by the caller), update(dt, st), setColor, dispose }
+    function makeHuman(color, sid) {                 // { group (a holder, oriented + scaled by the caller), update(dt, st), setColor, dispose }
         var h = null, holder = new THREE.Group();
-        if (humanMod && typeof humanMod.createHuman === 'function') { try { h = humanMod.createHuman(THREE, { color: color, suit: suitOf(curProfile()) }); } catch (e) { h = null; } }
+        if (humanMod && typeof humanMod.createHuman === 'function') { try { var sa = skinArg(sid == null ? curStyleId : sid); h = humanMod.createHuman(THREE, { color: color, suit: suitOf(curProfile()), role: sa.role, extra: sa.extra }); } catch (e) { h = null; } }
         if (!h) {
             var cm = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.6, 3, 8), new THREE.MeshBasicMaterial({ color: color }));
             cm.position.y = 0.46;
@@ -4018,7 +4019,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         }
         holder.add(h.group);
         holder.traverse(function (o) { o.frustumCulled = false; });
-        return { group: holder, nozzles: function () { return (h.group && h.group.userData && h.group.userData.jetNozzles) || null; }, setSuit: function (s) { try { if (h.setSuit) h.setSuit({ suit: s }); } catch (e) { /* ignore */ } }, update: function (dt, st) { try { h.update(dt, st); } catch (e) { /* ignore */ } }, setColor: function (c) { try { h.setColor(c); } catch (e) { /* ignore */ } }, dispose: function () { try { h.dispose(); } catch (e) { /* ignore */ } } };
+        return { group: holder, nozzles: function () { return (h.group && h.group.userData && h.group.userData.jetNozzles) || null; }, setSuit: function (s) { try { if (h.setSuit) h.setSuit({ suit: s }); } catch (e) { /* ignore */ } }, setSkin: function (o) { try { if (h.setSuit) h.setSuit(o); } catch (e) { /* ignore */ } }, update: function (dt, st) { try { h.update(dt, st); } catch (e) { /* ignore */ } }, setColor: function (c) { try { h.setColor(c); } catch (e) { /* ignore */ } }, dispose: function () { try { h.dispose(); } catch (e) { /* ignore */ } } };
     }
     function hullDrop() {                       // how far below the hull origin the landing feet reach, in L
         var d = 0;
@@ -4648,6 +4649,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (cmdOpen) { mdx = mdy = 0; }
         up.copy(hum.pos).normalize();
         // rev 29: hold Space FL_HOLD s (continuously, in the air) = jetpack FLIGHT
+        styleSync(); styEggTick(dt); var sty = curStyle, sr = null, sSpd = -1;
         var flWant = !cmdOpen && !!keys.Space;
         if (flWant && !fl.lock) flT += dt; else { flT = 0; if (!flWant) fl.lock = false; }
         if (!fl.on && hum.air && flT >= FL_HOLD) { fl.on = true; fl.pit = 0; fl.wy = fl.wp = 0; fl.th = 0; fl.cr = 0; fl.v.copy(up).multiplyScalar(Math.max(0, hum.vv)); }
@@ -4664,17 +4666,31 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var fw = cmdOpen ? 0 : ((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0)), sd = cmdOpen ? 0 : ((keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0));
         gB.set(0, 0, 0).addScaledVector(hum.hf, fw).addScaledVector(gA, sd);
         var ml = gB.length(), moving = ml > 0.01, run = moving && !!(keys.ShiftLeft || keys.ShiftRight);
-        hum.moving = moving; hum.running = run;
-        if (moving) { gB.divideScalar(ml); hum.face.lerp(gB, damp(14, dt)); }
-        // jump (once per press)
+        if (moving) gB.divideScalar(ml);
         var wantJump = !cmdOpen && !!keys.Space;
-        if (!hum.air && wantJump && !jumpHeld) { hum.air = true; hum.vv = G_JUMP * H * fxJump; }
+        if (sty) {          // rev 30: the style owns velocity (incl. gravity); we move the capsule by vel * dt, collide, and report onGround back next frame
+            sr = styleStep(dt, up, gA, H);
+            if (sr && sr.vel) {
+                gB.set(0, 0, 0).addScaledVector(gA, sr.vel.x).addScaledVector(hum.hf, -sr.vel.z); var hl0 = gB.length(); moving = hl0 > 0.3; sSpd = hl0; hum.sSpd = hl0; if (moving) gB.divideScalar(hl0);
+                run = !!(sr.anim && sr.anim.running);
+                if (!hum.air && (sr.vel.y > 0.05 || sr.groundSnap === false)) { hum.air = true; hum.airT = 0; }
+                if (hum.air) hum.vv = sr.vel.y * H;
+                if (sr.fx && sr.fx.length) styleFx(sr.fx, H, up, gA);
+                styCam += ((sr.camHint && sr.camHint.dist ? sr.camHint.dist : 1) - styCam) * damp(4, dt);
+            }
+        } else styCam += (1 - styCam) * damp(4, dt);
+        if (hum.air) hum.airT = (hum.airT || 0) + dt; else hum.airT = 0;
+        hum.sAnim = sr && sr.anim != null ? sr.anim : null;
+        hum.moving = moving; hum.running = run;
+        if (moving) hum.face.lerp(gB, damp(14, dt));
+        // jump (once per press)
+        if (!sty && !hum.air && wantJump && !jumpHeld) { hum.air = true; hum.vv = G_JUMP * H * fxJump; }
         jumpHeld = wantJump;
         // rev 21 jetpack: hold Space in the air (after JET_HOLD s, so a tap is still a jump) = infinite, fast: climb JET_UP heights/s, forward thrust 2 x run
-        if (hum.air && wantJump) jetT += dt; else jetT = 0;
+        if (hum.air && wantJump && !sty) jetT += dt; else jetT = 0;
         var jet = jetT > JET_HOLD;
         // substepped capsule motion in the local frame
-        var spd = (jet ? G_RUN * (1 + 0.12 * R27.su.jetpack) : (run ? G_RUN * (1 + 0.1 * R27.su.sprint) : G_WALK)) * H * fxSpeed, nSub = 1;
+        var spd = (sSpd >= 0 ? sSpd : (jet ? G_RUN * (1 + 0.12 * R27.su.jetpack) : (run ? G_RUN * (1 + 0.1 * R27.su.sprint) : G_WALK))) * H * fxSpeed, nSub = 1;
         if (moving) nSub = Math.max(nSub, Math.ceil(spd * dt / (FOOT_SUB * H)));
         if (hum.air) nSub = Math.max(nSub, Math.ceil(Math.abs(hum.vv) * dt / (0.25 * H)));
         nSub = Math.min(16, nSub);
@@ -4702,9 +4718,9 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             }
             if (hum.air) {
                 if (jet) { hum.vv += (JET_UP * (1 + 0.2 * R27.su.jetpack) * H - hum.vv) * Math.min(1, 7 * h); if (hr > supNow + 400 * H) hum.vv = Math.min(hum.vv, 0); }
-                else hum.vv -= G_GRAV * H * h;
+                else if (!sty) hum.vv -= G_GRAV * H * h;
                 hr += hum.vv * h;
-                if (hr <= supNow) { hr = supNow; hum.vv = 0; hum.air = false; }
+                if (hr <= supNow && !(sty && hum.vv > 0)) { hr = supNow; hum.vv = 0; hum.air = false; }
             } else if (hr - supNow > 0.6 * H) { hum.air = true; hum.vv = 0; }
             else hr = supNow;
         }
@@ -4729,12 +4745,13 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         o.group.quaternion.setFromRotationMatrix(mM);
         o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr), H);
         flHud(false, 0);
-        o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, facing: 0, jet: jetLvl, scan: scanT > 0 ? Math.min(1, scanT / 1.2) : 0 });
+        if (hum.sAnim) { var ua = Object.assign(styU, hum.sAnim); ua.facing = 0; ua.jet = jetLvl; ua.scan = scanT > 0 ? Math.min(1, scanT / 1.2) : 0; o.update(dt, ua); }
+        else o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, facing: 0, jet: jetLvl, scan: scanT > 0 ? Math.min(1, scanT / 1.2) : 0 });
         jetFx(dt, jet, H, qM, c, dir, supNow, hr);
         // camera: 6 human heights back, pitched, never under the floor; it follows the SMOOTHED position (hum.w), not the raw step
         gA.copy(hum.hf).negate().multiplyScalar(Math.cos(hum.pitch)).addScaledVector(up, Math.sin(hum.pitch)).applyQuaternion(qM);   // world offset dir
         gC.copy(gB).multiplyScalar(0.8 * H).add(hum.w);                // focus (head)
-        gD.copy(gC).addScaledVector(gA, FOOT_CAM * H);                 // wanted camera position
+        gD.copy(gC).addScaledVector(gA, FOOT_CAM * H * styCam);                 // wanted camera position
         vTmp.subVectors(gD, c);
         var cr = vTmp.length();
         gQi.copy(qM).invert(); fsT.copy(vTmp).applyQuaternion(gQi);
@@ -5685,35 +5702,59 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (glowHull) glowHull.material.opacity = pu;
         if (glowHumSpr) glowHumSpr.material.opacity = pu;
     }
-    // ─── inventory (E): Minecraft grid, right click = eat / drink, left click a weapon = equip ─────────────────────────────────────
-    var INV_COLS = 9, INV_ROWS = 4, INV_SLOTS = INV_COLS * INV_ROWS;      // rev 24: 36 slots + a 9-slot hotbar row (weapons)
-    var invOpen = false, invTop = 0, invWTop = 0, invSlots = [], invWSlots = [], iconsMod = null;
-    import('./ship-icons.js').then(function (m) { iconsMod = m; if (invOpen) invFill(); }).catch(function (e) { console.info('[ship] ship-icons unavailable', e); });
+    // ─── inventory (E): rev 30 = the Minecraft survival screen: 176x166 panel at a GUI scale (--g px per MC pixel), 27 main + 9 hotbar (weapons), armor + offhand, 2x2 craft (3x3 at a table), CHARACTER tab ───
+    var INV_COLS = 9, INV_ROWS = 3, INV_SLOTS = INV_COLS * INV_ROWS;
+    var invOpen = false, invTop = 0, invWTop = 0, invSlots = [], invWSlots = [], iconsMod = null, invMode = 'inv', invG = 3, hbSel = 0;
+    import('./ship-icons.js').then(function (m) { iconsMod = m; if (invOpen) invFill(); hotFill(); }).catch(function (e) { console.info('[ship] ship-icons unavailable', e); });
     var elInv = document.createElement('div');
     elInv.className = 'sh-inv';
-    elInv.innerHTML = '<div class="si-h"><b>Inventory</b><span class="si-u"></span></div><div class="si-tabs"><span class="is-on">ITEMS</span><span>RECIPE BOOK</span></div><div class="si-book"></div><div class="si-grid"></div><div class="si-wrow"></div><div class="si-f">Right click eat / drink / fit mod · Left click equip · Wheel scroll · E / Esc close</div>';
+    elInv.innerHTML = '<div class="si-tabs"><span class="is-on">INVENTORY</span><span>CHARACTER</span></div><div class="si-p"></div><div class="si-book"></div><div class="si-f">Right click eat / drink / fit mod · Left click hold weapon · 1-9 hotbar · Wheel scroll · E / Esc close</div>';
     hud.appendChild(elInv);
     var elInvTip = document.createElement('div'); elInvTip.className = 'si-tip'; hud.appendChild(elInvTip);
-    var elInvGrid = elInv.querySelector('.si-grid'), elInvW = elInv.querySelector('.si-wrow'), elInvU = elInv.querySelector('.si-u'), invTipKey = '';
+    var elP = elInv.querySelector('.si-p'), elTabs = elInv.querySelector('.si-tabs'), elBook = elInv.querySelector('.si-book'), invTipKey = '';
+    function mkd(cls, html, par) { var d = document.createElement('div'); d.className = cls; if (html) d.innerHTML = html; (par || elP).appendChild(d); return d; }
+    function gput(el, x, y, w, h) { var S = 'calc(var(--g) * '; el.style.left = S + x + ')'; el.style.top = S + y + ')'; if (w != null) { el.style.width = S + w + ')'; el.style.height = S + h + ')'; } }
+    function slotRec(attr, val, par, cls) { var d = document.createElement('div'); d.className = 'si-s is-empty' + (cls ? ' ' + cls : ''); d.setAttribute(attr, String(val)); d.innerHTML = '<canvas width="16" height="16"></canvas><em></em>'; (par || elP).appendChild(d); var cv = d.firstChild; return { el: d, cv: cv, ctx: cv.getContext('2d'), n: d.lastChild, k: '' }; }
+    var elLblC = mkd('si-l', 'Crafting'), elLblI = mkd('si-l', 'Inventory'), elInvU = mkd('si-u', ''), elPv = mkd('si-pv', '<canvas></canvas>'), elArrow = mkd('si-ar', '<i></i>'), elRb = mkd('si-rb', '<i></i>');
+    var armorRec = [], offRec, elChar, chN, chS, chP, chD, chL, chR;
     (function buildInv() {
-        var i, s, cv;
-        for (i = 0; i < INV_SLOTS + INV_COLS; i++) {
-            s = document.createElement('div'); s.className = 'si-s is-empty'; s.innerHTML = '<canvas width="16" height="16"></canvas><em></em>';
-            s.setAttribute('data-i', String(i)); cv = s.firstChild;
-            var rec = { el: s, cv: cv, ctx: cv.getContext('2d'), n: s.lastChild, k: '' };
-            if (i < INV_SLOTS) { elInvGrid.appendChild(s); invSlots.push(rec); }
-            else { s.setAttribute('data-w', String(i - INV_SLOTS)); elInvW.appendChild(s); invWSlots.push(rec); }
-        }
+        var i;
+        for (i = 0; i < 4; i++) armorRec.push(slotRec('data-a', i));
+        offRec = slotRec('data-oh', 0);
+        for (i = 0; i < INV_SLOTS; i++) invSlots.push(slotRec('data-i', i));
+        for (i = 0; i < INV_COLS; i++) invWSlots.push(slotRec('data-w', i));
+        elChar = mkd('si-char', '<b class="ch-a" data-ch="-1">&#9664;</b><span class="ch-n"></span><b class="ch-a" data-ch="1">&#9654;</b><canvas class="ch-p" width="16" height="16"></canvas><div class="ch-s"></div><div class="ch-d"></div>');
+        chL = elChar.children[0]; chN = elChar.children[1]; chR = elChar.children[2]; chP = elChar.children[3]; chD = elChar.children[5]; chS = elChar.children[4];
     })();
     function invPaint(sl, ic, key) {          // pooled canvas per slot; repaint only when the icon changes
         if (sl.k === key) return;
         sl.k = key; sl.ctx.clearRect(0, 0, 16, 16);
         if (ic) sl.ctx.drawImage(ic, 0, 0);
     }
-    function invSlotOf(t) { while (t && t !== elInv && !(t.getAttribute && (t.getAttribute('data-i') != null || t.getAttribute('data-c') != null || t.getAttribute('data-o') != null || t.getAttribute('data-m') != null))) t = t.parentNode; return (t && t !== elInv) ? t : null; }
+    function invSlotOf(t) { while (t && t !== elInv && !(t.getAttribute && (t.getAttribute('data-i') != null || t.getAttribute('data-c') != null || t.getAttribute('data-o') != null || t.getAttribute('data-m') != null || t.getAttribute('data-w') != null || t.getAttribute('data-a') != null || t.getAttribute('data-oh') != null))) t = t.parentNode; return (t && t !== elInv) ? t : null; }
+    // armor map: helmet = scanner tier, chest = storage suit, legs = sprint boots, boots = jetpack; offhand = the pet that follows you
+    var ARM = [{ k: 'scanner', n: 'SCANNER VISOR', d: 'wider scan glow', m: ['....########....', '...##########...', '..############..', '..############..', '..###......###..', '..###......###..', '..##........##..'], y: 4 },
+        { k: 'storage', n: 'SUIT PACK', d: 'bigger suit pockets', m: ['..####....####..', '.#####.##.#####.', '#######..#######', '###############.', '###############.', '.#############..', '..###########...', '..###########...', '..###########...'], y: 3 },
+        { k: 'sprint', n: 'SPRINT LEGS', d: 'run speed +10 % per tier', m: ['..############..', '..############..', '..####....####..', '..####....####..', '..####....####..', '..####....####..', '..####....####..', '..####....####..'], y: 4 },
+        { k: 'jetpack', n: 'JET BOOTS', d: 'climb + fly boost', m: ['...####..####...', '...####..####...', '...####..####...', '..#####..#####..', '.######..######.', '.######..######.'], y: 5 }];
+    var ARM_C = ['#6b6b6b', '#aeb6c4', '#6fb0ff', '#ffd36a'], armIc = {};
+    function armIcon(i, t) {
+        var key = i + ':' + t; if (armIc[key]) return armIc[key];
+        var cv = document.createElement('canvas'); cv.width = cv.height = 16; var c = cv.getContext('2d'), a = ARM[i], r, x;
+        c.globalAlpha = t ? 1 : 0.35;
+        for (r = 0; r < a.m.length; r++) for (x = 0; x < 16; x++) if (a.m[r][x] === '#') { c.fillStyle = ARM_C[t]; c.fillRect(x, a.y + r, 1, 1); if (t && r === 0) { c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x, a.y + r, 1, 1); } if (t && (x === 0 || a.m[r][x - 1] !== '#')) { c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(x, a.y + r, 1, 1); } }
+        return (armIc[key] = cv);
+    }
+    function offItem() { var f = R27.follow, pf = ensureProfile(userName()), i; if (!f || !f.key) return null; for (i = 0; i < pf.items.length; i++) if (pf.items[i].id === f.key) return itemOf(pf.items[i]); return null; }
+    function armorFill(pf) {
+        var su = suitOf(pf), i, t, oi = offItem(), ic = null;
+        for (i = 0; i < 4; i++) { t = su[ARM[i].k] | 0; invPaint(armorRec[i], armIcon(i, t), 'A' + i + t); armorRec[i].el.classList.remove('is-empty'); armorRec[i].el.classList.toggle('is-ph', !t); }
+        if (oi) { try { ic = iconsMod ? iconsMod.iconFor(oi) : null; } catch (e0) { ic = null; } }
+        offRec.el.classList.toggle('is-empty', !ic); invPaint(offRec, ic, ic ? 'O' + oi.id : '');
+    }
     function invFill() {
         var pf = ensureProfile(userName()), items = pf.items, ws = pf.weapons, i, s, rec, it, w, rows = Math.max(INV_ROWS, Math.ceil(items.length / INV_COLS));
-        invTop = clamp(invTop, 0, Math.max(0, rows - INV_ROWS)); invWTop = clamp(invWTop, 0, Math.max(0, ws.length - INV_COLS));
+        invTop = clamp(invTop, 0, Math.max(0, rows - INV_ROWS));
         for (i = 0; i < INV_SLOTS; i++) {
             s = invSlots[i]; rec = items[invTop * INV_COLS + i]; it = rec ? itemOf(rec) : null;
             if (it) {
@@ -5721,10 +5762,10 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 var ic = null; try { ic = iconsMod ? iconsMod.iconFor(it) : null; } catch (e0) { ic = null; }
                 invPaint(s, ic, ic ? 'I' + it.id + (it.dealer ? 'd' : '') : '');
                 var shown = rec.n - r25Reserved(rec.id); s.n.textContent = shown > 1 ? String(shown) : ''; s.el.style.opacity = shown > 0 ? '' : '0.4';
-            } else { s.el.classList.add('is-empty'); invPaint(s, null, ''); s.n.textContent = ''; }
+            } else { s.el.classList.add('is-empty'); invPaint(s, null, ''); s.n.textContent = ''; s.el.style.opacity = ''; }
         }
         for (i = 0; i < INV_COLS; i++) {
-            s = invWSlots[i]; w = ws[invWTop + i];
+            s = invWSlots[i]; w = ws[i];
             if (w) {
                 s.el.classList.remove('is-empty');
                 var wi = null; try { wi = iconsMod ? iconsMod.weaponIcon(w) : null; } catch (e1) { wi = null; }
@@ -5732,14 +5773,17 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 s.n.textContent = ''; s.el.classList.toggle('is-eq', !!(pf.weapon && pf.weapon.id === w.id));
             } else { s.el.classList.add('is-empty'); s.el.classList.remove('is-eq'); invPaint(s, null, ''); s.n.textContent = ''; }
         }
-        r25Fill(); if (R28.book) r28BookFill();
-        elInvU.textContent = CRF.fmt(pf.gor) + ' · ' + items.reduce(function (a, r) { return a + r.n; }, 0) + ' items';
+        armorFill(pf); r25Fill(); if (R28.book) r28BookFill(); if (invMode === 'char') charFill();
+        elInvU.textContent = CRF.fmt(pf.gor);
+        hotFill();
     }
     function invTip(sl) {
         var pf = ensureProfile(userName()), t = '', rec, it, w;
         if (sl) {
             if (sl.getAttribute('data-c') != null || sl.getAttribute('data-o') != null || sl.getAttribute('data-m') != null) t = r25Tip(sl);
-            else if (sl.getAttribute('data-w') != null) { w = pf.weapons[invWTop + (+sl.getAttribute('data-w'))]; if (w) t = w.name + '\n' + (wpnMod && wpnMod.weaponLine ? wpnMod.weaponLine(w) : '') + '\nLeft click to equip'; }
+            else if (sl.getAttribute('data-a') != null) { var ai = +sl.getAttribute('data-a'), at = suitOf(pf)[ARM[ai].k] | 0; t = ARM[ai].n + (at ? ' · MK' + at : ' · empty') + '\n' + ARM[ai].d + (at ? '' : '\nbuy suit upgrades in the 7/11'); }
+            else if (sl.getAttribute('data-oh') != null) { var oi0 = offItem(); t = oi0 ? oi0.name + '\nFollowing you · right click it to stow' : 'OFFHAND · no pet out\nRight click a pet in your inventory'; }
+            else if (sl.getAttribute('data-w') != null) { w = pf.weapons[+sl.getAttribute('data-w')]; if (w) t = w.name + '\n' + (wpnMod && wpnMod.weaponLine ? wpnMod.weaponLine(w) : '') + '\nClick (or key ' + (1 + (+sl.getAttribute('data-w'))) + ') to hold'; }
             else { rec = pf.items[invTop * INV_COLS + (+sl.getAttribute('data-i'))]; it = rec ? itemOf(rec) : null; if (it) t = describeItem(it).replace(/\nPrice: .*$/, '') + '\nx' + rec.n + invAct(it); }
         }
         if (t === invTipKey) return;
@@ -5768,38 +5812,75 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         writeSave(); invFill(); invTip(null);
     }
     elInv.addEventListener('mouseover', function (e) { invTip(invSlotOf(e.target)); invTipPos(e); });
-    elInv.addEventListener('mousemove', function (e) { invTipPos(e); });
+    elInv.addEventListener('mousemove', function (e) { invTipPos(e); pv.mx = e.clientX; pv.my = e.clientY; });
     elInv.addEventListener('mouseleave', function () { invTip(null); });
     elInv.addEventListener('contextmenu', function (e) { e.preventDefault(); var s = invSlotOf(e.target); if (s && s.getAttribute('data-i') != null) eatSlot(invTop * INV_COLS + (+s.getAttribute('data-i'))); });
     elInv.addEventListener('click', function (e) {
-        var s = invSlotOf(e.target); if (!s || s.getAttribute('data-w') == null) return;
-        var w = ensureProfile(userName()).weapons[invWTop + (+s.getAttribute('data-w'))];
-        if (w) { equipWeapon(w); aPlay('ui', { vel: 0.6 }); invFill(); invTip(s); }
+        var t = e.target, s = invSlotOf(t);
+        if (t.closest && t.closest('.si-tabs') && t.parentNode === elTabs) { invSetMode(Array.prototype.indexOf.call(elTabs.children, t) === 1 ? 'char' : 'inv'); return; }
+        if (t.closest && t.closest('.si-rb')) { r28BookSet(!R28.book); return; }
+        var ca = t.closest && t.closest('[data-ch]'); if (ca) { styleCycle(+ca.getAttribute('data-ch')); return; }
+        if (!s || s.getAttribute('data-w') == null) return;
+        hbSelect(+s.getAttribute('data-w')); aPlay('ui', { vel: 0.6 }); invFill(); invTip(s);
     });
     elInv.addEventListener('wheel', function (e) {
         if (R28.book && e.target.closest && e.target.closest('.si-book')) return;      // rev 28: the recipe book scrolls natively
         e.preventDefault();
-        var dir = e.deltaY > 0 ? 1 : -1;
-        if (invSlotOf(e.target) && invSlotOf(e.target).getAttribute('data-w') != null) invWTop += dir; else invTop += dir;
-        invFill();
+        invTop += e.deltaY > 0 ? 1 : -1; invFill();
     }, { passive: false });
+    function invSetMode(m) {
+        if (m === invMode) return;
+        invMode = m; r25ClearGrid(); invLayout(); invFill(); invTip(null); aPlay('ui', { vel: 0.5 });
+    }
+    function invG0() {      // GUI scale: whole-or-half steps so the 176x166 panel (+ recipe book) fits the viewport with tabs and the hint line
+        var W = window.innerWidth, H = window.innerHeight, wmc = 176 + (R28.book ? 156 : 0) + 6, hmc = 166 + 34;
+        return clamp(Math.floor(Math.min((W - 16) / wmc, (H - 16) / hmc) * 2) / 2, 1, 5);
+    }
+    function invLayout() {
+        var g = invG = invG0(), tbl = R25.craftOn, ch = invMode === 'char', i, cx, cy, cl = tbl ? [0, 1, 2, 3, 4, 5, 6, 7, 8] : [0, 1, 3, 4], on;
+        elInv.style.setProperty('--g', g + 'px');
+        elInv.style.setProperty('--sh', R28.book ? '77' : '0');
+        for (i = 0; i < 4; i++) { gput(armorRec[i].el, 7, 7 + 18 * i, 18, 18); armorRec[i].el.style.display = ch || tbl ? 'none' : ''; }
+        gput(offRec.el, 76, 61, 18, 18); offRec.el.style.display = ch || tbl ? 'none' : '';
+        gput(elPv, ch ? 7 : 25, 7, ch ? 52 : 51, 72); elPv.style.display = tbl && !ch ? 'none' : '';
+        for (i = 0; i < INV_SLOTS; i++) gput(invSlots[i].el, 7 + 18 * (i % 9), 83 + 18 * ((i / 9) | 0), 18, 18);
+        for (i = 0; i < 9; i++) gput(invWSlots[i].el, 7 + 18 * i, 141, 18, 18);
+        elLblI.style.display = ''; gput(elLblI, 8, 72); gput(elInvU, 128, 72, 40, 9); elInvU.style.display = ch ? 'none' : '';
+        for (i = 0; i < 9; i++) {
+            on = cl.indexOf(i) >= 0 && !ch; craftCells[i].el.style.display = on ? '' : 'none';
+            cx = tbl ? i % 3 : (i % 3 === 1 ? 1 : 0); cy = tbl ? (i / 3) | 0 : (i >= 3 ? 1 : 0);
+            gput(craftCells[i].el, tbl ? 29 + 18 * cx : 97 + 18 * cx, tbl ? 16 + 18 * cy : 17 + 18 * cy, 18, 18);
+        }
+        elArrow.style.display = ch ? 'none' : ''; gput(elArrow, tbl ? 90 : 134, tbl ? 36 : 29, 22, 15);
+        gput(craftOut.el, tbl ? 121 : 147, tbl ? 31 : 24, 26, 26); craftOut.el.style.display = ch ? 'none' : '';
+        elLblC.style.display = ch ? 'none' : ''; gput(elLblC, tbl ? 28 : 97, tbl ? 5 : 7);
+        elRb.style.display = ch ? 'none' : ''; gput(elRb, tbl ? 5 : 104, tbl ? 34 : 61, 20, 18);
+        gput(elChar, 62, 8, 106, 70); elChar.style.display = ch ? '' : 'none';
+        for (i = 0; i < modCells.length; i++) { gput(modCells[i].el, 94 + 15 * i, 27, 15, 18); modCells[i].el.style.display = ch ? '' : 'none'; }
+        gput(chL, 0, 0, 12, 14); gput(chN, 12, 0, 82, 14); gput(chR, 94, 0, 12, 14); gput(chP, 0, 18, 24, 24); gput(chS, 30, 38, 76, 8); gput(chD, 0, 48, 106, 24);
+        for (i = 0; i < elTabs.children.length; i++) elTabs.children[i].classList.toggle('is-on', (i === 1) === ch);
+        elInv.classList.toggle('is-book', R28.book);
+        pvResize();
+    }
     function openInv() {
         if (invOpen || cmdOpen || state !== 'piloting' || boarding || exiting || dead) return;
-        if (R28.book) { R28.book = false; elInv.classList.remove('is-book'); for (var bi = 0; bi < elBookTabs.children.length; bi++) elBookTabs.children[bi].classList.toggle('is-on', bi === 0); }
+        R28.book = false; invMode = 'inv';
         invOpen = true; cmdOpen = true; cmdGuardUntil = performance.now() + 600;
         keys = Object.create(null); firing = false; mdx = mdy = 0; eh.on = false; eh.t = 0; ehShow(0, '');
         if (locked()) { try { document.exitPointerLock(); } catch (e0) { /* ignore */ } }
         hud.classList.add('is-inv'); elInv.classList.add('is-on');
-        invTop = 0; invWTop = 0; r25CraftAvail(); invFill(); invTip(null); aPlay('ui', { vel: 0.5 });
+        invTop = 0; invWTop = 0; r25ClearGrid(); r25CraftAvail(); invLayout(); invFill(); invTip(null); aPlay('ui', { vel: 0.5 });
+        pvStart();
     }
     function closeInv() {
         if (!invOpen) return;
-        invOpen = false; cmdOpen = false; r25ClearGrid();
-        hud.classList.remove('is-inv'); elInv.classList.remove('is-on'); invTip(null);
+        invOpen = false; cmdOpen = false; R25.sty = false; r25ClearGrid();
+        hud.classList.remove('is-inv'); elInv.classList.remove('is-on'); invTip(null); pvStop();
         keys = Object.create(null); mdx = mdy = 0;
         aPlay('ui', { vel: 0.4 });
         if (state === 'piloting') { try { var p = document.body.requestPointerLock(); if (p && p.catch) p.catch(function () { /* keyboard only */ }); } catch (e0) { /* ignore */ } }
     }
+    window.addEventListener('resize', function () { if (invOpen) invLayout(); hotLayout(); });
     function toggleInv() { if (invOpen) closeInv(); else openInv(); }
     function invKey(e) {
         var c = e.code;
@@ -5807,7 +5888,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (c === 'Escape') { e.__shipHandled = true; closeInv(); return; }
         if (e.repeat) return;
         if (c === 'KeyE' || c === 'Backspace') { closeInv(); return; }
-        if (c === 'KeyR' || c === 'Tab') { r28BookSet(!R28.book); return; }
+        if (c === 'KeyR') { r28BookSet(!R28.book); return; }
+        if (c === 'Tab') { invSetMode(invMode === 'inv' ? 'char' : 'inv'); return; }
+        if (invMode === 'char' && (c === 'ArrowLeft' || c === 'KeyA')) { styleCycle(-1); return; }
+        if (invMode === 'char' && (c === 'ArrowRight' || c === 'KeyD')) { styleCycle(1); return; }
+        if (/^Digit[1-9]$/.test(c)) { hbSelect(+c.slice(5) - 1); invFill(); return; }
         if (c === 'ArrowDown') { invTop++; invFill(); } else if (c === 'ArrowUp') { invTop--; invFill(); }
     }
     // ─── rev 25: gorCoin stacks, 3x3 crafting, interior, pets, crew, missions (ship-craft.js / ship-interior.js, guarded) ──────────────────────────
@@ -5872,30 +5957,27 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         return false;
     }
     // ── crafting grid ──
-    var craftGrid = [null, null, null, null, null, null, null, null, null], craftOut = null, craftCells = [], elCraft, elCraftO, elMods, modCells = [];
+    var craftGrid = [null, null, null, null, null, null, null, null, null], craftOut = null, craftCells = [], elMods, modCells = [];
     (function buildCraft() {
-        function cellEl(attr, val) { var d = document.createElement('div'); d.className = 'si-s is-empty'; d.setAttribute(attr, String(val)); d.innerHTML = '<canvas width="16" height="16"></canvas><em></em>'; var cv = d.firstChild; return { el: d, cv: cv, ctx: cv.getContext('2d'), n: d.lastChild, k: '' }; }
-        elCraft = document.createElement('div'); elCraft.className = 'si-craft'; elCraft.style.display = 'none';
-        elCraft.innerHTML = '<div class="sc-h">CRAFTING</div><div class="sc-b"><div class="sc-grid"></div><i>&#9654;</i><div class="sc-out"></div></div>';
-        var g = elCraft.querySelector('.sc-grid'), i, c;
-        for (i = 0; i < 9; i++) { c = cellEl('data-c', i); g.appendChild(c.el); craftCells.push(c); }
-        craftOut = cellEl('data-o', 0); elCraft.querySelector('.sc-out').appendChild(craftOut.el);
-        elMods = document.createElement('div'); elMods.className = 'si-mods'; elMods.innerHTML = '<b>MODS</b>';
-        ['scope', 'coil', 'chamber'].forEach(function (sl) { var d = document.createElement('div'); d.className = 'si-s is-empty sm-s'; d.setAttribute('data-m', sl); d.innerHTML = '<span>' + sl.slice(0, 3).toUpperCase() + '</span>'; elMods.appendChild(d); modCells.push({ el: d, sl: sl, sp: d.firstChild }); });
-        var f = elInv.querySelector('.si-f'); elInv.insertBefore(elMods, f); elInv.insertBefore(elCraft, f);
+        var i, c;
+        for (i = 0; i < 9; i++) { c = slotRec('data-c', i); craftCells.push(c); }
+        craftOut = slotRec('data-o', 0, null, 'si-out');
+        ['scope', 'coil', 'chamber'].forEach(function (sl) { var d = document.createElement('div'); d.className = 'si-s is-empty sm-s'; d.setAttribute('data-m', sl); d.innerHTML = '<span>' + sl.slice(0, 3).toUpperCase() + '</span>'; elP.appendChild(d); modCells.push({ el: d, sl: sl, sp: d.firstChild }); });
     })();
+    function r25Cells() { return R25.craftOn ? [0, 1, 2, 3, 4, 5, 6, 7, 8] : [0, 1, 3, 4]; }
     function r25Reserved(key) { var n = 0; for (var i = 0; i < 9; i++) if (craftGrid[i] && craftGrid[i].key === key) n += craftGrid[i].n; return n; }
     function r25ClearGrid() { for (var i = 0; i < 9; i++) craftGrid[i] = null; }
     function gridStacks() { return craftGrid.map(function (c) { return c ? { id: c.key, item: c.it, n: c.n } : null; }); }
     function ixNear(o, extra) { return !!(o && o.pos && hum.w.distanceTo(o.pos) < Math.max(o.radius || 0, 0.18 * L) + (extra || 0)); }
     function r25CraftAvail() {
-        var on = R25.force;
+        var on = R25.force || !!R25.sty;
         try {
             if (gmode === 'ifoot' && R25.int && ixNear(R25.int.table, 0.1 * L)) on = true;
             else if (gmode === 'foot' && counterNear()) on = true;
             else if (gmode === 'sfoot' && sk.mode === 'deck' && stationInteract().kind === 'store') on = true;
         } catch (e0) { /* ignore */ }
-        R25.craftOn = on; if (!on) r25ClearGrid();
+        if (on !== R25.craftOn) r25ClearGrid();
+        R25.craftOn = on;
     }
     function paintCell(c, it, n) {
         if (!it) { c.el.classList.add('is-empty'); invPaint(c, null, ''); c.n.textContent = ''; return; }
@@ -5906,15 +5988,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function r25Fill() {
         var pf = ensureProfile(userName()), i;
-        elCraft.style.display = R25.craftOn ? '' : 'none';
-        if (R25.craftOn) {
-            for (i = 0; i < 9; i++) paintCell(craftCells[i], craftGrid[i] && craftGrid[i].it, craftGrid[i] ? craftGrid[i].n : 0);
-            var m = null; try { m = CRF.match(gridStacks(), r28CraftCtx()); } catch (e1) { m = null; }
-            craftCells.matchRes = m;
-            paintCell(craftOut, m && m.output, m ? m.count : 0);
-        }
+        for (i = 0; i < 9; i++) paintCell(craftCells[i], craftGrid[i] && craftGrid[i].it, craftGrid[i] ? craftGrid[i].n : 0);
+        var m = null; try { m = CRF.match(gridStacks(), r28CraftCtx()); } catch (e1) { m = null; }
+        craftCells.matchRes = m;
+        paintCell(craftOut, m && m.output, m ? m.count : 0);
         var w = pf.weapon;
-        for (i = 0; i < modCells.length; i++) { var md = w && w.mods && w.mods[modCells[i].sl]; modCells[i].el.classList.toggle('is-eq', !!md); modCells[i].sp.textContent = md ? String(md.name || '').split(' ')[0].slice(0, 7).toUpperCase() : modCells[i].sl.slice(0, 3).toUpperCase(); }
+        for (i = 0; i < modCells.length; i++) { var md = w && w.mods && w.mods[modCells[i].sl]; modCells[i].el.classList.toggle('is-eq', !!md); modCells[i].sp.textContent = md ? String(md.name || '').split(' ')[0].slice(0, 3).toUpperCase() : modCells[i].sl.slice(0, 3).toUpperCase(); }
     }
     function r25Tip(sl) {
         var pf = ensureProfile(userName()), c = sl.getAttribute('data-c'), o = sl.getAttribute('data-o'), m = sl.getAttribute('data-m');
@@ -5924,13 +6003,13 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         return md ? String(m).toUpperCase() + ' · ' + md.name + '\n' + JSON.stringify(md.delta).replace(/[{}"]/g, '') + (md.special ? ' · ' + md.special : '') : String(m).toUpperCase() + ' slot · empty\nCraft a mod, right click it';
     }
     elInv.addEventListener('click', function (e) {
-        var s = invSlotOf(e.target); if (!s || !R25.craftOn) return;
+        var s = invSlotOf(e.target); if (!s) return; var cl = r25Cells();
         var pf = ensureProfile(userName()), i, c;
         if (s.getAttribute('data-i') != null) {
             var rec = pf.items[invTop * INV_COLS + (+s.getAttribute('data-i'))], it = rec ? itemOf(rec) : null;
             if (!it || it.pet || rec.n - r25Reserved(rec.id) <= 0) return;
             for (i = 0; i < 9; i++) if (craftGrid[i] && craftGrid[i].key === rec.id) { craftGrid[i].n++; aPlay('ui', { vel: 0.5 }); invFill(); return; }
-            for (i = 0; i < 9; i++) if (!craftGrid[i]) { craftGrid[i] = { key: rec.id, it: it, n: 1 }; aPlay('ui', { vel: 0.5 }); invFill(); return; }
+            for (i = 0; i < cl.length; i++) if (!craftGrid[cl[i]]) { craftGrid[cl[i]] = { key: rec.id, it: it, n: 1 }; aPlay('ui', { vel: 0.5 }); invFill(); return; }
         } else if (s.getAttribute('data-c') != null) {
             c = craftGrid[+s.getAttribute('data-c')]; if (!c) return;
             c.n--; if (c.n <= 0) craftGrid[+s.getAttribute('data-c')] = null;
@@ -5944,6 +6023,181 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             writeSave(); invFill(); invTip(s);
         }
     });
+    // ─── rev 30: persistent hotbar (HUD bottom-centre, selected frame; 1-9 select; hotbar = your weapons, the selected one is held) ───
+    var elHot = document.createElement('div'); elHot.className = 'sh-hot';
+    var hotSlots = [];
+    (function () { for (var i = 0; i < 9; i++) hotSlots.push(slotRec('data-hb', i, elHot)); elHot.insertAdjacentHTML('beforeend', '<div class="sh-hsel"></div><div class="sh-hname"></div>'); })();
+    var elHSel = elHot.querySelector('.sh-hsel'), elHName = elHot.querySelector('.sh-hname'), hotSig = '', hotNameT = 0;
+    hud.appendChild(elHot);
+    function hotLayout() { var g = clamp(Math.floor(Math.min(window.innerWidth / 200, window.innerHeight / 150) * 2) / 2, 1, 3); elHot.style.setProperty('--g', g + 'px'); }
+    hotLayout();
+    function hotSelIdx(pf) { var ws = pf.weapons, i; if (pf.weapon) for (i = 0; i < ws.length && i < 9; i++) if (ws[i].id === pf.weapon.id) { hbSel = i; break; } return hbSel; }
+    function hotFill() {
+        var pf = curProfile(); if (!pf) return;
+        var ws = pf.weapons, sel = hotSelIdx(pf), sig = sel + '|' + (iconsMod ? 1 : 0) + '|' + ws.slice(0, 9).map(function (w) { return w.id + (w.color | 0); }).join(','), i, w;
+        if (sig === hotSig) return; hotSig = sig;
+        for (i = 0; i < 9; i++) {
+            w = ws[i]; var s = hotSlots[i];
+            gput(s.el, 1 + 20 * i, 1, 20, 20);
+            if (w) { var wi = null; try { wi = iconsMod ? iconsMod.weaponIcon(w) : null; } catch (e1) { wi = null; } s.el.classList.remove('is-empty'); invPaint(s, wi, wi ? 'W' + (w.id || w.name) + (w.shape || '') + (w.color | 0) + (w.cls || '') : ''); }
+            else { s.el.classList.add('is-empty'); invPaint(s, null, ''); }
+        }
+        gput(elHSel, 20 * sel - 1, -1, 24, 24);
+        elHName.textContent = ws[sel] ? ws[sel].name : ''; hotNameT = 2.5; elHName.classList.add('is-on');
+    }
+    function hbSelect(i) {
+        var pf = ensureProfile(userName()), w = pf.weapons[i]; hbSel = clamp(i | 0, 0, 8);
+        if (w && (!pf.weapon || pf.weapon.id !== w.id)) { if (!curUser) curUser = userName(); pf.weapon = w; writeSave(); announce('HELD ' + w.name); }
+        hotSig = ''; hotFill();
+    }
+    window.addEventListener('keydown', function (e) {
+        if (state !== 'piloting' || invOpen || cmdOpen || menuOpen || storeOpen || boarding || exiting || dead || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+        if (!/^Digit[1-9]$/.test(e.code)) return;
+        hbSelect(+e.code.slice(5) - 1); aPlay('ui', { vel: 0.4 });
+    }, true);
+    // ─── rev 30: character preview (second renderer on a 49x70 box, the real human rig, turns to follow the mouse) ───
+    var pv = { r: null, sc: null, cam: null, h: null, cv: elPv.firstChild, raf: 0, mx: 0, my: 0, last: 0, yaw: 0, fail: false, sid: null };
+    function pvInit() {
+        if (pv.r || pv.fail) return;
+        try {
+            pv.r = new THREE.WebGLRenderer({ canvas: pv.cv, alpha: true, antialias: true }); pv.r.setClearColor(0x000000, 0);
+            pv.sc = new THREE.Scene(); pv.cam = new THREE.PerspectiveCamera(26, 49 / 70, 0.1, 30);
+            pv.cam.position.set(0, 0.62, 3.9); pv.cam.lookAt(0, 0.55, 0);
+        } catch (e) { pv.fail = true; pv.r = null; }
+    }
+    function pvBuild() {
+        if (!pv.r || !humanMod) return;
+        if (pv.h) { pv.sc.remove(pv.h.group); pv.h.dispose(); pv.h = null; }
+        pv.h = makeHuman(effColor(), curStyleId); pv.h.group.scale.setScalar(1); pv.sc.add(pv.h.group); pv.sid = curStyleId;
+    }
+    function pvResize() {
+        if (!pv.r) return;
+        var w = Math.round(invG * (invMode === 'char' ? 50 : 49)), h = Math.round(invG * 70), dpr = Math.min(2, window.devicePixelRatio || 1);
+        pv.r.setPixelRatio(dpr); pv.r.setSize(w, h, false); pv.cam.aspect = w / h; pv.cam.updateProjectionMatrix();
+    }
+    function pvLoop(t) {
+        if (!invOpen) { pv.raf = 0; return; }
+        pv.raf = requestAnimationFrame(pvLoop);
+        var dt = Math.min(0.05, (t - pv.last) / 1000 || 0.016); pv.last = t;
+        if (!pv.h || pv.sid !== curStyleId) pvBuild();
+        if (!pv.h) return;
+        var bx = elPv.getBoundingClientRect(), tx = clamp((pv.mx - (bx.left + bx.width / 2)) / Math.max(1, window.innerWidth * 0.35), -1, 1), ty = clamp((pv.my - (bx.top + bx.height * 0.3)) / Math.max(1, window.innerHeight * 0.4), -1, 1);
+        pv.yaw += (tx * 1.0 - pv.yaw) * Math.min(1, 8 * dt);
+        pv.h.group.rotation.set(0.18 * ty, Math.PI + pv.yaw, 0, 'YXZ');
+        pv.h.update(dt, { moving: invMode === 'char', running: false, airborne: false, speed: invMode === 'char' ? 0.35 : 0, facing: 0 });
+        pv.r.render(pv.sc, pv.cam);
+    }
+    function pvStart() { pvInit(); pvResize(); if (pv.r && !pv.raf) { pv.last = performance.now(); pv.raf = requestAnimationFrame(pvLoop); } }
+    function pvStop() { if (pv.raf) { cancelAnimationFrame(pv.raf); pv.raf = 0; } }
+    // ─── rev 30: character styles (ship-styles.js, guarded): list, selection (profile + net), re-skin, and the locomotion step the foot controller calls ───
+    var stylesMod = null, curStyle = null, curStyleId = '', styIn = { keys: null, mouse: null, camYaw: 0, mdx: 0, mdy: 0 }, styCtx = { onGround: true, floorNormal: null, slope: 0, speed: 0, airTime: 0, facing: 0, mouse: null };
+    var PILOT_DEF = { id: 'pilot', name: 'PILOT', abilities: ['Walk, Shift to run, Space to jump', 'Hold Space in the air for the jetpack', 'Suit tiers scale speed and flight'] };
+    function stylesList() {
+        var raw = stylesMod && stylesMod.STYLES, arr = [], out = [PILOT_DEF];
+        if (Array.isArray(raw)) arr = raw; else if (raw && typeof raw === 'object') arr = Object.keys(raw).map(function (k) { var v = raw[k]; return (v && typeof v === 'object') ? Object.assign({ id: k }, v) : { id: k, name: String(v) }; });
+        arr.forEach(function (s) { if (typeof s === 'string') s = { id: s, name: s.toUpperCase() }; if (s && typeof s.id === 'string' && s.id !== 'pilot') out.push(s); });
+        return out;
+    }
+    function styleDef(id) { var l = stylesList(), i; for (i = 0; i < l.length; i++) if (l[i].id === (id || 'pilot')) return l[i]; return PILOT_DEF; }
+    function skinArg(id) {
+        var o = null; if (id && stylesMod && typeof stylesMod.skinFor === 'function') { try { o = stylesMod.skinFor(id); } catch (e0) { o = null; } }
+        return { role: (o && o.role) || null, extra: (o && Array.isArray(o.extra)) ? o.extra : [] };
+    }
+    function skinRig(obj, id) { if (obj && obj.setSkin) obj.setSkin(skinArg(id)); }
+    function styleEnv() { return { walk: G_WALK, grav: G_GRAV, jump: G_JUMP }; }
+    function styleSet(id, quiet) {
+        var pf = ensureProfile(userName()); id = (id && id !== 'pilot' && stylesList().some(function (s) { return s.id === id; })) ? id : '';
+        if (curStyle) { try { if (curStyle.reset) curStyle.reset(); } catch (e0) { /* ignore */ } }
+        curStyle = null; curStyleId = id; pf.style = id;
+        if (id && stylesMod && typeof stylesMod.createStyle === 'function') { try { curStyle = stylesMod.createStyle(id, styleEnv()); } catch (e1) { console.info('[ship] createStyle failed', id, e1); curStyle = null; } }
+        skinRig(hum.obj, id); if (pv.h) { skinRig(pv.h, id); pv.sid = id; }
+        hum.sAnim = null; jumpHeld = true;
+        if (net && net.setStyle) net.setStyle(id);
+        if (!quiet) { if (!curUser) curUser = userName(); writeSave(); aPlay('ui', { vel: 0.7 }); addRow('', '', 'STYLE · ' + styleDef(id).name, 'is-sys'); }
+        if (invOpen) { invFill(); }
+    }
+    function styleSync() {       // cheap per-frame: follow the profile's style (profile switch, module arrival)
+        var pf = curProfile(), want = (pf && typeof pf.style === 'string') ? pf.style : '';
+        if (want === curStyleId) return;
+        if (want && !stylesMod) return;
+        styleSet(want, true);
+    }
+    function styleCycle(dir) {
+        var l = stylesList(), i = 0, j; if (l.length < 2) { aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+        for (j = 0; j < l.length; j++) if (l[j].id === (curStyleId || 'pilot')) i = j;
+        j = (i + dir + l.length) % l.length; styleSet(l[j].id === 'pilot' ? '' : l[j].id);
+    }
+    import('./ship-styles.js').then(function (m) { stylesMod = m; styleSync(); if (invOpen) invFill(); }).catch(function (e) { console.info('[ship] ship-styles unavailable (PILOT only)', e); });
+    var STYLE_TXT = {
+        MARO: ['Jump chain: single, double, triple', 'Long jump, backflip, side flip, wall kick', 'Dive, ground pound, slide, punch'],
+        JOSHI: ['Flutter jump: hold Space past the apex', 'Throw eggs, tongue grab', 'Ground pound; Space 2 s = jetpack flight'],
+        STEEV: ['Sprint jump, sneak at ledges', 'Mine and place blocks', 'Opens the 3x3 crafting table'],
+        SONIK: ['Momentum builds on flats and slopes', 'Roll and spin dash (charge, release)', 'Homing attack in the air']
+    };
+    function abilityLines(def) {
+        var tx = STYLE_TXT[def.id]; if (tx) return tx;
+        var a = def.abilities, out = [], k;
+        if (Array.isArray(a)) a.forEach(function (x) { out.push(typeof x === 'string' ? x : (x && (x.name || x.id) ? String(x.name || x.id) + (x.desc ? ' · ' + x.desc : (x.text ? ' · ' + x.text : '')) : '')); });
+        else if (a && typeof a === 'object') for (k in a) out.push(typeof a[k] === 'string' ? k + ' · ' + a[k] : (a[k] && a[k].desc ? k + ' · ' + a[k].desc : k));
+        if (def.blurb) out.push(def.blurb); if (def.desc) out.push(def.desc); if (def.portraitHint && out.length < 3) out.push(String(def.portraitHint));
+        out = out.filter(Boolean).slice(0, 3); while (out.length < 3) out.push('');
+        return out;
+    }
+    function hexOfCol(c) { return '#' + ('000000' + (c >>> 0).toString(16)).slice(-6); }
+    function portraitPaint(def, id) {
+        var c = chP.getContext('2d'), sk0 = skinArg(id), ex = sk0.extra, hue = (hash25(id || 'pilot') % 360), col = def.color != null ? hexOfCol(def.color) : (def.palette && typeof def.palette === 'object' && def.palette.main != null ? hexOfCol(def.palette.main) : (id ? 'hsl(' + hue + ',55%,58%)' : hexOfCol(effColor()))), has = function (n) { return ex.indexOf(n) >= 0; };
+        c.clearRect(0, 0, 16, 16); c.fillStyle = '#20182c'; c.fillRect(0, 0, 16, 16);
+        c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(2, 12, 12, 4); c.fillStyle = col; c.fillRect(2, 12, 12, 4); c.fillStyle = 'rgba(0,0,0,.3)'; c.fillRect(2, 14, 12, 2);
+        var hx = has('blocky') || has('cube') ? 3 : 4, hw = has('blocky') || has('cube') ? 10 : 8;
+        c.fillStyle = col; c.fillRect(hx, 3, hw, 9); c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(hx, 3, hw, 1); c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(hx + hw - 1, 4, 1, 8);
+        c.fillStyle = '#0b0b16'; c.fillRect(has('visor') ? 3 : 5, 6, has('visor') ? 10 : 6, 2); c.fillStyle = '#9fe8ff'; c.fillRect(has('visor') ? 4 : 6, 6, 2, 1);
+        c.fillStyle = '#0b0b16'; c.fillRect(6, 10, 4, 1);
+        if (has('cap')) { c.fillStyle = '#ff7a3a'; c.fillRect(3, 1, 10, 3); c.fillRect(2, 3, 6, 1); }
+        if (has('crest')) { c.fillStyle = '#ffd36a'; c.fillRect(7, 0, 2, 3); }
+        if (has('quills')) { c.fillStyle = '#e8d4ff'; c.fillRect(3, 2, 1, 2); c.fillRect(6, 0, 1, 3); c.fillRect(9, 0, 1, 3); c.fillRect(12, 2, 1, 2); }
+        if (has('snout')) { c.fillStyle = col; c.fillRect(11, 8, 4, 3); c.fillStyle = '#0b0b16'; c.fillRect(14, 8, 1, 1); }
+        if (has('tail')) { c.fillStyle = col; c.fillRect(13, 12, 3, 1); c.fillRect(15, 10, 1, 3); }
+    }
+    function charFill() {
+        var l = stylesList(), id = curStyleId || 'pilot', def = styleDef(id), i = 0, j, ln = abilityLines(def);
+        for (j = 0; j < l.length; j++) if (l[j].id === id) i = j;
+        chN.textContent = String(def.name || id).toUpperCase(); chS.textContent = l.length > 1 ? 'STYLE ' + (i + 1) + ' / ' + l.length : 'PILOT ONLY';
+        chL.classList.toggle('is-off', l.length < 2); chR.classList.toggle('is-off', l.length < 2);
+        chD.innerHTML = ln.map(function (t) { return '<div>' + qEsc(t) + '</div>'; }).join('');
+        portraitPaint(def, curStyleId);
+    }
+    var styU = {}, styM = { l: false, r: false }, styCam = 1, STY_EMPTY = {}, styFloorN = { x: 0, y: 1, z: 0 };
+    document.addEventListener('mousedown', function (e) { if (e.button === 0) styM.l = true; else if (e.button === 2) styM.r = true; }, true);
+    document.addEventListener('mouseup', function (e) { if (e.button === 0) styM.l = false; else if (e.button === 2) styM.r = false; }, true);
+    function styleStep(dt, up, right, H) {      // real contract (ship-styles.js): input {keys, mouse, camYaw}, ctx {onGround, floorNormal, slope, ...}; vel is H/s in the tangent frame (x right, y up, z back, camera-relative: camYaw 0)
+        var sty = curStyle; if (!sty || typeof sty.step !== 'function') return null;
+        styIn.keys = cmdOpen ? STY_EMPTY : keys; styIn.mouse = cmdOpen ? STY_EMPTY : styM; styIn.camYaw = 0; styIn.mdx = 0; styIn.mdy = 0;
+        styCtx.onGround = !hum.air; styCtx.floorNormal = styFloorN; styCtx.slope = 0; styCtx.speed = hum.sSpd || 0; styCtx.airTime = hum.airT || 0; styCtx.facing = 0; styCtx.mouse = styIn.mouse;
+        try { return sty.step(styIn, styCtx, dt) || null; } catch (e) { console.info('[ship] style step failed, back to PILOT', e); curStyle = null; return null; }
+    }
+    var styEgg = [], styVox = null, styVoxN = 0, styVoxM = new THREE.Matrix4(), styEggGeo = null, styEggMat = null;
+    function styleFx(list, H, up, right) {
+        var i, e, k;
+        for (i = 0; i < list.length; i++) {
+            e = list[i];
+            if (e.type === 'egg') {
+                if (!styEggGeo) { styEggGeo = new THREE.SphereGeometry(0.08, 8, 6); styEggMat = new THREE.MeshBasicMaterial({ color: 0xf4f0d8 }); }
+                var m = new THREE.Mesh(styEggGeo, styEggMat); m.scale.setScalar(H); scene.add(m);
+                gD.copy(right).multiplyScalar(e.x).addScaledVector(up, e.y).addScaledVector(hum.hf, -e.z).multiplyScalar(H).add(hum.w); m.position.copy(gD);
+                gE.copy(right).multiplyScalar(e.dx).addScaledVector(up, e.dy).addScaledVector(hum.hf, -e.dz).multiplyScalar((e.v || 14) * H);
+                styEgg.push({ m: m, v: gE.clone(), t: 2 }); if (styEgg.length > 12) { k = styEgg.shift(); scene.remove(k.m); }
+                aPlay('ui', { vel: 0.6, pitch: 1.4 });
+            } else if (e.type === 'blockPlace' || e.type === 'blockBreak') {
+                if (!styVox) { styVox = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x8a6a4a }), 64); styVox.count = 0; styVox.frustumCulled = false; scene.add(styVox); }
+                gD.copy(right).multiplyScalar(e.x).addScaledVector(up, e.y).addScaledVector(hum.hf, -e.z).multiplyScalar(H).add(hum.w);
+                if (e.type === 'blockPlace') { styVoxM.makeScale(0.3 * H, 0.3 * H, 0.3 * H).setPosition(gD); styVox.setMatrixAt(styVoxN % 64, styVoxM); styVoxN++; styVox.count = Math.min(64, styVoxN); styVox.instanceMatrix.needsUpdate = true; aPlay('ui', { vel: 0.5 }); }
+                else aPlay('hit', { pitch: 1.2, vel: 0.4 });
+            } else if (e.type === 'craft') { R25.sty = true; if (!invOpen) openInv(); }
+            else if (e.type === 'groundpound') { aPlay('hit', { pitch: 0.3, vel: 0.8 }); shake = Math.max(shake, 0.05 * L); }
+            else if (e.type === 'spindash' || e.type === 'homing') aPlay('hit', { pitch: 0.9, vel: 0.5 });
+        }
+    }
+    function styEggTick(dt) { for (var i = styEgg.length - 1; i >= 0; i--) { var g = styEgg[i]; g.t -= dt; g.m.position.addScaledVector(g.v, dt); if (g.t <= 0) { scene.remove(g.m); styEgg.splice(i, 1); } } }
     // ── menus (kitchen, pens, pods, board) ──
     var menuOpen = false, menuSpec = null, menuRows = [], menuSel = 0;
     var elMenu = document.createElement('div'); elMenu.className = 'sh-imenu'; elMenu.innerHTML = '<div class="im-h"></div><div class="im-l"></div><div class="im-f">1-9 / ENTER pick · ESC close</div>'; hud.appendChild(elMenu);
@@ -7782,7 +8036,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             getMode: function () { return gmode === 'foot' ? 'foot' : ((gmode === 'fly' || gmode === 'docking' || gmode === 'launching') ? 'fly' : 'landed'); },
             stationToWorld: function (v, q) { if (!station) return false; station.toWorld(v, v); q.premultiply(station.quat); return true; },
             onProf: r27Prof, onDisc: r27Disc, onEvent: r27Event, onOpen: r27NetOpen,
-            buildHuman: function (color) { return makeHuman(color); },
+            buildHuman: function (color, sid) { return makeHuman(color, sid || ''); }, skinHuman: function (h, id) { skinRig(h, id); },
             getPose: function () {
                 if (gmode === 'sfoot' && !R27.dsite) {        // rev 22: station frame. x/y/z are STATION-LOCAL (L units); v = -1 flags it (the relay passes v through untouched)
                     var onDeck = sk.nl <= 0, qq = skQ2.setFromAxisAngle(Y, sk.yaw);
@@ -7791,12 +8045,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 }
                 if (gmode === 'foot' && hum.obj) {
                     var hp0 = hum.obj.group.position, hq = hum.obj.group.quaternion;
-                    return { x: hp0.x, y: hp0.y, z: hp0.z, qx: hq.x, qy: hq.y, qz: hq.z, qw: hq.w, v: 0, st: (hum.moving ? 1 : 0) | (hum.running ? 2 : 0) | (hum.air ? 4 : 0) | (glowOn ? 8 : 0), hp: hp / HP_MAX * 100 };
+                    return { x: hp0.x, y: hp0.y, z: hp0.z, qx: hq.x, qy: hq.y, qz: hq.z, qw: hq.w, v: 0, st: (hum.moving ? 1 : 0) | (hum.running ? 2 : 0) | (hum.air ? 4 : 0) | (glowOn ? 8 : 0) | (curStyleId ? 16 : 0), hp: hp / HP_MAX * 100 };
                 }
                 var p = shipRoot.position, q = shipRoot.quaternion;
                 return { x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, v: speed, st: (boostNow ? 1 : 0) | (pulse > 0.5 ? 2 : 0) | (dead ? 4 : 0) | (glowOn ? 8 : 0), hp: hp / HP_MAX * 100 };
             },
-            getPrefs: function (id) { return { name: userName(id), color: effColor(), hs: hullSigNow }; },
+            getPrefs: function (id) { return { name: userName(id), color: effColor(), hs: hullSigNow, style: curStyleId }; },
             buildGhost: function (sig) {         // rev 12: docked ghosts show the low-LOD hull; the full hull swaps in while they fly (ghostFx)
                 var g = null;
                 try {
@@ -8082,11 +8336,9 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var known = r28Known(), pool = CRF.BLUEPRINTS.filter(function (b) { return !known.has(b.id); }), b = (pool.length ? pool : CRF.BLUEPRINTS)[((hash25(seed) + Math.floor(Math.random() * 7)) >>> 0) % (pool.length || CRF.BLUEPRINTS.length)];
         return CRF.blueprintItem(b.id);
     }
-    var elBookTabs = elInv.querySelector('.si-tabs'), elBook = elInv.querySelector('.si-book');
     function r28BookSet(on) {
-        R28.book = !!on; elInv.classList.toggle('is-book', R28.book);
-        for (var i = 0; i < elBookTabs.children.length; i++) elBookTabs.children[i].classList.toggle('is-on', (i === 1) === R28.book);
-        R28.bookSig = ''; if (R28.book) r28BookFill();
+        R28.book = !!on; R28.bookSig = ''; if (invOpen) invLayout();
+        if (R28.book) r28BookFill();
         aPlay('ui', { vel: 0.5 });
     }
     function r28BookFill() {
@@ -8103,7 +8355,6 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         }
         elBook.innerHTML = '<div class="sb-h">' + un + ' / ' + book.length + ' RECIPES KNOWN</div>' + h;
     }
-    elBookTabs.addEventListener('click', function (e) { var i = Array.prototype.indexOf.call(elBookTabs.children, e.target); if (i >= 0) r28BookSet(i === 1); });
 
     // ── 5. shipyard (hull kinds) + /ship ──
     var R28_HULLS = { hauler: { name: 'Hauler', stats: {} }, fighter: { name: 'Wasp-class Fighter', stats: { cruise: 25, boost: 40, cargo: -50, guns: 2, hp: -20 } }, explorer: { name: 'Drifter Explorer', stats: { cruise: 10, boost: 20, cargo: -25, guns: 0, hp: 15 } } };
@@ -8179,7 +8430,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (space) r28ChunkTick(dt);
         if (R28.gotT > 0) { R28.gotT -= dt; if (R28.gotT <= 0) { var ks = Object.keys(R28.got); if (ks.length) addRow('', '', 'MINED · ' + ks.map(function (k) { return '+' + R28.got[k] + ' ' + k; }).join(', '), 'is-sys'); R28.got = {}; writeSave(); } }
         r28MineSave(dt);
-        R28.t -= dt; if (R28.t <= 0) { R28.t = 0.25; r28ShopTick(); if (invOpen && R28.book) r28BookFill(); }
+        R28.t -= dt; if (R28.t <= 0) { R28.t = 0.25; r28ShopTick(); if (invOpen && R28.book) r28BookFill(); hotFill(); if (hotNameT > 0) { hotNameT -= 0.25; if (hotNameT <= 0) elHName.classList.remove('is-on'); } }
         R28.lmT -= dt; if (R28.lmT <= 0) { R28.lmT = 0.6; r28LmTick(); }
     }
 

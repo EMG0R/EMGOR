@@ -191,12 +191,13 @@ export function createHuman(THREE, opts = {}) {
     scout: { c: 0x59E08A, g: ['.###.', '#...#', '#.#.#', '#...#', '.###.'] },
   };
   const clampT = v => Math.max(0, Math.min(3, Math.round(+v || 0)));
-  const cur = { suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 0 }, role: null };
+  const cur = { suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 0 }, role: null, extra: [] };
   function applySuit(o) {
     if (!o) return;
     const su = o.suit || (('jetpack' in o || 'scanner' in o || 'sprint' in o || 'storage' in o) ? o : null);
     if (su) for (const k of ['jetpack', 'scanner', 'sprint', 'storage']) if (k in su) cur.suit[k] = clampT(su[k]);
     if ('role' in o) cur.role = ROLES[o.role] ? o.role : null;
+    if ('extra' in o) cur.extra = Array.isArray(o.extra) ? o.extra.filter(n => typeof n === 'string') : [];   // re-skin parts (ship-styles.js skinFor): cap cube snout tail quills visor blocky crest
   }
   applySuit(opts);
   const jetNozzles = [];
@@ -248,6 +249,19 @@ export function createHuman(THREE, opts = {}) {
       else if (role === 'chef') { seg(A, B, 0.006, 0.006, 0x9A8A70, 'hips'); const g = new THREE.SphereGeometry(0.03, 5, 3); g.scale(1, 0.5, 1); g.translate(-0.125, hy, hz); put(g, GREY, 'hips'); }
       else { seg([-0.1, hy, hz], B, 0.017, 0.017, DARK, 'hips'); box(0.014, 0.034, 0.034, -0.105, hy, hz, 0xBFFFE0, 'hips', { emis: true }); }
     }
+    // re-skin extras (ship-styles.js): original silhouettes built from the same box/seg kit, tinted by the theme where marked
+    const EX = new Set(cur.extra);
+    if (EX.has('cap')) { const g = new THREE.SphereGeometry(0.125, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2); g.translate(0, 0.945, 0); put(g, theme, 'head', { panel: true }); box(0.2, 0.014, 0.1, 0, 0.95, -0.12, theme, 'head', { panel: true }); }
+    if (EX.has('cube')) { box(0.25, 0.25, 0.25, 0, 0.925, 0, 0x7ED0B8, 'head'); box(0.17, 0.05, 0.02, 0, 0.94, -0.128, 0x1A1A22, 'head'); box(0.05, 0.05, 0.02, 0, 0.88, -0.128, 0x4A3A2A, 'head'); }
+    if (EX.has('snout')) { box(0.1, 0.07, 0.11, 0, 0.9, -0.15, 0xFFE9C8, 'head'); box(0.035, 0.03, 0.03, 0, 0.935, -0.205, 0x2A2430, 'head'); }
+    if (EX.has('tail')) { seg([0, 0.5, 0.06], [0, 0.46, 0.2], 0.035, 0.03, theme, 'hips', { panel: true }); seg([0, 0.46, 0.2], [0, 0.5, 0.33], 0.03, 0.02, theme, 'hips', { panel: true }); seg([0, 0.5, 0.33], [0, 0.62, 0.4], 0.02, 0.008, 0xFFE9C8, 'hips'); }
+    if (EX.has('quills')) for (let i = 0; i < 5; i++) { const a = (i - 2) * 0.32; seg([Math.sin(a) * 0.06, 0.96 + 0.03 * Math.cos(a), 0.06], [Math.sin(a) * 0.2, 0.93 + 0.1 * Math.cos(a) - 0.04 * Math.abs(a), 0.27], 0.03, 0.002, i % 2 ? 0xF2C14E : 0x7A4CC8, 'head'); }
+    if (EX.has('visor')) { box(0.2, 0.04, 0.05, 0, 0.935, -0.1, 0xFFE9A0, 'head', { emis: true }); box(0.03, 0.03, 0.1, 0, 0.935, -0.17, 0xFFE9A0, 'head', { emis: true }); }
+    if (EX.has('crest')) for (let i = 0; i < 4; i++) box(0.03, 0.05 - 0.007 * i, 0.04, 0, 1.03 - 0.07 * i, 0.07 + 0.04 * i, 0xFF9A3C, 'head');
+    if (EX.has('blocky')) for (const sx of [-1, 1]) {
+      box(0.1, 0.19, 0.1, sx * 0.16, 0.67, 0, 0x4FA8A0, 'shL'.replace('L', sx < 0 ? 'L' : 'R'));
+      box(0.1, 0.16, 0.1, sx * 0.065, 0.4, 0, 0x3A4A9A, sx < 0 ? 'hpL' : 'hpR');
+    }
     return finish();
   }
   const attLit = new THREE.SkinnedMesh(new THREE.BufferGeometry(), litMat), attEmi = new THREE.SkinnedMesh(new THREE.BufferGeometry(), emiMat);
@@ -262,7 +276,7 @@ export function createHuman(THREE, opts = {}) {
     if (attSet.lo) { attSet.lo[0].geometry = S.geoLit; attSet.lo[1].geometry = S.geoEmi; }
     attSet.cur = S; paintSet(S);
     emiBase = 1 + 0.2 * cur.suit.scanner;
-    group.userData.suit = Object.assign({}, cur.suit); group.userData.role = cur.role;
+    group.userData.suit = Object.assign({}, cur.suit); group.userData.role = cur.role; group.userData.extra = cur.extra.slice();
   }
   group.userData.jetNozzles = jetNozzles; group.userData.jetBone = bones.jet;
   let emiBase = 1;
