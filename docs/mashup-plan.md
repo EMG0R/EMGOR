@@ -193,3 +193,27 @@ Rules per pass: one owner per file; shared files (ship.js, ship-planet.js, relay
 - S3 Minecraft Wiki (mechanics): https://minecraft.wiki/w/Walking , /w/Sprinting , /w/Jumping , /w/Creeper , /w/Enderman , /w/Zombie , /w/Skeleton , /w/Spawn , /w/Light , /w/Breaking , /w/Explosion
 - S4 Sonic Physics Guide (Sonic Retro): https://info.sonicretro.org/Sonic_Physics_Guide ; also /Spin_Dash and /Sonic_the_Hedgehog_(16-bit)/Physics (constants).
 - S5 Melee-era fighter frame/knockback concepts are already in docs/smash-plan.md; extra: https://www.ssbwiki.com/Knockback and https://www.ssbwiki.com/Frame_data (public site, mechanics only).
+
+## POKEMANS (added 2026-10-07, Emory) — fold into the roadmap after villages + fights
+Every planet creature (ps.creatures(), the generateEnemy/creature generators) becomes a catchable
+POKEMANS: fully procedural species per seed (name via lingo syllables, type from biome/palette
+e.g. lush→grass-ish, icy→ice, gas→gas/air, rocky→rock, with 2 extra types from the infusion
+families), stats {hp, atk, def, spd, sp} rolled by tier + per-individual variance, 4 attacks
+drawn from a procedural move table (name, type, power, accuracy, effect: burn/slow/shield/
+heal/flinch; moves can be re-learned at a village elder or by eating treats — mechanism TBD),
+level/XP, evolution at 2 thresholds (the parts-kit body grows + gains spikes/fins/glow).
+- CATCHING: weaken a creature (foot weapon/melee) then throw a "gor ball" (crafted: alloy + a
+  shard; the throw is the existing egg/projectile path) — catch chance from hp % × ball tier;
+  caught = a stack item (kind 'pokemans', full data) in the inventory.
+- PARTY: ONE active at a time; summon = it follows you (createPet-like follower on foot, rides in
+  the ship interior pens when stowed); it fights beside you (mobs, hub waves, ground enemies)
+  using its 4 attacks with a tiny AI, and you can command: F-hold → attack menu (4 moves).
+- BATTLES: pokemans-vs-pokemans turn-based overlay (chat-font UI, type matchups, 4 moves,
+  switch not allowed since 1 at a time; a loss faints it: heal at Burger House or a treat);
+  NPC trainers (a villager role 'trainer') challenge you; player-vs-player over the relay
+  (turn messages via pl.ev or a new `pk.*` room; host = challenger). NOT in Brawl for now.
+- Persistence: profile.pokemans[] (caught), profile.activePokemans; discoveries claim the species
+  name on first catch (relay disc.claim kind 'creature').
+- Build: pass A = species/stat/move generator (ship-items/ship-enemies additions) + catching +
+  follower; pass B = turn-based battle overlay + trainers; pass C = relay PvP + evolutions.
+- Legal: original names/looks (ours), mechanics only.
