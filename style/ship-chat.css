@@ -159,3 +159,48 @@
 .sh-imenu .im-r em { font-style: normal; color: #a8a8c0; }
 .sh-imenu .im-r.is-sel, .sh-imenu .im-r:hover { background: rgba(138, 92, 255, 0.35); }
 .sh-imenu .im-f { margin-top: 8px; font-size: 10px; color: #77748a; }
+
+/* ─── rev 28: NPC dialog, cart HUD, store specials, recipe book ─────────── */
+.sh-dlg {
+    position: absolute; left: 50%; bottom: 14vh; transform: translateX(-50%); width: min(620px, 92vw); display: none; pointer-events: auto; z-index: 6;
+    font-family: 'Monocraft', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; line-height: 1.45; color: #e6e6ea;
+    background: rgba(24, 22, 34, 0.9); border: 2px solid rgba(138, 60, 255, 0.85); box-shadow: 0 0 28px rgba(138, 60, 255, 0.35); padding: 10px 14px 8px;
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.75);
+}
+.sh-dlg.is-on { display: block; }
+.sh-dlg .sd-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.sh-dlg .sd-n { color: #ffd36a; font-weight: 400; font-size: 15px; letter-spacing: 0.08em; }
+.sh-dlg .sd-r { color: #77748a; font-size: 11px; letter-spacing: 0.12em; }
+.sh-dlg .sd-t { min-height: 3.9em; padding: 4px 2px 8px; color: #fff; font-size: 14px; }
+.sh-dlg .sd-c { display: flex; flex-direction: column; gap: 3px; }
+.sh-dlg .sd-b { display: flex; gap: 10px; padding: 5px 8px; cursor: pointer; border-left: 3px solid transparent; background: rgba(0, 0, 0, 0.22); }
+.sh-dlg .sd-b:hover { background: rgba(138, 60, 255, 0.28); border-left-color: #b98cff; }
+.sh-dlg .sd-b i { font-style: normal; color: #6aff9a; }
+.sh-dlg .sd-b span { color: #e6e6ea; }
+.sh-dlg .sd-b.is-x span { color: #ffd36a; }
+.sh-dlg .sd-f { margin-top: 6px; color: #77748a; font-size: 11px; }
+.sh-dlg .sc-al { color: #ff7ce8; }
+.sh-cart {
+    position: absolute; left: 50%; top: calc(7vh + 34px); transform: translateX(-50%); display: none; pointer-events: none; padding: 3px 12px;
+    font-family: 'Monocraft', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; letter-spacing: 0.1em; color: #ffd36a;
+    background: rgba(24, 22, 34, 0.78); border: 1px solid rgba(255, 211, 106, 0.6); text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.8);
+}
+.sh-cart.is-on { display: block; }
+.sh-cart.is-hot { color: #ff6a6a; border-color: rgba(255, 106, 106, 0.8); }
+.sh-store .ss-was { text-decoration: line-through; color: #77748a; margin-right: 4px; }
+.sh-store .ss-r.is-special em { color: #ff9cf0; }
+.sh-store .ss-r.is-special u { box-shadow: inset 0 0 0 1px #ff5ce1; }
+.sh-inv .si-tabs { display: flex; gap: 6px; margin: 0 4px 6px; }
+.sh-inv .si-tabs span { padding: 1px 10px; cursor: pointer; color: #9a97ab; border-bottom: 2px solid transparent; font-size: 12px; letter-spacing: 0.08em; }
+.sh-inv .si-tabs span.is-on { color: #fff; border-bottom-color: #b98cff; }
+.sh-inv .si-book { display: none; max-height: 46vh; overflow-y: auto; margin: 0 2px; padding-right: 4px; }
+.sh-inv.is-book .si-book { display: block; }
+.sh-inv.is-book .si-grid, .sh-inv.is-book .si-wrow, .sh-inv.is-book .si-craft, .sh-inv.is-book .si-mods { display: none !important; }
+.sh-inv .sb-h { color: #ffd36a; font-size: 12px; margin: 2px 0 6px; }
+.sh-inv .sb-r { display: grid; grid-template-columns: 1fr auto; padding: 4px 6px; border-left: 3px solid #6aff9a; background: rgba(0, 0, 0, 0.25); margin-bottom: 3px; }
+.sh-inv .sb-r b { color: #fff; font-weight: 400; font-size: 13px; }
+.sh-inv .sb-r em { font-style: normal; color: #9ad7ff; font-size: 12px; text-align: right; }
+.sh-inv .sb-r span { grid-column: 1 / 3; color: #b8b6c8; font-size: 11px; }
+.sh-inv .sb-r.is-lock { border-left-color: #55526a; opacity: 0.6; }
+.sh-inv .sb-r.is-lock em { color: #ff9a6a; }
+@media (max-width: 700px) { .sh-dlg { bottom: 8vh; font-size: 12px; } .sh-cart { font-size: 10px; } }

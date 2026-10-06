@@ -514,6 +514,12 @@ export default function mount(engine) {
         o.rep = { corp: isFinite(o.rep.corp) ? clamp(+o.rep.corp, -99, 99) : 0, dealers: isFinite(o.rep.dealers) ? clamp(+o.rep.dealers, -99, 99) : 0 };
         if (!Array.isArray(o.disc)) o.disc = [];      // rev 27: my discoveries [{k: kind, id, name, by}] (observation-room plaques)
         o.disc = o.disc.filter(function (d) { return d && typeof d.id === 'string' && typeof d.k === 'string'; }).slice(-120);
+        if (!Array.isArray(o.hulls)) o.hulls = ['hauler'];      // rev 28: owned hull kinds (shipyard)
+        o.hulls = o.hulls.filter(function (h, i, a) { return typeof h === 'string' && a.indexOf(h) === i; }).slice(0, 6);
+        if (o.hulls.indexOf(o.hull) < 0) o.hulls.push(o.hull);
+        if (!Array.isArray(o.mined)) o.mined = [];      // rev 28: mined rocks [[id, respawn epoch ms]]
+        o.mined = o.mined.filter(function (m) { return Array.isArray(m) && isFinite(m[0]) && isFinite(m[1]); }).slice(-200);
+        if (!o.moods || typeof o.moods !== 'object' || Array.isArray(o.moods)) o.moods = {};      // rev 28: npc id -> mood -2..2
         o.savedAt = isFinite(o.savedAt) ? +o.savedAt : 0;      // rev 27: last local change (relay profile sync picks the newer side)
         if (!o.board || typeof o.board !== 'object' || Array.isArray(o.board)) o.board = { seed: 0, day: '', list: [] };      // rev 25: mission board {seed, day, list[{id,name,kind,minutes,gor,crewId,start,end}]}
         if (!Array.isArray(o.board.list)) o.board.list = [];
@@ -1279,7 +1285,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function gdIcon(kind) {
         if (gdIcons[kind]) return gdIcons[kind];
         var cv = document.createElement('canvas'); cv.width = 16; cv.height = 16; var cx = cv.getContext('2d');
-        if (kind === 'pad') { cx.fillStyle = '#1a1030'; cx.fillRect(1, 5, 14, 7); cx.fillStyle = '#a855f7'; cx.fillRect(2, 6, 12, 5); cx.fillStyle = '#e8d4ff'; cx.fillRect(4, 8, 8, 1); cx.fillRect(7, 6, 2, 5); }
+        if (kind === 'landmark') { cx.fillStyle = '#ff5ce1'; cx.fillRect(7, 1, 2, 14); cx.fillRect(1, 7, 14, 2); cx.fillStyle = '#fff'; cx.fillRect(6, 6, 4, 4); }
+        else if (kind === 'pad') { cx.fillStyle = '#1a1030'; cx.fillRect(1, 5, 14, 7); cx.fillStyle = '#a855f7'; cx.fillRect(2, 6, 12, 5); cx.fillStyle = '#e8d4ff'; cx.fillRect(4, 8, 8, 1); cx.fillRect(7, 6, 2, 5); }
         else {
             if (!iconsMod) return null;      // icons module not loaded yet: do not cache
             try { cx.drawImage(iconsMod.iconFor(kind === 'burger' ? { base: 'Fries', name: 'Fries', kind: 'fries', color: 0xF2C14E } : { base: 'Gardetto chips', name: '7/11', kind: 'snack', color: 0xE04A3A }), 0, 0); } catch (e0) { return null; }
@@ -1288,16 +1295,16 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function gdFmt(d) { var l = d / L; return l >= 10000 ? (l / 1000).toFixed(0) + 'K L' : (l >= 1000 ? (l / 1000).toFixed(1) + 'K L' : Math.round(l) + ' L'); }
     function gdRefresh(n) {            // pois() allocates, so it runs at 2 Hz; markers are stored in the planet's local frame and re-spun every frame
-        var list = [], pois = [], i, bs = null, bb = null, pads = [];
+        var list = [], pois = [], i, bs = null, bb = null, pads = [], lmk = null;
         try { pois = ps.pois(); } catch (e0) { pois = []; }
         syncPlanet(n); var c = n.anchor.position, qi = lfQi.copy(n.mesh.quaternion).invert();
         var org = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position;
         for (i = 0; i < pois.length; i++) {
             var p = pois[i]; p.d = p.pos.distanceTo(org); p.loc = p.pos.sub(c).applyQuaternion(qi);
-            if (p.kind === '7/11') { if (!bs || p.d < bs.d) bs = p; } else if (p.kind === 'burger') bb = p; else pads.push(p);
+            if (p.kind === '7/11') { if (!bs || p.d < bs.d) bs = p; } else if (p.kind === 'burger') bb = p; else if (p.kind === 'landmark') { if (!lmk || p.d < lmk.d) lmk = p; } else pads.push(p);
         }
         pads.sort(function (a, b) { return a.d - b.d; });
-        if (bs) list.push(bs); if (bb) list.push(bb);
+        if (bs) list.push(bs); if (bb) list.push(bb); if (lmk) list.push(lmk);
         for (i = 0; i < pads.length && list.length < GD_N; i++) list.push(pads[i]);
         gdLocal = list.map(function (p) { return { kind: p.kind, name: p.name, loc: p.loc }; });
     }
@@ -1953,6 +1960,15 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (!dup) hlMark(pp, 'post', String(op0.name || 'OUTPOST').toUpperCase(), org);
         }
         if (w && typeof w.scanTargets === 'function') { try { var stg = w.scanTargets(), rn2 = 0; for (i = 0; i < stg.length && rn2 < 16; i++) { var tg = stg[i]; if (tg.type !== 'resource') continue; locToWorld(tg.pos, vHl2); if (vHl2.distanceToSquared(org) > (120 * L) * (120 * L)) continue; hlMark(vHl2, 'resource', String(tg.name || tg.kind).toUpperCase(), org); rn2++; } } catch (e0) { /* ignore */ } }
+        if (space && typeof space.scanTargets === 'function') {
+            try {
+                var sgt = space.scanTargets(), sn2 = 0, sr2 = (500 * L) * (500 * L);
+                for (i = 0; i < sgt.length && sn2 < 14; i++) {
+                    var tg2 = sgt[i]; if (tg2.pos.distanceToSquared(org) > sr2) continue;
+                    hlMark(tg2.pos, tg2.kind === 'crate' ? 'shard' : (tg2.kind === 'derelict' ? 'post' : (tg2.kind === 'convoy' ? 'friend' : 'resource')), tg2.kind === 'derelict' ? 'DERELICT' : (tg2.kind === 'crate' ? 'CRATE' : (tg2.kind === 'convoy' ? 'CONVOY' : String(tg2.kind).toUpperCase())), org); sn2++;
+                }
+            } catch (e0) { /* ignore */ }
+        }
         if (w && w.shards) { var sn = 0; for (i = 0; i < w.shards.length && sn < 14; i++) { var sh = w.shards[i]; if (!sh || sh.taken) continue; hlMark(locToWorld(sh.pos, vHl2), 'shard', 'SHARD', org); sn++; } }
         if (station && station.group.visible) {
             var sst = station.interior.stores[0];
@@ -1976,6 +1992,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         return best;
     }
     function talkNpc(st) {
+        if (r28Talk({ id: st.id, name: (st.clerk && st.clerk.name) || clerkName(st), role: 'cashier', kind: 'clerk', obj: st, seed: st.clerk && st.clerk.seed })) return;
         addRow(clerkName(st), '#ffd36a', clerkLine(st) || '...');
         aPlay('npc', { seed: st.id }); openQuests(st.id, clerkName(st), 'clerk');
     }
@@ -3487,7 +3504,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         for (i = 0; i < allies.length; i++) { allies[i].alive = false; allies[i].g.visible = false; }
         wave = Math.max(0, n - 1); wavePending = true; nextWave = gt + 0.05;
     }
-    var HELP = 'KEYS · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · Z wingmen focus fire · F interact (land, board, talk, shop) · E inventory · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /help';
+    var HELP = 'KEYS · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · Z wingmen focus fire · F interact (land, board, talk, shop) · E inventory · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · /help';
     function applyDifficultyLive() {
         var D = DIFFS[difficulty];
         for (var i = 0; i < enemies.length; i++) {
@@ -3587,6 +3604,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             writeSave();
             return ok('HOSTILE');
         }
+        if (c === 'ship' || c === 'ships') return r28ShipCmd(parts.slice(1).join(' '));
         if (c === 'help') return ok(HELP);
         return bad('UNKNOWN COMMAND · /help');
     }
@@ -4378,7 +4396,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         else if (gmode === 'landed') exitShip();
         else if (gmode === 'foot') {
             var ft = footTarget();
-            if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'dealer') openDealer(ft.obj);
+            if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') r28Checkout(); else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'dealer') { if (!r28Talk({ id: ft.obj.id, name: ft.obj.name || 'DEALER', role: 'dealer', kind: 'dealer', obj: ft.obj, seed: ft.obj.seed })) openDealer(ft.obj); }
             else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj); else if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); }
             else if (ft.kind === 'creature') tameStart(ft.obj);
             else if (ft.kind === 'resource') harvStart(ft.obj);
@@ -5190,6 +5208,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                         }
                     }
                     if (!dead1 && R27.cvOn) dead1 = cvBoltHit(bo, bp);
+                    if (!dead1 && space && gmode === 'fly') dead1 = r28MineBolt(bo, bp, pv);      // rev 28: ore / ice / crystal rocks
                 } else {
                     var d2p = dead ? 1e30 : segDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, P.x, P.y, P.z);
                     if (d2p < pr * pr) {
@@ -5245,7 +5264,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         try {
             if (world) { try { world.dispose(); } catch (e0) { /* ignore */ } world = null; }
             world = worldMod.createWorld(THREE, ps, L, { parts: partsMod, weapons: wpnMod });
-            world.onShard = grantShard; wShardsRef = null; knownSet = null; knownFor();
+            world.onShard = grantShard; world.onBusted = r28Busted; world.onCopSay = r28CopSay; wShardsRef = null; knownSet = null; knownFor();
             ps.attachWorld(world);
         } catch (e) { console.info('[ship] world unavailable', e); world = null; }
     }
@@ -5304,6 +5323,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function applyUpgrades() {
         var pf = curProfile(), st = clamp(pget(pf, 'shieldTier', 0) | 0, 0, 3), et = clamp(pget(pf, 'engineTier', 0) | 0, 0, 3);
         HP_MAX = HP_BASE + 20 * st + 10 * (pget(pf && pf.upgrades, 'shield', 0) | 0); engMul = 1 + 0.1 * et + 0.03 * (pget(pf && pf.upgrades, 'engine', 0) | 0);
+        var hs = r28HullStats(hullFor(pf)); if (hs) { HP_MAX = Math.max(40, Math.round(HP_MAX * (1 + (hs.hp || 0) / 100))); engMul *= 1 + ((hs.cruise || 0) + (hs.boost || 0)) / 200; }      // rev 28: hull kind stats
         if (hp > HP_MAX) hp = HP_MAX;
     }
     // ─── rev 23: items, lingo, inventory (E), eating effects, fries glow ───────────────────────────────────────────────────────────
@@ -5320,7 +5340,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function giveItem(it, n) {
         var pf = ensureProfile(userName()), i, r;
         if (!curUser) curUser = userName();
-        var sk0 = CRF.stackKeyOf(it);
+        var sk0 = CRF.stackKeyOf(it), bpNew = !!(it.tags && it.tags.indexOf('bp') >= 0 && !pf.items.some(function (q) { return q.id === sk0; }));
+        if (bpNew) setTimeout(function () { r28BpGiven(it); }, 0);
         for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; if (r.id === sk0 && !!r.d === !!it.dealer) { r.n = Math.min(9999, r.n + n); return r; } }
         r = { id: sk0, seed: (it.seed >>> 0) || 0, n: n, d: it.dealer ? 1 : 0 };
         if (it.kind === 'part' || it.kind === 'material' || it.category || it.pet || it.stackKey) r.it = JSON.parse(JSON.stringify(it));
@@ -5369,10 +5390,10 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var e = it.effect || {}, pf = ensureProfile(userName()), i, a;
         if (it.kind === 'fries' || e.realtime) {
             pf.glowUntil = Date.now() + ((e.glow && e.glow.minutes) || 45) * 60000; glowChk = 0; glowTick(0);
-            addRow('', '', 'you are glowing. 45 minutes.', 'is-sys'); return;
+            addRow('', '', 'you are glowing. ' + ((e.glow && e.glow.minutes) || 45) + ' minutes.', 'is-sys'); return;
         }
         for (i = 0; i < fxAct.length; i++) if (fxAct[i].key === it.id) { fxAct[i].t = 0; fxAct[i].dur = e.duration || 60; return; }
-        a = { key: it.id, name: it.name, col: it.color, t: 0, dur: Math.max(5, e.duration || 60), p: e.params || {}, ex: e.extras || {}, tc: e.tintColor };
+        a = { key: it.id, name: it.name, col: it.color, t: 0, dur: Math.max(5, e.duration || 60), p: e.params || {}, ex: e.extras || {}, tc: e.tintColor, sg: e.signature || null };
         if (fxAct.length >= FX_MAX) fxAct.shift();
         fxAct.push(a);
     }
@@ -5400,8 +5421,17 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 if (a.dur - a.t < tl) env = Math.min(env, (a.dur - a.t) / tl);
                 env = env * env * (3 - 2 * env);
                 p = a.p; x = a.ex;
-                for (k = 0; k < FX_AMP.length; k++) { v = (p[FX_AMP[k]] || 0) * env; if (v > B[FX_AMP[k]]) B[FX_AMP[k]] = v; }
-                v = (p.hue || 0) * env; if (Math.abs(v) > Math.abs(B.hue)) B.hue = v;
+                var sg = a.sg, sid = sg ? sg.id : '', em = env, TT = 6.2832 * a.t;      // rev 28: effect signatures (all periods >= 4 s: strobe-safe)
+                if (sid === 'pulse') em = env * (1 + sg.depth * Math.sin(TT / Math.max(4, sg.period)));
+                for (k = 0; k < FX_AMP.length; k++) {
+                    var fk = FX_AMP[k], fm = em;
+                    if (sid === 'tunnel' && fk === 'fov') fm *= 1 + 0.25 * Math.sin(TT / 9);
+                    else if (sid === 'dreamy' && fk === 'blur') fm *= 1 + 0.25 * Math.sin(TT / 7);
+                    v = (p[fk] || 0) * fm; if (sid === 'tunnel' && fk === 'contrast') v += (sg.vignette || 0.4) * 0.2 * env;
+                    if (v > B[fk]) B[fk] = v;
+                }
+                v = (p.hue || 0) * env; if (sid === 'mirror') v *= Math.cos(TT / 14); else if (sid === 'dreamy') v += (sg.drift || 0.05) * Math.sin(TT / 11) * env;
+                if (Math.abs(v) > Math.abs(B.hue)) B.hue = v;
                 if (p.timeScale) { v = (p.timeScale - 1) * env; if (Math.abs(v) > Math.abs(tsd)) tsd = v; }
                 v = (p.tint || 0) * env; if (v > B.tint) { B.tint = v; if (a.tc != null) { fxTc[0] = ((a.tc >> 16) & 255) / 255; fxTc[1] = ((a.tc >> 8) & 255) / 255; fxTc[2] = (a.tc & 255) / 255; } }
                 if (x.speed) { v = (x.speed - 1) * env; if (Math.abs(v) > Math.abs(sp)) sp = v; }
@@ -5485,7 +5515,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     import('./ship-icons.js').then(function (m) { iconsMod = m; if (invOpen) invFill(); }).catch(function (e) { console.info('[ship] ship-icons unavailable', e); });
     var elInv = document.createElement('div');
     elInv.className = 'sh-inv';
-    elInv.innerHTML = '<div class="si-h"><b>Inventory</b><span class="si-u"></span></div><div class="si-grid"></div><div class="si-wrow"></div><div class="si-f">Right click eat / drink / fit mod · Left click equip · Wheel scroll · E / Esc close</div>';
+    elInv.innerHTML = '<div class="si-h"><b>Inventory</b><span class="si-u"></span></div><div class="si-tabs"><span class="is-on">ITEMS</span><span>RECIPE BOOK</span></div><div class="si-book"></div><div class="si-grid"></div><div class="si-wrow"></div><div class="si-f">Right click eat / drink / fit mod · Left click equip · Wheel scroll · E / Esc close</div>';
     hud.appendChild(elInv);
     var elInvTip = document.createElement('div'); elInvTip.className = 'si-tip'; hud.appendChild(elInvTip);
     var elInvGrid = elInv.querySelector('.si-grid'), elInvW = elInv.querySelector('.si-wrow'), elInvU = elInv.querySelector('.si-u'), invTipKey = '';
@@ -5526,7 +5556,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 s.n.textContent = ''; s.el.classList.toggle('is-eq', !!(pf.weapon && pf.weapon.id === w.id));
             } else { s.el.classList.add('is-empty'); s.el.classList.remove('is-eq'); invPaint(s, null, ''); s.n.textContent = ''; }
         }
-        r25Fill();
+        r25Fill(); if (R28.book) r28BookFill();
         elInvU.textContent = CRF.fmt(pf.gor) + ' · ' + items.reduce(function (a, r) { return a + r.n; }, 0) + ' items';
     }
     function invTip(sl) {
@@ -5571,6 +5601,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (w) { equipWeapon(w); aPlay('ui', { vel: 0.6 }); invFill(); invTip(s); }
     });
     elInv.addEventListener('wheel', function (e) {
+        if (R28.book && e.target.closest && e.target.closest('.si-book')) return;      // rev 28: the recipe book scrolls natively
         e.preventDefault();
         var dir = e.deltaY > 0 ? 1 : -1;
         if (invSlotOf(e.target) && invSlotOf(e.target).getAttribute('data-w') != null) invWTop += dir; else invTop += dir;
@@ -5578,6 +5609,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }, { passive: false });
     function openInv() {
         if (invOpen || cmdOpen || state !== 'piloting' || boarding || exiting || dead) return;
+        if (R28.book) { R28.book = false; elInv.classList.remove('is-book'); for (var bi = 0; bi < elBookTabs.children.length; bi++) elBookTabs.children[bi].classList.toggle('is-on', bi === 0); }
         invOpen = true; cmdOpen = true; cmdGuardUntil = performance.now() + 600;
         keys = Object.create(null); firing = false; mdx = mdy = 0; eh.on = false; eh.t = 0; ehShow(0, '');
         if (locked()) { try { document.exitPointerLock(); } catch (e0) { /* ignore */ } }
@@ -5599,6 +5631,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (c === 'Escape') { e.__shipHandled = true; closeInv(); return; }
         if (e.repeat) return;
         if (c === 'KeyE' || c === 'Backspace') { closeInv(); return; }
+        if (c === 'KeyR' || c === 'Tab') { r28BookSet(!R28.book); return; }
         if (c === 'ArrowDown') { invTop++; invFill(); } else if (c === 'ArrowUp') { invTop--; invFill(); }
     }
     // ─── rev 25: gorCoin stacks, 3x3 crafting, interior, pets, crew, missions (ship-craft.js / ship-interior.js, guarded) ──────────────────────────
@@ -5700,7 +5733,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         elCraft.style.display = R25.craftOn ? '' : 'none';
         if (R25.craftOn) {
             for (i = 0; i < 9; i++) paintCell(craftCells[i], craftGrid[i] && craftGrid[i].it, craftGrid[i] ? craftGrid[i].n : 0);
-            var m = null; try { m = CRF.match(gridStacks()); } catch (e1) { m = null; }
+            var m = null; try { m = CRF.match(gridStacks(), r28CraftCtx()); } catch (e1) { m = null; }
             craftCells.matchRes = m;
             paintCell(craftOut, m && m.output, m ? m.count : 0);
         }
@@ -5862,12 +5895,13 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         addUnits(rw.gor || 0, shipRoot.position, true);
         (rw.items || []).forEach(function (it) { try { giveItem(it.item, it.n || 1); } catch (e0) { /* ignore */ } });
         if (rw.words > 0) learnWords(rw.words);
+        var bpQ = q.kind === 'kill' ? r28BpDrop(q.id, 0.5) : r28BpDrop(q.id, 0.15); if (bpQ) giveItem(bpQ, 1);
         addRow('', '', 'QUEST COMPLETE · ' + q.title + ' · +' + (rw.gor || 0) + ' gorCoin' + ((rw.items || []).length ? ' + ' + rw.items.map(function (x) { return x.n + ' ' + (x.item && x.item.name || 'item'); }).join(', ') : ''), 'is-sys');
         aPlay('questDone'); qKill(q.id); qTrkC = '';
     }
     function questExpire() {
         var pf = curProfile(); if (!pf || !pf.quests) return; var now = Date.now();
-        pf.quests = pf.quests.filter(function (q) { if (q.expiresAt && now > q.expiresAt) { addRow('', '', 'QUEST EXPIRED · ' + q.title, 'is-sys'); qKill(q.id); qTrkC = ''; return false; } return true; });
+        pf.quests = pf.quests.filter(function (q) { if (q.expiresAt && now > q.expiresAt) { addRow('', '', 'QUEST EXPIRED · ' + q.title, 'is-sys'); aPlay('questFail'); qKill(q.id); qTrkC = ''; return false; } return true; });
     }
     var bountyUse = { wave: -1, name: '' };
     function bountyNameFor() {          // a boss spawn takes the name of an open bounty (so the bounty is actually killable)
@@ -6263,7 +6297,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             openMenu({ build: function () {
                 var p2 = ensureProfile(userName()), pet = p2.petPens[pi], rows = [];
                 if (pet) {
-                    rows.push({ name: 'FEED ' + pet.name.toUpperCase(), sub: 'happiness ' + (pet.happy | 0) + ' · needs fries / treat', fn: function () { var ti = treatIdx(p2); if (ti < 0) { addRow('', '', 'nothing to feed it', 'is-sys'); return true; } var rr = p2.items[ti]; rr.n--; if (rr.n <= 0) p2.items.splice(ti, 1); pet.happy = (pet.happy | 0) + 1; addRow('', '', pet.name + ' is happier (' + pet.happy + ')', 'is-sys'); writeSave(); return true; } });
+                    rows.push({ name: 'FEED ' + pet.name.toUpperCase(), sub: 'happiness ' + (pet.happy | 0) + ' · needs fries / treat', fn: function () { var ti = treatIdx(p2); if (ti < 0) { addRow('', '', 'nothing to feed it', 'is-sys'); return true; } var rr = p2.items[ti]; rr.n--; if (rr.n <= 0) p2.items.splice(ti, 1); pet.happy = (pet.happy | 0) + 1; pet.mood = clamp((pet.mood | 0) + 1, 0, 5); aPlay('petHappy'); addRow('', '', pet.name + ' is happier (' + pet.happy + ') · mood ' + pet.mood, 'is-sys'); writeSave(); return true; } });
                     rows.push({ name: 'TAKE BACK', sub: 'to your inventory', fn: function () { giveItem(petItem(pet), 1); p2.petPens[pi] = null; writeSave(); r25Refresh(); return false; } });
                 } else p2.items.forEach(function (r) { var it = itemOf(r); if (it && it.pet) rows.push({ name: it.name, sub: 'x' + r.n + ' · put in pen', fn: function () { takeKey(r.id, 1); p2.petPens[pi] = JSON.parse(JSON.stringify(it.pet)); addRow('', '', it.name + ' settles in', 'is-sys'); writeSave(); r25Refresh(); return false; } }); });
                 return { title: 'PEN ' + (pi + 1), rows: rows };
@@ -6379,7 +6413,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function itemSub(it) {
         var p = it.effect && it.effect.params ? Object.keys(it.effect.params) : [], d = it.effect ? it.effect.duration : 0;
-        if (it.kind === 'fries') return 'LIGHT BLUE GLOW · 45 MIN';
+        if (it.kind === 'fries') return 'LIGHT BLUE GLOW · ' + ((it.effect && it.effect.glow && it.effect.glow.minutes) || 45) + ' MIN' + (it.effect && it.effect.extras && it.effect.extras.speed ? ' · FASTER' : '');
         return (d >= 120 ? Math.round(d / 6) / 10 + ' MIN' : d + ' S') + ' · ' + (p.slice(0, 4).join(' ') || 'chill');
     }
     function shopFill() {
@@ -6390,9 +6424,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (tab === 0) {
             var menu = ctx.items || [];
             if (ctx.mode === 'burger' && r25Cand()) { var cd0 = r25Cand(); shopRows.push({ k: 'r', tag: 'CR', name: 'HIRE ' + String(cd0.name).toUpperCase(), sub: String(cd0.role).toUpperCase() + ' · JOINS YOUR CREW', price: 0 }); }
+            if (ctx.mode === 'store' && st && ITM.dailyDeal) {
+                try { var dl = ITM.dailyDeal(st.id); shopRows.push({ k: 'deal', deal: dl, tag: 'DL', name: dl.name, sub: 'TODAY ONLY · COMBO OF 3', price: dl.price, was: dl.originalPrice, special: true, info: dl.name + '\n' + dl.items.map(function (x) { return '- ' + x.name; }).join('\n') + '\n' + dl.blurb }); } catch (e0) { /* ignore */ }
+            }
             for (i = 0; i < menu.length; i++) {
                 var it = menu[i], have = 0; pf.items.forEach(function (r) { if (r.id === CRF.stackKeyOf(it) && !!r.d === !!it.dealer) have = r.n; });
-                shopRows.push({ k: 'i', item: it, name: it.name, sub: itemSub(it), price: ctx.mode === 'burger' ? salePrice(it.price) : it.price, own: have > 0, have: have });
+                shopRows.push({ k: 'i', item: it, name: it.name, sub: itemSub(it), price: ctx.mode === 'burger' ? salePrice(it.price) : it.price, own: have > 0, have: have, was: it.special ? it.originalPrice : null, special: !!it.special });
             }
         } else if (tab === 1 && inv) {
             for (i = 0; i < inv.weapons.length; i++) { var w = inv.weapons[i]; shopRows.push({ k: 'w', i: i, tag: String(w.cls || 'C'), name: w.name, sub: wpnMod && wpnMod.weaponLine ? wpnMod.weaponLine(w).replace(/^[A-Z] /, '').replace(w.name, '').trim() : '', price: shopPrice(w), own: pf.weapons.some(function (x) { return x.id === w.id; }) }); }
@@ -6423,15 +6460,16 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             e = shopEls[i];
             if (shopTop + i >= n) { e.el.style.display = 'none'; continue; }
             row = shopRows[shopTop + i];
-            e.el.style.display = ''; e.k.textContent = String(i + 1); e.n.textContent = row.name; e.d.textContent = row.sub || '';
+            e.el.style.display = ''; e.k.textContent = String(i + 1); e.n.textContent = row.name; e.d.textContent = (row.special && row.k !== 'deal' ? 'TODAY ONLY · ' : '') + (row.sub || '');
             if (row.item) { e.c.textContent = GLYPH[row.item.kind] || '■'; e.c.style.background = cssHex(row.item.color); e.c.style.color = '#101018'; e.s.style.visibility = 'visible'; }
             else { e.c.textContent = row.tag || ''; e.c.style.background = ''; e.c.style.color = ''; e.s.style.visibility = 'hidden'; }
-            e.p.textContent = row.price == null ? '' : (sell ? '+' : '') + row.price;
+            if (row.was != null && row.price != null) e.p.innerHTML = '<s class="ss-was">' + (row.was | 0) + '</s> ' + (row.price | 0); else e.p.textContent = row.price == null ? '' : (sell ? '+' : '') + row.price;
+            e.el.classList.toggle('is-special', !!row.special);
             e.el.classList.toggle('is-own', !!row.own); e.el.classList.toggle('is-sel', shopTop + i === shopSel);
             e.el.classList.toggle('is-poor', row.price != null && !sell && row.k !== '-' && !(row.own && row.k === 'w') && (pf.gor | 0) < row.price);
         }
         var sel = shopRows[shopSel];
-        elSsInfo.textContent = sel && sel.item ? describeItem(sel.item) : (sel && sel.sub ? sel.name + '\n' + sel.sub : '');
+        elSsInfo.textContent = sel && sel.info ? sel.info : (sel && sel.item ? describeItem(sel.item) + (sel.special ? '\nTODAY ONLY · was ' + sel.was : '') : (sel && sel.sub ? sel.name + '\n' + sel.sub : ''));
         elSsLw.classList.toggle('has-sb', n > SHOP_ROWS);
         elSsThumb.style.height = Math.max(8, SHOP_ROWS / Math.max(SHOP_ROWS, n) * 100) + '%';
         elSsThumb.style.top = (n > SHOP_ROWS ? shopTop / (n - SHOP_ROWS) * (100 - Math.max(8, SHOP_ROWS / n * 100)) : 0) + '%';
@@ -6481,10 +6519,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         try { line = world.npcSay('burger', 'fries') || ''; } catch (e) { line = ''; }
         if (!line && c && typeof c.say === 'function') line = c.say('fries');
         r25BurgerVisit(bh);
-        shopOpenCommon({ mode: 'burger', items: bh.menu && bh.menu.length ? bh.menu : [ITM.FRIES] }, 'BURGER HOUSE', String((c && c.name) || 'CLERK').toUpperCase(), line, 'burger');
+        shopOpenCommon({ mode: 'burger', items: ITM.FRIES_TIERS || (bh.menu && bh.menu.length ? bh.menu : [ITM.FRIES]) }, 'BURGER HOUSE', String((c && c.name) || 'CLERK').toUpperCase(), line, 'burger');
     }
     function closeStore() {
         if (!storeOpen) return;
+        if (DLG.open) dlgHide();
         if (qOpen) qHide();
         storeOpen = false; cmdOpen = false; shopSt = null; shopCtx = null; shopDrag = null;
         hud.classList.remove('is-store'); elStore.classList.remove('is-on');
@@ -6509,6 +6548,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             var rec = pf.items[row.i]; if (!rec) return;
             rec.n--; if (rec.n <= 0) pf.items.splice(row.i, 1);
             pf.gor = (pf.gor | 0) + row.price; aPlay('buy', { pitch: 0.8 }); writeSave(); shopMsg('SOLD ' + row.name + ' · +' + row.price); shopFill(); return;
+        }
+        if (row.k === 'deal') {
+            if ((pf.gor | 0) < row.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+            pf.gor -= row.price; row.deal.items.forEach(function (x) { giveItem(x, 1); });
+            aPlay('buy'); shopMsg('BOUGHT THE COMBO'); writeSave(); shopFill(); return;
         }
         if (row.k === 'i') {
             if ((pf.gor | 0) < row.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
@@ -6535,6 +6579,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         aPlay('buy'); writeSave(); shopFill();
     }
     function storeKey(e) {
+        if (DLG.open) { dlgKey(e); return; }
         if (qOpen) { qKey(e); return; }
         var c = e.code;
         e.preventDefault(); e.stopPropagation();
@@ -6555,8 +6600,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         ftI.kind = ''; ftI.obj = null; ftI.label = '';
         if (gmode !== 'foot' || !hum.obj || !world || !world.node) return ftI;
         var c = counterNear(), n, k;
-        if (c) { ftI.kind = 'store'; ftI.obj = c; ftI.label = 'F · SHOP'; return ftI; }
+        if (c) {
+            if (world.cart && world.cart.length) { ftI.kind = 'checkout'; ftI.obj = c; ftI.label = 'F · CHECKOUT ' + CRF.fmt(world.cartTotal()); return ftI; }
+            ftI.kind = 'store'; ftI.obj = c; ftI.label = 'F · SHOP'; return ftI;
+        }
         if (world.nearBurger) { ftI.kind = 'burger'; ftI.obj = world.nearBurger; ftI.label = 'F · FRIES'; return ftI; }
+        var shf = r28ShelfFind(); if (shf) { ftI.kind = 'shelf'; ftI.obj = shf; ftI.label = 'F · GRAB ' + String(shf.item && shf.item.name || 'ITEM').toUpperCase() + ' ' + ((shf.item && shf.item.price) | 0); return ftI; }
         var rn = resFind(); if (rn) { ftI.kind = 'resource'; ftI.obj = rn; ftI.label = 'F · HARVEST ' + String(rn.kind).toUpperCase(); return ftI; }
         var tc = tameFind(); if (tc) { ftI.kind = 'creature'; ftI.obj = tc; ftI.label = 'F · TAME'; return ftI; }
         n = world.nearNpc;
@@ -6567,6 +6616,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function talkShopper(n) {
         knownFor();
+        if (r28Talk({ id: n.id, name: n.name || 'SHOPPER', role: n.role || 'shopper', kind: 'shopper', obj: n, seed: n.seed })) return;
         addRow(String(n.name || 'SHOPPER').toUpperCase(), '#8fa0ff', npcLineOf(n.id, n) || '...');
         aPlay('npc', { seed: n.id }); openQuests(n.id, n.name || 'SHOPPER', 'npc');
     }
@@ -6689,7 +6739,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; pulseT = 0; eh.on = false; eh.t = 0; ehShow(0, '');
         setGround(true, false); setPrompt('DOCKING', true);
         addRow('', '', 'DOCKING · ' + (R27.dsite ? 'DERELICT' : (SITE().interior.stores[0] ? String(SITE().interior.stores[0].name).toUpperCase() : '7/11 ORBITAL')), 'is-sys');
-        aPlay('liftoff', { vel: 0.6 });
+        aPlay('liftoff', { vel: 0.6 }); aPlay('warp');
         return true;
     }
     function beginLaunch() {
@@ -6702,7 +6752,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         jetKill(); setPrompt('', false);
         setGround(true, false);
         net && net.setMode && net.setMode('fly');
-        aPlay('liftoff', { vel: 1 });
+        aPlay('liftoff', { vel: 1 }); aPlay('warp');
     }
     function skAbort() {       // Esc / exit() while anywhere in the station sequence: put the ship outside the mouth and hand back to the exit cinematic
         closeStore();
@@ -6734,7 +6784,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         shake = Math.max(shake, 0.06 * L); aPlay('land', { vel: 1 });
         SITE().toWorld(sk.shipL, skB); for (var i = 0; i < 3; i++) fx.impact(skB, 0x9ab0ff, 2);
         if (R27.dsite) { addRow('', '', 'DERELICT · loot crates glow in the far room (F) · something is awake in here', 'is-sys'); dkOnDock(R27.dsite.d); }
-        else addRow('', '', 'DOCKED · F near the counter, NPCs, map pedestal or your ship', 'is-sys');
+        else addRow('', '', 'DOCKED · F near the counter, NPCs, shipyard, map pedestal or your ship', 'is-sys');
+        r28Dock();
     }
     function finishLaunch() {
         var pad = SITE().pads[sk.pad]; if (pad) pad.free = true;
@@ -6776,6 +6827,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (st0 && hw.distanceTo(st0.counter.pos) < Math.max(st0.counter.radius * 1.8, 2 * SK_H * L)) { skI.kind = 'store'; skI.obj = st0; skI.label = 'F · SHOP'; return skI; }
         for (i = 0; i < npcs.length; i++) if (hw.distanceTo(npcs[i].pos) < 1.4 * L) { skI.kind = 'npc'; skI.obj = npcs[i]; skI.label = 'F · TALK'; return skI; }
         var tr = SITE().interior.trade; if (tr && tr.pos && hw.distanceTo(tr.pos) < Math.max(tr.radius || 0, 1.2 * L)) { skI.kind = 'trade'; skI.obj = tr; skI.label = 'F · TRADE'; return skI; }
+        var yd = !R27.dsite && SITE().interior.shipyard; if (yd && yd.pos && yd.ships && hw.distanceTo(yd.pos) < Math.max(yd.radius || 0, 1.5 * L)) { skI.kind = 'shipyard'; skI.obj = yd; skI.label = 'F · SHIPYARD'; return skI; }
         if (R27.dsite) { var dc = dkCrateNear(); if (dc) { skI.kind = 'loot'; skI.obj = dc; skI.label = 'F · LOOT'; return skI; } }
         if (hw.distanceTo(ped.pos) < ped.radius + 0.3 * L) { skI.kind = 'map'; skI.label = 'F · GALAXY MAP'; return skI; }
         if (hw.distanceTo(shipRoot.position) < BOARD_L * L) { skI.kind = 'ship'; skI.label = R25.mod ? 'F · ENTER SHIP · HOLD LAUNCH' : 'F · LAUNCH'; return skI; }
@@ -6785,9 +6837,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var si = stationInteract();
         if (si.kind === 'store') openStore(si.obj);
         else if (si.kind === 'trade') openTrade(si.obj, 'STATION TRADE', 'TRADER', null);
+        else if (si.kind === 'shipyard') openShipyard();
         else if (si.kind === 'loot') dkLoot(si.obj);
         else if (si.kind === 'npc') {
             var n = si.obj; n.li = ((n.li | 0) + 1) % Math.max(1, n.lines.length);
+            if (r28Talk({ id: 'station-' + n.name, name: n.name, role: 'shopper', kind: 'station', obj: n, seed: n.name })) return;
             addRow(String(n.name).toUpperCase(), '#ffd36a', n.lines[n.li] || '...'); aPlay('npc', { seed: n.name }); openQuests('station-' + n.name, n.name, 'board');
         } else if (si.kind === 'map') { setPrompt('', false); exit(); }
         else if (si.kind === 'ship') { if (R25.noInt || !enterInterior()) beginLaunch(); }
@@ -7080,6 +7134,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function dkLoot(c) {
         c.taken = true; var got = [], i;
         for (i = 0; i < c.stacks.length; i++) { giveItem(c.stacks[i].item, c.stacks[i].n); got.push(c.stacks[i].n + ' ' + c.stacks[i].item.name); }
+        var bpI = r28BpDrop(c.id, c.rare ? 0.6 : 0.12); if (bpI) { giveItem(bpI, 1); got.push(bpI.name); }      // rev 28
         aPlay(c.rare ? 'levelUp' : 'harvest'); addRow('', '', 'SALVAGE · ' + got.join(', '), 'is-sys'); writeSave();
         for (i = 0; i < 3; i++) fx.impact(c.pos, c.rare ? 0xff5ce1 : 0xffb030, 2.5);
     }
@@ -7473,6 +7528,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         R27.suitT -= dt; if (R27.suitT <= 0) { R27.suitT = 0.5; suitSync(); wxTick(); }
         R27.evT -= dt; if (R27.evT <= 0) { R27.evT = 1; evTick(dt); relayTick(1); if (state !== 'piloting' && R27.gnd.length) gndClear(); if (R27.follow.pet && state !== 'piloting') petStow(); }
         if (R27.gnd.length && gmode !== 'foot' && gmode !== 'sfoot') gndClear('planet');
+        r28Tick(dt);
     }
 
     // ─── idle loop: docked orbit, parked label ────────────────────────
@@ -7586,6 +7642,370 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         });
         window.EMGOR_NET = net;       // debug / test hook
     }).catch(function () { /* single-player */ });
+    // ═══ rev 28: shelves + shoplifting, conversations, mining, blueprints, shipyard, station board, landmarks, specials, pet joy ═══════════════
+    // Every module hook is guarded: an older ship-world / ship-space / ship-station leaves its feature off.
+    var R28 = { inStore: '', t: 0, t2: 0, siren: false, cartTxt: '', cubes: null, got: {}, gotT: 0, pilotT: 0, mineLoaded: false, mineSig: '', mineT: 0, lmSeen: {}, lmT: 0, book: false, bookSig: '', hullStats: null,
+        mine: { n: 0, id: [], x: [], y: [], z: [], r: [], t: -9 } };
+    var DLG = { open: false, id: '', name: '', role: '', kind: '', obj: null, seed: 0, st: null, res: null, ch: [], mood: 0, tm: 0 };
+    var r28V = new THREE.Vector3(), r28Q = new THREE.Quaternion(), r28M = new THREE.Matrix4(), r28S = new THREE.Vector3(), r28E = new THREE.Euler(), r28Col = new THREE.Color();
+
+    // ── 1. shelves, cart, checkout, cops ──
+    var elCart = document.createElement('div'); elCart.className = 'sh-cart'; hud.appendChild(elCart);
+    function r28ShelfFind() {
+        if (gmode !== 'foot' || !hum.obj || !world || !world.node || typeof world.nearShelf !== 'function' || dead) return null;
+        try { return world.nearShelf(hum.pos, 0.14 * L) || null; } catch (e0) { return null; }
+    }
+    function r28Grab(sh) {
+        if (!sh || !world || typeof world.grabShelf !== 'function') return null;
+        var it = world.grabShelf(sh.id);
+        if (!it) return null;
+        if (!curUser) curUser = userName();
+        giveItem(it, 1); aPlay('grab'); writeSave();
+        addRow('', '', 'GRABBED ' + it.name + ' · CART ' + world.cart.length + ' · ' + CRF.fmt(world.cartTotal()) + (world.heat > 0 ? ' · HEAT ' + world.heat : ''), 'is-sys');
+        return it;
+    }
+    function r28Checkout() {
+        if (!world || !world.cart || !world.cart.length) return null;
+        var pf = qPf(), tot = world.cartTotal(), names = world.cart.map(function (c) { return c.item.name + ' ' + (c.item.price | 0); });
+        if ((pf.gor | 0) < tot) {
+            aPlay('ui', { vel: 0.3, pitch: 0.6 });
+            addRow('', '', 'CART ' + CRF.fmt(tot) + ' · you have ' + CRF.fmt(pf.gor) + ' · ' + names.join(', '), 'is-err');
+            return { paid: 0, total: tot, short: true };
+        }
+        pf.gor -= tot; world.checkout(); aPlay('checkout'); writeSave();
+        addRow('', '', 'PAID ' + CRF.fmt(tot) + ' · ' + names.join(', '), 'is-sys');
+        r28SirenOff();
+        return { paid: tot, total: tot, short: false };
+    }
+    function r28SirenOff() { if (R28.siren) { R28.siren = false; aPlay('sirenStop'); } }
+    function r28CopSay(m) {
+        var nm = String((m.cop && m.cop.name) || 'GUARD').toUpperCase();
+        addRow(nm, '#ff6a6a', m.line || '...');
+        if (m.state === 'chase') { if (!R28.siren) { R28.siren = true; aPlay('siren', { level: 0.9 }); } } else aPlay('copWarn');
+    }
+    function r28Busted(b) {
+        var pf = qPf(), i, fine = Math.min(pf.gor | 0, b.fine | 0);
+        for (i = 0; i < b.items.length; i++) takeKey(CRF.stackKeyOf(b.items[i]), 1);
+        pf.gor -= fine; r28SirenOff(); aPlay('copWarn'); aPlay('questFail');
+        if (b.line) addRow('GUARD', '#ff6a6a', b.line);
+        addRow('', '', 'BUSTED · ' + b.items.length + ' items returned · fine ' + CRF.fmt(fine), 'is-err');
+        shake = Math.max(shake, 0.04 * L); writeSave();
+    }
+    function r28StoreAt(p) {
+        if (!world || !world.stores) return null;
+        for (var i = 0; i < world.stores.length; i++) {
+            var s = world.stores[i], I = s.interior; if (!I || !I.toStore) continue;
+            I.toStore(p, r28V); var sz = I.size || { w: 40, d: 26, h: 16 };      // tolerant: the human stands up to ~1.3 m under the slab top
+            if (Math.abs(r28V.x) < sz.w / 2 + 0.5 && Math.abs(r28V.z) < sz.d / 2 + 0.5 && r28V.y > -4 && r28V.y < sz.h + 1) return s;
+        }
+        return null;
+    }
+    function r28ShopTick() {
+        var s = (gmode === 'foot' && hum.obj && world && world.node) ? r28StoreAt(hum.pos) : null, id = s ? s.id : '';
+        if (R28.inStore && !id && world && world.cart && world.cart.length) {                          // walked out with an unpaid cart
+            var st = world.stores.filter(function (q) { return q.id === R28.inStore; })[0], sec = st && st.security;
+            if (sec && sec.cop && sec.seen) { world.heat = Math.max(world.heat, 2); world.heatStore = st.id; addRow(String(sec.cop.name || 'GUARD').toUpperCase(), '#ff6a6a', 'HEY. THAT CART IS NOT PAID FOR.'); aPlay('copWarn'); }
+            else { world.cart.length = 0; addRow('', '', 'walked out clean · nobody saw', 'is-sys'); }
+        }
+        R28.inStore = id;
+        var tx = '';
+        if (world && world.cart && world.cart.length) tx = 'CART ' + world.cart.length + ' · ' + CRF.fmt(world.cartTotal()) + (world.heat > 0 ? ' · HEAT ' + world.heat : '');
+        if (tx !== R28.cartTxt) { R28.cartTxt = tx; elCart.textContent = tx; elCart.classList.toggle('is-on', !!tx); elCart.classList.toggle('is-hot', !!(world && world.heat >= 2)); }
+        if (R28.siren) {
+            var chase = false; if (world && world.stores) for (var i = 0; i < world.stores.length; i++) if (world.stores[i].security && world.stores[i].security.state === 'chase') chase = true;
+            if (!chase) r28SirenOff();
+        }
+    }
+
+    // ── 2. conversations (world.converse / lingo.converse) ──
+    var elDlg = document.createElement('div'); elDlg.className = 'sh-dlg';
+    elDlg.innerHTML = '<div class="sd-h"><b class="sd-n"></b><span class="sd-r"></span></div><div class="sd-t"></div><div class="sd-c"></div><div class="sd-f"></div>';
+    hud.appendChild(elDlg);
+    var elDlgN = elDlg.querySelector('.sd-n'), elDlgR = elDlg.querySelector('.sd-r'), elDlgT = elDlg.querySelector('.sd-t'), elDlgC = elDlg.querySelector('.sd-c'), elDlgF = elDlg.querySelector('.sd-f');
+    var DLG_MOOD = ['HOSTILE', 'COLD', 'NEUTRAL', 'WARM', 'FRIEND'], DLG_AROLE = { cashier: 'clerk', clerk: 'clerk', stationcop: 'cop', cop: 'cop', fries: 'chef', conspiracy: 'shopper', retired: 'pilot', dealer: 'dealer' };
+    function dlgPf() { var pf = qPf(); if (!pf.moods || typeof pf.moods !== 'object') pf.moods = {}; return pf; }
+    function dlgConverse(st) {
+        var res = null;
+        if (DLG.kind !== 'station' && world && typeof world.converse === 'function') { try { res = world.converse(DLG.id, st); } catch (e0) { res = null; } }
+        if (!res) res = LNG.converse({ seed: DLG.seed, role: DLG.role, name: DLG.name, known: knownFor(), mood: DLG.mood }, st);
+        return res;
+    }
+    function dlgMoodSet(delta) {
+        var pf = dlgPf();
+        if (DLG.kind !== 'station' && world && typeof world.npcMood === 'function') { DLG.mood = world.npcMood(DLG.id, delta | 0); }
+        else DLG.mood = clamp(DLG.mood + (delta | 0), -2, 2);
+        pf.moods[DLG.id] = DLG.mood;
+        var ks = Object.keys(pf.moods); if (ks.length > 80) delete pf.moods[ks[0]];
+    }
+    function dlgApply(e) {
+        if (!e) return;
+        var pf = dlgPf(), ks = knownFor(), i;
+        if (e.learn && e.learn.length) {
+            for (i = 0; i < e.learn.length; i++) if (!ks.has(e.learn[i])) { ks.add(e.learn[i]); addRow('', '', 'learned: ' + e.learn[i], 'is-sys'); }
+            pf.known = Array.from(ks);
+        } else if (e.teach > 0) learnWords(e.teach | 0);
+        if (e.gor) { pf.gor = (pf.gor | 0) + (e.gor | 0); aPlay('buy', { pitch: 1.3 }); addRow('', '', (e.gor > 0 ? '+' : '') + e.gor + ' gorCoin', 'is-sys'); }
+        if (e.mood) dlgMoodSet(e.mood);
+        if (e.craft) addRow('', '', 'HINT · try crafting ' + e.craft, 'is-sys');
+        writeSave();
+    }
+    function dlgExtras(res) {
+        var ex = [], e = res.effects || {}, k = DLG.kind;
+        if ((k === 'clerk' || k === 'dealer') && (e.item || (DLG.st.steps | 0) <= 1)) ex.push({ extra: 'shop', label: k === 'dealer' ? '[ BROWSE THEIR STOCK ]' : '[ OPEN THE SHOP ]' });
+        if (e.quest) ex.push({ extra: 'quest', label: '[ SEE THEIR QUESTS ]' });
+        return ex;
+    }
+    function dlgRender() {
+        var d = DLG, r = d.res, i, sp;
+        elDlgN.textContent = String(d.name).toUpperCase(); elDlgR.textContent = String(d.role).toUpperCase() + ' · ' + DLG_MOOD[clamp(d.mood + 2, 0, 4)];
+        while (elDlgT.firstChild) elDlgT.removeChild(elDlgT.firstChild);
+        var segs = (r.segments && r.segments.length) ? r.segments : [{ text: LNG.strip(r.text || '') }];
+        for (i = 0; i < segs.length; i++) { sp = document.createElement('span'); if (segs[i].alien) sp.className = 'sc-al'; sp.textContent = segs[i].text; elDlgT.appendChild(sp); }
+        while (elDlgC.firstChild) elDlgC.removeChild(elDlgC.firstChild);
+        for (i = 0; i < d.ch.length; i++) {
+            var b = document.createElement('div'); b.className = 'sd-b' + (d.ch[i].extra ? ' is-x' : ''); b.setAttribute('data-i', String(i));
+            b.innerHTML = '<i>' + (i + 1) + '</i><span></span>'; b.lastChild.textContent = d.ch[i].label; elDlgC.appendChild(b);
+        }
+        elDlgF.textContent = r.done ? 'ANY KEY CLOSE' : '1-' + Math.max(1, d.ch.length) + ' CHOOSE · ESC LEAVE';
+    }
+    function dlgGo(next) {
+        var st = DLG.st; if (next) st.next = next; else delete st.next;
+        var res = dlgConverse(st);
+        if (!res) { closeStore(); return; }
+        DLG.res = res; DLG.mood = clamp(st.mood != null ? st.mood : DLG.mood, -2, 2);
+        dlgApply(res.effects);
+        DLG.ch = (res.choices || []).slice(0, 3).map(function (c) { return { label: c.label, next: c.next }; });
+        if (!res.done) DLG.ch = DLG.ch.concat(dlgExtras(res));
+        dlgRender();
+        addRow(String(DLG.name).toUpperCase(), '#ffd36a', res.text || '...');
+        aPlay('talk', { role: DLG_AROLE[DLG.role] || DLG.role, seed: DLG.id + ':' + (st.steps | 0) });
+        if (res.done) { clearTimeout(DLG.tm); DLG.tm = setTimeout(function () { if (DLG.open) closeStore(); }, 2400); }
+    }
+    function r28Talk(sp) {
+        if (DLG.open || qOpen || storeOpen || invOpen || cmdOpen || state !== 'piloting' || !sp) return false;
+        var pf = dlgPf();
+        knownFor();
+        DLG.id = String(sp.id); DLG.name = String(sp.name || 'NPC'); DLG.role = String(sp.role || 'shopper'); DLG.kind = sp.kind || 'shopper'; DLG.obj = sp.obj || null; DLG.seed = sp.seed != null ? sp.seed : DLG.id;
+        var stored = pf.moods[DLG.id];
+        if (DLG.kind !== 'station' && world && typeof world.npcMood === 'function') {
+            var cur = world.npcMood(DLG.id, 0); if (stored != null && stored !== cur) world.npcMood(DLG.id, stored - cur); DLG.mood = world.npcMood(DLG.id, 0);
+        } else DLG.mood = stored != null ? clamp(stored, -2, 2) : 0;
+        DLG.st = { mood: DLG.mood }; DLG.res = null; DLG.ch = [];
+        DLG.open = true; storeOpen = true; cmdOpen = true; cmdGuardUntil = performance.now() + 600;
+        keys = Object.create(null); firing = false; mdx = mdy = 0; eh.on = false; eh.t = 0; ehShow(0, '');
+        if (locked()) { try { document.exitPointerLock(); } catch (e0) { /* ignore */ } }
+        hud.classList.add('is-dlg'); elDlg.classList.add('is-on');
+        aPlay('ui', { vel: 0.6 });
+        dlgGo(null);
+        return true;
+    }
+    function dlgHide() { DLG.open = false; clearTimeout(DLG.tm); hud.classList.remove('is-dlg'); elDlg.classList.remove('is-on'); }
+    function dlgPick(i) {
+        var c = DLG.ch[i], d = DLG, obj = d.obj, kind = d.kind, id = d.id, nm = d.name;
+        if (!DLG.open || !DLG.res) return;
+        if (DLG.res.done || !c) { closeStore(); return; }
+        aPlay('ui', { vel: 0.5 });
+        if (c.extra === 'shop') { closeStore(); if (kind === 'dealer') openDealer(obj); else if (obj) openStore(obj); return; }
+        if (c.extra === 'quest') { closeStore(); openQuests(id, nm, kind === 'dealer' ? 'dealer' : (kind === 'clerk' ? 'clerk' : 'npc')); return; }
+        dlgGo(c.next);
+    }
+    function dlgKey(e) {
+        var c = e.code; e.preventDefault(); e.stopPropagation();
+        if (c === 'Escape') { e.__shipHandled = true; closeStore(); return; }
+        if (e.repeat) return;
+        if (DLG.res && DLG.res.done) { closeStore(); return; }
+        var m = /^(?:Digit|Numpad)([1-4])$/.exec(c);
+        if (m && +m[1] <= DLG.ch.length) { dlgPick(+m[1] - 1); return; }
+        if (c === 'KeyF' || c === 'KeyE' || c === 'Backspace') closeStore();
+    }
+    elDlgC.addEventListener('click', function (e) { var t = e.target; while (t && t !== elDlgC && !(t.getAttribute && t.getAttribute('data-i'))) t = t.parentNode; if (t && t !== elDlgC) dlgPick(+t.getAttribute('data-i')); });
+    elDlg.addEventListener('click', function (e) { if (DLG.res && DLG.res.done) closeStore(); });
+
+    // ── 3. mining (space.minable / hitRock / chunks) ──
+    function r28Cubes() {
+        if (R28.cubes && R28.cubesFor === space) return R28.cubes;
+        if (!space || !space.group) return null;
+        var geo = new THREE.BoxGeometry(1, 1, 1), mat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false });
+        var m = new THREE.InstancedMesh(geo, mat, 64); m.frustumCulled = false; m.count = 0; m.renderOrder = 3;
+        m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        m.setColorAt(0, r28Col.setRGB(1, 1, 1));
+        space.group.add(m); R28.cubes = m; R28.cubesFor = space;
+        return m;
+    }
+    function r28MineList() {
+        var mi = R28.mine, now = performance.now();
+        if (now - mi.t < 250) return mi;
+        mi.t = now; mi.n = 0;
+        var list = space.minable();
+        for (var i = 0; i < list.length && i < 64; i++) { var o = list[i]; mi.id[i] = o.id; mi.x[i] = o.pos.x; mi.y[i] = o.pos.y; mi.z[i] = o.pos.z; mi.r[i] = o.r; mi.n++; }
+        return mi;
+    }
+    function r28MineBolt(bo, bp, pv) {
+        if (!space || typeof space.minable !== 'function' || typeof space.hitRock !== 'function') return false;
+        var mi = r28MineList(), i;
+        for (i = 0; i < mi.n; i++) {
+            var rr = mi.r[i] * 0.9;
+            if (segDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, mi.x[i], mi.y[i], mi.z[i]) < rr * rr) {
+                var res = space.hitRock(mi.id[i], bo.dmg || 10);
+                fx.impact(bp, res.broken ? 0xffc46b : 0xb8aa98, res.broken ? 2 : 1);
+                if (res.broken) {
+                    aPlay('rockCrack', { size: clamp(mi.r[i] / L / 12, 0.4, 2.5), dist: aDist(bp), seed: mi.id[i] });
+                    mi.t = -9; R28.mineSig = ''; r28V.set(mi.x[i], mi.y[i], mi.z[i]); fx.flash(r28V, 0xffc46b);
+                } else aPlay('hit', { pitch: 0.45, vel: 0.35, dist: aDist(bp) });
+                return true;
+            }
+        }
+        return false;
+    }
+    function r28ChunkTick(dt) {
+        if (!space || !space.chunks) return;
+        var ch = space.chunks, n = ch.length, i, c, cen = space.rocks && space.rocks.center, mesh = R28.cubes && R28.cubesFor === space ? R28.cubes : (n ? r28Cubes() : null);
+        if (mesh) {
+            var k = 0;
+            for (i = 0; i < n && k < 64; i++) {
+                c = ch[i]; var f = c.age > 15 ? Math.max(0.05, (20 - c.age) / 5) : 1, sz = 0.55 * L * f * (1 + 0.15 * Math.sin(c.age * 6 + i));
+                r28E.set(c.age * 1.7 + i, c.age * 2.3, i * 0.7); r28Q.setFromEuler(r28E);
+                r28V.set(c.pos.x - (cen ? cen.x : 0), c.pos.y - (cen ? cen.y : 0), c.pos.z - (cen ? cen.z : 0)); r28S.set(sz, sz, sz);
+                r28M.compose(r28V, r28Q, r28S); mesh.setMatrixAt(k, r28M);
+                r28Col.setHex(c.item.color); r28Col.multiplyScalar(1.9 * f); mesh.setColorAt(k, r28Col); k++;
+            }
+            mesh.count = k; mesh.visible = k > 0; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        }
+        if (!n || gmode !== 'fly' || dead || state !== 'piloting') return;
+        var P = shipRoot.position, take = null;
+        for (i = 0; i < n; i++) { c = ch[i]; if (c.pos.distanceToSquared(P) < (4 * L) * (4 * L)) { (take || (take = [])).push(c.id); } }
+        if (!take) return;
+        if (!curUser) curUser = userName();
+        for (i = 0; i < take.length; i++) {
+            var got = space.takeChunk(take[i]); if (!got) continue;
+            giveItem(got.item, got.n | 1); aPlay('chunk', { n: Math.min(11, (R28.gotN = ((R28.gotN | 0) + 1) % 12)) });
+            R28.got[got.item.name] = (R28.got[got.item.name] || 0) + (got.n | 1); R28.gotT = 0.9;
+        }
+    }
+    function r28MineSave(dt) {
+        if (!space || typeof space.markMined !== 'function' || state !== 'piloting') { R28.pilotT = 0; return; }
+        var pf = curProfile(); if (!pf) return;
+        R28.pilotT += dt;
+        if (!R28.mineLoaded) { if (R28.pilotT > 3) { R28.mineLoaded = true; try { space.markMined(pf.mined || []); } catch (e0) { /* ignore */ } } return; }
+        R28.mineT -= dt; if (R28.mineT > 0) return; R28.mineT = 4;
+        var st = space.mineState(), sig = st.length + ':' + (st.length ? st[st.length - 1][0] : 0);
+        if (sig === R28.mineSig) return;
+        R28.mineSig = sig; pf.mined = st.slice(-200); writeSave();
+    }
+
+    // ── 4. blueprints + recipe book ──
+    function r28Known() { var pf = curProfile(), out = []; if (pf) pf.items.forEach(function (r) { var it = itemOf(r); if (it) out.push(it); }); return CRF.knownFrom ? CRF.knownFrom(out) : new Set(); }
+    function r28CraftCtx() { return { known: r28Known() }; }
+    function r28BpGiven(it) {
+        if (!it || !it.tags || it.tags.indexOf('bp') < 0 || !CRF.knownFrom) return;
+        addRow('', '', 'BLUEPRINT · ' + it.name + ' · recipe unlocked (E > RECIPE BOOK)', 'is-sys'); aPlay('blueprint');
+    }
+    function r28BpDrop(seed, chance) {
+        if (!CRF.BLUEPRINTS || !CRF.BLUEPRINTS.length || Math.random() > chance) return null;
+        var known = r28Known(), pool = CRF.BLUEPRINTS.filter(function (b) { return !known.has(b.id); }), b = (pool.length ? pool : CRF.BLUEPRINTS)[((hash25(seed) + Math.floor(Math.random() * 7)) >>> 0) % (pool.length || CRF.BLUEPRINTS.length)];
+        return CRF.blueprintItem(b.id);
+    }
+    var elBookTabs = elInv.querySelector('.si-tabs'), elBook = elInv.querySelector('.si-book');
+    function r28BookSet(on) {
+        R28.book = !!on; elInv.classList.toggle('is-book', R28.book);
+        for (var i = 0; i < elBookTabs.children.length; i++) elBookTabs.children[i].classList.toggle('is-on', (i === 1) === R28.book);
+        R28.bookSig = ''; if (R28.book) r28BookFill();
+        aPlay('ui', { vel: 0.5 });
+    }
+    function r28BookFill() {
+        if (!R28.book) return;
+        var book = []; try { book = CRF.recipeBook(r28CraftCtx()); } catch (e0) { book = []; }
+        var sig = book.map(function (b) { return b.id + (b.locked ? 'L' : ''); }).join(',');
+        if (sig === R28.bookSig) return; R28.bookSig = sig;
+        book = book.slice().sort(function (a, b) { return (a.locked ? 1 : 0) - (b.locked ? 1 : 0); });
+        var h = '', un = 0;
+        function pretty(t) { return String(t).replace(/^(part|res|base|out|food|infusion|crafted):/, '').replace(/-/g, ' '); }
+        for (var i = 0; i < book.length; i++) {
+            var b = book[i], ing = b.ingredients.map(function (x) { return (x.n > 1 ? x.n + 'x ' : '') + pretty(x.token); }).join(' + '); if (!b.locked) un++;
+            h += '<div class="sb-r' + (b.locked ? ' is-lock' : '') + '"><b>' + qEsc(b.name) + '</b><em>' + (b.locked ? 'LOCKED · find the blueprint' : qEsc(b.output.name) + (b.output.count > 1 ? ' x' + b.output.count : '')) + '</em><span>' + (b.locked ? '??? + ???' : qEsc(ing)) + (b.shapeless ? '' : ' · shaped') + '</span></div>';
+        }
+        elBook.innerHTML = '<div class="sb-h">' + un + ' / ' + book.length + ' RECIPES KNOWN</div>' + h;
+    }
+    elBookTabs.addEventListener('click', function (e) { var i = Array.prototype.indexOf.call(elBookTabs.children, e.target); if (i >= 0) r28BookSet(i === 1); });
+
+    // ── 5. shipyard (hull kinds) + /ship ──
+    var R28_HULLS = { hauler: { name: 'Hauler', stats: {} }, fighter: { name: 'Wasp-class Fighter', stats: { cruise: 25, boost: 40, cargo: -50, guns: 2, hp: -20 } }, explorer: { name: 'Drifter Explorer', stats: { cruise: 10, boost: 20, cargo: -25, guns: 0, hp: 15 } } };
+    function r28YardShips() { var y = station && station.interior && station.interior.shipyard; return (y && y.ships) || []; }
+    function r28HullStats(kind) {
+        var s = r28YardShips().filter(function (q) { return q.kind === kind; })[0];
+        return (s && s.stats) || (R28_HULLS[kind] && R28_HULLS[kind].stats) || null;
+    }
+    function r28HullName(kind) { var s = r28YardShips().filter(function (q) { return q.kind === kind; })[0]; return (s && s.name) || (R28_HULLS[kind] && R28_HULLS[kind].name) || String(kind); }
+    function r28Hulls(pf) { var h = pf.hulls; if (!Array.isArray(h) || !h.length) h = pf.hulls = ['hauler']; if (h.indexOf(pf.hull) < 0) h.push(pf.hull); return h; }
+    function r28SetHull(pf, kind) { pf.hull = kind; applyUpgrades(); hullChk = 0; writeSave(); }
+    function r28StatsLine(s) { var o = []; if (!s) return 'stock'; if (s.cruise) o.push('cruise ' + (s.cruise > 0 ? '+' : '') + s.cruise + '%'); if (s.boost) o.push('boost ' + (s.boost > 0 ? '+' : '') + s.boost + '%'); if (s.hp) o.push('hull ' + (s.hp > 0 ? '+' : '') + s.hp + '%'); if (s.cargo) o.push('cargo ' + (s.cargo > 0 ? '+' : '') + s.cargo + '%'); if (s.guns) o.push('+' + s.guns + ' guns'); return o.join(' · ') || 'stock'; }
+    function r28Buy(kind) {
+        var pf = qPf(), sh = r28YardShips().filter(function (q) { return q.kind === kind; })[0], own = r28Hulls(pf);
+        if (own.indexOf(kind) >= 0) { r28SetHull(pf, kind); aPlay('shipBuy', { pitch: 0.9 }); addRow('', '', 'HULL · ' + r28HullName(kind).toUpperCase() + ' active', 'is-sys'); return true; }
+        if (!sh) return false;
+        if ((pf.gor | 0) < sh.price) { aPlay('ui', { vel: 0.3, pitch: 0.6 }); addRow('', '', 'NOT ENOUGH gorCoin · ' + CRF.fmt(sh.price), 'is-err'); return false; }
+        pf.gor -= sh.price; own.push(kind); r28SetHull(pf, kind); aPlay('shipBuy');
+        addRow('', '', 'BOUGHT ' + sh.name.toUpperCase() + ' · ' + r28StatsLine(sh.stats), 'is-sys');
+        return true;
+    }
+    function openShipyard() {
+        if (menuOpen || cmdOpen || state !== 'piloting') return false;
+        openMenu({ build: function () {
+            var pf = qPf(), own = r28Hulls(pf), rows = [];
+            rows.push({ name: 'HAULER' + (pf.hull === 'hauler' ? ' · ACTIVE' : ''), sub: 'stock · your starting hull', fn: function () { r28Buy('hauler'); return false; } });
+            r28YardShips().forEach(function (s) {
+                var has = own.indexOf(s.kind) >= 0;
+                rows.push({ name: s.name.toUpperCase() + (pf.hull === s.kind ? ' · ACTIVE' : ''), sub: (has ? 'OWNED · switch · ' : s.price + ' gorCoin · ') + r28StatsLine(s.stats), fn: function () { r28Buy(s.kind); return false; } });
+            });
+            return { title: 'SHIPYARD · ' + CRF.fmt(pf.gor), rows: rows };
+        } });
+        return true;
+    }
+    function r28ShipCmd(arg) {
+        var pf = qPf(), own = r28Hulls(pf), a = String(arg || '').trim().toLowerCase(), i;
+        if (!a) { own.forEach(function (k, j) { showCmdRes((pf.hull === k ? '> ' : '  ') + (j + 1) + ' ' + k + ' · ' + r28HullName(k) + ' · ' + r28StatsLine(r28HullStats(k)), false); }); return 'SHIPS'; }
+        var kind = /^\d+$/.test(a) ? own[parseInt(a, 10) - 1] : own.filter(function (k) { return k === a; })[0];
+        if (!kind) { showCmdRes('NOT OWNED · /ship (buy hulls at the station shipyard)', true); return 'NO SHIP'; }
+        r28SetHull(pf, kind); showCmdRes('HULL ' + kind.toUpperCase(), false); return 'HULL ' + kind;
+    }
+
+    // ── 6. station board + greeting ──
+    var R28_QK = { kill: 'bounty', harvest: 'mine', deliver: 'trade', scan: 'scout', retrieve: 'mine', escort: 'trade' };
+    function r28Dock() {
+        var site = SITE(); if (!site || !site.interior || R27.dsite) return;
+        try {
+            var qb = site.interior.questBoard;
+            if (qb && qb.setQuests) { var offers = QST.offerSet('board|' + qDay(), questCtx('board'), 3); qb.setQuests(offers.map(function (q) { return { title: q.title, reward: (q.reward && q.reward.gor) | 0, kind: R28_QK[q.kind] || 'bounty' }; })); }
+            if (site.interior.greetingLine) addRow('STATION', '#8fa0ff', site.interior.greetingLine(qDay()));
+        } catch (e0) { console.info('[ship] r28Dock', e0); }
+    }
+
+    // ── 7. landmarks ──
+    function r28LmTick() {
+        if (!ps || !ps.active || typeof ps.landmarks !== 'function' || state !== 'piloting' || dead || boarding || exiting) return;
+        if (gmode !== 'foot' && gmode !== 'fly' && gmode !== 'landed') return;
+        var org = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position, list = ps.landmarks(), pf = curProfile(), i;
+        if (!pf) return;
+        for (i = 0; i < list.length; i++) {
+            var lm = list[i], key = 'lm-' + lm.id;
+            if (R28.lmSeen[key] || lm.pos.distanceTo(org) > 15 * L) continue;
+            R28.lmSeen[key] = 1;
+            var cid = String(key).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 48);
+            if (pf.disc.some(function (d) { return d.k === 'resource' && d.id === cid; })) continue;
+            evtBanner('LANDMARK DISCOVERED: ' + String(lm.name).toUpperCase()); addRow('', '', 'LANDMARK DISCOVERED: ' + String(lm.name).toUpperCase(), 'is-sys');
+            aPlay('landmark'); discClaim('resource', key, lm.name);
+        }
+    }
+
+    // ── master tick (called from r27Tick every frame) ──
+    function r28Tick(dt) {
+        if (space) r28ChunkTick(dt);
+        if (R28.gotT > 0) { R28.gotT -= dt; if (R28.gotT <= 0) { var ks = Object.keys(R28.got); if (ks.length) addRow('', '', 'MINED · ' + ks.map(function (k) { return '+' + R28.got[k] + ' ' + k; }).join(', '), 'is-sys'); R28.got = {}; writeSave(); } }
+        r28MineSave(dt);
+        R28.t -= dt; if (R28.t <= 0) { R28.t = 0.25; r28ShopTick(); if (invOpen && R28.book) r28BookFill(); }
+        R28.lmT -= dt; if (R28.lmT <= 0) { R28.lmT = 0.6; r28LmTick(); }
+    }
+
     var api = {
         rev27: {          // test hooks
             get R() { return R27; }, get sk() { return sk; }, get space() { return space; }, get hum() { return hum; }, get gnd() { return R27.gnd; }, get L() { return L; }, get gmode() { return gmode; }, get hp() { return hp; },
@@ -7607,6 +8027,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             fastForward: function () { var pf = curProfile(); pf.board.list.forEach(function (m) { if (m.end > 0) m.end = Date.now() - 1; }); missionTick(); return pf.gor; },
             assign: function (i) { var pf = curProfile(), b = r25Board(), m = b.list[i | 0], c = pf.crew.filter(function (x) { return !x.busy; })[0]; if (!m || !c) return false; m.crewId = c.id; m.start = Date.now(); m.end = m.start + m.minutes * 60000; c.busy = m.id; boardSync(); writeSave(); return true; },
             petItem: petItem, hire: function (c) { R25.cand = c; r25Hire(); }, tameFind: tameFind, tameStart: tameStart, get tame() { return tame; }, scrap: r25Scrap, ik: ik,
+        },
+        rev28: {
+            get R() { return R28; }, get dlg() { return { open: DLG.open, id: DLG.id, name: DLG.name, text: DLG.res ? DLG.res.text : '', choices: DLG.ch.map(function (c) { return c.label; }), done: !!(DLG.res && DLG.res.done), mood: DLG.mood }; },
+            shelfFind: r28ShelfFind, grab: r28Grab, checkout: r28Checkout, talk: r28Talk, pick: dlgPick, mineList: function () { return r28MineList(); }, mineBolt: r28MineBolt, chunkTick: r28ChunkTick, bookSet: r28BookSet,
+            buy: r28Buy, hulls: function () { return r28Hulls(qPf()).slice(); }, shipCmd: r28ShipCmd, openShipyard: openShipyard, dock: r28Dock, lmTick: function () { R28.lmT = 0; r28LmTick(); }, craftCtx: r28CraftCtx, bpDrop: r28BpDrop,
+            busted: r28Busted, copSay: r28CopSay, shopTick: r28ShopTick, storeAt: r28StoreAt
         },
         enemies: enemies, shipRoot: shipRoot,
         destroy: function () { if (net) { net.destroy(); net = null; } },
