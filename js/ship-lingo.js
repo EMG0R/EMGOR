@@ -150,6 +150,26 @@ const T = {
     'The prices here are {adj}. I said what I said.', 'Everything is [shiny] and I am [hungry]. Dangerous mix.', 'Every time I come here I forget what I wanted. Then I buy {thing}.', 'Have you tried the [sugar] aisle? [Joy].',
     'Shh. The clerk is watching. The clerk is always watching.', 'I only need one thing. It is {thing}. The aisle disagrees.',
   ],
+  // rev 27 shoplifting: guard (copwarn | copchase | copbusted), clerk about the cart (cart), shoppers who saw something (shoplift)
+  copwarn: [
+    'Hey. [Friend]. I saw that. Put it back or [pay] for it.', 'Slow down, {name}. The shelf is not a [gift]. Eyes are on you.', 'That is not yours yet. I am watching your hands, [friend].',
+    'One more and we have a [problem]. Station [law]. Keep your hands where I can see them.', 'I have a [good] view of aisle three. Think about that.',
+  ],
+  copchase: [
+    'STOP right there! [Law]! Drop the {thing}!', 'Hey! HEY! You! Bring that back! I will [run]. I am slow but I [never] stop.', 'Halt, thief! This is a [law] zone!', 'Shoplifter! Somebody [stop] them! Not you, {name}. The other one.',
+  ],
+  copbusted: [
+    'Got you. Hand it over. The fine is [gorcoin], the paperwork is forever.', 'That is the {adj}est shoplift I have ever stopped. Empty your pockets, [friend].', 'Busted. Items go back on the shelf. You pay the fine. I will [forget] the rest.',
+    'Eleven tickets yesterday. You are twelve. [Thanks] for the [gift].',
+  ],
+  cart: [
+    'You gonna pay for that? The [gorcoin] goes in the till, not the pocket.', 'Is that {thing} in your hands? That is a [buy], [friend]. Bring it to the counter.', 'I can see your cart from here. Pay up, then [fly].',
+    'Lots of {thing} in your arms, {name}. Ring it up, or the guard rings you.', 'That is a full cart, [friend]. I accept [gorcoin]. I do not accept [fast] excuses.',
+  ],
+  shoplift: [
+    'Did you see that? They took the {thing} and just... [walked]. Bold.', 'I did not see anything. I am a [quiet] shopper. I saw everything.', 'The guard is right there, [friend]. Maybe not that shelf.',
+    '[Shh]. I am not judging. Okay, I am a little [impressed].'.replace('[Shh]', '[Quiet]'), 'Careful. The guard does a loop every minute. I timed it. I have no [life].',
+  ],
 };
 const ROLE = {
   conspiracy: [
@@ -247,3 +267,143 @@ export function teach(known, n, rng) {
   return learned;
 }
 export const TEMPLATE_COUNTS = Object.fromEntries(Object.keys(T).map((k) => [k, T[k].length]));
+
+// ── seeded branching conversations (rev 26). No model calls; pure function of (npc.seed, state). ──
+//   converse(npc, state) -> { node, text, segments, choices:[{id,label,next}], effects:{teach,gor,mood,item?,quest?,learn?}, done }
+//   npc   = { seed, role, name?, known:Set, mood?:-2..2 }.   state = { next?: choice.next (omit to start), steps?, mood?, known?, item?, salt? }  (state is updated: node/steps/mood/lastAsk)
+//   The caller applies effects (teach via lingo.teach / effects.learn, gor, mood, item offer, quest). npc._n is never touched, so a seed always replays the same.
+import { RECIPES as CRAFT_RECIPES } from './ship-craft.js';
+const CV_ALIAS = { cashier: 'clerk', store: 'clerk', cop: 'stationcop', retired: 'retired', 'retired pilot': 'retired', retiredpilot: 'retired', fries: 'fries', burger: 'fries' };
+const CV_TOPICS = ['gossip', 'lore', 'trade', 'mission', 'personal'];
+const CV_LABEL = {
+  gossip: ['Heard anything lately?', 'Any gossip?', 'What is the word around here?', 'Got any rumors?'],
+  lore: ['Tell me something old.', 'Any history around here?', 'What is the oldest story you know?', 'Got any lore?'],
+  trade: ['What can I get?', 'Let us talk business.', 'Anything for sale?', 'What do you deal in?'],
+  mission: ['Any work going?', 'Need a hand with something?', 'Got a job for me?', 'Anything need doing?'],
+  personal: ['How are you, really?', 'What is your story?', 'What do you do out here?', 'Where are you from?'],
+};
+const CV_MORE = ['Go on.', 'Tell me more.', 'And then?', 'Keep going.'];
+const CV_BYE = ['Thanks. Bye.', 'See you around.', 'I should go.', 'Safe skies.'];
+const CV_RUDE = ['Whatever. Bye.', 'Boring. Leaving.', 'Not interested.'];
+const CV = {
+  greeting: ['{greet}! What brings you over?', '{greet}. You look like you have questions.', '{greet}, traveller. Talk or buy, both are fine.', '{greet}. I have a minute. Maybe two.', '{greet}! You again? New face, I mean. {name} here.',
+    '{greet}, {name}. Mind the {adj} floor.', 'Oh! {greet}. I was just muttering about {thing}.', '{greet}. Pull up a [void] and sit.', '{greet}! Everyone here is {adj} today. Including you.', '{greet}. Careful, I talk a lot.', '{greet}, [friend]. Ask away.', '{greet}. The [day] is long, the chat is [free].'],
+  gossip: ['They say {who} was seen {place}. {quip}', 'Word is the [toll] went up again. I blame {who}.', 'Somebody sold {thing} for double. {quip}', 'I heard {who} lost a [ship] in a card game.', 'Rumor: there is a [secret] door {place}. {quip}',
+    'The [guard] was [fool]ed by {who}. Everyone saw.', 'Nobody talks about {place}. So everybody does.', 'Apparently {thing} is the new [gold]. {quip}', 'Between us, {who} owes me a [song]. {quip}', 'Heard the [law] is checking [gorcoin]s now. {quip}', 'Big [rumor] today: the [moon] is hollow. {quip}', 'My cousin says {who} sleeps {place}. {quip}'],
+  lore: ['Long ago the [star]s were [quiet]. Then someone invented [fries].', 'The first [station] was built on a [dream] and a loan.', 'They say the [void] hums a [song] if you [listen] long enough.', 'An [ancient] [pirate] buried [gold] {place}. Or [salt]. Accounts differ.',
+    'Before [gorcoin] there was [dust]. Before [dust], favors.', 'The [moon] was once a [planet]. It never forgave anyone.', 'Old [map]s show a [bright] star that is not there now.', 'The black hole is just the [void] with better PR.', 'Pilots say you can [taste] the [sky] before a storm.', 'Every [planet] hides one [rare] thing. Most hide [dust].', 'My grandmother [whisper]ed that [ice] remembers.', 'The shards are the [ancient] [song], cooled and cut.'],
+  trade: ['Prices are {adj} today. {quip}', 'I can do you a [deal]. Not a [good] one. A [deal].', 'Everything is for [sell] except my [friend]s.', 'Supply is [small], demand is [big], my mood is both.', 'Ask me about {thing}. I mean it.',
+    'For you, a [cheap] price. For them, the other price.', 'Rule one: never [buy] on an empty stomach.', 'Bring [gorcoin]. Bring more than you think.', 'The [best] [deal] is the one you walk away from. Then come back.', 'Stock is [fresh], conscience is not.', '[Trade] is just talking with receipts.', 'I do not haggle. I negotiate with feelings.'],
+  mission: ['I need {thing} from {place}. Bring it back, and I will make it worth your while.', 'A small job: find the [lost] crate near {place}. Easy. Mostly.', 'Someone must [listen] to the [void] for me. It pays in [gorcoin].', 'Scout {place} and tell me if it is still there.',
+    'Deliver this note to {who}. Do not read it. I will know.', 'There is a [pirate] problem. I have a [mission] and no [ship].', 'Bring me something [rare]. I will know it when I see it.', 'My [crew] quit. Be my crew. Just today.', 'I will give you a [map]. You give me a [good] story.', 'Fetch [water] from a [ice] moon. Do not ask.', 'It is a [work] job, honest, mostly.', 'The [station] board is full. I have the unlisted one.'],
+  personal: ['Me? I came for a day. That was years ago.', 'I miss [home]. The [home] I picture, anyway.', 'I like [quiet] [night]s and loud [coffee].', 'Honestly? Some days I [fear] the [void]. Today I [love] it.',
+    'I am saving for a [ship]. Prices keep [fly]ing away.', 'My [dream]? A [small] place with a [big] window.', 'I never learned to [dance]. Do not tell anyone.', 'I have been here since the [door] was new.', 'People ask where I am from. I say [far].'.replace('[far]', '[home]'), 'I talk to strangers because [quiet] gets loud.', 'I collect [song]s. Hum me one sometime.', 'Being kind costs nothing. Everything else here does.'],
+  goodbye: ['{bye}. Come again.', '{bye}! Mind the [door].', 'Off you go, then. {bye}.', '{bye}, [friend]. Keep your [wallet] close.', 'Already? Fine. {bye}.', '{bye}. I was enjoying that.', 'Go. Explore. {bye}.', '{bye}! Tell them {name} sent you.', '{bye}. Stay [warm].', '{bye}. I will be right here. I am always right here.', 'See you [soon], or [never]. {quip}', '{bye}. Do not forget {thing}.'],
+  rude: ['Hmph. {bye}, I suppose.', 'Rude. Fine. Go.', 'Door is that way. It has opinions about you.', 'Wow. Okay. [Goodbye]-ish.'.replace('[Goodbye]', '[Thanks]'), 'Noted. Mood: [hate].', 'Sure. Leave. See if I care. I care a bit.', 'The [fool] leaves. Of course.', 'Fine. Come back with manners.', 'You too, I guess.', 'Leaving mid-sentence. Bold.'],
+  dealer: ['Menu today: {item}, {price} [gorcoin]. Look no further.', 'Hot off the [fire]: {item}. {price}. Do not ask where.', 'Psst. {item}. {price}. You did not see me.', 'Best in the [void]: {item}. {price} and it is yours.', '{item}, {price}. I would [buy] it myself, if I were you.',
+    'Special for you, [friend]: {item} at {price}.', 'It is {item} or nothing. {price}, no refunds.', 'I got {item}. It is [rare]. It is {price}. Both facts are true.', 'Try {item}. {price}. Taste of [danger].', 'Shiny {item}, {price}. One careful owner.', 'Look: {item}. {price}. Blink and it is gone.', 'You want {item}? It wants you. {price}.'],
+  craft: ['Pro tip: mix things and see what happens. Try making {recipe}.', 'Crafting hint: {recipe} is a good one. Check the 3x3 grid.', 'Ever made {recipe}? Lay the parts out on the grid and see.', 'Between us: the grid knows how to build {recipe}.', 'I once built {recipe} out of leftovers. Try it.',
+    'Stack your spare bits. {recipe} is hiding in there somewhere.', 'Hint: {recipe}. Parts on the grid, shapes matter.', 'The [best] hobby: making {recipe} from trash.', 'Bring me nothing, make {recipe}. It works.', 'Not sure how, but {recipe} is craftable. Experiment.', 'The grid loves {recipe}. Feed it.', 'Someone showed me {recipe} once. I still think about it.'],
+  wordask: ['"{w}" means "{c}". Now you owe me one.', '{w}? That is "{c}". Easy once you hear it.', 'Ha. "{w}" is "{c}", [friend].', 'It is just "{c}". Say it with an accent.', 'Oh, {w}. "{c}". I say it forty times a day.', '"{c}". That is all. {w} is "{c}".', '{w} means "{c}". Do not forget it.', 'Good ear. "{w}" = "{c}".', 'Hm, "{w}"? "{c}". Use it well.', 'Careful with {w}. It is "{c}" and it bites.'],
+};
+const CV_ROLE = {
+  dealer: { personal: ['Dealing is honest work. Mostly.', 'My stock moves faster than my conscience.', 'Cheap is a feeling, not a price.'], trade: ['My menu changes by the hour. Keep up.'] },
+  clerk: { personal: ['The register and I have an understanding.', 'Eight hours of [fries] smell. I miss my nose.', 'I know everyone by what they buy.'], trade: ['Scan, bag, smile. In that order.'] },
+  fries: { personal: ['I have not seen daylight since the [salt] shipment.', 'The [grease] is old. The recipe is older.', 'Fries are not food. They are a promise.'], trade: ['One bag, two bags. Never zero.'] },
+  stationcop: { personal: ['I wanted to be a pilot. I got a badge.', 'It is mostly paperwork and [coffee].', 'Do not run in the [station]. I will chase you, slowly.'], lore: ['Station [law] was written on a napkin. We still have the napkin.'] },
+  tourist: { personal: ['I came for the [fries]. Staying for the [fries].', 'I am on a tour. The guide left. The tour continued.', 'Where I come from, [door]s do not talk.'], gossip: ['A local told me this is a pirate cafe. Is it?'] },
+  pilot: { personal: ['I am looking for a [ship] that will take me.', 'Fresh off the academy. Nervous. Eager.', 'My last [ship] is still in orbit. Somewhere.'], mission: ['I need a co-pilot for one quiet run.'] },
+  retired: { personal: ['Retired. [Quiet] life. Loud knees.', 'I flew when the [sky] had fewer lanes.', 'I miss the [void]. Not the paperwork.'], lore: ['Three tours past the rim, and the [coffee] here is still the [best] thing I found.'] },
+  miner: { personal: ['Twenty years of [dust]. I love it. My lungs do not.', 'Rocks are honest. People are not.', 'Dig deep, [sell] high.'], mission: ['I need [ice] and [gold]. A haul pays well.'] },
+  chef: { personal: ['I cook what [hungry] people deserve.', 'A pinch of [salt], a pinch of [danger].', 'The perfect [fries] is a rumor.'], trade: ['I trade recipes for [rare] spices.'] },
+  scout: { personal: ['I map what is not on the [map].', 'First one in, last one to complain.', 'I sleep under [star]s. Mostly.'], lore: ['I found a [bright] ruin once. It was gone by morning.'] },
+  conspiracy: { gossip: ['The shelves are [map]s. They always were.', 'Nobody can prove the [moon] exists.'], lore: ['Wake up. The [void] is a ceiling.'] },
+  kid: { personal: ['I am [small] but I am going to be [big].', 'Mom says do not talk to strangers. You are fine.', 'I am building a [ship] from boxes.'], mission: ['Find my toy [ship]! It is [lost] under the aisle.'] },
+  shopper: {},
+};
+const cvH = (s) => hashStr(s);
+function cvRole(npc) { let r = String(npc.role || 'shopper').toLowerCase(); r = CV_ALIAS[r] || r; if (r === 'pilot' && npc.active) return 'pilot'; if (r === 'pilot') return 'retired'; return CV_ROLE[r] || r === 'retired' ? r : 'shopper'; }
+function cvSpeak(npc, tpl, r, vars, pTrans) {
+  const seed = seedOf(npc.seed || 0), known = npc.known;
+  let s = expand(tpl, r, vars);
+  s = s.replace(/\[([A-Za-z]+)\]/g, (m, w) => {
+    const cap = w.charAt(0) !== w.charAt(0).toLowerCase(), key = w.toLowerCase();
+    if ((known && known.has(key)) || (CONCEPTS.indexOf(key) >= 0 && r() < pTrans)) return key === 'gorcoin' ? 'gorCoin' : (cap ? capital(key) : key);
+    const a = word(seed, key);
+    if (a === key && CONCEPTS.indexOf(key) < 0) return cap ? capital(key) : key;
+    return ALIEN_OPEN + (cap ? capital(a) : a) + ALIEN_CLOSE;
+  });
+  s = s.replace(/\s+/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
+  return s.replace(/(^|[.!?]\s)(​?)([a-z])/g, (m, a, b, ch) => a + b + ch.toUpperCase());
+}
+export function converse(npc, state) {
+  npc = npc || {}; state = state || {};
+  const seed = seedOf(npc.seed || 0), role = cvRole(npc), known = state.known || npc.known || new Set();
+  const mood = Math.max(-2, Math.min(2, Math.round(state.mood != null ? state.mood : (npc.mood != null ? npc.mood : 0))));
+  const nxt = state.next || 'greeting', parts = String(nxt).split(':'), id = parts[0];
+  const steps = state.steps = (state.steps | 0) + 1;
+  const r = mulberry(seed ^ cvH('cv:' + nxt) ^ Math.imul(steps, 0x9E3779B1) ^ cvH(npc.name || role) ^ cvH(String(state.salt || '')));
+  const pTrans = Math.min(0.55, (known.size / CONCEPTS.length) * 0.9 + (mood > 0 ? 0.08 * mood : 0));
+  const stage2 = /2$/.test(id), topic = id.replace(/2$/, '');
+  const nm = npc.name || name(seed);
+  const vars = { name: nm, role, item: state.item ? (state.item.name || state.item) : 'mystery snack', price: state.item && state.item.price != null ? state.item.price : Math.round(5 + r() * 60) };
+  const effects = { teach: 0, gor: 0, mood: 0 };
+  let kind = topic, extra = '', done = false, recipe = null, wv = null;
+  const pool = (k) => (CV[k] || CV.gossip).concat((CV_ROLE[role] && CV_ROLE[role][k]) || []);
+  if (id === 'wordask') { kind = 'wordask'; const c = parts[1] || 'hello'; wv = { w: ALIEN_OPEN + word(seed, c) + ALIEN_CLOSE, c }; effects.teach = 1; effects.learn = [c]; effects.mood = 1; (state.asked || (state.asked = new Set())).add(c); }
+  else if (id === 'goodbye') { kind = parts[1] === 'rude' ? 'rude' : 'goodbye'; done = true; if (kind === 'rude') effects.mood = -1; else if (mood >= 1) effects.gor = 2; }
+  else if (id === 'trade' || id === 'trade2') {
+    if (role === 'dealer' || role === 'fries') { if (stage2 || r() < 0.0) kind = 'trade'; else kind = 'dealer'; effects.item = 'offer'; if (stage2) kind = 'dealer'; }
+    else if (role === 'clerk') { kind = stage2 ? 'craft' : 'trade'; }
+  }
+  if (kind === 'craft') { const rs = (CRAFT_RECIPES || []).filter((q) => q && q.name); recipe = rs.length ? rs[Math.floor(r() * rs.length)].name : 'something'; vars.recipe = recipe; effects.craft = recipe; }
+  if (stage2 && topic === 'lore') { effects.teach = 1; }
+  if (stage2 && topic === 'mission') { if (mood >= 0) { effects.quest = true; effects.gor = 5; } else { effects.mood = 0; } }
+  if (stage2 && topic === 'personal') { effects.mood = 1; if (mood >= 1) effects.gor = 3; }
+  if (stage2 && topic === 'gossip' && mood >= 1) effects.teach = 1;
+  if (id === 'greeting') effects.mood = 0;
+  const mainPool = pool(kind);
+  const tpl = (kind === 'wordask') ? CV.wordask[Math.floor(r() * CV.wordask.length)] : mainPool[Math.floor(r() * mainPool.length)];
+  if (wv) { vars.w = wv.w; vars.c = wv.c; }
+  let text = cvSpeak(npc, tpl, r, vars, pTrans);
+  if (mood <= -1 && id !== 'greeting' && !done && r() < 0.6) text = 'Hmph. ' + text;
+  if (id === 'greeting' && mood <= -1) text = cvSpeak(npc, '{greet}. Make it quick.', r, vars, pTrans);
+  const segments = render(text, seed);
+  // choices
+  const choices = [];
+  const avail = CV_TOPICS.filter((t) => {
+    if (mood <= -1 && (t === 'personal' || t === 'mission')) return false;
+    if (t === 'lore' && known.size < 3 && mood < 1) return false;
+    if (t === 'mission' && known.size < 2 && mood < 1) return false;
+    if (t === 'personal' && mood < 0 && r() < 0.5) return false;
+    return true;
+  });
+  const shuffled = avail.slice().sort(() => r() - 0.5);
+  if ((role === 'dealer' || role === 'clerk' || role === 'fries') && id === 'greeting') { const i = shuffled.indexOf('trade'); if (i > 0) { shuffled.splice(i, 1); shuffled.unshift('trade'); } }
+  const pickLabel = (arr) => arr[Math.floor(r() * arr.length)];
+  const leave = () => ({ id: 'leave', label: pickLabel(mood <= -1 || r() < 0.2 ? CV_RUDE : CV_BYE), next: (mood <= -1 || r() < 0.2) ? 'goodbye:rude' : 'goodbye' });
+  const lastLeave = { id: 'leave', label: pickLabel(CV_BYE), next: 'goodbye' };
+  if (done) { /* terminal */ }
+  else if (steps >= 5) choices.push(lastLeave);
+  else {
+    const asked = state.asked || (state.asked = new Set());
+    const alienSeg = segments.filter((sg) => sg.alien && sg.concept && !known.has(sg.concept) && !asked.has(sg.concept));
+    if (id === 'greeting') {
+      for (const t of shuffled.slice(0, mood >= 1 ? 2 : 2)) choices.push({ id: t, label: pickLabel(CV_LABEL[t]), next: t });
+      if (mood >= 2 && shuffled[2]) choices.push({ id: shuffled[2], label: pickLabel(CV_LABEL[shuffled[2]]), next: shuffled[2] });
+      else choices.push(leave());
+    } else {
+      if (!stage2 && TOPIC_DEEP.has(topic) && id !== 'wordask') choices.push({ id: topic + '2', label: pickLabel(CV_MORE), next: topic + '2' });
+      const other = shuffled.find((t) => t !== topic);
+      if (alienSeg.length && r() < 0.7 && choices.length < 2) { const sg = alienSeg[Math.floor(r() * alienSeg.length)]; choices.push({ id: 'ask', label: 'What does "' + sg.text + '" mean?', next: 'wordask:' + sg.concept }); }
+      if (other && choices.length < 2) choices.push({ id: other, label: pickLabel(CV_LABEL[other]), next: other });
+      if (!choices.length && shuffled[0]) choices.push({ id: shuffled[0], label: pickLabel(CV_LABEL[shuffled[0]]), next: shuffled[0] });
+      choices.push(leave());
+    }
+  }
+  if (!done && !choices.length) choices.push(lastLeave);
+  state.node = id; state.mood = mood + (effects.mood || 0);
+  return { node: nxt, text, segments, choices: choices.slice(0, 3), effects, done };
+}
+const TOPIC_DEEP = new Set(['gossip', 'lore', 'trade', 'mission', 'personal']);
+export const CONVERSE_ROLES = ['shopper', 'clerk', 'dealer', 'stationcop', 'tourist', 'pilot', 'miner', 'chef', 'scout', 'conspiracy', 'kid', 'retired', 'fries'];

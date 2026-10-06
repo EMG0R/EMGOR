@@ -9,6 +9,7 @@ import * as ITM from './ship-items.js';
 import * as LNG from './ship-lingo.js';
 import * as ENM from './ship-enemies.js';
 import * as CRF from './ship-craft.js';
+import * as QST from './ship-quests.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
 // ─── tuning (world units / seconds; L = ship length) ────────────────
@@ -334,11 +335,12 @@ export default function mount(engine) {
     setHull(fallbackDart());
     import('./ship-hull.js').then(function (m) {
         try {
+            hullSigNow = (typeof m.hullSignature === 'function') ? m.hullSignature(hullOptsFor(curProfile())) : '';
             var h = buildHullKind(m, hullFor(curProfile())); if (h) setHull(h);
-            hullLow = m.buildHull(THREE, { lod: 'low' }); hullLow.traverse(function (o) { o.frustumCulled = false; }); shipRoot.add(hullLow);
+            hullLow = m.buildHull(THREE, hullOptsFor(curProfile(), 'low')); hullLow.traverse(function (o) { o.frustumCulled = false; }); shipRoot.add(hullLow);
             tintGhost(hullLow, effColor());
             syncLod();
-            allyTpl = m.buildHull(THREE); tintAlly(allyTpl);
+            allyTpl = m.buildHull(THREE); tintAlly(allyTpl); if (net && net.setHullSig && hullSigNow) net.setHullSig(hullSigNow);
         } catch (e) { console.warn('[ship] ship-hull failed, keeping dart', e); }
     }).catch(function () { /* keep the fallback dart */ });
     scene.add(shipRoot);
@@ -505,13 +507,25 @@ export default function mount(engine) {
         if (!Array.isArray(o.petPens)) o.petPens = [];    // rev 25: pet items living in the pens (index = pen)
         o.petPens = o.petPens.slice(0, 4);
         if (!Array.isArray(o.taken)) o.taken = [];        // rev 25: tamed creatures hidden on their planet [{n: planet id, x,y,z: planet-local}]
-        o.taken = o.taken.filter(function (t) { return t && typeof t.n === 'string' && isFinite(t.x + t.y + t.z); }).slice(-40);
+        o.taken = o.taken.filter(function (t) { return t && typeof t.n === 'string' && (typeof t.id === 'string' || isFinite(t.x + t.y + t.z)); }).slice(-40);      // rev 26: {n: planet id, id: ps creature id, k: kind}; old {x,y,z,c} entries are kept but no longer hide anything
+        if (!o.suit || typeof o.suit !== 'object' || Array.isArray(o.suit)) o.suit = {};      // rev 27: on-foot suit tiers 0..3 (7/11 GEAR tab + crafted kits)
+        ['jetpack', 'scanner', 'sprint', 'storage'].forEach(function (k) { o.suit[k] = clamp(o.suit[k] | 0, 0, 3); });
+        if (!o.rep || typeof o.rep !== 'object' || Array.isArray(o.rep)) o.rep = {};      // rev 27: convoy reputation
+        o.rep = { corp: isFinite(o.rep.corp) ? clamp(+o.rep.corp, -99, 99) : 0, dealers: isFinite(o.rep.dealers) ? clamp(+o.rep.dealers, -99, 99) : 0 };
+        if (!Array.isArray(o.disc)) o.disc = [];      // rev 27: my discoveries [{k: kind, id, name, by}] (observation-room plaques)
+        o.disc = o.disc.filter(function (d) { return d && typeof d.id === 'string' && typeof d.k === 'string'; }).slice(-120);
+        o.savedAt = isFinite(o.savedAt) ? +o.savedAt : 0;      // rev 27: last local change (relay profile sync picks the newer side)
         if (!o.board || typeof o.board !== 'object' || Array.isArray(o.board)) o.board = { seed: 0, day: '', list: [] };      // rev 25: mission board {seed, day, list[{id,name,kind,minutes,gor,crewId,start,end}]}
         if (!Array.isArray(o.board.list)) o.board.list = [];
         o.board.list = o.board.list.filter(function (m) { return m && typeof m === 'object' && typeof m.id === 'string'; }).slice(0, 6);
         if (!o.harv || typeof o.harv !== 'object' || Array.isArray(o.harv)) o.harv = {};      // rev 25: harvested resource nodes {id:{n,at}} (the world respawns them 20 min after `at`)
         o.visits = Math.max(0, o.visits | 0);             // Burger House visits (every 3rd offers a recruit)
         o.pens = Math.max(0, o.pens | 0); o.pods = Math.max(0, o.pods | 0);
+        if (!Array.isArray(o.quests)) o.quests = [];     // rev 26: active quests (ship-quests.js objects + acceptedAt / expiresAt), max 3
+        o.quests = o.quests.filter(function (q) { return q && typeof q === 'object' && typeof q.id === 'string' && Array.isArray(q.steps); }).slice(0, 3);
+        if (!Array.isArray(o.qdone)) o.qdone = [];
+        o.qdone = o.qdone.filter(function (x) { return typeof x === 'string'; }).slice(-80);
+        if (!o.onb || typeof o.onb !== 'object' || Array.isArray(o.onb)) { var oldP = (o.created > 0) || (o.kills | 0) > 0 || (o.bestWave | 0) > 0; o.onb = { step: oldP ? 4 : 0, done: !!oldP, res: !!oldP, npc: !!oldP }; }      // rev 26: onboarding flags (only a brand-new profile sees the prompts)
         if (!Array.isArray(o.known)) o.known = [];       // rev 23: learned lingo words
         o.known = o.known.filter(function (w) { return typeof w === 'string'; }).slice(0, 400);
         o.glowUntil = (typeof o.glowUntil === 'number' && isFinite(o.glowUntil)) ? o.glowUntil : 0;     // rev 23: fries glow expiry (epoch ms)
@@ -541,7 +555,7 @@ export default function mount(engine) {
         var w = shownWave();
         if (w > bestWave) bestWave = w;
         var pf = curProfile();
-        if (pf) { pf.kills = Math.max(pget(pf, 'kills', 0) | 0, kills); pf.bestWave = Math.max(pget(pf, 'bestWave', 0) | 0, bestWave); }
+        if (pf) { pf.kills = Math.max(pget(pf, 'kills', 0) | 0, kills); pf.bestWave = Math.max(pget(pf, 'bestWave', 0) | 0, bestWave); r27Touch(pf); }
         saveData.wave = w; saveData.kills = kills; saveData.bestWave = bestWave; saveData.difficulty = difficulty; saveData.peaceful = peaceful; saveData.volume = volume; saveData.users = users; saveData.user = curUser;
         flushSave();
     }
@@ -559,7 +573,37 @@ export default function mount(engine) {
     function curProfile() { var n = userName(); return (users && Object.prototype.hasOwnProperty.call(users, n)) ? users[n] : null; }
     function ensureProfile(name) { if (!Object.prototype.hasOwnProperty.call(users, name)) users[name] = migrateProfile({}); return users[name]; }
     function hullFor(profile) { return pget(profile, 'hull', 'hauler'); }
-    function buildHullKind(m, kind) { return m.buildHull(THREE); }      // only 'hauler' exists today
+    // rev 26: the hull follows the profile (tiers + weapon mods). ship-hull.js buildHull(THREE,{lod,kind,upgrades,mods}) / hullSignature(opts); every use is guarded so an older ship-hull still builds the plain hull.
+    var hullSigNow = '', hullChk = 0;
+    function hullOptsFor(pf, lod) {
+        var u = (pf && pf.upgrades) || {}, wm = (pf && pf.weapon && pf.weapon.mods) || {}, o = {
+            kind: hullFor(pf),
+            upgrades: { engine: Math.max(pget(pf, 'engineTier', 0) | 0, u.engine | 0), shield: Math.max(pget(pf, 'shieldTier', 0) | 0, u.shield | 0), cargo: u.cargo | 0, jetpack: u.jetpack | 0 },
+            mods: { scope: !!wm.scope, coil: !!wm.coil, chamber: !!wm.chamber }
+        };
+        if (lod) o.lod = lod;
+        return o;
+    }
+    function optsFromSig(sig) {          // 'hauler|e1s2c0j0|SC' -> opts (ghosts)
+        var m = /^(\w+)\|e(\d)s(\d)c(\d)j(\d)\|([SCH]*)$/.exec(String(sig || ''));
+        if (!m) return null;
+        return { kind: m[1], upgrades: { engine: +m[2], shield: +m[3], cargo: +m[4], jetpack: +m[5] }, mods: { scope: m[6].indexOf('S') >= 0, coil: m[6].indexOf('C') >= 0, chamber: m[6].indexOf('H') >= 0 } };
+    }
+    function buildHullKind(m, kind) { return m.buildHull(THREE, hullOptsFor(curProfile())); }
+    function hullTick(dt) {              // rebuild the player hull when the profile's tiers / mods change; tell the relay so ghosts match
+        hullChk -= dt; if (hullChk > 0) return; hullChk = 1;
+        var m = hullMod; if (!m || typeof m.hullSignature !== 'function' || !hullLow) return;
+        var pf = curProfile(), sig = '';
+        try { sig = m.hullSignature(hullOptsFor(pf)); } catch (e0) { return; }
+        if (sig === hullSigNow) return;
+        hullSigNow = sig;
+        try {
+            setHull(buildHullKind(m, hullFor(pf)));
+            var lo = m.buildHull(THREE, hullOptsFor(pf, 'low')); lo.traverse(function (o) { o.frustumCulled = false; });
+            if (hullLow) shipRoot.remove(hullLow); hullLow = lo; shipRoot.add(lo); tintGhost(lo, effColor()); syncLod();
+            if (net && net.setHullSig) net.setHullSig(sig);
+        } catch (e1) { console.info('[ship] hull rebuild skipped', e1); }
+    }
     function profileColor() { var c = pget(curProfile(), 'color', null); return typeof c === 'number' ? c : null; }
     // rev 13: every profile without a stored color gets a stable random saturated one seeded from its name hash (claude keeps orange; /color overrides)
     function hslHex(h, s, l) {
@@ -1556,7 +1600,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function bossSeedName() {           // rev 17: every boss spawn is unique: seed = hash(wave, spawn counter, relay epoch)
         var h = 2166136261, ep = (net && net.epoch) | 0, a = [wave, ++bossCtr, ep, (Math.random() * 1e6) | 0];
         for (var i = 0; i < a.length; i++) { h ^= a[i] | 0; h = Math.imul(h, 16777619); h ^= h >>> 13; }
-        return bossName((h >>> 0) % 1000003);
+        return bountyNameFor() || bossName((h >>> 0) % 1000003);
     }
     var BOSS_ROLES = [4, 0, 1, 3, 2];                 // palette/stat family cycle for bosses (brood, interceptor, spitter, lancer, sniper)
     function spawnWave(bodies) {
@@ -1653,6 +1697,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function placeSpawn(bodies, i) {
         var kind = qKind[i];
         spawnPad = genLen(qTier[i], kind);
+        if (kind === 3 && R27.titan && qTitle[i] === R27.titan.title) { vAim.copy(R27.titan.pos); R27.titan = null; return true; }      // rev 27: relay event titan, placed by the named planet
         if (kind === 3) { vAim.copy(shipRoot.position).addScaledVector(dirA, 1.4 * spawnPad + 400 * L); return true; }
         if (kind > 0 && formPos[qTitle[i]]) { vAim.copy(formPos[qTitle[i]]); return true; }
         if (kind > 0) {          // rev 14: a static boss parks 0.7 x its length + 160 L out, clear of every planet shell
@@ -1874,6 +1919,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         scanT = SCAN_T; scanCd = SCAN_CD;
         elScan.classList.remove('is-on'); void elScan.offsetWidth; elScan.classList.add('is-on');
         aPlay('scan', { vel: 1 });
+        questScan();
         return true;
     }
     var vHl = new THREE.Vector3(), vHl2 = new THREE.Vector3();
@@ -1898,6 +1944,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (op !== cScanOp) { cScanOp = op; elHls.style.opacity = String(op); }
         org = ((gmode === 'foot' || gmode === 'sfoot') && hum.obj) ? hum.w : shipRoot.position;
         w = world && world.node ? world : null;
+        if (gmode === 'foot') scanGlow(dt, org, w);
         if (w && w.stores) for (i = 0; i < w.stores.length; i++) { var st = w.stores[i]; hlMark(locToWorld(st.pos, vHl2), 'store', String(st.name || 'STORE').toUpperCase(), org); }
         if (ps && ps.outposts) for (i = 0; i < ps.outposts.length; i++) {
             var op0 = ps.outposts[i], pp = posOf(op0), dup = false;
@@ -1930,7 +1977,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function talkNpc(st) {
         addRow(clerkName(st), '#ffd36a', clerkLine(st) || '...');
-        aPlay('npc', { seed: st.id });
+        aPlay('npc', { seed: st.id }); openQuests(st.id, clerkName(st), 'clerk');
     }
     // music (audio.music, ship-audio.js): key from the nearest planet's palette hue, intensity from the combat state (0.2 idle / 0.6 enemies near / 0.9 boss)
     var musT = 0, musOn = false, musKey = -1, musInt = -1, musHsl = { h: 0, s: 0, l: 0 };
@@ -2097,7 +2144,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             vB.copy(X).applyQuaternion(shipRoot.quaternion);
             for (var di = 0; di < 3; di++) { vA.copy(vLoot).addScaledVector(vB, (di - 1) * 7 * L); spawnDrop(vA, DROP_VAL * 2); }
             spawnCrate(vLoot, wpnMod ? wpnMod.lootTier(wave, true) : 1);
-            announceBoss('BOSS DOWN · ' + title);
+            announceBoss('BOSS DOWN · ' + title); bossKilled(title);
         } else if (Math.random() < 0.1 && !peaceful) spawnCrate(vKill, wpnMod ? wpnMod.lootTier(wave, false) : 0);
     }
     // rev 9 C: at <= 45 % HP an enemy flees (telegraph -> 3x burst -> regen circle -> return); max FLEE_MAX times
@@ -3464,11 +3511,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var raw = String(str == null ? '' : str).trim().replace(/^\/+/, '');
         if (perfMod && /^quality\b/i.test(raw)) { var qr = perfMod.applyQualityCommand(raw); if (qr !== null) return ok(qr); }
         if ((m = /^user(?:\s+(.*))?$/i.exec(raw))) {
-            var un = String(m[1] || '').replace(/[^\x20-\x7e]/g, '').trim().slice(0, 16);
-            if (!un || un === '__proto__') return bad('USAGE · /user NAME');
+            var ua = String(m[1] || '').replace(/[^\x20-\x7e]/g, '').trim().split(/\s+/), un = (ua[0] || '').slice(0, 16), ukey = ua.slice(1).join(' ').slice(0, 64);
+            if (!un || un === '__proto__') return bad('USAGE · /user NAME [KEY]');
             curUser = un; ensureProfile(un);
-            applyProfile(); writeSave();
+            applyProfile(); writeSave(); suitSync(true);
             announce('USER ' + un.toUpperCase());
+            if (ukey) { if (ukey.length < 4) return bad('KEY NEEDS 4+ CHARACTERS'); if (!/^[a-z0-9_-]{2,20}$/i.test(un)) return bad('RELAY NAME · 2-20 of a-z 0-9 _ -'); return ok('USER ' + un + ' · ' + r27Login(un, ukey)); }
             return ok('USER ' + un);
         }
         if ((m = /^colou?r(?:\s+(.*))?$/i.exec(raw))) {
@@ -3919,7 +3967,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     import('./ship-human.js').then(function (m) { humanMod = m; }).catch(function () { /* capsule fallback */ });
     function makeHuman(color) {                 // { group (a holder, oriented + scaled by the caller), update(dt, st), setColor, dispose }
         var h = null, holder = new THREE.Group();
-        if (humanMod && typeof humanMod.createHuman === 'function') { try { h = humanMod.createHuman(THREE, { color: color }); } catch (e) { h = null; } }
+        if (humanMod && typeof humanMod.createHuman === 'function') { try { h = humanMod.createHuman(THREE, { color: color, suit: suitOf(curProfile()) }); } catch (e) { h = null; } }
         if (!h) {
             var cm = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.6, 3, 8), new THREE.MeshBasicMaterial({ color: color }));
             cm.position.y = 0.46;
@@ -3928,7 +3976,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         }
         holder.add(h.group);
         holder.traverse(function (o) { o.frustumCulled = false; });
-        return { group: holder, update: function (dt, st) { try { h.update(dt, st); } catch (e) { /* ignore */ } }, setColor: function (c) { try { h.setColor(c); } catch (e) { /* ignore */ } }, dispose: function () { try { h.dispose(); } catch (e) { /* ignore */ } } };
+        return { group: holder, nozzles: function () { return (h.group && h.group.userData && h.group.userData.jetNozzles) || null; }, setSuit: function (s) { try { if (h.setSuit) h.setSuit({ suit: s }); } catch (e) { /* ignore */ } }, update: function (dt, st) { try { h.update(dt, st); } catch (e) { /* ignore */ } }, setColor: function (c) { try { h.setColor(c); } catch (e) { /* ignore */ } }, dispose: function () { try { h.dispose(); } catch (e) { /* ignore */ } } };
     }
     function hullDrop() {                       // how far below the hull origin the landing feet reach, in L
         var d = 0;
@@ -3965,6 +4013,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function touchdown() {
         gmode = 'landed'; camRelInit = false;
         aPlay('land', { vel: 1 });
+        discPlanet(land.node);
         land.sPos.copy(land.gDir).multiplyScalar(land.rg); land.sQuat.copy(land.qTo);
         gA.copy(land.gDir).applyQuaternion(land.node.mesh.quaternion);
         gB.copy(shipRoot.position).addScaledVector(gA, -legDrop * L);
@@ -4066,6 +4115,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         for (i = 0; i < drops.length; i++) if (drops[i].active) { drops[i].m.position.x += ddx; drops[i].m.position.y += ddy; drops[i].m.position.z += ddz; }
         for (i = 0; i < orbs.length; i++) if (orbs[i].active) { orbs[i].m.position.x += ddx; orbs[i].m.position.y += ddy; orbs[i].m.position.z += ddz; }
         for (i = 0; i < crates.length; i++) if (crates[i].active) { crates[i].g.position.x += ddx; crates[i].g.position.y += ddy; crates[i].g.position.z += ddz; crates[i].prev.x += ddx; crates[i].prev.y += ddy; crates[i].prev.z += ddz; }
+        qCarry(ddx, ddy, ddz);
         for (i = 0; i < boomQ.length; i++) if (boomQ[i].on) { boomQ[i].p.x += ddx; boomQ[i].p.y += ddy; boomQ[i].p.z += ddz; }
         var bpa = fx.bolts.geometry.attributes.aPos.array;
         for (i = 0; i < bolts.length; i++) if (bolts[i].active) { var bi3 = bolts[i].id * 3; bpa[bi3] += ddx; bpa[bi3 + 1] += ddy; bpa[bi3 + 2] += ddz; bolts[i].prev.x += ddx; bolts[i].prev.y += ddy; bolts[i].prev.z += ddz; }
@@ -4192,6 +4242,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         lfQi.copy(q).invert();
         var lp = lf.lp, lv = lfB.copy(vel).add(bounceV).applyQuaternion(lfQi), lv0x = lv.x, lv0y = lv.y, lv0z = lv.z;
         lp.copy(P).sub(c).applyQuaternion(lfQi);
+        if (lf.cap && ps && ps.active === n && ps.wind && R27.windOn) lp.addScaledVector(lfC.copy(ps.wind).applyQuaternion(lfQi), dt);      // rev 27: the air carries the ship (ps.wind is 0 outside the atmosphere)
         lfU.copy(lp).normalize().applyQuaternion(q);                                 // world up before the move (for the horizon transport)
         var rem = dt, it = 0, zone = 1.25 * R, atmR = ATM_R * R, MAXIT = 24, sub = 0, hit = false;
         while (rem > 1e-9 && it++ < MAXIT) {
@@ -4323,11 +4374,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         else { boardShip(); liftOff(); }
     }
     function onKeyF() {
-        if (gmode === 'fly') { if (landOk) landReq = true; else if (target && !dead) exit(target.node); }
+        if (gmode === 'fly') { if (cvHail()) return; if (landOk) landReq = true; else if (target && !dead) exit(target.node); }
         else if (gmode === 'landed') exitShip();
         else if (gmode === 'foot') {
             var ft = footTarget();
-            if (ft.kind === 'store') openStore(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'dealer') openDealer(ft.obj);
+            if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'dealer') openDealer(ft.obj);
             else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj); else if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); }
             else if (ft.kind === 'creature') tameStart(ft.obj);
             else if (ft.kind === 'resource') harvStart(ft.obj);
@@ -4395,7 +4446,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (jetSnd) { jetSnd = false; aPlay('jetpackStop'); }
             return;
         }
-        if (!exJet) { exJet = makeEx(scene); exSetup(exJet, [new THREE.Vector3(-0.058, 0.2, -0.43), new THREE.Vector3(0.058, 0.2, -0.43)], 0xffa040); }
+        var nz = hum.obj.nozzles ? hum.obj.nozzles() : null, nzk = nz ? nz.length : -1;
+        if (!exJet || exJet.nzk !== nzk) {
+            if (!exJet) exJet = makeEx(scene);
+            var thr = nz && nz.length ? nz.map(function (n) { return new THREE.Vector3(n.x, n.z, -n.y); }) : [new THREE.Vector3(-0.058, 0.2, -0.43), new THREE.Vector3(0.058, 0.2, -0.43)];       // human-local nozzle (x,y,z) -> holder frame (rotated +90 deg about X)
+            exSetup(exJet, thr, 0xffa040); exJet.nzk = nzk;
+        }
         exJet.holder.visible = true;
         qA.copy(hum.obj.group.quaternion).multiply(qB.setFromAxisAngle(X, Math.PI / 2));          // holder +Z (the cone apex) -> human -Y (down)
         exUpdate(exJet, hum.obj.group.position, qA, H / 0.07, 0.5 + 0.5 * jetLvl);
@@ -4432,7 +4488,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (hum.air && wantJump) jetT += dt; else jetT = 0;
         var jet = jetT > JET_HOLD;
         // substepped capsule motion in the local frame
-        var spd = (jet ? G_RUN * 2 : (run ? G_RUN : G_WALK)) * H * fxSpeed, nSub = 1;
+        var spd = (jet ? G_RUN * 2 * (1 + 0.12 * R27.su.jetpack) : (run ? G_RUN * (1 + 0.1 * R27.su.sprint) : G_WALK)) * H * fxSpeed, nSub = 1;
         if (moving) nSub = Math.max(nSub, Math.ceil(spd * dt / (FOOT_SUB * H)));
         if (hum.air) nSub = Math.max(nSub, Math.ceil(Math.abs(hum.vv) * dt / (0.25 * H)));
         nSub = Math.min(16, nSub);
@@ -4452,13 +4508,14 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 }
             }
             if (hum.air) {
-                if (jet) { hum.vv += (JET_UP * H - hum.vv) * Math.min(1, 7 * h); if (hr > supNow + 400 * H) hum.vv = Math.min(hum.vv, 0); }
+                if (jet) { hum.vv += (JET_UP * (1 + 0.2 * R27.su.jetpack) * H - hum.vv) * Math.min(1, 7 * h); if (hr > supNow + 400 * H) hum.vv = Math.min(hum.vv, 0); }
                 else hum.vv -= G_GRAV * H * h;
                 hr += hum.vv * h;
                 if (hr <= supNow) { hr = supNow; hum.vv = 0; hum.air = false; }
             } else if (hr - supNow > 0.6 * H) { hum.air = true; hum.vv = 0; }
             else hr = supNow;
         }
+        if (R27.windOn) { var wd = footWind(dir, dt, hr, H, supNow); if (wd) { dir.copy(fsC2); supNow = wd; if (!hum.air) hr = supNow; } }
         hum.gr = supNow; hum.hr = hr;
         hum.pos.copy(dir).multiplyScalar(hr);                           // written once
         up.copy(dir);
@@ -4478,7 +4535,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         mM.makeBasis(gC, gB, gD);
         o.group.quaternion.setFromRotationMatrix(mM);
         o.group.position.copy(hum.w); o.group.scale.setScalar(H);
-        o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, facing: 0 });
+        o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, facing: 0, jet: jetLvl, scan: scanT > 0 ? Math.min(1, scanT / 1.2) : 0 });
         jetFx(dt, jet, H, qM, c, dir, supNow, hr);
         // camera: 6 human heights back, pitched, never under the floor; it follows the SMOOTHED position (hum.w), not the raw step
         gA.copy(hum.hf).negate().multiplyScalar(Math.cos(hum.pitch)).addScaledVector(up, Math.sin(hum.pitch)).applyQuaternion(qM);   // world offset dir
@@ -4557,7 +4614,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         aEngine({ throttle: 0, inAtmo: true });
         if (gmode === 'foot' && hum.obj) { vTmp.copy(hum.w); shardTick(vTmp, 0.7 * L); } else if (gmode === 'landed') shardTick(P, 3 * L);
         scanUpdate(dt); musicTick(dt, null);
-        if (gmode === 'foot') mutterTick(dt);
+        if (gmode === 'foot') { mutterTick(dt); r27Foot(dt); }
         updateBooms(dt);
         updateHud(0, aliveCount());
         hudDmg(dt);
@@ -4891,6 +4948,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (station && station.group.visible && sk.cd <= 0 && !lf.on) {
                 for (var dk2 = 0; dk2 <= 4; dk2++) { vTmp.lerpVectors(bhPrev, P, dk2 / 4); if (station.mouth.trigger(vTmp)) { beginDock(); break; } }
             }
+            if (space && sk.cd <= 0 && !lf.on && gmode === 'fly') dkTrigger(P);          // rev 27: derelict mouths dock like the station
         }
         // rev 12: ramming. Touching a hostile = 45 HP (boss 70) + hard bounce; it takes 25 % of its max HP; 1 s invulnerability after a ram.
         if (!dead) {
@@ -5131,6 +5189,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                             }
                         }
                     }
+                    if (!dead1 && R27.cvOn) dead1 = cvBoltHit(bo, bp);
                 } else {
                     var d2p = dead ? 1e30 : segDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, P.x, P.y, P.z);
                     if (d2p < pr * pr) {
@@ -5599,6 +5658,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             rec.n--; if (rec.n <= 0) pf.items.splice(idx, 1);
             aPlay('buy', { pitch: 1.2 }); addRow('', '', 'SHIP · ' + res.line, 'is-sys'); writeSave(); invFill(); invTip(null); return true;
         }
+        if (it.pet && petFollowToggle(it)) { invFill(); invTip(null); return true; }
         if (it.pet || it.kind === 'part' || it.kind === 'material' || it.kind === 'junk') { addRow('', '', 'not edible: ' + it.name, 'is-sys'); return true; }
         return false;
     }
@@ -5671,7 +5731,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             for (i = 0; i < res.consumes.length; i++) { c = craftGrid[res.consumes[i]]; if (!c) continue; takeKey(c.key, 1); c.n--; if (c.n <= 0) craftGrid[res.consumes[i]] = null; }
             if (!curUser) curUser = userName();
             giveItem(res.output, res.count);
-            aPlay('buy', { pitch: 1.1 }); addRow('', '', 'CRAFTED ' + res.output.name + (res.count > 1 ? ' x' + res.count : ''), 'is-sys');
+            aPlay('craft'); addRow('', '', 'CRAFTED ' + res.output.name + (res.count > 1 ? ' x' + res.count : ''), 'is-sys');
             writeSave(); invFill(); invTip(s);
         }
     });
@@ -5719,37 +5779,281 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var m = /^(?:Digit|Numpad)([1-9])$/.exec(c);
         if (m && +m[1] <= menuRows.length) { menuSel = +m[1] - 1; menuPick(); }
     }
+    // ═══ rev 26: quests (js/ship-quests.js) + onboarding ═══════════════════════════════════════════════════════════════════════════════
+    // Any NPC (shopper / clerk / dealer via Q in the shop / station NPC) offers 3 seeded quests (F -> talk line + QUESTS panel). Active quests live on
+    // profile.quests (max 3); events from the game feed QST.progress(); crates (retrieve) and the freighter (escort) are spawned here.
+    var Q_MAX = 3, qOpen = false, qOffers = [], qSel = 0, qWho = '', qGiver = 'npc', qOfferSeed = '', qAcc = {}, qT = 0, qObjs = {}, qTrkC = '', qMsg = '';
+    var elQ = document.createElement('div'); elQ.className = 'sh-quest';
+    elQ.innerHTML = '<div class="sq-h"><b>QUESTS</b><span class="sq-who"></span></div><div class="sq-list"></div><div class="sq-msg"></div><div class="sq-f">1-3 / ENTER ACCEPT · ARROWS · ESC LEAVE</div>';
+    hud.appendChild(elQ);
+    var elQWho = elQ.querySelector('.sq-who'), elQList = elQ.querySelector('.sq-list'), elQMsg = elQ.querySelector('.sq-msg');
+    var elQT = document.createElement('div'); elQT.className = 'sh-qt'; hud.appendChild(elQT);
+    var elOnb = document.createElement('div'); elOnb.className = 'sh-onb'; hud.appendChild(elOnb);
+    function qDay() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+    function planetLabel(n) { return n ? String(n.name || n.title || n.id || 'Planet') : ''; }
+    function curPlanetLabel() { return planetLabel((land && land.node) || (world && world.node)); }
+    function questCtx(kind) {
+        var ids = [], i, d = engine.drawOrder || [];
+        for (i = 0; i < d.length && ids.length < 12; i++) { var n = d[i]; if (n && n.anchor && n.mesh && !n.isSun) { var lb = planetLabel(n); if (ids.indexOf(lb) < 0) ids.push(lb); } }
+        var cur = curPlanetLabel() || ids[0] || 'Home';
+        if (ids.indexOf(cur) < 0) ids.unshift(cur);
+        return { planetIds: ids, currentPlanetId: cur, giverKind: kind || 'npc', wave: Math.max(1, shownWave()), bossNameFn: bossName };
+    }
+    function activeQuests() { var pf = curProfile(); return pf && Array.isArray(pf.quests) ? pf.quests : []; }
+    function qPf() { if (!curUser) curUser = userName(); return ensureProfile(userName()); }
+    function openQuests(seedId, who, kind) {
+        if (qOpen || state !== 'piloting' || storeOpen || invOpen) return false;
+        var pf = qPf(); qOfferSeed = String(seedId) + '|' + qDay(); qGiver = kind || 'npc'; qWho = String(who || 'NPC').toUpperCase();
+        try { qOffers = QST.offerSet(qOfferSeed, questCtx(qGiver), 3); } catch (e) { console.info('[ship] quests', e); qOffers = []; }
+        qOpen = true; qSel = 0; qMsg = ''; storeOpen = true; cmdOpen = true; cmdGuardUntil = performance.now() + 600;
+        keys = Object.create(null); firing = false; mdx = mdy = 0; eh.on = false; eh.t = 0; ehShow(0, '');
+        if (locked()) { try { document.exitPointerLock(); } catch (e) { /* ignore */ } }
+        hud.classList.add('is-quest'); elQ.classList.add('is-on'); elQWho.textContent = qWho; qRender(); aPlay('ui', { vel: 0.6 });
+        return true;
+    }
+    function qHide() { qOpen = false; hud.classList.remove('is-quest'); elQ.classList.remove('is-on'); }
+    function qState(q) { var pf = qPf(); if (pf.qdone && pf.qdone.indexOf(q.id) >= 0) return 'DONE'; if (activeQuests().some(function (a) { return a.id === q.id; })) return 'ACTIVE'; return ''; }
+    function qRender() {
+        var h = '', i;
+        for (i = 0; i < qOffers.length; i++) {
+            var q = qOffers[i], st = qState(q), r = q.reward, it = r.items && r.items.length ? ' + ' + r.items.map(function (x) { return x.n + ' ' + (x.item && x.item.name || 'item'); }).join(', ') : '';
+            h += '<div class="sq-r' + (i === qSel ? ' is-sel' : '') + (st ? ' is-' + st.toLowerCase() : '') + '" data-i="' + i + '"><i>' + (i + 1) + '</i><div><b>' + qEsc(q.title) + (st ? ' · ' + st : '') + '</b><span>' + qEsc(q.giverLine) + '</span><em>+' + r.gor + ' gorCoin' + qEsc(it) + ' · ' + r.words + ' word' + (r.words > 1 ? 's' : '') + ' · ' + q.expiresMin + ' min</em></div></div>';
+        }
+        elQList.innerHTML = h || '<div class="sq-r"><div><b>NOTHING TODAY</b></div></div>';
+        elQMsg.textContent = qMsg;
+    }
+    function qEsc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    elQList.addEventListener('click', function (e) { var t = e.target; while (t && t !== elQList && !(t.getAttribute && t.getAttribute('data-i'))) t = t.parentNode; if (t && t !== elQList) { qSel = +t.getAttribute('data-i'); qAccept(qSel); } });
+    function qAccept(i) {
+        var q = qOffers[i], pf = qPf(); if (!q) return;
+        if (qState(q)) { qMsg = qState(q) === 'DONE' ? 'ALREADY DONE' : 'ALREADY ACTIVE'; qRender(); return; }
+        if (activeQuests().length >= Q_MAX) { qMsg = 'QUEST LOG FULL (' + Q_MAX + ')'; aPlay('ui', { vel: 0.3, pitch: 0.6 }); qRender(); return; }
+        var a = JSON.parse(JSON.stringify(q)); a.acceptedAt = Date.now(); a.expiresAt = a.acceptedAt + (a.expiresMin || 30) * 60000;
+        pf.quests.push(a); aPlay('questAccept'); addRow(qWho, '#ffd36a', 'Deal. ' + a.title + '.'); qMsg = 'ACCEPTED'; writeSave(); qTrkC = ''; qRender();
+    }
+    function qKey(e) {
+        var c = e.code; e.preventDefault(); e.stopPropagation();
+        if (c === 'Escape') { e.__shipHandled = true; closeStore(); return; }
+        if (c === 'ArrowDown' || c === 'ArrowUp') { qSel = clamp(qSel + (c === 'ArrowDown' ? 1 : -1), 0, Math.max(0, qOffers.length - 1)); qRender(); return; }
+        if (e.repeat) return;
+        if (c === 'KeyF' || c === 'KeyE' || c === 'Backspace') { closeStore(); return; }
+        if (c === 'Enter' || c === 'NumpadEnter') { qAccept(qSel); return; }
+        var m = /^(?:Digit|Numpad)([1-3])$/.exec(c);
+        if (m && +m[1] <= qOffers.length) { qSel = +m[1] - 1; qAccept(qSel); }
+    }
+    // ── events ──
+    function questEvent(ev) {
+        var pf = curProfile(); if (!pf || !pf.quests || !pf.quests.length) return;
+        var done = [], i;
+        for (i = 0; i < pf.quests.length; i++) {
+            var r; try { r = QST.progress(pf.quests[i], ev); } catch (e0) { continue; }
+            if (!r || !r.message) continue;
+            pf.quests[i] = r.quest; if (!r.completed) addRow('', '', r.message, 'is-sys'); aPlay('ui', { vel: 0.7, pitch: 1.2 });
+            if (r.completed) done.push(r.quest);
+        }
+        qTrkC = '';
+        for (i = 0; i < done.length; i++) questComplete(done[i]);
+        writeSave();
+    }
+    function questComplete(q) {
+        var pf = qPf(), i, rw = q.reward || {};
+        pf.quests = pf.quests.filter(function (x) { return x.id !== q.id; });
+        pf.qdone = (pf.qdone || []).concat([q.id]).slice(-80);
+        addUnits(rw.gor || 0, shipRoot.position, true);
+        (rw.items || []).forEach(function (it) { try { giveItem(it.item, it.n || 1); } catch (e0) { /* ignore */ } });
+        if (rw.words > 0) learnWords(rw.words);
+        addRow('', '', 'QUEST COMPLETE · ' + q.title + ' · +' + (rw.gor || 0) + ' gorCoin' + ((rw.items || []).length ? ' + ' + rw.items.map(function (x) { return x.n + ' ' + (x.item && x.item.name || 'item'); }).join(', ') : ''), 'is-sys');
+        aPlay('questDone'); qKill(q.id); qTrkC = '';
+    }
+    function questExpire() {
+        var pf = curProfile(); if (!pf || !pf.quests) return; var now = Date.now();
+        pf.quests = pf.quests.filter(function (q) { if (q.expiresAt && now > q.expiresAt) { addRow('', '', 'QUEST EXPIRED · ' + q.title, 'is-sys'); qKill(q.id); qTrkC = ''; return false; } return true; });
+    }
+    var bountyUse = { wave: -1, name: '' };
+    function bountyNameFor() {          // a boss spawn takes the name of an open bounty (so the bounty is actually killable)
+        var q = activeQuests(), i, j;
+        for (i = 0; i < q.length; i++) {
+            var s = q[i].steps[0]; if (!s || s.type !== 'kill' || s.done) continue;
+            var nm = s.bossName, taken = false;
+            for (j = 0; j < enemies.length; j++) if (enemies[j].alive && enemies[j].isBoss && String(enemies[j].title).replace(/^(MINI|TITAN) /, '') === nm) { taken = true; break; }
+            if (!taken && !(bountyUse.wave === wave && bountyUse.name === nm)) { bountyUse.wave = wave; bountyUse.name = nm; return nm; }      // one boss per wave carries the bounty name
+        }
+        return '';
+    }
+    function bossKilled(title) { questEvent({ type: 'kill', bossName: String(title || '').replace(/^(MINI|TITAN) /, '') }); }
+    // ── objects: retrieve crate / escort freighter ──
+    var qGlowTex = null;
+    function qGlow() {
+        if (qGlowTex) return qGlowTex;
+        var c = document.createElement('canvas'); c.width = c.height = 64; var x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+        g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+        qGlowTex = new THREE.CanvasTexture(c); return qGlowTex;
+    }
+    function qMakeObj(color) {
+        var g = new THREE.Group(), box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 0.7, 1)), new THREE.LineBasicMaterial({ color: color })), core = new THREE.Mesh(new THREE.OctahedronGeometry(0.28), new THREE.MeshBasicMaterial({ color: color }));
+        var halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: qGlow(), color: color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+        var beacon = new THREE.Sprite(new THREE.SpriteMaterial({ map: qGlow(), color: color, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true, sizeAttenuation: false }));
+        halo.scale.setScalar(9); beacon.scale.setScalar(0.05); beacon.renderOrder = 10;
+        g.add(box); g.add(core); g.add(halo); g.add(beacon); g.userData.core = core; g.userData.box = box; g.frustumCulled = false;
+        g.traverse(function (o) { o.frustumCulled = false; }); scene.add(g); return g;
+    }
+    function qKill(id) {
+        var o = qObjs[id]; if (!o) return;
+        scene.remove(o.g); o.g.traverse(function (m) { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); });
+        delete qObjs[id];
+    }
+    function qCarry(dx, dy, dz) { for (var k in qObjs) { var o = qObjs[k]; o.g.position.x += dx; o.g.position.y += dy; o.g.position.z += dz; if (o.wp) for (var i = 0; i < o.wp.length; i++) { o.wp[i].x += dx; o.wp[i].y += dy; o.wp[i].z += dz; } } }
+    function qEnsure(q) {
+        var sp = QST.spawnSpecFor(q); if (!sp || qObjs[q.id]) return;
+        if (sp.type === 'crate') {
+            if (sp.where === 'belt') {
+                var b = space && space.belts && space.belts[0], rk = space && space.rocks; if (!b || !rk || !rk.center || gmode !== 'fly') return;
+                var o = { g: qMakeObj(0x7CFFB0), kind: 'crate', belt: true }, r = (b.mid || (b.inner + b.outer) / 2) * sp.pos[1];
+                o.g.position.set(rk.center.x + Math.cos(sp.pos[0]) * r, rk.center.y + sp.pos[2] * (b.yMax || 0) * 2, rk.center.z + Math.sin(sp.pos[0]) * r);
+                o.g.scale.setScalar(2.6 * L); qObjs[q.id] = o;
+            } else if (gmode === 'foot' && ps && ps.active && land.node === ps.active && curPlanetLabel() === sp.planetId && hum.obj) {
+                var dir = new THREE.Vector3().copy(hum.pos).normalize(), tg = new THREE.Vector3().crossVectors(dir, Y).normalize(), tg2 = new THREE.Vector3().crossVectors(dir, tg);
+                var a = sp.seed % 628 / 100, dd = (28 + sp.seed % 17) * L / (ps.radius || 1);
+                dir.addScaledVector(tg, Math.cos(a) * dd).addScaledVector(tg2, Math.sin(a) * dd).normalize();
+                var fr = mFloor(dir.x, dir.y, dir.z);
+                qObjs[q.id] = { g: qMakeObj(0x7CFFB0), kind: 'crate', local: dir.multiplyScalar(fr + 0.5 * L) };
+                qObjs[q.id].g.scale.setScalar(1.6 * L);
+            }
+        } else if (sp.type === 'freighter') {
+            if (gmode !== 'fly' || !hullMod) return;
+            var fr2 = hullMod.buildHull(THREE, { kind: 'hauler' }); fr2.traverse(function (m) { m.frustumCulled = false; }); fr2.scale.setScalar(26 * L);
+            var g2 = new THREE.Group(); g2.add(fr2); var hb = new THREE.Sprite(new THREE.SpriteMaterial({ map: qGlow(), color: 0xFFD36A, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true, sizeAttenuation: false })); hb.scale.setScalar(0.05); g2.add(hb); scene.add(g2);
+            vF.copy(NEG_Z).applyQuaternion(shipRoot.quaternion); g2.position.copy(shipRoot.position).addScaledVector(vF, 160 * L);
+            var wp = sp.route.map(function (p) { return new THREE.Vector3(g2.position.x + p[0] * 0.25 * L, g2.position.y + p[1] * 0.25 * L, g2.position.z + p[2] * 0.25 * L); });
+            qObjs[q.id] = { g: g2, kind: 'freighter', wp: wp, wi: 0, speed: Math.min(30, sp.speed * 0.4) * L, hull: fr2 };
+        }
+    }
+    function qObjTick(dt) {
+        var pf = curProfile(); if (!pf) return;
+        var act = pf.quests || [], i, ids = {};
+        for (i = 0; i < act.length; i++) {
+            var q = act[i]; ids[q.id] = 1; if (q.state === 'complete') continue;
+            qEnsure(q);
+            var o = qObjs[q.id]; if (!o) continue;
+            if (o.kind === 'crate') {
+                o.g.userData.core.rotation.y += dt * 2; o.g.userData.box.rotation.y -= dt * 1.2;
+                if (o.local) { locToWorld(o.local, o.g.position); }
+                var d = o.g.position.distanceTo(o.local ? (gmode === 'foot' ? hum.w : shipRoot.position) : shipRoot.position) / L;
+                if (o.local ? (gmode === 'foot' && d < 3) : (gmode === 'fly' && d < 7)) {
+                    fx.flash(o.g.position, 0x7CFFB0); fx.impact(o.g.position, 0x7CFFB0, 2); aPlay('ui', { vel: 1, pitch: 1.5 });
+                    questEvent({ type: 'retrieve', questId: q.id }); qKill(q.id);
+                }
+            } else if (o.kind === 'freighter') {
+                var wp = o.wp[o.wi % o.wp.length]; vA.subVectors(wp, o.g.position); var dl = vA.length();
+                if (dl < 20 * L) o.wi++; else { o.g.position.addScaledVector(vA, Math.min(dl, o.speed * dt) / dl); vA.normalize(); vTmp.copy(NEG_Z); qA.setFromUnitVectors(vTmp, vA); o.g.quaternion.slerp(qA, Math.min(1, dt * 1.5)); }
+                if (gmode === 'fly' && !dead && o.g.position.distanceTo(shipRoot.position) < 60 * L) { o.acc = (o.acc || 0) + dt; if (o.acc >= 1) { questEvent({ type: 'escort', seconds: o.acc }); o.acc = 0; } }
+            }
+        }
+        for (var k in qObjs) if (!ids[k]) qKill(k);
+    }
+    function trackerText() {
+        var a = activeQuests(), t = [], i;
+        for (i = 0; i < a.length; i++) {
+            var d = QST.describe(a[i]).split('\n'), o = qObjs[a[i].id], ds = '';
+            if (o) { var dd = o.g.position.distanceTo(shipRoot.position) / L; ds = ' · ' + (dd >= 1000 ? (dd / 1000).toFixed(1) + 'k' : Math.round(dd)) + ' L'; }
+            t.push(d[0] + '\n' + (d[1] || '') + ds);
+        }
+        return t.join('\n\n');
+    }
+    function questTick(dt) {
+        qT -= dt; onbTick(dt);
+        if (qT > 0) return; qT = 0.5;
+        var pf = curProfile(); if (!pf) { if (qTrkC) { qTrkC = ''; elQT.textContent = ''; elQT.classList.remove('is-on'); } return; }
+        questExpire(); qObjTick(0.5);
+        var t = state === 'piloting' ? trackerText() : '';
+        if (t !== qTrkC) { qTrkC = t; elQT.textContent = ''; var parts = t ? t.split('\n\n') : []; for (var i = 0; i < parts.length; i++) { var l = parts[i].split('\n'), d = document.createElement('div'); d.innerHTML = '<b>' + qEsc(l[0]) + '</b><span>' + qEsc(l[1] || '') + '</span>'; elQT.appendChild(d); } elQT.classList.toggle('is-on', !!t); }
+    }
+    function questScan() {          // V on the target planet: every highlighted resource / creature in range counts
+        var a = activeQuests().filter(function (q) { var s = q.steps.filter(function (x) { return !x.done; })[0]; return s && s.type === 'scan'; });
+        if (!a.length || !world || !world.node || gmode === 'fly') return;
+        var pl = curPlanetLabel(), n = 0, i, org = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position;
+        try {
+            var tg = world.scanTargets();
+            for (i = 0; i < tg.length && n < 16; i++) { if (tg[i].type !== 'resource') continue; locToWorld(tg[i].pos, vHl2); if (vHl2.distanceToSquared(org) > (120 * L) * (120 * L)) continue; n++; questEvent({ type: 'scan', planetId: pl, target: 'resource' }); if (tg[i].kind === 'plant' || tg[i].kind === 'spore') questEvent({ type: 'scan', planetId: pl, target: 'plant' }); }
+        } catch (e0) { /* ignore */ }
+        try {
+            if (ps && ps.active && land.node === ps.active) {
+                var cl = creatList(), cn = 0, cc;
+                for (i = 0; i < cl.length && cn < 12; i++) { if (cl[i].lp.distanceToSquared(gmode === 'foot' ? hum.pos : land.sPos) < (120 * L) * (120 * L)) { cn++; questEvent({ type: 'scan', planetId: pl, target: 'creature' }); } }
+            }
+        } catch (e1) { /* ignore */ }
+    }
+    function questDeliver(st) {         // F at a 7/11 counter on the target planet: hand over the stacks
+        var pf = curProfile(); if (!pf || !pf.quests) return;
+        var pl = curPlanetLabel(), moved = false;
+        pf.quests.slice().forEach(function (q) {
+            var s = q.steps.filter(function (x) { return !x.done; })[0]; if (!s || s.type !== 'deliver' || s.planetId !== pl) return;
+            for (var i = 0; i < pf.items.length; i++) {
+                var rec = pf.items[i]; if (rec.id !== s.item.stackKey) continue;
+                var n = Math.min(rec.n, s.item.n - s.have); if (n <= 0) break;
+                rec.n -= n; if (rec.n <= 0) pf.items.splice(i, 1);
+                moved = true; questEvent({ type: 'deliver', planetId: pl, stackKey: s.item.stackKey, n: n }); break;
+            }
+        });
+        return moved;
+    }
+    // ── onboarding: four prompts for a NEW profile (fly / pulse / land / shop), each dismissed when done, never shown again; plus two first-time hints ──
+    var onb = { t: 0, fly: 0, shown: '', hintT: 0, hint: '' }, ONB_TXT = ['FLY · HOLD W + MOVE THE MOUSE', 'PULSE · HOLD SPACE NEAR A PLANET', 'LAND · FLY UNDER 3 L OF THE SURFACE, PRESS F', 'SHOP · WALK TO A 7/11 COUNTER, PRESS F'];
+    function onbSet(t) { if (t !== onb.shown) { onb.shown = t; elOnb.textContent = t; elOnb.classList.toggle('is-on', !!t); } }
+    function onbTick(dt) {
+        var pf = curProfile(); if (!pf || !pf.onb || state !== 'piloting') { onbSet(''); return; }
+        var o = pf.onb, txt = '';
+        if (!o.done && !storeOpen && !invOpen) {
+            var s = o.step | 0; onb.t += dt;
+            var ok = false;
+            if (s === 0) { if (keys.KeyW || speed > 1.2 * CRUISE) onb.fly += dt; ok = onb.fly > 1.5; }
+            else if (s === 1) ok = pulse > 0.5 || pulseT > 0.2;
+            else if (s === 2) ok = gmode === 'landing' || gmode === 'landed' || gmode === 'foot';
+            else if (s === 3) ok = !!(shopCtx && shopCtx.mode === 'store' && storeOpen) || (storeOpen && !qOpen);
+            if (ok || onb.t > 60) { o.step = s + 1; onb.t = 0; if (o.step >= 4) o.done = true; writeSave(); aPlay('ui', { vel: 0.5, pitch: 1.3 }); }
+            else txt = ONB_TXT[s];
+        }
+        if (!txt && !storeOpen && !invOpen) {      // first-time hints (one line, 6 s)
+            if (onb.hintT > 0) { onb.hintT -= dt; txt = onb.hint; }
+            else if (!o.res && gmode === 'foot' && resFind()) { o.res = true; onb.hint = 'RESOURCE NODE · F TO HARVEST · SELL IT OR CRAFT AT A 7/11'; onb.hintT = 6; writeSave(); }
+            else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear())) { o.npc = true; onb.hint = 'F TO TALK · THEY MAY HAVE WORK (QUESTS)'; onb.hintT = 6; writeSave(); }
+        }
+        onbSet(txt);
+    }
     // ── pets ──
     function petItem(p) { return { id: 'pet:' + p.seed, name: p.name, kind: 'pet', base: p.name, infusion: null, modifier: null, color: p.color, price: 150 + 20 * (p.happy | 0), tier: 1, category: 'pet', tags: ['pet'], stackKey: 'pet:' + p.seed, pet: p, iconHint: 'candy', blurb: 'Follows you home for fries. Lives in a pen aboard your ship.', dealer: false }; }
     function treatIdx(pf) {
         for (var i = 0; i < pf.items.length; i++) { var it = itemOf(pf.items[i]); if (it && (it.kind === 'fries' || (it.effect && it.effect.extras && it.effect.extras.treat))) return i; }
         return -1;
     }
-    function creatMesh() {
-        if (R25.ctm && R25.ctm.parent) return R25.ctm;
-        R25.ctm = null; var now = performance.now();
-        if (now - R25.ctF < 1000) return null; R25.ctF = now;
-        for (var i = 0; i < scene.children.length; i++) { var ch = scene.children[i].children; if (!ch) continue; for (var j = 0; j < ch.length; j++) if (ch[j].isInstancedMesh && ch[j].geometry && ch[j].geometry.attributes.aInstPh) { R25.ctm = ch[j]; return R25.ctm; } }
-        return null;
+    // rev 27: taming rides ps.creatures() / ps.setCreatureTamed (the instanced-colour hack is gone). Tamed ids live on profile.taken [{n: planet, id, k}].
+    var CR_NAMES = ['Walker', 'Jelly', 'Ox', 'Strider'], CR_PLAN = ['walker', 'jelly', 'walker', 'strider'];
+    function crKind(c) { var k = c && c.kind; if (typeof k === 'number') return ((k % 4) + 4) % 4; var i = CR_NAMES.map(function (s) { return s.toLowerCase(); }).indexOf(String(k).toLowerCase()); return i < 0 ? 0 : i; }
+    var tame = { on: false, t: 0, id: '', T: 3 }, tcRes = { id: '', d: 0, kind: 0, v: 0, pos: new THREE.Vector3() }, crCache = { t: -1e9, list: [] };
+    function creatList() {
+        var now = performance.now();
+        if (now - crCache.t > 250) {
+            crCache.t = now;
+            try {
+                crCache.list = (ps && typeof ps.creatures === 'function') ? ps.creatures() : [];
+                if (ps && ps.active && crCache.list.length) {          // the planet moves fast: keep planet-LOCAL positions (compare with hum.pos), world ones go stale within a frame
+                    var nd = ps.active; qW.copy(nd.mesh.quaternion).invert();
+                    for (var ci = 0; ci < crCache.list.length; ci++) { var cc = crCache.list[ci]; cc.lp = (cc.lp || new THREE.Vector3()).copy(cc.pos).sub(nd.anchor.position).applyQuaternion(qW); }
+                }
+            } catch (e0) { crCache.list = []; }
+        }
+        return crCache.list;
     }
-    var tame = { on: false, t: 0, col: null, T: 3 }, tcRes = { idx: -1, d: 0, col: null, v: 0, x: 0, y: 0, z: 0 }, tcT = 0;
-    function colOf(m, i) { var a = m.geometry.attributes.aCol.array; return [a[i * 3], a[i * 3 + 1], a[i * 3 + 2]]; }
     function tameFind() {
         if (gmode !== 'foot' || !hum.obj || !ps || !ps.active || land.node !== ps.active) return null;
         var pf = curProfile(); if (!pf || treatIdx(pf) < 0) return null;
-        var m = creatMesh(); if (!m || !m.visible || !m.count) return null;
-        var mat = m.instanceMatrix.array, best = -1, bd = 1e30, i, o, s, d;
-        for (i = 0; i < m.count; i++) {
-            o = i * 16; s = Math.hypot(mat[o], mat[o + 1], mat[o + 2]); if (s < 1e-9) continue;
-            d = Math.hypot(mat[o + 12] - hum.pos.x, mat[o + 13] - hum.pos.y, mat[o + 14] - hum.pos.z);
-            if (d < 2.2 * s + 0.3 * L && d < bd) { bd = d; best = i; }
-        }
-        if (best < 0) return null;
-        o = best * 16; tcRes.idx = best; tcRes.d = bd; tcRes.col = colOf(m, best); tcRes.v = m.geometry.attributes.aSel ? m.geometry.attributes.aSel.array[best] : 0;
-        tcRes.x = mat[o + 12]; tcRes.y = mat[o + 13]; tcRes.z = mat[o + 14];
+        var list = creatList(), best = null, bd = (12 * L) * (12 * L), i, d2;      // grazers bolt inside 10 L, so the treat works from just outside it
+        for (i = 0; i < list.length; i++) { d2 = list[i].lp.distanceToSquared(hum.pos); if (d2 < bd) { bd = d2; best = list[i]; } }
+        if (!best) return null;
+        tcRes.id = best.id; tcRes.d = Math.sqrt(bd); tcRes.kind = crKind(best); tcRes.v = tcRes.kind === 1 ? 1 : 0; tcRes.pos.copy(best.lp);
         return tcRes;
     }
-    function tameStart(c) { if (tame.on || !c) return; tame.on = true; tame.t = 0; tame.col = c.col.slice(); aPlay('ui', { vel: 0.6 }); addRow('', '', 'taming... hold still', 'is-sys'); }
+    function tameStart(c) { if (tame.on || !c) return; tame.on = true; tame.t = 0; tame.id = c.id; aPlay('ui', { vel: 0.6 }); addRow('', '', 'taming... hold still', 'is-sys'); }
     // ── harvesting: F near a resource node = 3 s channel, chunk bursts, then the stack goes to the inventory; spent nodes persist on the profile ──
     var harv = { on: false, t: 0, id: '', pos: new THREE.Vector3(), bt: 0 };
     function resFind() {
@@ -5772,32 +6076,34 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var pf = ensureProfile(userName()); giveItem(got.item, got.n || 1);
         try { var st = world.resourceState(); for (var k in st) pf.harv[k] = st[k]; } catch (e2) { /* ignore */ }
         for (var b = 0; b < 3; b++) fx.impact(harv.pos, got.item.color || 0xffffff, 3);
-        aPlay('buy', { pitch: 1.3 }); addRow('', '', 'HARVESTED ' + (got.n || 1) + ' x ' + got.item.name, 'is-sys'); writeSave();
+        aPlay('harvest'); addRow('', '', 'HARVESTED ' + (got.n || 1) + ' x ' + got.item.name, 'is-sys'); writeSave();
+        questEvent({ type: 'harvest', stackKey: got.item.stackKey || got.item.id, kind: got.item.base, n: got.n || 1 });
     }
     function tameTick(dt) {
         if (!tame.on) return;
-        var c = gmode === 'foot' ? tameFind() : null;
-        if (!c || Math.abs(c.col[0] - tame.col[0]) + Math.abs(c.col[1] - tame.col[1]) + Math.abs(c.col[2] - tame.col[2]) > 0.01) { tame.on = false; addRow('', '', 'it wandered off', 'is-sys'); return; }
+        var c = null, cl0 = gmode === 'foot' && hum.obj ? creatList() : [], ci;
+        for (ci = 0; ci < cl0.length; ci++) if (cl0[ci].id === tame.id && cl0[ci].lp.distanceToSquared(hum.pos) < (25 * L) * (25 * L)) { c = tcRes; tcRes.id = cl0[ci].id; tcRes.kind = crKind(cl0[ci]); tcRes.v = tcRes.kind === 1 ? 1 : 0; break; }
+        if (!c) { tame.on = false; addRow('', '', 'it wandered off', 'is-sys'); return; }
         tame.t += dt;
         if (tame.t < tame.T) return;
         tame.on = false;
         var pf = ensureProfile(userName()), ti = treatIdx(pf); if (ti < 0) return;
         var rec = pf.items[ti]; rec.n--; if (rec.n <= 0) pf.items.splice(ti, 1);
-        var nm = land.node && (land.node.name || land.node.title || land.node.id) || 'Somewhere', pn = String(nm).replace(/^\w/, function (q) { return q.toUpperCase(); });
-        var pet = { seed: hash25(tame.col.join(',') + (land.node && land.node.id)), name: (c.v > 0.5 ? 'Jelly' : 'Walker') + ' of ' + pn, color: ((Math.round(tame.col[0] * 255) << 16) | (Math.round(tame.col[1] * 255) << 8) | Math.round(tame.col[2] * 255)) >>> 0, v: c.v > 0.5 ? 1 : 0, happy: 1 };
+        var nm = land.node && (land.node.name || land.node.title || land.node.id) || 'Somewhere', pn = String(nm).replace(/^\w/, function (q) { return q.toUpperCase(); }), pid = String(land.node.id);
+        var seed = hash25(pid + ':' + c.id), hue = (seed % 360) / 360;
+        var pet = { seed: seed, cid: c.id, plan: CR_PLAN[c.kind], name: CR_NAMES[c.kind] + ' of ' + pn, color: new THREE.Color().setHSL(hue, 0.55, 0.55).getHex(), v: c.v, happy: 1 };
         giveItem(petItem(pet), 1);
-        pf.taken.push({ n: String(land.node.id), x: c.x, y: c.y, z: c.z, c: tame.col.slice() }); pf.taken = pf.taken.slice(-40);
-        r25HideTaken(); aPlay('buy', { pitch: 1.4 }); addRow('', '', 'TAMED ' + pet.name + ' · pen it aboard your ship', 'is-sys'); writeSave();
+        try { ps.setCreatureTamed(c.id, true); } catch (e0) { /* ignore */ }
+        crCache.t = -1e9; pf.taken.push({ n: pid, id: c.id, k: c.kind }); pf.taken = pf.taken.slice(-40);
+        aPlay('tame'); addRow('', '', 'TAMED ' + pet.name + ' · right-click it in your inventory to take it along', 'is-sys'); writeSave();
+        discClaim('creature', pid + ':' + CR_NAMES[c.kind], CR_NAMES[c.kind] + ' ' + pn);
     }
-    function r25HideTaken() {
-        var pf = curProfile(); if (!pf || !pf.taken || !pf.taken.length || !ps || !ps.active) return;
-        var m = creatMesh(); if (!m || !m.count) return;
-        var id = String(ps.active.id), mat = m.instanceMatrix.array, a = m.geometry.attributes.aCol.array, ti, i, any = false;
-        for (ti = 0; ti < pf.taken.length; ti++) {
-            var t = pf.taken[ti]; if (t.n !== id || !t.c) continue;
-            for (i = 0; i < m.count; i++) if (Math.abs(a[i * 3] - t.c[0]) + Math.abs(a[i * 3 + 1] - t.c[1]) + Math.abs(a[i * 3 + 2] - t.c[2]) < 0.004) { var o = i * 16; for (var q = 0; q < 12; q++) mat[o + q] = 0; any = true; }
-        }
-        if (any) m.instanceMatrix.needsUpdate = true;
+    function r25HideTaken() {          // re-hide this profile's tamed creatures once per planet / profile (ps remembers them per planet after that)
+        var pf = curProfile(); if (!pf || !pf.taken || !ps || !ps.active || typeof ps.setCreatureTamed !== 'function') return;
+        var key = String(ps.active.id) + '|' + userName() + '|' + pf.taken.length;
+        if (R27.tamedKey === key) return;
+        R27.tamedKey = key;
+        for (var ti = 0; ti < pf.taken.length; ti++) { var t = pf.taken[ti]; if (t.id && t.n === String(ps.active.id)) { try { ps.setCreatureTamed(t.id, true, t.n); } catch (e0) { /* ignore */ } } }
     }
     // ── crew + missions ──
     function r25Cand() { var pf = curProfile(); return (R25.cand && pf && pf.crew.length < 4) ? R25.cand : null; }
@@ -5811,7 +6117,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var m = { id: 'c' + c.seed, seed: c.seed, name: c.name, role: c.role, color: c.color, rank: 1, lines: (c.lines || []).map(String).slice(0, 3), busy: '' };
         pf.crew.push(m); R25.cand = null;
         try { if (world && world.burgerHouse) world.burgerHouse.candidate = null; } catch (e0) { /* ignore */ }
-        aPlay('buy', { pitch: 1.3 }); addRow(String(m.name).toUpperCase(), cssHex(m.color), m.lines[0] || 'Reporting for duty.');
+        aPlay('hire'); addRow(String(m.name).toUpperCase(), cssHex(m.color), m.lines[0] || 'Reporting for duty.');
         addRow('', '', m.name + ' joined your crew (' + m.role + ') · ' + pf.crew.length + '/4', 'is-sys'); writeSave();
     }
     var PART_MAP = { 'plasma-coil': 'coil', 'flux-capacitor': 'capacitor', 'hull-plate': 'plate', 'logic-chip': 'chip', 'fuel-cell': 'battery' };
@@ -5841,7 +6147,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         });
         if (r < m.chance) { try { var gi = ITM.generateItem((Math.random() * 1e9) >>> 0); giveItem(gi, 1); got.push(gi.name); } catch (e0) { /* ignore */ } }
         if (c) { c.rank = (c.rank | 0) + 1; c.busy = ''; }
-        aPlay('units', { n: 6 });
+        aPlay('units', { n: 6 }); if (c) aPlay('levelUp');
         addRow(c ? String(c.name).toUpperCase() : 'CREW', c ? cssHex(c.color) : '#ffd36a', 'back from "' + m.name + '": +' + CRF.fmt(m.gor) + (got.length ? ', ' + got.join(', ') : '') + (c ? ' · rank ' + c.rank : ''));
         pf.board.seed = (Math.imul(pf.board.seed || 1, 1664525) + 1013904223) >>> 0; pf.board.list[i] = genMission(pf.board.seed);
     }
@@ -5857,6 +6163,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         try { int.board.setMissions(b.list.map(function (m) { var c = pf.crew.filter(function (x) { return x.id === m.crewId; })[0]; return { title: m.name, status: m.end > 0 ? (c ? c.name : 'CREW') + ' ' + fmtT((m.end - now) / 1000) : 'OPEN ' + m.minutes + ' MIN · ' + CRF.fmt(m.gor) }; })); } catch (e0) { /* ignore */ }
     }
     function r25Tick(dt) {
+        questTick(dt); hullTick(dt); r27Tick(dt);
         if (tame.on) tameTick(dt);
         if (harv.on) harvTick(dt);
         R25.t += dt; if (R25.t < 1) return; R25.t = 0;
@@ -5879,6 +6186,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 int.pods[i].clear(); var c = pf.crew[i]; if (c) int.pods[i].setCrew({ seed: c.seed, name: c.name, color: c.color });
             }
         } catch (e0) { console.info('[ship] interior sync', e0); }
+        r27Interior(int, pf);
         boardSync();
     }
     function enterInterior() {
@@ -6065,7 +6373,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function shopMsg(t, bad) { elSsMsg.textContent = t || ''; elSsMsg.classList.toggle('is-bad', !!bad); }
     function shopScroll(d) { shopTop = clamp(shopTop + d, 0, Math.max(0, shopRows.length - SHOP_ROWS)); shopSel = clamp(shopSel, shopTop, Math.min(shopRows.length - 1, shopTop + SHOP_ROWS - 1)); shopRender(); }
     function shopSetTab(i) {
-        if (!shopCtx || shopCtx.mode !== 'store') return;
+        if (!shopCtx || (shopCtx.mode !== 'store' && shopCtx.mode !== 'trade')) return;
+        if (shopCtx.mode === 'trade' && i !== 0 && i !== 2) i = shopTab === 0 ? 2 : 0;
         shopTab = clamp(i, 0, 3); shopTop = 0; shopSel = 0; shopMsg(''); shopFill(); aPlay('ui', { vel: 0.5 });
     }
     function itemSub(it) {
@@ -6076,13 +6385,14 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function shopFill() {
         var st = shopSt, inv = st && st.inventory, pf = ensureProfile(userName()), i, ctx = shopCtx;
         shopRows.length = 0;
-        var tab = ctx.mode === 'store' ? shopTab : 0;
+        var tab = (ctx.mode === 'store' || ctx.mode === 'trade') ? shopTab : 0;
+        if (ctx.mode === 'trade') { tradeFill(ctx, pf); tab = -1; }
         if (tab === 0) {
             var menu = ctx.items || [];
             if (ctx.mode === 'burger' && r25Cand()) { var cd0 = r25Cand(); shopRows.push({ k: 'r', tag: 'CR', name: 'HIRE ' + String(cd0.name).toUpperCase(), sub: String(cd0.role).toUpperCase() + ' · JOINS YOUR CREW', price: 0 }); }
             for (i = 0; i < menu.length; i++) {
                 var it = menu[i], have = 0; pf.items.forEach(function (r) { if (r.id === CRF.stackKeyOf(it) && !!r.d === !!it.dealer) have = r.n; });
-                shopRows.push({ k: 'i', item: it, name: it.name, sub: itemSub(it), price: it.price, own: have > 0, have: have });
+                shopRows.push({ k: 'i', item: it, name: it.name, sub: itemSub(it), price: ctx.mode === 'burger' ? salePrice(it.price) : it.price, own: have > 0, have: have });
             }
         } else if (tab === 1 && inv) {
             for (i = 0; i < inv.weapons.length; i++) { var w = inv.weapons[i]; shopRows.push({ k: 'w', i: i, tag: String(w.cls || 'C'), name: w.name, sub: wpnMod && wpnMod.weaponLine ? wpnMod.weaponLine(w).replace(/^[A-Z] /, '').replace(w.name, '').trim() : '', price: shopPrice(w), own: pf.weapons.some(function (x) { return x.id === w.id; }) }); }
@@ -6092,6 +6402,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (en <= 3 && inv.upgrades.engine[en - 1]) { var eu = inv.upgrades.engine[en - 1]; shopRows.push({ k: 'e', tag: 'DR', name: eu.name, sub: 'CRUISE + BOOST +10 % · TIER ' + en + '/3', price: eu.price }); }
             else shopRows.push({ k: '-', tag: 'DR', name: 'DRIVE TUNE', sub: 'MAXED · +' + Math.round((engMul - 1) * 100) + ' %', price: null });
             if (inv.snack) shopRows.push({ k: 'f', tag: 'FD', name: inv.snack.name, sub: 'FULL SHIELD', price: inv.snack.price });
+            suitRows(pf);
         } else if (tab === 3) {
             var pm = (inv && inv.parts && inv.parts.length) ? inv.parts : CRF.PARTS;
             for (i = 0; i < pm.length; i++) { var pi = pm[i]; shopRows.push({ k: 'i', item: pi, name: pi.name, sub: String(pi.blurb || '').slice(0, 44), price: pi.price }); }
@@ -6124,10 +6435,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         elSsLw.classList.toggle('has-sb', n > SHOP_ROWS);
         elSsThumb.style.height = Math.max(8, SHOP_ROWS / Math.max(SHOP_ROWS, n) * 100) + '%';
         elSsThumb.style.top = (n > SHOP_ROWS ? shopTop / (n - SHOP_ROWS) * (100 - Math.max(8, SHOP_ROWS / n * 100)) : 0) + '%';
-        for (i = 0; i < 4; i++) { elSsTabs.children[i].classList.toggle('is-on', i === ctxTab()); elSsTabs.children[i].style.display = (shopCtx && shopCtx.mode !== 'store' && i > 0) ? 'none' : ''; }
-        elSsF.textContent = '1-' + Math.min(SHOP_ROWS, n) + ' / ENTER ' + (sell ? 'SELL (40 %)' : 'BUY') + ' · WHEEL / ARROWS / DRAG SCROLL' + (shopCtx && shopCtx.mode === 'store' ? ' · TAB SWITCH' : '') + ' · ESC LEAVE';
+        for (i = 0; i < 4; i++) { elSsTabs.children[i].classList.toggle('is-on', i === ctxTab()); elSsTabs.children[i].style.display = (shopCtx && shopCtx.mode !== 'store' && !(shopCtx.mode === 'trade' && (i === 0 || i === 2)) && i > 0) ? 'none' : ''; }
+        if (shopCtx && shopCtx.mode === 'trade') { elSsTabs.children[0].textContent = 'BUY'; elSsTabs.children[2].textContent = 'SELL'; } else if (elSsTabs.children[0].textContent === 'BUY') { elSsTabs.children[0].textContent = 'ITEMS'; elSsTabs.children[2].textContent = 'SELL'; }
+        elSsF.textContent = '1-' + Math.min(SHOP_ROWS, n) + ' / ENTER ' + (sell ? 'SELL (40 %)' : 'BUY') + ' · WHEEL / ARROWS / DRAG SCROLL' + (shopCtx && (shopCtx.mode === 'store' || shopCtx.mode === 'trade') ? ' · TAB SWITCH' : '') + (shopCtx && shopCtx.qSeed != null ? ' · Q QUESTS' : '') + ' · ESC LEAVE';
     }
-    function ctxTab() { return shopCtx && shopCtx.mode === 'store' ? shopTab : 0; }
+    function ctxTab() { return shopCtx && (shopCtx.mode === 'store' || shopCtx.mode === 'trade') ? shopTab : 0; }
     function clerkLine(st) {
         var line = '';
         try {
@@ -6137,7 +6449,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         return line;
     }
     function shopOpenCommon(ctx, title, who, line, seedId) {
-        shopCtx = ctx; shopTab = 0; shopTop = 0; shopSel = 0; storeOpen = true; cmdOpen = true; cmdGuardUntil = performance.now() + 600;
+        ctx.qSeed = seedId; ctx.qWho = who; shopCtx = ctx; shopTab = 0; shopTop = 0; shopSel = 0; storeOpen = true; cmdOpen = true; cmdGuardUntil = performance.now() + 600;
         keys = Object.create(null); firing = false; mdx = mdy = 0; eh.on = false; eh.t = 0; ehShow(0, '');
         if (locked()) { try { document.exitPointerLock(); } catch (e) { /* ignore */ } }
         hud.classList.add('is-store'); elStore.classList.add('is-on');
@@ -6173,6 +6485,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function closeStore() {
         if (!storeOpen) return;
+        if (qOpen) qHide();
         storeOpen = false; cmdOpen = false; shopSt = null; shopCtx = null; shopDrag = null;
         hud.classList.remove('is-store'); elStore.classList.remove('is-on');
         keys = Object.create(null); mdx = mdy = 0;
@@ -6185,6 +6498,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!curUser) curUser = userName();
         if (row.k === '-') { aPlay('ui', { vel: 0.3 }); return; }
         if (row.k === 'r') { r25Hire(); shopFill(); return; }
+        if (row.k === 'tb' || row.k === 'ts') { tradePick(row, pf); return; }
         if (row.k === 'x') {
             var ow = pf.weapons[row.i]; if (!ow) return;
             pf.weapons = pf.weapons.filter(function (x, j) { return j !== row.i; });
@@ -6217,18 +6531,21 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (row.k === 's') { pf.shieldTier = clamp((pf.shieldTier | 0) + 1, 0, 3); applyUpgrades(); hp = Math.min(HP_MAX, hp + 20); shopMsg('SHIELD TIER ' + pf.shieldTier + ' · MAX ' + HP_MAX); }
         else if (row.k === 'e') { pf.engineTier = clamp((pf.engineTier | 0) + 1, 0, 3); applyUpgrades(); shopMsg('DRIVE TIER ' + pf.engineTier + ' · +' + Math.round((engMul - 1) * 100) + ' %'); }
         else if (row.k === 'f') { hp = HP_MAX; sinceHit = 99; shopMsg('SHIELD FULL'); }
+        else if (row.k === 'u') { pf.suit[row.slot] = clamp((pf.suit[row.slot] | 0) + 1, 0, 3); suitSync(true); shopMsg('SUIT ' + row.slot.toUpperCase() + ' TIER ' + pf.suit[row.slot]); }
         aPlay('buy'); writeSave(); shopFill();
     }
     function storeKey(e) {
+        if (qOpen) { qKey(e); return; }
         var c = e.code;
         e.preventDefault(); e.stopPropagation();
         if (c === 'Escape') { e.__shipHandled = true; closeStore(); return; }
         if (c === 'ArrowDown' || c === 'ArrowUp') { shopSel = clamp(shopSel + (c === 'ArrowDown' ? 1 : -1), 0, Math.max(0, shopRows.length - 1)); shopRender(); return; }
         if (c === 'PageDown' || c === 'PageUp') { shopSel = clamp(shopSel + (c === 'PageDown' ? SHOP_ROWS : -SHOP_ROWS), 0, Math.max(0, shopRows.length - 1)); shopRender(); return; }
         if (e.repeat) return;
+        if (c === 'KeyQ' && shopCtx && shopCtx.qSeed != null) { var qs = shopCtx; closeStore(); openQuests(qs.qSeed, qs.qWho, qs.mode === 'dealer' ? 'dealer' : 'clerk'); return; }
         if (c === 'KeyF' || c === 'KeyE' || c === 'Backspace') { closeStore(); return; }
         if (c === 'Enter' || c === 'NumpadEnter') { shopPick(shopSel); return; }
-        if (c === 'KeyX' || c === 'Tab') { if (shopCtx && shopCtx.mode === 'store') shopSetTab((shopTab + (e.shiftKey ? 3 : 1)) % 4); return; }
+        if (c === 'KeyX' || c === 'Tab') { if (shopCtx && shopCtx.mode === 'store') shopSetTab((shopTab + (e.shiftKey ? 3 : 1)) % 4); else if (shopCtx && shopCtx.mode === 'trade') shopSetTab(shopTab === 0 ? 2 : 0); return; }
         var m = /^(?:Digit|Numpad)([1-8])$/.exec(c);
         if (m) { var ri = shopTop + parseInt(m[1], 10) - 1; if (ri < shopRows.length) { shopSel = ri; shopPick(ri); } }
     }
@@ -6251,7 +6568,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function talkShopper(n) {
         knownFor();
         addRow(String(n.name || 'SHOPPER').toUpperCase(), '#8fa0ff', npcLineOf(n.id, n) || '...');
-        aPlay('npc', { seed: n.id });
+        aPlay('npc', { seed: n.id }); openQuests(n.id, n.name || 'SHOPPER', 'npc');
     }
     function mutterTick(dt) {              // a shopper you pass within 2 human heights mutters a line (once per 8 s)
         mutterT -= dt;
@@ -6318,6 +6635,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     })();
     function freighterHud() {
         var fr = space && space.freighters, i, W = window.innerWidth, H = window.innerHeight;
+        cvTick();
         for (i = 0; i < frtEls.length; i++) {
             var m = frtEls[i], f = fr && fr[i], show = false;
             if (f && f.pos) {
@@ -6336,7 +6654,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         }
     }
     // ─── station docking: scripted approach, deck on foot, scripted launch ────────────────────────────────────────────────────────
-    // The ship and the human are stored STATION-LOCAL (L units) and ride station.pos / quat every frame, like the planet frame.
+    // The ship and the human are stored STATION-LOCAL (L units) and ride SITE().pos / quat every frame, like the planet frame.
     var SK_R = 0.022, SK_H = 0.09, SK_CAM = 0.54;
     var sk = { mode: '', pad: 0, pts: [], cum: [], len: 0, t: 0, T: 6, q0: new THREE.Quaternion(), shipL: new THREE.Vector3(), hp: new THREE.Vector3(), yaw: 0, pitch: 0.3, vv: 0, air: false, moving: false, running: false, jumpHeld: false, nl: 0, cd: 0, fade: 0 };
     var skA = new THREE.Vector3(), skB = new THREE.Vector3(), skC = new THREE.Vector3(), skI = { kind: '', obj: null, label: '' };
@@ -6351,33 +6669,34 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var i, l;
         sk.pts.length = 0; sk.cum.length = 0;
         if (first) sk.pts.push(first.clone());
-        for (i = 0; i < worldPts.length; i++) { l = station.toLocal(worldPts[i], new THREE.Vector3()); if (first && l.z >= first.z - 0.8) continue; sk.pts.push(l); }
+        for (i = 0; i < worldPts.length; i++) { l = SITE().toLocal(worldPts[i], new THREE.Vector3()); if (first && l.z >= first.z - 0.8) continue; sk.pts.push(l); }
         if (sk.pts.length < 2) sk.pts.push(sk.pts[0].clone().add(new THREE.Vector3(0, 0, -1)));
         sk.cum.push(0);
         for (i = 1; i < sk.pts.length; i++) sk.cum.push(sk.cum[i - 1] + sk.pts[i].distanceTo(sk.pts[i - 1]));
         sk.len = sk.cum[sk.cum.length - 1];
     }
-    function beginDock() {
-        if (!station || sk.mode || gmode !== 'fly' || dead || state !== 'piloting' || boarding || exiting) return false;
+    function beginDock(dd) {
+        R27.dsite = dd ? dkSite(dd) : null;
+        if (!SITE() || sk.mode || gmode !== 'fly' || dead || state !== 'piloting' || boarding || exiting) return false;
         var pad = 0, i;
-        for (i = 0; i < station.pads.length; i++) if (station.pads[i].free) { pad = i; break; }
-        station.group.updateMatrixWorld(true);
-        station.toLocal(shipRoot.position, skA);
-        skBuild(skA, station.dockPath(pad));
-        sk.q0.copy(station.quat).invert().multiply(shipRoot.quaternion);
+        for (i = 0; i < SITE().pads.length; i++) if (SITE().pads[i].free) { pad = i; break; }
+        SITE().group.updateMatrixWorld(true);
+        SITE().toLocal(shipRoot.position, skA);
+        skBuild(skA, SITE().dockPath(pad));
+        sk.q0.copy(SITE().quat).invert().multiply(shipRoot.quaternion);
         sk.pad = pad; sk.t = 0; sk.T = clamp(sk.len / 12, 4.5, 9); sk.mode = 'docking'; gmode = 'docking';
         lfOff(); killBolts(); combatRoot.visible = false; firing = false; mdx = mdy = 0; keys = Object.create(null);
         vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; pulseT = 0; eh.on = false; eh.t = 0; ehShow(0, '');
         setGround(true, false); setPrompt('DOCKING', true);
-        addRow('', '', 'DOCKING · ' + (station.interior.stores[0] ? String(station.interior.stores[0].name).toUpperCase() : '7/11 ORBITAL'), 'is-sys');
+        addRow('', '', 'DOCKING · ' + (R27.dsite ? 'DERELICT' : (SITE().interior.stores[0] ? String(SITE().interior.stores[0].name).toUpperCase() : '7/11 ORBITAL')), 'is-sys');
         aPlay('liftoff', { vel: 0.6 });
         return true;
     }
     function beginLaunch() {
-        if (sk.mode !== 'deck' || !station) return;
+        if (sk.mode !== 'deck' || !SITE()) return;
         closeStore();
-        station.group.updateMatrixWorld(true);
-        skBuild(null, station.launchPath(sk.pad));
+        SITE().group.updateMatrixWorld(true);
+        skBuild(null, SITE().launchPath(sk.pad));
         sk.t = 0; sk.T = clamp(sk.len / 11, 4, 8); sk.mode = 'launching'; gmode = 'launching';
         if (hum.obj) hum.obj.group.visible = false;
         jetKill(); setPrompt('', false);
@@ -6388,47 +6707,50 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function skAbort() {       // Esc / exit() while anywhere in the station sequence: put the ship outside the mouth and hand back to the exit cinematic
         closeStore();
         if (hum.obj) hum.obj.group.visible = false;
-        if (station && sk.mode) {
-            try { station.group.updateMatrixWorld(true); var lp = station.launchPath(sk.pad); shipRoot.position.copy(lp[lp.length - 1]); } catch (e) { /* ignore */ }
-            if (station.pads[sk.pad]) station.pads[sk.pad].free = true;
+        if (SITE() && sk.mode) {
+            try { SITE().group.updateMatrixWorld(true); var lp = SITE().launchPath(sk.pad); shipRoot.position.copy(lp[lp.length - 1]); } catch (e) { /* ignore */ }
+            if (SITE().pads[sk.pad]) SITE().pads[sk.pad].free = true;
         }
         sk.mode = ''; sk.cd = 3; exOff(exMe); hullY(0);
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
         combatRoot.visible = true; gmode = 'fly'; setGround(false, false); setPrompt('', false);
         net && net.setMode && net.setMode('fly');
+        dkLeave();
     }
     function skLand() {
         sk.mode = 'deck'; gmode = 'sfoot';
-        var pad = station.pads[sk.pad];
+        var pad = SITE().pads[sk.pad];
         if (pad) pad.free = false;
         sk.shipL.copy(pad ? pad.local : skA.set(0, 0.4, 0));
         exOff(exMe); hullY(0);
         if (!hum.obj) { hum.obj = makeHuman(effColor()); scene.add(hum.obj.group); } else hum.obj.setColor(effColor());
         hum.obj.group.visible = true;
         var px = sk.shipL.x;
-        sk.hp.set(px + (px > 0 ? -1.7 : 1.7), 0, sk.shipL.z + 0.4);
+        if (R27.dsite && R27.dsite.spawn) sk.hp.copy(R27.dsite.spawn); else sk.hp.set(px + (px > 0 ? -1.7 : 1.7), 0, sk.shipL.z + 0.4);
         sk.yaw = Math.atan2(-(sk.shipL.x - sk.hp.x), -(sk.shipL.z - sk.hp.z)); sk.pitch = 0.3; sk.vv = 0; sk.air = false; sk.jumpHeld = true;
         sk.moving = sk.running = false; camRelInit = false; mdx = mdy = 0;
         setGround(true, true); setPrompt('', false);
         net && net.setMode && net.setMode('landed'); sk.nl = 0.4;
         shake = Math.max(shake, 0.06 * L); aPlay('land', { vel: 1 });
-        station.toWorld(sk.shipL, skB); for (var i = 0; i < 3; i++) fx.impact(skB, 0x9ab0ff, 2);
-        addRow('', '', 'DOCKED · F near the counter, NPCs, map pedestal or your ship', 'is-sys');
+        SITE().toWorld(sk.shipL, skB); for (var i = 0; i < 3; i++) fx.impact(skB, 0x9ab0ff, 2);
+        if (R27.dsite) { addRow('', '', 'DERELICT · loot crates glow in the far room (F) · something is awake in here', 'is-sys'); dkOnDock(R27.dsite.d); }
+        else addRow('', '', 'DOCKED · F near the counter, NPCs, map pedestal or your ship', 'is-sys');
     }
     function finishLaunch() {
-        var pad = station.pads[sk.pad]; if (pad) pad.free = true;
+        var pad = SITE().pads[sk.pad]; if (pad) pad.free = true;
         sk.mode = ''; sk.cd = 3; gmode = 'fly';
-        vA.copy(station.mouth.dir);
+        vA.copy(SITE().mouth.dir);
         shipRoot.quaternion.setFromUnitVectors(NEG_Z, vA.normalize());
-        vel.copy(vA).multiplyScalar(2.5 * CRUISE).add(station.vel); speed = 2.5 * CRUISE; throttle = 0.6; pulse = 0; pulseT = 0; bank = 0; yawRate = pitRate = 0;
+        vel.copy(vA).multiplyScalar(2.5 * CRUISE).add(SITE().vel); speed = 2.5 * CRUISE; throttle = 0.6; pulse = 0; pulseT = 0; bank = 0; yawRate = pitRate = 0;
         combatRoot.visible = true; setGround(false, false); setPrompt('', false); hullY(0); exOff(exMe);
         mdx = mdy = 0; keys = Object.create(null); lfOff();
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
         net && net.setMode && net.setMode('fly');
         shake = Math.max(shake, 0.05 * L);
+        dkLeave();
     }
     function skCollide(p, yFoot) {
-        var b = station.deck.bounds, w = station.deck.walls, i, r = SK_R, q;
+        var b = SITE().deck.bounds, w = SITE().deck.walls, i, r = SK_R, q;
         p.x = clamp(p.x, b.min.x + r, b.max.x - r); p.z = clamp(p.z, b.min.z + r, b.max.z - r);
         for (i = 0; i < w.length; i++) {
             q = w[i];
@@ -6449,10 +6771,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function stationInteract() {
         skI.kind = ''; skI.obj = null; skI.label = '';
-        if (!station || !hum.obj || sk.mode !== 'deck' || storeOpen) return skI;
-        var hw = hum.w, st0 = station.interior.stores[0], npcs = station.interior.npcs, ped = station.interior.mapPedestal, i;
+        if (!SITE() || !hum.obj || sk.mode !== 'deck' || storeOpen) return skI;
+        var hw = hum.w, st0 = SITE().interior.stores[0], npcs = SITE().interior.npcs, ped = SITE().interior.mapPedestal, i;
         if (st0 && hw.distanceTo(st0.counter.pos) < Math.max(st0.counter.radius * 1.8, 2 * SK_H * L)) { skI.kind = 'store'; skI.obj = st0; skI.label = 'F · SHOP'; return skI; }
         for (i = 0; i < npcs.length; i++) if (hw.distanceTo(npcs[i].pos) < 1.4 * L) { skI.kind = 'npc'; skI.obj = npcs[i]; skI.label = 'F · TALK'; return skI; }
+        var tr = SITE().interior.trade; if (tr && tr.pos && hw.distanceTo(tr.pos) < Math.max(tr.radius || 0, 1.2 * L)) { skI.kind = 'trade'; skI.obj = tr; skI.label = 'F · TRADE'; return skI; }
+        if (R27.dsite) { var dc = dkCrateNear(); if (dc) { skI.kind = 'loot'; skI.obj = dc; skI.label = 'F · LOOT'; return skI; } }
         if (hw.distanceTo(ped.pos) < ped.radius + 0.3 * L) { skI.kind = 'map'; skI.label = 'F · GALAXY MAP'; return skI; }
         if (hw.distanceTo(shipRoot.position) < BOARD_L * L) { skI.kind = 'ship'; skI.label = R25.mod ? 'F · ENTER SHIP · HOLD LAUNCH' : 'F · LAUNCH'; return skI; }
         return skI;
@@ -6460,23 +6784,25 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function stationE() {
         var si = stationInteract();
         if (si.kind === 'store') openStore(si.obj);
+        else if (si.kind === 'trade') openTrade(si.obj, 'STATION TRADE', 'TRADER', null);
+        else if (si.kind === 'loot') dkLoot(si.obj);
         else if (si.kind === 'npc') {
             var n = si.obj; n.li = ((n.li | 0) + 1) % Math.max(1, n.lines.length);
-            addRow(String(n.name).toUpperCase(), '#ffd36a', n.lines[n.li] || '...'); aPlay('npc', { seed: n.name });
+            addRow(String(n.name).toUpperCase(), '#ffd36a', n.lines[n.li] || '...'); aPlay('npc', { seed: n.name }); openQuests('station-' + n.name, n.name, 'board');
         } else if (si.kind === 'map') { setPrompt('', false); exit(); }
         else if (si.kind === 'ship') { if (R25.noInt || !enterInterior()) beginLaunch(); }
     }
     var skQ = new THREE.Quaternion(), skQ2 = new THREE.Quaternion();
     function skShipPose(dt, snap, qL) {
-        station.toWorld(skA, skB);
+        SITE().toWorld(skA, skB);
         if (snap) shipRoot.position.copy(skB); else shipRoot.position.lerp(skB, damp(16, dt));
-        shipRoot.quaternion.copy(station.quat).multiply(qL);
+        shipRoot.quaternion.copy(SITE().quat).multiply(qL);
     }
     function skCommon(dt) {      // shake / fov / camera plane / fx / hud / net: shared by every station sub-state
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { vA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake); camera.position.add(vA); }
         fov += (baseFov - fov) * damp(4, dt);
-        var near = gmode === 'ifoot' ? Math.min(0.002, 0.02 * L) : (gmode === 'sfoot' ? 0.01 * L : 0.02 * L);
+        var near = gmode === 'ifoot' ? Math.min(0.002, 0.02 * L) : (gmode === 'sfoot' ? (R27.dsite ? Math.min(0.003, 0.01 * L) : 0.01 * L) : 0.02 * L);      // rev 27: 0.003 inside a derelict
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== near) { camera.fov = fov; camera.near = near; camera.updateProjectionMatrix(); }
         camera.updateMatrixWorld(true);
         fx.setMotion(vel, 0, false); fx.update(dt, camera);
@@ -6484,7 +6810,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         scanUpdate(dt); musicTick(dt, null); updateBooms(dt); updateHud(0, aliveCount()); hudDmg(dt); updatePlayerMarks();
     }
     function stationStep(dt) {
-        if (!station) { skAbort(); return; }
+        if (!SITE()) { skAbort(); return; }
         var m = sk.mode, u, e;
         if (m === 'docking' || m === 'launching') {
             sk.t += dt; u = clamp(sk.t / sk.T, 0, 1);
@@ -6509,6 +6835,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         } else if (m === 'deck') {
             sfootStep(dt);
         }
+        if (R27.dsite) dkTick(dt);
         skCommon(dt);
         if (m === 'deck' || sk.mode === 'deck') {
             if (sk.nl > 0) { sk.nl -= dt; if (sk.nl <= 0 && net && net.setMode) net.setMode('foot'); }
@@ -6529,30 +6856,623 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var wantJump = !cmd && !!keys.Space;
         if (!sk.air && wantJump && !sk.jumpHeld) { sk.air = true; sk.vv = 8.5 * H; }
         sk.jumpHeld = wantJump;
-        var nSub = clamp(Math.ceil(spd * dt / (0.2 * H)), 1, 10), h = dt / nSub, k, p = sk.hp, ceil = station.deck.bounds.max.y - H;
+        var nSub = clamp(Math.ceil(spd * dt / (0.2 * H)), 1, 10), h = dt / nSub, k, p = sk.hp, ceil = SITE().deck.bounds.max.y - H;
         for (k = 0; k < nSub; k++) {
             if (moving) { p.x += mx * spd * h; p.z += mz * spd * h; }
             if (sk.air) { sk.vv -= 22 * H * h; p.y += sk.vv * h; if (p.y >= ceil) { p.y = ceil; sk.vv = Math.min(0, sk.vv); } if (p.y <= 0) { p.y = 0; sk.vv = 0; sk.air = false; } }
             skCollide(p, p.y);
         }
         // the human + its world pose
-        station.toWorld(p, hum.w);
+        SITE().toWorld(p, hum.w);
         hum.obj.group.position.copy(hum.w);
         skQ.setFromAxisAngle(Y, sk.yaw);
-        hum.obj.group.quaternion.copy(station.quat).multiply(skQ);
+        hum.obj.group.quaternion.copy(SITE().quat).multiply(skQ);
         hum.obj.group.scale.setScalar(H * L);
         hum.obj.update(dt, { moving: moving, running: run, airborne: sk.air, speed: moving ? (run ? 1 : 0.5) : 0, facing: 0 });
         // the parked ship rides the station
         skA.copy(sk.shipL); skShipPose(dt, true, skQ2.identity());
         // camera: 6 human heights behind, never outside the hangar volume
-        var b = station.deck.bounds, cp = Math.cos(sk.pitch), spn = Math.sin(sk.pitch);
+        var b = SITE().deck.bounds, cp = Math.cos(sk.pitch), spn = Math.sin(sk.pitch);
         skA.set(p.x, p.y + 0.8 * H, p.z);
         skB.set(skA.x + sy * cp * SK_CAM, skA.y + spn * SK_CAM, skA.z + cy * cp * SK_CAM);
         skB.x = clamp(skB.x, b.min.x + 0.08, b.max.x - 0.08); skB.y = clamp(skB.y, 0.06, b.max.y - 0.1); skB.z = clamp(skB.z, b.min.z + 0.08, b.max.z - 0.1);
-        station.toWorld(skA, skC); station.toWorld(skB, vTmp);
-        vA.copy(Y).applyQuaternion(station.quat);
+        SITE().toWorld(skA, skC); SITE().toWorld(skB, vTmp);
+        vA.copy(Y).applyQuaternion(SITE().quat);
         mM.lookAt(vTmp, skC, vA); gQ.setFromRotationMatrix(mM);
         groundCam(dt, skC, vTmp, gQ, 16);
+    }
+
+    // ═══ rev 27: wiring (audio ambience, weather, creatures + followers, suit, convoys, derelicts, ground predators, relay profile / discoveries / events) ═══
+    // Every module hook is guarded: an older ship-audio / ship-planet / ship-enemies / ship-interior simply leaves its feature off.
+    var R27 = {
+        su: { jetpack: 0, scanner: 0, sprint: 0, storage: 0 }, suitSig: '', suitT: 0, windOn: true, tamedKey: '', dsite: null, cvOn: false, titan: null,
+        fire: false, ffCd: 0, gnd: [], gT: 0, nestT: {}, nestSpec: null, nestFor: '', ambT: 0, wxTxt: '', evT: 0, evt: null, evKey: '', sale: 0, sg: 0, ndT: 0,
+        meteor: { node: null, until: 0, t: 0, list: [] }, claimed: {}, touchSig: '', intSig: '', follow: { key: '', pet: null, holder: null, pp: new THREE.Vector3(), lpp: new THREE.Vector3(), init: false, name: '', chk: 0 },
+        rl: { name: '', key: '', loaded: false, pend: false, retry: 0, sig: '', lastSend: 0, bigWarned: false }, wxOn: false
+    };
+    function SITE() { return R27.dsite || station; }
+    var fsC2 = new THREE.Vector3(), fsW = new THREE.Vector3(), qW = new THREE.Quaternion();
+    var r27R = new THREE.Vector3(), r27U = new THREE.Vector3(), r27F = new THREE.Vector3(), r27G = new THREE.Vector3(), r27T = new THREE.Vector3(), r27D = new THREE.Vector3(), r27Qi = new THREE.Quaternion(), r27Fo = { r: 0, n: new THREE.Vector3() };
+    var r27A = new THREE.Vector3(), r27B = new THREE.Vector3(), r27C = new THREE.Vector3();
+
+    // ── HUD bits ──
+    var elWx = document.createElement('div'); elWx.className = 'sh-wx'; hud.appendChild(elWx);
+    var elEvt = document.createElement('div'); elEvt.className = 'sh-evt'; hud.appendChild(elEvt);
+    var evtHide = 0;
+    function evtBanner(t) { elEvt.textContent = t; elEvt.classList.add('is-on'); clearTimeout(evtHide); evtHide = setTimeout(function () { elEvt.classList.remove('is-on'); }, 9000); }
+
+    // ── 4. suit: tiers from the profile (7/11 GEAR tab rows + crafted kits) ──
+    function suitOf(pf) {
+        var s = (pf && pf.suit) || {}, u = (pf && pf.upgrades) || {};
+        return { jetpack: clamp(Math.max(s.jetpack | 0, u.jetpack | 0), 0, 3), scanner: clamp(s.scanner | 0, 0, 3), sprint: clamp(s.sprint | 0, 0, 3), storage: clamp(Math.max(s.storage | 0, u.cargo | 0), 0, 3) };
+    }
+    function suitSync() {
+        var s = suitOf(curProfile()), sig = s.jetpack + '' + s.scanner + s.sprint + s.storage;
+        R27.su = s;
+        if (sig === R27.suitSig) return;
+        R27.suitSig = sig;
+        if (hum.obj && hum.obj.setSuit) hum.obj.setSuit(s);
+        if (exJet) exJet.nzk = -2;      // nozzle layout may have changed: rebuild the flame set on the next burn
+    }
+    var SUIT_P = [140, 320, 720], SUIT_N = { jetpack: 'JETPACK', scanner: 'SCANNER', sprint: 'SPRINT BOOTS', storage: 'STORAGE PACK' }, SUIT_D = { jetpack: 'CLIMB + FLY BOOST', scanner: 'WIDER SCAN GLOW', sprint: 'RUN SPEED +10 %', storage: 'BIGGER SUIT POCKETS' };
+    function suitRows(pf) {
+        ['jetpack', 'scanner', 'sprint', 'storage'].forEach(function (k) {
+            var t = pf.suit[k] | 0;
+            if (t >= 3) shopRows.push({ k: '-', tag: 'SU', name: 'SUIT · ' + SUIT_N[k], sub: 'MAXED · TIER 3', price: null });
+            else shopRows.push({ k: 'u', slot: k, tag: 'SU', name: 'SUIT · ' + SUIT_N[k] + ' T' + (t + 1), sub: SUIT_D[k], price: SUIT_P[t] });
+        });
+    }
+    function salePrice(p) { return R27.sale > Date.now() ? 0 : p; }
+
+    // ── 5. trade overlay (convoys via space.hail, station via interior.trade) ──
+    function openTrade(trade, title, who, convoyId) {
+        if (storeOpen || cmdOpen || state !== 'piloting' || !trade) return false;
+        knownFor(); shopSt = null; shopTab = 0;
+        shopOpenCommon({ mode: 'trade', trade: trade, cid: convoyId || '' }, title, who, convoyId ? 'Cargo is cargo. Make it quick.' : 'Prices move with the day.', null);
+        return true;
+    }
+    function tradeFill(ctx, pf) {
+        var t = ctx.trade, i;
+        if (shopTab !== 2) {
+            shopTab = 0;
+            for (i = 0; i < t.sells.length; i++) { var s = t.sells[i]; shopRows.push({ k: 'tb', i: i, item: s.item, name: s.item.name, sub: 'x' + s.n + ' IN STOCK', price: s.price }); }
+            if (!shopRows.length) shopRows.push({ k: '-', tag: '--', name: 'SOLD OUT', sub: '', price: null });
+        } else {
+            for (i = 0; i < pf.items.length; i++) {
+                var rec = pf.items[i], io = itemOf(rec), pr = io && t.buyPrices ? t.buyPrices[rec.id] : 0;
+                if (io && pr) shopRows.push({ k: 'ts', i: i, item: io, name: io.name, sub: 'x' + rec.n + ' · THEY PAY', price: pr });
+            }
+            if (!shopRows.length) shopRows.push({ k: '-', tag: '--', name: 'NOTHING THEY WANT', sub: (t.buys || []).length ? 'THEY WANT ' + t.buys.length + ' KINDS' : '', price: null });
+        }
+    }
+    function tradePick(row, pf) {
+        var t = shopCtx.trade;
+        if (row.k === 'tb') {
+            var s = t.sells[row.i]; if (!s || s.n <= 0) return;
+            if ((pf.gor | 0) < s.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+            pf.gor -= s.price; giveItem(s.item, 1); s.n--; if (s.n <= 0) t.sells.splice(row.i, 1);
+            aPlay('buy'); shopMsg('BOUGHT ' + s.item.name); writeSave(); shopFill(); return;
+        }
+        var rec = pf.items[row.i]; if (!rec) return;
+        rec.n--; if (rec.n <= 0) pf.items.splice(row.i, 1);
+        pf.gor = (pf.gor | 0) + row.price; aPlay('buy', { pitch: 0.8 }); shopMsg('SOLD ' + row.name + ' · +' + row.price); writeSave(); shopFill();
+    }
+    // convoys: HUD markers (<= 300 L), hail at <= 20 L, piracy, hostile escorts, crates
+    var cvEls = [], cvNear = null, cvNearD = 1e30;
+    function cvEnsure() {
+        while (cvEls.length < 3) { var el = document.createElement('div'); el.className = 'sh-cvm'; el.style.display = 'none'; el.innerHTML = '<i></i><b></b>'; hud.appendChild(el); cvEls.push({ el: el, b: el.lastChild, on: false, txt: '', x: -1e9, y: -1e9, hot: false }); }
+    }
+    function cvTick() {
+        if (!space || !space.convoys || !space.convoys.length) { R27.cvOn = false; return; }
+        cvEnsure();
+        var P = shipRoot.position, i, j, c, W = window.innerWidth, H = window.innerHeight, any = false;
+        cvNear = null; cvNearD = 1e30;
+        for (i = 0; i < cvEls.length; i++) {
+            var m = cvEls[i], show = false; c = space.convoys[i];
+            if (c && c.ships[0] && c.ships[0].pos.x < 1e11 && !dead) {
+                var f = c.ships[0], d = f.pos.distanceTo(P) / L;
+                if (d < 600) any = true;
+                if (c.state === 'attacked') {          // hostile escorts: they harry the player
+                    for (j = 0; j < c.ships.length; j++) {
+                        var s = c.ships[j];
+                        if (s.kind !== 'fighter' || !s.alive) continue;
+                        var ds = s.pos.distanceTo(P) / L;
+                        if (ds < 160 && gt > (s.fireT || 0)) {
+                            s.fireT = gt + 1.3 + Math.random() * 1.2; r27A.subVectors(P, s.pos).normalize(); r27A.x += (Math.random() - 0.5) * 0.04; r27A.y += (Math.random() - 0.5) * 0.04; r27A.normalize();
+                            fireBolt(s.pos.x, s.pos.y, s.pos.z, r27A.x, r27A.y, r27A.z, 90 * L, 2.4, true, 5, L * 2, L * 0.15);
+                        }
+                    }
+                }
+                if (d <= 20 && c.state !== 'attacked' && c.state !== 'fled' && d < cvNearD) { cvNear = c; cvNearD = d; }
+                if (d < 300) {
+                    vSc.copy(f.pos).project(camera);
+                    if (vSc.z < 1 && vSc.z > -1 && Math.abs(vSc.x) < 1.05 && Math.abs(vSc.y) < 1.05) {
+                        show = true;
+                        var tx = (c.faction === 'dealers' ? 'DEALER' : 'CORP') + ' CONVOY ' + Math.round(d) + ' L' + (c.state === 'attacked' ? ' · HOSTILE' : (c === cvNear ? ' · F HAIL' : ''));
+                        if (tx !== m.txt) { m.txt = tx; m.b.textContent = tx; }
+                        var hot = c.state === 'attacked' || c === cvNear; if (hot !== m.hot) { m.hot = hot; m.el.classList.toggle('is-hot', hot); }
+                        var x = (vSc.x * 0.5 + 0.5) * W, y = (-vSc.y * 0.5 + 0.5) * H;
+                        if (Math.abs(x - m.x) > 0.5 || Math.abs(y - m.y) > 0.5) { m.x = x; m.y = y; m.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) translate(-50%,-50%)'; }
+                    }
+                }
+            }
+            if (show !== m.on) { m.on = show; m.el.style.display = show ? '' : 'none'; }
+        }
+        R27.cvOn = any;
+        var cr = space.crates;
+        for (i = 0; i < cr.length; i++) {          // crates: fly through them
+            c = cr[i]; if (c.taken || c.pos.distanceToSquared(P) > (8 * L) * (8 * L)) continue;
+            c.taken = true; var got = [];
+            for (j = 0; j < c.stacks.length; j++) { var st = c.stacks[j]; giveItem(st.item, st.n); got.push(st.n + ' ' + st.item.name); }
+            aPlay('buy', { pitch: 1.2 }); addRow('', '', 'CARGO CRATE · ' + got.join(', '), 'is-sys'); writeSave(); questEvent({ type: 'crate' });
+        }
+    }
+    function cvAttackNow(c) {
+        var d = space.attack(c.id), pf = ensureProfile(userName());
+        pf.rep.corp = clamp(pf.rep.corp + d.corp, -99, 99); pf.rep.dealers = clamp(pf.rep.dealers + d.dealers, -99, 99);
+        addRow('', '', 'PIRACY · ' + (c.faction === 'dealers' ? 'DEALERS' : 'CORP') + ' CONVOY HOSTILE · rep corp ' + pf.rep.corp + ' dealers ' + pf.rep.dealers, 'is-sys'); writeSave();
+    }
+    function cvBoltHit(bo, bp) {
+        var cs = space.convoys, i, j, pv = bo.prev;
+        for (i = 0; i < cs.length; i++) {
+            var c = cs[i];
+            for (j = 0; j < c.ships.length; j++) {
+                var s = c.ships[j]; if (!s.alive || s.pos.x > 1e11) continue;
+                var r = (s.kind === 'hauler' ? 14 : 3.5) * L;
+                if (segDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, s.pos.x, s.pos.y, s.pos.z) > r * r) continue;
+                if (c.state === 'cruising' || c.state === 'hailed') cvAttackNow(c);
+                if (s.hit) {
+                    var left = s.hit(bo.dmg); fx.impact(bp, 0xff8a5c, 1.6); aPlay('hit', { dist: aDist(bp), vel: 0.6 });
+                    if (left <= 0) { burst(s.pos, 18, 0, 18, 2); aPlay('explosion', { dist: aDist(s.pos), pitch: 1.1 }); addUnits(UNIT_KILL, s.pos, false); }
+                } else { fx.impact(bp, 0xffb35c, 2); aPlay('shieldHit', { dist: aDist(bp) }); }
+                return true;
+            }
+        }
+        return false;
+    }
+    function cvHail() {
+        if (!cvNear || dead || !space || typeof space.hail !== 'function') return false;
+        var t = null; try { t = space.hail(cvNear.id); } catch (e0) { t = null; }
+        if (!t) return false;
+        return openTrade(t, (cvNear.faction === 'dealers' ? 'DEALER' : 'CORP') + ' CONVOY', 'HAULER', cvNear.id);
+    }
+
+    // ── 6. derelicts: the station dock sequence on an adapter that quacks like `station` (deck floor shifted to y = 0) ──
+    function dkSite(d) {
+        if (d._site) return d._site;
+        var FY = d.crates && d.crates[0] ? d.crates[0].localPos.y : -0.5, b = d.deck.bounds, tmp = new THREE.Vector3(), V = THREE.Vector3;
+        var walls = d.deck.walls.map(function (w) { return { name: w.name, field: w.field, min: new V(w.min.x, w.min.y - FY, w.min.z), max: new V(w.max.x, w.max.y - FY, w.max.z) }; });
+        var pts = d.dockPath(), lastW = pts[pts.length - 1], lp = d.toLocal(lastW, new V());
+        var S = {
+            isDerelict: true, d: d, group: d.group, pos: d.pos, quat: d.quat, vel: new V(), mouth: d.mouth,
+            pads: [{ free: true, local: new V(lp.x, lp.y - FY, lp.z) }],
+            spawn: new V(lp.x, 0, lp.z - 1.5),
+            deck: { bounds: { min: new V(b.min.x, b.min.y - FY, b.min.z), max: new V(b.max.x, b.max.y - FY, b.max.z) }, walls: walls },
+            interior: { stores: [], npcs: [], mapPedestal: { pos: new V(1e9, 1e9, 1e9), radius: 0 }, trade: null },
+            toLocal: function (wp, out) { d.toLocal(wp, out); out.y -= FY; return out; },
+            toWorld: function (lv, out) { tmp.set(lv.x, lv.y + FY, lv.z); return d.toWorld(tmp, out); },
+            dockPath: function () { return d.dockPath(); }, launchPath: function () { return d.launchPath(); }, setVisible: function () {}
+        };
+        d._site = S; return S;
+    }
+    function dkTrigger(P) {
+        var ds = space.derelicts, i, k;
+        for (i = 0; i < ds.length; i++) {
+            var d = ds[i]; if (!d.group.visible || !d.mouth || !d.mouth.trigger) continue;
+            for (k = 0; k <= 4; k++) { vTmp.lerpVectors(bhPrev, P, k / 4); if (d.mouth.trigger(vTmp)) { beginDock(d); return; } }
+        }
+    }
+    function dkLeave() { R27.dsite = null; for (var i = 0; i < R27.gnd.length; i++) if (R27.gnd[i].site) R27.gnd[i].g.visible = false; R27.fire = false; }
+    function dkOnDock(d) {
+        if (d._gdDead) return;
+        for (var i = 0; i < R27.gnd.length; i++) if (R27.gnd[i].site && R27.gnd[i].site.d === d && R27.gnd[i].alive) { R27.gnd[i].g.visible = true; return; }
+        var tier = Math.max(1, (d.guardian && d.guardian.tier) | 0), seed = 0xD3AD + (d.index | 0) * 7717;
+        var e = gndMake(seed, tier, null);
+        if (!e) return;
+        e.site = R27.dsite; e.guard = d; e.lp.copy(R27.dsite.toLocal(d.guardian.pos, r27A)); e.lp.y = 0; e.aggro = 60; e.mode = 'derelict';
+        gndPlace(e);
+    }
+    function dkCrateNear() {
+        var d = R27.dsite && R27.dsite.d, i; if (!d) return null;
+        for (i = 0; i < d.crates.length; i++) { var c = d.crates[i]; if (!c.taken && c.pos.distanceToSquared(hum.w) < (0.7 * L) * (0.7 * L)) return c; }
+        return null;
+    }
+    function dkLoot(c) {
+        c.taken = true; var got = [], i;
+        for (i = 0; i < c.stacks.length; i++) { giveItem(c.stacks[i].item, c.stacks[i].n); got.push(c.stacks[i].n + ' ' + c.stacks[i].item.name); }
+        aPlay(c.rare ? 'levelUp' : 'harvest'); addRow('', '', 'SALVAGE · ' + got.join(', '), 'is-sys'); writeSave();
+        for (i = 0; i < 3; i++) fx.impact(c.pos, c.rare ? 0xff5ce1 : 0xffb030, 2.5);
+    }
+    function dkTick(dt) { try { if (space) space.update(dt, shipRoot.position); } catch (e0) { /* ignore */ } if (sk.mode === 'deck') r27Foot(dt); }
+    function dkCollide(p, r) {
+        var st = R27.dsite, b = st.deck.bounds, w = st.deck.walls, i, q;
+        p.x = clamp(p.x, b.min.x + r, b.max.x - r); p.z = clamp(p.z, b.min.z + r, b.max.z - r);
+        for (i = 0; i < w.length; i++) {
+            q = w[i]; if (q.name === 'mouthField') { if (p.z > q.min.z - r) p.z = q.min.z - r; continue; }
+            var cx = clamp(p.x, q.min.x, q.max.x), cz = clamp(p.z, q.min.z, q.max.z), dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
+            if (d2 >= r * r) continue;
+            if (d2 > 1e-12) { var dd = Math.sqrt(d2), k = (r - dd) / dd; p.x += dx * k; p.z += dz * k; }
+            else { var l = p.x - q.min.x, rr = q.max.x - p.x, t = p.z - q.min.z, bb = q.max.z - p.z, mn = Math.min(l, rr, t, bb); if (mn === l) p.x = q.min.x - r; else if (mn === rr) p.x = q.max.x + r; else if (mn === t) p.z = q.min.z - r; else p.z = q.max.z + r; }
+        }
+    }
+
+    // ── 7. ground predators (ship-enemies generateGroundEnemy / nestSpec; guarded) ──
+    var GM = 0.05;                                   // world units per metre = 0.09 L / 1.8 m, x L
+    function gndMake(seed, tier, kind) {
+        if (typeof ENM.generateGroundEnemy !== 'function') return null;
+        var cr; try { cr = ENM.generateGroundEnemy(THREE, seed, tier, kind || undefined); } catch (e0) { console.info('[ship] ground enemy', e0); return null; }
+        if (!cr || !cr.group) return null;
+        var g = new THREE.Group(); g.add(cr.group); g.scale.setScalar(GM * L); g.traverse(function (o) { o.frustumCulled = false; }); scene.add(g);
+        var e = { cr: cr, g: g, hp: cr.stats.hp, hpMax: cr.stats.hp, alive: true, mode: 'planet', node: null, dir: new THREE.Vector3(0, 1, 0), hr: 0, site: null, guard: null, lp: new THREE.Vector3(), face: new THREE.Vector3(0, 0, -1), w: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0),
+            ph: 'idle', u: 0, t: 0, cd: 1 + Math.random(), mv: null, aggro: 30, nest: '', hitF: 0, hurtT: 0 };
+        R27.gnd.push(e); return e;
+    }
+    function gndFree(e) { e.alive = false; scene.remove(e.g); try { e.cr.dispose(); } catch (e0) { /* ignore */ } var i = R27.gnd.indexOf(e); if (i >= 0) R27.gnd.splice(i, 1); }
+    function gndClear(mode) { for (var i = R27.gnd.length - 1; i >= 0; i--) if (!mode || R27.gnd[i].mode === mode) gndFree(R27.gnd[i]); }
+    function gndPlace(e) {          // world position / up from the entity's frame, then the holder pose
+        if (e.mode === 'derelict') { if (!e.site) return; e.site.toWorld(e.lp, e.w); e.up.set(0, 1, 0).applyQuaternion(e.site.quat); }
+        else { if (!e.node) return; e.w.copy(e.dir).multiplyScalar(e.hr).applyQuaternion(e.node.mesh.quaternion).add(e.node.anchor.position); e.up.copy(e.dir).applyQuaternion(e.node.mesh.quaternion); }
+        e.face.addScaledVector(e.up, -e.face.dot(e.up)); if (e.face.lengthSq() < 1e-8) e.face.set(1, 0, 0).addScaledVector(e.up, 0); e.face.normalize();
+        r27R.crossVectors(e.face, e.up); r27B.copy(e.face).negate();
+        mM.makeBasis(r27R, e.up, r27B); e.g.quaternion.setFromRotationMatrix(mM); e.g.position.copy(e.w);
+    }
+    function gndStep(e, dt, hw) {
+        var cr = e.cr, st = cr.stats, H = 0.09 * L, d = e.w.distanceTo(hw), dM = d / (GM * L), mv = e.mv, moving = false, k;
+        r27C.subVectors(hw, e.w); r27C.addScaledVector(e.up, -r27C.dot(e.up)); var tl = r27C.length(); if (tl > 1e-9) r27C.divideScalar(tl);
+        if (e.hurtT > 0) e.hurtT -= dt;
+        if (e.ph === 'idle') {
+            e.cd -= dt;
+            if (dM < e.aggro && tl > 1e-9) {
+                e.face.lerp(r27C, damp(6, dt)).normalize();
+                var reach = cr.moves[1].reachL;
+                if (dM > reach * 0.8) { gndMove(e, r27C, st.speed * H * 0.85 * dt); moving = true; }
+                if (e.cd <= 0 && dM < cr.moves[0].reachL * 1.1) { e.mv = dM > reach * 1.3 ? cr.moves[0] : cr.moves[1]; e.ph = 'tele'; e.t = 0; cr.att.type = e.mv.type; cr.att.ph = 'tele'; cr.att.u = 0; }
+            }
+            cr.setSpeed(moving ? st.speed : 0);
+            if (e.mode === 'derelict' && cr.setBurrowed) cr.setBurrowed(false);
+        } else if (e.ph === 'tele') {
+            e.t += dt; k = clamp(e.t / mv.tele, 0, 1); cr.att.ph = 'tele'; cr.att.u = k; cr.setWindup(k); cr.setSpeed(0);
+            if (tl > 1e-9) e.face.lerp(r27C, damp(8, dt)).normalize();
+            if (k >= 1) {
+                e.ph = 'strike'; e.t = 0; cr.att.ph = 'strike'; cr.att.u = 0;
+                if (dM < mv.reachL * 1.25 + 1.2) footHurt(mv.dmg);
+            }
+        } else if (e.ph === 'strike') {
+            e.t += dt; k = clamp(e.t / mv.dur, 0, 1); cr.att.u = k;
+            if (mv.type === 'lunge' && dM > 1.2) gndMove(e, e.face, (mv.reachL * GM * L) / mv.dur * dt * 0.8);
+            if (k >= 1) { e.ph = 'rec'; e.t = 0; cr.att.ph = 'rec'; cr.att.u = 0; cr.setWindup(0); }
+        } else {
+            e.t += dt; k = clamp(e.t / mv.rec, 0, 1); cr.att.u = k;
+            if (k >= 1) { e.ph = 'idle'; cr.att.ph = 'idle'; e.cd = mv.cd; }
+        }
+        if (e.hitF > 0) { e.hitF = Math.max(0, e.hitF - dt * 5); cr.setHit(e.hitF); }
+    }
+    function gndMove(e, v, s) {
+        if (!(s > 0)) return;
+        if (e.mode === 'derelict') {
+            r27A.copy(e.w).addScaledVector(v, s); e.site.toLocal(r27A, r27B); e.lp.x = r27B.x; e.lp.z = r27B.z; e.lp.y = 0; dkCollide(e.lp, 0.04);
+        } else {
+            r27A.copy(e.w).addScaledVector(v, s).sub(e.node.anchor.position).applyQuaternion(qW.copy(e.node.mesh.quaternion).invert()).normalize();
+            var fr = ps && ps.active === e.node ? mFloor(r27A.x, r27A.y, r27A.z) : e.hr;
+            if (fr - e.hr < 0.03 * L + s) { e.dir.copy(r27A); e.hr = fr; }          // never up a cliff taller than ~0.7 m
+        }
+    }
+    function gndSphere(e, out) { out.copy(e.w).addScaledVector(e.up, e.cr.stats.height * 0.5 * GM * L); return e.cr.hitR * GM * L; }
+    function footHurt(dmg) {          // on-foot damage never kills: you are knocked to a sliver and the shield regrows
+        hp = Math.max(6, hp - dmg); sinceHit = 0; aPlay('hit', { pitch: 0.55, vel: Math.min(1, dmg / 30) });
+        shake = Math.max(shake, Math.min(0.5 * L, dmg / 20 * 0.2 * L)); fovKick = Math.max(fovKick, 1.5);
+    }
+    function gndKill(e) {
+        for (var i = 0; i < 4; i++) fx.impact(e.w, 0xff8a5c, 3, 'explode');
+        aPlay('explosion', { dist: aDist(e.w), pitch: 1.3 }); addUnits(UNIT_KILL * 2, e.w, true);
+        if (e.guard) { e.guard._gdDead = true; addRow('', '', 'GUARDIAN DOWN', 'is-sys'); }
+        if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000;
+        questEvent({ type: 'kill', n: 1 });
+        gndFree(e); writeSave();
+    }
+    function footFireTick(dt) {
+        if (R27.ffCd > 0) R27.ffCd -= dt;
+        if (!R27.fire || R27.ffCd > 0 || cmdOpen || storeOpen || invOpen || !hum.obj || dead) return;
+        var wp = curWeapon(), st = wp.stats || STARTER.stats, H = 0.09 * L;
+        R27.ffCd = 1 / clamp((st.rate || 4) * 0.7, 1, 5);
+        r27A.set(0, 0, -1).applyQuaternion(camera.quaternion);                           // aim ray: camera centre
+        var best = null, bt = 60 * L, i, e, r, t, ocx, ocy, ocz, b, c;
+        for (i = 0; i < R27.gnd.length; i++) {
+            e = R27.gnd[i]; if (!e.alive || !e.g.visible) continue;
+            gndPlace(e); r = gndSphere(e, r27B); ocx = r27B.x - camera.position.x; ocy = r27B.y - camera.position.y; ocz = r27B.z - camera.position.z;
+            b = ocx * r27A.x + ocy * r27A.y + ocz * r27A.z; if (b < 0) continue;
+            c = ocx * ocx + ocy * ocy + ocz * ocz - r * r; var disc = b * b - c; if (disc < 0) continue;
+            t = b - Math.sqrt(disc); if (t < 0) t = 0;
+            if (t < bt) { bt = t; best = e; }
+        }
+        r27R.set(1, 0, 0).applyQuaternion(hum.obj.group.quaternion); r27F.set(0, 0, -1).applyQuaternion(hum.obj.group.quaternion); r27U.set(0, 1, 0).applyQuaternion(hum.obj.group.quaternion);
+        r27G.copy(hum.w).addScaledVector(r27U, 0.52 * H).addScaledVector(r27R, 0.14 * H).addScaledVector(r27F, 0.32 * H);      // the hand
+        r27T.copy(camera.position).addScaledVector(r27A, best ? bt : 40 * L);
+        r27D.subVectors(r27T, r27G).normalize();
+        fx.spawnBolt(r27G, r27D, effColor(), 170 * L, 0.28); fx.muzzle(r27G, r27D, effColor(), 'bolt'); aPlay('fire', { vel: 0.5, pitch: 1.35 });
+        if (best) {
+            var dmg = (st.dmg || 8) * (st.count || 1) * 0.8;
+            best.hp -= dmg; best.hitF = 1; fx.impact(r27T, 0xff8a5c, 1.4, 'hit'); aPlay('hit', { dist: aDist(r27T), vel: 0.5 });
+            if (best.ph === 'idle') best.cd = Math.min(best.cd, 0.4);
+            if (best.hp <= 0) gndKill(best);
+        }
+    }
+    function biomeWord(node) {
+        var u = node && node.mesh && node.mesh.material && node.mesh.material.uniforms; if (u && u.uBiome && u.uBiome.value > 0.5) return '';
+        var lk = ps && ps.lookOf ? ps.lookOf(node) : 'rocky'; return lk === 'lush' ? 'forest' : (lk === 'icy' ? 'ice' : 'rock');
+    }
+    function nestTick(dt) {
+        R27.gT -= dt; if (R27.gT > 0) return; R27.gT = 1.5;
+        var node = land.node; if (!node || gmode !== 'foot' || !hum.obj || !ps || ps.active !== node || typeof ENM.nestSpec !== 'function') return;
+        var pid = String(node.id), now = Date.now(), i, j, live = 0;
+        if (R27.nestFor !== pid) { R27.nestFor = pid; R27.nestSpec = null; var bw = biomeWord(node); if (bw) { try { R27.nestSpec = ENM.nestSpec(hash25(pid), bw); } catch (e0) { R27.nestSpec = null; } } }
+        if (!R27.nestSpec) return;
+        for (i = 0; i < R27.gnd.length; i++) if (R27.gnd[i].alive && R27.gnd[i].mode === 'planet') live++;
+        if (live >= 4) return;
+        var R = ps.radius || node.mesh.scale.x, hd = r27A.copy(hum.pos).normalize();
+        for (i = 0; i < R27.nestSpec.nests.length; i++) {
+            var nd = R27.nestSpec.nests[i], key = pid + ':' + nd.id;
+            r27B.set(nd.dir[0], nd.dir[1], nd.dir[2]);
+            var distM = Math.acos(clamp(r27B.dot(hd), -1, 1)) * R / (GM * L);
+            if (distM > nd.aggro * 3.5 || now < (R27.nestT[key] || 0)) continue;
+            var mine = 0; for (j = 0; j < R27.gnd.length; j++) if (R27.gnd[j].nest === key) mine++;
+            if (mine >= nd.count) continue;
+            var kind = nd.kinds[Math.floor(Math.random() * nd.kinds.length)], e = gndMake((hash25(key) + (now & 0xffff)) | 0, nd.tier, kind);
+            if (!e) return;
+            e.mode = 'planet'; e.node = node; e.nest = key; e.respawn = nd.respawn; e.aggro = nd.aggro;
+            r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(r27B, -r27C.dot(r27B)).normalize();
+            e.dir.copy(r27B).addScaledVector(r27C, (Math.random() * nd.radius * GM * L) / R).normalize();
+            e.hr = mFloor(e.dir.x, e.dir.y, e.dir.z); e.face.crossVectors(e.dir, r27C).normalize();
+            R27.nestT[key] = now + 3500; gndPlace(e);
+            return;
+        }
+    }
+    function gndTick(dt, hw) {
+        for (var i = R27.gnd.length - 1; i >= 0; i--) {
+            var e = R27.gnd[i];
+            if (e.mode === 'planet' && (gmode !== 'foot' || !land.node || e.node !== land.node)) { gndFree(e); continue; }
+            if (e.mode === 'derelict' && !(R27.dsite && R27.dsite === e.site)) { e.g.visible = false; continue; }
+            e.g.visible = true; gndPlace(e); gndStep(e, dt, hw); gndPlace(e); e.cr.update(gt + R27.t, dt);
+        }
+    }
+    function r27Foot(dt) {          // on foot on a planet, or on foot inside a derelict
+        var onP = gmode === 'foot' && hum.obj, onD = !!R27.dsite && gmode === 'sfoot' && hum.obj;
+        if (!onP && !onD) { R27.fire = false; return; }
+        sinceHit += dt; if (sinceHit > 5 && hp < HP_MAX) hp = Math.min(HP_MAX, hp + 5 * dt);
+        footFireTick(dt);
+        if (onP) { nestTick(dt); petFollowTick(dt); meteorTick(dt); }
+        if (R27.gnd.length) gndTick(dt, hum.w);
+    }
+    document.addEventListener('mousedown', function (e) {
+        if (state !== 'piloting' || e.button !== 0 || cmdOpen || !locked()) return;
+        if (gmode === 'foot' || (gmode === 'sfoot' && R27.dsite && sk.mode === 'deck')) R27.fire = true;
+    }, true);
+    document.addEventListener('mouseup', function (e) { if (e.button === 0) R27.fire = false; }, true);
+
+    // ── 3. followers (inventory right-click a pet) + scan glow + discoveries ──
+    function petStow() { var f = R27.follow; if (f.pet) { try { f.pet.dispose(); } catch (e0) { /* ignore */ } } if (f.holder) scene.remove(f.holder); f.pet = null; f.holder = null; f.key = ''; f.init = false; }
+    function petFollowToggle(it) {
+        var p = it.pet, f = R27.follow;
+        if (f.key === it.id) { var nm = f.name; petStow(); addRow('', '', nm + ' stowed', 'is-sys'); return true; }
+        if (gmode !== 'foot' || !hum.obj || !ps || !ps.active) { addRow('', '', 'call ' + p.name + ' out on foot, on a planet', 'is-sys'); return true; }
+        if (!humanMod || typeof humanMod.createPet !== 'function') return false;
+        petStow();
+        var pet; try { pet = humanMod.createPet(THREE, { seed: p.seed, plan: p.plan }); } catch (e0) { return false; }
+        pet.group.traverse(function (o) { o.frustumCulled = false; });
+        var hd = new THREE.Group(); hd.add(pet.group); scene.add(hd);
+        f.key = it.id; f.pet = pet; f.holder = hd; f.init = false; f.name = p.name; f.chk = 0;
+        addRow('', '', p.name + ' follows you · right-click again to stow', 'is-sys'); aPlay('tame', { vel: 0.5 });
+        return true;
+    }
+    function petFollowTick(dt) {
+        var f = R27.follow; if (!f.pet) return;
+        f.chk -= dt; if (f.chk <= 0) { f.chk = 1; var pf = curProfile(); if (!pf || !pf.items.some(function (r) { return r.id === f.key; })) { petStow(); return; } }
+        if (!hum.obj || !ps || !ps.active) { f.holder.visible = false; return; }
+        var H = 0.09 * L, hq = hum.obj.group.quaternion;
+        f.holder.visible = true;
+        r27R.set(1, 0, 0).applyQuaternion(hq); r27U.set(0, 1, 0).applyQuaternion(hq); r27F.set(0, 0, -1).applyQuaternion(hq);
+        if (f.init) f.pp.copy(f.lpp).applyQuaternion(ps.active.mesh.quaternion).add(ps.active.anchor.position);      // the planet moves: the pet lives in its LOCAL frame between frames
+        if (!f.init || f.pp.distanceToSquared(hum.w) > (10 * H) * (10 * H)) { f.pp.copy(hum.w).addScaledVector(r27R, 1.1 * H).addScaledVector(r27F, -0.9 * H); f.init = true; }
+        r27G.copy(hum.w).addScaledVector(r27R, -0.9 * H).addScaledVector(r27F, -0.8 * H);
+        f.holder.position.copy(f.pp); f.holder.quaternion.copy(hq); f.holder.scale.setScalar(H);
+        r27T.subVectors(r27G, f.pp).applyQuaternion(r27Qi.copy(hq).invert()).divideScalar(H); r27T.y = 0;
+        f.pet.group.position.set(0, 0, 0);
+        f.pet.follow(r27T, dt, { dist: 0.45, rate: 3 });
+        r27D.copy(f.pet.group.position).multiplyScalar(H).applyQuaternion(hq); f.pp.add(r27D); f.pet.group.position.set(0, 0, 0);
+        try {
+            var fo = ps.floorAt(f.pp, r27Fo);
+            if (fo && fo.r > 0) {
+                var c = ps.active.anchor.position; r27D.subVectors(f.pp, c).normalize(); f.pp.copy(c).addScaledVector(r27D, fo.r);
+                f.holder.quaternion.premultiply(r27Qi.setFromUnitVectors(r27U, r27D));
+            }
+        } catch (e0) { /* ignore */ }
+        f.holder.position.copy(f.pp);
+        f.lpp.copy(f.pp).sub(ps.active.anchor.position).applyQuaternion(qW.copy(ps.active.mesh.quaternion).invert());
+    }
+    function scanGlow(dt, org, w) {
+        R27.sg -= dt; if (R27.sg > 0) return; R27.sg = 0.6;
+        var tier = R27.su.scanner | 0;
+        try { if (ps && typeof ps.glowNear === 'function') ps.glowNear(org, (60 + 25 * tier) * L, 1.2); } catch (e0) { /* ignore */ }
+        if (!land.node) return;
+        var pid = String(land.node.id), pl = planetLabel(land.node), cl = creatList(), i, bd = (40 * L) * (40 * L), best = null;
+        for (i = 0; i < cl.length; i++) { var d2 = cl[i].lp.distanceToSquared(hum.pos); if (d2 < bd) { bd = d2; best = cl[i]; } }
+        if (best) { var kn = CR_NAMES[crKind(best)]; discClaim('creature', pid + ':' + kn, kn + ' ' + pl); }
+        if (w && typeof w.scanTargets === 'function') {
+            try { var tg = w.scanTargets(); for (i = 0; i < tg.length; i++) { if (tg[i].type !== 'resource') continue; locToWorld(tg[i].pos, vHl2); if (vHl2.distanceToSquared(org) < (40 * L) * (40 * L)) { discClaim('resource', pid + ':' + (tg[i].kind || 'ore'), String(tg[i].kind || 'ore').toUpperCase() + ' ' + pl); break; } } } catch (e1) { /* ignore */ }
+        }
+    }
+    function footWind(dir, dt, hr, H, supNow) {
+        if (!ps || !ps.wind || !land.node) return 0;
+        var ws = ps.wind; if (ws.x * ws.x + ws.y * ws.y + ws.z * ws.z < 1e-12) return 0;
+        fsW.copy(ws).applyQuaternion(qW.copy(land.node.mesh.quaternion).invert()); fsW.addScaledVector(dir, -fsW.dot(dir));
+        fsC2.copy(dir).addScaledVector(fsW, 0.15 * dt / hr).normalize();
+        var f = footFloor(fsC2, H); if (f - supNow > 0.1 * H) return 0;
+        return f;
+    }
+
+    // ── 8. relay client: profile sync, discoveries, events ──
+    function r27Touch(pf) {          // stamp savedAt only when the profile content really changed
+        var sa = pf.savedAt; pf.savedAt = 0; var s = JSON.stringify(pf);
+        if (s !== R27.touchSig) { R27.touchSig = s; sa = Date.now(); }
+        pf.savedAt = sa;
+    }
+    function r27Login(name, key) {
+        var r = R27.rl; r.name = String(name).toLowerCase(); r.key = key; r.loaded = false; r.pend = true; r.retry = 0; r.sig = '';
+        try { sessionStorage.setItem('nmg-rk', JSON.stringify({ n: name, k: key })); } catch (e0) { /* ignore */ }
+        if (net && net.online && net.profLoad) { r.pend = false; r.retry = performance.now() + 12000; net.profLoad(r.name, r.key); return 'LOADING PROFILE'; }
+        return 'RELAY OFFLINE, WILL SYNC WHEN CONNECTED';
+    }
+    function r27NetOpen() {
+        var r = R27.rl;
+        if (!r.name) { try { var o = JSON.parse(sessionStorage.getItem('nmg-rk') || 'null'); if (o && o.n && o.k && String(o.n) === curUser) { r.name = String(o.n).toLowerCase(); r.key = String(o.k); r.pend = true; } } catch (e0) { /* ignore */ } }
+        if (r.name && r.key && !r.loaded && net) { r.pend = false; r.retry = performance.now() + 12000; net.profLoad(r.name, r.key); }
+        if (net && net.eventNow) net.eventNow();
+    }
+    function relayData(pf) { return JSON.parse(JSON.stringify(pf)); }
+    function relaySig(pf) { var sa = pf.savedAt; pf.savedAt = 0; var s = JSON.stringify(pf); pf.savedAt = sa; return s; }
+    function r27Prof(m) {
+        var r = R27.rl, pf = curProfile();
+        if (!r.name || !pf) return;
+        if (m.loaded) {
+            var srv = migrateProfile(m.data);
+            if (srv.savedAt >= (pf.savedAt | 0)) { users[curUser] = srv; pf = srv; applyProfile(); suitSync(); R27.touchSig = relaySig(srv); writeSave(); addRow('', '', 'PROFILE LOADED · ' + String(r.name).toUpperCase(), 'is-sys'); }
+            else { net.profSave(r.name, r.key, relayData(pf)); r.lastSend = performance.now(); addRow('', '', 'PROFILE SENT · local copy is newer', 'is-sys'); }
+            r.loaded = true; r.sig = relaySig(pf); r.retry = 0; return;
+        }
+        if (m.ok) { r.retry = 0; return; }          // prof.ok
+        if (m.why === 'none') { r.loaded = true; r.retry = 0; if (net && net.profSave) { net.profSave(r.name, r.key, relayData(pf)); r.lastSend = performance.now(); r.sig = relaySig(pf); addRow('', '', 'PROFILE REGISTERED · ' + String(r.name).toUpperCase(), 'is-sys'); } return; }
+        if (m.why === 'key') { addRow('', '', 'RELAY · wrong key for ' + String(r.name).toUpperCase(), 'is-sys'); r.name = ''; r.key = ''; return; }
+        if (m.why === 'rate') { r.retry = performance.now() + 11000; return; }
+        if (m.why === 'big') { if (!r.bigWarned) { r.bigWarned = true; addRow('', '', 'RELAY · profile too large to sync', 'is-sys'); } return; }
+        addRow('', '', 'RELAY · ' + m.why, 'is-sys');
+    }
+    function relayTick(dt) {
+        var r = R27.rl; if (!r.name || !net || !net.online) return;
+        var now = performance.now();
+        if (!r.loaded) { if (r.retry && now > r.retry) { r.retry = now + 12000; net.profLoad(r.name, r.key); } return; }
+        if (now - r.lastSend < 60000) return;
+        var pf = curProfile(); if (!pf) return;
+        var sig = relaySig(pf); if (sig === r.sig) return;
+        if (sig.length > 60000) { if (!r.bigWarned) { r.bigWarned = true; addRow('', '', 'RELAY · profile too large to sync', 'is-sys'); } return; }
+        r.lastSend = now; r.sig = sig; net.profSave(r.name, r.key, relayData(pf));
+    }
+    function discClaim(kind, id, name) {
+        var key = kind + ':' + id; if (R27.claimed[key]) return; R27.claimed[key] = 1;
+        var pf = ensureProfile(userName()), cid = String(id).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 48), nm = String(name).slice(0, 24), me = userName();
+        if (!pf.disc.some(function (d) { return d.k === kind && d.id === cid; })) { pf.disc.push({ k: kind, id: cid, name: nm, by: me }); pf.disc = pf.disc.slice(-120); writeSave(); }
+        if (!(net && net.online && net.discClaim && net.discClaim(kind, cid, nm, me))) addRow('', '', 'DISCOVERED · ' + nm.toUpperCase(), 'is-sys');
+    }
+    function discPlanet(node) { if (node) discClaim('planet', String(node.id), planetLabel(node)); }
+    function r27Disc(m) {
+        if (m.list) return;
+        var pf = curProfile(), me = userName();
+        if (m.won) {
+            addRow('', '', 'DISCOVERY · ' + String(m.name).toUpperCase() + ' · first seen by ' + String(m.by).toUpperCase(), 'is-sys');
+            if (pf && m.by !== me) { var d = pf.disc.filter(function (x) { return x.k === m.kind && x.id === m.id; })[0]; if (d) d.by = m.by; }
+        } else if (pf) {
+            var dd = pf.disc.filter(function (x) { return x.k === m.kind && x.id === m.id; })[0]; if (dd) dd.by = m.by;
+            addRow('', '', String(m.name).toUpperCase() + ' was already found by ' + String(m.by).toUpperCase(), 'is-sys');
+        }
+    }
+    function planetNodes() { var d = engine.drawOrder || [], out = [], i; for (i = 0; i < d.length; i++) { var n = d[i]; if (n && n.anchor && n.mesh && !n.isSun && n.mesh.scale && n.mesh.scale.x > 0) out.push(n); } return out; }
+    function planetOfId(pid) { var a = planetNodes(); return a.length ? a[((pid | 0) % a.length + a.length) % a.length] : null; }
+    var EVT_TXT = { titan: 'A TITAN IS HUNTING NEAR ', meteor: 'METEOR SHOWER OVER ', friesSale: 'BURGER HOUSE FRIES ARE FREE', blockade: 'PIRATE BLOCKADE AT THE STATION' };
+    function r27Event(ev) {
+        if (!EVT_TXT[ev.kind]) return;
+        var key = ev.kind + ':' + Math.round((Date.now() + ev.left * 1000) / 20000);
+        if (key === R27.evKey) return; R27.evKey = key;
+        var pl = ev.planetId != null ? planetOfId(ev.planetId) : null, txt = EVT_TXT[ev.kind] + ((ev.kind === 'titan' || ev.kind === 'meteor') && pl ? planetLabel(pl).toUpperCase() : '');
+        evtBanner('EVENT · ' + txt); addRow('', '', 'EVENT · ' + txt + ' · ' + Math.round(ev.minutes || ev.left / 60) + ' MIN', 'is-sys');
+        R27.evt = { kind: ev.kind, until: Date.now() + Math.max(1, ev.left) * 1000, node: pl, applied: false };
+        if (ev.kind === 'friesSale') R27.sale = R27.evt.until;
+        if (ev.kind === 'meteor' && pl) { R27.meteor.node = pl; R27.meteor.until = Date.now() + Math.min(300, Math.max(1, ev.left)) * 1000; R27.meteor.t = 0; }
+    }
+    function evTick(dt) {
+        var ev = R27.evt; if (!ev || ev.applied) return;
+        if (Date.now() > ev.until) { R27.evt = null; return; }
+        if (state !== 'piloting' || gmode !== 'fly' || dead || !space) return;
+        if (ev.kind === 'titan') {
+            var pl = ev.node || planetNodes()[0]; if (!pl) { ev.applied = true; return; }
+            var len = TITAN_X * refR, out = r27A.copy(pl.anchor.position); if (out.lengthSq() < 1e-6) out.set(0, 0, 1); out.normalize();
+            var title = 'TITAN ' + bossSeedName();
+            R27.titan = { title: title, pos: new THREE.Vector3().copy(pl.anchor.position).addScaledVector(out, pl.mesh.scale.x * 1.5 + 0.7 * len + 300 * L) };
+            qPush(gt + 0.5, BOSS_ROLES[(wave >> 2) % 5], BOSS_TIERS.titan, (Math.random() * 1e9) | 0, 3, title, 0, false, false);
+            ev.applied = true; addRow('', '', 'TITAN SIGHTED · ' + planetLabel(pl).toUpperCase(), 'is-sys');
+        } else if (ev.kind === 'blockade') {
+            var cs = space.convoys, anchor = station && station.group.visible ? station.pos : shipRoot.position, i, j;
+            for (i = 0; i < cs.length && i < 2; i++) {
+                var c = cs[i];
+                try { if (space.debugNear) space.debugNear('convoy', i, anchor, 90 + i * 25, null); } catch (e0) { /* ignore */ }
+                c.state = 'attacked'; c.faction = i ? 'dealers' : 'corp';
+                for (j = 0; j < c.ships.length; j++) if (c.ships[j].kind === 'fighter') { c.ships[j].alive = true; c.ships[j].hp = 60; }
+            }
+            ev.applied = true; addRow('', '', 'BLOCKADE · 2 convoys are hostile near the station', 'is-sys');
+        } else ev.applied = true;
+    }
+    var meteorFx = [];
+    function meteorTick(dt) {          // shard rain: glowing shards fall near you; walk into one to pick it up
+        var m = R27.meteor; if (!m.node || Date.now() > m.until) { if (m.list.length) m.list.length = 0; return; }
+        if (land.node !== m.node || !hum.obj) return;
+        m.t -= dt; var H = 0.09 * L, i, s;
+        if (m.t <= 0 && m.list.length < 6) {
+            m.t = 1.6 + Math.random() * 1.4;
+            r27A.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar((6 + Math.random() * 12) * H);
+            r27B.copy(hum.w).add(r27A); var fo = null; try { fo = ps.floorAt(r27B, r27Fo); } catch (e0) { fo = null; }
+            if (fo && fo.r > 0) { r27C.subVectors(r27B, ps.active.anchor.position).normalize(); r27B.copy(ps.active.anchor.position).addScaledVector(r27C, fo.r); m.list.push({ p: new THREE.Vector3().copy(r27B), lp: new THREE.Vector3().copy(r27B).sub(ps.active.anchor.position).applyQuaternion(qW.copy(ps.active.mesh.quaternion).invert()), t: 0 }); for (i = 0; i < 3; i++) fx.impact(r27B, 0xffd36a, 3, 'explode'); aPlay('shard', { dist: aDist(r27B) }); }
+        }
+        for (i = m.list.length - 1; i >= 0; i--) {
+            s = m.list[i]; s.t += dt; s.p.copy(s.lp).applyQuaternion(land.node.mesh.quaternion).add(land.node.anchor.position); if (((s.t * 4) | 0) !== (((s.t - dt) * 4) | 0)) fx.flash(s.p, 0xffd36a, 1.2);
+            if (s.p.distanceToSquared(hum.w) < (1.3 * H) * (1.3 * H)) { m.list.splice(i, 1); giveItem(R25_SHARD, 1); aPlay('buy', { pitch: 1.5 }); addRow('', '', 'METEOR SHARD +1', 'is-sys'); writeSave(); }
+            else if (s.t > 60) m.list.splice(i, 1);
+        }
+    }
+
+    // ── 9. interior: trophies from discoveries, kitchen menu from food in the inventory ──
+    function r27Interior(int, pf) {
+        var foods = [], i;
+        for (i = 0; i < pf.items.length && foods.length < 6; i++) { var it = itemOf(pf.items[i]); if (it && (it.kind === 'fries' || it.effect || it.category === 'food')) foods.push({ name: it.name, color: it.color, count: pf.items[i].n }); }
+        var sig = pf.disc.length + '|' + foods.map(function (f) { return f.name + f.count; }).join(',');
+        if (sig === R27.intSig) return; R27.intSig = sig;
+        try { if (int.trophies && typeof int.trophies.setDiscoveries === 'function') int.trophies.setDiscoveries(pf.disc.slice(-24).map(function (d) { return { kind: d.k, name: d.name, by: d.by }; })); } catch (e0) { console.info('[ship] trophies', e0); }
+        try { if (int.kitchen && typeof int.kitchen.setMenu === 'function') int.kitchen.setMenu(foods); } catch (e1) { console.info('[ship] kitchen', e1); }
+    }
+
+    // ── 1 + 2. ambience + weather HUD, the per-frame hook ──
+    var ambO = { place: 'space', weather: 'clear', biome: 'rocky', night: 0, intensity: 0.4, seed: 7 }, ambOn = false;
+    function nightAt(node, p) {
+        try { var u = node.mesh.material.uniforms, ld = u.uLightDir && u.uLightDir.value; if (!ld) return 0; r27A.subVectors(p, node.anchor.position).normalize(); return clamp(0.5 - 1.3 * r27A.dot(ld), 0, 1); } catch (e0) { return 0; }
+    }
+    function ambTick(dt) {
+        var am = audio && audio.ambience;
+        if (state !== 'piloting') { if (ambOn && am && am.stop) { try { am.stop(); } catch (e0) { /* ignore */ } } ambOn = false; return; }
+        if (!am || typeof am.set !== 'function') return;
+        R27.ambT -= dt; if (R27.ambT > 0) return; R27.ambT = 0.1;
+        var o = ambO, node = ps && ps.active, depth = (node && ps.depth > 0.02) ? ps.depth : 0, place = 'space';
+        if (gmode === 'ifoot' || R27.dsite) place = 'interior';
+        else if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') place = storeOpen ? 'store' : 'station';
+        else if (storeOpen) place = 'store';
+        else if (depth > 0) place = (gmode === 'foot' || gmode === 'landed' || gmode === 'landing') ? 'surface' : 'atmo';
+        o.place = place;
+        var onPl = depth > 0 && (place === 'surface' || place === 'atmo');
+        o.weather = onPl && ps.weather ? ps.weather.state : 'clear';
+        o.biome = onPl ? (biomeWord(node) ? ps.lookOf(node) : 'gas') : 'rocky';
+        o.night = onPl ? nightAt(node, gmode === 'foot' && hum.obj ? hum.w : shipRoot.position) : 0;
+        o.intensity = clamp(0.3 + 0.4 * depth + (waveActive && gmode === 'fly' ? 0.25 : 0) + (R27.gnd.length ? 0.2 : 0), 0, 1);
+        o.seed = node ? (hash25(String(node.id)) & 0x7fffffff) : 7;
+        try { am.set(o); ambOn = true; } catch (e1) { /* ignore */ }
+    }
+    var WX_G = { wind: '≋ WIND', storm: '↯ STORM', aurora: '✦ AURORA' };
+    function wxTick() {
+        var node = ps && ps.active, tx = '';
+        if (node && ps.depth > 0.02 && ps.weather && WX_G[ps.weather.state]) tx = WX_G[ps.weather.state];
+        if (tx !== R27.wxTxt) { R27.wxTxt = tx; elWx.textContent = tx; elWx.classList.toggle('is-on', !!tx); elWx.setAttribute('data-wx', tx ? ps.weather.state : ''); }
+    }
+    function r27Tick(dt) {
+        R27.t += dt;
+        ambTick(dt);
+        R27.suitT -= dt; if (R27.suitT <= 0) { R27.suitT = 0.5; suitSync(); wxTick(); }
+        R27.evT -= dt; if (R27.evT <= 0) { R27.evT = 1; evTick(dt); relayTick(1); if (state !== 'piloting' && R27.gnd.length) gndClear(); if (R27.follow.pet && state !== 'piloting') petStow(); }
+        if (R27.gnd.length && gmode !== 'foot' && gmode !== 'sfoot') gndClear('planet');
     }
 
     // ─── idle loop: docked orbit, parked label ────────────────────────
@@ -6629,9 +7549,10 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             getState: function () { return state; },
             getMode: function () { return gmode === 'foot' ? 'foot' : ((gmode === 'fly' || gmode === 'docking' || gmode === 'launching') ? 'fly' : 'landed'); },
             stationToWorld: function (v, q) { if (!station) return false; station.toWorld(v, v); q.premultiply(station.quat); return true; },
+            onProf: r27Prof, onDisc: r27Disc, onEvent: r27Event, onOpen: r27NetOpen,
             buildHuman: function (color) { return makeHuman(color); },
             getPose: function () {
-                if (gmode === 'sfoot') {        // rev 22: station frame. x/y/z are STATION-LOCAL (L units); v = -1 flags it (the relay passes v through untouched)
+                if (gmode === 'sfoot' && !R27.dsite) {        // rev 22: station frame. x/y/z are STATION-LOCAL (L units); v = -1 flags it (the relay passes v through untouched)
                     var onDeck = sk.nl <= 0, qq = skQ2.setFromAxisAngle(Y, sk.yaw);
                     if (onDeck) return { x: sk.hp.x, y: sk.hp.y, z: sk.hp.z, qx: qq.x, qy: qq.y, qz: qq.z, qw: qq.w, v: -1, st: (sk.moving ? 1 : 0) | (sk.running ? 2 : 0) | (sk.air ? 4 : 0) | (glowOn ? 8 : 0), hp: hp / HP_MAX * 100 };
                     return { x: sk.shipL.x, y: sk.shipL.y, z: sk.shipL.z, qx: 0, qy: 0, qz: 0, qw: 1, v: -1, st: 0, hp: hp / HP_MAX * 100 };
@@ -6643,12 +7564,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 var p = shipRoot.position, q = shipRoot.quaternion;
                 return { x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, v: speed, st: (boostNow ? 1 : 0) | (pulse > 0.5 ? 2 : 0) | (dead ? 4 : 0) | (glowOn ? 8 : 0), hp: hp / HP_MAX * 100 };
             },
-            getPrefs: function (id) { return { name: userName(id), color: effColor() }; },
-            buildGhost: function () {         // rev 12: docked ghosts show the low-LOD hull; the full hull swaps in while they fly (ghostFx)
+            getPrefs: function (id) { return { name: userName(id), color: effColor(), hs: hullSigNow }; },
+            buildGhost: function (sig) {         // rev 12: docked ghosts show the low-LOD hull; the full hull swaps in while they fly (ghostFx)
                 var g = null;
                 try {
                     if (hullMod) {
-                        var lo = hullMod.buildHull(THREE, { lod: 'low' }), fu = hullMod.buildHull(THREE);
+                        var go = sig ? optsFromSig(sig) : null, lo = hullMod.buildHull(THREE, go ? Object.assign({ lod: 'low' }, go) : { lod: 'low' }), fu = hullMod.buildHull(THREE, go || undefined);
                         g = new THREE.Group(); g.add(lo); g.add(fu); fu.visible = false;
                         g.userData.thrusters = fu.userData.thrusters; g.userData.gunMuzzles = fu.userData.gunMuzzles; g.userData.lo = lo; g.userData.fu = fu;
                     }
@@ -6666,6 +7587,17 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         window.EMGOR_NET = net;       // debug / test hook
     }).catch(function () { /* single-player */ });
     var api = {
+        rev27: {          // test hooks
+            get R() { return R27; }, get sk() { return sk; }, get space() { return space; }, get hum() { return hum; }, get gnd() { return R27.gnd; }, get L() { return L; }, get gmode() { return gmode; }, get hp() { return hp; },
+            hail: cvHail, get cvNear() { return cvNear; }, openTrade: openTrade, tradeFill: tradeFill, discClaim: discClaim, event: r27Event, suitOf: suitOf, suitSync: suitSync, petToggle: petFollowToggle, creatList: creatList, flushCreat: function () { crCache.t = -1e9; }, tameFind: tameFind,
+            beginDock: beginDock, dkSite: dkSite, gndMove: gndMove, gndPlace: gndPlace, gndStep: gndStep, spawnGround: function (kind, tier) {
+                var e = gndMake((Math.random() * 1e9) | 0, tier || 1, kind || undefined); if (!e) return null;
+                if (R27.dsite) { e.mode = 'derelict'; e.site = R27.dsite; e.lp.copy(sk.hp); e.lp.z -= 4; e.lp.y = 0; }
+                else { e.mode = 'planet'; e.node = land.node; e.dir.copy(hum.pos).normalize(); r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.dir.addScaledVector(r27C, 8 * 0.09 * L / (ps.radius || 1)).normalize(); e.hr = mFloor(e.dir.x, e.dir.y, e.dir.z); }
+                e.aggro = 40; gndPlace(e); return e;
+            },
+            footFire: function (on) { R27.fire = !!on; }, windOff: function (b) { R27.windOn = !b; }, wind: function () { return ps && ps.wind ? ps.wind.clone() : null; }
+        },
         rev25: {
             set noInterior(b) { R25.noInt = !!b; },
             get snap() { return resumeSnap; }, get lfState() { return { on: lf.on, alt: lf.alt, hover: lf.hover }; },
@@ -6710,6 +7642,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         severLimb: function (e, i) { severLimb(e, i); return e.cr && e.cr.limbs[i] ? !!e.cr.limbs[i].dead : false; },
         get hold() { return { on: eh.on, t: eh.t, held: eh.held, ctx: ehContext() }; },
         get nearPl() { return nearPl; },
+        stepN: function (n, dt) { for (var i = 0; i < (n | 0); i++) step(dt || 0.033); return gt; },     // rev 26 debug: advance the sim without rAF (hidden tabs)
+        quests: { ctx: questCtx, offer: function (seed, kind) { return QST.offerSet(seed, questCtx(kind || 'npc'), 3); }, accept: function (q) { var pf = qPf(), a = JSON.parse(JSON.stringify(q)); a.acceptedAt = Date.now(); a.expiresAt = a.acceptedAt + 36e5; pf.quests.push(a); qTrkC = ''; return pf.quests.length; }, event: questEvent, get active() { return activeQuests(); }, get objs() { return Object.keys(qObjs); }, open: openQuests, get onb() { var p = curProfile(); return p && p.onb; }, get hullSig() { return hullSigNow; }, get pose() { vF.copy(NEG_Z).applyQuaternion(shipRoot.quaternion); return { p: shipRoot.position.toArray(), f: vF.toArray(), L: L }; } },
         dockTick: function (dt) { clockT += dt; if (state === 'docked' || state === 'away') placeAtAnchor(dt, false); },     // debug: advance the dock one frame without rAF
         get dock() { vA.copy(shipRoot.position).project(camera); return { ndc: [vA.x, vA.y], scale: shipScale, glide: dk.glide, follow: dk.follow, recov: dk.recov, still: +dk.still.toFixed(2) }; },
         get scale() { return { L: L, refR: refR, refR0: refR0, live: readRefR() }; },

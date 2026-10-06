@@ -1,11 +1,13 @@
 // ship-audio.js - procedural WebAudio for ship mode. No files, no deps.
 // createAudio() -> { unlock(), play(name, opts), engine(state), setMaster(v), ready }
 // play opts: { dist (ship lengths), pitch (ratio), vel 0..1, twin, stop }
-// + one-shots: windup stall overheat ram scan shieldHit shieldBreak units(n) buy npc(seed) shard; loops: play('jetpack',{level}) / 'jetpackStop'
+// + one-shots: windup stall overheat ram scan shieldHit shieldBreak units(n) buy npc(seed) shard; loops: play('jetpack',{level}) / 'jetpackStop', play('siren',{level}) / 'sirenStop'
+// r27 cues: copWarn grab checkout rockCrack(size) chunk(n) blueprint shipBuy landmark petHappy talk(role,seed) warp questFail
 // audio.music = { start(), stop(), set({key, mode:'lydian'|'dorian'|'aeolian', intensity}) }; setMusic(v)
-// renderPreview(name, seconds) -> Float32Array (OfflineAudioContext, for testing)
+// audio.ambience = { set({place,weather,biome,night,intensity,seed}), stop(), setLevel(v) }; cues: craft questAccept questDone harvest tame hire levelUp
+// renderPreview(name | 'amb:place[:weather[:biome[:night]]]', seconds) -> Float32Array (OfflineAudioContext, for testing)
 
-const CAPS = { fire: 6, hit: 8, crit: 4, kill: 4, limbSever: 4, bossRoar: 2, explosion: 4, entry: 1, land: 2, liftoff: 2, ui: 4, windup: 3, stall: 3, overheat: 1, ram: 2, scan: 2, shieldHit: 6, shieldBreak: 3, units: 4, buy: 2, npc: 3, shard: 6 };
+const CAPS = { fire: 6, hit: 8, crit: 4, kill: 4, limbSever: 4, bossRoar: 2, explosion: 4, entry: 1, land: 2, liftoff: 2, ui: 4, windup: 3, stall: 3, overheat: 1, ram: 2, scan: 2, shieldHit: 6, shieldBreak: 3, units: 4, buy: 2, npc: 3, shard: 6, craft: 2, questAccept: 2, questDone: 2, harvest: 3, tame: 2, hire: 2, levelUp: 2, copWarn: 2, grab: 3, checkout: 2, rockCrack: 3, chunk: 6, blueprint: 1, shipBuy: 1, landmark: 1, petHappy: 2, talk: 3, warp: 1, questFail: 1 };
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hashSeed(x) { if (typeof x === 'number') return x | 0; let h = 2166136261; for (const c of String(x)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h; }
 const VOW = [[730, 1090], [270, 2290], [300, 870], [530, 1840], [660, 1720]];
@@ -361,8 +363,180 @@ function buildCore(ctx, masterVal) {
     J.jg.gain.cancelScheduledValues(t); J.jg.gain.setValueAtTime(J.jg.gain.value, t); J.jg.gain.linearRampToValueAtTime(0, t + 0.15);
   }
 
+  // ---- r27 cues ----
+  const nb1 = (v, out, t, type, f, q, len, amp, a) => { const n = noise(v, t), b = filt(type, f, q), g = gain(0); env(g, t, a || 0.002, amp, len); n.connect(b); b.connect(g); g.connect(out); return b; };
+  R.copWarn = (v, out, t, p) => {
+    [0, 0.2].forEach((d) => {
+      const o = osc(v, 'sine', 2900 * p.pitch, t + d), o2 = osc(v, 'sine', 2900 * p.pitch * 1.01, t + d), g = gain(0);
+      o.frequency.linearRampToValueAtTime(3300 * p.pitch, t + d + 0.1); o2.frequency.linearRampToValueAtTime(3300 * p.pitch * 1.01, t + d + 0.1);
+      env(g, t + d, 0.006, 0.26, 0.13); o.connect(g); o2.connect(g); g.connect(out);
+    });
+    return 0.45;
+  };
+  R.grab = (v, out, t, p) => {
+    const o = osc(v, 'sine', 170 * p.pitch, t); o.frequency.exponentialRampToValueAtTime(75, t + 0.1);
+    const g = gain(0); env(g, t, 0.003, 0.4, 0.14); o.connect(g); g.connect(out);
+    nb1(v, out, t, 'bandpass', 900 * p.pitch, 0.8, 0.07, 0.22, 0.003);
+    return 0.2;
+  };
+  R.checkout = (v, out, t, p) => {
+    nb1(v, out, t, 'highpass', 4000, 0.7, 0.025, 0.2);
+    tn(v, out, t + 0.02, 'sine', 2093 * p.pitch, 0.9, 0.18); tn(v, out, t + 0.02, 'sine', 5600 * p.pitch, 0.5, 0.06);
+    tn(v, out, t + 0.02, 'sine', 3136 * p.pitch, 0.7, 0.08);
+    const o = osc(v, 'triangle', 140, t + 0.28); o.frequency.exponentialRampToValueAtTime(60, t + 0.4);
+    const g = gain(0); env(g, t + 0.28, 0.005, 0.35, 0.18); o.connect(g); g.connect(out);
+    nb1(v, out, t + 0.28, 'bandpass', 1400, 1.5, 0.12, 0.2, 0.004);
+    nb1(v, out, t + 0.42, 'highpass', 5000, 1, 0.04, 0.12);
+    return 1.05;
+  };
+  R.rockCrack = (v, out, t, p) => {
+    const sz = Math.max(0.3, Math.min(2.5, p.size == null ? 1 : p.size)), dur = 0.3 + 0.25 * sz;
+    const o = osc(v, 'sine', 110 / Math.sqrt(sz) * p.pitch, t); o.frequency.exponentialRampToValueAtTime(40, t + dur * 0.6);
+    const g = gain(0); env(g, t, 0.003, 0.5, dur * 0.7); o.connect(g); g.connect(out);
+    const lp = nb1(v, out, t, 'lowpass', 1800, 0.8, dur, 0.5, 0.002); lp.frequency.exponentialRampToValueAtTime(300, t + dur);
+    nb1(v, out, t, 'bandpass', 2600, 1.2, 0.04, 0.3, 0.001);
+    const rs = mulberry(((p.seed == null ? 99 : hashSeed(p.seed)) >>> 0)), n = 3 + Math.round(sz * 2);
+    for (let i = 0; i < n; i++) { const d = 0.05 + rs() * dur; nb1(v, out, t + d, 'bandpass', 1500 + rs() * 3500, 3, 0.02, 0.1 + rs() * 0.1, 0.001); }
+    return dur + 0.1;
+  };
+  R.chunk = (v, out, t, p) => {
+    const k = Math.min(12, Math.max(0, p.n == null ? 0 : p.n)), f = 440 * p.pitch * Math.pow(2, k / 12);
+    const o = osc(v, 'sine', f, t); o.frequency.exponentialRampToValueAtTime(f * 1.6, t + 0.05);
+    const g = gain(0); env(g, t, 0.003, 0.28, 0.12); o.connect(g); g.connect(out);
+    tn(v, out, t, 'triangle', f * 2, 0.06, 0.08, 4000);
+    return 0.2;
+  };
+  R.blueprint = (v, out, t, p) => {
+    [988, 784, 659, 523].forEach((f, i) => {
+      const d = i * 0.17;
+      tn(v, out, t + d, 'sine', f * p.pitch, 1.1, 0.2); tn(v, out, t + d, 'sine', f * p.pitch * 2.003, 0.9, 0.08); tn(v, out, t + d, 'sine', f * p.pitch * 3.01, 0.5, 0.03);
+      const sg = gain(0), s = osc(v, 'sine', f * p.pitch * 1.005, t + d), tr = osc(v, 'sine', 6, t + d), tg = gain(0.5);
+      tr.connect(tg); tg.connect(sg.gain); env(sg, t + d, 0.05, 0.06, 0.9); s.connect(sg); sg.connect(out);
+      const sd = gain(0.6); sg.connect(sd); sd.connect(send);
+    });
+    return 1.9;
+  };
+  R.shipBuy = (v, out, t, p) => {
+    [[130.8, 0.2], [196, 0.18], [261.6, 0.16], [329.6, 0.14], [392, 0.12], [523.3, 0.1]].forEach(([f, a], i) => {
+      const o = osc(v, 'sawtooth', f * p.pitch, t + i * 0.03), lp = filt('lowpass', 1800, 0.7), g = gain(0);
+      env(g, t + i * 0.03, 0.02, a, 1.5); o.connect(lp); lp.connect(g); g.connect(out);
+    });
+    const h = nb1(v, out, t + 0.1, 'bandpass', 5500, 0.9, 0.9, 0.3, 0.04); h.frequency.exponentialRampToValueAtTime(2500, t + 1);
+    nb1(v, out, t + 0.05, 'lowpass', 300, 0.7, 0.3, 0.3, 0.01);
+    return 1.7;
+  };
+  R.landmark = (v, out, t, p) => {
+    [[261.6, 0.1], [392, 0.09], [523.3, 0.07], [659.3, 0.05]].forEach(([f, a]) => {
+      const g = gain(0.0001), o = osc(v, 'sine', f * p.pitch, t), o2 = osc(v, 'sine', f * p.pitch * 1.004, t);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(a, t + 1.0); g.gain.linearRampToValueAtTime(a * 0.7, t + 1.4); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.1);
+      o.connect(g); o2.connect(g); g.connect(out);
+    });
+    const sd = gain(0.4); out.connect(sd); sd.connect(send);
+    return 2.2;
+  };
+  R.petHappy = (v, out, t, p) => {
+    [0, 0.13].forEach((d, i) => {
+      const f = (i ? 1500 : 1200) * p.pitch, o = osc(v, 'sine', f, t + d); o.frequency.exponentialRampToValueAtTime(f * 1.5, t + d + 0.07);
+      const g = gain(0); env(g, t + d, 0.004, 0.25, 0.09); o.connect(g); g.connect(out);
+    });
+    return 0.3;
+  };
+  // per-role voice: [base Hz, wave, vowel ids, blip len, gap, glide, min, max, q]
+  const ROLES = {
+    shopper: [250, 'triangle', [3, 4], 0.08, 0.04, 1.1, 3, 5, 6], clerk: [190, 'square', [0, 3], 0.07, 0.035, 0.95, 3, 6, 8],
+    dealer: [110, 'sawtooth', [0, 2], 0.11, 0.05, 0.9, 3, 5, 5], cop: [130, 'sawtooth', [2, 0], 0.065, 0.05, 1, 3, 4, 9],
+    tourist: [330, 'triangle', [4, 1], 0.1, 0.03, 1.2, 4, 6, 5], kid: [520, 'sine', [4, 1], 0.06, 0.03, 1.25, 4, 6, 4],
+    pilot: [170, 'square', [3, 2], 0.05, 0.06, 1, 3, 5, 10], chef: [150, 'triangle', [0, 4], 0.12, 0.04, 1.08, 3, 5, 5],
+    miner: [90, 'sawtooth', [2, 0], 0.13, 0.06, 0.88, 3, 4, 4], scout: [400, 'square', [1, 3], 0.045, 0.035, 1.05, 4, 6, 9],
+  };
+  R.talk = (v, out, t, p) => {
+    const r = ROLES[p.role] || ROLES.shopper, rs = mulberry(((p.seed == null ? 1 : hashSeed(p.seed)) >>> 0));
+    const cnt = r[6] + Math.floor(rs() * (r[7] - r[6] + 1));
+    let tt = t;
+    for (let i = 0; i < cnt; i++) {
+      const f = r[0] * p.pitch * Math.pow(2, (Math.floor(rs() * 7) - 2) / 12), len = r[3] * (0.8 + rs() * 0.5);
+      const o = osc(v, r[1], f, tt); o.frequency.linearRampToValueAtTime(f * r[5], tt + len);
+      const g = gain(0); env(g, tt, 0.005, 0.7, len + 0.02);
+      VOW[r[2][i % 2]].forEach((fc, k) => { const bp = filt('bandpass', fc, r[8] + k * 2), bg = gain(k ? 0.6 : 1.4); o.connect(bp); bp.connect(bg); bg.connect(g); });
+      g.connect(out);
+      tt += len + r[4] + rs() * 0.03;
+    }
+    return tt - t + 0.08;
+  };
+  R.warp = (v, out, t, p) => {
+    const dur = 1.3;
+    const b = nb1(v, out, t, 'bandpass', 200, 1.5, dur, 0.5, 0.35); b.frequency.setValueAtTime(200, t); b.frequency.exponentialRampToValueAtTime(3500 * p.pitch, t + 0.6); b.frequency.exponentialRampToValueAtTime(300, t + dur);
+    const o = osc(v, 'sawtooth', 60, t), lp = filt('lowpass', 400, 0.7), g = gain(0);
+    o.frequency.exponentialRampToValueAtTime(260 * p.pitch, t + 0.55); o.frequency.exponentialRampToValueAtTime(50, t + dur);
+    lp.frequency.setValueAtTime(300, t); lp.frequency.exponentialRampToValueAtTime(1500, t + 0.55); lp.frequency.exponentialRampToValueAtTime(200, t + dur);
+    env(g, t, 0.3, 0.3, dur); o.connect(lp); lp.connect(g); g.connect(out);
+    return dur + 0.1;
+  };
+  R.questFail = (v, out, t, p) => { tn(v, out, t, 'triangle', 392 * p.pitch, 0.35, 0.3, 2500); tn(v, out, t + 0.2, 'triangle', 262 * p.pitch, 0.7, 0.3, 2000); return 1; };
+
+  // ---- siren loop (persistent, created on first use; wobbly two-tone, quieter than the engine) ----
+  let SR = null;
+  function siren(level) {
+    const t = now();
+    if (!SR) {
+      const o = ctx.createOscillator(), o2 = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = gain(120), sm = filt('lowpass', 5, 0.5), wob = ctx.createOscillator(), wg = gain(14);
+      o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = 740; o2.frequency.value = 740; o2.detune.value = 7; lfo.type = 'square'; lfo.frequency.value = 1.4; wob.frequency.value = 6;
+      const lp = filt('lowpass', 2200, 0.7), sg = gain(0.1), sj = gain(0);
+      lfo.connect(sm); sm.connect(lg); lg.connect(o.frequency); lg.connect(o2.frequency); wob.connect(wg); wg.connect(o.frequency); wg.connect(o2.frequency);
+      o.connect(lp); o2.connect(lp); lp.connect(sg); sg.connect(sj); sj.connect(bus);
+      o.start(t); o2.start(t); lfo.start(t); wob.start(t);
+      SR = { o, o2, lfo, wob, sg, sj };
+    }
+    const l = Math.max(0, Math.min(1, level == null ? 0.6 : level));
+    SR.sg.gain.setTargetAtTime(0.03 + l * 0.07, t, 0.05);
+    SR.sj.gain.cancelScheduledValues(t); SR.sj.gain.setTargetAtTime(1, t, 0.04);
+  }
+  function sirenStop() {
+    if (!SR) return;
+    const t = now();
+    SR.sj.gain.cancelScheduledValues(t); SR.sj.gain.setValueAtTime(SR.sj.gain.value, t); SR.sj.gain.linearRampToValueAtTime(0, t + 0.2);
+  }
+
   // ---- procedural music (11 persistent nodes + transient note voices) ----
   const MODES = { lydian: [0, 2, 4, 6, 7, 9, 11], dorian: [0, 2, 3, 5, 7, 9, 10], aeolian: [0, 2, 3, 5, 7, 8, 10] };
+  // ---- UI / progression cues ----
+  const tn = (v, out, t, type, f, len, amp, lp, a) => {
+    const o = osc(v, type, f, t), g = gain(0); env(g, t, a || 0.004, amp, len);
+    if (lp) { const l = filt('lowpass', lp, 0.7); o.connect(l); l.connect(g); } else o.connect(g);
+    g.connect(out); return o;
+  };
+  R.craft = (v, out, t, p) => {
+    const n = noise(v, t), hp = filt('highpass', 3000, 0.7), ng = gain(0); env(ng, t, 0.001, 0.28, 0.03); n.connect(hp); hp.connect(ng); ng.connect(out);
+    tn(v, out, t, 'square', 1900 * p.pitch, 0.04, 0.15, 5000, 0.001);
+    [1, 2.76, 5.4].forEach((r, i) => { const o = osc(v, 'sine', 900 * p.pitch * r, t), g = gain(0); env(g, t, 0.001, 0.2 / (i + 1), 0.28 - i * 0.07); o.connect(g); g.connect(out); });
+    tn(v, out, t + 0.09, 'sine', 1568 * p.pitch, 0.6, 0.2); tn(v, out, t + 0.09, 'sine', 2349 * p.pitch, 0.5, 0.1);
+    return 0.75;
+  };
+  R.questAccept = (v, out, t, p) => { tn(v, out, t, 'triangle', 523 * p.pitch, 0.25, 0.3, 3500); tn(v, out, t + 0.12, 'triangle', 784 * p.pitch, 0.4, 0.3, 3500); return 0.55; };
+  R.questDone = (v, out, t, p) => {
+    [523, 659, 784].forEach((f, i) => tn(v, out, t + i * 0.13, 'triangle', f * p.pitch, 0.45, 0.28, 4000));
+    tn(v, out, t + 0.39, 'sine', 1568 * p.pitch, 0.7, 0.15); return 1.1;
+  };
+  R.harvest = (v, out, t, p) => {
+    [0, 0.09, 0.18].forEach((d, i) => {
+      const o = osc(v, 'square', (220 + i * 40) * p.pitch, t + d); o.frequency.exponentialRampToValueAtTime(70, t + d + 0.06);
+      const l = filt('lowpass', 1400, 1), g = gain(0); env(g, t + d, 0.002, 0.4, 0.07); o.connect(l); l.connect(g); g.connect(out);
+    });
+    const o = osc(v, 'sine', 620 * p.pitch, t + 0.3); o.frequency.exponentialRampToValueAtTime(160, t + 0.4);
+    const g = gain(0); env(g, t + 0.3, 0.003, 0.5, 0.14); o.connect(g); g.connect(out); return 0.5;
+  };
+  R.tame = (v, out, t, p) => {
+    const f = 520 * p.pitch, o = osc(v, 'sine', f, t); o.frequency.linearRampToValueAtTime(f * 1.25, t + 0.3); o.frequency.linearRampToValueAtTime(f * 0.95, t + 0.6);
+    const lf = osc(v, 'sine', 9, t), lg = gain(f * 0.05); lf.connect(lg); lg.connect(o.frequency);
+    const g = gain(0); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.28, t + 0.1); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+    o.connect(g); g.connect(out); return 0.7;
+  };
+  R.hire = (v, out, t, p) => { tn(v, out, t, 'square', 660 * p.pitch, 0.18, 0.13, 3000); tn(v, out, t + 0.14, 'square', 880 * p.pitch, 0.3, 0.13, 3000); return 0.5; };
+  R.levelUp = (v, out, t, p) => {
+    [523, 659, 784, 1047].forEach((f, i) => tn(v, out, t + i * 0.09, 'triangle', f * p.pitch, 0.5, 0.25, 4500));
+    [1047, 1319, 1568].forEach((f) => tn(v, out, t + 0.36, 'sine', f * p.pitch, 1.1, 0.09, 0, 0.02)); return 1.5;
+  };
+
   const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
   const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
   function parseKey(k) {
@@ -459,6 +633,114 @@ function buildCore(ctx, masterVal) {
     },
   };
 
+  // ---------- ambience beds (14 persistent nodes, built on first set()) ----------
+  const PL = { space: 0, atmo: 1, surface: 2, interior: 3, station: 4, store: 5 };
+  const WX = { clear: 0, wind: 1, storm: 2, aurora: 3 };
+  const BI = { lush: 0, rocky: 1, icy: 2, gas: 3 };
+  const AS = { N: null, sig: -1, place: -1, I: 0.5, w: 0, pad: 0, level: 1, evs: 0, timer: null, seed: 7, jn: 0,
+    nx: { gust: 0, chirp: 0, call: 0, tick: 0, shim: 0, knock: 0, pa: 0, jingle: 0, drip: 0, swell: 0 },
+    live: !(typeof OfflineAudioContext !== 'undefined' && ctx instanceof OfflineAudioContext) };
+  const PENT = [0, 2, 4, 7, 9, 12];
+  function ambBuild() {
+    const t = now(), out = gain(0), nA = ctx.createBufferSource(), wF = filt('lowpass', 400, 0.7), wG = gain(0);
+    const nB = ctx.createBufferSource(), tF = filt('bandpass', 2400, 0.8), tG = gain(0);
+    const hA = ctx.createOscillator(), hB = ctx.createOscillator(), hF = filt('lowpass', 300, 0.7), hG = gain(0);
+    const pA = ctx.createOscillator(), pB = ctx.createOscillator(), pG = gain(0);
+    nA.buffer = nb; nA.loop = true; nB.buffer = nb; nB.loop = true;
+    hA.type = hB.type = 'sawtooth'; pA.type = pB.type = 'sine';
+    hA.frequency.value = 40; hB.frequency.value = 40.4; pA.frequency.value = 262; pB.frequency.value = 392;
+    nA.connect(wF); wF.connect(wG); wG.connect(out); nB.connect(tF); tF.connect(tG); tG.connect(out);
+    hA.connect(hF); hB.connect(hF); hF.connect(hG); hG.connect(out); pA.connect(pG); pB.connect(pG); pG.connect(out);
+    out.connect(bus); out.gain.setValueAtTime(0.0001, t); out.gain.setTargetAtTime(AS.level, t, 0.5);
+    nA.start(t, 0.2); nB.start(t, 1.1); hA.start(t); hB.start(t); pA.start(t); pB.start(t);
+    AS.N = { out, nA, nB, wF, wG, tF, tG, hA, hB, hF, hG, pA, pB, pG };
+  }
+  function ambEv(t, type, f0, f1, len, amp, lp) {
+    if (AS.evs > 20) return;
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + len);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(amp, t + Math.min(0.004, len * 0.3)); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    if (lp) { const l = ctx.createBiquadFilter(); l.frequency.value = lp; o.connect(l); l.connect(g); } else o.connect(g);
+    g.connect(AS.N.out); AS.evs++;
+    o.onended = () => { AS.evs--; try { g.disconnect(); } catch (e) {} };
+    o.start(t); o.stop(t + len + 0.03);
+  }
+  function ambTune() {
+    const N = AS.N, t = now(), tau = 0.5, p = AS.place, I = AS.I, wx = AS.wx, bi = AS.bi, night = AS.night;
+    const indoor = p >= 3, k = indoor ? 0.3 : 1;
+    let w = 0, wf = 300, hum = 40, hg = 0, hf = 200, pf1 = 262, pf2 = 392, pg = 0;
+    if (p === 0) { hum = 38; hg = 0.012; hf = 120; }
+    else if (p === 1) { w = 0.2 + 0.2 * I; wf = 350 + 700 * I; }
+    else if (p === 2) {
+      if (bi === 0) { w = 0.04; wf = 500; } else if (bi === 1) { w = 0.12; wf = 600; }
+      else if (bi === 2) { w = 0.12; wf = 1100; pf1 = 2637; pf2 = 3135; pg = 0.012; } else { w = 0.28; wf = 140; hum = 30; hg = 0.03; hf = 90; }
+    } else if (p === 3) { hum = 72; hg = 0.035; hf = 400; }
+    else if (p === 4) { hum = 55; hg = 0.05; hf = 600; w = 0.02; wf = 300; }
+    else { hum = 100; hg = 0.025; hf = 500; }
+    let tg = 0;
+    if (wx === 1) { w += 0.12 * k; wf += 300 * k; }
+    else if (wx === 2) { w += 0.18 * k; wf += 400 * k; tg = 0.22 * k * (0.5 + 0.5 * I); }
+    else if (wx === 3 && !indoor && night > 0.01) { pf1 = 262; pf2 = 392; pg = 0.05 * night; }
+    AS.w = w; AS.pad = pg; AS.wf = wf; AS.drip = wx === 2 ? 5 + 15 * I * k : 0;
+    N.wG.gain.setTargetAtTime(w, t, tau); N.wF.frequency.setTargetAtTime(wf, t, tau);
+    N.tG.gain.setTargetAtTime(tg, t, tau);
+    N.hA.frequency.setTargetAtTime(hum, t, tau); N.hB.frequency.setTargetAtTime(hum * 1.01, t, tau);
+    N.hF.frequency.setTargetAtTime(hf, t, tau); N.hG.gain.setTargetAtTime(hg, t, tau);
+    N.pA.frequency.setTargetAtTime(pf1, t, tau); N.pB.frequency.setTargetAtTime(pf2 * 1.004, t, tau); N.pG.gain.setTargetAtTime(pg, t, tau);
+  }
+  function ambSchedule(until) {
+    const N = AS.N; if (!N) return; const nx = AS.nx, p = AS.place, bi = AS.bi, wx = AS.wx, I = AS.I, t0 = now();
+    const on = (k, cond) => { if (!cond) { if (nx[k] < until) nx[k] = until; return false; } if (nx[k] < t0 - 0.5) nx[k] = t0; return true; };
+    if (on('gust', AS.w > 0.05 || p === 1)) while (nx.gust < until) {
+      const t = nx.gust, f = AS.wf, w = AS.w, big = wx === 2 ? 1.5 : 1;
+      N.wF.frequency.setTargetAtTime(f * 1.5 * big, t, 0.6); N.wG.gain.setTargetAtTime(w * 1.4, t, 0.6);
+      N.wF.frequency.setTargetAtTime(f, t + 1.6, 0.8); N.wG.gain.setTargetAtTime(w, t + 1.6, 0.8);
+      nx.gust += (p === 2 && bi === 3 ? 7 : rnd(3, 8)) / (wx === 2 ? 2 : 1);
+    }
+    if (on('chirp', p === 2 && bi === 0)) while (nx.chirp < until) {
+      const n = 3 + ((Math.random() * 4) | 0), f = rnd(4200, 6500);
+      for (let i = 0; i < n; i++) ambEv(nx.chirp + i * 0.07, 'sine', f, f * 1.3, 0.05, 0.03);
+      nx.chirp += rnd(0.5, 1.8);
+    }
+    if (on('call', p === 2 && bi === 0)) while (nx.call < until) {
+      const f = rnd(500, 900); ambEv(nx.call, 'sine', f, f * 0.6, 0.5, 0.05, 1500); ambEv(nx.call + 0.25, 'sine', f * 1.2, f * 0.7, 0.4, 0.035, 1500);
+      nx.call += rnd(6, 14);
+    }
+    if (on('tick', p === 2 && bi === 1)) while (nx.tick < until) { const f = rnd(1500, 3000); ambEv(nx.tick, 'square', f, f * 0.5, 0.02, 0.025, 4000); nx.tick += rnd(0.5, 2.5); }
+    if (on('shim', p === 2 && bi === 2)) while (nx.shim < until) { const f = rnd(3000, 6000); ambEv(nx.shim, 'sine', f, f, 1.2, 0.02); nx.shim += rnd(1.5, 3); }
+    if (on('knock', p === 3)) while (nx.knock < until) { const t = nx.knock; ambEv(t, 'sine', 160, 90, 0.12, 0.2); ambEv(t + 0.16, 'sine', 140, 80, 0.1, 0.14); nx.knock += rnd(9, 20); }
+    if (on('pa', p === 4)) while (nx.pa < until) { const t = nx.pa; ambEv(t, 'triangle', 1046, 1046, 0.18, 0.06, 2500); ambEv(t + 0.2, 'triangle', 784, 784, 0.25, 0.06, 2500); nx.pa += rnd(20, 40); }
+    if (on('jingle', p === 5)) while (nx.jingle < until) {
+      const r = mulberry(hashSeed(AS.seed));
+      for (let i = 0; i < 4; i++) { const f = mtof(72 + PENT[(r() * 6) | 0]); ambEv(nx.jingle + i * 0.22, 'triangle', f, f, 0.35, 0.06, 3000); }
+      nx.jingle += 45;
+    }
+    if (on('drip', AS.drip > 0)) while (nx.drip < until) { const f = rnd(1800, 4500); ambEv(nx.drip, 'sine', f, f * 0.6, 0.025, 0.03 * (0.5 + 0.5 * I)); nx.drip += 1 / (AS.drip * rnd(0.6, 1.4)); }
+    if (on('swell', AS.pad > 0.002)) while (nx.swell < until) { N.pG.gain.setTargetAtTime(AS.pad * rnd(0.3, 1), nx.swell, 2.5); nx.swell += 5; }
+  }
+  const ambience = {
+    schedule: ambSchedule,
+    set(o = {}) {
+      const p = PL[o.place] ?? 0, wx = WX[o.weather] ?? 0, bi = BI[o.biome] ?? 0, night = Math.max(0, Math.min(1, o.night || 0)), I = o.intensity == null ? 0.5 : Math.max(0, Math.min(1, o.intensity));
+      const sig = p + 8 * (wx + 4 * (bi + 4 * (Math.round(night * 20) + 21 * Math.round(I * 20))));
+      if (o.seed != null) AS.seed = o.seed;
+      if (sig === AS.sig && AS.N) return;
+      if (!AS.N) ambBuild();
+      const t = now(), changed = p !== AS.place;
+      AS.sig = sig; AS.wx = wx; AS.bi = bi; AS.night = night; AS.I = I;
+      if (changed) { AS.place = p; if (p === 3) AS.nx.knock = t + rnd(3, 8); if (p === 4) AS.nx.pa = t + rnd(6, 16); if (p === 5) AS.nx.jingle = t + rnd(3, 6); }
+      ambTune();
+      if (AS.live && !AS.timer) AS.timer = setInterval(() => ambSchedule(now() + 1.2), 250);
+      if (AS.live) ambSchedule(t + 1.2);
+    },
+    stop() {
+      if (AS.timer) { clearInterval(AS.timer); AS.timer = null; }
+      if (AS.N) AS.N.out.gain.setTargetAtTime(0, now(), 0.4);
+      AS.sig = -1;
+    },
+    setLevel(v) { AS.level = Math.max(0, Math.min(1, v)); if (AS.N) AS.N.out.gain.setTargetAtTime(AS.level, now(), 0.05); },
+  };
+
   function steal(list, tt) {
     const old = list.shift();
     if (!old) return;
@@ -473,6 +755,8 @@ function buildCore(ctx, masterVal) {
     if (name === 'entryStop') { if (entryVoice) { entryVoice.release(t); stopLater(entryVoice, t + 0.55); entryVoice = null; } return; }
     if (name === 'jetpack') return jetpack(o.level);
     if (name === 'jetpackStop') return jetpackStop();
+    if (name === 'siren') return siren(o.level);
+    if (name === 'sirenStop') return sirenStop();
     if (o.stop && name === 'entry') return play('entryStop');
     const rec = R[name]; if (!rec) return;
     const dist = o.dist || 0, dg = 1 / (1 + dist / 40);
@@ -482,7 +766,7 @@ function buildCore(ctx, masterVal) {
     const v = tracker();
     const out = gain(dg * (o.vel == null ? 1 : 0.35 + 0.65 * o.vel));
     out.connect(bus); v.out = out;
-    const p = { pitch: (o.pitch || 1) * rnd(0.94, 1.06), twin: !!o.twin, seed: o.seed, n: o.n, level: o.level };
+    const p = { pitch: (o.pitch || 1) * rnd(0.94, 1.06), twin: !!o.twin, seed: o.seed, n: o.n, level: o.level, role: o.role, size: o.size };
     const dur = rec(v, out, t, p);
     startAll(v, t, dur);
     list.push(v);
@@ -534,7 +818,7 @@ function buildCore(ctx, masterVal) {
     E.shBP.frequency.setTargetAtTime(4200 + pu * 3800, t, k);
     E.shG.gain.setTargetAtTime(pu * 0.18, t, 0.05);
   }
-  return { ctx, bus, master, play, engine, E, voices, music };
+  return { ctx, bus, master, play, engine, E, voices, music, ambience };
 }
 
 // ---------- public API ----------
@@ -546,8 +830,14 @@ export function createAudio(opts = {}) {
     stop() { musicWanted = false; if (core) core.music.stop(); },
     set(o) { Object.assign(musicSet, o || {}); if (core) core.music.set(o); },
   };
+  let ambSet = null, ambLevel = 1;
+  const ambience = {
+    set(o) { ambSet = o || {}; if (core) core.ambience.set(ambSet); },
+    stop() { ambSet = null; if (core) core.ambience.stop(); },
+    setLevel(v) { ambLevel = v; if (core) core.ambience.setLevel(v); },
+  };
   const api = {
-    music,
+    music, ambience,
     ready: false,
     unlock() {
       try {
@@ -557,6 +847,7 @@ export function createAudio(opts = {}) {
           const ctx = new AC({ latencyHint: 'interactive' });
           core = buildCore(ctx, masterVal);
           core.music.setLevel(musicLevel); core.music.set(musicSet);
+          core.ambience.setLevel(ambLevel); if (ambSet) core.ambience.set(ambSet);
         }
         if (core.ctx.state === 'suspended') core.ctx.resume().catch(() => {});
         if (musicWanted) core.music.start();
@@ -586,10 +877,15 @@ export async function renderPreview(name, seconds = 2) {
   if (name === 'engineIdle') core.engine({ throttle: 0 });
   else if (name === 'engineBoost') core.engine({ throttle: 1, boost: true, inAtmo: true });
   else if (name === 'enginePulse') core.engine({ throttle: 0.6, pulse: 1 });
-  else if (name.startsWith('music')) {
+  else if (name.startsWith('amb:')) {
+    const [, pl, wx, bi, ni] = name.split(':');
+    core.ambience.set({ place: pl, weather: wx || 'clear', biome: bi || 'lush', night: ni ? +ni : 0, intensity: 0.7 }); core.ambience.schedule(seconds + 1);
+  } else if (name.startsWith('music')) {
     const i = name === 'musicLow' ? 0.2 : name === 'musicHigh' ? 0.9 : parseFloat(name.split(':')[1]) || 0.5;
     core.music.set({ intensity: i }); core.music.start(); core.music.schedule(seconds + 1);
-  } else { core.play(name, { twin: name === 'fire', n: 5, seed: 7 }); }
+  } else if (name === 'sirenCycle') { core.play('siren', { level: 0.8 }); core.play('siren', { level: 0.3 }); core.play('sirenStop'); core.play('sirenStop'); }
+  else if (name.startsWith('talk:')) { core.play('talk', { role: name.slice(5), seed: 7 }); }
+  else { core.play(name, { twin: name === 'fire', n: 5, seed: 7 }); }
   const buf = await ctx.startRendering();
   return buf.getChannelData(0);
 }

@@ -54,6 +54,30 @@ export const MODIFIERS = [
   ['Imported', 1.1, 1.0, 1], ['Deluxe', 1.3, 1.3, 2], ['Forbidden', 1.7, 1.2, 3], ['Legally Distinct', 1.0, 1.0, 0], ['Heroic', 1.3, 1.0, 2], ['Unlicensed', 1.25, 0.9, 2],
   ['Rotating', 1.0, 0.9, 1], ['Whispered', 1.1, 1.1, 2],
 ];
+
+// ── rev 26 additions (append-only). FOODS 4th slot = iconHint (existing ship-icons template). ──
+FOODS.push(
+  ['Beef Stick', 'snack', 0x9A4A2A, 'jerky'], ['Nacho Cheese Cup', 'snack', 0xFFB02A, 'cup'], ['Roller Grill Taquito', 'food', 0xD9A05B, 'stick'], ['Honey Bun', 'snack', 0xE8A84A, 'donut'],
+  ['Slim Jim', 'snack', 0xA0302A, 'jerky'], ['Cup Noodles', 'food', 0xFFD84A, 'cup'], ['Funnel Cake Stick', 'snack', 0xF4D8A0, 'stick'], ['Peanut Butter Crackers', 'snack', 0xE0A85A, 'bar'],
+  ['Mini Pies (2)', 'snack', 0xC8803A, 'pizza'], ['Frozen Margarita Slush', 'drink', 0x9CFF8A, 'cup'], ['Jumbo Pretzel', 'snack', 0xC07A3A, 'bag'], ['Pork Rind Bag', 'snack', 0xF0C890, 'bag'],
+  ['Hot Pocket', 'food', 0xD8A060, 'burrito'], ['Chimichanga', 'food', 0xD09A50, 'burrito'], ['Sausage Biscuit', 'food', 0xE8C080, 'bar'], ['Pickled Egg', 'snack', 0xF0E4B0, 'candy'],
+  ['Lime Slushie', 'drink', 0x8AFF5C, 'cup'], ['Cherry Cola', 'drink', 0xA0202A, 'can'], ['Energy Shot', 'drink', 0xFF3AA0, 'energy'], ['Cheese Danish', 'snack', 0xF2C860, 'donut'],
+  ['Spicy Ramen Cup', 'food', 0xFF5A2A, 'cup'], ['Wiener Wrap', 'food', 0xE0603A, 'hotdog'], ['Rotisserie Chicken Leg', 'food', 0xC8782A, 'stick'], ['Meatball Sub', 'food', 0xB8502A, 'bar'],
+  ['Nebula Nachos', 'food', 0xB07AFF, 'tray'], ['Void Jerky', 'snack', 0x3A2A5A, 'jerky'], ['Plasma Pop', 'drink', 0xFF5CFF, 'can'], ['Comet Corn Dog', 'food', 0x7AD0FF, 'stick'],
+  ['Moon Cheese Wedge', 'snack', 0xF8E8A0, 'bar'], ['Zero-G Slushie', 'drink', 0x5CFFE0, 'cup']
+);
+INFUSIONS.push(
+  ['Gorbitol', 'weird', 2], ['Snorfamine', 'cozy', 1], ['Wibblezine', 'dis', 3], ['Spacebar Dust', 'stim', 2], ['Flarpenol', 'down', 2], ['Moonbeam Mist', 'cozy', 2],
+  ['Neon Nonsense', 'psy', 3], ['Quibblex', 'dis', 2], ['Glitterspice', 'psy', 2], ['Turbo Toad Sweat', 'stim', 4], ['Slow-Mo Syrup', 'down', 3], ['Echo Elixir', 'dis', 3],
+  ['Pigeon Pep', 'stim', 1], ['Mothership Marrow', 'weird', 4], ['Dreamy Dust', 'cozy', 2], ['Kaleido Kale', 'psy', 3], ['Gravy Gravity', 'dis', 3], ['Sleepy Slime', 'down', 2],
+  ['Bluetooth Bile', 'weird', 3], ['Hypno Honk', 'dis', 4], ['Lava Lamp Lymph', 'cozy', 3], ['Static Spritz', 'stim', 2], ['Rainbow Rot', 'psy', 4], ['Donut Dimension', 'weird', 3],
+  ['Grandma\'s Nebula', 'cozy', 1], ['Parallax Pop', 'dis', 2], ['Tunnel Tonic', 'stim', 3], ['Thought Fog', 'down', 3], ['Zoomie Juice', 'stim', 3], ['Mirror Milk', 'dis', 3]
+);
+MODIFIERS.push(
+  ['Radioactive', 1.5, 1.1, 3], ['Bootleg', 1.1, 0.8, 1], ['Lukewarm', 0.85, 0.9, 0], ['Gigantic', 1.3, 1.6, 2], ['Pocket-Sized', 0.8, 0.8, 0], ['Sentient', 1.3, 1.2, 3],
+  ['Triple', 1.7, 1.3, 3], ['Midnight', 1.1, 1.4, 1], ['Weekend', 1.0, 1.1, 0], ['Frozen', 0.9, 1.3, 1], ['Flambe', 1.3, 0.9, 2], ['Intergalactic', 1.4, 1.2, 2],
+  ['Slightly Used', 0.9, 0.9, 0], ['Founder\'s', 1.2, 1.5, 2], ['Mystery', 1.2, 1.0, 1]
+);
 const FEEL = ['like a warm blanket made of static', 'like a Tuesday that forgot to end', 'like regret, but crunchy', 'like the inside of a lava lamp', 'like homework you finished early',
   'like a hug from a vending machine', 'faintly of pennies', 'like a rumor about a comet', 'like the colour purple, somehow', 'like grandma\'s attic on fire (nicely)', 'like the last slice at a party', 'like a sneeze in zero gravity'];
 const QUIRK = ['The wrapper is warm and hums.', 'It has been looking at you since you walked in.', 'The expiry date is a mood.', 'Three out of four clerks refuse to touch it.', 'Comes with a free opinion.',
@@ -73,6 +97,18 @@ export const BLURBS = [
   'Seven out of eleven stars. {inf}-infused {food}. {quirk}', 'Limited stock, unlimited {inf}. {warn}', 'It is a {food}. It is also a {inf} situation.', 'Drink-eat-snack hybrid, {inf} grade. Tastes {feel}.',
   'Bought by pilots, eaten by pilots, regretted by wingmen. {inf} {food}.',
 ];
+BLURBS.push(
+  'The {food} is sentient and the {inf} is why. {warn}', '{mod} {food}, {inf} on the side. The side is the main thing.', 'Rated "mostly edible" by a panel of moons. {inf}.',
+  'Whoever invented {inf} also invented regret. This {food} has both.', 'Pairs well with a Tuesday and {inf}. Tastes {feel}.', 'A {food} that took a wrong turn into {inf}.',
+  'Gas station chefs hate this one trick: {inf}. {quirk}', 'Do not tell the {food} what the {inf} is for.', 'Half {food}, half {inf}, all questions. {warn}',
+  '{quirk} The {inf} adds character. The {food} adds weight.', 'Born in a roller grill, raised on {inf}. Tastes {feel}.', 'Sold by the {food}, felt by the {inf}.',
+  'Freshness is a state of mind. {inf}, though, is a state of everything. {food}.', 'Ask for it by name. The clerk will look away. {inf} {food}.',
+  'A {food} dipped in {inf}, then dipped in more {inf}. {quirk}', 'Not a {food}. Not not a {food}. {inf}-adjacent.', 'Recommended by a talking vending machine. {inf}. {warn}',
+  '{mod} {food} with {inf} that wants to be friends. Tastes {feel}.', 'Your wingman ate one. Now he narrates things. {inf} {food}.', 'The {food} hums. The {inf} sings. Together: a noise complaint.',
+  'It is called a {food} for legal reasons. {inf} is the real recipe.', 'One {food}, two thirds {inf}, zero regrets. One regret, actually. {warn}', 'Grab it, eat it, forget the plan. {inf} {food}. {quirk}',
+  'You know the {food} is good when it glows a little. {inf} does that.', 'Garnished with {inf} and mild dread. Tastes {feel}.', 'The {inf} wears off. The {food} stays in your heart.',
+  'Cosmic clearance rack: {inf} {food}. {quirk}', 'They put {inf} in the {food} and called it a day. A long one.', 'Bite-sized wormhole. {inf} flavour. {warn}', 'Keep refrigerated, keep skeptical, keep {inf} away from the cat.'
+);
 // which vision keys each infusion family prefers (extra keys are added at random for high absurdity)
 const FAMILY_KEYS = {
   psy: ['hue', 'chroma', 'wobble', 'tint', 'contrast'], stim: ['timeScale', 'fov', 'chroma', 'contrast', 'double'], down: ['blur', 'double', 'contrast', 'timeScale', 'tint'],
@@ -84,6 +120,20 @@ const TINTS = [0xFF7A3A, 0x7A3AFF, 0x3AFFB0, 0xFF3AA0, 0x3AA0FF, 0xFFE03A];
 function pickOf(r, a) { return a[Math.floor(r() * a.length)]; }
 function fill(tpl, v) { return tpl.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : m)); }
 function shade(hex, f) { const r = Math.min(255, ((hex >> 16) & 255) * f), g = Math.min(255, ((hex >> 8) & 255) * f), b = Math.min(255, (hex & 255) * f); return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b); }
+
+
+// ── effect signatures (rev 26): strobe-safe. effect.signature = { id, ... } layered on params; pulse period >= 4 s, amplitude <= 0.3. ──
+export const SIGNATURES = ['pulse', 'mirror', 'tunnel', 'dreamy'];
+const SIG_BY_FAMILY = { psy: ['mirror', 'dreamy', 'pulse'], stim: ['tunnel', 'pulse'], down: ['dreamy', 'pulse'], dis: ['mirror', 'tunnel'], weird: ['mirror', 'tunnel', 'dreamy', 'pulse'], cozy: ['pulse', 'dreamy'] };
+function applySignature(effect, fam, seed) {
+  const r = mulberry(seed ^ 0x51671), p = effect.params;
+  if (r() > 0.6) return;
+  const id = pickOf(r, SIG_BY_FAMILY[fam] || SIGNATURES), q = (v) => Math.round(v * 100) / 100;
+  if (id === 'pulse') effect.signature = { id, period: q(4 + r() * 4), depth: q(0.12 + r() * 0.15) };
+  else if (id === 'mirror') { p.double = q(Math.max(p.double || 0, 0.45 + r() * 0.3)); p.hue = q(Math.max(0.12, Math.abs(p.hue || 0.15)) * (r() < 0.5 ? -1 : 1)); effect.signature = { id, flip: true }; }
+  else if (id === 'tunnel') { p.fov = q(Math.max(p.fov || 0, 0.5 + r() * 0.3)); effect.signature = { id, vignette: q(0.4 + r() * 0.3) }; }
+  else { p.blur = q(Math.max(p.blur || 0, 0.3 + r() * 0.3)); p.tint = q(Math.max(p.tint || 0, 0.25 + r() * 0.2)); if (effect.tintColor == null) effect.tintColor = pickOf(r, TINTS); effect.signature = { id, drift: q(0.03 + r() * 0.05) }; }
+}
 
 export function generateItem(seed, opts) {
   opts = opts || {};
@@ -117,6 +167,7 @@ export function generateItem(seed, opts) {
   ex.speed = Math.round((fam === 'stim' ? 1.15 + r() * 0.5 : fam === 'down' ? 0.65 + r() * 0.25 : 0.85 + r() * 0.4) * 100) / 100;
   ex.jump = Math.round((fam === 'stim' ? 1.2 + r() * 1.0 : fam === 'down' ? 0.6 + r() * 0.3 : fam === 'weird' ? 0.5 + r() * 2.0 : 0.85 + r() * 0.5) * 100) / 100;
   ex.chatWobble = Math.round(Math.min(1, (fam === 'psy' || fam === 'dis' ? 0.3 + r() * 0.6 : r() * 0.45) * Math.min(1.3, ampMul)) * 100) / 100;
+  applySignature(effect, fam, s);
   const absurdity = inf[2] + (mod ? mod[3] : 0) + keys.length * 0.7 + (dealer ? 1.5 : 0);
   let price = Math.round(6 + absurdity * 9 + effect.duration / 12 + r() * 10);
   if (dealer) price = Math.round(price * 2.2);
@@ -127,17 +178,35 @@ export function generateItem(seed, opts) {
   const color = shade(food[2], 0.75) | 0; const mixed = ((((food[2] >> 16) & 255) + ((famTint >> 16) & 255)) >> 1 << 16) | ((((food[2] >> 8) & 255) + ((famTint >> 8) & 255)) >> 1 << 8) | (((food[2] & 255) + (famTint & 255)) >> 1);
   return {
     id: 'it' + s.toString(16).padStart(8, '0'), seed: s, name: nm, kind: food[1], base: food[0], infusion: inf[0], family: fam, modifier: mod ? mod[0] : null,
-    price, blurb, color: mixed || color, absurdity: Math.round(absurdity * 10) / 10, dealer, effect,
+    price, blurb, iconHint: food[3] || undefined, color: mixed || color, absurdity: Math.round(absurdity * 10) / 10, dealer, effect,
+    ...(dealer ? { stackKey: 'it' + s.toString(16).padStart(8, '0') + 'd' } : {}),
   };
 }
 
-export function storeMenu(storeId, n) {
-  n = n || 24; const base = hashStr('store:' + storeId), out = [], names = new Set();
+const todayUTC = () => new Date().toISOString().slice(0, 10);
+export function storeMenu(storeId, n, day) {
+  n = n || 24; day = day || todayUTC();
+  const base = hashStr('store:' + storeId + ':' + day), out = [], names = new Set();
   for (let i = 0, guard = 0; out.length < n && guard < n * 8; i++, guard++) {
     const it = generateItem((base + Math.imul(i + 1, 0x9E3779B1)) >>> 0);
     if (names.has(it.name)) continue; names.add(it.name); out.push(it);
   }
+  const r = mulberry(hashStr('special:' + storeId + ':' + day)), idx = out.map((_, i) => i);
+  for (let k = 0; k < Math.min(3, out.length); k++) {
+    const it = out[idx.splice(Math.floor(r() * idx.length), 1)[0]];
+    it.originalPrice = it.price; it.price = Math.max(1, Math.round(it.price * 0.7)); it.special = true; it.tag = 'TODAY ONLY'; it.discount = 0.3;
+  }
   return out.sort((a, b) => a.price - b.price);
+}
+const DEAL_A = ['The Full', 'Grand', 'Absolute', 'Ridiculous', 'Midnight', 'Cosmic', 'Mega', 'Tragic'], DEAL_B = ['Situation', 'Combo', 'Bundle', 'Spiral', 'Feast', 'Mistake', 'Hangout', 'Parade'];
+export function dailyDeal(storeId, day) {
+  day = day || todayUTC();
+  const base = hashStr('deal:' + storeId + ':' + day), r = mulberry(base), items = [];
+  for (let i = 0; i < 3; i++) items.push(generateItem((base + Math.imul(i + 1, 0xC2B2AE35)) >>> 0));
+  const sum = items.reduce((t, it) => t + it.price, 0), price = Math.max(5, Math.round(sum * (0.12 + r() * 0.08)));
+  const name = pickOf(r, DEAL_A) + ' ' + pickOf(r, DEAL_B) + ': ' + items.map((it) => it.base).join(' + ');
+  return { id: 'deal' + base.toString(16).padStart(8, '0'), kind: 'combo', name, items, price, originalPrice: sum, special: true, tag: 'TODAY ONLY', discount: Math.round((1 - price / sum) * 100) / 100,
+    blurb: 'Three things, one price, zero explanations. ' + pickOf(r, WARN), color: items[0].color };
 }
 export function dealerMenu(dealerId, n) {
   n = n || 6; const base = hashStr('dealer:' + dealerId), out = [], names = new Set();
@@ -213,4 +282,24 @@ export function resourceItem(kind, planetSeed) {
   }
   const id = 'res-' + k + '-' + flavor.toLowerCase();
   return { id, kind: 'resource', base: k, name: flavor + ' ' + b.noun, color: b.color, price: Math.round(b.price * (0.85 + (h % 31) / 100)), blurb: b.blurb, tags: ['res', 'res:' + k], stackKey: id };
+}
+
+// ── Burger House fries tiers (rev 26). glow minutes are REAL time. FRIES (seasoned) stays the default export. ──
+const mkFries = (id, name, base, price, minutes, blurb, speed) => ({ id, seed: 1951, name, kind: 'fries', base, infusion: null, family: 'glow', modifier: null, price, blurb, color: 0x7FD8FF, absurdity: 0, dealer: false, blurbs: [blurb], stackKey: id,
+  effect: { duration: minutes * 60, realtime: true, params: {}, extras: speed ? { speed } : {}, glow: { color: 0x7FD8FF, minutes } } });
+export const FRIES_TIERS = [
+  mkFries('fries-regular', 'Burger House Fries (Regular)', 'Fries', 8, 30, 'Plain, hot, honest. Glows for a while.'),
+  FRIES,
+  mkFries('fries-special', 'Burger House Special', 'Special Fries', 28, 60, 'The good bin. Dusted, double-fried, quietly legendary. Glows an hour and puts a tiny spring in your step.', 1.05),
+];
+
+// rebuild an item from a saved stack key (profile migration safety). Returns null if unknown.
+export function itemFromKey(key) {
+  key = String(key || '');
+  const tier = FRIES_TIERS.find((f) => f.id === key || f.stackKey === key); if (tier) return tier;
+  let m = /^it([0-9a-f]{8})(d?)$/.exec(key);
+  if (m) return generateItem(parseInt(m[1], 16), { dealer: !!m[2] });
+  m = /^res-(\w+)-(.+)$/.exec(key);
+  if (m && RESOURCE_BASE[m[1]]) return resourceItem(m[1], m[2]);
+  return null;
 }

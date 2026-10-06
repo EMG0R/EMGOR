@@ -20,7 +20,7 @@ const NORM_FULL = { x: 0, y: 1.0750000476837158, z: 0.16249990463256836, s: 0.09
 const THRUSTERS_RAW = [[0, 0, 5.52], [-1.85, 0.42, 5.1], [-1.85, -0.42, 5.1], [1.85, 0.42, 5.1], [1.85, -0.42, 5.1]];
 const MUZZLES_RAW = [[-0.9, -0.4, -5.2], [0.9, -0.4, -5.2]];
 
-function haulerRecipe(lod) {
+function haulerRecipe(lod, up, mods) {
   const lo = lod === 'lo', P = (o) => Object.assign({}, o);
   const W = 0.65, H = 0.53;
   const kids = [];
@@ -58,6 +58,33 @@ function haulerRecipe(lod) {
   }
   // main engine ring
   add('ring', { r: 1.12 / K, len: 1.0 / K, tileA: 0x4A7CFF, tileB: 0x3A66E0 }, [0, 0, 4.35], { rot: [Math.PI / 2, 0, 0], id: 'engine' });
+  // optional upgrades / mods: appended last so the default hauler's rng stream and look are untouched
+  if (up) {
+    const add2 = (part, params, pos, extra) => kids.push(Object.assign({ part, params, offset: u(pos[0], pos[1], pos[2]) }, extra || {}));
+    for (let t = 1; t <= up.engine; t++) {            // nacelle extensions above / below the engine ring
+      const y = 0.95 + (t - 1) * 0.5, z = 5.0 + (t - 1) * 0.3;
+      add2('block', { w: 0.7 / K, h: 0.55 / K, d: (1.6 + t * 0.4) / K, wall: C.panel, rows: 0 }, [0, y + 0.3, z - 0.3], { id: 'nacU' + t });
+      add2('block', { w: 0.7 / K, h: 0.55 / K, d: (1.6 + t * 0.4) / K, wall: C.panel, rows: 0 }, [0, -y - 0.1, z - 0.3], { id: 'nacD' + t });
+      add2('ring', { r: 0.34 / K, len: 0.35 / K, tileA: 0x4A7CFF, tileB: 0x3A66E0 }, [0, y + 0.3, z + 0.9 + t * 0.2], { rot: [Math.PI / 2, 0, 0], id: 'nacRU' + t });
+      add2('ring', { r: 0.34 / K, len: 0.35 / K, tileA: 0x4A7CFF, tileB: 0x3A66E0 }, [0, -y - 0.1, z + 0.9 + t * 0.2], { rot: [Math.PI / 2, 0, 0], id: 'nacRD' + t });
+    }
+    for (let t = 1; t <= up.shield; t++) {            // emitter studs along the top edge + a faint plate ring
+      add2('pod', { len: 0.5 / K, r: 0.2 / K }, [0.9 + t * 0.15, 1.5, -0.4 + t * 0.9], { rot: [0, 0, 0], mirror: 'x', id: 'stud' + t });
+    }
+    if (up.shield > 0) add2('ring', { r: 2.3 / K, len: 0.08 / K, tileA: 0x7A3C8C, tileB: 0x6A2C7A }, [0, 0, 0.6], { rot: [0, 0, 0], id: 'shieldRing' });
+    for (let t = 1; t <= up.cargo; t++) {             // side cargo pods growing per tier
+      add2('block', { w: (0.5 + 0.12 * t) / K, h: (0.8 + 0.3 * t) / K, d: 1.0 / K, wall: C.panel, rows: 0 }, [2.35 + 0.1 * t, -0.9 - 0.1 * t, -0.1 + (t - 1) * 1.15], { mirror: 'x', id: 'xcargo' + t });
+    }
+    if (up.jetpack > 0) {                             // dorsal booster tank
+      add2('tank', { r: (0.4 + 0.08 * up.jetpack) / K, h: (1.8 + 0.4 * up.jetpack) / K, glowCol: C.orange }, [0, 2.9, 1.1], { rot: [Math.PI / 2, 0, 0], id: 'jet' });
+    }
+  }
+  if (mods && !lo) {
+    const add2 = (part, params, pos, extra) => kids.push(Object.assign({ part, params, offset: u(pos[0], pos[1], pos[2]) }, extra || {}));
+    if (mods.scope) add2('tank', { r: 0.12 / K, h: 0.9 / K, glowCol: C.light }, [0.9, -0.1, -3.7], { rot: [Math.PI / 2, 0, 0], mirror: 'x', id: 'scope' });
+    if (mods.coil) for (const z of [-4.2, -3.8, -3.4]) add2('ring', { r: 0.26 / K, len: 0.12 / K, tileA: C.light, tileB: C.orange }, [0.9, -0.4, z], { rot: [Math.PI / 2, 0, 0], mirror: 'x', id: 'coil' });
+    if (mods.chamber) add2('block', { w: 0.8 / K, h: 0.7 / K, d: 1.0 / K, wall: C.panel, rows: 0 }, [0.9, -0.4, -3.0], { mirror: 'x', id: 'chamber' });
+  }
   return {
     part: 'hull', params: { kind: 'brick', wid: W, hgt: H, chamfer: 0.2 }, palette: PAL, lod, flex: false,
     paint: lo ? undefined : { lines: 5, stripes: 0, grime: 0.4, base: C.hull, accent: C.orange, panel: C.panel },
@@ -109,13 +136,15 @@ function haulerDecals(T) {
 
 const SEEDS = { fighter: 21, explorer: 5 };
 
-function buildRaw(T, kind, lod) {
+function buildRaw(T, kind, lod, o) {
   if (kind === 'hauler') {
-    const res = compose(T, haulerRecipe(lod), mulberry(1407));
+    const res = compose(T, haulerRecipe(lod, o && o.up, o && o.mods), mulberry(1407));
     let lit = res.geo;
     if (lod === 'hi') { const dec = haulerDecals(T); dec.forEach(d => d.scale(1 / K, 1 / K, 1 / K)); lit = mergeGeometries([lit].concat(dec), false); dec.forEach(d => d.dispose()); res.geo.dispose(); }
     lit.scale(K, K, K); if (res.emissive) res.emissive.scale(K, K, K);
-    return { lit, emi: res.emissive, thr: THRUSTERS_RAW, mz: MUZZLES_RAW, norm: NORM_FULL };
+    const thr = THRUSTERS_RAW.slice();
+    if (o && o.up) for (let t = 1; t <= o.up.engine; t++) { const y = 0.95 + (t - 1) * 0.5, z = 5.0 + (t - 1) * 0.3; thr.push([0, y + 0.3, z + 1.3 + t * 0.2], [0, -y - 0.1, z + 1.3 + t * 0.2]); }
+    return { lit, emi: res.emissive, thr, mz: MUZZLES_RAW, norm: NORM_FULL };
   }
   const rec = seededRecipe(kind, mulberry((SEEDS[kind] || 7) * 977 + 131));
   rec.lod = lod; rec.flex = false;
@@ -131,8 +160,8 @@ function buildRaw(T, kind, lod) {
   return { lit: res.geo, emi: res.emissive, thr, mz, norm: { x: c.x, y: c.y, z: c.z, s: 1 / (bb.max.z - bb.min.z) }, free: true };
 }
 
-function assemble(T, kind, lod, normOverride) {
-  const raw = buildRaw(T, kind, lod);
+function assemble(T, kind, lod, normOverride, o) {
+  const raw = buildRaw(T, kind, lod, o);
   const nm = normOverride || raw.norm;
   const fixG = g => { g.translate(-nm.x, -nm.y, -nm.z); g.scale(nm.s, nm.s, nm.s); };
   fixG(raw.lit); if (raw.emi) fixG(raw.emi);
@@ -156,13 +185,27 @@ function assemble(T, kind, lod, normOverride) {
 
 export const HULL_KINDS = ['hauler', 'fighter', 'explorer'];
 
+const clampT = v => Math.max(0, Math.min(3, v | 0));
+function norm(opts) {
+  const U = (opts && opts.upgrades) || {}, M = (opts && opts.mods) || {};
+  const up = { engine: clampT(U.engine), shield: clampT(U.shield), cargo: clampT(U.cargo), jetpack: clampT(U.jetpack) };
+  const mods = { scope: !!M.scope, coil: !!M.coil, chamber: !!M.chamber };
+  const any = up.engine || up.shield || up.cargo || up.jetpack || mods.scope || mods.coil || mods.chamber;
+  return { up: any ? up : null, mods: any ? mods : null, up0: up, mods0: mods };
+}
+export function hullSignature(opts) {
+  const kind = HULL_KINDS.indexOf(opts && opts.kind) >= 0 ? opts.kind : 'hauler', n = norm(opts), u0 = n.up0, m = n.mods0;
+  return kind + '|e' + u0.engine + 's' + u0.shield + 'c' + u0.cargo + 'j' + u0.jetpack + '|' + (m.scope ? 'S' : '') + (m.coil ? 'C' : '') + (m.chamber ? 'H' : '');
+}
+
 export function buildHull(THREE, opts) {
   const kind = HULL_KINDS.indexOf(opts && opts.kind) >= 0 ? opts.kind : 'hauler';
   const low = !!(opts && opts.lod === 'low');
-  const { group, norm } = assemble(THREE, kind, low ? 'lo' : 'hi', null);
+  const o = kind === 'hauler' ? norm(opts) : null;
+  const { group, norm: nrm } = assemble(THREE, kind, low ? 'lo' : 'hi', null, o);
   if (!low) {
     let lo = null;
-    Object.defineProperty(group, 'lo', { enumerable: false, configurable: true, get() { return lo || (lo = assemble(THREE, kind, 'lo', norm).group); } });
+    Object.defineProperty(group, 'lo', { enumerable: false, configurable: true, get() { return lo || (lo = assemble(THREE, kind, 'lo', nrm, o).group); } });
   }
   return group;
 }

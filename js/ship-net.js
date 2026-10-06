@@ -53,6 +53,7 @@ export function connect(engine, hooks) {
     var prefs = (hooks.getPrefs && hooks.getPrefs(id)) || {};
     var myName = prefs.name || ('PILOT-' + id.slice(-4)).toUpperCase();
     var myColor = prefs.color != null ? prefs.color : DEFAULT_COLOR;
+    var myHs = typeof prefs.hs === 'string' ? prefs.hs.slice(0, 40) : '';     // rev 26: hull signature (ship-hull hullSignature) so ghosts rebuild the same upgraded hull
     var myState = 'docked', myMode = 'fly';      // rev 14: myMode fly | landed | foot (sub-state of 'piloting')
 
     var ws = null, open = false, kicked = false, destroyed = false, fails = 0;
@@ -112,6 +113,13 @@ export function connect(engine, hooks) {
     }
     function applyLook(g, rec) {
         var nm = rec.name || g.name || 'PILOT';
+        if (typeof rec.hs === 'string' && rec.hs !== (g.hs || '') && hooks.buildGhost) {      // rev 26: the sender's upgraded hull
+            g.hs = rec.hs;
+            try {
+                var nh = hooks.buildGhost(rec.hs);
+                if (nh) { if (g.hull) { g.root.remove(g.hull); g.hull.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); } g.hull = nh; nh.traverse(function (o) { o.frustumCulled = false; }); g.root.add(nh); if (g.color >= 0) hooks.tint(nh, g.color); }
+            } catch (e) { /* keep the current hull */ }
+        }
         if (nm !== g.name) { g.name = nm; g.nameEl.textContent = nm; }
         if (rec.color != null && rec.color !== g.color) {
             g.color = rec.color;
@@ -263,7 +271,8 @@ export function connect(engine, hooks) {
         if (!open || !ws) return false;
         try { ws.send(JSON.stringify(o)); lastSent = performance.now(); return true; } catch (e) { return false; }
     }
-    function sendHi() { send({ t: 'hi', v: 1, id: id, name: myName, color: myColor }); }
+    function sendHi() { var o = { t: 'hi', v: 1, id: id, name: myName, color: myColor }; if (myHs) o.hs = myHs; send(o); }
+    function setHullSig(sig) { sig = typeof sig === 'string' ? sig.slice(0, 40) : ''; if (sig === myHs) return; myHs = sig; sendHi(); }
 
     function schedule(ms) {
         clearTimeout(retryTimer);
@@ -303,6 +312,7 @@ export function connect(engine, hooks) {
             a.wasOpen = true; open = true; fails = 0; fadeAt = 0; lastSent = performance.now();
             offsetOk = false; bestRtt = 1e9;
             sendHi();
+            if (hooks.onOpen) { try { hooks.onOpen(); } catch (e) { /* ignore */ } }
             [0, 400, 800].forEach(function (d) { setTimeout(function () { send({ t: 'ping', c: performance.now() }); }, d); });
             if (myState === 'piloting') lastPos = 0;
         };
@@ -368,6 +378,13 @@ export function connect(engine, hooks) {
                     hooks.onKill(g ? g.name : 'PILOT', m.by === id);
                 }
                 break;
+            case 'prof.ok': if (hooks.onProf) hooks.onProf({ ok: true, name: m.name }); break;
+            case 'prof.err': if (hooks.onProf) hooks.onProf({ ok: false, why: String(m.why || 'bad') }); break;
+            case 'prof': if (hooks.onProf && m.data && typeof m.data === 'object') hooks.onProf({ ok: true, loaded: true, name: m.name, data: m.data }); break;
+            case 'disc': if (hooks.onDisc) hooks.onDisc({ kind: m.kind, id: m.id, name: m.name, by: m.by, at: m.at, won: true }); break;
+            case 'disc.no': if (hooks.onDisc) hooks.onDisc({ kind: m.kind, id: m.id, name: m.name, by: m.by, won: false }); break;
+            case 'disc.all': if (hooks.onDisc && Array.isArray(m.list)) hooks.onDisc({ list: m.list }); break;
+            case 'event': if (hooks.onEvent) hooks.onEvent({ kind: String(m.kind || ''), minutes: +m.minutes || 0, left: +m.left || 0, planetId: m.planetId }); break;
             case 'pong': {
                 var rtt = now - m.c;
                 if (rtt >= 0 && rtt < bestRtt && typeof m.now === 'number') { bestRtt = rtt; offset = m.now + rtt / 2 - Date.now(); offsetOk = true; maybeClock(); }
@@ -406,6 +423,12 @@ export function connect(engine, hooks) {
     }
     function sendKill(by) { send({ t: 'kill', by: by }); }
     function sendChat(text) { return send({ t: 'chat', text: String(text).slice(0, 200) }); }
+    // rev 27: relay persistence + shared state (server/nmg-relay/README.md). All return false when offline.
+    function profSave(name, key, data) { return send({ t: 'prof.save', name: String(name).toLowerCase(), key: String(key), data: data }); }
+    function profLoad(name, key) { return send({ t: 'prof.load', name: String(name).toLowerCase(), key: String(key) }); }
+    function discClaim(kind, did, name, by) { return send({ t: 'disc.claim', kind: kind, id: String(did).slice(0, 48), name: String(name).slice(0, 24), by: String(by).slice(0, 24) }); }
+    function discList() { return send({ t: 'disc.list' }); }
+    function eventNow() { return send({ t: 'event.now' }); }
     function sendGor(text) { return send({ t: 'gor', text: String(text).slice(0, 400) }); }
     function setName(n) { myName = String(n); sendHi(); }
     function setColor(c) { myColor = c & 0xffffff; sendHi(); }
@@ -437,7 +460,7 @@ export function connect(engine, hooks) {
         get id() { return id; },
         get ghosts() { return ghosts; },
         get clockOn() { return clockOn; },
-        update: update, sendPos: sendPos, setState: setState, setMode: setMode, sendFire: sendFire, sendKill: sendKill, sendChat: sendChat, sendGor: sendGor,
+        update: update, sendPos: sendPos, setState: setState, setMode: setMode, sendFire: sendFire, sendKill: sendKill, sendChat: sendChat, sendGor: sendGor, setHullSig: setHullSig, profSave: profSave, profLoad: profLoad, discClaim: discClaim, discList: discList, eventNow: eventNow,
         setName: setName, setColor: setColor, onRoster: onRoster, destroy: destroy
     };
     current = net;
@@ -446,6 +469,7 @@ export function connect(engine, hooks) {
 }
 
 // thin module-level wrappers (plan's export list); they act on the live instance
+export function setHullSig(sig) { if (current && current.setHullSig) current.setHullSig(sig); }
 export function sendPos() { if (current) current.sendPos(); }
 export function onRoster(fn) { if (current) current.onRoster(fn); }
 export function setName(n) { if (current) current.setName(n); }

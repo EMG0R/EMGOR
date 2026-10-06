@@ -78,7 +78,7 @@ const tierOf = (it) => (it.tier || 1);
 
 // ── recipes ──
 const E = (duration, params, extras) => ({ duration, params: params || {}, extras: extras || {} });
-const HINT = { 'weapon-mod': 'pill', 'ship-upgrade': 'tray', food: 'can', junk: 'bar', material: 'tray' };
+const HINT = { 'weapon-mod': 'pill', 'ship-upgrade': 'tray', food: 'can', junk: 'bar', material: 'tray', tool: 'stick' };
 let RID = 0;
 function R(id, name, pattern, out) {
   const shapeless = pattern.charAt(0) === '~';
@@ -157,11 +157,11 @@ export function buildRecipeOutput(recipe, items) {
   const o = recipe.out, comp = mergeComp(items), tier = Math.max(recipe.tier, items.reduce((m, it) => Math.max(m, tierOf(it)), 1));
   const sc = 1 + 0.25 * (tier - recipe.tier), key = 'cr:' + recipe.id + ':' + tier;
   const color = o.color | 0, cat = o.cat;
-  const base = o.base, kind = cat === 'food' ? (o.kind || 'food') : cat === 'junk' ? 'junk' : cat === 'material' ? 'material' : 'part';
+  const base = o.base, kind = cat === 'food' ? (o.kind || 'food') : cat === 'junk' ? 'junk' : cat === 'material' ? 'material' : cat === 'tool' ? 'tool' : 'part';
   const it = {
-    id: key, recipe: recipe.id, name: base + (tier > 2 ? ' Mk ' + roman(tier) : ''), kind, base, infusion: null, modifier: null, color,
+    id: key, recipe: recipe.id, name: base + (tier > 2 && !o.noMk ? ' Mk ' + roman(tier) : ''), kind, base, infusion: null, modifier: null, color,
     price: Math.round((o.price || 40) * (1 + 0.5 * (tier - recipe.tier))), blurb: o.blurb || (cat === 'weapon-mod' ? 'Bolts on. Slot: ' + o.slot + '.' : cat === 'ship-upgrade' ? 'Ship upgrade: ' + o.slot + '.' : 'Hand-crafted.'),
-    tier, category: cat, tags: ['crafted', 'cat:' + cat, 'out:' + recipe.id], stackKey: key, comp, frags: [base.split(' ').slice(-2).join('-')],
+    tier, category: cat, tags: ['crafted', 'cat:' + cat, 'out:' + recipe.id].concat(o.tags || []), stackKey: key, comp, frags: [base.split(' ').slice(-2).join('-')],
     iconHint: o.hint || HINT[cat], absurdity: 0, dealer: false,
   };
   if (cat === 'weapon-mod') { const d = {}; for (const k in o.delta) d[k] = k === 'count' ? o.delta[k] : r2(o.delta[k] * sc); it.mod = { slot: o.slot, delta: d, special: o.special || null }; }
@@ -193,10 +193,12 @@ function matchShapeless(list, cells) {
   const go = (k) => { if (k === list.length) return true; for (const c of cells) { if (used.has(c.i) || !tokMatch(list[k], c.tags)) continue; used.add(c.i); if (go(k + 1)) return true; used.delete(c.i); } return false; };
   return go(0) ? Array.from(used).sort((a, b) => a - b) : null;
 }
-export function match(grid) {
+export function match(grid, ctx) {
+  const known = ctx && ctx.known ? (ctx.known instanceof Set ? ctx.known : new Set(ctx.known)) : new Set();
   const cells = cellsOf(grid || []);
   if (!cells.length) return null;
   for (const r of RECIPES) {
+    if (r.bp && !known.has(r.bp)) continue;
     const used = r.shapeless ? matchShapeless(r.list, cells) : matchShaped(r.rows, cells);
     if (used) return { recipe: r, output: buildRecipeOutput(r, used.map((i) => grid[i].item)), count: r.count, consumes: used };
   }
@@ -317,4 +319,87 @@ export function sellPrice(item) {
   if (!item) return 0;
   const f = item.category === 'junk' ? 0.35 : item.kind === 'fries' ? 0.5 : 0.5;
   return Math.max(1, Math.floor((item.price || 0) * f));
+}
+
+// ── rev 26: resources -> refined materials -> kits, suit kits, treats, blueprints ──
+// Tokens 'res:<kind>' (ship-items resourceItem) repeat for counts: '~res:ore res:ore res:ore' = 3 ore.  Refined mats carry tags out:<id>.
+// Blueprint items carry tag 'bp:<id>'; blueprintItem(id) builds one; knownFrom(items) -> Set of bp ids.  match(grid,{known}) / recipeBook({known}).
+const T = (o) => Object.assign({ tier: 1 }, o);
+const REF = (base, color, price, blurb, hint) => MAT(base, color, price, { tier: 1, blurb, hint: hint || 'candy', tags: ['refined'] });
+const SUIT = (slot, level, base, color, price) => UPG('suit-' + slot, level, { base, color, price, tier: level, noMk: true, hint: 'tray', tags: ['suit-kit'], blurb: 'Suit upgrade: ' + slot + ' tier ' + level + '.' });
+const TREAT = (kind, base, color) => FOOD(base, color, 45, E(60, {}, { treat: 1 }), { count: 2, tier: 1, tags: ['treat', 'treat:' + kind], hint: 'candy', blurb: 'A ' + kind + ' will follow you across the galaxy for this.' });
+const NEW = [
+  // refined materials
+  R('crystal-lens', 'Crystal Lens', '~res:crystal res:crystal res:crystal', REF('Crystal Lens', 0xBEEFFF, 150, 'Three crystals ground into one opinion.')),
+  R('bio-gel', 'Bio-Gel', '~res:plant res:plant res:plant', REF('Bio-Gel', 0x9CFF7A, 70, 'Pods, pressed. Wobbles on its own.')),
+  R('alloy-ingot', 'Alloy Ingot', '~res:ore res:ore res:ore', REF('Alloy Ingot', 0xFFB030, 110, 'Ore that finally made up its mind.', 'bar')),
+  R('cryo-cell', 'Cryo Cell', '~res:ice res:ice res:crystal', REF('Cryo Cell', 0x7ACBFF, 120, 'A cold battery. Hold with mittens.', 'energy')),
+  R('spore-paste', 'Spore Paste', '~res:spore res:spore res:plant', REF('Spore Paste', 0xE080FF, 100, 'Do not inhale. Or do. Paste is fine either way.')),
+  R('fries-seasoning', 'Fries Seasoning', '~out:seasoning-salt res:plant', FOOD('Fries Seasoning', 0xFFD25A, 60, E(180, { chroma: 0.3, contrast: 0.15 }, { speed: 1.2, jump: 1.15 }), { tier: 1, count: 2, hint: 'bag', tags: ['seasoning'], blurb: 'Salt and green stuff. Fries will never be the same.' })),
+  // alternate kit recipes from refined materials
+  R('scope-refined', 'Crystal Scope', '~out:crystal-lens out:crystal-lens', MOD('scope', { range: 0.35, spread: -0.2 }, { base: 'Crystal Scope', price: 300 })),
+  R('coil-refined', 'Spore Coil', '~out:alloy-ingot out:spore-paste', MOD('coil', { dmg: 0.3 }, { base: 'Spore Coil', price: 320 })),
+  R('chamber-refined', 'Cryo Chamber', '~out:alloy-ingot out:cryo-cell', MOD('chamber', { rate: 0.3, spread: -0.1 }, { base: 'Cryo Chamber', price: 300 })),
+  R('engine-refined', 'Alloy Engine Kit', '~out:alloy-ingot out:alloy-ingot out:cryo-cell', UPG('engine', 1, { base: 'Alloy Engine Kit', color: 0xFFB05C, price: 260 })),
+  R('shield-refined', 'Prism Shield', '~out:cryo-cell out:crystal-lens out:alloy-ingot', UPG('shield', 1, { base: 'Prism Shield', color: 0x5CE8FF, price: 280 })),
+  R('cargo-refined', 'Ingot Cargo Kit', '~out:alloy-ingot out:alloy-ingot out:alloy-ingot', UPG('cargo', 1, { base: 'Ingot Cargo Kit', color: 0xD9A05B, price: 270 })),
+  R('jetpack-refined', 'Gel Jetpack Booster', '~out:bio-gel out:alloy-ingot out:cryo-cell', UPG('jetpack', 1, { base: 'Gel Jetpack Booster', color: 0xFFE24A, price: 260 })),
+  R('fuel-refined', 'Bio Fuel Cell', '~out:bio-gel out:bio-gel out:crystal-lens', UPG('fuel', 1, { base: 'Bio Fuel Cell', color: 0x7CFF3A, price: 230, hint: 'energy' })),
+  R('pen-refined', 'Glass Pen Kit', '~out:crystal-lens out:alloy-ingot out:bio-gel', UPG('pens', 1, { base: 'Glass Pen Kit', color: 0xBEEFFF, price: 320 })),
+  R('pod-refined', 'Spore Crew Pod Kit', '~out:alloy-ingot out:bio-gel out:spore-paste', UPG('pods', 1, { base: 'Spore Crew Pod Kit', color: 0xA8A0C8, price: 320 })),
+  // suit kits T1-T3
+  R('suit-jetpack-1', 'Suit Jetpack T1', '~res:ice res:ore res:ore', SUIT('jetpack', 1, 'Suit Jetpack T1', 0xFFE24A, 120)),
+  R('suit-jetpack-2', 'Suit Jetpack T2', '~out:cryo-cell out:alloy-ingot res:ore', SUIT('jetpack', 2, 'Suit Jetpack T2', 0xFFE24A, 320)),
+  R('suit-jetpack-3', 'Suit Jetpack T3', '~out:cryo-cell out:cryo-cell out:alloy-ingot out:crystal-lens', SUIT('jetpack', 3, 'Suit Jetpack T3', 0xFFE24A, 720)),
+  R('suit-scanner-1', 'Suit Scanner T1', '~res:crystal res:crystal res:spore', SUIT('scanner', 1, 'Suit Scanner T1', 0x5CE8FF, 120)),
+  R('suit-scanner-2', 'Suit Scanner T2', '~out:crystal-lens res:spore res:spore', SUIT('scanner', 2, 'Suit Scanner T2', 0x5CE8FF, 320)),
+  R('suit-scanner-3', 'Suit Scanner T3', '~out:crystal-lens out:crystal-lens out:spore-paste', SUIT('scanner', 3, 'Suit Scanner T3', 0x5CE8FF, 720)),
+  R('suit-sprint-1', 'Suit Sprint T1', '~res:plant res:plant res:ice', SUIT('sprint', 1, 'Suit Sprint T1', 0x7CFF3A, 120)),
+  R('suit-sprint-2', 'Suit Sprint T2', '~out:bio-gel out:cryo-cell res:plant', SUIT('sprint', 2, 'Suit Sprint T2', 0x7CFF3A, 320)),
+  R('suit-sprint-3', 'Suit Sprint T3', '~out:bio-gel out:bio-gel out:cryo-cell out:spore-paste', SUIT('sprint', 3, 'Suit Sprint T3', 0x7CFF3A, 720)),
+  R('suit-storage-1', 'Suit Storage T1', '~res:ore res:ore res:ore res:ice', SUIT('storage', 1, 'Suit Storage T1', 0xD9A05B, 120)),
+  R('suit-storage-2', 'Suit Storage T2', '~out:alloy-ingot out:alloy-ingot res:ore', SUIT('storage', 2, 'Suit Storage T2', 0xD9A05B, 320)),
+  R('suit-storage-3', 'Suit Storage T3', '~out:alloy-ingot out:alloy-ingot out:alloy-ingot out:bio-gel', SUIT('storage', 3, 'Suit Storage T3', 0xD9A05B, 720)),
+  // creature treats (one per kind), pet toy, ration, beacon
+  R('treat-blob', 'Blob Treat', '~res:plant res:ice', TREAT('blob', 'Blob Treat', 0x9CFF7A)),
+  R('treat-floof', 'Floof Treat', '~res:plant res:spore', TREAT('floof', 'Floof Treat', 0xFFB6E0)),
+  R('treat-glider', 'Glider Treat', '~res:plant res:crystal', TREAT('glider', 'Glider Treat', 0xBEEFFF)),
+  R('treat-crawler', 'Crawler Treat', '~res:plant res:ore', TREAT('crawler', 'Crawler Treat', 0xFFB030)),
+  R('treat-hopper', 'Hopper Treat', '~res:spore res:ice', TREAT('hopper', 'Hopper Treat', 0xE080FF)),
+  R('pet-toy', 'Pet Toy', '~out:bio-gel res:crystal', MAT('Pet Toy', 0xFF8AE8, 80, { tier: 1, hint: 'donut', tags: ['pet-toy'], blurb: 'Squeaks at a frequency only the right creature hears.' })),
+  R('crew-ration', 'Crew Ration', '~out:bio-gel food:any', FOOD('Crew Ration', 0xC8E88A, 90, E(300, {}, { missionSpeed: 0.2 }), { tier: 1, tags: ['ration'], hint: 'can', blurb: 'Crew mission speed +20%. Tastes like a schedule.' })),
+  R('beacon', 'Beacon', '~out:crystal-lens out:alloy-ingot antenna', { cat: 'tool', base: 'Beacon', color: 0x8A6CFF, price: 400, tier: 1, tags: ['beacon'], hint: 'stick', blurb: 'Plant it. Fast-travel back to it from anywhere.' }),
+];
+// blueprints: locked recipes, unlocked by a 'bp:<id>' item (derelict loot, bounty rewards)
+const BP = (id, name, pattern, out, price) => Object.assign(R(id, name, pattern, Object.assign({ tier: 4 }, out)), { bp: id, bpPrice: price || 900 });
+const NEWBP = [
+  BP('s-weapon-core', 'S-Class Weapon Core', '~out:bolt-core out:crystal-lens out:crystal-lens out:spore-paste', MOD('chamber', { dmg: 1.0, rate: 0.4, count: 1 }, { base: 'S-Class Weapon Core', price: 2400, special: 'overcharge', color: 0xFF5CE1 })),
+  BP('titan-lure', 'Titan Lure', '~out:spore-paste out:spore-paste out:bio-gel res:spore', { cat: 'material', base: 'Titan Lure', color: 0xE080FF, price: 1400, tags: ['lure', 'lure:titan'], hint: 'bag', blurb: 'Smells like dinner to something very large.' }),
+  BP('gravity-anchor', 'Gravity Anchor', '~out:alloy-ingot out:alloy-ingot out:cryo-cell out:crystal-lens', { cat: 'tool', base: 'Gravity Anchor', color: 0x8A6CFF, price: 1600, tags: ['anchor'], hint: 'can', blurb: 'Holds a ship in place against a black hole. Mostly.' }),
+  BP('void-engine', 'Void Engine', '~out:alloy-ingot out:alloy-ingot out:alloy-ingot out:cryo-cell out:cryo-cell', UPG('engine', 3, { base: 'Void Engine', color: 0xFF8A3A, price: 1800 })),
+  BP('aegis-shield', 'Aegis Shield', '~out:crystal-lens out:crystal-lens out:cryo-cell out:alloy-ingot out:alloy-ingot', UPG('shield', 3, { base: 'Aegis Shield', color: 0x8AF0FF, price: 1800 })),
+  BP('phase-cargo', 'Phase Cargo Kit', '~out:alloy-ingot out:alloy-ingot out:bio-gel out:bio-gel out:crystal-lens', UPG('cargo', 3, { base: 'Phase Cargo Kit', color: 0xE8B040, price: 1700 })),
+  BP('star-fuel', 'Star Fuel Cell', '~out:bio-gel out:bio-gel out:crystal-lens out:crystal-lens out:cryo-cell', UPG('fuel', 4, { base: 'Star Fuel Cell', color: 0xB8FF3A, price: 1700, hint: 'energy' })),
+  BP('hyper-jetpack', 'Hyper Jetpack', '~out:cryo-cell out:cryo-cell out:alloy-ingot out:bio-gel out:spore-paste', UPG('suit-jetpack', 4, { base: 'Hyper Jetpack', color: 0xFFF08A, price: 1900, noMk: true })),
+  BP('omni-scanner', 'Omni Scanner', '~out:crystal-lens out:crystal-lens out:crystal-lens out:spore-paste out:cryo-cell', UPG('suit-scanner', 4, { base: 'Omni Scanner', color: 0x5CE8FF, price: 1900, noMk: true })),
+  BP('habitat-pen', 'Habitat Pen Kit', '~out:crystal-lens out:bio-gel out:bio-gel out:alloy-ingot out:spore-paste', UPG('pens', 2, { base: 'Habitat Pen Kit', color: 0xBEEFFF, price: 1500 })),
+  BP('captain-suite', 'Captain Suite Kit', '~out:alloy-ingot out:alloy-ingot out:bio-gel out:spore-paste out:crystal-lens', UPG('pods', 2, { base: 'Captain Suite Kit', color: 0xA8A0C8, price: 1500 })),
+  BP('golden-fries', 'Golden Fries', '~out:fries-seasoning out:fries-seasoning fries fries out:crystal-lens', FOOD('Golden Fries', 0xFFD700, 500, E(600, { chroma: 0.4, contrast: 0.3, double: 0.1 }, { speed: 1.4, jump: 1.3 }), { kind: 'fries', hint: 'bag', blurb: 'Gold-flecked. Moves you faster than is polite.' })),
+];
+for (const r of NEW.concat(NEWBP)) RECIPES.push(r);
+export const BLUEPRINTS = NEWBP.map((r) => ({ id: r.bp, name: r.name + ' Blueprint', recipe: r.id, price: r.bpPrice, tag: 'bp:' + r.bp, iconHint: 'candy' }));
+export function blueprintItem(id) {
+  const b = BLUEPRINTS.find((x) => x.id === id); if (!b) return null;
+  return { id: 'bp-' + id, kind: 'blueprint', base: id, name: b.name, color: 0x6CA8FF, price: b.price, blurb: 'Unlocks a rare recipe. Keep it safe.', tags: ['bp', 'bp:' + id], stackKey: 'bp-' + id, iconHint: 'candy', tier: 1 };
+}
+export function knownFrom(items) { const s = new Set(); for (const it of items || []) for (const t of (it && it.tags) || []) if (t.indexOf('bp:') === 0) s.add(t.slice(3)); return s; }
+export function recipeBook(ctx) {
+  const known = ctx && ctx.known ? (ctx.known instanceof Set ? ctx.known : new Set(ctx.known)) : new Set();
+  return RECIPES.map((r) => {
+    const toks = r.shapeless ? r.list : [].concat.apply([], r.rows).filter(Boolean), cnt = {};
+    for (const t of toks) cnt[t] = (cnt[t] || 0) + 1;
+    const o = r.out;
+    return { id: r.id, name: r.name, shapeless: r.shapeless, pattern: r.pattern, ingredients: Object.keys(cnt).map((t) => ({ token: t, n: cnt[t] })),
+      output: { name: o.base, category: o.cat, tier: r.tier, count: r.count, price: o.price || 40, iconHint: o.hint || HINT[o.cat] }, locked: !!(r.bp && !known.has(r.bp)), bp: r.bp || null };
+  });
 }

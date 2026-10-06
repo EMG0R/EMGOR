@@ -13,11 +13,17 @@
 //   station.dockPath(i) / launchPath(i)   [Vector3 world] 48 arc-length-spaced points (dock: 60 L outside the mouth -> pad; launch: pad -> 120 L out)
 //   station.deck   { floorAt(worldPos,out?) -> { point, normal, height, inside }, walls:[{min,max,name,field?}] (station-local, L), bounds:{min,max} }
 //   station.interior { stores:[storeLike], npcs:[{human,name,lines[3],pos,localPos}], mapPedestal:{pos,radius}, windows:[{pos,w,h}] }
+//   station.interior.trade { pos, radius, buys:[stackKey], buyPrices:{key:gorCoin}, sells:[{id,item,n,price}], day }  TRADE terminal on the right wall (market seeded per UTC day; refresh(day?) rebuilds)
+//   station.interior.shipyard { pos, radius, ships:[{kind,name,price,stats:{cruise,boost,cargo,guns,hp} (pct deltas vs hauler; guns absolute),blurb}] }  hangar-back alcove, 2 turntable display pads (fighter, explorer)
+//   station.interior.questBoard { pos, radius, quests, setQuests([{title,reward,kind}]) }  'BOUNTIES' screen beside the mission board;  .landingFee (0)  .greetingLine(seed?) seeded PA line on dock
 //   station.toLocal(v)/toWorld(v)  (local in L units)   station.setVisible(b)   station.stats {tris, meshes}   station.dispose()
 import { STORE_NAME, createStandaloneStore, transformBoxes, fillStoreRecord } from './ship-world.js';
 import * as lingo from './ship-lingo.js';
 import { createHuman } from './ship-human.js';
 import { weaponSetFor, generateWeapon } from './ship-weapons.js';
+import { makeMarket } from './ship-space.js';
+import { buildHull } from './ship-hull.js';
+import { fmt } from './ship-craft.js';
 
 const HW = 4.5, HH = 4.8, HD = 26;          // hangar inner half-width, height, depth (L)
 const MOUTH_HW = 4.5, MOUTH_HH = 2.4;       // mouth half extents (opening is 9 x 4.8 L; centre y = 2.4)
@@ -158,6 +164,35 @@ const NPC_DEF = [
   { name: 'Roan', color: 0xFFC46B, lines: ['This is the best job in the dark. Free coffee.', 'Four pads, one wrench. We make it work.', 'You flew in like you meant it. Nice.'] },
 ];
 
+const SHIPS = [
+  { kind: 'fighter', name: 'Wasp-class Fighter', price: 1800, stats: { cruise: 25, boost: 40, cargo: -50, guns: 2, hp: -20 }, blurb: 'Fast, twitchy, armed. Bring less luggage.' },
+  { kind: 'explorer', name: 'Drifter Explorer', price: 2600, stats: { cruise: 10, boost: 20, cargo: -25, guns: 0, hp: 15 }, blurb: 'Long legs and a big window. Scanners included.' },
+];
+const PA_LINES = ['Docking complete. Please keep limbs inside the hangar.', 'Welcome to the 7/11. We never close; we only orbit.', 'Reminder: the black hole is not a shortcut.', 'Landing fee waived. Tipping the clerk is not.', 'Pad cleared. Mind the field on your way out.', 'Attention: someone left a wrench on pad three.'];
+const QCOL = { mine: '#ffc46b', scout: '#5ce8ff', trade: '#8aff9c', bounty: '#ff5ce1' };
+function textCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function yardSignCanvas() {
+  const c = textCanvas(1024, 160), x = c.getContext('2d');
+  x.fillStyle = '#120c1c'; x.fillRect(0, 0, 1024, 160); x.strokeStyle = '#5ce8ff'; x.lineWidth = 6; x.strokeRect(6, 6, 1012, 148);
+  x.font = '900 104px "Arial Black", Impact, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = '#5ce8ff'; x.shadowBlur = 26; x.fillStyle = '#eafcff'; x.fillText('SHIPYARD', 512, 84);
+  return c;
+}
+function questCanvas(quests) {
+  const c = textCanvas(512, 576), x = c.getContext('2d');
+  x.fillStyle = '#0d0818'; x.fillRect(0, 0, 512, 576); x.strokeStyle = '#ff5ce1'; x.lineWidth = 6; x.strokeRect(5, 5, 502, 566);
+  x.font = '900 56px "Arial Black", Impact, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = '#ff5ce1'; x.shadowBlur = 18; x.fillStyle = '#ffe9fa'; x.fillText('BOUNTIES', 256, 48); x.shadowBlur = 0;
+  x.textAlign = 'left'; const q = quests || [];
+  if (!q.length) { x.font = '28px sans-serif'; x.fillStyle = '#8a7aa8'; x.fillText('No bounties posted.', 36, 140); }
+  q.slice(0, 5).forEach((o, i) => {
+    const y = 92 + i * 94, col = QCOL[o.kind] || '#d7a2ff';
+    x.fillStyle = 'rgba(138,60,255,0.16)'; x.fillRect(20, y, 472, 84); x.fillStyle = col; x.fillRect(20, y, 6, 84);
+    x.font = 'bold 26px sans-serif'; x.fillStyle = '#f4f8ff'; let t = String(o.title || '?'); while (t.length > 3 && x.measureText(t).width > 440) t = t.slice(0, -2);
+    x.fillText(t, 38, y + 28); x.font = '22px sans-serif'; x.fillStyle = col; x.fillText(String(o.kind || '').toUpperCase(), 38, y + 62);
+    x.textAlign = 'right'; x.fillStyle = '#ffc46b'; x.fillText(typeof o.reward === 'number' ? fmt(o.reward) : String(o.reward == null ? '' : o.reward), 480, y + 62); x.textAlign = 'left';
+  });
+  return c;
+}
+
 export function createStation(engine, L, opts) {
   opts = opts || {};
   const T = engine.THREE, scene = engine.scene, root = engine.root;
@@ -169,7 +204,7 @@ export function createStation(engine, L, opts) {
     group, unit: L, lenL: 0, length: 0, pos: group.position, quat: group.quaternion, vel: new T.Vector3(),
     mouth: { pos: new T.Vector3(), dir: new T.Vector3(0, 0, 1), halfW: MOUTH_HW * L, halfH: MOUTH_HH * L, trigger: null },
     pads: [], deck: { walls: [], bounds: { min: new T.Vector3(), max: new T.Vector3() }, floorAt: null },
-    interior: { stores: [], npcs: [], mapPedestal: { pos: new T.Vector3(), radius: 0.45 * L }, windows: [], board: { pos: new T.Vector3(), radius: 0.6 * L }, missions: null },
+    interior: { stores: [], npcs: [], mapPedestal: { pos: new T.Vector3(), radius: 0.45 * L }, windows: [], board: { pos: new T.Vector3(), radius: 0.6 * L }, missions: null, landingFee: 0, greetingLine: null, shipyard: { pos: new T.Vector3(), radius: 3 * L, ships: SHIPS }, questBoard: { pos: new T.Vector3(), radius: 0.6 * L, quests: [], setQuests: null }, trade: { pos: new T.Vector3(), radius: 0.6 * L, buys: [], buyPrices: {}, sells: [], day: 0, refresh: null } },
     stats: { tris: 0, meshes: 0 },
   };
   const uTime = { value: 0 }, uPx = { value: 6.5 }, uH = { value: 900 };
@@ -180,6 +215,14 @@ export function createStation(engine, L, opts) {
   const matSign = new T.MeshBasicMaterial({ map: tex, toneMapped: false, side: T.DoubleSide });
   const matField = new T.MeshBasicMaterial({ color: C.cyan, transparent: true, opacity: 0.07, depthWrite: false, side: T.DoubleSide });
   const quadGeo = new T.PlaneGeometry(1, 1);
+  // shipyard sign + bounties screen (2 draws) + 2 display hulls
+  const yardTex = new T.CanvasTexture(yardSignCanvas()); yardTex.colorSpace = T.SRGBColorSpace;
+  const yardSign = new T.Mesh(quadGeo, new T.MeshBasicMaterial({ map: yardTex, toneMapped: false })); yardSign.name = 'station-yard-sign'; yardSign.frustumCulled = false;
+  let qTex = new T.CanvasTexture(questCanvas([])); qTex.colorSpace = T.SRGBColorSpace;
+  const qMat = new T.MeshBasicMaterial({ map: qTex, toneMapped: false });
+  const questMesh = new T.Mesh(quadGeo, qMat); questMesh.name = 'station-bounties'; questMesh.frustumCulled = false; questMesh.rotation.y = -Math.PI / 2;
+  const yardHulls = SHIPS.map((sh) => { const g = new T.Group(); g.name = 'yard-' + sh.kind; let h = null; try { h = buildHull(T, { kind: sh.kind, lod: 'low' }); } catch (e) { h = null; } if (h) { const b = new T.Box3().setFromObject(h), sz = b.getSize(new T.Vector3()), c = b.getCenter(new T.Vector3()); const k = 2.6 / Math.max(sz.x, sz.y, sz.z, 1e-6); h.scale.multiplyScalar(k); h.position.set(-c.x * k, -c.y * k, -c.z * k); g.add(h); } return g; });
+  group.add(yardSign, questMesh, ...yardHulls);
 
   // meshes (rebuilt geometry on rescale)
   const hullMesh = new T.Mesh(new T.BufferGeometry(), matLit); hullMesh.name = 'station-hull';
@@ -204,7 +247,7 @@ export function createStation(engine, L, opts) {
   let zF = 0, zR = 0, lenL = 0, padLocal = [], storeWalls = [];
   let ss = null;                                  // the standalone INTERGALACTIC 7/11 (x1.5 scale, rotated so its glass front faces +x into the hangar)
   const STORE_S = 1.5 * HUMAN_H / 1.75;           // L per metre
-  const lay = { counter: new T.Vector3(), clerk: new T.Vector3(), ped: new T.Vector3(), board: new T.Vector3(), npc: [] };
+  const lay = { counter: new T.Vector3(), clerk: new T.Vector3(), ped: new T.Vector3(), board: new T.Vector3(), yard: [new T.Vector3(), new T.Vector3()], quest: new T.Vector3(), trade: new T.Vector3(), npc: [] };
 
   function build(newLenL) {
     lenL = newLenL; st.lenL = lenL; st.length = lenL * L;
@@ -247,6 +290,12 @@ export function createStation(engine, L, opts) {
     const cz = zF - 11;
     // the INTERGALACTIC 7/11 (ship-world.js standalone store) fills the left wall here; see layoutNpcs()
     lay.ped.set(3.7, 0, cz); lay.board.set(HW - 0.12, 1.5, cz - 4);
+    // TRADE terminal: amber screen on the right wall, 7 L aft of the mission board's neighbour
+    lay.trade.set(HW - 0.12, 1.3, cz + 3.6);
+    B.bx(HW - 0.1, HW - 0.04, 0.7, 1.9, cz + 3.6 - 0.7, cz + 3.6 + 0.7, C.hull3);
+    E.bx(HW - 0.14, HW - 0.1, 0.8, 1.8, cz + 3.6 - 0.6, cz + 3.6 + 0.6, C.amber, 0.9);
+    E.bx(HW - 0.15, HW - 0.1, 1.85, 1.9, cz + 3.6 - 0.7, cz + 3.6 + 0.7, C.cyan, 0.9);
+    lt(HW - 0.3, 1.3, cz + 3.6, 0.1, C.amber, 4, 0.3, 0.6);
     // mission board: glowing screen on the right wall (data in st.interior.board / missions())
     B.bx(HW - 0.1, HW - 0.04, 0.9, 2.1, cz - 4 - 0.95, cz - 4 + 0.95, C.hull3);
     E.bx(HW - 0.14, HW - 0.1, 1.0, 2.0, cz - 4 - 0.85, cz - 4 + 0.85, C.cyan, 0.9);
@@ -256,6 +305,20 @@ export function createStation(engine, L, opts) {
     E.shape(new T.TorusGeometry(0.08, 0.006, 4, 16), C.cyan, new T.Matrix4().makeRotationX(Math.PI / 2).premultiply(new T.Matrix4().makeTranslation(3.7, 0.12, cz)));
     E.shape(new T.OctahedronGeometry(0.035), C.mag, new T.Matrix4().makeTranslation(3.7, 0.17, cz));
     lt(3.7, 0.17, cz, 0.09, C.mag, 4, 0, 0.6);
+    // ── shipyard alcove (back wall): two display pads + sign; bounties screen beside the mission board ──
+    const yx = [-2.8, 2.8], yz = zR + 3.2;
+    yx.forEach((px, i) => {
+      B.shape(new T.CylinderGeometry(1.5, 1.6, 0.18, 20), C.hull2, new T.Matrix4().makeTranslation(px, 0.09, yz));
+      E.shape(new T.TorusGeometry(1.35, 0.05, 5, 28), i ? C.violet : C.cyan, new T.Matrix4().makeRotationX(Math.PI / 2).premultiply(new T.Matrix4().makeTranslation(px, 0.2, yz)));
+      B.bx(px - 1.5, px + 1.5, 0, 3.2, zR + 0.01, zR + 0.06, C.hull3);
+      E.bx(px - 1.5, px + 1.5, 3.2, 3.26, zR + 0.06, zR + 0.1, C.cyan, 0.8);
+      lt(px, 0.24, yz + 1.4, 0.09, i ? C.violet : C.cyan, 4, i * 0.5, 0.5);
+      lay.yard[i].set(px, 1.6, yz); yardHulls[i].position.copy(lay.yard[i]);
+    });
+    yardSign.scale.set(5, 0.78, 1); yardSign.position.set(0, 4.4, zR + 0.12);
+    const qz = cz - 8;
+    B.bx(HW - 0.1, HW - 0.04, 0.5, 2.5, qz - 0.95, qz + 0.95, C.hull3); E.bx(HW - 0.14, HW - 0.1, 2.5, 2.56, qz - 0.95, qz + 0.95, C.mag, 0.9);
+    questMesh.scale.set(1.8, 2.0, 1); questMesh.position.set(HW - 0.16, 1.5, qz); lay.quest.set(HW - 0.16, 1.5, qz);
     // back wall: bulkhead door + banners
     B.bx(-1.0, 1.0, 0, 1.8, zR + 0.01, zR + 0.1, C.hull3); E.bx(-0.9, -0.85, 0.02, 1.7, zR + 0.1, zR + 0.14, C.violet); E.bx(0.85, 0.9, 0.02, 1.7, zR + 0.1, zR + 0.14, C.violet); E.bx(-0.9, 0.9, 1.66, 1.7, zR + 0.1, zR + 0.14, C.violet);
     // ── exterior spine: sections, collars ──
@@ -475,7 +538,24 @@ export function createStation(engine, L, opts) {
     st.interior.npcs.forEach((n) => toW(n.localPos.x, 0, n.localPos.z, n.pos));
     toW(lay.ped.x, 0, lay.ped.z, st.interior.mapPedestal.pos); st.interior.mapPedestal.radius = 0.45 * L;
     toW(lay.board.x, lay.board.y, lay.board.z, st.interior.board.pos); st.interior.board.radius = 0.6 * L;
+    toW(lay.trade.x, lay.trade.y, lay.trade.z, st.interior.trade.pos); st.interior.trade.radius = 0.8 * L;
+    toW(0, 0, lay.yard[0].z, st.interior.shipyard.pos); st.interior.shipyard.radius = 6 * L;
+    toW(lay.quest.x, lay.quest.y, lay.quest.z, st.interior.questBoard.pos); st.interior.questBoard.radius = 0.8 * L;
   }
+  st.interior.trade.refresh = (day) => {
+    const tr = st.interior.trade; tr.day = day == null ? Math.floor(Date.now() / 864e5) : day;
+    const m = makeMarket('station:' + tr.day, { buyMul: 1.0, sellMul: 1.15, nSell: 6, nBuy: 5 });
+    tr.buys = m.buys; tr.buyPrices = m.buyPrices; tr.sells = m.sells;
+  };
+  st.interior.trade.refresh();
+  st.interior.questBoard.setQuests = (list) => {
+    const qb = st.interior.questBoard; qb.quests = (list || []).slice(0, 5);
+    const old = qTex; qTex = new T.CanvasTexture(questCanvas(qb.quests)); qTex.colorSpace = T.SRGBColorSpace; qMat.map = qTex; qMat.needsUpdate = true; old.dispose();
+  };
+  st.interior.greetingLine = (seed) => {
+    const r = mul(typeof seed === 'number' ? seed : Array.from(String(seed == null ? Math.floor(Date.now() / 864e5) : seed)).reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 11));
+    return PA_LINES[Math.floor(r() * PA_LINES.length)];
+  };
 
   // ── missions (rev 25 E): seeded, deterministic per seed; planetId is a real node id from engine.drawOrder ──
   st.interior.missions = (seed, n) => {
@@ -578,12 +658,14 @@ export function createStation(engine, L, opts) {
     const nearShip = !shipPos || shipPos.distanceTo(group.position) < st.length * 0.5 + 150 * L;
     if (nearShip) humans.forEach((h) => { try { h.update(dt || 0.016, IDLE); } catch (e) { /* ignore */ } });
     if (ss) ss.update(t, dt || 0.016, nearShip);
+    yardHulls.forEach((g, i) => { g.rotation.y = t * 0.35 + i * 2; });
   };
   st.dispose = () => {
     if (group.parent) group.parent.remove(group);
     [hullMesh, emiMesh, ringMesh, ringEmi, signMesh].forEach((m) => m.geometry && m.geometry.dispose());
     if (lightMesh) { lightMesh.geometry.dispose(); lightMesh.dispose(); }
     quadGeo.dispose(); matLit.dispose(); matEmi.dispose(); matLight.dispose(); matSign.dispose(); matField.dispose(); tex.dispose();
+    yardTex.dispose(); qTex.dispose(); qMat.dispose(); yardSign.material.dispose(); yardHulls.forEach((g) => g.traverse((o) => { if (o.geometry) o.geometry.dispose(); }));
     humans.forEach((h) => { try { h.dispose(); } catch (e) { /* ignore */ } }); humans = [];
     if (ss) { ss.dispose(); ss = null; }
   };

@@ -746,7 +746,7 @@ export function mergeLit(T, res, k = 2.0) {
 const VERT_FLEX = /* glsl */`
 uniform float uTime; uniform float uPh; uniform float uWave; uniform float uTn;
 uniform vec3 uAmp; uniform float uSp; uniform float uK; uniform float uBreath; uniform float uHsp; uniform float uPulse;
-uniform vec4 uSwA[8]; uniform vec4 uSwT[8]; uniform vec3 uSwP[8]; uniform float uGl;
+uniform vec4 uSwA[8]; uniform vec4 uSwT[8]; uniform vec3 uSwP[8]; uniform float uGl; uniform float uGait;
 attribute vec4 aFx; attribute vec3 aPiv; attribute vec2 aLm;
 varying vec3 vC; varying vec3 vV; varying float vGl;
 #include <common>
@@ -781,6 +781,12 @@ void main(){
     p = aPiv + vec3(q.x * c - q.y * s, q.x * s + q.y * c, q.z);
   } else if (abs(md - 4.0) < 0.5) {
     p.xy *= 1.0 + uPulse * sin(uTime * 1.7);
+  } else if (abs(md - 9.0) < 0.5) {
+    // rev 26 ground gait: 9 = leg swing about X through the hip (aPiv). aFx = (swing amp rad, phase, 9, lift). uGait = gait phase (advanced by speed on the CPU).
+    float g = uGait + aFx.y; float a = aFx.x * sin(g);
+    vec3 q = p - aPiv; float c = cos(a), s = sin(a);
+    p = aPiv + vec3(q.x, q.y * c - q.z * s, q.y * s + q.z * c);
+    p.y += aFx.w * max(0.0, cos(g)) * smoothstep(0.0, 1.0, (aPiv.y - position.y) * 2.5);
   } else if (md > 5.5 && md < 8.5) {
     // rev 19 abstract bosses. 6 = orbit about Y through aPiv.xz (+ bob), 7 = rotate about Z through aPiv.xy, 8 = scale pulse about aPiv.
     // aFx = (amp, phase, mode, speed). A rare sudden twitch (pow of a slow sine) is added to the angle: slow, then a snap.
@@ -882,7 +888,7 @@ export const RIM_WARM = [0.315, 0.105, 0.0525], RIM_COOL = [0.14, 0.084, 0.238];
 function uniformSet(T, flex, rim) {
   const u = { uTime: { value: 0 }, uPh: { value: 0 }, uHit: { value: 0 }, uRim: { value: new T.Vector3(rim[0], rim[1], rim[2]) }, uGl: { value: 0 }, uTn: { value: 0 }, uSt: { value: 0 }, uGlC: { value: new T.Vector3(1.15, 0.4, 0.12) } };
   if (flex) {
-    u.uWave = { value: 1 }; u.uAmp = { value: new T.Vector3() }; u.uSp = { value: 1 }; u.uK = { value: 0 }; u.uBreath = { value: 0 }; u.uHsp = { value: 1 }; u.uPulse = { value: 0 };
+    u.uGait = { value: 0 }; u.uWave = { value: 1 }; u.uAmp = { value: new T.Vector3() }; u.uSp = { value: 1 }; u.uK = { value: 0 }; u.uBreath = { value: 0 }; u.uHsp = { value: 1 }; u.uPulse = { value: 0 };
     u.uSwA = { value: [] }; u.uSwT = { value: [] }; u.uSwP = { value: [] };
     for (let i = 0; i < 8; i++) { u.uSwA.value.push(new T.Vector4(0, 1, 0, 0)); u.uSwT.value.push(new T.Vector4()); u.uSwP.value.push(new T.Vector3()); }
   }

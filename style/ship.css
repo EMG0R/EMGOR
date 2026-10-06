@@ -640,3 +640,39 @@ body.is-piloting .ship-online { display: none; }
 
 .sh-bpips { font-size: 10px; letter-spacing: 0.1em; color: #ff9ac0; text-align: center; white-space: nowrap; overflow: hidden; text-shadow: 0 1px 2px #000; }
 .sh-hl.k-resource { color: #7cffc8; }
+
+/* ─── revision 26: quests panel, tracker, onboarding ─────────── */
+.sh-quest { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, calc(100vw - 32px)); display: none; padding: 14px 16px; background: rgba(12, 6, 24, 0.92); border: 1px solid rgba(160, 120, 255, 0.5); color: #e8dcff; font-size: 12px; letter-spacing: 0.08em; z-index: 6; pointer-events: auto; }
+.sh-quest.is-on { display: block; }
+.sq-h { display: flex; justify-content: space-between; margin-bottom: 10px; letter-spacing: 0.28em; font-weight: 700; color: #ffd36a; }
+.sq-h span { color: #8fa0ff; }
+.sq-r { display: flex; gap: 10px; padding: 8px 6px; border-top: 1px solid rgba(160, 120, 255, 0.18); cursor: pointer; }
+.sq-r.is-sel { background: rgba(138, 92, 255, 0.18); }
+.sq-r.is-active, .sq-r.is-done { opacity: 0.55; }
+.sq-r i { font-style: normal; color: #8a5cff; font-weight: 700; }
+.sq-r b { display: block; letter-spacing: 0.14em; }
+.sq-r span { display: block; margin: 3px 0; color: rgba(232, 220, 255, 0.75); letter-spacing: 0.03em; line-height: 1.4; }
+.sq-r em { font-style: normal; color: #ffd36a; font-size: 11px; }
+.sq-msg { min-height: 16px; margin-top: 8px; color: #7CFFB0; font-weight: 700; }
+.sq-f { margin-top: 6px; font-size: 10px; letter-spacing: 0.2em; color: rgba(216, 196, 245, 0.55); }
+.sh-qt { position: absolute; left: 18px; top: calc(7vh + 92px); max-width: 260px; font-size: 10px; letter-spacing: 0.14em; line-height: 1.5; color: #e8dcff; text-shadow: 0 0 6px rgba(0, 0, 0, 0.8); display: none; pointer-events: none; }
+.sh-qt.is-on { display: block; }
+.sh-qt div { margin-bottom: 6px; padding-left: 8px; border-left: 2px solid #ffd36a; }
+.sh-qt b { display: block; color: #ffd36a; font-weight: 700; }
+.sh-qt span { display: block; color: rgba(232, 220, 255, 0.8); }
+.sh-onb { position: absolute; left: 50%; top: 20vh; transform: translateX(-50%); padding: 7px 16px; font-size: 12px; font-weight: 700; letter-spacing: 0.26em; color: #fff; background: rgba(138, 92, 255, 0.35); border: 1px solid rgba(190, 160, 255, 0.7); display: none; pointer-events: none; text-align: center; white-space: nowrap; }
+.sh-onb.is-on { display: block; }
+@media (max-width: 700px) { .sh-onb { white-space: normal; width: calc(100vw - 32px); letter-spacing: 0.14em; } .sh-qt { top: calc(7vh + 90px); max-width: 180px; } }
+
+/* ─── revision 27: convoy markers, weather glyph, event banner ─────────── */
+.sh-cvm { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; will-change: transform; pointer-events: none; color: #7fd8ff; }
+.sh-cvm i { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 11px solid currentColor; filter: drop-shadow(0 0 6px currentColor); }
+.sh-cvm b { font-size: 10px; font-weight: 800; letter-spacing: 0.2em; white-space: nowrap; text-shadow: 0 0 6px currentColor, 0 1px 2px rgba(2, 0, 8, 0.95); }
+.sh-cvm.is-hot { color: #ffb35c; }
+.sh-wx { position: absolute; right: 18px; top: calc(7vh + 62px); font-size: 11px; font-weight: 800; letter-spacing: 0.24em; color: #bfe8ff; text-shadow: 0 0 8px rgba(120, 200, 255, 0.7), 0 1px 2px #000; display: none; pointer-events: none; }
+.sh-wx.is-on { display: block; }
+.sh-wx[data-wx="storm"] { color: #ffd36a; text-shadow: 0 0 8px rgba(255, 190, 80, 0.7), 0 1px 2px #000; }
+.sh-wx[data-wx="aurora"] { color: #7CFFB0; text-shadow: 0 0 8px rgba(120, 255, 190, 0.7), 0 1px 2px #000; }
+.sh-evt { position: absolute; left: 50%; top: 11vh; transform: translateX(-50%); padding: 7px 18px; font-size: 12px; font-weight: 800; letter-spacing: 0.26em; color: #fff; background: rgba(255, 92, 225, 0.28); border: 1px solid rgba(255, 150, 235, 0.6); text-shadow: 0 0 8px rgba(255, 92, 225, 0.8); white-space: nowrap; display: none; pointer-events: none; }
+.sh-evt.is-on { display: block; }
+@media (max-width: 700px) { .sh-evt { white-space: normal; width: calc(100vw - 32px); letter-spacing: 0.14em; text-align: center; } .sh-wx { right: 12px; } }

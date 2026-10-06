@@ -95,3 +95,19 @@ exit error, timeout, rate limit) replies to the asker only: `{t:'gor', from:'nep
 Persona: env `NMG_GOR_PERSONA`, default `~/EMGOR_SKILLS/_NERFED_GORCAVE.md` (the repo is on the Pi too).
 Loaded once per process; restart the service after editing it. Model override: `NMG_GOR_MODEL`; binary: `CLAUDE_BIN`.
 The unit sets `Environment=PATH=...` so systemd can find `/usr/local/bin/claude`.
+
+## Persistence + shared state (store.js)
+
+JSON files in `NMG_DATA` (default `~/nmg-relay/data/`): `profiles.json`, `discoveries.json`, `events.json`. Loaded at boot,
+written atomically (tmp + rename) debounced 2 s, flushed on SIGTERM, refused above 2 MB per file. Back up this dir.
+Env: `NMG_DATA`, `NMG_EVENT_EVERY_MS` (fixed event interval, tests only). Frames are 768 B max except `prof.save` (64 KB data).
+All messages below need `hi` first and count against the normal bucket / strike limits.
+
+| Client sends | Reply |
+|---|---|
+| `{t:'prof.save', name, key, data}` name `[a-z0-9_-]{2,20}` (lowercased), key 4-64 chars, data = JSON object <= 64 KB stored verbatim (keep `v`). First save registers sha256(key); later saves must match. | `{t:'prof.ok', name}` or `{t:'prof.err', why:'key'\|'bad'\|'big'\|'rate'\|'full'}` |
+| `{t:'prof.load', name, key}` | `{t:'prof', name, data}` or `{t:'prof.err', why:'key'\|'none'\|'bad'\|'rate'}`. Save/load share one limit: 1 per 10 s per client. |
+| `{t:'disc.claim', kind:'planet'\|'creature'\|'resource', id, name, by}` id `[A-Za-z0-9_.:-]{1,48}`, name <= 24 | First claim wins: `{t:'disc', kind, id, name, by, at}` broadcast to the room. Already claimed: `{t:'disc.no', kind, id, name, by}` to the asker only (`why:'full'` at 2000 entries). |
+| `{t:'disc.list'}` (1 per 2 s) | `{t:'disc.all', list:[{kind,id,name,by,at}...]}` |
+| `{t:'event.now'}` | `{t:'event', kind, minutes, left, planetId?}` (`left` in seconds) or `{t:'event.none'}` |
+| (server push) every 20-40 min, seeded from the relay epoch + sequence | `{t:'event', kind:'titan'\|'meteor'\|'friesSale'\|'blockade', minutes, left, planetId?}` broadcast to all; `planetId` (0-999) only for meteor/blockade, the client maps it onto a planet. The current event + next fire time persist across restarts. |

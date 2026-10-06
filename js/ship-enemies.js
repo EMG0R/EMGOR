@@ -427,7 +427,7 @@ export function bossAttacksFor(seed, tier) {
 //   Plans: serpent | crab | jelly | leviathan | hydra. <= 2 merged meshes (opaque + translucent jelly dome) + eye sprites.
 //   attacks = bossAttacksFor(...) objects ({id, tele, dmg}). Nose -Z, up +Y, contents in L units (root scaled by length).
 // rev 19: the default pool is the five abstract plans (wraith monolith maw hive seraph); the old animals (LEGACY_PLANS) roll 1 in 6, stable per name.
-export const BOSS_PLANS = ['wraith', 'monolith', 'maw', 'hive', 'seraph'];
+export const BOSS_PLANS = ['wraith', 'monolith', 'maw', 'hive', 'seraph', 'eclipse', 'choir'];   // rev 26: + eclipse, choir
 export const LEGACY_PLANS = ['serpent', 'crab', 'jelly', 'leviathan', 'hydra'];
 export function bossHash(name) {
   let h = 2166136261;
@@ -550,7 +550,7 @@ function bossBuild(THREE, name, wave, opts, LOD) {
   eyeC = col(({ serpent: 0.13, crab: 0.5, jelly: 0.5, leviathan: 0.03, hydra: 0.78 }[plan] || 0.7), 1, 0.7);
   partPal = { base: col(hue0, 0.6, 0.32), panel: col(hue0, 0.65, 0.2), accent: col(hue0 + 0.04, 1, 0.56), glow: eyeC, dark: col(hue0, 0.7, 0.08), metal: col(hue0, 0.2, 0.45) };
   P = { amp: [0, 0, 0], sp: 1, k: 0, breath: 0, hsp: 1, pulse: 0 };
-  let extra = [];
+  let extra = [], planTick = null;
   // ── rev 17 limbs: rigid/progressive swing about a pivot, driven by shared uniform arrays (GPU) that the hit capsules read too (CPU) ──
   const limbs = [];
   const reachU = Math.min(0.5, 20 / length);
@@ -604,7 +604,7 @@ function bossBuild(THREE, name, wave, opts, LOD) {
     // ═════ rev 19 abstract plans ═════ near-black bodies, ONE saturated emissive accent per boss, emissive flicker/glitch (P.gl -> uGl),
     // slow eerie idle (shader modes 6/7/8 orbit / rotate / pulse + rare twitch) and sudden snaps on the limb swings. All geometry is non-animal.
     const gr = mulberry(hsh ^ 0x7f4a7c15), g01 = () => gr(), gn = (a, b) => a + gr() * (b - a);
-    const AH = { wraith: 0.77, monolith: 0.035, maw: 0.24, hive: 0.9, seraph: 0.095 }[plan] + gn(-0.012, 0.012);
+    const AH = { wraith: 0.77, monolith: 0.035, maw: 0.24, hive: 0.9, seraph: 0.095, eclipse: 0.62, choir: 0.47 }[plan] + gn(-0.012, 0.012);
     const acc = col(AH, 1, 0.5), hot = col(AH, 0.8, 0.82);
     const body = col(AH, 0.3, 0.03), body2 = col(AH, 0.35, 0.06), voidC = col(AH, 0.2, 0.006);
     eyeC = col(AH, 1, 0.66);
@@ -781,6 +781,67 @@ function bossBuild(THREE, name, wave, opts, LOD) {
       addPart('orb', { r: 0.14, tip: acc, pore: 0.3 }, V3(0, 0.12, -0.55), V3(0, 0.3, -1), [0, 0, 2, 0], null, 0);
       for (let i = 0; i < (LO ? 3 : 6); i++) { const a = i / 6 * 6.283; addPart('shard', { len: 0.1, w: 0.02, th: 0.02, tip: acc }, V3(Math.cos(a) * 0.12, 0.12 + Math.sin(a) * 0.12, -0.55), V3(Math.cos(a), Math.sin(a), -0.3), [0, 0, 2, 0], null, 0); }
       lmCur = null;
+    }
+
+    else if (plan === 'eclipse') {
+      // rev 26: a black disc facing the player, a rotating corona of blades around it; the disc centre is the eye. Strikes = the blade ring sweeps / slams.
+      P.amp = [0.004, 0.006, 0.01]; P.sp = 0.6; P.k = 1; P.breath = 0.01;
+      const DR = 0.2;
+      const dg = new THREE.CylinderGeometry(DR, DR, 0.03, LO ? 14 : 32); dg.rotateX(Math.PI / 2);
+      add(dg, (c, x, y, z) => c.copy(voidC).multiplyScalar(0.6 + 0.8 * Math.abs(Math.sin(Math.atan2(y, x) * 9))), [0, 0, 2, 0]);
+      const rg = new THREE.TorusGeometry(DR + 0.004, 0.006, 4, LO ? 20 : 48); emi(rg, 2.0, [0, 0, 2, 0]);          // the thin lit rim
+      orbEye(0, 0, -0.03, 0.05);
+      const NB = LO ? 12 : 26, ph = gn(0, 6.28);
+      const ids = [defLimb({ name: 'corona', kind: 'blade-ring', pivot: V3(0, 0, 0), a: V3(-0.3, 0, -0.02), b: V3(0.3, 0, -0.02), r: 0.075, wa: 1, wb: 1, sl: [0.35, -0.5], A: 1.1, allow: ['sweep', 'lunge'] }),
+        defLimb({ name: 'inner blades', kind: 'blade-ring', pivot: V3(0, 0, 0), a: V3(0, -0.2, -0.02), b: V3(0, 0.2, -0.02), r: 0.06, wa: 1, wb: 1, sl: [0.4, -0.55], A: 1.3, back: true, allow: ['slam', 'whip'] })];
+      for (let i = 0; i < NB; i++) {
+        const a = i / NB * 6.283, big = i % 2 === 0, len = big ? gn(0.26, 0.34) : gn(0.14, 0.2);
+        lmCur = { id: ids[big ? 0 : 1], w: () => 1 };
+        const rad = DR + 0.012, dir = V3(Math.cos(a), Math.sin(a), 0.08 * (big ? 1 : -1));
+        addPart('shard', { len, w: len * 0.16, th: 0.008, mid: 0.25, tip: acc, tipK: 0.9, glint: big }, V3(Math.cos(a) * rad, Math.sin(a) * rad, 0), dir, [0.01, ph, 7, big ? 0.28 : -0.4], O0, gn(0, 6.28));
+      }
+      lmCur = null;
+    }
+
+    else if (plan === 'choir') {
+      // rev 26: seven hovering obelisks orbit a void core and sing (emissive bands flicker); strike = an obelisk slams down. Orbit is the shader's mode 6; the CPU tick mirrors it for pivots / capsules.
+      P.amp = [0.0, 0.0, 0.0]; P.sp = 0.5; P.k = 1; P.breath = 0.01;
+      const CHO = { spd: 0.2, ph: gn(0, 6.28), R: 0.3, bob: 0.012 };
+      const core = new THREE.IcosahedronGeometry(0.075, LO ? 0 : 1);
+      add(core, (c, x, y, z) => c.copy(voidC).multiplyScalar(0.5 + 0.7 * Math.abs(Math.sin(x * 70 + y * 50))), [0.1, 1, 2, 0]);
+      emi(ball(0, 0, -0.07, 0.04, 0.012, 0.012, 8, 6), 2.8, [0, 0, 2, 0]);
+      orbEye(0, 0, -0.085, 0.03);
+      const chLimbs = [];
+      for (let i = 0; i < 7; i++) {
+        const a = i / 7 * 6.283, h = gn(0.3, 0.42), y = gn(-0.06, 0.06), R = CHO.R * gn(0.9, 1.1), bx = Math.cos(a) * R, bz = Math.sin(a) * R;
+        const fx = [CHO.bob, CHO.ph, 6, CHO.spd];
+        const id = defLimb({ name: 'obelisk ' + (i + 1), kind: 'obelisk', pivot: V3(bx, y - h / 2, bz), a: V3(bx, y - h / 2, bz), b: V3(bx, y + h / 2, bz), r: 0.05, wa: 0, wb: 1, sl: [0.35, -0.7], A: 1, allow: ['slam'] });
+        chLimbs.push(id);
+        lmCur = { id, w: (x, yy) => Math.min(1, Math.max(0, (yy - (y - h / 2)) / h)) };
+        const og = new THREE.CylinderGeometry(0.02, 0.05, h * 0.86, 4); og.rotateY(0.785); og.translate(bx, y - h * 0.07, bz);
+        add(og, (c, x, yy, z) => c.copy(body).lerp(body2, 0.5 + 0.5 * Math.sin(yy * 40)), fx, O0);
+        const cap = new THREE.ConeGeometry(0.0283, h * 0.14, 4); cap.rotateY(0.785); cap.translate(bx, y + h * 0.43 + h * 0.07 - h * 0.07, bz);
+        emi(cap, 2.4, fx, O0);
+        for (let k = 0; k < (LO ? 1 : 3); k++) emi(new THREE.BoxGeometry(0.1, 0.008, 0.1).translate(bx, y - h * 0.3 + k * h * 0.22, bz), 1.8 + k * 0.2, fx, O0);
+      }
+      lmCur = null;
+      for (let i = 0; i < (LO ? 6 : 14); i++) {      // a counter-orbiting ring of lit motes between core and obelisks
+        const a = i / 14 * 6.283, rr = 0.14;
+        emi(new THREE.OctahedronGeometry(0.008, 0).translate(Math.cos(a) * rr, gn(-0.03, 0.03), Math.sin(a) * rr), 2.6, [0.01, CHO.ph + i, 6, -0.6], O0);
+      }
+      planTick = (t) => {
+        const tw = Math.pow(Math.abs(Math.sin(t * 0.31 + CHO.ph)), 26) * 0.5, th = t * CHO.spd + tw, cs = Math.cos(th), sn = Math.sin(th);
+        const bobY = Math.sin(t * 0.7 + CHO.ph) * CHO.bob;
+        const rot = (v, dy) => { const x = v.x * cs + v.z * sn, z = -v.x * sn + v.z * cs; v.x = x; v.z = z; v.y += dy; return v; };
+        for (const id of chLimbs) {
+          const lm = limbs[id]; if (lm.dead) continue;
+          const sa = uniforms.uSwA.value[id], sp = uniforms.uSwP.value[id], cp = lm.capsule;
+          tmpV.copy(lm.ax); rot(tmpV, 0); tmpV.y = lm.ax.y; sa.set(tmpV.x, tmpV.y, tmpV.z, lm.ang);
+          sp.copy(lm.pivot); rot(sp, bobY);
+          xf(lm, lm.wa, lm.a0, cp.a).multiplyScalar(length); rot(cp.a, bobY * length);
+          xf(lm, lm.wb, lm.b0, cp.b).multiplyScalar(length); rot(cp.b, bobY * length);
+        }
+      };
     }
 
     else {   // seraph
@@ -1032,6 +1093,7 @@ function bossBuild(THREE, name, wave, opts, LOD) {
   if (P.gl) { uniforms.uGl.value = P.gl; uniforms.uRim.value.set(P.rim.r, P.rim.g, P.rim.b); uniforms.uGlC.value.set(P.glc.r * 1.3, P.glc.g * 1.3, P.glc.b * 1.3); }
   // attack state (ship.js writes it every frame): which limb(s) move and how far through telegraph / strike / recover they are
   const att = { type: '', limb: -1, ph: 'idle', u: 0, side: 1 };
+  // (planTick: per-plan CPU mirror of a shader orbit; set by the choir plan, run at the end of update)
   // seeded combo: 2-4 moves picked from the limb set (sweep / slam / lunge / whip, plus a full-body spin when >= 2 limbs can swing)
   const DUR = { sweep: 0.6, slam: 0.45, lunge: 0.4, whip: 0.55, spin: 1.7 };
   const cand = [];
@@ -1111,6 +1173,7 @@ function bossBuild(THREE, name, wave, opts, LOD) {
         const a = uniforms.uSwA.value[i], b = uniforms.uSwT.value[i];
         a.set(lm.ax.x, lm.ax.y, lm.ax.z, lm.ang); b.set(0, 0, lm.tz, lm.glow);
       }
+      if (planTick) planTick(t);
       const bk = 1 + P.breath * Math.sin(t * 0.9);
       for (let i = 0; i < eyes.length; i++) {
         const e = eyeRecs[i], s = eyes[i];
@@ -1160,4 +1223,266 @@ export function generateBoss(THREE, name, wave, opts) {
   const dis = out.dispose;
   out.dispose = () => { dis(); if (lo) lo.userData.geoms.forEach((g) => g.dispose()); };
   return out;
+}
+
+// ═════════════════════════ Revision 26: ground predators (on-foot play) ═════════════════════════
+// generateGroundEnemy(THREE, seed, tier[, kind]) -> same shape as generateEnemy plus:
+//   ground: true, kind: 'stalker'|'raptor'|'burrower' (kind = seed % 3 unless given), legs[] ({id, hip, phase}), limbs[0] = head/jaw (capsule, group-local metres),
+//   moves: [lunge, bite, spit] ({type, limb, name, tele, dmg, cd, dur, rec, reachL}, reachL in metres), att {type, ph:'idle'|'tele'|'strike'|'rec', u, side} (caller writes, like bosses),
+//   stats: { hp 20..60, dmg 8..15, speed (human heights/s, 2..5), speedMps, lunge (range, metres), height (m), behavior:'hunter', shield:false },
+//   length = body length in metres (group root is already scaled by it, like generateEnemy). Gait: out.gait.rate (rad/s at 1 height/s), out.setSpeed(hps) -> legs cycle at that pace.
+//   burrower: out.setBurrowed(bool) sinks it into the ground / surfaces it with a sand-spray emissive; out.surface 0..1.
+//   Legs animate in the flex shader (mode 9, uniform uGait). Cheap: one merged mesh, <= 1500 tris.
+export const HUMAN_H = 1.8;
+export const GROUND_KINDS = ['stalker', 'raptor', 'burrower'];
+export function groundEnemyKind(seed) { return GROUND_KINDS[((seed | 0) % 3 + 3) % 3]; }
+export function enemyIcon(cr) {
+  if (!cr) return 'interceptor';
+  if (typeof cr === 'string') return cr;
+  if (cr.ground && cr.kind) return cr.kind;
+  if (cr.plan) return cr.plan;
+  return cr.role || 'interceptor';
+}
+export function generateGroundEnemy(THREE, seed, tier, kind) {
+  tier = Math.max(1, tier | 0 || 1);
+  kind = GROUND_KINDS.includes(kind) ? kind : groundEnemyKind(seed);
+  const r = mulberry((seed | 0) * 2654435761 + 977 + GROUND_KINDS.indexOf(kind) * 131);
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z), up = V3(0, 1, 0), O0 = V3(0, 0, 0);
+  const HUE = { stalker: 0.78, raptor: 0.03, burrower: 0.1 }[kind] + rn(r, -0.04, 0.04);
+  const col = (h, s, l) => new THREE.Color().setHSL(((h % 1) + 1) % 1, s, l);
+  const eyeH = { stalker: 0.5, raptor: 0.16, burrower: 0.92 }[kind];
+  const eyeC = col(eyeH, 1, 0.66), accC = col(HUE + 0.04, 1, 0.55);
+  const pal = { base: col(HUE, 0.45, 0.2), panel: col(HUE, 0.5, 0.13), accent: accC.clone().multiplyScalar(0.8), glow: eyeC, dark: col(HUE, 0.6, 0.05), metal: col(HUE, 0.2, 0.3) };
+  const skin = pal.base, skin2 = pal.panel, belly = col(HUE + 0.02, 0.4, 0.3);
+  const prng = mulberry((seed | 0) ^ 0x2f6b1d35);
+  const solid = [];
+  let limbMode = false;
+  function add(g, colorFn, fx, piv, boost) {          // same attribute contract as bossBuild.add
+    if (g.index) g = g.toNonIndexed();
+    g.deleteAttribute('normal'); g.deleteAttribute('uv');
+    const p = g.attributes.position, n = p.count, cl = new Float32Array(n * 3), f = new Float32Array(n * 4), pv = new Float32Array(n * 3), lm = new Float32Array(n * 2), c = new THREE.Color();
+    const keep = colorFn === null ? g.attributes.color.array : null, fxv = fx || [0, 0, 2, 0];
+    for (let i = 0; i < n; i++) {
+      if (keep) { const k = boost || 1; cl[i * 3] = keep[i * 3] * k; cl[i * 3 + 1] = keep[i * 3 + 1] * k; cl[i * 3 + 2] = keep[i * 3 + 2] * k; }
+      else { colorFn(c, p.getX(i), p.getY(i), p.getZ(i)); cl[i * 3] = c.r; cl[i * 3 + 1] = c.g; cl[i * 3 + 2] = c.b; }
+      f[i * 4] = fxv[0]; f[i * 4 + 1] = fxv[1]; f[i * 4 + 2] = fxv[2]; f[i * 4 + 3] = fxv[3];
+      if (piv) { pv[i * 3] = piv.x; pv[i * 3 + 1] = piv.y; pv[i * 3 + 2] = piv.z; }
+      if (limbMode) { lm[i * 2] = 1; lm[i * 2 + 1] = 1; }
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(cl, 3)); g.setAttribute('aFx', new THREE.BufferAttribute(f, 4));
+    g.setAttribute('aPiv', new THREE.BufferAttribute(pv, 3)); g.setAttribute('aLm', new THREE.BufferAttribute(lm, 2));
+    solid.push(g);
+  }
+  const flat = (c0) => (c) => c.copy(c0);
+  const emi = (g, k, fx, piv) => add(g, (c) => c.copy(accC).multiplyScalar(k || 2.3), fx, piv);
+  function part(name, params, pos, dir, fx, piv, roll) {
+    const res = PARTS[name](THREE, Object.assign({ pal, lod: 'lo' }, params), prng);
+    const dn = dir.clone().normalize(), q = new THREE.Quaternion().setFromUnitVectors(up, dn);
+    if (roll) q.premultiply(new THREE.Quaternion().setFromAxisAngle(dn, roll));
+    const m = new THREE.Matrix4().compose(pos, q, new THREE.Vector3(1, 1, 1));
+    for (const k of ['geo', 'emissive']) {
+      const g = res[k]; if (!g) continue;
+      g.applyMatrix4(m); for (const a of ['aFx', 'aPiv', 'aLm']) g.deleteAttribute(a);
+      add(g, null, fx, piv, k === 'emissive' ? 2.0 : 1);
+    }
+  }
+  const ball = (x, y, z, rx, ry, rz, w, h) => { const g = new THREE.SphereGeometry(1, w || 8, h || 5); g.scale(rx, ry, rz); g.translate(x, y, z); return g; };
+  const shade = (base, alt) => (c, x, y, z) => { c.copy(base).lerp(alt || skin2, 0.5 + 0.5 * Math.sin(z * 30 + x * 9)); };
+  const legs = [], eyeRecs = [];
+  // ── leg: hip-pivoted, mode-9 gait. dir = hip->foot direction.
+  function leg(i, hip, dirV, len, rr, ph, amp) {
+    const fx = [amp, ph, 9, 0.05 * len];
+    part('leg', { len, r: rr, knee: len * 0.28 * (hip.x < 0 ? -1 : 1) }, hip, dirV, fx, hip, 0);
+    legs.push({ id: i, hip: hip.clone(), phase: ph });
+  }
+  let length, height, headC, jawPivot, neck, eyeR, jawLen;
+  const info = { sprayY: 0 };
+  let burrow = null;
+  limbMode = false;
+  if (kind === 'stalker') {
+    // low six-legged stalker: flat wide body, splayed legs, a forward head with two jaw fangs and a biolum eye; ~0.45 body-height
+    length = 2.2 * rn(r, 0.95, 1.1); height = 0.5;
+    const by = 0.2;
+    add(ball(0, by, 0.02, 0.2, 0.1, 0.34, 10, 6), shade(skin), [0, 0, 2, 0]);
+    add(ball(0, by - 0.03, 0.22, 0.14, 0.07, 0.2, 8, 5), flat(belly), [0, 0, 2, 0]);
+    add(ball(0, by + 0.02, 0.38, 0.12, 0.08, 0.14, 8, 5), shade(skin2, skin), [0, 0, 2, 0]);
+    for (let k = 0; k < 4; k++) part('spike', { len: 0.1 - k * 0.012, r: 0.014, bend: 0.2, tip: accC }, V3(0, by + 0.09, -0.15 + k * 0.1), V3(0, 1, 0.5), [0, 0, 2, 0], null, 0);
+    part('tentacle', { len: 0.42, r: 0.03, bend: 0.1, tip: accC }, V3(0, by, 0.38), V3(0, 0.25, 1), [0.5, 1.7, 0, 0], null, 0);
+    for (let i = 0; i < 6; i++) {
+      const side = i % 2 ? 1 : -1, row = Math.floor(i / 2), z = -0.2 + row * 0.2 + 0.0;
+      leg(i, V3(side * 0.17, by - 0.02, z), V3(side * 1.1, -1, (row - 1) * 0.35), 0.4, 0.016, ((row + (i % 2)) % 2) * Math.PI, 0.55);
+    }
+    limbMode = true;
+    headC = V3(0, by + 0.0, -0.4);
+    add(ball(0, by + 0.0, -0.4, 0.09, 0.065, 0.12, 8, 5), shade(skin, skin2), [0, 0, 2, 0]);
+    for (const s of [-1, 1]) {
+      part('tooth', { len: 0.15, r: 0.022, hook: 0.5, tip: eyeC }, V3(s * 0.045, by - 0.03, -0.47), V3(s * 0.2, -1, -0.5), [0, 0, 2, 0], null, 0);
+      part('spike', { len: 0.1, r: 0.012, bend: 0.3, tip: accC }, V3(s * 0.07, by + 0.04, -0.34), V3(s * 0.8, 0.7, 0.3), [0, 0, 2, 0], null, 0);
+    }
+    eyeR = 0.04; eyeRecs.push({ pos: [0, by + 0.04, -0.49], r: eyeR });
+    emi(ball(0, by + 0.04, -0.485, 0.04, 0.025, 0.03, 6, 4), 2.8);
+    jawPivot = V3(0, by, -0.3); jawLen = 0.2;
+    limbMode = false;
+  } else if (kind === 'raptor') {
+    // tall two-legged raptor: S-neck, wedge head, heavy tail, two grasping forearms; stands ~1.35 body-lengths tall
+    length = 3.0 * rn(r, 0.95, 1.1); height = 1.2;
+    const hy = 0.72;
+    add(ball(0, hy, 0.05, 0.13, 0.15, 0.3, 10, 6), shade(skin), [0, 0, 2, 0]);
+    add(ball(0, hy - 0.06, 0.1, 0.1, 0.08, 0.22, 8, 5), flat(belly), [0, 0, 2, 0]);
+    part('tentacle', { len: 0.55, r: 0.07, bend: -0.12, tip: accC }, V3(0, hy + 0.0, 0.3), V3(0, 0.05, 1), [0.3, 2.1, 0, 0], null, 0);
+    part('tentacle', { len: 0.3, r: 0.07, bend: 0.1, tip: accC }, V3(0, hy + 0.1, -0.2), V3(0, 0.9, -0.55), [0.3, 0, 0, 0], null, 0);       // neck
+    for (let k = 0; k < 3; k++) part('spike', { len: 0.1, r: 0.016, bend: 0.2, tip: accC }, V3(0, hy + 0.13, -0.05 + k * 0.14), V3(0, 1, 0.6), [0, 0, 2, 0], null, 0);
+    for (const s of [-1, 1]) part('claw', { r: 0.03, open: 0.4 }, V3(s * 0.1, hy - 0.05, -0.18), V3(s * 0.4, -0.6, -0.8), [0, 0, 2, 0], null, 0);
+    for (const s of [-1, 1]) leg(s < 0 ? 0 : 1, V3(s * 0.12, hy - 0.05, 0.08), V3(s * 0.12, -1, -0.1), 0.78, 0.034, s < 0 ? 0 : Math.PI, 0.7);
+    limbMode = true;
+    headC = V3(0, hy + 0.29, -0.43);
+    add(ball(0, hy + 0.3, -0.43, 0.075, 0.075, 0.13, 8, 5), shade(skin, skin2), [0, 0, 2, 0]);
+    add(ball(0, hy + 0.27, -0.52, 0.05, 0.04, 0.09, 6, 4), shade(skin2, skin), [0, 0, 2, 0]);
+    for (const s of [-1, 1]) part('tooth', { len: 0.1, r: 0.015, hook: 0.4, tip: eyeC }, V3(s * 0.035, hy + 0.23, -0.56), V3(0, -1, -0.3), [0, 0, 2, 0], null, 0);
+    eyeR = 0.032; eyeRecs.push({ pos: [0, hy + 0.34, -0.5], r: eyeR });
+    emi(ball(0, hy + 0.335, -0.495, 0.03, 0.026, 0.026, 6, 4), 2.8);
+    jawPivot = V3(0, hy + 0.2, -0.4); jawLen = 0.25;
+    limbMode = false;
+  } else {
+    // burrower: a worm-bodied thing that surfaces: sand mound, thick segmented body arching out, ringed maw of teeth, sand-spray emissive motes
+    length = 2.6 * rn(r, 0.95, 1.1); height = 0.9;
+    const mound = new THREE.ConeGeometry(0.42, 0.14, 12); mound.translate(0, 0.0, 0.1);
+    add(mound, (c, x, y, z) => c.copy(belly).lerp(skin2, 0.3 + 0.4 * Math.abs(Math.sin(x * 20 + z * 17))), [0, 0, 2, 0]);
+    for (let k = 0; k < 6; k++) add(ball(0, 0.1 + 0.05 * k * 0 + Math.sin(k * 0.5) * 0.05, 0.36 - k * 0.1 + 0.0, 0.16 - k * 0.012, 0.15 - k * 0.012, 0.09, 9, 5), shade(k % 2 ? skin : skin2, skin), [0.02, k, 2, 0]);
+    for (let k = 0; k < 3; k++) add(ball(0, 0.2 + k * 0.1, -0.08 - k * 0.04, 0.14 - k * 0.015, 0.11, 0.1, 9, 5), shade(k % 2 ? skin2 : skin, skin), [0.02, 3 + k, 2, 0]);
+    limbMode = true;
+    headC = V3(0, 0.55, -0.22);
+    add(ball(0, 0.5, -0.2, 0.15, 0.17, 0.14, 10, 6), shade(skin, skin2), [0, 0, 2, 0]);
+    const NT = 7;
+    for (let k = 0; k < NT; k++) {
+      const a = k / NT * 6.283;
+      part('tooth', { len: 0.15, r: 0.02, hook: 0.45, tip: eyeC }, V3(Math.cos(a) * 0.1, 0.5 + Math.sin(a) * 0.1, -0.31), V3(-Math.cos(a) * 0.4, -Math.sin(a) * 0.4, -1), [0, 0, 2, 0], null, a);
+    }
+    emi(new THREE.TorusGeometry(0.09, 0.012, 4, 14).translate(0, 0.5, -0.305), 2.0);
+    eyeR = 0.035; eyeRecs.push({ pos: [0, 0.68, -0.27], r: eyeR });
+    emi(ball(0, 0.675, -0.265, 0.035, 0.03, 0.03, 6, 4), 2.8);
+    jawPivot = V3(0, 0.5, -0.18); jawLen = 0.22;
+    limbMode = false;
+    // sand spray: lit grains orbiting the mound (shader orbit), fades with `surface`
+    burrow = true;
+    for (let k = 0; k < 12; k++) {
+      const a = k / 12 * 6.283, rr = 0.26 + 0.1 * (k % 3);
+      emi(new THREE.OctahedronGeometry(0.014 + 0.004 * (k % 2), 0).translate(Math.cos(a) * rr, 0.04 + 0.05 * (k % 4), Math.sin(a) * rr + 0.1), 1.9, [0.03, k * 0.9, 6, 0.9 * (k % 2 ? 1 : -1)], V3(0, 0, 0.1));
+    }
+  }
+  // ── assemble ──
+  const group = new THREE.Group(), root = new THREE.Group(), body = new THREE.Group();
+  root.scale.setScalar(length); group.add(root); root.add(body);
+  const mats0 = makeMaterials(THREE, { flex: true });
+  const mat = mats0.cloneMaterial(mats0.lit), U = mat.uniforms;
+  U.uPh.value = rn(r, 0, 6.28); U.uWave.value = 0; U.uGl.value = 0;
+  U.uAmp.value.set(0.004, 0.006, 0.004); U.uSp.value = 1; U.uK.value = 0; U.uBreath.value = 0;
+  const geo = mergeGeometries(solid); geo.computeBoundingSphere(); geo.boundingSphere.radius *= 1.5;
+  solid.forEach((g) => g.dispose());
+  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; body.add(mesh);
+  const tris = geo.attributes.position.count / 3;
+  const smat = new THREE.SpriteMaterial({ map: glowTexture(THREE), color: eyeC, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+  const eyes = eyeRecs.map((e) => {
+    const sp = new THREE.Sprite(smat); sp.position.set(e.pos[0], e.pos[1], e.pos[2]);
+    const sz = e.r * 7; sp.scale.set(sz, sz, 1); sp.userData.base = sz; sp.userData.r = e.r * 1.6 * length; body.add(sp); return sp;
+  });
+  // head/jaw limb (index 0): lunge = translate, bite = pitch down about the neck, spit = pitch up. Capsule in group-local metres.
+  const limb = {
+    id: 0, name: 'jaws', kind: 'jaw', pivot: jawPivot.clone(), a0: headC.clone(), b0: headC.clone().add(V3(0, -0.02, -jawLen)), wa: 1, wb: 1, r: 0.09,
+    ax: V3(1, 0, 0), ang: 0, tz: 0, glow: 0, rest: false, dead: false, reach: 0.35, atk: { lunge: 1, bite: 1, spit: 1 }, attackId: 'bite',
+    capsule: { a: V3(), b: V3(), r: 0.09 * length },
+  };
+  U.uSwP.value[0].copy(limb.pivot);
+  const limbs = [limb];
+  const att = { type: '', limb: -1, ph: 'idle', u: 0, side: 1 };
+  const ez = (x) => x * x * (3 - 2 * x), lerp = (a, b, t) => a + (b - a) * t;
+  const POSE = { lunge: { w: { tz: 0.07, p: 0.2 }, s: { tz: -0.42, p: -0.15 } }, bite: { w: { tz: 0.03, p: -0.55 }, s: { tz: -0.1, p: 0.45 } }, spit: { w: { tz: 0.04, p: 0.55 }, s: { tz: -0.02, p: 0.1 } } };
+  const tmp = V3(0, 0, 0);
+  function poseJaw() {
+    let pitch = 0, tz = 0, glow = 0;
+    const k = att.ph !== 'idle' ? POSE[att.type] : null;
+    if (k) {
+      const u = att.u; let A, B, e;
+      if (att.ph === 'tele') { A = null; B = k.w; e = ez(u); glow = 0.3 + 0.7 * u; } else if (att.ph === 'strike') { A = k.w; B = k.s; e = u * u; glow = 1; } else { A = k.s; B = null; e = ez(u); glow = 1 - u; }
+      pitch = lerp(A ? A.p : 0, B ? B.p : 0, e); tz = lerp(A ? A.tz : 0, B ? B.tz : 0, e);
+    }
+    limb.ang = pitch; limb.tz = tz; limb.glow = glow;
+    const f = (src, out) => { tmp.copy(src).sub(limb.pivot); tmp.applyAxisAngle(limb.ax, pitch); out.copy(limb.pivot).add(tmp); out.z += tz; return out.multiplyScalar(length); };
+    f(limb.a0, limb.capsule.a); f(limb.b0, limb.capsule.b);
+    U.uSwA.value[0].set(1, 0, 0, pitch); U.uSwT.value[0].set(0, 0, tz, glow);
+  }
+  poseJaw();
+  const stats = {
+    hp: Math.min(60, Math.round(({ stalker: 24, raptor: 36, burrower: 46 }[kind]) * (1 + 0.22 * (tier - 1)))),
+    dmg: Math.min(15, Math.round(({ stalker: 8, raptor: 11, burrower: 12 }[kind]) * (1 + 0.15 * (tier - 1)))),
+    speed: Math.min(5, +({ stalker: 3.6, raptor: 4.2, burrower: 2.4 }[kind] * (1 + 0.06 * (tier - 1))).toFixed(2)),   // human heights / s
+    turn: { stalker: 3.2, raptor: 2.4, burrower: 1.6 }[kind],
+    lunge: +({ stalker: 3.2, raptor: 4.2, burrower: 3.0 }[kind] * (1 + 0.04 * (tier - 1))).toFixed(2),                 // lunge range, metres
+    height: +(height * length).toFixed(2), behavior: 'hunter', shield: false,
+  };
+  stats.speedMps = +(stats.speed * HUMAN_H).toFixed(2);
+  const rd = (a, b) => +rn(r, a, b).toFixed(2);
+  const moves = [
+    { type: 'lunge', limb: 0, name: 'lunge', tele: rd(0.5, 0.8), dmg: stats.dmg + 2, cd: rd(2.2, 3.2), dur: 0.35, rec: 0.5, reachL: stats.lunge },
+    { type: 'bite', limb: 0, name: 'bite', tele: rd(0.3, 0.5), dmg: stats.dmg, cd: rd(1.2, 1.8), dur: 0.25, rec: 0.35, reachL: +(length * 0.55).toFixed(2) },
+    { type: 'spit', limb: 0, name: 'spit', tele: rd(0.7, 1.0), dmg: Math.max(8, stats.dmg - 3), cd: rd(3.5, 5), dur: 0.3, rec: 0.6, reachL: 14 },
+  ];
+  const ph0 = U.uPh.value, gait = { phase: 0, rate: 2 * Math.PI * 0.9 / (height * length * 0.9 + 0.5), speed: 0 };
+  let surf = 1, surfT = 1, bobT = 0;
+  const sandD = 0.55;     // burrower sink depth (body units)
+  const out = {
+    group, length, hitR: length * 0.55, eye: eyes[0], eyes, stats, attacks: ['lunge', 'bite', 'spit'], tier, role: kind, kind, seed, signature: kind,
+    tris, ground: true, legs, limbs, moves, att, gait, shieldMesh: null, plan: kind, mats: [mat],
+    get surface() { return surf; },
+    setSpeed(hps) { gait.speed = Math.max(0, +hps || 0); },
+    setBurrowed(b) { surfT = b ? 0 : 1; },
+    setHit(v) { U.uHit.value = v; },
+    setShieldHit() {}, setShieldDown() {}, setStalled(b) { U.uSt.value = b ? 1 : 0; },
+    setWindup(v) { U.uTn.value = Math.max(0, Math.min(1, +v || 0)); },
+    update(t, dt) {
+      dt = dt || 0.016;
+      U.uTime.value = t;
+      gait.phase += dt * gait.rate * gait.speed * 2.2 + dt * 0.8 * (gait.speed > 0 ? 0 : 0);
+      U.uGait.value = gait.phase;
+      bobT = gait.speed > 0.05 ? 1 : 0;
+      body.position.y = (legs.length ? Math.abs(Math.sin(gait.phase)) * 0.012 * bobT : 0);
+      if (burrow) {
+        surf += (surfT - surf) * Math.min(1, dt * 3.5);
+        root.position.y = -(1 - surf) * sandD * length;
+        U.uBreath.value = 0.01;
+      }
+      poseJaw();
+      const fl = 1 + U.uTn.value * (1.1 + 0.5 * Math.sin(t * 30));
+      for (let i = 0; i < eyes.length; i++) { const k = (1 + 0.18 * Math.sin(t * 4.0 + ph0 + i * 1.7)) * fl; eyes[i].scale.set(eyes[i].userData.base * k, eyes[i].userData.base * k, 1); }
+      if (burrow) eyes.forEach((e) => { e.visible = surf > 0.35; });
+    },
+    dispose() { geo.dispose(); mat.dispose(); smat.dispose(); },
+  };
+  return out;
+}
+
+// ── nests: where ground predators spawn on a planet (data only). Directions are unit vectors in the planet frame, lat/lon in radians.
+//   nestSpec(planetSeed, biome) -> { biome, nests: [{ id, dir:[x,y,z], lat, lon, radius (m, wander/leash), count, tier, kinds[], respawn (s), aggro (m) }] }
+const NEST_BIOME = [
+  [/desert|sand|dune|arid|dust/i, { kinds: ['burrower', 'burrower', 'raptor'], tier: 2, count: [2, 4] }],
+  [/forest|jungle|lush|grass|swamp|green|bog/i, { kinds: ['stalker', 'stalker', 'raptor'], tier: 1, count: [3, 5] }],
+  [/ice|snow|frost|tundra|glacier|cold/i, { kinds: ['stalker', 'raptor', 'stalker'], tier: 2, count: [2, 4] }],
+  [/lava|volcan|ash|ember|magma|fire|hot/i, { kinds: ['raptor', 'burrower', 'raptor'], tier: 3, count: [2, 3] }],
+  [/ocean|sea|water|island|coast/i, { kinds: ['stalker', 'burrower', 'stalker'], tier: 1, count: [2, 3] }],
+  [/rock|barren|moon|crater|stone|mount|waste/i, { kinds: ['raptor', 'stalker', 'burrower'], tier: 2, count: [2, 4] }],
+];
+export function nestSpec(planetSeed, biome) {
+  const b = String(biome == null ? '' : biome), def = (NEST_BIOME.find((e) => e[0].test(b)) || [null, { kinds: ['stalker', 'raptor', 'burrower'], tier: 2, count: [2, 4] }])[1];
+  const r = mulberry(((planetSeed | 0) * 747796405 + bossHash(b) + 2891336453) | 0);
+  const nests = [];
+  for (let i = 0; i < 3; i++) {
+    const lon = (i / 3 + rn(r, -0.1, 0.1)) * Math.PI * 2, lat = rn(r, -0.6, 0.6), cl = Math.cos(lat);
+    const tier = Math.max(1, Math.min(3, def.tier + (i === 2 ? 1 : 0) + (r() < 0.25 ? -1 : 0)));
+    const kinds = def.kinds.slice(); for (let k = kinds.length - 1; k > 0; k--) { const j = Math.floor(r() * (k + 1)); const q = kinds[k]; kinds[k] = kinds[j]; kinds[j] = q; }
+    nests.push({
+      id: 'nest' + i, dir: [+(cl * Math.cos(lon)).toFixed(4), +Math.sin(lat).toFixed(4), +(cl * Math.sin(lon)).toFixed(4)], lat: +lat.toFixed(3), lon: +lon.toFixed(3),
+      radius: 18 + ri(r, 0, 14), count: ri(r, def.count[0], def.count[1]) - (i === 2 ? 0 : 0), tier, kinds: kinds.slice(0, 1 + (r() < 0.5 ? 1 : 0)), respawn: 90 + ri(r, 0, 90), aggro: 24 + ri(r, 0, 12),
+    });
+  }
+  return { biome: b || 'default', nests };
 }

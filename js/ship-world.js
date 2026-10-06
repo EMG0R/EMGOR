@@ -29,6 +29,11 @@
 //     world.npcSay(id, ctx)   same with an explicit context ('greeting'|'pitch'|'gossip'|'warning'|'lore'|'dealer'|'cashier'|'fries'|'shopper')
 //     world.update(t, dt, playerLocalPos)   animation + proximity; sets world.nearStore (counter within reach), world.nearBurger (window within reach), world.nearNpc (nearest shopper/dealer within ~3.5 m)
 //     world.dispose()
+//   rev 27 shelves + shoplifting: store.shelves [{ id, storeId, pos (store-local m), world (planet-local, live), item, n (3-6), nMax, taken }] x6;
+//     world.nearShelf(p, r) -> nearest stocked shelf (p planet-local, r planet units) | null;  world.grabShelf(id) -> item (n-1, hides a box, joins world.cart) | null.
+//     store.security { cop (stationcop NPC | null, ~50 % of stores, patrols a loop; cop.pos live), state: patrol|warn|chase|busted|none, seen, range (12 m), cone (100 deg), sees(p planet-local) -> bool, line }.
+//     world.heat 0..3 (+1 per grab while seen, -1/min); >=2 -> guard chases, >=3 (or caught) -> world.onBusted({store,items,total,fine,line}) (cart returned to shelves, heat 0).
+//     world.cart [{item,shelfId,storeId}], world.cartTotal(), world.checkout() -> total gorCoin (clears cart + heat; world.lastCheckout = items). world.onCopSay({store,cop,state,line}) on warn/chase.
 //   STORE_NAME is the one constant to rename the shop (the lit sign, the UI and the clerk lines read it).
 //   Also exported for the station: createStandaloneStore(THREE, opts), transformBoxes(boxes, matrix).
 // Scale: the store is modelled in metres (40 wide, 26 deep, 16 tall); a human is 1.75 m = 0.09 L.
@@ -363,6 +368,7 @@ function makeAssets(T) {
 function boxV(T, list) { return list.map((b) => ({ name: b.name, min: new T.Vector3(...b.min), max: new T.Vector3(...b.max) })); }
 
 // ── the crowd: clerk, 3..6 shoppers wandering the aisles, 2 dealers outside. All logic in STORE-LOCAL metres; humans live in `parent` (a group in store-local metres). ──
+const GUARD_LOOP = [{ x: -10.1, z: 4.8 }, { x: -10.1, z: -9.9 }, { x: 2.5, z: -9.9 }, { x: 2.5, z: 4.8 }];   // guard patrol (lanes, clear of the shelf racks)
 const ROLES = ['shopper', 'conspiracy', 'pilot', 'kid', 'cop', 'shopper', 'stationcop', 'tourist'];
 const ROLE_COLOR = { shopper: 0x8FA0FF, conspiracy: 0x66FF99, pilot: 0xFFB05C, kid: 0xFF5CE1, cop: 0x5C7AFF, stationcop: 0x3A5CFF, tourist: 0xFFA0D0, dealer: 0xFFE24A, cashier: STORE_COLOR, fries: 0xD8312F };
 function makeNpc(T, parent, o) {
@@ -391,6 +397,17 @@ function createCrowd(T, parent, cfg) {
     const lane = LANES_X[Math.floor(r() * LANES_X.length)], z = -8 + r() * 10;
     const npc = makeNpc(T, parent, { id: cfg.id + '-sh' + i, color: role === 'shopper' ? [0x8FA0FF, 0xFF8AA0, 0x8AFFD0, 0xE0A0FF, 0xFFD88A][Math.floor(r() * 5)] : ROLE_COLOR[role], role, lex, known, x: lane, z, yaw: r() * 6.28, scale: role === 'kid' ? 0.62 : 1, speed: role === 'kid' ? 2.1 : 1.3 });
     npc.state.wait = r() * 3; crowd.shoppers.push(npc); crowd.npcs.push(npc); if (role !== 'shopper') crowd.characters.push(npc);
+  }
+  // rev 27: a store guard (stationcop) patrolling a loop between the aisles, in ~50 % of stores (cfg.guard)
+  if (cfg.guard) {
+    const gx0 = GUARD_LOOP[0].x, gz0 = GUARD_LOOP[0].z;
+    const g = makeNpc(T, parent, { id: cfg.id + '-guard', color: ROLE_COLOR.stationcop, role: 'stationcop', lex, known, x: gx0, z: gz0, yaw: 0, speed: 1.25 });
+    g.patrol = true; g.wp = 1; g.state.wait = 0; g.isGuard = true;
+    if (g.human) {   // the EYE: a small emissive bar over the visor, visible while sees() is true
+      const eye = new T.Mesh(new T.BoxGeometry(0.2, 0.085, 0.03), new T.MeshBasicMaterial({ color: 0xFF2A4A, toneMapped: false }));
+      eye.position.set(0, 0.93, -0.12); eye.visible = false; eye.name = 'guard-eye'; eye.frustumCulled = false; g.human.group.add(eye); g.eye = eye;
+    }
+    crowd.guard = g; crowd.npcs.push(g); crowd.characters.push(g);
   }
   // dealers loitering outside under the awning, pacing a short stretch
   const dealerCols = [0xFFE24A, 0x3AFF9A, 0xFF7A3A];
@@ -423,7 +440,7 @@ function createCrowd(T, parent, cfg) {
     if (active === false) return;
     dt = Math.min(dt, 0.1);
     for (const n of crowd.npcs) {
-      const st = n.state; let moving = false;
+      const st = n.state; let moving = false; n.running = false;
       if (n.role === 'dealer') {
         // slow pacing: walk to a point within 1.8 m of home, wait, face the street (+z) mostly
         if (st.route.length) {
@@ -431,6 +448,18 @@ function createCrowd(T, parent, cfg) {
           if (d < 0.1) { st.route.shift(); if (!st.route.length) st.wait = 2 + Math.random() * 5; }
           else { const s = Math.min(d, n.speed * dt); n.lx += dx / d * s; n.lz += dz / d * s; st.face = Math.atan2(-dx, -dz); moving = true; }
         } else { st.wait -= dt; st.face = Math.PI * (0.5 + 0.5 * Math.sin(n.lx)); if (st.wait <= 0) st.route.push({ x: n.home.x + (Math.random() - 0.5) * 3.6, z: n.home.z }); }
+      } else if (n.patrol) {
+        const ch = crowd.chase;
+        if (ch) {   // run at the thief; stop when close
+          const dx = ch.x - n.lx, dz = ch.z - n.lz, d = Math.hypot(dx, dz);
+          if (d > 1.1) { const sp = Math.min(d - 1.0, 4.4 * dt); n.lx += dx / d * sp; n.lz += dz / d * sp; st.face = Math.atan2(-dx, -dz); moving = true; n.running = true; }
+          else st.face = Math.atan2(-dx, -dz);
+        } else if (st.wait > 0) { st.wait -= dt; st.face += Math.sin(performance.now() * 0.0007 + n.lx) * 0.004; }
+        else {
+          const p = GUARD_LOOP[n.wp % GUARD_LOOP.length], dx = p.x - n.lx, dz = p.z - n.lz, d = Math.hypot(dx, dz);
+          if (d < 0.15) { n.wp = (n.wp + 1) % GUARD_LOOP.length; st.wait = Math.random() < 0.5 ? 1 + Math.random() * 2.5 : 0; }
+          else { const sp = Math.min(d, n.speed * dt); n.lx += dx / d * sp; n.lz += dz / d * sp; st.face = Math.atan2(-dx, -dz); moving = true; }
+        }
       } else if (n.role === 'cashier') {
         st.face = Math.PI + Math.sin(performance.now() * 0.0003 + n.lx) * 0.15;
       } else if (n.role === 'fries') {
@@ -449,7 +478,7 @@ function createCrowd(T, parent, cfg) {
       let df = st.face - n.yaw; df = Math.atan2(Math.sin(df), Math.cos(df)); n.yaw += df * Math.min(1, dt * (moving ? 12 : 4));
       if (n.human) {
         const g = n.human.group; g.position.set(n.lx, FY, n.lz); g.rotation.y = n.yaw; g.scale.setScalar(1.75 * n.scale);
-        try { n.human.update(dt, { moving, running: false, airborne: false, speed: 0.55 }); } catch (e) { /* ignore */ }
+        try { n.human.update(dt, { moving, running: !!n.running, airborne: false, speed: 0.55 }); } catch (e) { /* ignore */ }
       }
       n.local.set(n.lx, FY, n.lz); n.pos.copy(n.local).applyMatrix4(crowd.frame);
     }
@@ -479,6 +508,60 @@ function fillStoreRecord(store, crowd, id) {
   store.clerk = { name: c.name, seed: c.seed, role: 'cashier', known: crowd.known, lines: [c.say('greeting'), c.say('cashier'), c.say('pitch', store.menu[Math.floor(store.menu.length / 2)])], human: c.human, npc: c, say: c.say };
   store.dealers = crowd.dealers; store.shoppers = crowd.shoppers; store.characters = crowd.characters; store.crowd = crowd;
   store.burgerHouse = null;
+}
+
+// ── rev 27 shelf racks + store security ──
+const RACKS = [[-12, -6], [-12, 0], [-6, -6], [-6, 0], [0.6, -6], [0.6, 0]];   // store-local metres, in the lanes beside the gondolas
+function makeShelves(T, shared, store, id) {
+  const r = mulberry(hashStr('shelves:' + id)), menu = store.menu, shelves = [];
+  const mesh = new T.InstancedMesh(shared.geo, shared.mat, RACKS.length * 7); mesh.name = 'store-shelves'; mesh.frustumCulled = false;
+  const m = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), ps = new T.Vector3(), col = new T.Color();
+  RACKS.forEach((rk, i) => {
+    const item = menu[Math.floor(r() * menu.length)], n = 3 + Math.floor(r() * 4);
+    m.compose(ps.set(rk[0], FY + 0.4, rk[1]), q, sc.set(1.3, 0.8, 0.8)); mesh.setMatrixAt(i * 7, m); mesh.setColorAt(i * 7, col.set(0x4A4256));
+    const slots = [];
+    for (let k = 0; k < 6; k++) {
+      const mm = new T.Matrix4().compose(ps.set(rk[0] + (k % 3 - 1) * 0.38, FY + 0.8 + 0.21, rk[1] + (Math.floor(k / 3) - 0.5) * 0.34), q, sc.set(0.32, 0.42, 0.32));
+      slots.push(mm); mesh.setColorAt(i * 7 + 1 + k, col.set(item.color || 0xFF5CE1).multiplyScalar(1.15));
+      if (k < n) mesh.setMatrixAt(i * 7 + 1 + k, mm); else mesh.setMatrixAt(i * 7 + 1 + k, shared.zero);
+    }
+    shelves.push({ id: id + '-shelf' + i, storeId: id, pos: new T.Vector3(rk[0], FY + 0.8, rk[1]), world: new T.Vector3(), item, n, nMax: n, taken: false, _base: i * 7 + 1, _slots: slots });
+  });
+  mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  store.shelves = shelves;
+  return mesh;
+}
+// segment (cop -> target, store-local x/z) blocked by a tall aisle box (fridge wall, gondolas, wall shelves)?
+function losBlocked(aisles, ax, az, bx, bz) {
+  const dx = bx - ax, dz = bz - az;
+  for (const b of aisles) {
+    if (b.max.y < 2.0 || b.name === 'counter') continue;
+    let t0 = 0, t1 = 1, ok = true;
+    for (const [o, d, lo, hi] of [[ax, dx, b.min.x, b.max.x], [az, dz, b.min.z, b.max.z]]) {
+      if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) { ok = false; break; } }
+      else { let a = (lo - o) / d, c = (hi - o) / d; if (a > c) { const t = a; a = c; c = t; } t0 = Math.max(t0, a); t1 = Math.min(t1, c); if (t0 > t1) { ok = false; break; } }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+function makeSecurity(T, store, crowd) {
+  const cop = crowd.guard || null, tmp = new T.Vector3();
+  const sec = { cop, state: cop ? 'patrol' : 'none', range: 12, cone: 100, seen: false, line: '', _bust: 0 };
+  sec.seesLocal = (x, z) => {
+    if (!cop) return false;
+    const dx = x - cop.lx, dz = z - cop.lz, d = Math.hypot(dx, dz);
+    if (d > sec.range) return false;
+    if (d > 0.6) { const fx = -Math.sin(cop.yaw), fz = -Math.cos(cop.yaw); if ((dx * fx + dz * fz) / d < Math.cos(sec.cone / 2 * Math.PI / 180)) return false; }
+    return !losBlocked(store.interior.aisles, cop.lx, cop.lz, x, z);
+  };
+  // playerLocalPos is planet-local (same frame as world.update's pl); false when the player is not inside this store
+  sec.sees = (p) => {
+    if (!cop || !p || !store.interior.inside(p)) return false;
+    store.interior.toStore(p, tmp); return sec.seesLocal(tmp.x, tmp.z);
+  };
+  store.security = sec;
+  return sec;
 }
 
 // ── a self-contained store (own meshes) for the space station: opts { id, scale (parent units per metre), lex, shoppers, dealers, pads:false } ──
@@ -637,10 +720,11 @@ export function createWorld(THREE, ps, L, mods) {
   const rngOf = (seed) => (parts && parts.mulberry) ? parts.mulberry(seed) : mulberry(seed);
   const K = HUMAN_H * L / 1.75;                            // store unit = 1 m in world units (a 1.75 m human = 0.09 L)
   const group = new T.Group(); group.name = 'ship-world';
-  const world = { group, stores: [], shards: [], nearStore: null, nearBurger: null, nearNpc: null, burgerHouse: null, onShard: null, resources: [], resGas: false, node: null, storeTris: 0, burgerTris: 0, known: new Set() };
+  const world = { group, stores: [], shards: [], nearStore: null, nearBurger: null, nearNpc: null, burgerHouse: null, onShard: null, onBusted: null, onCopSay: null, heat: 0, cart: [], lastCheckout: [], heatStore: null, resources: [], resGas: false, node: null, storeTris: 0, burgerTris: 0, known: new Set() };
 
   let A = null, matShard = null, shardGeo = null;
   let bodies = null, emis = null, signs = null, glasses = null, shardMesh = null;
+  let shelfShared = null;
   let burger = null;                                        // { node, meshes[], matrix, ... }
   let sites = [], taken = new Set();
   let resMat = null, resGeos = null, resMeshes = {}; const rstate = new Map();
@@ -708,6 +792,7 @@ export function createWorld(THREE, ps, L, mods) {
     st.counter.radius = 4.5 * K;
     site.node.matrix.copy(M); site.node.matrixWorldNeedsUpdate = true;
     st.interior.setMatrix(M, K);
+    if (st.shelves) st.shelves.forEach((sh) => sh.world.copy(sh.pos).applyMatrix4(M));
   }
 
   // Burger House: first outpost, on the nearest flat-ish land, window facing the pad
@@ -895,7 +980,7 @@ export function createWorld(THREE, ps, L, mods) {
       frames.forEach((f, i) => {
         const seed = hashStr(f.id), r = rngOf(seed), lex = hashStr((world.node ? world.node.id : 'p') + '-lex');
         const node = new T.Group(); node.name = 'store-site'; node.matrixAutoUpdate = false; group.add(node);
-        const crowd = createCrowd(T, node, { id: f.id, lex, known: world.known, unit: K, frame: new T.Matrix4() });
+        const crowd = createCrowd(T, node, { id: f.id, lex, known: world.known, unit: K, frame: new T.Matrix4(), guard: (hashStr(f.id + ':guard') % 100) < 50 });
         const wlist = wpn && wpn.weaponSetFor ? wpn.weaponSetFor(f.id, 4) : [];
         wlist.forEach((w) => { if (w.price == null) w.price = PRICE[w.cls] || 200; });
         const shield = [1, 2, 3].map((tr) => ({ id: 'shield' + tr, tier: tr, name: 'Shield Cell ' + ['I', 'II', 'III'][tr - 1], maxShield: 20, price: [150, 350, 700][tr - 1] }));
@@ -908,8 +993,11 @@ export function createWorld(THREE, ps, L, mods) {
           interior: makeInterior(T, A.geoms), lineIdx: 0,
         };
         fillStoreRecord(store, crowd, f.id);
+        if (!shelfShared) shelfShared = { geo: new T.BoxGeometry(1, 1, 1), mat: new T.MeshBasicMaterial({ color: 0xFFFFFF }), zero: new T.Matrix4().makeScale(0, 0, 0) };
+        const shelfMesh = makeShelves(T, shelfShared, store, f.id); node.add(shelfMesh);
+        makeSecurity(T, store, crowd);
         crowd.frame = new T.Matrix4();           // planet-local frame of this store (layoutStore keeps it equal to site.M)
-        sites.push({ pad: f.m.clone(), M: crowd.frame, store, node, crowd });
+        sites.push({ pad: f.m.clone(), M: crowd.frame, store, node, crowd, shelfMesh });
         world.stores.push(store);
       });
       // Burger House (first outpost only)
@@ -943,7 +1031,8 @@ export function createWorld(THREE, ps, L, mods) {
   }
 
   function disposeSites() {
-    sites.forEach((s) => { s.crowd.dispose(); group.remove(s.node); });
+    sites.forEach((s) => { s.crowd.dispose(); if (s.shelfMesh) s.shelfMesh.dispose(); group.remove(s.node); });
+    world.cart = []; world.heat = 0; world.heatStore = null;
     if (burger) { if (burger.clerk.human) { try { burger.clerk.human.dispose(); } catch (e) { /* ignore */ } } group.remove(burger.node); burger = null; }
     world.burgerHouse = null;
     sites = []; world.stores = [];
@@ -977,15 +1066,90 @@ export function createWorld(THREE, ps, L, mods) {
     return null;
   }
   world.npcSay = function (id, ctx) { const f = findNpc(id); if (!f) return ''; f.npc.known = world.known; return f.npc.say(ctx); };
+  // rev 26: moods + seeded branching conversations. Mood is -2..2, seeded per NPC, drifts via npcMood; nothing persists here (ship.js keeps its own map).
+  const _moods = new Map();
+  world.npcMood = function (id, delta) {
+    const f = findNpc(id); if (!f) return 0;
+    const n = f.npc; if (_moods.has(n.id) === false) _moods.set(n.id, Math.floor(mulberry(hashStr('mood:' + n.id))() * 5) - 2);
+    if (delta) _moods.set(n.id, Math.max(-2, Math.min(2, _moods.get(n.id) + Math.round(delta))));
+    n.mood = _moods.get(n.id); return n.mood;
+  };
+  world.converse = function (id, state) {
+    const f = findNpc(id); if (!f) return null;
+    const n = f.npc; n.known = world.known; state = state || {}; world.npcMood(id, 0);
+    if (state.mood == null) state.mood = n.mood;
+    if (n.role === 'dealer' && !state.item && n.menu && n.menu.length) state.item = n.menu[hashStr(n.id + (state.steps | 0)) % n.menu.length];
+    return lingo.converse(n, state);
+  };
   const CYCLE = ['greeting', 'pitch', 'cashier', 'gossip'];
   world.npcLine = function (id) {
     const f = findNpc(id); if (!f) return '';
     const n = f.npc; n.known = world.known;
     let ctx = n.role === 'fries' ? 'fries' : n.role === 'dealer' ? 'dealer' : n.role === 'cashier' ? CYCLE[(f.store ? f.store.lineIdx++ : 0) % CYCLE.length] : ['shopper', 'gossip', 'warning', 'lore'][(n._cyc = (n._cyc | 0) + 1) % 4];
+    if (n.patrol && n.isGuard) ctx = f.store && f.store.security && f.store.security.state === 'chase' ? 'copchase' : world.heat >= 1 ? 'copwarn' : 'warning';
+    else if (n.role === 'cashier' && world.cart.length && Math.random() < 0.6) ctx = 'cart';
+    else if (n.role !== 'cashier' && n.role !== 'dealer' && n.role !== 'fries' && world.heat > 0 && Math.random() < 0.5) ctx = 'shoplift';
     if (ctx === 'pitch' && f.store) return n.say('pitch', f.store.menu[Math.floor(Math.random() * f.store.menu.length)]);
     if (ctx === 'dealer' && n.menu) return n.say('dealer', n.menu[Math.floor(Math.random() * n.menu.length)]);
     return n.say(ctx);
   };
+
+  // ── rev 27: shelves, shoplifting heat, cart, checkout ──
+  const siteOf = (storeId) => sites.find((q) => q.store.id === storeId) || null;
+  const priceOf = (it) => (it && it.price) || 0;
+  function showSlot(sh, k, on) {
+    const s = siteOf(sh.storeId); if (!s) return;
+    s.shelfMesh.setMatrixAt(sh._base + k, on ? sh._slots[k] : shelfShared.zero); s.shelfMesh.instanceMatrix.needsUpdate = true;
+  }
+  // nearest shelf with stock within r (planet-local units) of the planet-local point p
+  world.nearShelf = function (p, r) {
+    let best = null, bd = r * r;
+    if (!p) return null;
+    for (const s of sites) for (const sh of s.store.shelves || []) { if (sh.taken || sh.n <= 0) continue; const d2 = p.distanceToSquared(sh.world); if (d2 < bd) { bd = d2; best = sh; } }
+    return best;
+  };
+  world.grabShelf = function (id) {
+    let sh = null, site = null;
+    for (const s of sites) { sh = (s.store.shelves || []).find((q) => q.id === id); if (sh) { site = s; break; } }
+    if (!sh || sh.taken || sh.n <= 0) return null;
+    sh.n--; showSlot(sh, sh.n, false); if (sh.n <= 0) sh.taken = true;
+    world.cart.push({ item: sh.item, shelfId: sh.id, storeId: sh.storeId });
+    const sec = site.store.security;
+    if (sec && sec.cop && world._pl && sec.sees(world._pl)) { world.heat = Math.min(3, Math.floor(world.heat + 0.25) + 1); world.heatStore = sh.storeId; secUpdate(site, 0); }
+    return sh.item;
+  };
+  world.cartTotal = function () { return world.cart.reduce((a, c) => a + priceOf(c.item), 0); };
+  world.checkout = function () {
+    const total = world.cartTotal(); world.lastCheckout = world.cart.map((c) => c.item);
+    world.cart = []; world.heat = 0; world.heatStore = null;
+    for (const s of sites) { const sec = s.store.security; if (sec && sec.cop) { sec.state = 'patrol'; s.crowd.chase = null; } }
+    return total;
+  };
+  function bust(site) {
+    const sec = site.store.security, items = world.cart.map((c) => c.item), total = world.cartTotal();
+    for (const c of world.cart) { const s2 = siteOf(c.storeId), sh = s2 && s2.store.shelves.find((q) => q.id === c.shelfId); if (sh && sh.n < sh.nMax) { showSlot(sh, sh.n, true); sh.n++; sh.taken = false; } }
+    world.cart = []; world.heat = 0; world.heatStore = null; site.crowd.chase = null; sec.state = 'busted'; sec._bust = 4;
+    const line = sec.cop.say('copbusted'); sec.line = line;
+    if (world.onBusted) { try { world.onBusted({ store: site.store, items, total, fine: Math.max(25, Math.round(total * 1.5)), line }); } catch (e) { console.error(e); } }
+  }
+  function secUpdate(site, dt) {
+    const sec = site.store.security; if (!sec || !sec.cop) return;
+    const pl = world._pl, prev = sec.state;
+    sec.seen = pl ? sec.sees(pl) : false;
+    if (sec.cop.eye) sec.cop.eye.visible = sec.seen;
+    if (sec.state === 'busted') { sec._bust -= dt; if (sec._bust <= 0) sec.state = 'patrol'; return; }
+    const mine = world.heatStore === site.store.id;
+    if (world.heat >= 3 && mine) { bust(site); return; }
+    if (world.heat >= 2 && mine && pl) {
+      sec.state = 'chase'; const tl = site.store.interior.toStore(pl, _v);
+      site.crowd.chase = { x: tl.x, z: tl.z };
+      if (Math.hypot(tl.x - sec.cop.lx, tl.z - sec.cop.lz) < 1.5) { world.heat = 3; bust(site); return; }
+    } else { site.crowd.chase = null; sec.state = world.heat >= 1 && mine ? 'warn' : 'patrol'; }
+    if (sec.state !== prev && (sec.state === 'warn' || sec.state === 'chase')) {
+      const line = sec.cop.say(sec.state === 'chase' ? 'copchase' : 'copwarn'); sec.line = line;
+      if (world.onCopSay) { try { world.onCopSay({ store: site.store, cop: sec.cop, state: sec.state, line }); } catch (e) { console.error(e); } }
+    }
+  }
 
   world.update = function (t, dt, pl) {
     if (!world.node || !bodies) return;
@@ -1029,6 +1193,10 @@ export function createWorld(THREE, ps, L, mods) {
       }
       for (const k in resMeshes) resMeshes[k].instanceMatrix.needsUpdate = true;
     }
+    // shoplifting: heat decays 1 per minute; the guard watches / chases
+    world._pl = pl || null;
+    if (world.heat > 0) world.heat = Math.max(0, world.heat - dt / 60);
+    for (const s of sites) secUpdate(s, dt);
     // proximity
     world.nearStore = null; world.nearBurger = null; world.nearNpc = null;
     if (pl) {
@@ -1043,6 +1211,7 @@ export function createWorld(THREE, ps, L, mods) {
   world.dispose = function () {
     world.detach();
     if (A) { A.dispose(); matShard.dispose(); shardGeo.dispose(); A = null; }
+    if (shelfShared) { shelfShared.geo.dispose(); shelfShared.mat.dispose(); shelfShared = null; }
     if (resMat) { resMat.dispose(); for (const k in resGeos) resGeos[k].dispose(); resMat = resGeos = null; }
     if (group.parent) group.parent.remove(group);
   };

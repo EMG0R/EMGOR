@@ -214,9 +214,154 @@ function dither(ch, seedBit) {
 
 const cache = new Map();
 
+// ---- v2 icons: resources, crafting parts, mods, junk/scrap/shard, pets, crew, quests ----
+// [default colour, pal overrides, rows]. Same char scheme as above; main fill tinted by colour.
+export const NEW_TEMPLATES = {
+  crystal: [0x9A6CFF, { w: 0xF6F0FF }, [
+    '................', '.......OO.......', '......OhhO......', '.....OhlbbO.....', '.....OhlbbdO....', '....OhlbbbbdO...', '....OhlbwbbdO...', '....OlbbbbbdO...',
+    '.OO.OlbbbbbdO...', 'OhlOOlbbbbbdO...', 'OlbbOlbbbbddO...', 'OdbbOdbbbbddO...', '.OOOOOdbbddOO...', '.....OOOOOO.....', '................', '................']],
+  plant: [0x5CD060, { 1: 0xA8743A }, [
+    '................', '................', '....OO....OO....', '...OhlO..OlhO...', '..OhlbbOOblbdO..', '..OlbbbdObbddO..', '...OdbbdObddO...', '....OOdbdOOO....',
+    '......OdbO......', '......O1dO......', '......O1dO......', '....OOO11OOO....', '...O1dd11dd1O...', '...OdddddddddO..', '....OOOOOOOOO...', '................']],
+  ore: [0x8A8E9C, { w: 0xF2D060 }, [
+    '................', '................', '.....OOOOOO.....', '...OOhhlbbbOO...', '..OhlbbbbwbbdO..', '.OhlbbwbbbbbbdO.', '.OlbbbbbbbwbbdO.', '.OlbbwbbbbbbbdO.',
+    '.OlbbbbbbbbbddO.', '.OdbbbbwbbbddO..', '..OdbbbbbbbddO..', '..OOdddbbdddOO..', '...OOOOOOOOOO...', '................', '................', '................']],
+  ice: [0x7CD8FF, { w: 0xFFFFFF }, [
+    '................', '......OOOO......', '....OOhhwlOO....', '...OhhlbbbbdO...', '..OhlbbwbbbbdO..', '..OlbbwwbbbbdO..', '..OlbbbwbbbbdO..', '..OlbbbbbbbddO..',
+    '..OdbbbbbbbddO..', '...OdbbbbbbdO...', '....OOddbdOO....', '......OOOO......', '................', '................', '................', '................']],
+  spore: [0xD060C8, { 3: 0xE8E0C8, w: 0xFFF0A0, g: 0xB8AE90 }, [
+    '................', '................', '....OOOOOOOO....', '..OOhhlbbbbbOO..', '.OhlwwbbbwbbbdO.', '.OlwwwbbbbwbbdO.', '.OlbwbbbbbbbddO.', '.OdbbbbwbbbddO..',
+    '..OOddddddddOO..', '....OO3333OO....', '.....O3w3gO.....', '.....O3w3gO.....', '.....O3w3gO.....', '......OOOO......', '................', '................']],
+  capacitor: [0x4A7CD8, { 2: 0xE8E8F0, g: 0xB8BEC8 }, [
+    '................', '....OgO..OgO....', '....OgO..OgO....', '..OOOOOOOOOOOO..', '..OhlbbbbbbbdO..', '..OhlbbbbbbbdO..', '..Ohl2222bbbdO..', '..Ohl2222bbbdO..',
+    '..OhlbbbbbbbdO..', '..OhlbbbbbbbdO..', '..OdbbbbbbbddO..', '..OOOOOOOOOOOO..', '....OgO..OgO....', '....OgO..OgO....', '.....O....O.....', '................']],
+  servo: [0x3A3E4E, { w: 0xE8E8F0, g: 0xB8BEC8, s: 0xE8D060, k: 0x1A1620 }, [
+    '................', '................', '......OOOO......', '.....OwwwwO.....', '......OwwO......', '..OOOOOOOOOOOO..', '..OhlbbbbbbbdO..', 'OOOhlbbkkkbbdOOO',
+    'OgOhlbbkkkbbdOgO', 'OOOhlbbbbbbbdOOO', '..OdbbbbbbbddO..', '..OOOOOOOOOOOO..', '.....OsOgOkO....', '................', '................', '................']],
+  coil: [0xD8803A, { k: 0x3A2A22 }, [
+    '................', '................', '....OOOOOOOOO...', '...OhlbbbbbbdO..', '...OOOOOOOOOO...', '....OdbbbbdO....', '...OhlbbbbbdO...', '...OOOOOOOOOO...',
+    '....OdbbbbdO....', '...OhlbbbbbdO...', '...OOOOOOOOOO...', '....OdbbbbdO....', '...OhlbbbbbdO...', '...OOOOOOOOOO...', '................', '................']],
+  plate: [0x8C94A8, { w: 0xF4F0E8 }, [
+    '................', '................', '..OOOOOOOOOOOO..', '.OhhlbbbbbbbbdO.', '.OhwlbbbbbbbwdO.', '.OlbbbbbbbbbbdO.', '.OlbbbddddbbbdO.', '.OlbbdbbbbdbbdO.',
+    '.OlbbdbbbbdbbdO.', '.OlbbbddddbbbdO.', '.OlbbbbbbbbbbdO.', '.OlbwbbbbbbwbdO.', '.OdbbbbbbbbbddO.', '..OOOOOOOOOOOO..', '................', '................']],
+  lens: [0x7FE8FF, { g: 0x8E94A2, w: 0xFFFFFF }, [
+    '................', '................', '....OOOOOOOO....', '...OOggggggOO...', '..OgOhhlbbbbOgO.', '.OgOhwwlbbbbdOgO', '.OgOhwlbbbbbdOgO', '.OgOlbbbbbbbdOgO',
+    '.OgOlbbbbbbddOgO', '..OgOdbbbbbddOgO', '..OggOOddddOOggO', '...OOggggggggOO.', '.....OOOOOOO....', '................', '................', '................']],
+  battery: [0x58D868, { 2: 0xFFE24A, g: 0xB8BEC8, k: 0x25202E }, [
+    '................', '......OOOO......', '.....OgggkO.....', '...OOOOOOOOOO...', '...OhlbbbbbdO...', '...Ohlbb22bdO...', '...Ohlb22bbdO...', '...Ohlbb22bdO...',
+    '...Ohlb2bbbdO...', '...OhlbbbbbdO...', '...OhlbbbbbdO...', '...OdbbbbbddO...', '...OOOOOOOOOO...', '................', '................', '................']],
+  gyro: [0xC060D8, { g: 0x9AA0AA, k: 0x2E2838 }, [
+    '................', '................', '....OOOOOOOO....', '..OOggggggggOO..', '.OggOOOOOOOOggO.', '.OgOOhlbbbbdOgO.', '.OgOhlbkkkbbdOgO', '.OgOlbbkkkbbdOgO',
+    '.OgOdbbbbbbddOgO', '.OgOOdbbbbddOgO.', '.OggOOOOOOOOggO.', '..OOggggggggOO..', '....OOOOOOOO....', '................', '................', '................']],
+  antenna: [0x58A8D8, { 2: 0xFF5A4A, g: 0xB8BEC8, k: 0x2E2838 }, [
+    '................', '.......OO.......', '......O22O......', '......O22O......', '.......OO.......', '..O...OgkO...O..', '..OO..OgkO..OO..', '...OO.OgkO.OO...',
+    '....OOOgkOOO....', '.....OOgkOO.....', '......OgkO......', '......OgkO......', '....OOOOOOOO....', '...OhlbbbbbdO...', '...OdbbbbbddO...', '...OOOOOOOOOO...']],
+  fin: [0xE05A7A, {}, [
+    '................', '.............OO.', '...........OOhO.', '.........OOhlbO.', '.......OOhlbbbdO', '.....OOhlbbbbdO.', '...OOhlbbbbbbdO.', '..OhlbbbbbbbddO.',
+    '..OlbbbbbbbddO..', '..OhlbbbbbddO...', '..OdbbbbddOO....', '..OOddddOO......', '...OOOOOO.......', '................', '................', '................']],
+  chip: [0x2E8A5A, { g: 0xC8CCD4, w: 0xE8E8F0 }, [
+    '................', '................', '................', '..OOOOOOOOOOOO..', '.OgOhlbbbbbbdOgO', '..OOhlbbbbbbdOO.', '.OgOhlbwbbbbdOgO', '..OOhlbbbbbbdOO.',
+    '.OgOhlbbbkbbdOgO', '..OOhlbbbbbbdOO.', '.OgOdbbbbbbddOgO', '..OOOOOOOOOOOO..', '................', '................', '................', '................']],
+  scope: [0x4A5060, { w: 0x7FE8FF, g: 0x9AA0AA, k: 0x2E2838 }, [
+    '................', '................', '................', '................', '....OOOOOOOO....', '..OOhlbbbbbdOO..', '.OwwOhlbbbbdOwwO', '.OwwOlbbbbbdOwwO',
+    '.OwwOdbbbbddOwwO', '..OOOdbbbbdOOO..', '......OddO......', '....OOOOOOOO....', '....OgggggkgO...', '....OOOOOOOO....', '................', '................']],
+  chamber: [0xFF8A3A, { w: 0xFFF4C0, s: 0xFFE24A, g: 0x9AA0AA, k: 0x2E2838 }, [
+    '................', '................', '....OOOOOOOO....', '...OgggggggkO...', '..OOOOOOOOOOOO..', '..OhlbbbbbbbdO..', '..OhlOOOOOObdO..', '..OhlOwwwwObdO..',
+    '..OhlOwsswObdO..', '..OhlOwwwwObdO..', '..OhlOOOOOObdO..', '..OdbbbbbbbddO..', '..OOOOOOOOOOOO..', '...OgggggggkO...', '....OOOOOOOO....', '................']],
+  kit: [0xB8884A, { 2: 0xE04A3A, w: 0xF4F0E8 }, [
+    '................', '................', '................', '.OOOOOOOOOOOOOO.', '.OhhlbbbbbbbbdO.', '.OOOOOOOOOOOOOO.', '.Olbbbbw22wbbdO.', '.Olbbbw2222wbdO.',
+    '.Olbbbbw22wbbdO.', '.OlbbbbbbbbbbdO.', '.OdbbbbbbbbbddO.', '.OOOOOOOOOOOOOO.', '................', '................', '................', '................']],
+  junk: [0x7A7E8A, { k: 0x2E2838 }, [
+    '................', '......OOOO......', '...OO.OhlO.OO...', '..OhlOOhlbOOdO..', '...OhlbbbbbdO...', '..OOhlbOObbdOO..', '.OhlbbOkkObbbdO.', '.OlbbbOkkObbbdO.',
+    '..OOdbbOObbddOO.', '...OdbbbbbbddO..', '..OOdOObbOOdOO..', '..OhdO.OO.OdhO..', '...OO......OO...', '................', '................', '................']],
+  scrap: [0x9AA0AE, { w: 0xF4F0E8 }, [
+    '................', '................', '................', '..OOOO....OO....', '.OhllOOOOOllO...', '.OhlbbbbbbbbdO..', '..OlbbbwbbbbdO..', '..OOdbbbbbbddO..',
+    '....OOddbdOOO...', '.......OOO......', '................', '................', '................', '................', '................', '................']],
+  shard: [0x5CE8FF, { w: 0xFFFFFF, s: 0xD8F8FF }, [
+    '................', '.......OO.......', '..s...OwhO......', '.....OhlbbO.....', '....OhlbbbbO....', '...OhlbbbbbdO...', '..OhlbwwbbbbdO..', '..OlbbwwbbbbdO..',
+    '...OlbbbbbbdO...', '....OdbbbbdO....', '.....OdbbdO..s..', '......OddO......', '.......OO.......', '................', '................', '................']],
+  walker: [0xD8A05A, { k: 0x2E2838 }, [
+    '................', '................', '................', '................', '..........OOOO..', '..OOOOOO.OhlbbO.', '.OhlbbbbbbbwbbdO', '.OlbbbbbbbbbbdO.',
+    '.OlbbbbbbbbbddO.', '.OdbbbbbbbbddOO.', '..OOOOOOOOOOOO..', '..OdOOdO.OdOOdO.', '..OOOOOO.OOOOOO.', '................', '................', '................']],
+  jelly: [0xFF7ACD, { k: 0x2E2838 }, [
+    '................', '.....OOOOOO.....', '...OOhhlbbbOO...', '..OhwlbbbbbbdO..', '.OhwlbbbbbbbbdO.', '.OlbbbkbbkbbbdO.', '.OlbbbbbbbbbbdO.', '.OdbbbbbbbbbddO.',
+    '..OOOOOOOOOOOO..', '..OlO.OdO.OlO...', '...OlO.OdO.OdO..', '..OdO.OlO.OdO...', '...OO..OO..OO...', '................', '................', '................']],
+  strider: [0x7CD860, { k: 0x2E2838 }, [
+    '................', '....OOOOOO......', '...OhlbbbbOO....', '..OhlbwbbbbbO...', '..OlbbbbbbbbdO..', '...OdbbbbbbdO...', '....OOOddOOO....', '....OlO..OdO....',
+    '...OlO....OdO...', '...OlO....OdO...', '..OlO......OdO..', '..OlO......OdO..', '.OllO......OddO.', '.OOOO......OOOO.', '................', '................']],
+  critter: [0xB07AFF, { 2: 0xFF8AB0, k: 0x2E2838 }, [
+    '................', '..OO........OO..', '.OhbO......ObdO.', '.OhlbOOOOOObbdO.', '..OhlbbbbbbbdO..', '.OhlbkbbbbkbbdO.', '.Olbbbbb22bbbdO.', '.OlbbbbbbbbbbdO.',
+    '.OdbbbbbbbbbddO.', '..OdbbbbbbbddO..', '...OOddddddOO...', '....OOOOOOOO....', '................', '................', '................', '................']],
+};
+const HELMET = [
+  '................', '.....OOOOOO.....', '...OOhhlbbbOO...', '..OhlbbbbbbbdO..', '.OhlbbbbbbbbbdO.', '.OlbOOOOOOOObdO.', '.OlOkkkkkkkkOdO.', '.OlOkkkkkkkkOdO.',
+  '.OlOkkkkkkkkOdO.', '.OlOkkkkkkkkOdO.', '.OlOkkkkkkkkOdO.', '.OdOOOOOOOOOOdO.', '..OdbbbbbbbddO..', '...OOOOOOOOOO...', '................', '................'];
+const ROLE_GLYPH = {
+  pilot: ['..#..', '.###.', '#####', '..#..', '.#.#.'], miner: ['.###.', '#..#.', '...#.', '...#.', '...#.'],
+  chef: ['.#.#.', '#####', '#####', '.###.', '.###.'], scout: ['..#..', '.#.#.', '#.#.#', '.#.#.', '..#..'],
+};
+const ROLE_COL = { pilot: 0x5AA8FF, miner: 0xE0A040, chef: 0xFF6A5A, scout: 0x6CD870 };
+const COIN = [
+  '................', '.....OOOOOO.....', '...OOhhllbbOO...', '..OhllbbbbbbdO..', '.OhlbbbbbbbbbdO.', '.OlbbbbbbbbbbdO.', '.OlbbbbbbbbbbdO.', '.OlbbbbbbbbbbdO.',
+  '.OlbbbbbbbbbbdO.', '.OlbbbbbbbbbbdO.', '.OlbbbbbbbbbbdO.', '.OdbbbbbbbbbddO.', '..OdbbbbbbbddO..', '...OOddddddOO...', '.....OOOOOO.....', '................'];
+const QUEST = {
+  deliver: [0xE8B040, ['.####.', '#....#', '######', '#.##.#', '#.##.#', '######']], bounty: [0xE04A3A, ['..##..', '.#..#.', '#.##.#', '#.##.#', '.#..#.', '..##..']],
+  scan: [0x4AD0FF, ['.###..', '#...#.', '#...#.', '.###..', '....#.', '.....#']], retrieve: [0xB070FF, ['..##..', '.####.', '######', '..##..', '..##..', '..##..']],
+  escort: [0x5AD870, ['######', '#....#', '#....#', '.#..#.', '.#..#.', '..##..']], harvest: [0x7CE050, ['...###', '..####', '.####.', '####..', '##.#..', '#..#..']],
+};
+const PET_PLAN = [[/jelly|blob|float|drift|squid/i, 'jelly'], [/strider|stilt|long|tall/i, 'strider'], [/walker|walk|hound|quad|beast/i, 'walker']];
+const PARTS = new Set(['capacitor', 'servo', 'coil', 'plate', 'lens', 'battery', 'gyro', 'antenna', 'fin', 'chip']);
+const RES = new Set(['crystal', 'plant', 'ore', 'ice', 'spore']);
+const HINT_ALIAS = { crate: 'kit', upgrade: 'kit', 'ship-upgrade': 'kit', 'weapon-mod': 'scope', modcoil: 'coil2', 'mod-coil': 'coil2', barrel: 'chamber', sight: 'scope' };
+
+function buildNew(key, T, color, post) {
+  const hit = cache.get(key); if (hit) return hit;
+  const pal = Object.assign({}, DEF_PAL, T[1]), mp = mainPalette(color == null ? T[0] : color, null);
+  const rows = T[2], ch = parse(rows), px = new Array(256).fill(null);
+  dither(ch, hashStr(key) & 1);
+  for (let i = 0; i < 256; i++) { const c = ch[i]; if (c === '.') continue; if (mp[c]) px[i] = mp[c]; else if (pal[c] != null) px[i] = hex2(pal[c]); }
+  if (post) post(px, mp);
+  const c = toCanvas(px); cache.set(key, c); return c;
+}
+export function questIcon(kind) {
+  kind = QUEST[kind] ? kind : 'deliver'; const Q = QUEST[kind];
+  return buildNew('Q|' + kind, [Q[0], {}, COIN], null, (px) => drawGlyph(px, Q[1], 5, 5, [30, 20, 40], null));
+}
+export function crewIcon(m) {
+  m = m || {}; const role = ROLE_GLYPH[m.role] ? m.role : 'pilot', col = m.color == null ? ROLE_COL[role] : m.color;
+  return buildNew('C|' + role + '|' + (col | 0), [col, { k: 0x1E1830 }, HELMET], col, (px) => drawGlyph(px, ROLE_GLYPH[role], 5, 6, [150, 240, 255], null));
+}
+function newTemplateFor(item) {
+  const kind = String(item.kind || ''), base = String(item.base || '').toLowerCase(), hint = String(item.iconHint || '').toLowerCase(), cat = String(item.category || '');
+  if (QUEST[kind]) return ['Q', kind];
+  if (kind === 'pet' || item.plan) { const p = String(item.plan || item.name || ''); for (const [re, t] of PET_PLAN) if (re.test(p)) return ['T', t]; return ['T', 'critter']; }
+  if (kind === 'crew' || item.role) return ['C'];
+  if (kind === 'resource' && RES.has(base)) return ['T', base];
+  if (kind === 'shard' || /signal shard/i.test(item.name || '') || base === 'signal shard') return ['T', 'shard'];
+  if (kind === 'scrap' || base === 'scrap' || /^scrap$/i.test(item.name || '')) return ['T', 'scrap'];
+  const h = HINT_ALIAS[hint] || hint;
+  if (cat === 'junk') return ['T', NEW_TEMPLATES[h] ? h : 'junk'];
+  if (cat === 'weapon-mod') return ['T', h === 'coil' || h === 'coil2' ? 'modcoil' : NEW_TEMPLATES[h] ? h : 'scope'];
+  if (cat === 'ship-upgrade') return ['T', NEW_TEMPLATES[h] && h !== 'coil' ? h : 'kit'];
+  if (item.family || /^(drink|snack|food|fries)$/.test(kind)) return null;
+  if (NEW_TEMPLATES[h]) return ['T', h];
+  if (PARTS.has(base) || RES.has(base)) return ['T', base];
+  return null;
+}
+function newIcon(item) {
+  const r = newTemplateFor(item); if (!r) return null;
+  if (r[0] === 'Q') return questIcon(r[1]);
+  if (r[0] === 'C') return crewIcon(item);
+  const t = r[1], tint = (t === 'modcoil') ? 0x4AD0FF : null, T = t === 'modcoil' ? NEW_TEMPLATES.coil : NEW_TEMPLATES[t];
+  const useColor = (item.kind === 'resource' || item.kind === 'pet' || item.plan) && item.color != null ? item.color : tint;
+  return buildNew('N|' + t + '|' + (useColor == null ? '' : useColor | 0), T, useColor);
+}
+
+
 export function iconFor(item) {
   if (!item) item = {};
   if (item.shape && !item.base) return weaponIcon(item);
+  { const n = newIcon(item); if (n) return n; }
   const key = 'I|' + (item.base || item.name) + '|' + (item.infusion || '') + '|' + (item.modifier || '') + '|' + (item.color | 0);
   const hit = cache.get(key); if (hit) return hit;
   const tname = templateFor(item), T = ICON_TEMPLATES[tname];
