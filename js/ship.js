@@ -501,6 +501,7 @@ export default function mount(engine) {
         if (!Array.isArray(o.shards.ids)) o.shards.ids = [];
         o.shieldTier = clamp(o.shieldTier | 0, 0, 3); o.engineTier = clamp(o.engineTier | 0, 0, 3);
         o.style = (typeof o.style === 'string' && /^[a-z0-9_-]{1,16}$/i.test(o.style)) ? o.style : '';      // rev 30: character style id ('' = PILOT)
+        if (!o.blk || typeof o.blk !== 'object' || Array.isArray(o.blk)) o.blk = {};      // mashup: STEEV blocks per planet id {b:[up xyz, fwd xyz], c:[[i,j,k,mat]]} <= 64
         if (!Array.isArray(o.items)) o.items = [];       // rev 23: inventory stacks {id, seed, n, d (dealer variant)}
         o.items = o.items.filter(function (r) { return r && typeof r === 'object' && typeof r.id === 'string' && r.n > 0 && (typeof r.seed === 'number' || (r.it && typeof r.it === 'object')); }).map(function (r) { var q = { id: r.id, seed: (r.seed >>> 0) || 0, n: Math.min(9999, r.n | 0), d: r.d ? 1 : 0 }; if (r.it && typeof r.it === 'object') q.it = r.it; return q; }).slice(-400);
         if (!Array.isArray(o.crew)) o.crew = [];          // rev 25: [{id,name,role,color,rank,lines[],busy}] cap 4
@@ -4054,7 +4055,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         return true;
     }
     function touchdown() {
-        gmode = 'landed'; camRelInit = false;
+        gmode = 'landed'; camRelInit = false; mobPlJoin();
         aPlay('land', { vel: 1 });
         discPlanet(land.node);
         land.sPos.copy(land.gDir).multiplyScalar(land.rg); land.sQuat.copy(land.qTo);
@@ -4101,6 +4102,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function liftOff() {
         if (gmode !== 'landed' || !land.node) return;
+        mobPlLeave();
         gA.copy(land.sPos).applyQuaternion(land.node.mesh.quaternion).normalize();     // world up
         gB.copy(shipRoot.position).addScaledVector(gA, -legDrop * L);
         for (var i = 0; i < 3; i++) fx.impact(gB, 0xc8b89a, 3);
@@ -4113,7 +4115,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         net && net.setMode && net.setMode('fly');
     }
     function leaveGround() {                    // Esc from any ground state: hand the ship back to the exit cinematic from where the player is
-        jetKill();
+        jetKill(); mobPlLeave();
         if (gmode === 'foot' && hum.obj && land.node) {
             shipRoot.position.copy(hum.obj.group.position);
             hum.obj.group.visible = false;
@@ -4425,6 +4427,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj); else if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); }
             else if (ft.kind === 'creature') tameStart(ft.obj);
             else if (ft.kind === 'resource') harvStart(ft.obj);
+            else punch();
         }
         else if (gmode === 'ifoot') interiorF();
         else if (gmode === 'sfoot') stationE();
@@ -4470,15 +4473,15 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     // human mesh and camera follow): it eases toward the physical height but never sinks below the ground.
     var FOOT_R = 0.22, FOOT_SUB = 0.12, FOOT_SLIDE_A = [0, 0.7, -0.7, 1.4, -1.4], FOOT_SLIDE_K = [1, 0.8, 0.8, 0.5, 0.5];
     var fsD = new THREE.Vector3(), fsR = new THREE.Vector3(), fsF = new THREE.Vector3(), fsC = new THREE.Vector3(), fsT = new THREE.Vector3();
-    function mFloor(x, y, z) { var r = ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); return r > 0 ? r : hum.gr; }
+    function mFloor(x, y, z, ref) { var r = ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); if (BK.n > 0 && ref > 0) { var bf = blkFloor(x, y, z, ref); if (bf > r) r = bf; } return r > 0 ? r : hum.gr; }      // mashup: ref = the feet radius, so the STEEV blocks are part of the ground (columns of 1 H cubes)
     // ground radius under the footprint: max over the centre and four points at FOOT_R human heights around it (dir = unit local direction)
-    function footFloor(dir, H) {
-        var a = FOOT_R * H / (ps.radius || 1), best = mFloor(dir.x, dir.y, dir.z), v;
+    function footFloor(dir, H, ref) {
+        var a = FOOT_R * H / (ps.radius || 1), best, v; if (!(ref > 0)) ref = hum.hr; best = mFloor(dir.x, dir.y, dir.z, ref);
         fsR.crossVectors(hum.hf, dir).normalize(); fsF.copy(hum.hf);
-        v = mFloor(dir.x + fsR.x * a, dir.y + fsR.y * a, dir.z + fsR.z * a); if (v > best) best = v;
-        v = mFloor(dir.x - fsR.x * a, dir.y - fsR.y * a, dir.z - fsR.z * a); if (v > best) best = v;
-        v = mFloor(dir.x + fsF.x * a, dir.y + fsF.y * a, dir.z + fsF.z * a); if (v > best) best = v;
-        v = mFloor(dir.x - fsF.x * a, dir.y - fsF.y * a, dir.z - fsF.z * a); if (v > best) best = v;
+        v = mFloor(dir.x + fsR.x * a, dir.y + fsR.y * a, dir.z + fsR.z * a, ref); if (v > best) best = v;
+        v = mFloor(dir.x - fsR.x * a, dir.y - fsR.y * a, dir.z - fsR.z * a, ref); if (v > best) best = v;
+        v = mFloor(dir.x + fsF.x * a, dir.y + fsF.y * a, dir.z + fsF.z * a, ref); if (v > best) best = v;
+        v = mFloor(dir.x - fsF.x * a, dir.y - fsF.y * a, dir.z - fsF.z * a, ref); if (v > best) best = v;
         return best;
     }
     // jetpack flame: two fx cones (the ship's exhaust shader) under the backpack tanks, rotated to point down; throttled audio loop; ground dust when low
@@ -4673,12 +4676,13 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (sr && sr.vel) {
                 gB.set(0, 0, 0).addScaledVector(gA, sr.vel.x).addScaledVector(hum.hf, -sr.vel.z); var hl0 = gB.length(); moving = hl0 > 0.3; sSpd = hl0; hum.sSpd = hl0; if (moving) gB.divideScalar(hl0);
                 run = !!(sr.anim && sr.anim.running);
-                if (!hum.air && (sr.vel.y > 0.05 || sr.groundSnap === false)) { hum.air = true; hum.airT = 0; }
+                if (!hum.air && (sr.jumpImpulse > 0 || sr.groundSnap === false)) { hum.air = true; hum.airT = 0; }      // slope-glued motion (SONIK) keeps vel.y but stays grounded
                 if (hum.air) hum.vv = sr.vel.y * H;
                 if (sr.fx && sr.fx.length) styleFx(sr.fx, H, up, gA);
                 styCam += ((sr.camHint && sr.camHint.dist ? sr.camHint.dist : 1) - styCam) * damp(4, dt);
+                if (sr.camHint) { styFov += ((sr.camHint.fov || 1) - styFov) * damp(8, dt); if (sr.camHint.shake > 0) shake = Math.max(shake, sr.camHint.shake * 0.12 * L); }
             }
-        } else styCam += (1 - styCam) * damp(4, dt);
+        } else { styCam += (1 - styCam) * damp(4, dt); styFov += (1 - styFov) * damp(8, dt); }
         if (hum.air) hum.airT = (hum.airT || 0) + dt; else hum.airT = 0;
         hum.sAnim = sr && sr.anim != null ? sr.anim : null;
         hum.moving = moving; hum.running = run;
@@ -4694,7 +4698,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (moving) nSub = Math.max(nSub, Math.ceil(spd * dt / (FOOT_SUB * H)));
         if (hum.air) nSub = Math.max(nSub, Math.ceil(Math.abs(hum.vv) * dt / (0.25 * H)));
         nSub = Math.min(16, nSub);
-        var h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, supNow = footFloor(dir, H), opN = objBegin();
+        var h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, supNow = footFloor(dir, H, hr), opN = objBegin(), edgeG = !!(sr && sr.edgeGuard), wallHit = false;
         for (k = 0; k < nSub; k++) {
             if (moving) {
                 var step = spd * h;
@@ -4702,17 +4706,19 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                     fsT.copy(gB); if (FOOT_SLIDE_A[i] !== 0) fsT.applyAxisAngle(dir, FOOT_SLIDE_A[i]);
                     var st = step * FOOT_SLIDE_K[i];
                     fsC.copy(dir).addScaledVector(fsT, st / hr).normalize();
-                    var supC = footFloor(fsC, H), rise = supC - supNow;
+                    var supC = footFloor(fsC, H, hr), rise = supC - supNow;
+                    if (edgeG && !hum.air && supNow - supC > 0.4 * H) { if (i === 0) wallHit = true; continue; }      // mashup: sneak (STEEV) refuses to step off a ledge
                     if (hum.air ? supC <= hr + 0.05 * H : rise <= st + 0.05 * H) {
                         dir.copy(fsC); supNow = supC;
                         break;
                     }
+                    if (i === 0) wallHit = true;
                 }
             }
             if (opN && (moving || hum.air)) {                      // rev 29: store / burger-house walls, shelves and the ship hull are solid for the capsule
                 fsT.copy(dir).multiplyScalar(hr);
                 if (objPush(fsT, H)) {
-                    var nl = fsT.length(); dir.copy(fsT).divideScalar(nl || 1); supNow = footFloor(dir, H);
+                    var nl = fsT.length(); dir.copy(fsT).divideScalar(nl || 1); supNow = footFloor(dir, H, hr);
                     if (hum.air && nl < hr) { hr = nl; hum.vv = Math.min(hum.vv, 0); }
                 }
             }
@@ -4724,6 +4730,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             } else if (hr - supNow > 0.6 * H) { hum.air = true; hum.vv = 0; }
             else hr = supNow;
         }
+        if (wallHit && moving) { hum.wallT = 0.12; hum.wallX = -(gB.dot(gA)); hum.wallZ = gB.dot(hum.hf); }      // the wall normal in the tangent frame (x right, z back) = against the wanted direction
         if (R27.windOn) { var wd = footWind(dir, dt, hr, H, supNow); if (wd) { dir.copy(fsC2); supNow = wd; if (!hum.air) hr = supNow; } }
         hum.gr = supNow; hum.hr = hr;
         hum.pos.copy(dir).multiplyScalar(hr);                           // written once
@@ -4740,6 +4747,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         hum.face.addScaledVector(up, -hum.face.dot(up)); if (hum.face.lengthSq() < 1e-8) hum.face.copy(hum.hf); hum.face.normalize();
         gA.copy(hum.face).applyQuaternion(qM);                         // world forward
         gB.copy(up).applyQuaternion(qM);                               // world up
+        styUpW.copy(gB);
         gC.crossVectors(gA, gB); gD.copy(gA).negate();
         mM.makeBasis(gC, gB, gD);
         o.group.quaternion.setFromRotationMatrix(mM);
@@ -5229,7 +5237,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         clampCamToGround(0.5);                     // rev 19: the chase camera never sits inside the terrain (hills rise behind the ship)
         var amv = dt / ENTRY_T;                    // rev 18: fov 42 -> 50 over the entry (ENTRY_T), back down on the way out
         lf.atmK += clamp(((lf.on && lf.cap && !lf.leaving) ? 1 : 0) - lf.atmK, -amv, amv);
-        var fovT = baseFov + (boosting ? FOV_BOOST : 0) + FOV_PULSE * pulse + (focusing ? 3 : 0) + fovKick + ATM_FOV * lf.atmK + FOV_PLANET * nearPl;
+        var fovT = baseFov + (boosting ? FOV_BOOST : 0) + FOV_PULSE * pulse + (focusing ? 3 : 0) + fovKick + ATM_FOV * lf.atmK + FOV_PLANET * nearPl + (styFov - 1) * baseFov;
         fov += (fovT - fov) * damp(4, dt);
         var fNear = (lf.on && lf.cap) ? 0.02 * L : baseNear;     // rev 19: near plane 0.02 L inside the atmosphere (log depth keeps it precise) so ground right under the camera is never clipped
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== fNear) { camera.fov = fov; camera.near = fNear; camera.updateProjectionMatrix(); }
@@ -6166,38 +6174,411 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         chD.innerHTML = ln.map(function (t) { return '<div>' + qEsc(t) + '</div>'; }).join('');
         portraitPaint(def, curStyleId);
     }
+    // ═══ mashup (rev 31): styles live on the foot controller (real slope / wall ctx), collidable STEEV blocks, night mobs, planet rooms (host-simulated) ═══════════
     var styU = {}, styM = { l: false, r: false }, styCam = 1, STY_EMPTY = {}, styFloorN = { x: 0, y: 1, z: 0 };
+    var styFov = 1, styUpW = new THREE.Vector3(), styN = { x: 0, y: 1, z: 0 }, styWallO = { x: 0, y: 0, z: 0 }, styAimO = { x: 0, y: 0, z: -1 }, styTgPool = [], styTg = [];
+    var styTgt = { dist: 99, mat: 'air', hardness: 0.75, cx: 0, cy: 0, cz: 0, px: null, py: null, pz: null };
+    var snA = new THREE.Vector3(), snB = new THREE.Vector3(), snC = new THREE.Vector3(), snD = new THREE.Vector3(), snM = new THREE.Matrix4(), snQ = new THREE.Quaternion();
     document.addEventListener('mousedown', function (e) { if (e.button === 0) styM.l = true; else if (e.button === 2) styM.r = true; }, true);
     document.addEventListener('mouseup', function (e) { if (e.button === 0) styM.l = false; else if (e.button === 2) styM.r = false; }, true);
-    function styleStep(dt, up, right, H) {      // real contract (ship-styles.js): input {keys, mouse, camYaw}, ctx {onGround, floorNormal, slope, ...}; vel is H/s in the tangent frame (x right, y up, z back, camera-relative: camYaw 0)
+    function hwU() { return 0.09 * L; }
+    // ── STEEV blocks: 1 H cubes on a lattice anchored at the first placement (profile.blk[planet]); columns act as extra ground in mFloor ──
+    var BK_MAT = ['dirt', 'stone', 'plank', 'table', 'torch', 'door', 'glass', 'brick', 'wool'], BK_COL = [0x8a6a4a, 0x8d8d9a, 0xc9a266, 0xb5793a, 0xffd36a, 0x7a5230, 0x9fe8ff, 0xb5503c, 0xe8e0f0], BK_HARD = [0.75, 1.5, 1, 1, 0.1, 1, 0.4, 1.5, 0.5], BK_MAX = 64;
+    var BK = { n: 0, nid: '', basis: false, cols: new Map(), list: [], e1: new THREE.Vector3(1, 0, 0), e2: new THREE.Vector3(0, 0, 1), e3: new THREE.Vector3(0, 1, 0), H: 1, mesh: null, grp: null, ci: 0, cj: 0, ck: 0 };
+    function bkCol(i, j) { return (i + 1048576) * 2097152 + (j + 1048576); }
+    function bkAt(i, j, k) { var c = BK.cols.get(bkCol(i, j)); if (!c) return -1; for (var q = 0; q < c.length; q++) if (c[q].k === k) return c[q].m; return -1; }
+    function blkFloor(x, y, z, ref) {      // (x,y,z) = a planet-local DIRECTION (not necessarily unit); the point is that direction at radius ref
+        var e1 = BK.e1, e2 = BK.e2, e3 = BK.e3, H = BK.H, l = Math.sqrt(x * x + y * y + z * z) || 1, dz = (x * e3.x + y * e3.y + z * e3.z) / l, k = ref / (l * H);
+        if (dz < 0.55) return 0;
+        var c = BK.cols.get(bkCol(Math.floor((x * e1.x + y * e1.y + z * e1.z) * k), Math.floor((x * e2.x + y * e2.y + z * e2.z) * k)));
+        if (!c) return 0;
+        var rw = ref * dz / H, best = -1e9, q, r;
+        for (q = 0; q < c.length; q++) { r = c[q]; if (r.k < rw + 0.999 && r.k + 1 > best) best = r.k + 1; }
+        return best > -1e8 ? best * H / dz : 0;
+    }
+    function bkCellOf(p) {
+        var H = BK.H; BK.ci = Math.floor(p.dot(BK.e1) / H); BK.cj = Math.floor(p.dot(BK.e2) / H); BK.ck = Math.floor(p.dot(BK.e3) / H);
+    }
+    function bkCenter(i, j, k, out) { return out.set(0, 0, 0).addScaledVector(BK.e1, (i + 0.5) * BK.H).addScaledVector(BK.e2, (j + 0.5) * BK.H).addScaledVector(BK.e3, (k + 0.5) * BK.H); }
+    function bkRebuild() {
+        BK.cols.clear(); BK.n = BK.list.length;
+        BK.list.forEach(function (r) { var k = bkCol(r.i, r.j), c = BK.cols.get(k); if (!c) BK.cols.set(k, c = []); c.push(r); });
+        if (!BK.mesh) {
+            var gm = new THREE.BoxGeometry(1, 1, 1), pc = gm.attributes.position.count, cl = new Float32Array(pc * 3), fk = [0.78, 0.78, 1, 0.5, 0.88, 0.7], i, f;     // per-face shade: +x -x +y -y +z -z
+            for (i = 0; i < pc; i++) { f = fk[Math.floor(i / 4)]; cl[i * 3] = cl[i * 3 + 1] = cl[i * 3 + 2] = f; }
+            gm.setAttribute('color', new THREE.BufferAttribute(cl, 3));
+            var cv = document.createElement('canvas'); cv.width = cv.height = 16; var c2 = cv.getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0, 0, 16, 16);
+            c2.fillStyle = 'rgba(0,0,0,.28)'; c2.fillRect(0, 0, 16, 1); c2.fillRect(0, 15, 16, 1); c2.fillRect(0, 0, 1, 16); c2.fillRect(15, 0, 1, 16);
+            for (i = 0; i < 26; i++) { c2.fillStyle = 'rgba(0,0,0,' + (0.05 + 0.06 * ((i * 7) % 3)) + ')'; c2.fillRect((i * 5) % 14 + 1, (i * 11) % 14 + 1, 2, 2); }
+            var tx = new THREE.CanvasTexture(cv); tx.magFilter = THREE.NearestFilter; tx.minFilter = THREE.NearestFilter;
+            BK.mesh = new THREE.InstancedMesh(gm, new THREE.MeshBasicMaterial({ map: tx, vertexColors: true }), BK_MAX); BK.mesh.frustumCulled = false; BK.mesh.count = 0;
+            BK.grp = new THREE.Group(); BK.grp.add(BK.mesh); scene.add(BK.grp);
+        }
+        var m = BK.mesh, H = BK.H, cc = new THREE.Color();
+        BK.list.forEach(function (r, q) {
+            snM.makeBasis(BK.e1, BK.e2, BK.e3).scale(snA.set(H, H, H)); bkCenter(r.i, r.j, r.k, snB); snM.setPosition(snB); m.setMatrixAt(q, snM);
+            m.setColorAt(q, cc.setHex(BK_COL[r.m]));
+        });
+        m.count = BK.list.length; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
+    function bkSave() {
+        if (!BK.nid || !BK.basis) return; var pf = ensureProfile(userName()); if (!curUser) curUser = userName();
+        pf.blk[BK.nid] = { b: [BK.e3.x, BK.e3.y, BK.e3.z, BK.e1.x, BK.e1.y, BK.e1.z].map(function (v) { return +v.toFixed(6); }), c: BK.list.map(function (r) { return [r.i, r.j, r.k, r.m]; }) };
+        var ks = Object.keys(pf.blk); if (ks.length > 24) delete pf.blk[ks[0]];
+        writeSave();
+    }
+    function bkLoad(pid) {
+        BK.nid = pid; BK.list = []; BK.basis = false; BK.H = hwU();
+        var pf = curProfile(), d = pf && pf.blk && pf.blk[pid];
+        if (d && Array.isArray(d.b) && d.b.length === 6 && Array.isArray(d.c)) {
+            BK.e3.set(d.b[0], d.b[1], d.b[2]).normalize(); BK.e1.set(d.b[3], d.b[4], d.b[5]); BK.e1.addScaledVector(BK.e3, -BK.e1.dot(BK.e3)).normalize(); BK.e2.crossVectors(BK.e3, BK.e1); BK.basis = true;
+            d.c.slice(0, BK_MAX).forEach(function (a) { if (a && a.length === 4 && isFinite(a[0] + a[1] + a[2]) && a[3] >= 0 && a[3] < BK_MAT.length) BK.list.push({ i: a[0] | 0, j: a[1] | 0, k: a[2] | 0, m: a[3] | 0 }); });
+        }
+        bkRebuild();
+    }
+    function bkTick() {
+        var node = land.node, on = !!node && (gmode === 'foot' || gmode === 'landed' || gmode === 'landing');
+        if (!on) { if (BK.grp) BK.grp.visible = false; if (BK.n > 0 || BK.nid) { BK.n = 0; BK.nid = ''; BK.cols.clear(); } return; }
+        var pid = String(node.id); if (BK.nid !== pid) bkLoad(pid);
+        if (BK.grp) { BK.grp.visible = BK.list.length > 0; BK.grp.position.copy(node.anchor.position); BK.grp.quaternion.copy(node.mesh.quaternion); }
+    }
+    function bkBasisFromHere() {
+        BK.e3.copy(hum.pos).normalize(); BK.e1.copy(hum.hf).addScaledVector(BK.e3, -hum.hf.dot(BK.e3)).normalize(); BK.e2.crossVectors(BK.e3, BK.e1); BK.basis = true; BK.H = hwU();
+    }
+    function bkLocal(w, out) { return out.copy(w).sub(land.node.anchor.position).applyQuaternion(snQ.copy(land.node.mesh.quaternion).invert()); }
+    function bkTarget() {      // ray from the head along the camera: first block cell hit (or the terrain: place only) within 3 H
+        var T = styTgt, node = land.node, H = hwU(), t, prevI = 0, prevJ = 0, prevK = 0, havePrev = false, hit = false;
+        T.dist = 99; T.mat = 'air'; T.px = null;
+        if (!node || !hum.obj) return T;
+        snC.copy(hum.w).addScaledVector(styUpW, 0.8 * H); bkLocal(snC, snA);
+        snD.set(0, 0, -1).applyQuaternion(camera.quaternion).applyQuaternion(snQ.copy(node.mesh.quaternion).invert());
+        if (!BK.basis) bkBasisFromHere();
+        for (t = 0.25 * H; t <= 3 * H; t += 0.125 * H) {
+            snB.copy(snA).addScaledVector(snD, t); bkCellOf(snB);
+            var m = BK.n ? bkAt(BK.ci, BK.cj, BK.ck) : -1;
+            if (m >= 0) { T.dist = t / H; T.mat = BK_MAT[m]; T.hardness = BK_HARD[m]; T.cx = BK.ci; T.cy = BK.cj; T.cz = BK.ck; if (havePrev) { T.px = prevI; T.py = prevJ; T.pz = prevK; } hit = true; break; }
+            var l = snB.length(); if (l < mFloor(snB.x / l, snB.y / l, snB.z / l)) { T.dist = t / H; T.mat = 'air'; T.cx = T.cy = T.cz = 0; if (havePrev) { T.px = prevI; T.py = prevJ; T.pz = prevK; } hit = true; break; }
+            prevI = BK.ci; prevJ = BK.cj; prevK = BK.ck; havePrev = true;
+        }
+        return T;
+    }
+    function bkPlace(i, j, k, mi) {
+        if (!land.node || !hum.obj) return false;
+        if (!BK.basis) bkBasisFromHere();
+        if (bkAt(i, j, k) >= 0) return false;
+        bkCenter(i, j, k, snB); if (snB.normalize().dot(BK.e3) < Math.cos(0.45)) return false;      // build zone: 0.45 rad round the anchor
+        var pu = hum.pos.dot(BK.e1) / BK.H, pv = hum.pos.dot(BK.e2) / BK.H, pw = hum.pos.dot(BK.e3) / BK.H;
+        if (Math.abs(pu - (i + 0.5)) < 0.5 + FOOT_R && Math.abs(pv - (j + 0.5)) < 0.5 + FOOT_R && pw < k + 1 - 0.02 && pw + 1 > k + 0.02) return false;      // not inside the capsule
+        var mm = BK_MAT.indexOf(mi); if (mm < 0) mm = 0;
+        BK.list.push({ i: i, j: j, k: k, m: mm }); if (BK.list.length > BK_MAX) BK.list.shift();
+        bkRebuild(); bkSave(); return true;
+    }
+    function bkBreak(i, j, k) {
+        for (var q = 0; q < BK.list.length; q++) { var r = BK.list[q]; if (r.i === i && r.j === j && r.k === k) { BK.list.splice(q, 1); bkRebuild(); bkSave(); return true; } }
+        return false;
+    }
+    function bkExplode(wpos, radiusH) {      // creeper blast: every block whose centre is within radius H
+        if (!BK.n || !land.node) return 0;
+        bkLocal(wpos, snA); var rr = radiusH * BK.H, n = 0;
+        for (var q = BK.list.length - 1; q >= 0; q--) { var r = BK.list[q]; bkCenter(r.i, r.j, r.k, snB); if (snB.distanceTo(snA) <= rr + 0.5 * BK.H) { BK.list.splice(q, 1); n++; } }
+        if (n) { bkRebuild(); bkSave(); }
+        return n;
+    }
+    // ── mob item stacks ──
+    var MOB_ITEM = { boomdust: [0xffa040, 30, 'Boomdust', 'Still a little warm.'], 'warp pearl': [0x8a3cff, 80, 'Warp Pearl', 'Falls up, sometimes.'], 'rotten bite': [0x7a8a4a, 4, 'Rotten Bite', 'Do not.'], bone: [0xe8e0d0, 8, 'Bone', 'Rattles on its own.'], bolt: [0xe8d4ff, 10, 'Bolt', 'Pointy and honest.'], goo: [0x9cffd0, 12, 'Creature Goo', 'Swallowed whole.'] };
+    function mobGive(id, n) {
+        if (id === 'gor coin') { addUnits(n, hum.w, false); return; }
+        var d = MOB_ITEM[id]; if (!d) return;
+        giveItem({ id: 'mob-' + id.replace(/\W+/g, '-'), kind: 'material', base: id, name: d[2], color: d[0], price: d[1], blurb: d[3], tags: ['mob'], stackKey: 'mob-' + id.replace(/\W+/g, '-') }, n);
+        addRow('', '', '+' + n + ' ' + d[2].toUpperCase(), 'is-sys');
+    }
+    // ── style step: the real ctx ──
+    function styleStep(dt, up, right, H) {
         var sty = curStyle; if (!sty || typeof sty.step !== 'function') return null;
         styIn.keys = cmdOpen ? STY_EMPTY : keys; styIn.mouse = cmdOpen ? STY_EMPTY : styM; styIn.camYaw = 0; styIn.mdx = 0; styIn.mdy = 0;
-        styCtx.onGround = !hum.air; styCtx.floorNormal = styFloorN; styCtx.slope = 0; styCtx.speed = hum.sSpd || 0; styCtx.airTime = hum.airT || 0; styCtx.facing = 0; styCtx.mouse = styIn.mouse;
-        try { return sty.step(styIn, styCtx, dt) || null; } catch (e) { console.info('[ship] style step failed, back to PILOT', e); curStyle = null; return null; }
+        var c = styCtx, i, e;
+        c.onGround = !hum.air; c.speed = hum.sSpd || 0; c.airTime = hum.airT || 0; c.mouse = styIn.mouse;
+        // floor normal from four rendered-floor samples round the feet (tangent frame: x right, y up, z back)
+        var d = 0.3 * H, a = d / (ps.radius || 1), dir = snA.copy(hum.pos).normalize(), hf = hum.hf;
+        var hR = mFloor(dir.x + right.x * a, dir.y + right.y * a, dir.z + right.z * a), hL = mFloor(dir.x - right.x * a, dir.y - right.y * a, dir.z - right.z * a);
+        var hF = mFloor(dir.x + hf.x * a, dir.y + hf.y * a, dir.z + hf.z * a), hB = mFloor(dir.x - hf.x * a, dir.y - hf.y * a, dir.z - hf.z * a);
+        var gx = (hR - hL) / (2 * d), gf = (hF - hB) / (2 * d), onBlk = !hum.air && BK.n > 0 && hum.hr > mFloor(dir.x, dir.y, dir.z) + 0.3 * H;
+        if (onBlk) { gx = 0; gf = 0; }
+        var il = 1 / Math.sqrt(gx * gx + 1 + gf * gf), k = Math.min(1, 14 * dt);
+        styN.x += (-gx * il - styN.x) * k; styN.y += (il - styN.y) * k; styN.z += (gf * il - styN.z) * k;
+        c.floorNormal = styN; c.slope = Math.acos(clamp(styN.y / (Math.sqrt(styN.x * styN.x + styN.y * styN.y + styN.z * styN.z) || 1), -1, 1)) * 57.29578;
+        if (hum.wallT > 0) { hum.wallT -= dt; styWallO.x = hum.wallX; styWallO.z = hum.wallZ; c.wallNormal = styWallO; } else c.wallNormal = undefined;
+        c.facing = Math.atan2(-hum.face.dot(right), hum.face.dot(hf));
+        // aim (camera ray) + homing / tongue targets + hostile proximity
+        snB.set(0, 0, -1).applyQuaternion(camera.quaternion); snC.set(0, 0, 0);
+        styAimO.x = snB.dot(right); styAimO.y = snB.dot(styUpW); styAimO.z = -snB.dot(snD.copy(hf).applyQuaternion(land.node.mesh.quaternion)); c.aim = styAimO;
+        var Hw = hwU(), nT = 0, near = 99, fuse = 0, qM = land.node.mesh.quaternion;
+        for (i = 0; i < R27.gnd.length && nT < 8; i++) {
+            e = R27.gnd[i]; if (!e.alive || !e.mob || e.mode !== 'planet') continue;
+            snC.subVectors(e.w, hum.w); var dd = snC.length() / Hw; if (dd < near) near = dd; if (e.fuseT > 0) fuse = Math.max(fuse, e.fuseT);
+            if (dd > 12) continue;
+            var tg = styTgPool[nT] || (styTgPool[nT] = { x: 0, y: 0, z: 0 });
+            tg.x = snC.dot(right) / Hw; tg.y = snC.dot(styUpW) / Hw; tg.z = -snC.dot(snD.copy(hf).applyQuaternion(qM)) / Hw; nT++;
+        }
+        styTg.length = nT; for (i = 0; i < nT; i++) styTg[i] = styTgPool[i];
+        c.targets = styTg; c.hostileNear = near; c.fuse = fuse;
+        c.target = (curStyleId === 'STEEV') ? bkTarget() : undefined;
+        try { return sty.step(styIn, c, dt) || null; } catch (e0) { console.info('[ship] style step failed, back to PILOT', e0); curStyle = null; return null; }
     }
-    var styEgg = [], styVox = null, styVoxN = 0, styVoxM = new THREE.Matrix4(), styEggGeo = null, styEggMat = null;
+    var styEgg = [], styEggGeo = null, styEggMat = null, styStats = { eggs: 0, tongue: 0, placed: 0, broke: 0, poundHits: 0, homing: 0, last: '' };
     function styleFx(list, H, up, right) {
-        var i, e, k;
+        var i, e, k, Hw = hwU();
         for (i = 0; i < list.length; i++) {
-            e = list[i];
+            e = list[i]; styStats.last = e.type;
             if (e.type === 'egg') {
                 if (!styEggGeo) { styEggGeo = new THREE.SphereGeometry(0.08, 8, 6); styEggMat = new THREE.MeshBasicMaterial({ color: 0xf4f0d8 }); }
                 var m = new THREE.Mesh(styEggGeo, styEggMat); m.scale.setScalar(H); scene.add(m);
-                gD.copy(right).multiplyScalar(e.x).addScaledVector(up, e.y).addScaledVector(hum.hf, -e.z).multiplyScalar(H).add(hum.w); m.position.copy(gD);
-                gE.copy(right).multiplyScalar(e.dx).addScaledVector(up, e.dy).addScaledVector(hum.hf, -e.dz).multiplyScalar((e.v || 14) * H);
-                styEgg.push({ m: m, v: gE.clone(), t: 2 }); if (styEgg.length > 12) { k = styEgg.shift(); scene.remove(k.m); }
-                aPlay('ui', { vel: 0.6, pitch: 1.4 });
-            } else if (e.type === 'blockPlace' || e.type === 'blockBreak') {
-                if (!styVox) { styVox = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x8a6a4a }), 64); styVox.count = 0; styVox.frustumCulled = false; scene.add(styVox); }
-                gD.copy(right).multiplyScalar(e.x).addScaledVector(up, e.y).addScaledVector(hum.hf, -e.z).multiplyScalar(H).add(hum.w);
-                if (e.type === 'blockPlace') { styVoxM.makeScale(0.3 * H, 0.3 * H, 0.3 * H).setPosition(gD); styVox.setMatrixAt(styVoxN % 64, styVoxM); styVoxN++; styVox.count = Math.min(64, styVoxN); styVox.instanceMatrix.needsUpdate = true; aPlay('ui', { vel: 0.5 }); }
-                else aPlay('hit', { pitch: 1.2, vel: 0.4 });
-            } else if (e.type === 'craft') { R25.sty = true; if (!invOpen) openInv(); }
-            else if (e.type === 'groundpound') { aPlay('hit', { pitch: 0.3, vel: 0.8 }); shake = Math.max(shake, 0.05 * L); }
-            else if (e.type === 'spindash' || e.type === 'homing') aPlay('hit', { pitch: 0.9, vel: 0.5 });
+                gD.copy(right).multiplyScalar(e.x).addScaledVector(up, e.y).addScaledVector(hum.hf, -e.z).applyQuaternion(land.node.mesh.quaternion).multiplyScalar(H).add(hum.w); m.position.copy(gD);
+                gE.copy(right).multiplyScalar(e.dx).addScaledVector(up, e.dy).addScaledVector(hum.hf, -e.dz).applyQuaternion(land.node.mesh.quaternion).multiplyScalar((e.v || 14) * H);
+                styEgg.push({ m: m, v: gE.clone(), t: 2.5, b: e.n | 0, dmg: e.dmg || 8 }); if (styEgg.length > 12) { k = styEgg.shift(); scene.remove(k.m); }
+                styStats.eggs++; aPlay('ui', { vel: 0.6, pitch: 1.4 });
+            } else if (e.type === 'blockPlace') { if (bkPlace(e.x | 0, e.y | 0, e.z | 0, e.tag)) { styStats.placed++; aPlay('ui', { vel: 0.5 }); } }
+            else if (e.type === 'blockBreak') { if (bkBreak(e.x | 0, e.y | 0, e.z | 0)) { styStats.broke++; aPlay('hit', { pitch: 1.2, vel: 0.4 }); } }
+            else if (e.type === 'tongue') tongueGrab(Math.min(3, e.r || 3));
+            else if (e.type === 'craft') { R25.sty = true; if (!invOpen) openInv(); }
+            else if (e.type === 'pound' || e.type === 'groundpound') { aPlay('hit', { pitch: 0.3, vel: 0.8 }); shake = Math.max(shake, 0.05 * L); styStats.poundHits += mobAoe(hum.w, (e.r || 2), e.dmg || 12); }
+            else if (e.type === 'homing') { styStats.homing++; aPlay('hit', { pitch: 0.9, vel: 0.5 }); if (styTg.length && e.n >= 0 && e.n < styTg.length) mobNearHurt(6, 3); }
+            else if (e.type === 'spindash' || e.type === 'spinRelease') { aPlay('hit', { pitch: 0.9, vel: 0.5 }); mobAoe(hum.w, 1.6, 5); }
         }
     }
-    function styEggTick(dt) { for (var i = styEgg.length - 1; i >= 0; i--) { var g = styEgg[i]; g.t -= dt; g.m.position.addScaledVector(g.v, dt); if (g.t <= 0) { scene.remove(g.m); styEgg.splice(i, 1); } } }
+    function styEggTick(dt) {
+        var Hw = hwU(), i, g, j, d;
+        for (i = styEgg.length - 1; i >= 0; i--) {
+            g = styEgg[i]; g.t -= dt; g.v.addScaledVector(styUpW, -7 * Hw * dt); g.m.position.addScaledVector(g.v, dt);
+            for (j = 0; j < R27.gnd.length && g.t > 0; j++) {
+                d = R27.gnd[j]; if (!d.alive || !d.mob) continue;
+                if (g.m.position.distanceTo(gndSphere(d, snC)) < d.cr.hitR * GM * L + 0.25 * Hw) { mobHurt(d, g.dmg, 'me'); fx.impact(g.m.position, 0xf4f0d8, 1, 'hit'); g.t = 0; }
+            }
+            if (g.t <= 0) { scene.remove(g.m); styEgg.splice(i, 1); }
+        }
+    }
+    // ── mobs: spawn / AI (host or local) / snapshots (guests) ──
+    var MOB_SPD = 6, MOB_CAP = 12, MB = { peaceful: false, nid: 0, spawnT: 0, host: true, hostId: '', planet: '', joined: false, snapT: 0, seq: 0, last: null, lastAt: 0, hitQ: [], hitT: 0, evQ: [], evT: 0, bolts: [], nightForce: -1, stats: { spawned: 0, killed: 0, exploded: 0, teleports: 0, bolts: 0, stare: 0, snapsOut: 0, snapsIn: 0 }, msgT: 0 };
+    function mobList() { var o = [], i; for (i = 0; i < R27.gnd.length; i++) if (R27.gnd[i].mob && R27.gnd[i].alive) o.push(R27.gnd[i]); return o; }
+    function mobNight() { if (MB.nightForce >= 0) return MB.nightForce; return land.node && hum.obj ? nightAt(land.node, hum.w) : 0; }
+    function mobIsHost() { return !(net && net.online && MB.hostId && MB.hostId !== net.id); }
+    function mobPlId() { return land.node ? String(land.node.id).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 24) : ''; }
+    function mobPlJoin(again) {
+        var pid = mobPlId(); if (!pid || !(gmode === 'landed' || gmode === 'landing' || gmode === 'foot')) return;
+        if (MB.joined && MB.planet === pid && !again) return;
+        MB.planet = pid; MB.joined = true; if (!again) { MB.hostId = ''; MB.last = null; }
+        if (net && net.online && net.plEnter) net.plEnter(pid);
+    }
+    function mobPlLeave() {
+        if (!MB.joined) return; MB.joined = false; MB.hostId = ''; MB.last = null; MB.planet = '';
+        if (net && net.online && net.plLeave) net.plLeave();
+        for (var i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob) gndFree(R27.gnd[i]);
+    }
+    function mobMake(kind, seed, dir) {
+        if (typeof ENM.generateMob !== 'function' || !land.node) return null;
+        var cr; try { cr = ENM.generateMob(THREE, seed, kind); } catch (e0) { console.info('[ship] mob', e0); return null; }
+        var e = gndWrap(cr); if (!e) return null;
+        e.mode = 'planet'; e.node = land.node; e.dir.copy(dir).normalize(); e.hr = mFloor(e.dir.x, e.dir.y, e.dir.z); e.mid = ++MB.nid; e.aggro = 40; e.cd = 1 + Math.random();
+        r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.face.copy(r27C).applyQuaternion(land.node.mesh.quaternion);
+        e.sdir.copy(e.dir); e.shr = e.hr; e.remote = !mobIsHost(); gndPlace(e); return e;
+    }
+    function mobSpawnAt(kind, distH, ang) {      // distH in human heights from the player along bearing ang (rad, 0 = forward)
+        var R = ps.radius || 1, Hw = hwU(), dir0 = snA.copy(hum.pos).normalize(), f = snB.copy(hum.hf), r = snC.crossVectors(f, dir0).normalize();
+        snD.copy(f).multiplyScalar(Math.cos(ang)).addScaledVector(r, Math.sin(ang));
+        var dir = new THREE.Vector3().copy(dir0).addScaledVector(snD, distH * Hw / R).normalize();
+        if (!ps.landLocal(dir.x, dir.y, dir.z)) return null;
+        var e = mobMake(kind, hash25(MB.planet + ':' + (MB.nid + 1)), dir); if (e) MB.stats.spawned++; return e;
+    }
+    function mobSpawnTick(dt) {
+        MB.spawnT -= dt; if (MB.spawnT > 0) return; MB.spawnT = 1;
+        if (peaceful || MB.peaceful || !mobIsHost() || !ps || ps.active !== land.node) return;
+        var live = mobList().length; if (live >= MOB_CAP) return;
+        var night = mobNight(), look = ps.lookOf ? ps.lookOf(land.node) : 'rocky', i, ws = [], tot = 0;
+        for (i = 0; i < ENM.MOB_KINDS.length; i++) { var w = ENM.mobSpawnRule(ENM.MOB_KINDS[i], { night: night, lightLevel: 1 - night, biome: look }); ws.push(w); tot += w; }
+        if (tot <= 0) return;
+        var pick = Math.random() * tot, kind = ENM.MOB_KINDS[0]; for (i = 0; i < ws.length; i++) { pick -= ws[i]; if (pick <= 0) { kind = ENM.MOB_KINDS[i]; break; } }
+        var d = 20 + Math.random() * 38, a = Math.random() * 6.283, n = 1;
+        if (kind === 'zomby') n = 2 + ((Math.random() * 3) | 0);
+        for (i = 0; i < n && live + i < MOB_CAP; i++) mobSpawnAt(kind, d + (Math.random() - 0.5) * 3, a + (Math.random() - 0.5) * 0.06);
+    }
+    function mobTargets() {      // me + on-foot players the relay shows (host sim aims at the nearest)
+        var o = [{ w: hum.w, me: true }];
+        if (net && net.online && net.ghosts) net.ghosts.forEach(function (g) { if (g.mode === 'foot' && g.human && g.human.group && g.human.group.visible) o.push({ w: g.human.group.position, me: false }); });
+        return o;
+    }
+    function mobEv(o) { if (net && net.online && net.plEv && MB.joined && o) { if (MB.evQ.length < 6) MB.evQ.push(o); } }
+    function mobHurt(e, dmg, by) {
+        if (!e.alive) return; e.hitF = 1; e.cr.setHit(1);
+        if (e.remote) { MB.hitQ.push([e.mid, Math.round(dmg)]); return; }      // guest: the host applies it
+        e.hp -= dmg; e.lastBy = by || 'me';
+        if (e.mob === 'ender' && !e.angry) { e.angry = true; e.lookT = 1; }
+        if (e.hp <= 0) mobKill(e, e.lastBy === 'me');
+    }
+    function mobKill(e, byMe) {
+        if (!e.alive) return; MB.stats.killed++;
+        var drops = [], kind = e.mob; try { drops = ENM.mobDrops(kind, Math.random) || []; } catch (e0) { drops = []; }
+        for (var i = 0; i < 3; i++) fx.impact(e.w, 0xff8a5c, 2, 'explode');
+        aPlay('explosion', { dist: aDist(e.w), pitch: 1.5 });
+        if (byMe) { drops.forEach(function (d) { mobGive(d.id, d.n); }); addUnits(UNIT_KILL, e.w, false); questEvent({ type: 'kill', n: 1 }); }
+        else if (e.lastBy) mobEv({ k: 'k', i: e.mid, b: e.lastBy, d: drops.map(function (d) { return [d.id, d.n]; }) });
+        gndFree(e); writeSave();
+    }
+    function mobAoe(wpos, rH, dmg) { var n = 0, Hw = hwU(); R27.gnd.slice().forEach(function (e) { if (e.alive && e.mob && e.w.distanceTo(wpos) < rH * Hw + e.cr.hitR * GM * L) { mobHurt(e, dmg, 'me'); n++; } }); return n; }
+    function mobNearHurt(dmg, rH) { var best = null, bd = 1e9, Hw = hwU(); R27.gnd.forEach(function (e) { var d = e.w.distanceTo(hum.w); if (e.alive && e.mob && d < bd) { bd = d; best = e; } }); if (best && bd < rH * Hw * 3) mobHurt(best, dmg, 'me'); }
+    var punchCd = 0;
+    function punch() {
+        if (punchCd > 0 || !hum.obj || cmdOpen) return; punchCd = 0.35; var Hw = hwU(), hit = 0;
+        gA.copy(hum.hf).applyQuaternion(land.node.mesh.quaternion);
+        R27.gnd.slice().forEach(function (e) {
+            if (!e.alive) return; snC.subVectors(e.w, hum.w); var d = snC.length(); if (d > 2.2 * Hw + e.cr.hitR * GM * L || snC.divideScalar(d || 1).dot(gA) < 0.3) return;
+            if (e.mob) mobHurt(e, 6, 'me'); else { e.hp -= 6; e.hitF = 1; if (e.hp <= 0) gndKill(e); }
+            fx.impact(e.w, 0xffd36a, 1, 'hit'); hit++;
+        });
+        aPlay(hit ? 'hit' : 'ui', { vel: 0.5, pitch: hit ? 1 : 0.8 });
+    }
+    function tongueGrab(rH) {
+        var Hw = hwU(), best = null, bd = rH * Hw, kind = '', i, c, d;
+        for (i = 0; i < R27.gnd.length; i++) { c = R27.gnd[i]; if (!c.alive || !c.mob) continue; d = c.w.distanceTo(hum.w); if (d < bd) { bd = d; best = c; kind = 'mob'; } }
+        var cl = (ps && ps.creatures) ? ps.creatures() : [], cb = null;
+        for (i = 0; i < cl.length; i++) { c = cl[i]; if (!c.pos) continue; d = c.pos.distanceTo(hum.w); if (d < bd) { bd = d; cb = c; best = null; kind = 'creature'; } }
+        if (!kind) return false;
+        styStats.tongue++;
+        if (kind === 'mob') { var dr = []; try { dr = ENM.mobDrops(best.mob, Math.random) || []; } catch (e0) { dr = []; } dr.forEach(function (x) { mobGive(x.id, x.n); }); fx.impact(best.w, 0x9cffd0, 1.5, 'hit'); gndFree(best); MB.stats.killed++; }
+        else { try { ps.setCreatureTamed(cb.id, true, land.node.id); var cid = cb.id, nid = land.node.id; setTimeout(function () { try { ps.setCreatureTamed(cid, false, nid); } catch (e1) { /* ignore */ } }, 25000); } catch (e2) { /* ignore */ } mobGive('goo', 1); }
+        if (curStyle && curStyle.swallow) curStyle.swallow(1);
+        aPlay('tame', { vel: 0.5 }); return true;
+    }
+    function mobMoveDir(e, v, s) {      // steer round walls: the wanted heading, then +-0.7 / +-1.4 rad
+        for (var i = 0; i < 5; i++) { snD.copy(v); if (FOOT_SLIDE_A[i] !== 0) snD.applyAxisAngle(e.up, FOOT_SLIDE_A[i]); if (gndMove(e, snD, s * FOOT_SLIDE_K[i])) return true; }
+        return false;
+    }
+    function mobFire(e, tw) {
+        var st = e.cr.stats.ranged, Hw = hwU(); snC.copy(e.w).addScaledVector(e.up, 0.7 * e.cr.stats.height * GM * L); snD.copy(tw).addScaledVector(styUpW, 0.5 * Hw).sub(snC).normalize();
+        var sp = st.boltSpeed * Hw; fx.spawnBolt(snC, snD, 0xe8d4ff, sp, 2, { shape: 'needle', size: 1.2 }); aPlay('fire', { vel: 0.4, pitch: 1.6, dist: aDist(snC) });
+        MB.bolts.push({ p: snC.clone(), v: snD.clone().multiplyScalar(sp), t: 2, dmg: st.dmg }); MB.stats.bolts++;
+    }
+    function mobTeleport(e, tw, minH, maxH) {
+        var Hw = hwU(), R = ps.radius || 1, d = (minH + Math.random() * (maxH - minH)) * Hw;
+        bkLocal(tw, snA); snA.normalize(); snB.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); snB.addScaledVector(snA, -snB.dot(snA)).normalize();
+        snD.copy(snA).addScaledVector(snB, d / R).normalize(); if (!ps.landLocal(snD.x, snD.y, snD.z)) return false;
+        if (e.cr.teleport) e.cr.teleport(); e.dir.copy(snD); e.hr = mFloor(snD.x, snD.y, snD.z, e.hr); gndPlace(e); if (e.cr.teleport) e.cr.teleport(); MB.stats.teleports++; return true;
+    }
+    function mobExplode(e) {
+        var ex = e.cr.stats.explode, Hw = hwU(); MB.stats.exploded++;
+        for (var i = 0; i < 5; i++) fx.impact(e.w, i % 2 ? 0xffa040 : 0xfff0c0, 4, 'explode');
+        aPlay('explosion', { dist: aDist(e.w), pitch: 0.7 }); shake = Math.max(shake, 0.25 * L); fovKick = Math.max(fovKick, 4);
+        var dH = e.w.distanceTo(hum.w) / Hw;
+        if (dH < ex.radius + 0.5) footHurt(Math.round(ex.edgeDmg + (ex.dmg - ex.edgeDmg) * clamp(1 - dH / ex.radius, 0, 1)));
+        mobEv({ k: 'x', p: [+e.w.x.toFixed(2), +e.w.y.toFixed(2), +e.w.z.toFixed(2)], r: ex.radius, a: ex.dmg, b: ex.edgeDmg });
+        bkExplode(e.w, ex.radius);
+        for (var q = 0; q < 3; q++) { snD.copy(e.face).applyAxisAngle(e.up, q * 1.047); try { ps.scar(e.w, snD, 2 * ex.radius * Hw, 25); } catch (e0) { /* ignore */ } }
+        gndFree(e);
+    }
+    function mobStep(e, dt, hw) {
+        var cr = e.cr, st = cr.stats, Hw = hwU(), Mm = GM * L;
+        if (MB.freeze) return;      // debug: hold the scene for a screenshot
+        if (e.hitF > 0) { e.hitF = Math.max(0, e.hitF - dt * 5); cr.setHit(e.hitF); }
+        if (e.remote) {          // guest: follow the host's snapshot
+            e.dir.lerp(e.sdir, damp(10, dt)).normalize(); e.hr += (e.shr - e.hr) * damp(10, dt); e.face.lerp(e.sface, damp(10, dt));
+            cr.setSpeed(e.sfl & 1 ? st.speed : 0); if (cr.setFuse) cr.setFuse(e.sfuse); return;
+        }
+        var tg = mobTargets(), tw = tg[0].w, td = 1e18, i, me = true;
+        for (i = 0; i < tg.length; i++) { var dd = e.w.distanceTo(tg[i].w); if (dd < td) { td = dd; tw = tg[i].w; me = tg[i].me; } }
+        var dH = td / Hw, dm = td / Mm, kind = e.mob, night = mobNight(), moving = false, sp = (st.speed || 1.2) * MOB_SPD * Hw * dt;
+        r27C.subVectors(tw, e.w); r27C.addScaledVector(e.up, -r27C.dot(e.up)); var tl = r27C.length(); if (tl > 1e-9) r27C.divideScalar(tl);
+        if (dH > 120) { gndFree(e); return; }
+        if (e.cd > 0) e.cd -= dt;
+        if (kind === 'kreeper') {
+            var ex = st.explode;
+            if (dH < ex.triggerRange) e.fuseT += dt; else if (e.fuseT > 0 && dH > ex.defuseRange) e.fuseT = Math.max(0, e.fuseT - dt * 1.5); else if (e.fuseT > 0) e.fuseT += dt;
+            if (e.fuseT > 0) { cr.setFuse(clamp(e.fuseT / ex.fuse, 0, 1)); if (tl > 1e-9) e.face.lerp(r27C, damp(8, dt)).normalize(); if (e.fuseT >= ex.fuse) { mobExplode(e); return; } }
+            else { cr.setFuse(0); if (dH < 30 && tl > 1e-9) { e.face.lerp(r27C, damp(6, dt)).normalize(); moving = mobMoveDir(e, r27C, sp); } }
+        } else if (kind === 'zomby') {
+            if (night < 0.2 && st.burnsInDay) { e.burnT += dt; e.hp -= (st.burn ? st.burn.dps : 1) * dt; e.hitF = Math.max(e.hitF, 0.4); if (Math.random() < dt * 4) fx.impact(e.w, 0xff6a2a, 0.8, 'burn'); if (e.hp <= 0) { mobKill(e, false); return; } }
+            if (dH < 40 && tl > 1e-9) {
+                e.face.lerp(r27C, damp(6, dt)).normalize();
+                if (dm > 2.4) { for (i = 0; i < R27.gnd.length; i++) { var o = R27.gnd[i]; if (o !== e && o.mob === 'zomby' && o.w.distanceTo(e.w) < 1.6 * Mm) { snA.subVectors(e.w, o.w); snA.addScaledVector(e.up, -snA.dot(e.up)).normalize(); r27C.addScaledVector(snA, 0.5).normalize(); } } moving = mobMoveDir(e, r27C, sp); }
+                else if (e.cd <= 0) { e.cd = 1; if (me) footHurt(3); else mobEv({ k: 'a', i: e.mid, d: 3, r: 3.4 }); aPlay('hit', { dist: aDist(e.w), pitch: 0.6, vel: 0.4 }); }
+            }
+        } else if (kind === 'skelly') {
+            var rg = st.ranged;
+            if (tl > 1e-9) e.face.lerp(r27C, damp(8, dt)).normalize();
+            if (dH < rg.minRange) { snA.copy(r27C).negate(); moving = mobMoveDir(e, snA, sp); }
+            else if (dH > rg.range * 0.9) { if (dH < 50) moving = mobMoveDir(e, r27C, sp); }
+            else { snA.crossVectors(e.up, r27C); if (((e.mid + Math.floor(gt / 2)) & 1)) snA.negate(); moving = mobMoveDir(e, snA, sp * 0.6); }
+            if (e.cd <= 0 && dH < rg.range && dH < 40) { e.cd = dH < rg.farRange ? rg.closeInterval : rg.farInterval; if (me) mobFire(e, tw); else mobEv({ k: 'a', i: e.mid, d: rg.dmg, r: rg.range * 1.8 }); }
+        } else if (kind === 'ender') {
+            snA.set(0, 0, -1).applyQuaternion(camera.quaternion); snB.copy(e.w).addScaledVector(e.up, (st.eyeY || 2.4) * Mm).sub(camera.position); var cdist = snB.length(); snB.divideScalar(cdist || 1);
+            var looked = me && snA.dot(snB) > st.stare.dot && cdist / Hw < st.stare.range;
+            e.lookT = looked ? e.lookT + dt : Math.max(0, e.lookT - dt * 0.5);
+            if (!e.angry) { if (e.lookT > 1) { e.angry = true; e.tpT = 0; MB.stats.stare++; addRow('', '', 'ENDER · IT SAW YOU', 'is-sys'); } }
+            else {
+                e.tpT += dt; if (tl > 1e-9) e.face.lerp(r27C, damp(10, dt)).normalize();
+                if (looked) { e.burnT += st.stare.dps * dt; if (e.burnT >= 1) { e.burnT -= 1; footHurt(1); } }
+                if (e.tpT > st.teleport.every && dH > 6) { e.tpT = 0; mobTeleport(e, tw, st.teleport.min * 0.4, st.teleport.max * 0.4); }
+                if (dm > 2.6) moving = mobMoveDir(e, r27C, sp * 1.4);
+                else if (e.cd <= 0) { e.cd = 1.2; if (me) footHurt(7); else mobEv({ k: 'a', i: e.mid, d: 7, r: 3.4 }); aPlay('hit', { dist: aDist(e.w), pitch: 0.5, vel: 0.5 }); }
+            }
+        }
+        cr.setSpeed(moving ? st.speed : 0); e.mvd = moving;
+    }
+    function mobBoltTick(dt) {
+        for (var i = MB.bolts.length - 1; i >= 0; i--) {
+            var b = MB.bolts[i]; b.t -= dt; b.p.addScaledVector(b.v, dt);
+            if (hum.obj && b.p.distanceTo(snA.copy(hum.w).addScaledVector(styUpW, 0.5 * hwU())) < 0.55 * hwU()) { footHurt(b.dmg || 4); b.t = 0; }
+            if (b.t <= 0) MB.bolts.splice(i, 1);
+        }
+    }
+    // ── net: snapshots (host -> others, 10 Hz) and events ──
+    function mobSnapOut(dt) {
+        MB.snapT -= dt; if (MB.snapT > 0) return; MB.snapT = 0.1;
+        if (!(net && net.online && net.plSnap && MB.joined && MB.hostId === net.id)) return;
+        var inv = snQ.copy(land.node.mesh.quaternion).invert(), m = [], ks = ENM.MOB_KINDS;
+        mobList().forEach(function (e) {
+            if (e.remote) return; snA.copy(e.face).applyQuaternion(inv); var p = e.dir;
+            m.push([e.mid, ks.indexOf(e.mob), +(p.x * e.hr).toFixed(3), +(p.y * e.hr).toFixed(3), +(p.z * e.hr).toFixed(3), +snA.x.toFixed(2), +snA.y.toFixed(2), +snA.z.toFixed(2), Math.round(e.hp), (e.mvd ? 1 : 0) | (e.fuseT > 0 ? 2 : 0) | (e.angry ? 4 : 0), +(e.cr.fuse || 0).toFixed(2)]);
+        });
+        if (net.plSnap(MB.planet, { n: ++MB.seq, m: m.slice(0, 24) })) MB.stats.snapsOut++;
+    }
+    function mobApplySnap(d) {
+        if (!d || !Array.isArray(d.m) || !land.node || !ps || ps.active !== land.node || gmode !== 'foot') return;
+        var seen = {}, ks = ENM.MOB_KINDS;
+        d.m.forEach(function (a) {
+            if (!Array.isArray(a) || a.length < 11) return; var id = a[0] | 0; seen[id] = 1; MB.nid = Math.max(MB.nid, id);
+            var e = null; R27.gnd.forEach(function (x) { if (x.mob && x.mid === id) e = x; });
+            var v = new THREE.Vector3(a[2], a[3], a[4]), l = v.length() || 1;
+            if (!e) { var nid0 = MB.nid; e = mobMake(ks[a[1]] || 'zomby', id * 7919, v.clone().normalize()); if (!e) return; MB.nid = nid0; e.mid = id; e.hr = l; e.dir.copy(v).normalize(); }
+            e.remote = !mobIsHost(); e.sdir.copy(v).normalize(); e.shr = l; e.sface.set(a[5], a[6], a[7]).applyQuaternion(land.node.mesh.quaternion); e.hp = a[8]; e.sfl = a[9]; e.sfuse = a[10];
+        });
+        for (var i = R27.gnd.length - 1; i >= 0; i--) { var g = R27.gnd[i]; if (g.mob && g.remote && !seen[g.mid]) gndFree(g); }
+    }
+    function mobNetMsg(m) {
+        if (!m) return;
+        if (m.t === 'pl.host') {
+            if (m.planet !== MB.planet) return; var was = mobIsHost(); MB.hostId = String(m.host || '');
+            var now = mobIsHost();
+            if (now && !was) { if (MB.last) mobApplySnap(MB.last); R27.gnd.forEach(function (e) { if (e.mob) { e.remote = false; MB.nid = Math.max(MB.nid, e.mid); } }); addRow('', '', 'PLANET HOST · you run the night here', 'is-sys'); }
+            else if (!now && was) R27.gnd.forEach(function (e) { if (e.mob) { e.remote = true; e.sdir.copy(e.dir); e.shr = e.hr; e.sface.copy(e.face); } });
+        } else if (m.t === 'pl.snap') {
+            if (m.planet !== MB.planet || !m.data) return; MB.last = m.data; MB.lastAt = performance.now(); MB.stats.snapsIn++; if (!mobIsHost()) mobApplySnap(m.data);
+        } else if (m.t === 'pl.ev' && m.data) {
+            var d = m.data;
+            if (d.k === 'h' && mobIsHost() && Array.isArray(d.a)) d.a.forEach(function (a) { R27.gnd.slice().forEach(function (e) { if (e.mob && e.mid === (a[0] | 0)) mobHurt(e, +a[1] || 0, String(m.id || 'x')); }); });
+            else if (d.k === 'k' && net && d.b === net.id && Array.isArray(d.d)) { d.d.forEach(function (x) { mobGive(String(x[0]), x[1] | 0); }); addUnits(UNIT_KILL, hum.w, false); questEvent({ type: 'kill', n: 1 }); }
+            else if (d.k === 'x' && Array.isArray(d.p) && hum.obj) { snA.set(d.p[0], d.p[1], d.p[2]); var dH = snA.distanceTo(hum.w) / hwU(); if (dH < d.r + 0.5) footHurt(Math.round(d.b + (d.a - d.b) * clamp(1 - dH / d.r, 0, 1))); }
+            else if (d.k === 'a' && hum.obj) { R27.gnd.forEach(function (e) { if (e.mob && e.mid === (d.i | 0) && e.w.distanceTo(hum.w) / (GM * L) < d.r) footHurt(d.d | 0); }); }
+        }
+    }
+    function mobFlush(dt) {
+        MB.hitT -= dt; if (MB.hitT <= 0 && MB.hitQ.length) { MB.hitT = 0.25; var agg = {}; MB.hitQ.forEach(function (h) { agg[h[0]] = (agg[h[0]] || 0) + h[1]; }); MB.hitQ.length = 0; if (net && net.online && net.plEv) net.plEv(MB.planet, { k: 'h', a: Object.keys(agg).slice(0, 12).map(function (k) { return [+k, agg[k]]; }) }); }
+        MB.evT -= dt; if (MB.evT <= 0 && MB.evQ.length) { MB.evT = 0.22; net.plEv(MB.planet, MB.evQ.shift()); }
+    }
+    function mobTick(dt) {
+        if (punchCd > 0) punchCd -= dt;
+        bkTick();
+        if (gmode !== 'foot' || !hum.obj || !land.node) return;
+        mobSpawnTick(dt); mobBoltTick(dt); mobSnapOut(dt); mobFlush(dt);
+    }
     // ── menus (kitchen, pens, pods, board) ──
     var menuOpen = false, menuSpec = null, menuRows = [], menuSel = 0;
     var elMenu = document.createElement('div'); elMenu.className = 'sh-imenu'; elMenu.innerHTML = '<div class="im-h"></div><div class="im-l"></div><div class="im-f">1-9 / ENTER pick · ESC close</div>'; hud.appendChild(elMenu);
@@ -7586,10 +7967,13 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function gndMake(seed, tier, kind) {
         if (typeof ENM.generateGroundEnemy !== 'function') return null;
         var cr; try { cr = ENM.generateGroundEnemy(THREE, seed, tier, kind || undefined); } catch (e0) { console.info('[ship] ground enemy', e0); return null; }
+        return gndWrap(cr);
+    }
+    function gndWrap(cr) {
         if (!cr || !cr.group) return null;
         var g = new THREE.Group(); g.add(cr.group); g.scale.setScalar(GM * L); g.traverse(function (o) { o.frustumCulled = false; }); scene.add(g);
         var e = { cr: cr, g: g, hp: cr.stats.hp, hpMax: cr.stats.hp, alive: true, mode: 'planet', node: null, dir: new THREE.Vector3(0, 1, 0), hr: 0, site: null, guard: null, lp: new THREE.Vector3(), face: new THREE.Vector3(0, 0, -1), w: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0),
-            ph: 'idle', u: 0, t: 0, cd: 1 + Math.random(), mv: null, aggro: 30, nest: '', hitF: 0, hurtT: 0 };
+            ph: 'idle', u: 0, t: 0, cd: 1 + Math.random(), mv: null, aggro: 30, nest: '', hitF: 0, hurtT: 0, mob: cr.mob || '', mid: 0, remote: false, fuseT: 0, lookT: 0, angry: false, tpT: 0, burnT: 0, lastBy: '', sdir: new THREE.Vector3(0, 1, 0), shr: 0, sface: new THREE.Vector3(0, 0, -1), sfl: 0, sfuse: 0, mvd: false };
         R27.gnd.push(e); return e;
     }
     function gndFree(e) { e.alive = false; scene.remove(e.g); try { e.cr.dispose(); } catch (e0) { /* ignore */ } var i = R27.gnd.indexOf(e); if (i >= 0) R27.gnd.splice(i, 1); }
@@ -7633,14 +8017,16 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (e.hitF > 0) { e.hitF = Math.max(0, e.hitF - dt * 5); cr.setHit(e.hitF); }
     }
     function gndMove(e, v, s) {
-        if (!(s > 0)) return;
+        if (!(s > 0)) return false;
         if (e.mode === 'derelict') {
             r27A.copy(e.w).addScaledVector(v, s); e.site.toLocal(r27A, r27B); e.lp.x = r27B.x; e.lp.z = r27B.z; e.lp.y = 0; dkCollide(e.lp, 0.04);
         } else {
             r27A.copy(e.w).addScaledVector(v, s).sub(e.node.anchor.position).applyQuaternion(qW.copy(e.node.mesh.quaternion).invert()).normalize();
-            var fr = ps && ps.active === e.node ? mFloor(r27A.x, r27A.y, r27A.z) : e.hr;
-            if (fr - e.hr < 0.03 * L + s) { e.dir.copy(r27A); e.hr = fr; }          // never up a cliff taller than ~0.7 m
+            var fr = ps && ps.active === e.node ? mFloor(r27A.x, r27A.y, r27A.z, e.hr) : e.hr;
+            if (fr - e.hr < 0.03 * L + s) { e.dir.copy(r27A); e.hr = fr; return true; }          // never up a cliff taller than ~0.7 m (STEEV blocks are walls)
+            return false;
         }
+        return true;
     }
     function gndSphere(e, out) { out.copy(e.w).addScaledVector(e.up, e.cr.stats.height * 0.5 * GM * L); return e.cr.hitR * GM * L; }
     function footHurt(dmg) {          // on-foot damage never kills: you are knocked to a sliver and the shield regrows
@@ -7648,6 +8034,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         shake = Math.max(shake, Math.min(0.5 * L, dmg / 20 * 0.2 * L)); fovKick = Math.max(fovKick, 1.5);
     }
     function gndKill(e) {
+        if (e.mob) { mobKill(e, true); return; }
         for (var i = 0; i < 4; i++) fx.impact(e.w, 0xff8a5c, 3, 'explode');
         aPlay('explosion', { dist: aDist(e.w), pitch: 1.3 }); addUnits(UNIT_KILL * 2, e.w, true);
         if (e.guard) { e.guard._gdDead = true; addRow('', '', 'GUARDIAN DOWN', 'is-sys'); }
@@ -7657,7 +8044,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function footFireTick(dt) {
         if (R27.ffCd > 0) R27.ffCd -= dt;
-        if (!R27.fire || R27.ffCd > 0 || cmdOpen || storeOpen || invOpen || !hum.obj || dead) return;
+        if (!R27.fire || curStyleId === 'STEEV' || R27.ffCd > 0 || cmdOpen || storeOpen || invOpen || !hum.obj || dead) return;
         var wp = curWeapon(), st = wp.stats || STARTER.stats, H = 0.09 * L;
         R27.ffCd = 1 / clamp((st.rate || 4) * 0.7, 1, 5);
         r27A.set(0, 0, -1).applyQuaternion(camera.quaternion);                           // aim ray: camera centre
@@ -7677,6 +8064,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         fx.spawnBolt(r27G, r27D, effColor(), 170 * L, 0.28); fx.muzzle(r27G, r27D, effColor(), 'bolt'); aPlay('fire', { vel: 0.5, pitch: 1.35 });
         if (best) {
             var dmg = (st.dmg || 8) * (st.count || 1) * 0.8;
+            if (best.mob) { fx.impact(r27T, 0xff8a5c, 1.4, 'hit'); aPlay('hit', { dist: aDist(r27T), vel: 0.5 }); mobHurt(best, dmg, 'me'); return; }
             best.hp -= dmg; best.hitF = 1; fx.impact(r27T, 0xff8a5c, 1.4, 'hit'); aPlay('hit', { dist: aDist(r27T), vel: 0.5 });
             if (best.ph === 'idle') best.cd = Math.min(best.cd, 0.4);
             if (best.hp <= 0) gndKill(best);
@@ -7717,10 +8105,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             var e = R27.gnd[i];
             if (e.mode === 'planet' && (gmode !== 'foot' || !land.node || e.node !== land.node)) { gndFree(e); continue; }
             if (e.mode === 'derelict' && !(R27.dsite && R27.dsite === e.site)) { e.g.visible = false; continue; }
-            e.g.visible = true; gndPlace(e); gndStep(e, dt, hw); gndPlace(e); e.cr.update(gt + R27.t, dt);
+            e.g.visible = true; gndPlace(e); if (e.mob) mobStep(e, dt, hw); else gndStep(e, dt, hw); if (!e.alive) continue; gndPlace(e); e.cr.update(gt + R27.t, dt);
         }
     }
     function r27Foot(dt) {          // on foot on a planet, or on foot inside a derelict
+        mobTick(dt);
         var onP = gmode === 'foot' && hum.obj, onD = !!R27.dsite && gmode === 'sfoot' && hum.obj;
         if (!onP && !onD) { R27.fire = false; return; }
         sinceHit += dt; if (sinceHit > 5 && hp < HP_MAX) hp = Math.min(HP_MAX, hp + 5 * dt);
@@ -7812,6 +8201,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!r.name) { try { var o = JSON.parse(sessionStorage.getItem('nmg-rk') || 'null'); if (o && o.n && o.k && String(o.n) === curUser) { r.name = String(o.n).toLowerCase(); r.key = String(o.k); r.pend = true; } } catch (e0) { /* ignore */ } }
         if (r.name && r.key && !r.loaded && net) { r.pend = false; r.retry = performance.now() + 12000; net.profLoad(r.name, r.key); }
         if (net && net.eventNow) net.eventNow();
+        mobPlJoin(true);
     }
     function relayData(pf) { return JSON.parse(JSON.stringify(pf)); }
     function relaySig(pf) { var sa = pf.savedAt; pf.savedAt = 0; var s = JSON.stringify(pf); pf.savedAt = sa; return s; }
@@ -8035,7 +8425,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             getState: function () { return state; },
             getMode: function () { return gmode === 'foot' ? 'foot' : ((gmode === 'fly' || gmode === 'docking' || gmode === 'launching') ? 'fly' : 'landed'); },
             stationToWorld: function (v, q) { if (!station) return false; station.toWorld(v, v); q.premultiply(station.quat); return true; },
-            onProf: r27Prof, onDisc: r27Disc, onEvent: r27Event, onOpen: r27NetOpen,
+            onPl: mobNetMsg, onProf: r27Prof, onDisc: r27Disc, onEvent: r27Event, onOpen: r27NetOpen,
             buildHuman: function (color, sid) { return makeHuman(color, sid || ''); }, skinHuman: function (h, id) { skinRig(h, id); },
             getPose: function () {
                 if (gmode === 'sfoot' && !R27.dsite) {        // rev 22: station frame. x/y/z are STATION-LOCAL (L units); v = -1 flags it (the relay passes v through untouched)
@@ -8445,6 +8835,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 e.aggro = 40; gndPlace(e); return e;
             },
             footFire: function (on) { R27.fire = !!on; }, windOff: function (b) { R27.windOn = !b; }, wind: function () { return ps && ps.wind ? ps.wind.clone() : null; }
+        },
+        mashup: {
+            get MB() { return MB; }, get BK() { return BK; }, get styStats() { return styStats; }, get style() { return curStyle; }, get ctx() { return styCtx; }, get tgt() { return styTgt; }, get fov() { return styFov; },
+            blkFloor: blkFloor, footFloor: function (dir, H, ref) { return footFloor(dir, H, ref); }, saved: function () { var pf = curProfile(), d = pf && pf.blk && pf.blk[BK.nid]; return d ? d.c.length : 0; }, mobs: mobList, spawn: function (kind, distH, ang) { return mobSpawnAt(kind, distH == null ? 12 : distH, ang || 0); }, night: function (v) { MB.nightForce = (v == null || v < 0) ? -1 : +v; }, peaceful: function (b) { MB.peaceful = !!b; },
+            place: function (i, j, k, mat) { return bkPlace(i, j, k, mat || 'stone'); }, cellAhead: function () { var T = bkTarget(); return { px: T.px, py: T.py, pz: T.pz, dist: T.dist, mat: T.mat }; }, brk: bkBreak, explodeBlocks: bkExplode, punch: punch, tongue: tongueGrab,
+            hurt: mobHurt, snapNow: function () { MB.snapT = 0; }, applySnap: mobApplySnap, netMsg: mobNetMsg, setStyle: function (id) { styleSet(id, true); }, hostId: function (h) { MB.hostId = h; }
         },
         rev25: {
             set noInterior(b) { R25.noInt = !!b; },

@@ -383,6 +383,7 @@ export function connect(engine, hooks) {
                     hooks.onKill(g ? g.name : 'PILOT', m.by === id);
                 }
                 break;
+            case 'pl.host': case 'pl.snap': case 'pl.ev': if (hooks.onPl) { try { hooks.onPl(m); } catch (e) { /* ignore */ } } break;      // mashup: planet rooms (host election, mob snapshots, guest hit events)
             case 'prof.ok': if (hooks.onProf) hooks.onProf({ ok: true, name: m.name }); break;
             case 'prof.err': if (hooks.onProf) hooks.onProf({ ok: false, why: String(m.why || 'bad') }); break;
             case 'prof': if (hooks.onProf && m.data && typeof m.data === 'object') hooks.onProf({ ok: true, loaded: true, name: m.name, data: m.data }); break;
@@ -426,6 +427,11 @@ export function connect(engine, hooks) {
         lastFire = now;
         send({ t: 'fire', id: id, w: w | 0, x: r2(ox), y: r2(oy), z: r2(oz), dx: r4(dx), dy: r4(dy), dz: r4(dz) });
     }
+    // mashup: planet rooms (server README: pl.enter / pl.leave / pl.snap host-only <=10/s <=4KB / pl.ev <=5/s <=512B). All return false when offline.
+    function plEnter(planet) { return send({ t: 'pl.enter', planet: String(planet).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 24) }); }
+    function plLeave() { return send({ t: 'pl.leave' }); }
+    function plSnap(planet, data) { return send({ t: 'pl.snap', planet: String(planet).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 24), data: data }); }
+    function plEv(planet, data) { return send({ t: 'pl.ev', planet: String(planet).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 24), data: data }); }
     function sendKill(by) { send({ t: 'kill', by: by }); }
     function sendChat(text) { return send({ t: 'chat', text: String(text).slice(0, 200) }); }
     // rev 27: relay persistence + shared state (server/nmg-relay/README.md). All return false when offline.
@@ -465,7 +471,7 @@ export function connect(engine, hooks) {
         get id() { return id; },
         get ghosts() { return ghosts; },
         get clockOn() { return clockOn; },
-        update: update, sendPos: sendPos, setState: setState, setMode: setMode, sendFire: sendFire, sendKill: sendKill, sendChat: sendChat, sendGor: sendGor, setHullSig: setHullSig, setStyle: setStyle, profSave: profSave, profLoad: profLoad, discClaim: discClaim, discList: discList, eventNow: eventNow,
+        update: update, sendPos: sendPos, setState: setState, setMode: setMode, sendFire: sendFire, sendKill: sendKill, plEnter: plEnter, plLeave: plLeave, plSnap: plSnap, plEv: plEv, sendChat: sendChat, sendGor: sendGor, setHullSig: setHullSig, setStyle: setStyle, profSave: profSave, profLoad: profLoad, discClaim: discClaim, discList: discList, eventNow: eventNow,
         setName: setName, setColor: setColor, onRoster: onRoster, destroy: destroy
     };
     current = net;
