@@ -1486,3 +1486,221 @@ export function nestSpec(planetSeed, biome) {
   }
   return { biome: b || 'default', nests };
 }
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// MOBS (mashup plan section 3): block-world night monsters, original voxel-stack looks. Additive; same return shape as
+// generateGroundEnemy (+ `mob: kind`). Built in metres (length = body length, root scale 1). Nose -Z, up +Y. Speeds in human heights/s.
+//   generateMob(THREE, seed, kind) -> ground-enemy contract + { mob, setFuse(0..1) [kreeper], teleport() [ender] }
+//   stats.explode{radius(H),dmg,edgeDmg,fuse} | stats.stare{...}, stats.teleport | stats.burnsInDay, stats.group | stats.ranged{range,interval,boltSpeed}
+//   mobSpawnRule(kind, {night, lightLevel(0..1), biome}) -> weight >= 0 ; mobDrops(kind, rng) -> [{ id, n }]
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+export const MOB_KINDS = ['kreeper', 'ender', 'zomby', 'skelly'];
+const MOB_SETS = { rocky: ['zomby', 'skelly'], lush: ['zomby', 'kreeper'], icy: ['skelly', 'ender'], exotic: MOB_KINDS };
+const MOB_BASEW = { zomby: 1, skelly: 0.8, kreeper: 0.7, ender: 0.25 };
+export function mobSpawnRule(kind, o) {
+  o = o || {};
+  const set = MOB_SETS[o.biome]; if (!set || !set.includes(kind) || !MOB_BASEW[kind]) return 0;
+  const L = 15 * Math.max(0, Math.min(1, o.lightLevel == null ? 1 - (o.night || 0) : o.lightLevel));
+  if (L > 7) return 0;                                           // hostile spawn only at light <= 7
+  const dark = (8 - L) / 8, night = Math.max(0, Math.min(1, +o.night || 0));
+  const w = MOB_BASEW[kind] * dark * (0.4 + 0.6 * night) * (o.biome === 'exotic' && kind !== 'ender' ? 0.5 : 1);
+  return +w.toFixed(3);
+}
+export function mobDrops(kind, rng) {
+  rng = rng || Math.random; const out = [], ri2 = (a, b) => a + Math.floor(rng() * (b - a + 1));
+  const push = (id, n) => { if (n > 0) out.push({ id, n }); };
+  if (kind === 'kreeper') push('boomdust', ri2(0, 2));
+  else if (kind === 'ender') { if (rng() < 0.5) push('warp pearl', 1); }
+  else if (kind === 'zomby') { push('rotten bite', ri2(1, 2)); if (rng() < 0.05) push('gor coin', 1); }
+  else if (kind === 'skelly') { push('bone', ri2(0, 2)); push('bolt', ri2(0, 2)); }
+  return out;
+}
+export function generateMob(THREE, seed, kind) {
+  kind = MOB_KINDS.includes(kind) ? kind : MOB_KINDS[((seed | 0) % 4 + 4) % 4];
+  const r = mulberry((seed | 0) * 2654435761 + 4141 + MOB_KINDS.indexOf(kind) * 211);
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+  const col = (h, s, l) => new THREE.Color().setHSL(((h % 1) + 1) % 1, s, l);
+  const j = rn(r, -0.015, 0.015);
+  const P = {
+    kreeper: { base: col(0.30 + j, 0.28, 0.2), alt: col(0.36 + j, 0.3, 0.1), eye: col(0.32, 1, 0.6), acc: col(0.78, 0.7, 0.4) },
+    ender: { base: col(0.76 + j, 0.35, 0.045), alt: col(0.8 + j, 0.5, 0.1), eye: col(0.8, 1, 0.68), acc: col(0.78, 1, 0.5) },
+    zomby: { base: col(0.42 + j, 0.3, 0.22), alt: col(0.5 + j, 0.3, 0.12), eye: col(0.12, 1, 0.62), acc: col(0.62, 0.35, 0.28) },
+    skelly: { base: col(0.12 + j, 0.2, 0.62), alt: col(0.14 + j, 0.25, 0.38), eye: col(0.52, 1, 0.65), acc: col(0.5, 0.9, 0.55) },
+  }[kind];
+  const solid = [];
+  function add(g, colorFn, fx, piv, boost) {
+    if (g.index) g = g.toNonIndexed();
+    g.deleteAttribute('normal'); g.deleteAttribute('uv');
+    const p = g.attributes.position, n = p.count, cl = new Float32Array(n * 3), f = new Float32Array(n * 4), pv = new Float32Array(n * 3), c = new THREE.Color(), fxv = fx || [0, 0, 2, 0];
+    for (let i = 0; i < n; i++) {
+      colorFn(c, p.getX(i), p.getY(i), p.getZ(i)); const k = boost || 1; cl[i * 3] = c.r * k; cl[i * 3 + 1] = c.g * k; cl[i * 3 + 2] = c.b * k;
+      f.set(fxv, i * 4); if (piv) { pv[i * 3] = piv.x; pv[i * 3 + 1] = piv.y; pv[i * 3 + 2] = piv.z; }
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(cl, 3)); g.setAttribute('aFx', new THREE.BufferAttribute(f, 4));
+    g.setAttribute('aPiv', new THREE.BufferAttribute(pv, 3)); g.setAttribute('aLm', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+    solid.push(g);
+  }
+  // voxel look: each 0.08 m cell gets its own tint between two palette colours
+  const hash = (a, b, c) => { const s = Math.sin(a * 127.1 + b * 311.7 + c * 74.7 + seed * 0.37) * 43758.5453; return s - Math.floor(s); };
+  const vox = (a, b, cell, band) => (c, x, y, z) => { c.copy(a).lerp(b, 0.15 + 0.8 * hash(Math.floor(x / cell), Math.floor(y / cell), Math.floor(z / cell))); if (band) band(c, x, y, z); };
+  const flat = (c0) => (c) => c.copy(c0);
+  const box = (w, h, d, x, y, z, fn, fx, piv, boost) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); add(g, fn, fx, piv, boost); };
+  const taper = (rt, rb, h, x, y, z, fn) => { const g = new THREE.CylinderGeometry(rt, rb, h, 4, 1); g.rotateY(Math.PI / 4); g.translate(x, y, z); add(g, fn, [0, 0, 2, 0]); };
+  const glow = (g, k) => add(g, (c) => c.copy(P.eye).multiplyScalar(k || 2.4), [0, 0, 2, 0]);
+  const dark = col(0.75, 0.5, 0.03), V = vox(P.base, P.alt, 0.07);
+  const legs = [], eyeRecs = [];
+  function leg(i, hx, hy, hz, w, h, d, ph, amp, fn) {
+    box(w, h, d, hx, hy - h / 2, hz, fn || V, [amp, ph, 9, 0.02], V3(hx, hy, hz)); legs.push({ id: i, hip: V3(hx, hy, hz), phase: ph });
+  }
+  const eyeBar = (x, y, z, w, h) => { const g = new THREE.BoxGeometry(w, h, 0.02); g.translate(x, y, z); glow(g, 2.6); };
+  let height, length, speedH, headC, bow = null, ghost = null, hp, dmg, hitW;
+  const extra = {};
+  if (kind === 'kreeper') {
+    // tapered mossy pillar on four stubby feet; head a notched block; face = two X-eyes and a slit (ours, not Mojang's)
+    height = 1.7; length = 1.0; hp = 20; dmg = 25; speedH = 2.0; hitW = 0.34;
+    taper(0.2, 0.3, 0.9, 0, 0.78, 0, V); taper(0.17, 0.2, 0.3, 0, 1.33, 0, vox(P.base, P.alt, 0.07, (c, x, y) => { if (Math.floor(y / 0.06) % 3 === 0) c.lerp(P.acc, 0.25); }));
+    for (let k = 0; k < 4; k++) { const sx = k % 2 ? 0.17 : -0.17, sz = k < 2 ? -0.17 : 0.17; leg(k, sx, 0.33, sz, 0.2, 0.33, 0.2, (k === 1 || k === 2) ? Math.PI : 0, 0.5); }
+    headC = V3(0, 1.52, -0.02);
+    box(0.4, 0.4, 0.4, 0, 1.55, -0.02, vox(P.base, P.alt, 0.06)); box(0.46, 0.08, 0.46, 0, 1.76, -0.02, V);
+    for (const s of [-1, 1]) { const g1 = new THREE.BoxGeometry(0.15, 0.035, 0.02), g2 = g1.clone(); g1.rotateZ(0.8); g2.rotateZ(-0.8); g1.translate(s * 0.1, 1.6, -0.225); g2.translate(s * 0.1, 1.6, -0.225); add(g1, flat(dark), [0, 0, 2, 0]); add(g2, flat(dark), [0, 0, 2, 0]); }
+    box(0.05, 0.16, 0.02, 0, 1.43, -0.225, flat(dark));
+    eyeRecs.push({ pos: [-0.1, 1.6, -0.24], r: 0.03 }, { pos: [0.1, 1.6, -0.24], r: 0.03 });
+  } else if (kind === 'ender') {
+    // very tall thin shadow: stilt legs, long dangling arms, small head with violet slit eyes, orbiting shards
+    height = 2.9; length = 0.7; hp = 40; dmg = 7; speedH = 3.2; hitW = 0.22;
+    const Vk = vox(P.base, P.alt, 0.08);
+    leg(0, -0.08, 1.35, 0, 0.1, 1.35, 0.1, 0, 0.45, Vk); leg(1, 0.08, 1.35, 0, 0.1, 1.35, 0.1, Math.PI, 0.45, Vk);
+    box(0.34, 0.7, 0.2, 0, 1.7, 0, Vk); box(0.3, 0.2, 0.18, 0, 2.15, 0, Vk);
+    for (const s of [-1, 1]) { box(0.07, 1.3, 0.07, s * 0.23, 1.75, 0, Vk, [0.35, s < 0 ? 0 : Math.PI, 9, 0.02], V3(s * 0.23, 2.35, 0)); }
+    headC = V3(0, 2.5, -0.02);
+    box(0.4, 0.34, 0.4, 0, 2.5, -0.02, vox(P.base, P.alt, 0.06));
+    for (const s of [-1, 1]) { const g = new THREE.BoxGeometry(0.13, 0.03, 0.02); g.translate(s * 0.1, 2.52, -0.225); glow(g, 3.0); }
+    eyeRecs.push({ pos: [-0.1, 2.52, -0.24], r: 0.04 }, { pos: [0.1, 2.52, -0.24], r: 0.04 });
+    for (let k = 0; k < 5; k++) { const a = k / 5 * 6.283, g = new THREE.OctahedronGeometry(0.03 + 0.01 * (k % 2), 0); g.translate(Math.cos(a) * 0.42, 1.6 + 0.3 * (k % 3), Math.sin(a) * 0.42); add(g, (c) => c.copy(P.acc).multiplyScalar(1.9), [0.04, k * 1.1, 6, 0.7]); }
+  } else if (kind === 'zomby') {
+    // slumped blocky humanoid, arms thrust forward, tattered scrap panels hanging off the torso
+    height = 1.8; length = 0.9; hp = 20; dmg = 3; speedH = 1.2; hitW = 0.3;
+    const Vz = vox(P.base, P.alt, 0.07), Vc = vox(P.acc, P.alt, 0.07);
+    leg(0, -0.12, 0.8, 0, 0.22, 0.8, 0.24, 0, 0.5, Vc); leg(1, 0.12, 0.8, 0, 0.22, 0.8, 0.24, Math.PI, 0.5, Vc);
+    box(0.5, 0.7, 0.28, 0, 1.15, 0.03, Vz); box(0.5, 0.1, 0.3, 0, 0.82, 0.03, vox(P.acc, P.alt, 0.05));
+    for (const s of [-1, 1]) { box(0.2, 0.2, 0.6, s * 0.36, 1.38, -0.34, Vz); box(0.16, 0.16, 0.12, s * 0.36, 1.38, -0.68, vox(P.eye, P.base, 0.05)); box(0.07, 0.3, 0.02, s * 0.15, 0.7, -0.14, vox(P.acc, P.alt, 0.04)); }
+    headC = V3(0, 1.65, -0.1);
+    box(0.4, 0.4, 0.4, 0, 1.68, -0.1, vox(P.base, P.alt, 0.06)); box(0.44, 0.1, 0.44, 0, 1.9, -0.1, Vc);
+    for (const s of [-1, 1]) { const g = new THREE.BoxGeometry(0.1, 0.05, 0.02); g.translate(s * 0.1, 1.72, -0.31); glow(g, 2.4); }
+    eyeRecs.push({ pos: [-0.1, 1.72, -0.32], r: 0.035 }, { pos: [0.1, 1.72, -0.32], r: 0.035 });
+  } else {
+    // thin bone-pale archer: rib bands, hollow glow in the eye sockets, a curved bolt-bow with a drawn string
+    height = 1.8; length = 0.8; hp = 20; dmg = 4; speedH = 2.2; hitW = 0.22;
+    const Vb = vox(P.base, P.alt, 0.06), ribs = vox(P.base, P.alt, 0.05, (c, x, y) => { if (Math.floor(y / 0.07) % 2 === 0) c.multiplyScalar(0.55); });
+    leg(0, -0.1, 0.85, 0, 0.1, 0.85, 0.1, 0, 0.55, Vb); leg(1, 0.1, 0.85, 0, 0.1, 0.85, 0.1, Math.PI, 0.55, Vb);
+    box(0.34, 0.1, 0.18, 0, 0.88, 0, Vb); box(0.1, 0.5, 0.1, 0, 1.15, 0.04, Vb); box(0.4, 0.5, 0.2, 0, 1.3, 0, ribs);
+    box(0.09, 0.09, 0.62, 0.26, 1.46, -0.3, Vb);                  // bow arm extended
+    box(0.09, 0.09, 0.4, -0.2, 1.46, -0.2, Vb, [0.2, 0, 9, 0.01], V3(-0.2, 1.5, 0));   // draw arm
+    headC = V3(0, 1.68, -0.02);
+    box(0.36, 0.34, 0.36, 0, 1.68, -0.02, vox(P.base, P.alt, 0.05));
+    for (const s of [-1, 1]) { const g = new THREE.BoxGeometry(0.09, 0.07, 0.02); g.translate(s * 0.09, 1.7, -0.2); add(g, flat(dark), [0, 0, 2, 0]); const e = new THREE.BoxGeometry(0.04, 0.03, 0.02); e.translate(s * 0.09, 1.7, -0.21); glow(e, 2.6); }
+    eyeRecs.push({ pos: [-0.09, 1.7, -0.22], r: 0.03 }, { pos: [0.09, 1.7, -0.22], r: 0.03 });
+    // bow (held in the right hand, vertical): three angled limbs + emissive string
+    const bx = 0.26, bz = -0.62, by = 1.46, bowMat = vox(P.acc, dark, 0.05);
+    box(0.04, 0.34, 0.05, bx, by, bz, bowMat);
+    for (const s of [-1, 1]) { const g = new THREE.BoxGeometry(0.04, 0.3, 0.05); g.rotateX(s * 0.45); g.translate(bx, by + s * 0.28, bz + 0.06); add(g, bowMat, [0, 0, 2, 0]); }
+    const sg = new THREE.BoxGeometry(0.012, 0.74, 0.012); sg.translate(bx, by, bz + 0.17); glow(sg, 2.0);
+    box(0.012, 0.012, 0.5, bx, by, bz + 0.0, vox(P.base, P.alt, 0.05));     // nocked bolt
+    bow = true;
+  }
+  // ── assemble ──
+  const group = new THREE.Group(), root = new THREE.Group(), body = new THREE.Group();
+  group.add(root); root.add(body);
+  const mats0 = makeMaterials(THREE, { flex: true });
+  const mat = mats0.cloneMaterial(mats0.lit), U = mat.uniforms;
+  U.uPh.value = rn(r, 0, 6.28); U.uWave.value = 0; U.uGl.value = 0;
+  U.uAmp.value.set(0.002, 0.003, 0.002); U.uSp.value = 1; U.uK.value = 0; U.uBreath.value = 0;
+  const geo = mergeGeometries(solid); geo.computeBoundingSphere(); geo.boundingSphere.radius *= 1.5;
+  solid.forEach((g) => g.dispose());
+  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; body.add(mesh);
+  const tris = geo.attributes.position.count / 3;
+  const smat = new THREE.SpriteMaterial({ map: glowTexture(THREE), color: P.eye, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+  const eyes = eyeRecs.map((e) => {
+    const sp = new THREE.Sprite(smat); sp.position.set(e.pos[0], e.pos[1], e.pos[2]);
+    const sz = e.r * 6; sp.scale.set(sz, sz, 1); sp.userData.base = sz; sp.userData.r = e.r * 1.6; body.add(sp); return sp;
+  });
+  // ender teleport burst: tiny additive violet sprite pool
+  const pool = [];
+  if (kind === 'ender') {
+    const pm = new THREE.SpriteMaterial({ map: glowTexture(THREE), color: P.acc, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+    for (let i = 0; i < 28; i++) { const sp = new THREE.Sprite(pm.clone()); sp.visible = false; group.add(sp); pool.push({ sp, life: 0, v: V3(0, 0, 0) }); }
+  }
+  const limb = {
+    id: 0, name: 'arms', kind: 'melee', pivot: V3(0, height * 0.75, 0), a0: V3(0, height * 0.7, 0), b0: V3(0, height * 0.7, -length * 0.7), wa: 1, wb: 1, r: hitW,
+    ax: V3(1, 0, 0), ang: 0, tz: 0, glow: 0, rest: false, dead: false, reach: length * 0.7, atk: {}, attackId: kind === 'skelly' ? 'shoot' : kind === 'kreeper' ? 'explode' : 'melee',
+    capsule: { a: V3(0, height * 0.7, 0), b: V3(0, height * 0.7, -length * 0.7), r: hitW },
+  };
+  const att = { type: '', limb: -1, ph: 'idle', u: 0, side: 1 };
+  const stats = { hp, dmg, speed: speedH, turn: kind === 'ender' ? 4 : 2.6, height, behavior: 'hunter', shield: false, mob: kind, lunge: 0 };
+  stats.speedMps = +(stats.speed * HUMAN_H).toFixed(2);
+  let moves, attacks;
+  if (kind === 'kreeper') {
+    stats.speed = 2.0 * 0.9; stats.speedMps = +(stats.speed * HUMAN_H).toFixed(2);
+    stats.explode = { radius: 3, dmg: 25, edgeDmg: 4, fuse: 1.5, triggerRange: 3, defuseRange: 7 };
+    moves = [{ type: 'explode', limb: 0, name: 'explode', tele: 1.5, dmg: 25, cd: 99, dur: 0.1, rec: 0, reachL: 3 * HUMAN_H }]; attacks = ['explode'];
+  } else if (kind === 'ender') {
+    stats.stare = { dot: 0.97, range: 30, hold: 0.3, dps: 2 };
+    stats.teleport = { every: 4, min: 8, max: 16 }; stats.waterDps = 1; stats.rainDps = 0.5; stats.eyeY = height * 0.87;
+    moves = [{ type: 'melee', limb: 0, name: 'claw', tele: 0.5, dmg: 7, cd: 1.2, dur: 0.25, rec: 0.4, reachL: 1.6 }]; attacks = ['melee'];
+  } else if (kind === 'zomby') {
+    stats.speed = 1.2 * 0.55 / 0.55; stats.chase = 0.55; stats.burnsInDay = true; stats.burn = { lightAbove: 12, dps: 1, secs: 8 }; stats.group = { min: 2, max: 4 };
+    moves = [{ type: 'melee', limb: 0, name: 'swipe', tele: 0.4, dmg: 3, cd: 1, dur: 0.25, rec: 0.35, reachL: 1.4 }]; attacks = ['melee'];
+  } else {
+    stats.ranged = { range: 14, interval: 2, boltSpeed: 28, minRange: 8, closeInterval: 2, farInterval: 1, farRange: 10, dmg: 4, gravity: 0.2 };
+    moves = [{ type: 'shoot', limb: 0, name: 'shoot', tele: 0.5, dmg: 4, cd: 2, dur: 0.2, rec: 0.3, reachL: 14 * HUMAN_H }]; attacks = ['shoot'];
+  }
+  const gait = { phase: 0, rate: 2 * Math.PI * 0.9 / (height * 0.9 + 0.5), speed: 0 };
+  let fuse = 0, hitV = 0;
+  const out = {
+    group, length, hitR: height * 0.5, eye: eyes[0], eyes, stats, attacks, tier: 1, role: kind, kind, mob: kind, seed, signature: kind,
+    tris, ground: true, legs, limbs: [limb], moves, att, gait, shieldMesh: null, plan: kind, mats: [mat], bow: !!bow,
+    get surface() { return 1; },
+    get fuse() { return fuse; },
+    setSpeed(hps) { gait.speed = Math.max(0, +hps || 0); },
+    setBurrowed() {},
+    setHit(v) { hitV = +v || 0; U.uHit.value = hitV; },
+    setShieldHit() {}, setShieldDown() {}, setStalled(b) { U.uSt.value = b ? 1 : 0; },
+    setWindup(v) { U.uTn.value = Math.max(0, Math.min(1, +v || 0)); },
+    setFuse(f) { fuse = Math.max(0, Math.min(1, +f || 0)); if (kind !== 'kreeper') return; root.scale.set(1 + 0.4 * fuse, 1 + 0.12 * fuse, 1 + 0.4 * fuse); },
+    teleport() {
+      if (!pool.length) return;
+      for (const p of pool) { p.life = 0.5 + Math.random() * 0.5; p.sp.visible = true; p.sp.position.set((Math.random() - 0.5) * 0.4, Math.random() * height, (Math.random() - 0.5) * 0.4); p.v.set((Math.random() - 0.5) * 1.6, 0.6 + Math.random() * 1.4, (Math.random() - 0.5) * 1.6); }
+    },
+    update(t, dt) {
+      dt = dt || 0.016; U.uTime.value = t;
+      gait.phase += dt * gait.rate * gait.speed * 2.2; U.uGait.value = gait.phase;
+      body.position.y = legs.length ? Math.abs(Math.sin(gait.phase)) * 0.02 * (gait.speed > 0.05 ? 1 : 0) : 0;
+      if (kind === 'kreeper' && fuse > 0) U.uHit.value = Math.max(hitV, Math.sin(t * (12 + 14 * fuse)) > 0 ? 0.65 * fuse : 0);
+      else U.uHit.value = hitV;
+      for (const p of pool) { if (p.life <= 0) continue; p.life -= dt; if (p.life <= 0) { p.sp.visible = false; continue; } p.sp.position.addScaledVector(p.v, dt); const s = 0.1 + 0.12 * p.life; p.sp.scale.set(s, s, 1); p.sp.material.opacity = Math.min(1, p.life * 2); }
+      const fl = 1 + U.uTn.value * (1.1 + 0.5 * Math.sin(t * 30)) + (kind === 'kreeper' ? fuse * 1.2 : 0);
+      for (let i = 0; i < eyes.length; i++) { const k = (1 + 0.15 * Math.sin(t * 4 + U.uPh.value + i * 1.7)) * fl; eyes[i].scale.set(eyes[i].userData.base * k, eyes[i].userData.base * k, 1); }
+    },
+    dispose() { geo.dispose(); mat.dispose(); smat.dispose(); pool.forEach((p) => p.sp.material.dispose()); },
+  };
+  return out;
+}
+
+// ── dev lineup: only when this module is imported on a page loaded with ?mobs (not ?mobs2): window.__mobsDemo = { tris, mobs } ──
+try {
+  if (typeof location !== 'undefined' && /[?&]mobs(&|$)/.test(location.search) && typeof document !== 'undefined') {
+    import('three').then((THREE) => {
+      const W = innerWidth, H = innerHeight, cv = document.createElement('canvas');
+      cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:99999;background:#0b0710';
+      document.body.appendChild(cv);
+      const rr = new THREE.WebGLRenderer({ canvas: cv, antialias: true }); rr.setSize(W, H); rr.setClearColor(0x0b0710);
+      const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(38, W / H, 0.1, 60);
+      cam.position.set(0, 2.1, -8.2); cam.lookAt(0, 1.4, 0);
+      const mobs = MOB_KINDS.map((k, i) => { const m = generateMob(THREE, 7 + i, k); m.group.position.set(-3.3 + i * 2.2, 0, 0); m.setSpeed(1.5); if (k === 'kreeper') m.setFuse(0.8); sc.add(m.group); return m; });
+      window.__mobsDemo = { ready: true, tris: Object.fromEntries(mobs.map((m) => [m.mob, Math.round(m.tris)])), mobs };
+      let last = performance.now(), tt = 0;
+      const loop = (now) => { const dt = Math.min(0.05, (now - last) / 1000); last = now; tt += dt; mobs.forEach((m) => m.update(tt, dt)); rr.render(sc, cam); requestAnimationFrame(loop); };
+      requestAnimationFrame(loop);
+    }).catch((e) => console.error('mobs lineup', e));
+  }
+} catch (e) { }

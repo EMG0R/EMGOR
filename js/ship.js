@@ -1273,13 +1273,31 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
 
     // ─── rev 24: guidance. Inside 2.5 R of a surface planet: markers for the nearest 7/11, the Burger House and the pads; the station mouth in
     // space within 3 x coreR. On-screen = icon + name + distance (L); off-screen = an edge chevron. Pooled DOM, text / icon written on change only. ───
+    // rev 29: HUD markers are SYMBOLS only. Distance (a tiny number) only inside 60 L; the name shows once the marker has sat within 3 deg of the reticle for 1.5 s.
+    var MK_G = {
+        store: '<path d="M1 6V4l2-3h10l2 3v2z"/><path fill-rule="evenodd" d="M2 7h12v8H2zM6 10v5h4v-5z"/>',
+        fries: '<path d="M3 7h10l-1 8H4z"/><path d="M4 2h1.5v5H4zM7.2 1h1.6v6H7.2zM10.5 2H12v5h-1.5z"/>',
+        pad: '<path d="M1 11h14v3H1z"/><path d="M8 1l5 7H3z"/><path d="M7 8h2v3H7z"/>',
+        station: '<path fill-rule="evenodd" d="M8 1a7 7 0 1 0 .01 0zM8 4a4 4 0 1 1-.01 0z"/><path d="M0 7h16v2H0z"/>',
+        flag: '<path d="M3 1h2v14H3z"/><path d="M5 2h9l-3 3.5L14 9H5z"/>',
+        freighter: '<path d="M1 5h10v6H1z"/><path d="M12 7h3l1 2v2h-4z"/><path d="M2 12h12v2H2z"/>',
+        crystal: '<path d="M8 0l5 5-5 11-5-11z"/>',
+        diamond: '<path d="M8 1l7 7-7 7-7-7z"/>',
+        coin: '<path fill-rule="evenodd" d="M8 1a7 7 0 1 0 .01 0zM8 4a4 4 0 1 1-.01 0z"/><path d="M7 6h2v4H7z"/>'
+    };
+    var MK_KIND = { '7/11': 'store', store: 'store', burger: 'fries', pad: 'pad', landmark: 'flag', post: 'station', shard: 'coin', friend: 'diamond', resource: 'crystal' };
+    function mkSvg(g) { return '<svg viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges" fill="currentColor">' + (MK_G[g] || MK_G.diamond) + '</svg>'; }
+    var mkV = new THREE.Vector3();
+    function mkAng(p) { mkV.copy(p).applyMatrix4(camera.matrixWorldInverse); var l = mkV.length() || 1; return mkV.z < 0 ? Math.acos(clamp(-mkV.z / l, -1, 1)) * 57.2958 : 180; }
+    function mkNamed(m, ang) { var now = performance.now(); if (ang < 3) { if (!m.c0) m.c0 = now; return now - m.c0 >= 1500; } m.c0 = 0; return false; }
+    function mkDist(d) { var l = d / L; return l <= 60 ? String(Math.round(l)) : ''; }
     var GD_N = 9, GD_R = 2.5, GD_EVERY = 0.5, gdPool = [], gdLocal = [], gdT = 0, gdNode = null, gdShown = 0, gdIcons = {}, elGuide = hud.querySelector('.sh-guide');
     (function buildGuide() {
         for (var i = 0; i < GD_N; i++) {
             var el = document.createElement('div'); el.className = 'sh-gd';
-            el.innerHTML = '<i class="gd-c"></i><div class="gd-t"><canvas class="gd-i" width="16" height="16"></canvas><span class="gd-n"></span><span class="gd-d"></span></div>';
+            el.innerHTML = '<i class="gd-c"></i><div class="gd-t"><span class="gd-i"></span><span class="gd-d"></span><span class="gd-n"></span></div>';
             elGuide.appendChild(el);
-            gdPool.push({ el: el, c: el.firstChild, cv: el.querySelector('canvas'), n: el.querySelector('.gd-n'), d: el.querySelector('.gd-d'), key: '', name: '', dist: '', on: false, edge: false, rot: 0, tx: -1e9, ty: -1e9 });
+            gdPool.push({ el: el, c: el.firstChild, cv: el.querySelector('.gd-i'), c0: 0, n: el.querySelector('.gd-n'), d: el.querySelector('.gd-d'), key: '', name: '', dist: '', on: false, edge: false, rot: 0, tx: -1e9, ty: -1e9 });
         }
     })();
     function gdIcon(kind) {
@@ -1342,9 +1360,10 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             for (var gq = 0; gq < i && edge; gq++) { var o2 = gdPool[gq]; if (o2.on && o2.edge && Math.abs(o2.tx - px) < 240 && Math.abs(o2.ty - py) < 30) { py -= 34; gq = -1; if (py < 150) break; } }      // edge labels never stack on each other
             if (!m.on) { m.on = true; m.el.classList.add('is-on'); m.key = ''; }
             if (m.edge !== edge) { m.edge = edge; m.el.classList.toggle('is-edge', edge); }
-            if (m.key !== it.kind) { var ic = gdIcon(it.kind); if (ic) { m.key = it.kind; m.cv.getContext('2d').clearRect(0, 0, 16, 16); m.cv.getContext('2d').drawImage(ic, 0, 0); } }
-            if (m.name !== it.name) { m.name = it.name; m.n.textContent = String(it.name).toUpperCase(); }
-            var dt2 = gdFmt(it.w.distanceTo(org2));
+            if (m.key !== it.kind) { m.key = it.kind; m.cv.innerHTML = mkSvg(MK_KIND[it.kind] || 'diamond'); }
+            var nmOn = !edge && mkNamed(m, mkAng(it.w)), nmT = nmOn ? String(it.name).toUpperCase() : '';
+            if (m.name !== nmT) { m.name = nmT; m.n.textContent = nmT; }
+            var dt2 = mkDist(it.w.distanceTo(org2));
             if (m.dist !== dt2) { m.dist = dt2; m.d.textContent = dt2; }
             if (edge) {
                 var rot = Math.round(Math.atan2(px - W / 2, -(py - H / 2)) * 180 / Math.PI / 5) * 5;
@@ -1918,7 +1937,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         for (var i = 0; i < HL_MAX; i++) {
             var el = document.createElement('div'); el.className = 'sh-hl'; el.style.display = 'none'; el.innerHTML = '<i></i><b></b>';
             elHls.appendChild(el);
-            hlPool.push({ el: el, b: el.lastChild, on: false, kind: '', txt: '', x: -1e9, y: -1e9 });
+            hlPool.push({ el: el, i: el.firstChild, g: '', col: '', c0: 0, b: el.lastChild, on: false, kind: '', txt: '', x: -1e9, y: -1e9 });
         }
     })();
     function doScan() {
@@ -1930,15 +1949,18 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         return true;
     }
     var vHl = new THREE.Vector3(), vHl2 = new THREE.Vector3();
-    function hlMark(p, kind, txt, org) {
+    function hlMark(p, kind, txt, org, glyph, col) {
         if (!p || hlN >= HL_MAX) return;
         var m = hlPool[hlN++], W = window.innerWidth, H = window.innerHeight;
         vHl.set(p.x, p.y, p.z).project(camera);
         if (vHl.z >= 1 || vHl.z <= -1 || Math.abs(vHl.x) > 1.05 || Math.abs(vHl.y) > 1.05) { if (m.on) { m.on = false; m.el.style.display = 'none'; } hlN--; return; }
         var x = (vHl.x * 0.5 + 0.5) * W, y = (-vHl.y * 0.5 + 0.5) * H;
         if (!m.on) { m.on = true; m.el.style.display = ''; }
-        if (kind !== m.kind) { m.kind = kind; m.el.className = 'sh-hl k-' + kind; }
-        var t = txt + (kind === 'shard' ? '' : '  ' + Math.round(Math.sqrt((p.x - org.x) * (p.x - org.x) + (p.y - org.y) * (p.y - org.y) + (p.z - org.z) * (p.z - org.z)) / L) + ' L');
+        if (kind !== m.kind) { m.kind = kind; m.el.className = 'sh-hl k-' + kind; m.g = ''; }
+        var gl = glyph || MK_KIND[kind] || 'diamond';
+        if (gl !== m.g) { m.g = gl; m.i.innerHTML = mkSvg(gl); }
+        if ((col || '') !== m.col) { m.col = col || ''; m.el.style.color = m.col; }
+        var dd = mkDist(Math.sqrt((p.x - org.x) * (p.x - org.x) + (p.y - org.y) * (p.y - org.y) + (p.z - org.z) * (p.z - org.z))), t = (mkNamed(m, mkAng(p)) ? txt : '') + (dd ? ' ' + dd : '');
         if (t !== m.txt) { m.txt = t; m.b.textContent = t; }
         if (Math.abs(x - m.x) > 0.5 || Math.abs(y - m.y) > 0.5) { m.x = x; m.y = y; m.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) translate(-50%,-50%)'; }
     }
@@ -1965,7 +1987,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 var sgt = space.scanTargets(), sn2 = 0, sr2 = (500 * L) * (500 * L);
                 for (i = 0; i < sgt.length && sn2 < 14; i++) {
                     var tg2 = sgt[i]; if (tg2.pos.distanceToSquared(org) > sr2) continue;
-                    hlMark(tg2.pos, tg2.kind === 'crate' ? 'shard' : (tg2.kind === 'derelict' ? 'post' : (tg2.kind === 'convoy' ? 'friend' : 'resource')), tg2.kind === 'derelict' ? 'DERELICT' : (tg2.kind === 'crate' ? 'CRATE' : (tg2.kind === 'convoy' ? 'CONVOY' : String(tg2.kind).toUpperCase())), org); sn2++;
+                    hlMark(tg2.pos, tg2.kind === 'crate' ? 'shard' : (tg2.kind === 'derelict' ? 'post' : (tg2.kind === 'convoy' ? 'friend' : 'resource')), tg2.kind === 'derelict' ? 'DERELICT' : (tg2.kind === 'crate' ? 'CRATE' : (tg2.kind === 'convoy' ? 'CONVOY' : String(tg2.kind).toUpperCase())), org, tg2.kind === 'convoy' ? 'freighter' : ''); sn2++;
                 }
             } catch (e0) { /* ignore */ }
         }
@@ -1974,7 +1996,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             var sst = station.interior.stores[0];
             hlMark(sst ? sst.counter.pos : station.pos, 'store', 'STATION', org);
         }
-        if (net && net.ghosts) net.ghosts.forEach(function (g) { if (g.placed && g.root) hlMark((g.mk2 || g.root).position, 'friend', String(g.name || 'PILOT').toUpperCase(), org); });
+        if (net && net.ghosts) net.ghosts.forEach(function (g) { if (g.placed && g.root) hlMark((g.mk2 || g.root).position, 'friend', String(g.name || 'PILOT').toUpperCase(), org, 'diamond', hexCss(g.color >= 0 ? g.color : 0x8a5cff)); });
         for (i = 0; i < allies.length; i++) if (allies[i].alive) hlMark(allies[i].g.position, 'friend', 'WINGMAN', org);
         for (i = hlN; i < HL_MAX; i++) if (hlPool[i].on) { hlPool[i].on = false; hlPool[i].el.style.display = 'none'; }
     }
@@ -3790,7 +3812,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             var el = document.createElement('div'); el.className = 'sh-pl'; el.style.display = 'none';
             el.innerHTML = '<i></i><b></b>';
             elPlayers.appendChild(el);
-            plMarks.push({ el: el, i: el.firstChild, b: el.lastChild, on: false, x: -1e9, y: -1e9, r: -999, mode: -1, name: '', col: -1 });
+            plMarks.push({ el: el, c0: 0, i: el.firstChild, b: el.lastChild, on: false, x: -1e9, y: -1e9, r: -999, mode: -1, name: '', col: -1 });
         }
     })();
     var plN = 0;
@@ -3810,7 +3832,9 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (Math.abs(ex - m.x) > 0.5 || Math.abs(ey - m.y) > 0.5) { m.x = ex; m.y = ey; m.el.style.transform = 'translate(' + ex.toFixed(1) + 'px,' + ey.toFixed(1) + 'px) translate(-50%,-50%)'; }
         if (rot !== m.r) { m.r = rot; m.i.style.transform = 'rotate(' + rot + 'deg)'; }
         var nm = String(g.name || 'PILOT').toUpperCase(), col = g.color >= 0 ? g.color : 0x8a5cff;
-        if (nm !== m.name) { m.name = nm; m.b.textContent = nm; }
+        var shown = (mode === 1 && mkNamed(m, mkAng((g.mk2 || g.root).position)) ? nm : '') + (mode === 1 ? (function (d) { return d ? ' ' + d : ''; })(mkDist(vA.length())) : '');
+        if (mode !== 1) m.c0 = 0;
+        if (shown !== m.name) { m.name = shown; m.b.textContent = shown; }
         if (col !== m.col) { m.col = col; m.el.style.color = hexCss(col); }
     }
     function updatePlayerMarks() {
@@ -4066,7 +4090,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         setGround(true, true);
         net && net.setMode && net.setMode('foot');
     }
-    function jetKill() { jetT = 0; jetLvl = 0; if (exJet) exOff(exJet); if (jetSnd) { jetSnd = false; aPlay('jetpackStop'); } }
+    function jetKill() { jetT = 0; jetLvl = 0; flKill(); if (exJet) exOff(exJet); if (jetSnd) { jetSnd = false; aPlay('jetpackStop'); } }
     function boardShip() {
         jetKill();
         gmode = 'landed'; camRelInit = false;
@@ -4437,7 +4461,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         camera.position.copy(focus).add(camRel);
         camera.quaternion.slerp(tq, damp(rate, dt));
     }
-    var G_WALK = 4, G_RUN = 22, G_GRAV = 22, G_JUMP = 8.5, FOOT_CAM = 6;   // in human heights (/s, /s^2)
+    var G_WALK = 22, G_RUN = 44, G_GRAV = 22, G_JUMP = 8.5, FOOT_CAM = 6;   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
+    var FL_HOLD = 2, FL_V = 36;               // rev 29: hold Space this many s = jetpack FLIGHT; flight cruise speed (heights/s)
     // rev 20b: the foot controller. The human lives in the planet's LOCAL frame (hum.pos), is a capsule (feet footprint FOOT_R) and walks on the ground AS RENDERED
     // (ps.meshFloorLocal: the patch's own triangles, not the finer height function that the mesh only approximates). Motion is substepped (<= FOOT_SUB heights per
     // substep) with a slope-limited step test (rise <= run + 0.05 H) and wall sliding; the position is written once per frame. hum.vh is the VISUAL height (what the
@@ -4458,7 +4483,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     // jetpack flame: two fx cones (the ship's exhaust shader) under the backpack tanks, rotated to point down; throttled audio loop; ground dust when low
     var exJet = null, jetT = 0, jetLvl = 0, jetAud = 0, jetSnd = false, jetDust = 0;
     function jetFx(dt, jet, H, qM, c, dir, floorR, hr) {
-        jetLvl += ((jet ? 1 : 0) - jetLvl) * damp(jet ? 9 : 12, dt);
+        jetLvl += ((+jet || 0) - jetLvl) * damp(jet ? 9 : 12, dt);
         if (jetLvl < 0.03) {
             if (exJet && exJet.holder.visible) exOff(exJet);
             if (jetSnd) { jetSnd = false; aPlay('jetpackStop'); }
@@ -4481,10 +4506,153 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (jetDust <= 0) { jetDust = 0.09; fsT.copy(dir).multiplyScalar(floorR).applyQuaternion(qM).add(c); fx.impact(fsT, 0xc8b89a, 1.6); }
         }
     }
+
+    // ─── rev 29: solid objects on the planet (store + burger-house boxes, the parked hull) and jetpack FLIGHT ───────────────────────────────────────────────
+    var fl = { on: false, pit: 0, wy: 0, wp: 0, th: 0, cr: 0, lock: false, tag: '', v: new THREE.Vector3(), alt: 0 }, flT = 0;
+    var flF = new THREE.Vector3(), flA = new THREE.Vector3();
+    var elFlight = document.createElement('div'); elFlight.className = 'sh-flight'; hud.appendChild(elFlight);
+    function flHud(on, alt) {
+        var t = on ? 'FLIGHT · ' + Math.round(alt) + ' H' : '';
+        if (t !== fl.tag) { fl.tag = t; elFlight.textContent = t; elFlight.classList.toggle('is-on', on); }
+    }
+    function flKill() { if (!fl) return; fl.on = false; fl.v.set(0, 0, 0); fl.th = 0; fl.cr = 0; flT = 0; flHud(false, 0); }
+    var opList = [], opPool = [], opA = new THREE.Vector3(), opB = new THREE.Vector3(), opC = new THREE.Vector3(), opU = new THREE.Vector3(), opBhI = new THREE.Matrix4(), OP_HS = [0.25, 0.75];
+    function objBegin() {      // the solid sets for this frame (planet-local frame); returns how many
+        var n = 0, i, s, I, bh = world && world.burgerHouse;
+        if (gmode !== 'foot') { opList.length = 0; return 0; }
+        function put(m, inv, K, hw, hd, hh, a, b) { var e = opPool[n] || (opPool[n] = {}); e.m = m; e.inv = inv; e.K = K || 1; e.hw = hw; e.hd = hd; e.hh = hh; e.a = a; e.b = b; opList[n++] = e; }
+        if (world && world.node && world.stores) for (i = 0; i < world.stores.length; i++) {
+            s = world.stores[i]; I = s.interior;
+            if (I && I.matrix && I.inverse && I.walls) put(I.matrix, I.inverse, I.unit, (I.size ? I.size.w : 40) / 2 + 1, (I.size ? I.size.d : 26) / 2 + 1, (I.size ? I.size.h : 16) + 1, I.walls, I.aisles);
+        }
+        if (world && world.node && bh && bh.walls && bh.matrix) put(bh.matrix, opBhI.copy(bh.matrix).invert(), bh.unit, 6, 5, 8, bh.walls, null);
+        opList.length = n;
+        return 1;     // the hull is always a solid
+    }
+    function opBoxes(arr, rs) {      // push opA (store metres) out of a box list; true if it moved
+        var j, q, moved = false, cx, cy, cz, dx, dy, dz, d2, d, k, l, r, t, bb, u, dd;
+        if (!arr) return false;
+        for (j = 0; j < arr.length; j++) {
+            q = arr[j];
+            if (opA.x < q.min.x - rs || opA.x > q.max.x + rs || opA.y < q.min.y - rs || opA.y > q.max.y + rs || opA.z < q.min.z - rs || opA.z > q.max.z + rs) continue;
+            cx = clamp(opA.x, q.min.x, q.max.x); cy = clamp(opA.y, q.min.y, q.max.y); cz = clamp(opA.z, q.min.z, q.max.z);
+            dx = opA.x - cx; dy = opA.y - cy; dz = opA.z - cz; d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 >= rs * rs) continue;
+            moved = true;
+            if (d2 > 1e-14) { d = Math.sqrt(d2); k = (rs - d) / d; opA.x += dx * k; opA.y += dy * k; opA.z += dz * k; }
+            else {      // centre inside the box: leave by the nearest face
+                l = opA.x - q.min.x; r = q.max.x - opA.x; t = opA.z - q.min.z; bb = q.max.z - opA.z; u = opA.y - q.min.y; dd = q.max.y - opA.y;
+                var m = Math.min(l, r, t, bb, u, dd);
+                if (m === l) opA.x = q.min.x - rs; else if (m === r) opA.x = q.max.x + rs; else if (m === t) opA.z = q.min.z - rs; else if (m === bb) opA.z = q.max.z + rs; else if (m === u) opA.y = q.min.y - rs; else opA.y = q.max.y + rs;
+            }
+        }
+        return moved;
+    }
+    // the capsule = two spheres (0.25 H and 0.75 H above the feet, FOOT_R H radius) against every box and the hull sphere; p (planet-local feet) is pushed out in place
+    function objPush(p, H) {
+        var pushed = false, li, si, o, rs, mv, dl;
+        opU.copy(p).normalize();
+        for (li = 0; li < opList.length; li++) {
+            o = opList[li]; rs = FOOT_R * H / o.K;
+            for (si = 0; si < 2; si++) {
+                opA.copy(p).addScaledVector(opU, OP_HS[si] * H).applyMatrix4(o.inv);
+                if (Math.abs(opA.x) > o.hw || Math.abs(opA.z) > o.hd || opA.y < -2 || opA.y > o.hh) continue;
+                opB.copy(opA);
+                mv = opBoxes(o.a, rs); if (opBoxes(o.b, rs)) mv = true;
+                if (!mv) continue;
+                opC.copy(opA).applyMatrix4(o.m); opB.applyMatrix4(o.m); opC.sub(opB); p.add(opC); pushed = true;
+            }
+        }
+        if (land.node && land.sPos) {      // the parked hull: a sphere of 0.45 L at the ship's centre
+            var hr0 = 0.45 * L;
+            for (si = 0; si < 2; si++) {
+                opA.copy(p).addScaledVector(opU, OP_HS[si] * H).sub(land.sPos); dl = opA.length();
+                var need = hr0 + FOOT_R * H;
+                if (dl < need) { if (dl < 1e-9) opA.copy(opU), dl = 1; p.addScaledVector(opA, (need - dl) / dl); pushed = true; }
+            }
+        }
+        return pushed;
+    }
+    function flightStep(dt, c, qM) {
+        var H = 0.09 * L, o = hum.obj, up = hum.up, k, v = fl.v;
+        if (cmdOpen) { mdx = mdy = 0; }
+        up.copy(hum.pos).normalize();
+        var wy = clamp(mdx * MOUSE_SENS * 1.3 / dt, -3, 3), wp = clamp(mdy * MOUSE_SENS * 1.3 / dt, -2.5, 2.5);
+        mdx = mdy = 0;
+        fl.wy += (wy - fl.wy) * damp(7, dt); fl.wp += (wp - fl.wp) * damp(7, dt);      // weighted: the body lags the mouse like the ship does, lighter
+        hum.hf.applyAxisAngle(up, -fl.wy * dt);
+        hum.hf.addScaledVector(up, -hum.hf.dot(up));
+        if (hum.hf.lengthSq() < 1e-8) hum.hf.crossVectors(up, X);
+        hum.hf.normalize();
+        var kW = !cmdOpen && !!keys.KeyW, kS = !cmdOpen && !!keys.KeyS, kSp = !cmdOpen && !!keys.Space, kSh = !!(keys.ShiftLeft || keys.ShiftRight), thr = kW || kSp;
+        fl.pit = clamp(fl.pit - fl.wp * dt, -1.3, 1.3);
+        if (!thr) fl.pit *= Math.exp(-1.6 * dt);                           // auto-level
+        flF.copy(hum.hf).multiplyScalar(Math.cos(fl.pit)).addScaledVector(up, Math.sin(fl.pit));
+        var vmax = FL_V * H * (1 + 0.12 * R27.su.jetpack) * (kSh ? 2 : 1) * fxSpeed;
+        if (kW) v.addScaledVector(flF, 70 * H * (kSh ? 1.6 : 1) * dt);
+        if (kSp) v.addScaledVector(up, 60 * H * (kSh ? 1.4 : 1) * dt);
+        if (kS) v.multiplyScalar(Math.exp(-5 * dt));                         // brake
+        v.multiplyScalar(Math.exp(-(thr ? 0.35 : 0.9) * dt));
+        if (!kSp) v.addScaledVector(up, -G_GRAV * H * (kW ? 0.1 : 0.6) * dt);   // glide down
+        var vl = v.length(); if (vl > vmax) { v.multiplyScalar(vmax / vl); vl = vmax; }
+        var nSub = clamp(Math.ceil(vl * dt / (0.3 * H)), 1, 40), h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, sup = footFloor(dir, H), touched = false, vUp0 = v.dot(up), opN = objBegin(), vn, ln;
+        if (hr - sup > 400 * H && vUp0 > 0) v.addScaledVector(up, -vUp0);
+        for (k = 0; k < nSub; k++) {                                       // swept, substepped: each substep is <= 0.3 H, the capsule radius is 0.22 H
+            fsC.copy(dir).multiplyScalar(hr).addScaledVector(v, h);
+            if (opN) {
+                fsT.copy(fsC);
+                if (objPush(fsC, H)) {
+                    flA.subVectors(fsC, fsT); ln = flA.length();
+                    if (ln > 0) { flA.divideScalar(ln); vn = v.dot(flA); if (vn < 0) v.addScaledVector(flA, -vn); if (flA.dot(up) > 0.7) touched = true; }      // resting on a roof / shelf top counts as touchdown
+                }
+            }
+            hr = fsC.length(); dir.copy(fsC).divideScalar(hr || 1);
+            sup = footFloor(dir, H);
+            if (hr <= sup) { hr = sup; touched = true; vn = v.dot(dir); if (vn < 0) v.addScaledVector(dir, -vn); }
+        }
+        hum.gr = sup; hum.hr = hr; hum.vv = v.dot(dir); hum.air = true; hum.moving = true; hum.running = true;
+        hum.pos.copy(dir).multiplyScalar(hr); up.copy(dir); hum.vh = hr;
+        if (touched && !kSp) { fl.on = false; fl.lock = false; hum.air = false; hum.vv = 0; fl.cr = clamp(0.45 + Math.abs(vUp0) / (14 * H), 0.45, 1); fl.v.set(0, 0, 0); }
+        fl.alt = Math.max(0, (hr - sup) / H);
+        fl.th += ((thr ? (kSh ? 1 : 0.7) : 0) - fl.th) * damp(6, dt);
+        // pose: body forward = flight forward leaned nose-down with thrust
+        var bp = clamp(fl.pit - 0.55 * fl.th * (kW ? 1 : 0.3), -1.45, 1.45);
+        flA.copy(hum.hf).multiplyScalar(Math.cos(bp)).addScaledVector(up, Math.sin(bp));
+        fsT.copy(up).multiplyScalar(hr).applyQuaternion(qM).add(c); hum.w.copy(fsT);
+        hum.face.copy(hum.hf);
+        gA.copy(flA).applyQuaternion(qM); gB.copy(up).applyQuaternion(qM);
+        gC.crossVectors(gA, gB).normalize(); gE.crossVectors(gC, gA); gD.copy(gA).negate();
+        mM.makeBasis(gC, gE, gD);
+        o.group.quaternion.setFromRotationMatrix(mM);
+        o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr), H);
+        o.update(dt, { moving: true, running: true, airborne: true, speed: 1, facing: 0, jet: jetLvl, scan: scanT > 0 ? Math.min(1, scanT / 1.2) : 0 });
+        jetFx(dt, fl.on ? Math.max(0.35, fl.th) : 0, H, qM, c, dir, sup, hr);
+        flHud(fl.on, fl.alt);
+        // camera: behind and a little above the flying human, along the (damped) flight pitch; never under the floor
+        var cpi = fl.pit * 0.75;
+        flA.copy(hum.hf).multiplyScalar(Math.cos(cpi)).addScaledVector(up, Math.sin(cpi)).negate().multiplyScalar(FOOT_CAM * H).addScaledVector(up, 0.7 * H);
+        gA.copy(flA).applyQuaternion(qM);
+        gC.copy(gB).multiplyScalar(0.5 * H).add(hum.w);
+        gD.copy(gC).add(gA);
+        vTmp.subVectors(gD, c);
+        var cr = vTmp.length();
+        gQi.copy(qM).invert(); fsT.copy(vTmp).applyQuaternion(gQi);
+        var cfr = mFloor(fsT.x, fsT.y, fsT.z);
+        if (cr < cfr + 0.04 * L) gD.copy(c).addScaledVector(vTmp.divideScalar(cr || 1), cfr + 0.04 * L);
+        mM.lookAt(gD, gC, gB); gQ.setFromRotationMatrix(mM);
+        groundCam(dt, gC, gD, gQ, 10);
+        return gC;
+    }
     function footStep(dt, c, qM) {
         var H = 0.09 * L, o = hum.obj, up = hum.up, i, k;
         if (cmdOpen) { mdx = mdy = 0; }
         up.copy(hum.pos).normalize();
+        // rev 29: hold Space FL_HOLD s (continuously, in the air) = jetpack FLIGHT
+        var flWant = !cmdOpen && !!keys.Space;
+        if (flWant && !fl.lock) flT += dt; else { flT = 0; if (!flWant) fl.lock = false; }
+        if (!fl.on && hum.air && flT >= FL_HOLD) { fl.on = true; fl.pit = 0; fl.wy = fl.wp = 0; fl.th = 0; fl.cr = 0; fl.v.copy(up).multiplyScalar(Math.max(0, hum.vv)); }
+        if (fl.on) return flightStep(dt, c, qM);
+        if (fl.cr > 0) fl.cr = Math.max(0, fl.cr - dt * 3.2);
         // look
         if (mdx !== 0) hum.hf.applyAxisAngle(up, -mdx * MOUSE_SENS * 1.3);
         hum.pitch = clamp(hum.pitch + mdy * MOUSE_SENS * 1.3, -0.3, 1.4);
@@ -4506,11 +4674,11 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (hum.air && wantJump) jetT += dt; else jetT = 0;
         var jet = jetT > JET_HOLD;
         // substepped capsule motion in the local frame
-        var spd = (jet ? G_RUN * 2 * (1 + 0.12 * R27.su.jetpack) : (run ? G_RUN * (1 + 0.1 * R27.su.sprint) : G_WALK)) * H * fxSpeed, nSub = 1;
+        var spd = (jet ? G_RUN * (1 + 0.12 * R27.su.jetpack) : (run ? G_RUN * (1 + 0.1 * R27.su.sprint) : G_WALK)) * H * fxSpeed, nSub = 1;
         if (moving) nSub = Math.max(nSub, Math.ceil(spd * dt / (FOOT_SUB * H)));
         if (hum.air) nSub = Math.max(nSub, Math.ceil(Math.abs(hum.vv) * dt / (0.25 * H)));
         nSub = Math.min(16, nSub);
-        var h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, supNow = footFloor(dir, H);
+        var h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, supNow = footFloor(dir, H), opN = objBegin();
         for (k = 0; k < nSub; k++) {
             if (moving) {
                 var step = spd * h;
@@ -4523,6 +4691,13 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                         dir.copy(fsC); supNow = supC;
                         break;
                     }
+                }
+            }
+            if (opN && (moving || hum.air)) {                      // rev 29: store / burger-house walls, shelves and the ship hull are solid for the capsule
+                fsT.copy(dir).multiplyScalar(hr);
+                if (objPush(fsT, H)) {
+                    var nl = fsT.length(); dir.copy(fsT).divideScalar(nl || 1); supNow = footFloor(dir, H);
+                    if (hum.air && nl < hr) { hr = nl; hum.vv = Math.min(hum.vv, 0); }
                 }
             }
             if (hum.air) {
@@ -4552,7 +4727,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         gC.crossVectors(gA, gB); gD.copy(gA).negate();
         mM.makeBasis(gC, gB, gD);
         o.group.quaternion.setFromRotationMatrix(mM);
-        o.group.position.copy(hum.w); o.group.scale.setScalar(H);
+        o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr), H);
+        flHud(false, 0);
         o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, facing: 0, jet: jetLvl, scan: scanT > 0 ? Math.min(1, scanT / 1.2) : 0 });
         jetFx(dt, jet, H, qM, c, dir, supNow, hr);
         // camera: 6 human heights back, pitched, never under the floor; it follows the SMOOTHED position (hum.w), not the raw step
@@ -6333,12 +6509,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var sy = Math.sin(ik.yaw), cy = Math.cos(ik.yaw), mx = -sy * fw + cy * sd, mz = -cy * fw - sy * sd, ml = Math.sqrt(mx * mx + mz * mz);
         var moving = ml > 0.01, run = moving && !!(keys.ShiftLeft || keys.ShiftRight);
         ik.moving = moving; ik.running = run;
-        var spd = (run ? 22 : 4) * H;
+        var spd = (run ? 44 : 22) * H;
         if (moving) { mx /= ml; mz /= ml; }
         var wantJump = !cmd && !!keys.Space;
         if (!ik.air && wantJump && !ik.jumpHeld) { ik.air = true; ik.vv = 8.5 * H; }
         ik.jumpHeld = wantJump;
-        var nSub = clamp(Math.ceil(spd * dt / (0.2 * H)), 1, 10), h = dt / nSub, k, ceil = 8 - H;
+        var nSub = clamp(Math.ceil(spd * dt / (0.15 * H)), 1, 24), h = dt / nSub, k, ceil = 8 - H;
         for (k = 0; k < nSub; k++) {
             if (moving) { p.x += mx * spd * h; p.z += mz * spd * h; }
             var fl = ikFloor(p.z);
@@ -6905,12 +7081,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var mx = -sy * fw + cy * sd, mz = -cy * fw - sy * sd, ml = Math.sqrt(mx * mx + mz * mz);
         var moving = ml > 0.01, run = moving && !!(keys.ShiftLeft || keys.ShiftRight);
         sk.moving = moving; sk.running = run;
-        var spd = (run ? 22 : 4) * H;
+        var spd = (run ? 44 : 22) * H;
         if (moving) { mx /= ml; mz /= ml; }
         var wantJump = !cmd && !!keys.Space;
         if (!sk.air && wantJump && !sk.jumpHeld) { sk.air = true; sk.vv = 8.5 * H; }
         sk.jumpHeld = wantJump;
-        var nSub = clamp(Math.ceil(spd * dt / (0.2 * H)), 1, 10), h = dt / nSub, k, p = sk.hp, ceil = SITE().deck.bounds.max.y - H;
+        var nSub = clamp(Math.ceil(spd * dt / (0.15 * H)), 1, 24), h = dt / nSub, k, p = sk.hp, ceil = SITE().deck.bounds.max.y - H;
         for (k = 0; k < nSub; k++) {
             if (moving) { p.x += mx * spd * h; p.z += mz * spd * h; }
             if (sk.air) { sk.vv -= 22 * H * h; p.y += sk.vv * h; if (p.y >= ceil) { p.y = ceil; sk.vv = Math.min(0, sk.vv); } if (p.y <= 0) { p.y = 0; sk.vv = 0; sk.air = false; } }
@@ -8120,7 +8296,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
         land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
-        _g: { hum: hum, land: land },
+        _g: { hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
         get stats() { return { hp: hp, wave: shownWave(), bossPhase: (api.boss || { bphase: 0 }).bphase, boss: (api.boss || { hp: 0 }).hp, bossMax: (api.boss || { maxHp: 0 }).maxHp, allies: allies.filter(function (a) { return a.alive; }).length, kills: kills, enemies: aliveCount(), L: L, dead: dead, gt: gt }; }
     };
     window.EMGOR_SHIP = api;   // debug / test hook

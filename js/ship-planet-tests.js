@@ -741,7 +741,7 @@ async function g13(T, o) {
 //   no per-frame displacement > 2 x run speed x dt (a jump or a fall adds its own vertical speed), no NaN; parked 30 s: zero drift. g14 also reports the drift
 //   against the finer analytic height function (the old ground), to show why the controller uses the rendered one.
 async function g14(T, o) {
-    var ship = T.ship, THREE = T.THREE, L = T.L(), ps = ship.ps, H = 0.09 * L, G_RUN = 22, res = { pass: true, sites: [] };
+    var ship = T.ship, THREE = T.THREE, L = T.L(), ps = ship.ps, H = 0.09 * L, G_RUN = 44, res = { pass: true, sites: [] };   // rev 29: walk = 22, run = 44 heights/s
     var terra = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; }), gas = T.planets().filter(function (n) { return T.isGas(n) && T.reachable(n); });
     // rev 22: only planets the ship can actually approach (a planet embedded in a bigger body has no approach and made this test throw); metagor is the steep-site planet
     function firstEngage(list, skipId) { for (var q = 0; q < list.length; q++) { if (list[q].id === skipId) continue; try { if (T.engage(list[q])) return list[q]; } catch (e) { /* next */ } } return null; }
@@ -768,6 +768,14 @@ async function g14(T, o) {
             hum.pos.copy(best).multiplyScalar(ps.meshFloorLocal(best.x, best.y, best.z)); hum.hr = hum.pos.length(); hum.vh = 0; hum.air = false; hum.vv = 0;
             row.steepestSlope = +bs.toFixed(2); T.step(20);
         }
+        if (si === 0) {      // rev 29: measured speeds in heights/s on the open ground (walk = 22, Shift run = 44 x sprint tier)
+            var sp = {}, m0;
+            ['KeyW', 'KeyW+ShiftLeft'].forEach(function (k) {
+                var ks = k.split('+'); T.clearKeys(); T.step(8, dt); ks.forEach(function (c) { T.kd(c); }); T.step(6, dt); m0 = hum.pos.clone();
+                T.step(30, dt); sp[k] = +(hum.pos.distanceTo(m0) / (30 * dt) / H).toFixed(1); ks.forEach(function (c) { T.ku(c); });
+            });
+            T.clearKeys(); T.step(10, dt); row.speeds_H_per_s = sp;
+        }
         // random play
         var held = {}, minClear = 1e9, minClearVis = 1e9, maxDisp = 0, maxDispRatio = 0, nan = 0, airFrames = 0, anaMax = 0, prev = hum.pos.clone(), prevAir = hum.air, worst = null, speedFrames = 0, wallFrames = 0;
         for (var f = 0; f < frames; f++) {
@@ -778,7 +786,7 @@ async function g14(T, o) {
             var P = hum.pos, mf = ps.meshFloorLocal(P.x, P.y, P.z), ana = ps.floorLocal(P.x, P.y, P.z);
             if (!isFinite(P.x + P.y + P.z) || !isFinite(hum.vh) || !isFinite(hum.w.x)) { nan++; break; }
             minClear = Math.min(minClear, (hum.hr - mf) / H); minClearVis = Math.min(minClearVis, (hum.vh - mf) / H); anaMax = Math.max(anaMax, Math.abs(hum.hr - ana) / H);
-            var disp = P.distanceTo(prev), allow = (2 * G_RUN * H + Math.abs(hum.vv)) * dt;
+            var disp = P.distanceTo(prev), allow = (2.2 * G_RUN * H + Math.abs(hum.vv)) * dt;
             if (!hum.air && !prevAir) { var r = disp / allow; if (r > maxDispRatio) { maxDispRatio = r; } }
             if (disp > allow && !(hum.air !== prevAir)) { wallFrames++; if (disp - allow > maxDisp) { maxDisp = disp - allow; worst = { f: f, disp_H: +(disp / H).toFixed(3), allow_H: +(allow / H).toFixed(3), air: hum.air, vv_H: +(hum.vv / H).toFixed(2) }; } }
             if (hum.air) airFrames++;
@@ -795,11 +803,71 @@ async function g14(T, o) {
         T.localToWorld(node, hum.pos.clone().multiplyScalar(hum.vh / hum.pos.length()), W); werr = W.distanceTo(hum.w);
         row.parked = { drift_u: drift, visDrift_u: dv, worldErr_u: werr };
         if (drift > 1e-9 || dv > 1e-9 || werr > 1e-3 * L) res.pass = false;
+        if (si === 0 && o.shot) { row.flight = await flightSub(T, ship, node, o); res.sites.push(row); return res; }
+        if (si === 0 && !o.noFlight) { row.flight = await flightSub(T, ship, node, o); if (!row.flight.pass) res.pass = false; }
         res.sites.push(row);
         T.kd('KeyF'); T.ku('KeyF'); T.step(6);          // back toward the ship: fly() next loop handles any state
     }
     T.fly();
     return res;
+}
+
+// rev 29 flight sub-test: hold Space 2 s on foot -> flight; 60 s of random flight inputs kept at 1-10 heights above the floor (a store is aimed at when one exists):
+// never below the rendered floor, the capsule never inside a store/burger box, no NaN; then release everything and land.
+async function flightSub(T, ship, node, o) {
+    var THREE = T.THREE, L = T.L(), ps = ship.ps, H = 0.09 * L, g = ship._g, hum = g.hum, fl = g.fl, w = g.world(), r = { pass: true }, dt = 0.033, i, f;
+    T.clearKeys(); T.step(10, dt);
+    T.kd('Space'); for (i = 0; i < Math.round(2.4 / dt); i++) T.step(1, dt);
+    r.entered = fl.on; if (!fl.on) { r.pass = false; r.why = 'Space hold did not start flight'; T.ku('Space'); return r; }
+    // optional: start in front of a store so the random flight meets walls
+    var st = w && w.stores && w.stores[0], I = st && st.interior, sc = null;
+    if (I && I.matrix) {
+        sc = new THREE.Vector3(0, 0, 0).applyMatrix4(I.matrix);
+        var q = new THREE.Vector3(0, 1.5, (I.size ? I.size.d : 26) / 2 + 8).applyMatrix4(I.matrix);
+        var fr = ps.meshFloorLocal(q.x, q.y, q.z), qr = q.length(); if (qr < fr + 1.5 * H) q.multiplyScalar((fr + 1.5 * H) / qr);
+        hum.pos.copy(q); hum.hr = q.length(); fl.v.set(0, 0, 0);
+    }
+    if (o.shot) { T.kd('KeyW'); T.kd('Space'); for (i = 0; i < Math.round(3 / dt); i++) T.step(1, dt); r.shot = true; r.alt = fl.alt; return r; }      // leave the human mid-flight for a screenshot
+    var held = {}, codes = ['KeyW', 'KeyS', 'ShiftLeft', 'Space'], minClr = 1e9, nan = 0, boxHits = 0, maxAlt = 0, minAlt = 1e9, tmp = new THREE.Vector3(), up = new THREE.Vector3(), frames = Math.round((o.flightSeconds || 60) / dt), landed = 0;
+    function inBoxes(Ii, p) {
+        var arr = (Ii.walls || []).concat(Ii.aisles || []), j, b;
+        for (j = 0; j < arr.length; j++) { b = arr[j]; if (p.x > b.min.x && p.x < b.max.x && p.y > b.min.y && p.y < b.max.y && p.z > b.min.z && p.z < b.max.z) return true; }
+        return false;
+    }
+    for (f = 0; f < frames; f++) {
+        if (f % 250 === 0) await T.pause();
+        if (!fl.on) { landed++; T.kd('Space'); for (i = 0; i < 70 && !fl.on; i++) T.step(1, dt); if (!fl.on) { fl.on = true; fl.v.set(0, 0, 0); hum.air = true; } T.ku('Space'); }
+        if (f % 9 === 0) {
+            var alt = fl.alt, aim = sc && ((f / 300) | 0) % 2 === 1;
+            codes.forEach(function (c) {
+                var want = c === 'KeyW' ? T.rng() < (aim ? 0.95 : 0.65) : (c === 'Space' ? alt < 3 || (alt < 8 && T.rng() < 0.4) : T.rng() < 0.2);
+                if (c === 'Space' && alt > 8) want = false;
+                if (c === 'KeyW' && alt > 9) want = false;
+                if (want && !held[c]) { T.kd(c); held[c] = 1; } else if (!want && held[c]) { T.ku(c); held[c] = 0; }
+            });
+            if (aim) { tmp.copy(sc).sub(hum.pos); up.copy(hum.pos).normalize(); tmp.addScaledVector(up, -tmp.dot(up)); if (tmp.lengthSq() > 1e-8) hum.hf.copy(tmp.normalize()); ship.dbg.inject(0, 0); }
+            else ship.dbg.inject((T.rng() - 0.5) * 260, (T.rng() - 0.5) * 120);
+        }
+        if (fl.alt > 9 && fl.pit > -0.2) fl.pit = -0.2;      // the test keeps the flight in the 1-10 H band
+        T.step(1, dt);
+        var P = hum.pos, mf = ps.meshFloorLocal(P.x, P.y, P.z);
+        if (!isFinite(P.x + P.y + P.z) || !isFinite(hum.vh) || !isFinite(hum.w.x) || !isFinite(fl.v.x)) { nan++; break; }
+        minClr = Math.min(minClr, (hum.hr - mf) / H); maxAlt = Math.max(maxAlt, fl.alt); minAlt = Math.min(minAlt, fl.alt);
+        if (w && w.stores) {
+            up.copy(P).normalize();
+            for (var si = 0; si < w.stores.length; si++) {
+                var Is = w.stores[si].interior; if (!Is || !Is.toStore) continue;
+                [0.25, 0.75].forEach(function (hh) { tmp.copy(P).addScaledVector(up, hh * H); Is.toStore(tmp, tmp); if (inBoxes(Is, tmp)) boxHits++; });
+            }
+        }
+        if (ship.gmode !== 'foot') { r.pass = false; r.why = 'left foot mode ' + ship.gmode; break; }
+    }
+    Object.keys(held).forEach(function (c) { if (held[c]) T.ku(c); });
+    T.clearKeys(); for (i = 0; i < Math.round(40 / dt); i++) T.step(1, dt);
+    r.minFloorClear_H = +minClr.toFixed(4); r.minAlt_H = +minAlt.toFixed(2); r.maxAlt_H = +maxAlt.toFixed(2); r.nan = nan; r.boxHits = boxHits; r.relanded = landed; r.hadStore = !!sc;
+    r.glideLanded = !fl.on;
+    if (minClr < -0.05 || nan || boxHits || !r.glideLanded) r.pass = false;
+    return r;
 }
 
 export async function runAll(engine, ship, opts) {

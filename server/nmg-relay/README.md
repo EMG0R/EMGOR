@@ -111,3 +111,24 @@ All messages below need `hi` first and count against the normal bucket / strike 
 | `{t:'disc.list'}` (1 per 2 s) | `{t:'disc.all', list:[{kind,id,name,by,at}...]}` |
 | `{t:'event.now'}` | `{t:'event', kind, minutes, left, planetId?}` (`left` in seconds) or `{t:'event.none'}` |
 | (server push) every 20-40 min, seeded from the relay epoch + sequence | `{t:'event', kind:'titan'\|'meteor'\|'friesSale'\|'blockade', minutes, left, planetId?}` broadcast to all; `planetId` (0-999) only for meteor/blockade, the client maps it onto a planet. The current event + next fire time persist across restarts. |
+
+## Fight rooms, planet channels, style (rev 30)
+Room traffic (`sm.in`, `sm.snap`, `pl.snap`, `pl.ev`) uses its own bucket (150/s, burst 150) and must have `t` as the FIRST key (it is detected from the first 48 bytes, like `prof.save`). Frame cap 768 B, except `sm.snap` 2 KB and `pl.snap` 4 KB of `data`. Bad frames count as strikes.
+
+| Client sends | Relay does |
+|---|---|
+| `hi` / `{t:'hi', id, name, color, hs, style, pet, crew}` | `style` <= 16 printable chars, `pet`/`crew` ints 0-99. All three appear on each ship in `roster`. |
+| `pos` | `st` now `& 31`: bit 16 = in a fight. |
+| `{t:'sm.challenge', to}` (2/s) | To `to`: `{t:'sm.challenge', from, name}` (valid 30 s). Unknown `to`: `{t:'sm.no', why:'gone'}`. |
+| `{t:'sm.accept', from}` | Needs a live challenge from `from`. Creates `sm_<8hex>`, host = challenger. Both get `{t:'sm.start', room, host, members:[ids], spec:[ids], seed}`. Else `sm.no` (`expired`/`busy`). |
+| `{t:'sm.join', room, fight?}` | Joiner gets `sm.start`; others get `{t:'sm.member', room, id, name, role:'fighter'\|'spec'}`. Cap 4 fighters (`fight:true`, else falls to spectator) + 8 spectators; `sm.no why:'full'\|'none'`. |
+| `{t:'sm.leave'}` | Member leaves: `{t:'sm.member', room, id, role:'left', was}`. Host leaving ends the room. |
+| `{t:'sm.in', room, f, m}` (guest fighter, <= 60/s) | Forwarded to the HOST only as `{t:'sm.in', room, id, f, m}`. |
+| `{t:'sm.snap', room, f, data}` (host, <= 30/s, data <= 2 KB) | `{t:'sm.snap', room, f, data}` to every other member and spectator. |
+| `{t:'sm.end', room, result}` (host, result <= 512 B) | `{t:'sm.end', room, result}` to all; room closed. Host disconnect/leave: same with `result:null, reason:'host'`. |
+| `{t:'pl.enter', planet}` (int or `[A-Za-z0-9_.:-]{1,24}`; 4/s) | Leaves any previous planet. Host = lowest id (string sort) on the planet. Entrant gets `{t:'pl.host', planet, host}`; all members get it whenever the host changes. |
+| `{t:'pl.leave'}` (also on disconnect) | Re-elects; members get `pl.host` if it changed. |
+| `{t:'pl.snap', planet, data}` (host only, <= 10/s, data <= 4 KB) | `{t:'pl.snap', planet, data}` to the other members of that planet only. |
+| `{t:'pl.ev', planet, data}` (any member, <= 5/s, data <= 512 B) | `{t:'pl.ev', planet, id, data}` to the other members (host included). |
+
+Over-rate frames of these types are dropped quietly. Nothing here is persisted.

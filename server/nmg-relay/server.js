@@ -11,6 +11,9 @@ const PORT = +process.env.PORT || 8796;
 const HOST = process.env.HOST || '127.0.0.1';
 const MAX_CLIENTS = 32, MAX_PER_IP = 4, MAX_PAYLOAD = 768, PROF_MAX = 65536, DISC_MAX = 2000;
 const BUCKET_RATE = 30, BUCKET_BURST = 60, OVER_CLOSE_MS = 5000;
+const ROOM_RATE = 150, ROOM_BURST = 150;   // separate bucket for sm.in / sm.snap / pl.snap / pl.ev only
+const SM_MAX_FIGHTERS = 4, SM_MAX_SPEC = 8, SM_SNAP_MAX = 2048, PL_SNAP_MAX = 4096, PL_EV_MAX = 512;
+const ROOM_RE = /"t"\s*:\s*"(sm\.in|sm\.snap|pl\.snap|pl\.ev)"/;
 const FIRE_MAX = 12;                 // per second per connection
 const SILENCE_MS = +process.env.SILENCE_MS || 15000, SWEEP_MS = 5000, STRIKES_MAX = 5;
 const EPOCH = Date.now();            // constant until restart
@@ -18,6 +21,9 @@ const ALLOW_NO_ORIGIN = process.env.ALLOW_NO_ORIGIN === '1';   // test bots only
 const ORIGIN_RE = /^(https:\/\/(www\.)?emgor\.online|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
 
 const players = new Map();           // id -> { ws, id, name, color, s, last, pos }
+const rooms = new Map();             // 'sm_xxxxxx' -> { id, host, fighters:Set, spec:Set, seed }
+const planets = new Map();           // planet key -> { members:Set ids, host }
+const challenges = new Map();        // 'from>to' -> expiry ms
 const perIp = new Map();             // ip -> open sockets
 
 function ipOf(req) {
@@ -38,7 +44,7 @@ function send(ws, obj) {
   if (ws.readyState === 1) { try { ws.send(JSON.stringify(obj)); } catch (e) { /* gone */ } }
 }
 function shipRec(p) {
-  const o = { id: p.id, name: p.name, color: p.color, s: p.s, hs: p.hs || '' };
+  const o = { id: p.id, name: p.name, color: p.color, s: p.s, hs: p.hs || '', style: p.style || '', pet: p.pet | 0, crew: p.crew | 0 };
   if (p.pos) Object.assign(o, p.pos);
   return o;
 }
@@ -54,6 +60,52 @@ function broadcast(obj, exceptId) {
   players.forEach(function (p) { if (p.id !== exceptId && p.ws.readyState === 1) { try { p.ws.send(txt); } catch (e) { /* gone */ } } });
 }
 
+function lim(c, k, rate, now) {      // per-type token bucket, burst = rate
+  const b = c.lim[k] || (c.lim[k] = { t: rate, at: now });
+  b.t = Math.min(rate, b.t + (now - b.at) / 1000 * rate); b.at = now;
+  if (b.t < 1) return false;
+  b.t -= 1; return true;
+}
+function toIds(ids, obj, except) { ids.forEach(function (id) { const q = players.get(id); if (q && id !== except) send(q.ws, obj); }); }
+function roomAll(r) { return new Set([...r.fighters, ...r.spec]); }
+function startMsg(r) { return { t: 'sm.start', room: r.id, host: r.host, members: [...r.fighters], spec: [...r.spec], seed: r.seed }; }
+function endRoom(r, result, reason) {
+  if (!rooms.delete(r.id)) return;
+  const o = { t: 'sm.end', room: r.id, result: result == null ? null : result };
+  if (reason) o.reason = reason;
+  roomAll(r).forEach(function (id) { const q = players.get(id); if (q) { q.room = null; send(q.ws, o); } });
+}
+function leaveRoom(p) {
+  const r = p.room && rooms.get(p.room);
+  p.room = null;
+  if (!r) return;
+  if (r.host === p.id) { endRoom(r, null, 'host'); return; }
+  const role = r.fighters.has(p.id) ? 'fighter' : 'spec';
+  r.fighters.delete(p.id); r.spec.delete(p.id);
+  toIds(roomAll(r), { t: 'sm.member', room: r.id, id: p.id, role: 'left', was: role });
+}
+function planetKey(v) {
+  if (typeof v === 'number' && isFinite(v) && Math.abs(v) < 1e9) return String(Math.floor(v));
+  return typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,24}$/.test(v) ? v : '';
+}
+function electHost(key, force) {
+  const pl = planets.get(key);
+  if (!pl) return;
+  if (!pl.members.size) { planets.delete(key); return; }
+  const h = [...pl.members].sort()[0];
+  if (h !== pl.host || force) { pl.host = h; toIds(pl.members, { t: 'pl.host', planet: key, host: h }); return true; }
+  return false;
+}
+function leavePlanet(p) {
+  const key = p.planet; p.planet = null;
+  const pl = key && planets.get(key);
+  if (!pl) return;
+  pl.members.delete(p.id);
+  electHost(key, false);
+}
+function dropPlayer(p) { leaveRoom(p); leavePlanet(p); }
+
+function cnt(v) { return num(v, 1000) ? Math.max(0, Math.min(99, Math.floor(v))) : 0; }
 function cleanProfName(s) { s = typeof s === 'string' ? s.trim().toLowerCase() : ''; return /^[a-z0-9_-]{2,20}$/.test(s) ? s : ''; }
 function cleanText(s, n) { return String(s == null ? '' : s).replace(/[^\x20-\x7e]/g, '').replace(/[<>]/g, '').trim().slice(0, n); }
 function hashKey(k) { return crypto.createHash('sha256').update('nmg:' + k).digest('hex'); }
@@ -117,7 +169,7 @@ function onConnection(ws, req) {
   if (n >= MAX_PER_IP) { ws.close(4003, 'ip'); return; }
   perIp.set(ip, n + 1);
 
-  const c = { profAt: 0, id: null, strikes: 0, tokens: BUCKET_BURST, tAt: Date.now(), overSince: 0, fireTokens: FIRE_MAX, fireAt: Date.now() };
+  const c = { profAt: 0, id: null, strikes: 0, tokens: BUCKET_BURST, tAt: Date.now(), overSince: 0, lim: {}, rtokens: ROOM_BURST, rAt: Date.now(), rOver: 0, fireTokens: FIRE_MAX, fireAt: Date.now() };
   ws.on('error', function () { /* close follows */ });
   setTimeout(function () { if (!c.id) ws.close(4006, 'no hi'); }, 10000).unref();
   ws.on('close', function () {
@@ -125,6 +177,7 @@ function onConnection(ws, req) {
     if (k <= 0) perIp.delete(ip); else perIp.set(ip, k);
     const p = c.id && players.get(c.id);
     if (p && p.ws === ws) {
+      dropPlayer(p);
       players.delete(c.id);
       broadcast({ t: 'bye', id: c.id });
       broadcastRoster();
@@ -132,15 +185,27 @@ function onConnection(ws, req) {
   });
   ws.on('message', function (data, isBinary) {
     const now = Date.now();
-    c.tokens = Math.min(BUCKET_BURST, c.tokens + (now - c.tAt) / 1000 * BUCKET_RATE); c.tAt = now;
-    if (c.tokens < 1) {
-      if (!c.overSince) c.overSince = now;
-      else if (now - c.overSince > OVER_CLOSE_MS) { ws.close(4002, 'rate'); }
-      return;
+    const head = isBinary ? '' : data.slice(0, 48).toString();
+    const roomMsg = ROOM_RE.test(head);      // room traffic: own bucket (the 't' key must come first, like prof.save)
+    if (roomMsg) {
+      c.rtokens = Math.min(ROOM_BURST, c.rtokens + (now - c.rAt) / 1000 * ROOM_RATE); c.rAt = now;
+      if (c.rtokens < 1) {
+        if (!c.rOver) c.rOver = now; else if (now - c.rOver > OVER_CLOSE_MS) ws.close(4002, 'rate');
+        return;
+      }
+      c.rtokens -= 1; c.rOver = 0;
+    } else {
+      c.tokens = Math.min(BUCKET_BURST, c.tokens + (now - c.tAt) / 1000 * BUCKET_RATE); c.tAt = now;
+      if (c.tokens < 1) {
+        if (!c.overSince) c.overSince = now;
+        else if (now - c.overSince > OVER_CLOSE_MS) { ws.close(4002, 'rate'); }
+        return;
+      }
+      c.tokens -= 1; c.overSince = 0;
     }
-    c.tokens -= 1; c.overSince = 0;
     let m = null;
-    if (!isBinary && data.length > MAX_PAYLOAD && data.slice(0, 40).toString().indexOf('"prof.save"') < 0) { if (++c.strikes >= STRIKES_MAX) ws.close(4004, 'bad'); return; }
+    const maxLen = roomMsg ? (head.indexOf('pl.snap') > 0 ? PL_SNAP_MAX : SM_SNAP_MAX) + 256 : MAX_PAYLOAD;
+    if (!isBinary && data.length > maxLen && head.indexOf('"prof.save"') < 0) { if (++c.strikes >= STRIKES_MAX) ws.close(4004, 'bad'); return; }
     if (!isBinary) { try { m = JSON.parse(data.toString()); } catch (e) { m = null; } }
     if (!m || typeof m !== 'object' || typeof m.t !== 'string' || !handle(ws, c, m, now)) {
       if (++c.strikes >= STRIKES_MAX) ws.close(4004, 'bad');
@@ -157,12 +222,12 @@ function handle(ws, c, m, now) {
     if (!c.id) {
       if (p && p.ws !== ws) { const old = p.ws; players.delete(m.id); try { old.close(4000, 'replaced'); } catch (e) { /* gone */ } p = null; }
       c.id = m.id;
-      p = { ws: ws, id: m.id, name: cleanName(m.name, m.id), color: cleanColor(m.color), s: 'docked', last: now, pos: null, hs: (typeof m.hs === 'string' ? m.hs.slice(0, 32) : '') };
+      p = { ws: ws, id: m.id, name: cleanName(m.name, m.id), color: cleanColor(m.color), s: 'docked', last: now, pos: null, hs: (typeof m.hs === 'string' ? m.hs.slice(0, 32) : ''), style: cleanText(m.style, 16), pet: cnt(m.pet), crew: cnt(m.crew), room: null, planet: null };
       players.set(m.id, p);
     } else {
       p = players.get(c.id);
       if (!p || p.ws !== ws) return false;
-      p.name = cleanName(m.name, c.id); p.color = cleanColor(m.color); p.last = now;
+      p.name = cleanName(m.name, c.id); p.color = cleanColor(m.color); p.last = now; p.style = cleanText(m.style, 16); p.pet = cnt(m.pet); p.crew = cnt(m.crew);
     }
     broadcastRoster();
     return true;
@@ -176,7 +241,7 @@ function handle(ws, c, m, now) {
     case 'pos': {
       const keys = ['x', 'y', 'z', 'qx', 'qy', 'qz', 'qw', 'v', 'st', 'hp'];
       for (let i = 0; i < keys.length; i++) if (!num(m[keys[i]])) return false;
-      const pos = { x: m.x, y: m.y, z: m.z, qx: m.qx, qy: m.qy, qz: m.qz, qw: m.qw, v: Math.round(m.v * 10) / 10, st: m.st & 15, hp: Math.max(0, Math.min(255, Math.round(m.hp))) };
+      const pos = { x: m.x, y: m.y, z: m.z, qx: m.qx, qy: m.qy, qz: m.qz, qw: m.qw, v: Math.round(m.v * 10) / 10, st: m.st & 31, hp: Math.max(0, Math.min(255, Math.round(m.hp))) };
       // mode: 'landed' | 'foot' (on-foot players send their human's pose; st bits 1/2/4 = moving/running/airborne)
       if (m.mode === 'landed' || m.mode === 'foot' || m.mode === 'docked') pos.mode = m.mode;
       // frame: 'station' = pose is station-local (docked / on the station deck)
@@ -256,6 +321,93 @@ function handle(ws, c, m, now) {
     case 'event.now': {
       const e = activeEvent(now);
       send(ws, e ? eventMsg(e, now) : { t: 'event.none' });
+      return true;
+    }
+    case 'sm.challenge': {
+      if (typeof m.to !== 'string' || m.to === p.id) return false;
+      const q = players.get(m.to);
+      if (!q) { send(ws, { t: 'sm.no', why: 'gone', to: m.to }); return true; }
+      if (!lim(c, 'ch', 2, now)) return true;
+      challenges.set(p.id + '>' + m.to, now + 30000);
+      send(q.ws, { t: 'sm.challenge', from: p.id, name: p.name });
+      return true;
+    }
+    case 'sm.accept': {
+      if (typeof m.from !== 'string') return false;
+      const k = m.from + '>' + p.id, exp = challenges.get(k), h = players.get(m.from);
+      challenges.delete(k);
+      if (!exp || exp < now || !h) { send(ws, { t: 'sm.no', why: 'expired', from: m.from }); return true; }
+      if (h.room || p.room) { send(ws, { t: 'sm.no', why: 'busy', from: m.from }); return true; }
+      const r = { id: 'sm_' + crypto.randomBytes(4).toString('hex'), host: h.id, fighters: new Set([h.id, p.id]), spec: new Set(), seed: crypto.randomBytes(4).readUInt32BE(0) };
+      rooms.set(r.id, r); h.room = p.room = r.id;
+      toIds(r.fighters, startMsg(r));
+      return true;
+    }
+    case 'sm.join': {
+      const r = typeof m.room === 'string' && rooms.get(m.room);
+      if (!r) { send(ws, { t: 'sm.no', why: 'none', room: m.room }); return true; }
+      if (p.room) return true;
+      const fight = m.fight === true && r.fighters.size < SM_MAX_FIGHTERS;
+      if (!fight && r.spec.size >= SM_MAX_SPEC) { send(ws, { t: 'sm.no', why: 'full', room: r.id }); return true; }
+      (fight ? r.fighters : r.spec).add(p.id); p.room = r.id;
+      send(ws, startMsg(r));
+      toIds(roomAll(r), { t: 'sm.member', room: r.id, id: p.id, name: p.name, role: fight ? 'fighter' : 'spec' }, p.id);
+      return true;
+    }
+    case 'sm.leave': leaveRoom(p); return true;
+    case 'sm.in': {                      // guest -> host only
+      const r = p.room && p.room === m.room && rooms.get(m.room);
+      if (!r || r.host === p.id || !r.fighters.has(p.id) || !num(m.f, 1e9) || !num(m.m, 65536)) return false;
+      if (!lim(c, 'in', 60, now)) return true;
+      const h = players.get(r.host);
+      if (h) send(h.ws, { t: 'sm.in', room: r.id, id: p.id, f: m.f, m: m.m });
+      return true;
+    }
+    case 'sm.snap': {                    // host -> everyone else in the room
+      const r = p.room && p.room === m.room && rooms.get(m.room);
+      if (!r || r.host !== p.id || !num(m.f, 1e9) || m.data == null) return false;
+      const txt = JSON.stringify(m.data);
+      if (txt.length > SM_SNAP_MAX) return false;
+      if (!lim(c, 'snap', 30, now)) return true;
+      toIds(roomAll(r), { t: 'sm.snap', room: r.id, f: m.f, data: m.data }, p.id);
+      return true;
+    }
+    case 'sm.end': {                     // host only
+      const r = p.room && p.room === m.room && rooms.get(m.room);
+      if (!r || r.host !== p.id) return false;
+      const res = m.result === undefined ? null : m.result;
+      if (JSON.stringify(res === undefined ? null : res).length > 512) return false;
+      endRoom(r, res);
+      return true;
+    }
+    case 'pl.enter': {
+      const key = planetKey(m.planet);
+      if (!key) return false;
+      if (p.planet === key) return true;
+      if (!lim(c, 'ple', 4, now)) return true;
+      leavePlanet(p);
+      let pl = planets.get(key);
+      if (!pl) planets.set(key, pl = { members: new Set(), host: null });
+      pl.members.add(p.id); p.planet = key;
+      electHost(key, false);
+      send(ws, { t: 'pl.host', planet: key, host: pl.host });     // joiner always learns the host
+      return true;
+    }
+    case 'pl.leave': leavePlanet(p); return true;
+    case 'pl.snap': {                    // host only, <= 10/s, <= 4 KB
+      const pl = p.planet && planets.get(p.planet);
+      if (!pl || pl.host !== p.id || planetKey(m.planet) !== p.planet || m.data == null) return false;
+      if (JSON.stringify(m.data).length > PL_SNAP_MAX) return false;
+      if (!lim(c, 'pls', 10, now)) return true;
+      toIds(pl.members, { t: 'pl.snap', planet: p.planet, data: m.data }, p.id);
+      return true;
+    }
+    case 'pl.ev': {                      // any member, <= 5/s, <= 512 B
+      const pl = p.planet && planets.get(p.planet);
+      if (!pl || planetKey(m.planet) !== p.planet || m.data == null) return false;
+      if (JSON.stringify(m.data).length > PL_EV_MAX) return false;
+      if (!lim(c, 'ple2', 5, now)) return true;
+      toIds(pl.members, { t: 'pl.ev', planet: p.planet, id: p.id, data: m.data }, p.id);
       return true;
     }
     default: return false;
