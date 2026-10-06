@@ -1109,3 +1109,10 @@ Every new system ships with its two-window test or it doesn't ship:
 - Relay: add `sm_*` rooms + per-planet `mobs` channel; rate limits raised for fights.
 - Test plan per pass: two Chrome windows, both land on the same planet, both see the
   same mobs and each other's style; one challenges, the other accepts; fight; results.
+
+### Brawl rules (Emory, 2026-10-06)
+- NO items in fights. Remove the item spawner from the plan and the engine's item path.
+- The stage is ALWAYS where the fighters were standing in the world: the terrain line
+  sampled through both players (plus any nearby surfaces: store roof, pad, deck), with
+  that planet's sky/parallax. No hand-made stages in-world; PLATEAU/HANGAR/ROOF stay
+  only in the standalone smash.html.

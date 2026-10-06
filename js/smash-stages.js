@@ -10,7 +10,42 @@ export const STAGES = {
     spawns: [{ x: -110, y: -110 }, { x: -40, y: -110 }, { x: 40, y: -110 }, { x: 110, y: -110 }],
     start: [{ x: -90, y: 0 }, { x: 90, y: 0 }, { x: -30, y: 0 }, { x: 30, y: 0 }],
   },
+  hangar: {
+    id: 'hangar', name: 'HANGAR',
+    solids: [{ x0: -200, x1: 200, y0: 0, y1: 70 }],
+    thin: [{ x0: -150, x1: -86, y: -52 }, { x0: 86, x1: 150, y: -52 }, { x0: -32, x1: 32, y: -104 }],
+    pads: [{ i: 0, base: -52, amp: 24, per: 480, ph: 0 }, { i: 1, base: -52, amp: 24, per: 480, ph: 180 }],
+    blast: { l: -350, r: 350, t: -280, b: 170 },
+    spawns: [{ x: -120, y: -120 }, { x: -40, y: -120 }, { x: 40, y: -120 }, { x: 120, y: -120 }],
+    start: [{ x: -100, y: 0 }, { x: 100, y: 0 }, { x: -40, y: 0 }, { x: 40, y: 0 }],
+  },
+  roof: {
+    id: 'roof', name: 'ROOF',
+    solids: [{ x0: -150, x1: 150, y0: 0, y1: 60 }],
+    thin: [{ x0: -124, x1: -84, y: -36 }, { x0: 84, x1: 124, y: -36 }, { x0: -34, x1: 34, y: -88 }],
+    blast: { l: -310, r: 310, t: -270, b: 160 },
+    spawns: [{ x: -90, y: -110 }, { x: -30, y: -110 }, { x: 30, y: -110 }, { x: 90, y: -110 }],
+    start: [{ x: -80, y: 0 }, { x: 80, y: 0 }, { x: -30, y: 0 }, { x: 30, y: 0 }],
+  },
 };
+export const STAGE_IDS = ['plateau', 'hangar', 'roof'];
+
+// Stateless hazard schedule (function of the sim frame only: host, guest and replays agree).
+// hangar: docking beam every 20 s on alternating sides (60 f telegraph, 24 f active). roof: sign flicker, then a zap every 15 s.
+export function hazardState(stage, frame) {
+  if (!stage) return null;
+  if (stage.id === 'hangar') {
+    const per = 1200, k = (frame / per) | 0, ph = frame % per, side = (n) => (n & 1 ? 1 : -1) * 150;
+    const act = k >= 1 && ph < 24, tele = ph >= 1140 ? (ph - 1140) / 60 : 0;
+    return { kind: 'beam', act, tele, x: act ? side(k) : side(k + 1), w: 44, y0: -300, y1: 130, ys: -120, dmg: 4, bkb: 22, gr: 0, start: act && ph === 0 };
+  }
+  if (stage.id === 'roof') {
+    const per = 900, k = (frame / per) | 0, ph = frame % per;
+    const act = k >= 1 && ph < 22, tele = ph >= 780 ? (ph - 780) / 120 : 0;
+    return { kind: 'zap', act, tele, x: 0, w: 100, y0: -150, y1: 12, ys: -70, dmg: 6, bkb: 30, gr: 40, start: act && ph === 0 };
+  }
+  return null;
+}
 
 function rng(a) { return function () { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
@@ -125,8 +160,96 @@ function fgCanvas() {
   return c;
 }
 
+function hexc(c) { return [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255]; }
+
+// HANGAR: station deck, rail lights, window onto a ringed planet, two moving pads, docking beam hazard.
+function hangarVisual(def) {
+  const R0 = rng(91), stars = []; for (let i = 0; i < 90; i++) stars.push({ x: R0() * 300, y: R0() * 110, a: R0() });
+  const sky = [0x0a0620, 0x0f0a30, 0x15103e, 0x1c1650, 0x241a5c];
+  return {
+    drawBack(r, cam, t, S) {
+      const z = cam.zoom; r.setTint(1, 1, 1, 1);
+      for (let k = 0; k < 14; k++) { const c = hexc(sky[Math.min(4, (k / 14 * 5) | 0)]); r.rect(0, k * 20, 480, 20, c[0], c[1], c[2], 1); }
+      // window onto space (parallax .08)
+      const wx = 120 - cam.x * 0.08 * z, wy = 24 - cam.y * 0.05 * z, ww = 240 * z, wh = 110 * z;
+      r.rect(wx - 3, wy - 3, ww + 6, wh + 6, 0.12, 0.1, 0.22, 1); r.rect(wx, wy, ww, wh, 0.02, 0.01, 0.07, 1);
+      for (const s of stars) r.rect(wx + (s.x % 240) * z, wy + s.y * z, s.a > 0.9 ? 2 : 1, 1, 0.8, 0.8, 1, 0.4 + 0.5 * s.a);
+      circleS(r, wx + 170 * z, wy + 52 * z, 30 * z, 0.62, 0.35, 0.82, 1); circleS(r, wx + 162 * z, wy + 46 * z, 22 * z, 0.78, 0.5, 0.92, 0.7); r.rect(wx + 120 * z, wy + 50 * z, 100 * z, 3 * z, 0.9, 0.8, 0.6, 0.8);
+      for (let k = 1; k < 4; k++) r.rect(wx + k * 60 * z, wy, 3 * z, wh, 0.14, 0.12, 0.26, 1);
+      // girders (parallax .3) + rail lights
+      for (let k = -8; k < 12; k++) { const gx = ((k * 90 - cam.x * 0.3) * z) + 240; if (gx < -20 || gx > 500) continue; r.rect(gx, 0, 9 * z, 270, 0.1, 0.09, 0.22, 1); r.rect(gx, 0, 2 * z, 270, 0.2, 0.18, 0.4, 1); for (let y = 30; y < 250; y += 38) r.rect(gx + 3 * z, y - cam.y * 0.3 * z * 0.5, 3 * z, 3 * z, ((t >> 4) + k + (y / 38 | 0)) & 3 ? 0.3 : 1, 0.9, 0.5, 1); }
+      r.rect(0, 0, 480, 10 * z, 0.08, 0.07, 0.18, 1);
+    },
+    drawStage(r, cam, S) {
+      const z = cam.zoom, X = (wx) => Math.round((wx - cam.x) * z + 240), Y = (wy) => Math.round((wy - cam.y) * z + 135), at = r.atlas;
+      const m = def.solids[0], x = X(m.x0), w = Math.round((m.x1 - m.x0) * z), y = Y(0), h = Math.round(70 * z);
+      r.rect(x, y, w, h, 0.17, 0.18, 0.3, 1); r.rect(x, y + h * 0.4, w, h * 0.6, 0.1, 0.1, 0.2, 1); r.rect(x, y, w, Math.max(2, 3 * z), 0.62, 0.66, 0.85, 1); r.rect(x, y + 3 * z, w, 2 * z, 0.35, 0.4, 0.62, 1);
+      r.rect(x - 1, y, 1, h, 0.05, 0.03, 0.1, 1); r.rect(x + w, y, 1, h, 0.05, 0.03, 0.1, 1); r.rect(x, y + h, w, 1, 0.05, 0.03, 0.1, 1);
+      for (let gx = m.x0 + 8; gx < m.x1 - 8; gx += 20) { const on = ((((S ? S.frame : 0) >> 4) + (gx / 20 | 0)) & 3) !== 0; r.rect(X(gx), y + 6 * z, 4 * z, 2 * z, on ? 0.4 : 0.9, on ? 0.95 : 0.5, on ? 1 : 0.3, 1); }
+      for (let gx = m.x0; gx < m.x1; gx += 16) { r.rect(X(gx), y + 14 * z, 8 * z, 4 * z, 0.95, 0.8, 0.2, 1); r.rect(X(gx + 8), y + 14 * z, 8 * z, 4 * z, 0.1, 0.08, 0.14, 1); }
+      for (let gx = m.x0 + 30; gx < m.x1; gx += 80) r.rect(X(gx), y + 22 * z, 6 * z, 44 * z, 0.12, 0.12, 0.25, 1);
+      const th = S ? S.thin : def.thin;
+      th.forEach((t, i) => { const px = X(t.x0), pw = Math.round((t.x1 - t.x0) * z), py = Y(t.y), moving = i < 2;
+        r.img(at.canvas, at.fx.pad.x, at.fx.pad.y, 44, 10, px, py, pw, Math.round(10 * z));
+        if (moving) { r.rect(px + pw / 2 - 1, py + 10 * z, 2 * z, 150 * z, 0.2, 0.22, 0.4, 0.5); r.rect(px + 4 * z, py + 8 * z, pw - 8 * z, 2 * z, 0.4, 0.95, 1, 0.9); } });
+      const hz = hazardState(def, S ? S.frame : 0);
+      if (hz) {
+        const bx = X(hz.x - hz.w / 2), bw = Math.round(hz.w * z), f = S ? S.frame : 0;
+        r.rect(bx, Y(-280), bw, 14 * z, 0.3, 0.3, 0.5, 1); r.rect(bx + 4 * z, Y(-266), bw - 8 * z, 4 * z, hz.tele > 0 || hz.act ? 1 : 0.3, 0.3, 0.3, 1);
+        if (hz.tele > 0 && !hz.act) for (let yy = -266; yy < 40; yy += 10) if (((f >> 2) + (yy / 10 | 0)) & 1) r.rect(bx + 2 * z, Y(yy), bw - 4 * z, 5 * z, 1, 0.25, 0.25, 0.25 + 0.4 * hz.tele);
+        if (hz.act) { r.rect(bx - 4 * z, Y(-266), bw + 8 * z, 300 * z, 0.4, 0.8, 1, 0.3); r.rect(bx, Y(-266), bw, 300 * z, 0.7, 0.95, 1, 0.85); r.rect(bx + bw * 0.3, Y(-266), bw * 0.4, 300 * z, 1, 1, 1, 1); }
+      }
+    },
+    drawFront() {},
+  };
+}
+function circleS(r, cx, cy, rad, R, G, Bc, a) { for (let y = -rad; y <= rad; y += 2) { const w = Math.sqrt(Math.max(0, rad * rad - y * y)); r.rect(cx - w, cy + y, w * 2, 2, R, G, Bc, a); } }
+
+// ROOF: night, 7/11 rooftop, sign tower mid platform that flickers then zaps, AC-unit side platforms.
+function roofVisual(def) {
+  const R0 = rng(5150), stars = [], blds = [];
+  for (let i = 0; i < 110; i++) stars.push({ x: R0() * 900, y: R0() * 150, a: R0() });
+  for (let i = 0; i < 26; i++) blds.push({ x: i * 56 + R0() * 20, w: 30 + R0() * 36, h: 40 + R0() * 90, lit: R0() });
+  return {
+    drawBack(r, cam, t, S) {
+      const z = cam.zoom; r.setTint(1, 1, 1, 1);
+      for (let k = 0; k < 14; k++) { const u = k / 13, c = [0.03 + 0.16 * u * u, 0.02 + 0.07 * u, 0.1 + 0.2 * u]; r.rect(0, k * 20, 480, 20, c[0], c[1], c[2], 1); }
+      for (const s of stars) r.rect(((s.x - cam.x * 0.04) * z % 480 + 480) % 480, s.y * 0.9, s.a > 0.93 ? 2 : 1, 1, 0.85, 0.85, 1, 0.3 + 0.6 * ((s.a * 7 + t * 0.02) % 1));
+      circleS(r, 380 - cam.x * 0.06 * z, 54 - cam.y * 0.03 * z, 16 * z, 0.92, 0.9, 0.98, 1); circleS(r, 385 - cam.x * 0.06 * z, 50 - cam.y * 0.03 * z, 13 * z, 0.78, 0.74, 0.9, 0.6);
+      for (const layer of [0.25, 0.5]) for (const b of blds) {
+        const bx = ((b.x - cam.x * layer) * z) % (26 * 56 * z) , x0 = bx < -80 ? bx + 26 * 56 * z : bx; const hh = b.h * z * (layer > 0.3 ? 1 : 0.7), by = 135 + (70 - cam.y * layer * 0.4) * z - hh;
+        const c = layer > 0.3 ? [0.06, 0.04, 0.14] : [0.1, 0.07, 0.2]; r.rect(x0, by, b.w * z, hh + 80, c[0], c[1], c[2], 1);
+        for (let wy = 5; wy < b.h - 8; wy += 9) for (let wx = 4; wx < b.w - 4; wx += 8) if (((wx * 7 + wy * 3 + (b.x | 0)) % 5) < 2 + (b.lit * 3 | 0)) r.rect(x0 + wx * z, by + wy * z * (layer > 0.3 ? 1 : 0.7), 3 * z, 3 * z, 1, 0.82, 0.4, 0.8);
+        if (b.lit > 0.7) r.rect(x0 + b.w * z / 2, by - 4 * z, 2 * z, 4 * z, ((t >> 5) & 1) ? 1 : 0.3, 0.2, 0.25, 1);
+      }
+    },
+    drawStage(r, cam, S) {
+      const z = cam.zoom, X = (wx) => Math.round((wx - cam.x) * z + 240), Y = (wy) => Math.round((wy - cam.y) * z + 135), f = S ? S.frame : 0;
+      const m = def.solids[0], x = X(m.x0), w = Math.round((m.x1 - m.x0) * z), y = Y(0), h = Math.round(60 * z);
+      r.rect(x, y, w, h, 0.2, 0.18, 0.3, 1); r.rect(x, y + 8 * z, w, h - 8 * z, 0.13, 0.11, 0.22, 1); r.rect(x - 2 * z, y - 3 * z, w + 4 * z, 4 * z, 0.5, 0.46, 0.66, 1); r.rect(x, y, w, 2 * z, 0.72, 0.68, 0.9, 1);
+      r.rect(x - 1, y, 1, h, 0.05, 0.03, 0.1, 1); r.rect(x + w, y, 1, h, 0.05, 0.03, 0.1, 1); r.rect(x, y + h, w, 1, 0.05, 0.03, 0.1, 1);
+      for (let gx = m.x0 + 10; gx < m.x1 - 6; gx += 24) r.rect(X(gx), y + 16 * z, 14 * z, 2 * z, 0.3, 0.27, 0.45, 1);
+      for (const sd of [-1, 1]) { const ax = sd < 0 ? def.thin[0] : def.thin[1], bx = X(ax.x0), bw = Math.round((ax.x1 - ax.x0) * z), by = Y(ax.y);
+        r.rect(bx, by, bw, 24 * z, 0.5, 0.52, 0.6, 1); r.rect(bx, by, bw, 2 * z, 0.85, 0.88, 0.95, 1); r.rect(bx, by + 22 * z, bw, 2 * z, 0.3, 0.32, 0.4, 1); circleS(r, bx + bw / 2, by + 11 * z, 8 * z, 0.3, 0.32, 0.4, 1); for (let k = -1; k <= 1; k++) r.rect(bx + bw / 2 - 7 * z, by + 11 * z + k * 3 * z, 14 * z, 1 * z, 0.14, 0.16, 0.22, 1); }
+      const hz = hazardState(def, f), sg = def.thin[2], sx = X(sg.x0), sw = Math.round((sg.x1 - sg.x0) * z), sy = Y(sg.y);
+      r.rect(X(-3), sy + 26 * z, 6 * z, (88 - 26) * z, 0.3, 0.28, 0.42, 1); r.rect(X(-3), sy + 26 * z, 2 * z, (88 - 26) * z, 0.55, 0.52, 0.72, 1);
+      const flick = hz && hz.tele > 0 && !hz.act && (((f >> 1) + (f >> 3)) & 1), zap = hz && hz.act, dim = flick ? 0.25 : 1;
+      r.rect(sx - 2 * z, sy - 1, sw + 4 * z, 30 * z, 0.08, 0.05, 0.16, 1);
+      r.rect(sx, sy + 1 * z, sw, 8 * z, 1 * dim, 0.48 * dim, 0.16 * dim, 1); r.rect(sx, sy + 9 * z, sw, 8 * z, 0.09 * dim, 0.75 * dim, 0.44 * dim, 1); r.rect(sx, sy + 17 * z, sw, 8 * z, 0.9 * dim, 0.22 * dim, 0.28 * dim, 1);
+      for (let k = 0; k < 7; k++) r.rect(sx + 5 * z + k * 9 * z, sy + 10 * z, 5 * z, 5 * z, 1, 1, 1, 0.7 * dim);
+      r.rect(sx, sy, sw, 2 * z, 0.8, 0.7, 1, 1);
+      if (!flick) { r.rect(sx - 6 * z, sy - 4 * z, sw + 12 * z, 38 * z, 1, 0.6, 0.3, zap ? 0.4 : 0.12); }
+      if (zap) { r.rect(X(-50), Y(-150), 100 * z, 160 * z, 0.7, 0.8, 1, 0.25); for (let k = -2; k <= 2; k++) { let px = k * 22; for (let yy = -82; yy < 8; yy += 10) { const nx = k * 22 + (((yy * 11 + f * 19 + k * 7) % 11) - 5); r.rect(X(Math.min(px, nx)), Y(yy), (Math.abs(nx - px) + 3) * z, 10 * z, 0.8, 0.9, 1, 1); px = nx; } } }
+      else if (hz && hz.tele > 0) { r.rect(X(-50), Y(-6), 100 * z, 3 * z, 1, 0.8, 0.3, 0.3 + 0.5 * hz.tele * (((f >> 2) & 1) ? 1 : 0.5)); }
+    },
+    drawFront() {},
+  };
+}
+
 export function createStageVisual(def) {
   if (typeof document === 'undefined') return null;
+  if (def.id === 'hangar') return hangarVisual(def);
+  if (def.id === 'roof') return roofVisual(def);
   const sky = skyCanvas(), planet = planetCanvas(), moon = moonCanvas();
   const far = ridgeCanvas(1400, 200, 11, 120, 26, 0x2a1850, 0x5a3a90, 0);
   const mid = ridgeCanvas(1400, 200, 29, 130, 18, 0x170a2e, 0x3a2268, 14);

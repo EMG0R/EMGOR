@@ -4,14 +4,13 @@
 // Guest = full local sim restored from each snapshot, then re-simulated with its own unacked inputs (prediction);
 // remote fighters are drawn from snapshot interpolation. Same seed + same inputs => same engine.hash().
 import { createMatch, botInput, drawScene, newView, updateView, viewEvent, createRenderer, PLAYER_COLORS } from './smash-engine.js';
-import { FIGHTER_IDS } from './smash-fighters.js';
+import { FIGHTER_IDS, FIGHTERS } from './smash-fighters.js';
 import { buildAtlas } from './smash-sprites.js';
 import { terrainStage, createTerrainVisual } from './smash-stages.js';
 import { createUI } from './smash-ui.js';
 
-// style id (3D world) -> smash fighter. Unknown ids fall to a stable pick by string hash.
-const STYLE_MAP = { MARO: 'pilot', JOSHI: 'hopper', STEEV: 'builder', SONIK: 'swift', PILOT: 'pilot', HOPPER: 'hopper', BUILDER: 'builder', SWIFT: 'swift',
-  TWIN: 'swift', RACER: 'swift', SPARKLET: 'swift', JELLY: 'hopper', HUM: 'hopper', HAULER: 'builder', RANGER: 'pilot', BOUNTY: 'pilot', SEER: 'pilot' };
+const STYLE_MAP = { MARO: 'pilot', JOSHI: 'hopper', STEEV: 'builder', SONIK: 'swift' };
+for (const id of FIGHTER_IDS) STYLE_MAP[id.toUpperCase()] = id; // every fighter name maps to itself: 13 distinct
 export function styleToFighter(id) {
   const k = String(id == null ? '' : id).toUpperCase(); if (STYLE_MAP[k]) return STYLE_MAP[k];
   let h = 0; for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0; return FIGHTER_IDS[Math.abs(h) % FIGHTER_IDS.length];
@@ -32,6 +31,7 @@ export function createFightSession(opts) {
   const mode = opts.mode || 'local', fighters = opts.fighters || [], net = opts.net || null, room = opts.roomId;
   const seed = (opts.seed | 0) || 1234, N = fighters.length;
   const samples = opts.stageSamples || new Float32Array(128);
+  // world fights ALWAYS use the terrain stage built from the samples; any opts.stage id is ignored
   const stageDef = terrainStage(samples, 'terrain_' + (seed >>> 0).toString(16));
   const cols = fighters.map((f, i) => parseCol((opts.playerColors && opts.playerColors[i]) || f.color || PLAYER_COLORS[i % 4]));
   const cfg = {
@@ -94,11 +94,12 @@ export function createFightSession(opts) {
   }
 
   // ---- snapshot (host -> guests/spectators)
-  function moveKey(f, m) { if (!m) return 0; for (const k in f.def.moves) if (f.def.moves[k] === m) return k; return 0; }
+  function moveKey(f, m) { if (!m) return 0; for (const k in f.def.moves) if (f.def.moves[k] === m) return k; if (f.copy && FIGHTERS[f.copy]) for (const k in FIGHTERS[f.copy].moves) if (FIGHTERS[f.copy].moves[k] === m) return '~' + k; return 0; }
+  const moveOf = (f, k) => (!k ? null : k[0] === '~' ? FIGHTERS[f.copy].moves[k.slice(1)] : f.def.moves[k]);
   function sendSnap() {
     const keys = Object.keys(S.fighters[0]).filter((k) => !SKIP.has(k)), sig = keys.join(',');
     const fs = S.fighters.map((f) => { const o = { v: keys.map((k) => f[k]), mv: moveKey(f, f.move), hm: moveKey(f, f.hbMove) }; if (f.pend) o.pd = f.pend; for (const k in f.cd) { o.cd = f.cd; break; } return o; });
-    const data = { fr: S.frame, ph: S.phase, tm: S.time, ct: S.count, et: S.endT, nid: S.nid, h: S.hash(), m: lastMasks, ak: ack, fs, pj: S.projs, bl: S.blocks, lo: S.ledgeOcc };
+    const data = { fr: S.frame, ph: S.phase, tm: S.time, ct: S.count, et: S.endT, nid: S.nid, cn: S.cine, cw: S.cineWho, h: S.hash(), m: lastMasks, ak: ack, fs, pj: S.projs, bl: S.blocks, lo: S.ledgeOcc };
     if (sig !== ksSig || (snapN % 60) === 0) { ksSig = sig; data.ks = keys; }
     let msg = { t: 'sm.snap', room, f: S.frame, data }, len = JSON.stringify(msg).length;
     if (len > 1900) { // tighten floats before giving up the frame
@@ -108,10 +109,10 @@ export function createFightSession(opts) {
   }
   function restore(d) {
     if (d.ks) ks = d.ks; if (!ks) return false;
-    S.frame = d.fr; S.phase = d.ph; S.time = d.tm; S.count = d.ct; S.endT = d.et; S.nid = d.nid;
+    S.frame = d.fr; S.phase = d.ph; S.time = d.tm; S.count = d.ct; S.endT = d.et; S.nid = d.nid; S.cine = d.cn | 0; S.cineWho = d.cw == null ? -1 : d.cw;
     d.fs.forEach((o, i) => {
       const f = S.fighters[i]; if (!f) return; ks.forEach((k, j) => { f[k] = o.v[j]; });
-      f.move = o.mv ? f.def.moves[o.mv] : null; f.hbMove = o.hm ? f.def.moves[o.hm] : null; f.pend = o.pd || null; f.cd = o.cd ? Object.assign({}, o.cd) : {};
+      f.move = moveOf(f, o.mv) || null; f.hbMove = moveOf(f, o.hm) || null; f.pend = o.pd || null; f.cd = o.cd ? Object.assign({}, o.cd) : {};
     });
     S.projs = d.pj.map((p) => Object.assign({}, p)); S.blocks = d.bl.map((b) => Object.assign({}, b)); S.ledgeOcc = d.lo.slice();
     S.solids.length = S.stage.solids.length; for (const b of S.blocks) S.solids.push(b);

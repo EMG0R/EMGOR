@@ -2,6 +2,7 @@
 // K.O. text, pause, results. Styles are injected here (no separate css file). Original chrome only.
 import { FIGHTERS, FIGHTER_IDS } from './smash-fighters.js';
 import { PLAYER_COLORS } from './smash-engine.js';
+import { STAGES, STAGE_IDS } from './smash-stages.js';
 
 const CSS = `
 .sm-root{position:fixed;inset:0;background:#05020a;display:flex;align-items:center;justify-content:center;overflow:hidden;font-family:ui-monospace,Menlo,Consolas,monospace;color:#efe6ff;user-select:none;-webkit-user-select:none}
@@ -28,18 +29,24 @@ const CSS = `
 .sm-screen.on{display:block}
 .sm-title{position:absolute;top:calc(var(--u)*8px);left:0;right:0;text-align:center;font-weight:900;font-size:calc(var(--u)*22px);letter-spacing:calc(var(--u)*4px);color:#e9dcff;text-shadow:0 calc(var(--u)*2px) 0 #4a2a90,0 0 calc(var(--u)*12px) #8a5cd8}
 .sm-sub{position:absolute;top:calc(var(--u)*34px);left:0;right:0;text-align:center;font-size:calc(var(--u)*6.5px);color:#a890d8;letter-spacing:calc(var(--u)*1px)}
-.sm-slots{position:absolute;top:calc(var(--u)*50px);left:calc(var(--u)*14px);right:calc(var(--u)*14px);display:grid;grid-template-columns:repeat(4,1fr);gap:calc(var(--u)*6px)}
+.sm-slots{position:absolute;top:calc(var(--u)*54px);left:calc(var(--u)*14px);right:calc(var(--u)*14px);display:grid;grid-template-columns:repeat(4,1fr);gap:calc(var(--u)*6px)}
 .sm-slot{background:#1a0b3acc;border:calc(var(--u)*1px) solid #4a2a80;padding:calc(var(--u)*4px);text-align:center;cursor:pointer;border-radius:calc(var(--u)*3px);position:relative}
 .sm-slot.sel{border-color:#c79cff;box-shadow:0 0 calc(var(--u)*8px) #8a5cd888}
 .sm-slot.off{opacity:.45}
 .sm-slot .pl{font-weight:900;font-size:calc(var(--u)*9px)}
 .sm-slot .ct{margin:calc(var(--u)*3px) auto;font-size:calc(var(--u)*6.5px);padding:calc(var(--u)*2px) calc(var(--u)*3px);background:#3a1f70;border:calc(var(--u)*1px) solid #7a5ac8;display:inline-block;cursor:pointer}
-.sm-slot canvas{display:block;margin:0 auto;width:calc(var(--u)*48px);height:calc(var(--u)*72px);image-rendering:pixelated}
+.sm-slot canvas{display:block;margin:0 auto;width:calc(var(--u)*24px);height:calc(var(--u)*36px);image-rendering:pixelated}
 .sm-slot .fn{font-weight:800;font-size:calc(var(--u)*8px);letter-spacing:calc(var(--u)*1px)}
-.sm-cards2{position:absolute;bottom:calc(var(--u)*34px);left:calc(var(--u)*14px);right:calc(var(--u)*14px);display:flex;gap:calc(var(--u)*6px);justify-content:center}
-.sm-pick{flex:1;background:#140a2ccc;border:calc(var(--u)*1px) solid #3a2470;padding:calc(var(--u)*3px);cursor:pointer;text-align:center;font-size:calc(var(--u)*6px);border-radius:calc(var(--u)*3px)}
+.sm-stages{position:absolute;top:calc(var(--u)*40px);left:0;right:0;display:flex;justify-content:center;gap:calc(var(--u)*6px)}
+.sm-stg{padding:calc(var(--u)*2px) calc(var(--u)*8px);font-size:calc(var(--u)*6.5px);font-weight:800;letter-spacing:calc(var(--u)*1px);background:#140a2ccc;border:calc(var(--u)*1px) solid #3a2470;cursor:pointer;border-radius:calc(var(--u)*3px)}
+.sm-stg.cur{border-color:#e9dcff;background:#3a1f70}
+.sm-info{position:absolute;bottom:calc(var(--u)*29px);left:0;right:0;text-align:center;font-size:calc(var(--u)*6px);color:#c8b0f0;letter-spacing:calc(var(--u)*1px)}
+.sm-fin{margin-left:calc(var(--u)*4px);font-size:calc(var(--u)*6px);font-weight:900}
+.sm-cards2{position:absolute;bottom:calc(var(--u)*36px);left:calc(var(--u)*4px);right:calc(var(--u)*4px);display:flex;flex-wrap:wrap;gap:calc(var(--u)*3px);justify-content:center}
+.sm-pick{flex:0 0 calc(var(--u)*52px);background:#140a2ccc;border:calc(var(--u)*1px) solid #3a2470;padding:calc(var(--u)*1px);cursor:pointer;text-align:center;font-size:calc(var(--u)*5px);border-radius:calc(var(--u)*3px)}
+.sm-pick canvas{display:block;margin:0 auto;width:calc(var(--u)*22px);height:calc(var(--u)*33px);image-rendering:pixelated}
 .sm-pick:hover,.sm-pick.cur{border-color:#e9dcff;background:#2a1458}
-.sm-pick b{display:block;font-size:calc(var(--u)*8px);letter-spacing:calc(var(--u)*1px)}
+.sm-pick b{display:block;font-size:calc(var(--u)*6px);letter-spacing:calc(var(--u)*1px)}
 .sm-pick span{color:#a890d8;font-size:calc(var(--u)*5px)}
 .sm-btn{position:absolute;bottom:calc(var(--u)*8px);left:50%;transform:translateX(-50%);font:inherit;font-weight:900;font-size:calc(var(--u)*12px);letter-spacing:calc(var(--u)*2px);padding:calc(var(--u)*4px) calc(var(--u)*18px);background:#7a3ae0;color:#fff;border:0;border-bottom:calc(var(--u)*3px) solid #3a1a80;border-radius:calc(var(--u)*3px);cursor:pointer}
 .sm-btn:hover{background:#9a5af8}
@@ -66,7 +73,7 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 
 export function createUI(root) {
   if (!document.getElementById('sm-css')) { const s = document.createElement('style'); s.id = 'sm-css'; s.textContent = CSS; document.head.appendChild(s); }
-  const ui = { slots: [{ fid: 'pilot', opt: 0 }, { fid: 'swift', opt: 3 }, { fid: 'hopper', opt: 5 }, { fid: 'builder', opt: 5 }], sel: 0, game: null, atlas: null, onLaunch: null };
+  const ui = { slots: [{ fid: 'pilot', opt: 0 }, { fid: 'swift', opt: 3 }, { fid: 'hopper', opt: 5 }, { fid: 'builder', opt: 5 }], sel: 0, stage: 'plateau', game: null, atlas: null, onLaunch: null };
   const rootEl = el('div', 'sm-root'), wrap = el('div', 'sm-wrap'), canvas = el('canvas'); canvas.width = 480; canvas.height = 270;
   wrap.appendChild(canvas);
   const hud = el('div', 'sm-layer sm-hud'), timer = el('div', 'sm-timer', '4:00'), cards = el('div', 'sm-cards'), big = el('div', 'sm-big'), pause = el('div', 'sm-pause', 'PAUSED');
@@ -87,7 +94,8 @@ export function createUI(root) {
   }
   function buildSelect() {
     sel.innerHTML = ''; previews.length = 0;
-    sel.append(el('div', 'sm-title', 'GOR BRAWL'), el('div', 'sm-sub', 'PLATEAU  -  3 STOCKS  -  4:00  -  CLICK A SLOT, THEN A FIGHTER'));
+    sel.append(el('div', 'sm-title', 'GOR BRAWL'), el('div', 'sm-sub', '3 STOCKS  -  4:00  -  CLICK A SLOT, THEN A FIGHTER, PICK A STAGE'));
+    const stg = el('div', 'sm-stages'); STAGE_IDS.forEach((id) => { const b = el('div', 'sm-stg' + (ui.stage === id ? ' cur' : ''), STAGES[id].name); b.onclick = () => { ui.stage = id; buildSelect(); }; stg.appendChild(b); }); sel.appendChild(stg);
     const slots = el('div', 'sm-slots');
     ui.slots.forEach((s, i) => {
       const d = el('div', 'sm-slot' + (i === ui.sel ? ' sel' : '') + (CTRL_OPTS[s.opt].ctrl === 'off' ? ' off' : ''));
@@ -102,10 +110,13 @@ export function createUI(root) {
     sel.appendChild(slots);
     const row = el('div', 'sm-cards2');
     FIGHTER_IDS.forEach((id) => {
-      const f = FIGHTERS[id], p = el('div', 'sm-pick' + (ui.slots[ui.sel].fid === id ? ' cur' : ''), '<b style="color:' + f.color + '">' + f.name + '</b>' + f.blurb + '<br><span>WT ' + f.weight + '  RUN ' + f.run + '  FALL ' + f.fall + '</span>');
+      const f = FIGHTERS[id], p = el('div', 'sm-pick' + (ui.slots[ui.sel].fid === id ? ' cur' : ''));
+      const cv = el('canvas'); cv.width = 32; cv.height = 48; previews.push([cv, () => id]);
+      p.append(cv, el('b', '', f.name)); p.style.color = f.color;
       p.onclick = () => { ui.slots[ui.sel].fid = id; buildSelect(); };
       row.appendChild(p);
     });
+    sel.append(el('div', 'sm-info', FIGHTERS[ui.slots[ui.sel].fid].name + ': ' + FIGHTERS[ui.slots[ui.sel].fid].blurb));
     sel.appendChild(row);
     const go = el('button', 'sm-btn', 'FIGHT'); go.onclick = () => ui.launch(); sel.append(go, el('div', 'sm-keys', 'P1  WASD + J ATTACK  K SPECIAL  L SHIELD  I GRAB  SPACE JUMP     P2  ARROWS + NUM1 / NUM2 / NUM3 / NUM0     PAD SUPPORTED     P PAUSE'));
     previews.forEach(([cv, fn]) => drawPreview(cv, fn(), 0));
@@ -115,7 +126,7 @@ export function createUI(root) {
   ui.launch = () => {
     const players = ui.slots.map((s) => { const o = CTRL_OPTS[s.opt]; return { fid: s.fid, ctrl: o.ctrl, level: o.level || 2 }; }).filter((p) => p.ctrl !== 'off');
     if (players.length < 2) { const s = ui.slots.find((x) => CTRL_OPTS[x.opt].ctrl === 'off'); if (s) s.opt = 3; return ui.launch(); }
-    ui.onLaunch && ui.onLaunch({ players, stage: 'plateau' });
+    ui.onLaunch && ui.onLaunch({ players, stage: ui.stage });
   };
   ui.attach = (game) => { ui.game = game; ui.atlas = game.atlas; buildSelect(); animatePreviews(); };
   ui.showSelect = () => { res.classList.remove('on'); hud.classList.remove('on'); sel.classList.add('on'); buildSelect(); animatePreviews(); if (ui.game) ui.game.stop(); };
@@ -142,6 +153,7 @@ export function createUI(root) {
     else if (e.t === 'ko') { say('K.O.!', PLAYER_COLORS[e.who % 4], 900); const ce = cardEls[e.who]; if (ce) { ce.c.classList.remove('hit'); void ce.c.offsetWidth; ce.c.classList.add('hit'); } }
     else if (e.t === 'hit') { const ce = cardEls[e.who]; if (ce && e.dmg >= 3) { ce.c.classList.remove('hit'); void ce.c.offsetWidth; ce.c.classList.add('hit'); } }
     else if (e.t === 'end') say('GAME!', '#fff', 1500);
+    else if (e.t === 'final') say(e.name + ' FINAL', PLAYER_COLORS[e.who % 4], 1300);
     else if (e.t === 'over') showResults(e.result, game);
   };
   ui.onPause = (p) => pause.classList.toggle('on', !!p);
@@ -150,11 +162,12 @@ export function createUI(root) {
     const secs = Math.max(0, Math.ceil(sim.time / 60)), ts = (secs / 60 | 0) + ':' + String(secs % 60).padStart(2, '0');
     if (ts !== ui._ts) { timer.textContent = ts; ui._ts = ts; }
     sim.fighters.forEach((f, i) => {
-      const k = cache[i], ce = cardEls[i]; if (!ce) return; const pct = Math.floor(f.pct), key = pct + ':' + f.stocks + ':' + f.res;
+      const k = cache[i], ce = cardEls[i]; if (!ce) return; const pct = Math.floor(f.pct), key = pct + ':' + f.stocks + ':' + f.res + ':' + f.final + ':' + (f.meter | 0);
       if (k.key === key) return; k.key = key;
       ce.pc.innerHTML = pct + '<small>%</small>'; ce.pc.style.color = pcColor(pct); ce.c.classList.toggle('out', f.stocks <= 0);
       let h = ''; for (let s = 0; s < 3; s++) h += '<i class="pip' + (s < f.stocks ? '' : ' x') + '" style="background:' + PLAYER_COLORS[f.i] + '"></i>';
       if (FIGHTERS[f.fid].res0 != null) h += '<span style="margin-left:4px;color:#e8c040">BLK ' + f.res + '</span>';
+      h += f.final ? '<span class="sm-fin" style="color:#ffd84d">FINAL! SHIELD+SPECIAL</span>' : '<span class="sm-fin" style="color:#a890d8">' + (f.meter | 0) + '%</span>';
       ce.pips.innerHTML = h;
     });
   };
