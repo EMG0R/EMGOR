@@ -1079,3 +1079,33 @@ NMS freighter expeditions, basically.
    mode on foot: orientation follows the mouse like the ship (pitch/yaw), W = forward
    thrust, Space = climb, Shift = fast; release → glide down; landing crouch. Terrain and
    wall collision as a capsule, substepped.
+
+## Revision 30 (2026-10-06) — one game: character styles live in the Minecraft menu
+- Everything from docs/mashup-plan.md and docs/smash-plan.md is IN the main game: you
+  step out of the ship into it. GOR BRAWL (smash.html) stays as the standalone page but
+  the same engine runs the proximity fights in-world.
+- **Inventory = accurate Minecraft survival inventory**: check the real layout: 176×166
+  panel at GUI scale, the player-preview box top-left with the model turning to follow
+  the mouse, 4 armor slots + offhand, the 2×2 craft grid + arrow + output, 27-slot main
+  grid + 9-slot hotbar, slot bevels and the exact grey (#C6C6C6 face, #373737/#FFFFFF
+  bevels), tooltip style, the recipe-book toggle button. Ours adds a **CHARACTER tab**
+  (the preview box becomes the character panel): the current style's name and pixel
+  portrait, left/right arrows to switch styles (MARO/JOSHI/STEEV/SONIK + the rest once
+  built; names to be finalized), each with 3 lines of what the style does, and a
+  "fight stance" preview. Switching re-skins the human rig and swaps the movement
+  module in place (no reload). The hotbar stays visible on the HUD like Minecraft.
+
+### Multiplayer is a requirement, not a feature (2026-10-06)
+Every new system ships with its two-window test or it doesn't ship:
+- Character style rides in `hi`/roster and `pos` (1 byte) → others see your re-skin and
+  animations; switching broadcasts.
+- Proximity fights: the FIGHT prompt is relayed; both accept → the smash netcode (host =
+  the challenger, 2-byte inputs, 30 Hz snapshots) over an `sm_*` room; spectators nearby
+  see the 2D fight as a floating billboard in 3D; results broadcast.
+- Mobs, hubs, villages: per-planet HOST ELECTION (lowest id present = host; handoff on
+  leave) — the host simulates mobs/hub waves and sends 10 Hz snapshots; everyone sees
+  the same creeper. Villages are static seeded (already shared).
+- Pets, crew, glow, suit tier, hull signature, held item: all in the roster.
+- Relay: add `sm_*` rooms + per-planet `mobs` channel; rate limits raised for fights.
+- Test plan per pass: two Chrome windows, both land on the same planet, both see the
+  same mobs and each other's style; one challenges, the other accepts; fight; results.

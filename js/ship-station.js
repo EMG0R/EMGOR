@@ -17,7 +17,7 @@
 //   station.interior.shipyard { pos, radius, ships:[{kind,name,price,stats:{cruise,boost,cargo,guns,hp} (pct deltas vs hauler; guns absolute),blurb}] }  hangar-back alcove, 2 turntable display pads (fighter, explorer)
 //   station.interior.questBoard { pos, radius, quests, setQuests([{title,reward,kind}]) }  'BOUNTIES' screen beside the mission board;  .landingFee (0)  .greetingLine(seed?) seeded PA line on dock
 //   station.toLocal(v)/toWorld(v)  (local in L units)   station.setVisible(b)   station.stats {tris, meshes}   station.dispose()
-import { STORE_NAME, createStandaloneStore, transformBoxes, fillStoreRecord } from './ship-world.js';
+import { STORE_NAME, STORE_DIMS, createStandaloneStore, transformBoxes, fillStoreRecord } from './ship-world.js';
 import * as lingo from './ship-lingo.js';
 import { createHuman } from './ship-human.js';
 import { weaponSetFor, generateWeapon } from './ship-weapons.js';
@@ -486,7 +486,7 @@ export function createStation(engine, L, opts) {
     }
     // place the store against the left wall, glass front facing +x
     ss.group.scale.setScalar(STORE_S); ss.group.rotation.set(0, Math.PI / 2, 0);
-    ss.group.position.set(-HW + 13.8 * STORE_S, 0, cz); ss.group.updateMatrix(); ss.group.updateMatrixWorld(true);
+    ss.group.position.set(-HW + (STORE_DIMS.compact.halfD + 0.8) * STORE_S, 0, cz); ss.group.updateMatrix(); ss.group.updateMatrixWorld(true);
     ss.interior.setMatrix(ss.group.matrix, STORE_S);
     ss.crowd.frame = ss.group.matrixWorld;                       // NPC .pos come out in WORLD space
     // push the store's walls / shelves into the deck colliders (station-local L, axis aligned: the yaw is 90 degrees)
@@ -518,8 +518,8 @@ export function createStation(engine, L, opts) {
       });
     }
     const s = st.interior.stores[0];
-    ss.interior.toParent(_v.set(6.5, 0, 6.4), s.localPos); s.localPos.y = 0;
-    ss.interior.toParent(_v.set(6.5, 0, 10.9), s.localCounter); s.localCounter.y = 0;
+    ss.interior.toParent(_v.set(STORE_DIMS.compact.npcSpot.x, 0, STORE_DIMS.compact.npcSpot.z), s.localPos); s.localPos.y = 0;
+    ss.interior.toParent(_v.set(STORE_DIMS.compact.counter.x, 0, STORE_DIMS.compact.counter.z), s.localCounter); s.localCounter.y = 0;
     const spots = [[3.9, zF - 4.5, -1, 0.3], [-1.2, zF - 18, 1, 0.2], [0.9, zR + 3.5, 0, 1]];
     st.interior.npcs.forEach((n, i) => { n.localPos.set(spots[i][0], 0, spots[i][1]); placeHuman(n.human, spots[i][0], spots[i][1], spots[i][2], spots[i][3]); });
     lay.ped.set(3.2, 0, cz);
