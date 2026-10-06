@@ -48,12 +48,12 @@ function segSeg2(p1x, p1y, q1x, q1y, p2x, p2y, q2x, q2y) {
 const STOCKS = 3, TIME = 14400, COUNT = 150;
 const GROUND_STATES = { idle: 1, run: 1, crouch: 1 };
 
-function mkFighter(i, slot, stage) {
+function mkFighter(i, slot, stage, stocks) {
   const def = FIGHTERS[slot.fid];
   return {
     i, fid: slot.fid, def, ctrl: slot.ctrl || 'cpu', level: slot.level || 2,
     x: stage.start[i].x, y: stage.start[i].y, px: stage.start[i].x, py: stage.start[i].y, vx: 0, vy: 0, face: i & 1 ? -1 : 1, grounded: true, landed: false,
-    state: 'idle', st: 0, animT: 0, pct: 0, stocks: STOCKS, hitlag: 0, pend: null, hitstun: 0, tumble: false, inv: 0, armorNow: 0,
+    state: 'idle', st: 0, animT: 0, pct: 0, stocks: stocks || STOCKS, hitlag: 0, pend: null, hitstun: 0, tumble: false, inv: 0, armorNow: 0,
     sh: 180, jumps: def.jumps, upUsed: false, flutterT: 0, jumpT: 99, ff: false, move: null, mf: 0, hitSet: 0, hbMove: null, hbT: 0, moveAir: false,
     bufA: 0, bufB: 0, bufG: 0, bufJ: 0, inp: 0, prev: 0, cd: {}, reflectT: 0, hold: -1, heldBy: -1, holdT: 0, ledge: -1, ledgeT: 0, ledgeLock: 0, dropT: 0,
     eggT: 0, stunT: 0, lag: 0, deadT: 0, respT: 0, dashx: 0, dashy: 0, res: def.res0 || 0, resT: 0, kos: 0, dealt: 0, taken: 0, eggShield: 1, rollDir: 1,
@@ -63,11 +63,11 @@ function mkFighter(i, slot, stage) {
 
 export function createMatch(cfg) {
   cfg = cfg || {};
-  const stage = STAGES[cfg.stage || 'plateau'];
+  const stage = cfg.stageDef || STAGES[cfg.stage || 'plateau']; // stageDef: runtime stage (terrain fights)
   const slots = (cfg.players || [{ fid: 'pilot', ctrl: 'p1' }, { fid: 'swift', ctrl: 'cpu' }]).filter((p) => p.ctrl !== 'off').slice(0, 4);
   const S = {
     stage, frame: 0, phase: 'count', count: COUNT, time: cfg.time || TIME, endT: 0, rng: mulberry((cfg.seed | 0) || 1234),
-    fighters: slots.map((p, i) => mkFighter(i, p, stage)), projs: [], blocks: [], events: [], solids: stage.solids.slice(), nid: 1, result: null,
+    fighters: slots.map((p, i) => mkFighter(i, p, stage, cfg.stocks)), projs: [], blocks: [], events: [], solids: stage.solids.slice(), nid: 1, result: null,
     ledgeOcc: [-1, -1],
   };
   S.ledges = [];
@@ -648,8 +648,8 @@ function botInput(S, f) {
 
 // ---- renderers ---------------------------------------------------------------------------------
 class GLR {
-  constructor(canvas, atlas) {
-    const gl = this.gl = canvas.getContext('webgl2', { alpha: false, antialias: false, preserveDrawingBuffer: true });
+  constructor(canvas, atlas, transparent) {
+    const gl = this.gl = canvas.getContext('webgl2', { alpha: !!transparent, premultipliedAlpha: false, antialias: false, preserveDrawingBuffer: true }); this.transparent = !!transparent;
     if (!gl) throw new Error('no webgl2');
     const vs = '#version 300 es\nin vec2 a_p;in vec2 a_uv;in vec4 a_c;in vec3 a_a;uniform vec2 u_res;out vec2 v_uv;out vec4 v_c;out vec3 v_a;void main(){vec2 p=a_p/u_res*2.0-1.0;gl_Position=vec4(p.x,-p.y,0.0,1.0);v_uv=a_uv;v_c=a_c;v_a=a_a;}';
     const fs = '#version 300 es\nprecision mediump float;uniform sampler2D u_t;in vec2 v_uv;in vec4 v_c;in vec3 v_a;out vec4 o;void main(){vec4 t=texture(u_t,v_uv);o=vec4(t.rgb*v_c.rgb+v_a*t.a,t.a*v_c.a);}';
@@ -670,7 +670,7 @@ class GLR {
   }
   setTint(r, g, b, a) { const t = this.tint; t[0] = r; t[1] = g; t[2] = b; t[3] = a; }
   setAdd(r, g, b) { const t = this.add; t[0] = r; t[1] = g; t[2] = b; }
-  begin() { const gl = this.gl; gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight); gl.clearColor(0.03, 0.01, 0.06, 1); gl.clear(gl.COLOR_BUFFER_BIT); this.n = 0; this.cur = null; this.draws = 0; }
+  begin() { const gl = this.gl; gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight); if (this.transparent) gl.clearColor(0, 0, 0, 0); else gl.clearColor(0.03, 0.01, 0.06, 1); gl.clear(gl.COLOR_BUFFER_BIT); this.n = 0; this.cur = null; this.draws = 0; }
   _tex(c) {
     let t = this.texs.get(c); if (t) return t; const gl = this.gl, h = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, h); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
@@ -699,12 +699,12 @@ class GLR {
   end() { this.flush(); }
 }
 class C2R {
-  constructor(canvas, atlas) {
-    this.ctx = canvas.getContext('2d', { alpha: false }); this.atlas = atlas; this.tint = [1, 1, 1, 1]; this.add = [0, 0, 0]; this.draws = 0; this.kind = 'canvas2d'; this.cv = canvas;
+  constructor(canvas, atlas, transparent) {
+    this.transparent = !!transparent; this.ctx = canvas.getContext('2d', { alpha: !!transparent }); this.atlas = atlas; this.tint = [1, 1, 1, 1]; this.add = [0, 0, 0]; this.draws = 0; this.kind = 'canvas2d'; this.cv = canvas;
   }
   setTint(r, g, b, a) { const t = this.tint; t[0] = r; t[1] = g; t[2] = b; t[3] = a; }
   setAdd(r, g, b) { this.add[0] = r; }
-  begin() { const c = this.ctx; c.imageSmoothingEnabled = false; c.globalAlpha = 1; c.fillStyle = '#08030f'; c.fillRect(0, 0, 480, 270); this.draws = 0; }
+  begin() { const c = this.ctx; c.imageSmoothingEnabled = false; c.globalAlpha = 1; if (this.transparent) c.clearRect(0, 0, 480, 270); else { c.fillStyle = '#08030f'; c.fillRect(0, 0, 480, 270); } this.draws = 0; }
   img(src, sx, sy, sw, sh, dx, dy, dw, dh, flip) {
     if (dx > 480 || dy > 270 || dx + dw < 0 || dy + dh < 0) return; const c = this.ctx; c.globalAlpha = this.tint[3];
     dx = Math.round(dx); dy = Math.round(dy); dw = Math.round(dw); dh = Math.round(dh);
@@ -716,9 +716,9 @@ class C2R {
   rect(x, y, w, h, r, g, b, a) { const c = this.ctx; c.globalAlpha = 1; c.fillStyle = 'rgba(' + ((r * 255) | 0) + ',' + ((g * 255) | 0) + ',' + ((b * 255) | 0) + ',' + a + ')'; c.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
   end() {}
 }
-export function createRenderer(canvas, atlas, force2d) {
-  if (!force2d) { try { return new GLR(canvas, atlas); } catch (e) { console.warn('smash: webgl2 unavailable, using canvas2d', e.message); } }
-  return new C2R(canvas, atlas);
+export function createRenderer(canvas, atlas, force2d, transparent) {
+  if (!force2d) { try { return new GLR(canvas, atlas, transparent); } catch (e) { console.warn('smash: webgl2 unavailable, using canvas2d', e.message); } }
+  return new C2R(canvas, atlas, transparent);
 }
 
 // ---- scene drawing -----------------------------------------------------------------------------
@@ -771,7 +771,7 @@ export function updateView(view, S) {
 export function viewEvent(view, e) {
   const burst = (x, y, n, sp, life, kind, col) => { for (let i = 0; i < n; i++) { const a = (i * 360 / n) + (i * 37 % 29), s = sp * (0.5 + ((i * 7) % 5) / 5); view.fx.push({ x, y, vx: cosD(a) * s, vy: -sinD(a) * s, g: 0.04, a: 0, life, kind, col }); } };
   if (e.t === 'hit') { burst(e.x, e.y, 5 + Math.min(8, e.dmg | 0), 2.6, 12, 'star', null); view.shake = Math.max(view.shake, Math.min(5, 1 + e.dmg / 4)); }
-  else if (e.t === 'ko') { view.flash = 3; view.shake = 7; burst(e.x, e.y, 26, 5, 30, 'star', PCOL[e.who % 4]); }
+  else if (e.t === 'ko') { view.flash = 3; view.shake = 7; burst(e.x, e.y, 26, 5, 30, 'star', (view.pcol || PCOL)[e.who % 4]); }
   else if (e.t === 'puff') burst(e.x, e.y, 6, 1.1, 14, 'puff', null);
   else if (e.t === 'boom') { view.shake = 6; burst(e.x, e.y, 22, 3.5, 22, 'puff', [1, 0.6, 0.2]); view.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, g: 0, a: 0, life: 8, kind: 'blast' }); }
   else if (e.t === 'shield' || e.t === 'spark' || e.t === 'break') burst(e.x, e.y, 6, 1.8, 10, 'star', [0.5, 0.9, 1]);
@@ -800,7 +800,7 @@ export function drawScene(R, S, atlas, vis, view, alpha, debug) {
     if (f.state === 'ledge') { ix = f.x; iy = f.y; }
     const fr = atlas.frame(f.fid, an[0], an[1]), blink = f.inv > 0 && f.state !== 'shield' && f.state !== 'ledge' && (view.t >> 2) & 1;
     if (f.move && f.move.cart && f.state === 'attack') R.img(A, fx.cart.x, fx.cart.y, 40, 22, X(ix - 20), Y(iy - 20), 40 * z, 22 * z, f.face < 0);
-    R.setTint(1, 1, 1, blink ? 0.45 : 1);
+    { const tc = (view.tcol && view.tcol[f.i]) || [1, 1, 1]; R.setTint(tc[0], tc[1], tc[2], blink ? 0.45 : 1); }
     if (f.hitlag > 0 && f.flash > 0 || f.armorNow) R.setAdd(0.55, 0.55, 0.55);
     if (f.state === 'attack' && f.move && f.move.dash && f.mf >= 6 && f.mf < 14) { R.setTint(1, 0.8, 1, 0.35); for (let k = 1; k <= 3; k++) R.img(A, fr[0], fr[1], 32, 48, X(ix - 16 - f.dashx * 12 * k), Y(iy - 46 - f.dashy * 12 * k), 32 * z, 48 * z, f.face < 0); R.setTint(1, 1, 1, 1); }
     R.img(A, fr[0], fr[1], 32, 48, X(ix - 16), Y(iy - 46), 32 * z, 48 * z, f.face < 0);
@@ -809,7 +809,7 @@ export function drawScene(R, S, atlas, vis, view, alpha, debug) {
     if (f.state === 'shield') { const D = (24 + 28 * (f.sh / 180)) * z; R.setTint(1, 1, 1, 0.85); R.img(A, fx.shield.x, fx.shield.y, 48, 48, X(ix) - D / 2, Y(iy - 20) - D / 2, D, D); R.setTint(1, 1, 1, 1); }
     if (f.reflectT > 0) { R.setTint(0.6, 1, 1, 0.7); const D = 52 * z; R.img(A, fx.shield.x, fx.shield.y, 48, 48, X(ix) - D / 2, Y(iy - 22) - D / 2, D, D); R.setTint(1, 1, 1, 1); }
     // player marker
-    const pc = PCOL[f.i % 4]; if (f.state !== 'respawn' || true) { const mx = Math.round(X(ix)), my = Math.round(Y(iy - 54) - 2); R.rect(mx - 3, my - 3, 7, 1, pc[0], pc[1], pc[2], 1); R.rect(mx - 2, my - 2, 5, 1, pc[0], pc[1], pc[2], 1); R.rect(mx - 1, my - 1, 3, 1, pc[0], pc[1], pc[2], 1); R.rect(mx, my, 1, 1, pc[0], pc[1], pc[2], 1); }
+    const pc = (view.pcol || PCOL)[f.i % 4]; if (f.state !== 'respawn' || true) { const mx = Math.round(X(ix)), my = Math.round(Y(iy - 54) - 2); R.rect(mx - 3, my - 3, 7, 1, pc[0], pc[1], pc[2], 1); R.rect(mx - 2, my - 2, 5, 1, pc[0], pc[1], pc[2], 1); R.rect(mx - 1, my - 1, 3, 1, pc[0], pc[1], pc[2], 1); R.rect(mx, my, 1, 1, pc[0], pc[1], pc[2], 1); }
   }
   // projectiles
   for (const p of S.projs) {

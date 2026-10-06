@@ -27,6 +27,8 @@ async function wireAudio() {
   } catch (e) { /* ship-audio absent: silent */ }
 }
 
+const WORLD = /[?&]world/.test(location.search);
+if (!WORLD) {
 const ui = createUI(document.getElementById('app'));
 const game = createGame({ canvas: ui.canvas, ui });
 ui.attach(game);
@@ -43,6 +45,34 @@ window.SMASH = {
   renderer: () => game.R.kind,
   debug: (v) => { game.debug = v == null ? !game.debug : v; game.render(1); },
 };
+} else {
+  // ---- ?world dev mode: host + guest fight sessions in one page, joined by a fake net with 80 ms simulated latency
+  const { createFightSession, renderBillboard } = await import('./js/smash-world.js');
+  document.body.insertAdjacentHTML('beforeend', '<style>body{background:radial-gradient(circle at 30% 40%,#0c1a2a,#02060c)}#w3d{position:fixed;inset:0;width:100%;height:100%}.pane{position:absolute;top:0;width:50%;height:78%}.pane .smw,.pane .smw .sm-root{position:absolute}#bb{position:fixed;left:50%;bottom:6px;transform:translateX(-50%);border:1px solid #5a3a90}#lbl{position:fixed;left:8px;bottom:6px;color:#a890d8;font:11px monospace}</style><canvas id="w3d"></canvas><div class="pane" id="pl" style="left:0"></div><div class="pane" id="pr" style="left:50%"></div><div id="lbl"></div>');
+  const bg = document.getElementById('w3d'), bx = bg.getContext('2d'); bg.width = innerWidth; bg.height = innerHeight;
+  let bt = 0; const drawBg = () => { bt++; bx.fillStyle = '#04101c'; bx.fillRect(0, 0, bg.width, bg.height); for (let i = 0; i < 60; i++) { bx.fillStyle = 'hsl(' + (180 + i * 3) + ',70%,' + (35 + (i % 5) * 8) + '%)'; bx.fillRect((i * 97 + bt * (1 + i % 3)) % bg.width, (i * 53) % bg.height, 18, 18); } };
+  const samples = new Float32Array(128); for (let i = 0; i < 128; i++) { const t = i / 127; samples[i] = (Math.abs(t - 0.5) < 0.2 ? 0.1 : Math.sin(t * 9) * 1.6 + (t - 0.5) * 3) ; }
+  const sky = { top: '#0a1428', horizon: '#6a3a9a', ring: '#d8a0e8' };
+  const q = { a: [], b: [] }; let vt = 0; const LAT = 0.08;
+  const mk = (self, peer) => ({ send(o) { q[peer].push({ at: vt + LAT, o: JSON.parse(JSON.stringify(o)) }); }, onMessage(fn) { this._fn = fn; }, _fn: null });
+  const na = mk('a', 'b'), nb = mk('b', 'a');
+  const fl = (isHost) => [{ slot: 0, id: 'A', styleId: 'MARO', name: 'MARO', color: '#ff5a5a', isLocal: isHost }, { slot: 1, id: 'B', styleId: 'SONIK', name: 'SONIK', color: '#5a8cff', isLocal: !isHost }];
+  const common = { seed: 4242, stageSamples: samples, skyPalette: sky, roomId: 'sm_test', stocks: 2, time: 60, skyAlpha: 0.45 };
+  const hist = [];
+  const host = createFightSession(Object.assign({ mode: 'host', fighters: fl(true), net: na, history: hist }, common));
+  const guest = createFightSession(Object.assign({ mode: 'guest', fighters: fl(false), net: nb }, common));
+  const rez = { host: null, guest: null }; host.onResult((r) => { rez.host = r; }); guest.onResult((r) => { rez.guest = r; });
+  document.getElementById('pl').appendChild(host.el); document.getElementById('pr').appendChild(guest.el);
+  for (const s of [host, guest]) s.el.querySelector('.sm-root').style.setProperty('--u', String(Math.floor(innerWidth / 2 / 480 * 100) / 100));
+  host.start(); guest.start();
+  const bb = renderBillboard(host, 256, 144); bb.id = 'bb'; document.body.appendChild(bb);
+  // wiring: messages the host sends sit in q.b (delivered to guest); guest sends sit in q.a (delivered to host)
+  const pump2 = () => { for (const [src, dst] of [['b', nb], ['a', na]]) { const arr = q[src]; while (arr.length && arr[0].at <= vt) { const m = arr.shift().o; if (src === 'a' && m.t === 'sm.in') m.id = 'B'; dst._fn && dst._fn(m); } } };
+  const step = (n, script) => { for (let k = 0; k < n; k++) { vt += 1 / 60; pump2(); const m = script ? script(host.sim.frame) : [0, 0]; host.setInput(m[0]); guest.setInput(m[1]); host.update(1 / 60); guest.update(1 / 60); } drawBg(); };
+  window.WORLD = { host, guest, hist, rez, step, bb, get vt() { return vt; }, q };
+  window.SMASH = { WORLD: true, step: (n, s) => step(n, s) };
+  drawBg();
+}
 </script>
 </body>
 </html>

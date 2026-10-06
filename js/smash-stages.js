@@ -158,3 +158,88 @@ export function createStageVisual(def) {
     drawFront(r, cam) { tile(r, fg, 1600, 120, 1.25, 60, cam, 1.0, 0.95); },
   };
 }
+
+// ---- terrain stages (proximity fights): geometry from 128 terrain height samples ---------------
+// samples = heights along a line in human heights (up = positive). Output has the same shape as STAGES.* and is
+// handed to createMatch via cfg.stageDef. Sim-only part first, visual second.
+const clampN = (v, a, b) => (v < a ? a : v > b ? b : v);
+export function terrainStage(samples, id) {
+  const n = samples.length | 0 || 2, SPAN = 420, dxp = SPAN / (n - 1), PXH = 18, Q = 8;
+  const raw = []; for (let i = 0; i < n; i++) { const v = +samples[i]; raw.push(Number.isFinite(v) ? v : 0); }
+  const sm = raw.map((v, i) => (raw[Math.max(0, i - 1)] + v + raw[Math.min(n - 1, i + 1)]) / 3);
+  const q = sm.map((v) => Math.round(clampN(v, -12, 12) * PXH / Q) * Q); // quantised terrain height px (up +)
+  let a0 = 0, b0 = 0;
+  for (let a = 0; a < n; a++) { let b = a; while (b + 1 < n && Math.abs(q[b + 1] - q[a]) <= Q) b++; if (b - a > b0 - a0) { a0 = a; b0 = b; } }
+  const run = q.slice(a0, b0 + 1).sort((x, y) => x - y), med = run[run.length >> 1];
+  const cx = ((a0 + b0) / 2) * dxp - SPAN / 2, half = clampN(((b0 - a0) * dxp) / 2, 110, 180);
+  const wx = (i) => i * dxp - SPAN / 2 - cx, wy = (i) => -(q[i] - med);
+  const prof = []; for (let i = 0; i < n; i++) prof.push({ x: wx(i), y: wy(i) });
+  // shelves = merged equal-height runs outside the main platform (pass-through, clamped to a playable band)
+  const segs = []; let s0 = 0;
+  for (let i = 1; i <= n; i++) if (i === n || q[i] !== q[s0]) { segs.push({ xa: wx(s0) - dxp / 2, xb: wx(i - 1) + dxp / 2, y: clampN(wy(s0), -70, 60) }); s0 = i; }
+  let thin = [];
+  for (const g of segs) {
+    for (const [xa, xb] of [[g.xa, Math.min(g.xb, -half)], [Math.max(g.xa, half), g.xb]]) if (xb - xa >= 14) thin.push({ x0: Math.round(xa), x1: Math.round(xb), y: g.y });
+  }
+  thin.sort((p, r) => (r.x1 - r.x0) - (p.x1 - p.x0)); thin = thin.slice(0, 6);
+  const fw = 64, fx = half * 0.55; // 2 floating platforms like PLATEAU
+  const floats = [{ x0: -fx - fw / 2, x1: -fx + fw / 2, y: -56 }, { x0: fx - fw / 2, x1: fx + fw / 2, y: -56 }];
+  const k = half / 180, low = thin.reduce((m, t) => Math.max(m, t.y), 0);
+  return {
+    id: id || 'terrain', name: 'TERRAIN', terrain: true, prof, half, span: SPAN,
+    solids: [{ x0: -half, x1: half, y0: 0, y1: 70 }],
+    thin: floats.concat(thin), floats: floats.length,
+    blast: { l: -(half + 150), r: half + 150, t: -270, b: 170 + Math.max(0, low) },
+    spawns: [-110, -40, 40, 110].map((x) => ({ x: x * k, y: -110 })),
+    start: [-90, 90, -30, 30].map((x) => ({ x: x * k, y: 0 })),
+  };
+}
+
+function hexRGB(c, d) {
+  if (c == null) return d;
+  if (typeof c === 'number') return [((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255];
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(c).trim()); if (!m) return d; const v = parseInt(m[1], 16); return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
+}
+const mixC = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+
+// Visual: rect-only (no textures) so the sky can be translucent and the 3D scene shows through (skyAlpha).
+export function createTerrainVisual(def, pal, seed, skyAlpha) {
+  pal = pal || {}; const top = hexRGB(pal.top, [0.05, 0.02, 0.12]), hor = hexRGB(pal.horizon, [0.45, 0.2, 0.62]), ring = hexRGB(pal.ring, null);
+  const sa = skyAlpha == null ? 0.5 : skyAlpha, R = rng((seed | 0) || 7);
+  const stars = []; for (let i = 0; i < 70; i++) stars.push({ x: R() * 960, y: R() * 200, a: R() });
+  const lit = mixC(hor, [1, 1, 1], 0.45), body = mixC(top, hor, 0.35), deep = mixC(top, [0, 0, 0], 0.4);
+  const P = def.prof, X0 = P[0].x, X1 = P[P.length - 1].x;
+  const profAt = (wx) => { const t = (wx - X0) / (X1 - X0), u = ((t % 2) + 2) % 2, v = u > 1 ? 2 - u : u, f = v * (P.length - 1), i = Math.min(P.length - 2, f | 0); return P[i].y + (P[i + 1].y - P[i].y) * (f - i); };
+  return {
+    drawBack(r, cam, t) {
+      const z = cam.zoom; r.setTint(1, 1, 1, 1);
+      for (let k = 0; k < 15; k++) { const c = mixC(top, hor, Math.pow(k / 14, 1.4)); r.rect(0, k * 18, 480, 18, c[0], c[1], c[2], sa); }
+      for (const s of stars) { const sx = ((s.x - cam.x * 0.05 * z) % 480 + 480) % 480; r.rect(sx, s.y * 0.9, 1, 1, 0.85, 0.85, 1, 0.35 + 0.4 * (0.5 + 0.5 * Math.sin(t * 0.05 + s.a * 20))); }
+      if (ring) { const px = 340 - cam.x * 0.07, py = 62 - cam.y * 0.04, rad = 26;
+        for (let y = -rad; y <= rad; y += 2) { const w = Math.sqrt(Math.max(0, rad * rad - y * y)); const sh = 0.55 + 0.3 * (-y / rad); r.rect(px - w, py + y, w * 2, 2, ring[0] * sh, ring[1] * sh, ring[2] * sh, Math.min(1, sa + 0.4)); }
+        for (let k = 0; k < 64; k++) { const an = k / 64 * 6.2832; r.rect(px + Math.cos(an) * 46, py + Math.sin(an) * 9 - 2, 2, 1, lit[0], lit[1], lit[2], 0.7); } }
+      for (let sx = 0; sx < 480; sx += 6) { // far ridge = the sampled terrain profile, parallax 0.3
+        const wx = (sx - 240) / z + cam.x * 0.3, ty = (70 - profAt(wx) * 0.8 - cam.y * 0.3) * z + 135;
+        r.rect(sx, ty, 6, 270 - ty, deep[0], deep[1], deep[2], Math.min(1, sa + 0.15)); r.rect(sx, ty, 6, 1, body[0], body[1], body[2], 0.8);
+      }
+    },
+    drawStage(r, cam) {
+      const z = cam.zoom, X = (wx) => Math.round((wx - cam.x) * z + 240), Y = (wy) => Math.round((wy - cam.y) * z + 135);
+      for (const s of def.solids) {
+        const x = X(s.x0), w = Math.round((s.x1 - s.x0) * z), y = Y(s.y0), h = Math.round((s.y1 - s.y0) * z);
+        r.rect(x, y, w, h, body[0], body[1], body[2], 1);
+        r.rect(x, y + h * 0.35, w, h * 0.65, deep[0] * 1.6, deep[1] * 1.6, deep[2] * 1.6, 1);
+        r.rect(x, y, w, Math.max(2, 3 * z), lit[0], lit[1], lit[2], 1); r.rect(x, y + 3 * z, w, 2 * z, hor[0], hor[1], hor[2], 1);
+        r.rect(x - 1, y, 1, h, 0.07, 0.03, 0.12, 1); r.rect(x + w, y, 1, h, 0.07, 0.03, 0.12, 1); r.rect(x, y + h, w, 1, 0.07, 0.03, 0.12, 1);
+        for (let gx = s.x0 + 6; gx < s.x1 - 4; gx += 14) r.rect(X(gx), y - 2 * z, Math.max(1, z), 2 * z, lit[0], lit[1], lit[2], 1);
+      }
+      def.thin.forEach((t, i) => {
+        const x = X(t.x0), w = Math.round((t.x1 - t.x0) * z), y = Y(t.y), fl = i < def.floats;
+        r.rect(x, y, w, Math.max(1, 2 * z), lit[0], lit[1], lit[2], 1);
+        r.rect(x + 2 * z, y + 2 * z, w - 4 * z, (fl ? 8 : 5) * z, body[0], body[1], body[2], 1);
+        r.rect(x + 4 * z, y + (fl ? 10 : 7) * z, Math.max(1, w - 8 * z), 2 * z, deep[0], deep[1], deep[2], 1);
+      });
+    },
+    drawFront() {},
+  };
+}
