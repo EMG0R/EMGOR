@@ -44,11 +44,11 @@ skelly — working names) with planet-host netcode, GOR BRAWL (`/smash.html`): d
 platform fighter, 13 original fighters mimicking the classic cast's movesets, bots, hot-seat,
 gamepad, finals meter, NO items; `js/smash-world.js` runs fights in-world (host/guest verified).
 
-## On disk, NOT yet committed/wired (as of this handoff)
+## State at handoff (everything committed, tree clean)
 - `js/ship-hub.js` — mob hub dungeon per planet (11 rooms, 3 arenas, WARDEN boss, chests w/
-  blueprints). Built + screenshot-verified. NOT wired into ship.js. Commit it.
-- Villages (`js/ship-world.js` + `js/ship-lingo.js`) — in progress, see the appended agent report.
-- In-world FIGHT prompt (`js/ship.js`, `js/ship-net.js`) — in progress, see the appended report.
+  blueprints). Built + screenshot-verified. COMMITTED but NOT wired into ship.js.
+- Villages: NOT STARTED (the agent was stopped before editing). Spec below.
+- In-world FIGHT prompt: NOT STARTED. Findings below.
 
 ## Emory's standing rules for this project (read `_EMORY.md` too)
 - "Lock it in" = stop asking, build. One question at a time with a recommendation.
@@ -109,5 +109,42 @@ gamepad, finals meter, NO items; `js/smash-world.js` runs fights in-world (host/
 5. Known flakies: g14 parked-drift (wind disabled in test, still flaky 50 %), STEEV right-click
    placement intermittent, MARO wall kick never fires, duplicate pl.host on enter (harmless).
 
-## Agent reports appended at wrap-up
-(see below)
+## Wrap-up findings from the stopped agents
+
+### Villages (js/ship-world.js + js/ship-lingo.js) — to build from scratch
+Spec: one village per lush/rocky planet, seeded on flat land >= 0.3 R from the first outpost;
+5-9 huts (3 templates: boxes + roofs + door gap), a well, path decals, torches at night, fences;
+`world.village = { pos, huts:[{box, door}], villagers:[{human, name, role: farmer|trader|elder|
+kid|guard, pos, home, lines, trades?}], bell:{pos}, walls }`; villagers walk hut->well->paths by
+day, go home at night (ps night value), greet within 3 H via lingo; trader = 6 seeded trades
+{give, get}; elder = quest hook; lingo roles farmer/trader/elder/kid/guard added (additions only);
+<= +4 draw calls (instanced huts/fences/torches), humans only within 40 L; in scanTargets + pois
+(kind 'village'). EMORY ADDS: hut walls are INDESTRUCTIBLE (mark `solid:true, indestructible:true`
+so STEEV block-breaking ignores them); replace the plain guard with GOLUMS (working name,
+iron-golem style): big slow protectors (parts kit, ~2.5 human heights) that fight mobs and anyone
+who hits a villager; expose `guard.target` and `world.village.onHit(villagerId, attackerId)`.
+Where in ship-world.js: createWorld ~line 765, attach/site picking ~789, scanTargets ~973,
+converse/npcMood ~1116.
+
+### In-world FIGHT (js/ship.js + js/ship-net.js) — to build from scratch
+- ship-net.js already routes pl.host/pl.snap/pl.ev to hooks.onPl (onMsg switch ~line 386) and
+  exposes plEnter/plLeave/plSnap/plEv. NO sm.* handling yet: add send helpers for sm.challenge/
+  accept/join/leave/in/snap/end + an onMsg case forwarding sm.challenge/start/member/no/in/snap/end
+  to a hook, plus `onMessage(fn)`/`offMessage(fn)` on the net object (createFightSession calls
+  both).
+- Relay: `t` must be the FIRST key in sm.* frames; sm.start carries {room, host, members, spec,
+  seed} only — no terrain samples — so both clients sample the same 128 heights deterministically
+  from the two fighter positions (send positions in the challenge/accept payload or read ghosts).
+- smash-world.js: createFightSession({mode, seed, stageSamples Float32Array(128), skyPalette,
+  fighters:[{slot, styleId, name, color, isLocal, isBot, id}], net:{send,onMessage,offMessage},
+  roomId, stocks, onSfx}); use session.el (overlay, pointer-events none, z 60), setInput(mask),
+  update(dt), onResult(fn), renderBillboard(session) for the spectator sprite.
+- Flow: on foot within 6 H of another player (or an NPC with fighter:true, 30 % of shoppers/
+  dealers) -> FIGHT glyph; F = sm.challenge (NPC = local mode w/ bot); on sm.start pause the foot
+  controller, build the session, 3D behind at low alpha; nearby players spectate or see the
+  billboard; result -> gorCoin +-50, rep, chat, back to foot at the same spot; Esc = forfeit.
+- Also fix: STEEV right-click placement intermittently 0 (input race), MARO wall kick never fires
+  (wallNormal timing), g14 flaky (first-site visual / parked drift).
+- Two-window test: local relay `NMG_DATA=/tmp/nmgdata ALLOW_NO_ORIGIN=1 node server/nmg-relay/
+  server.js` (8796; 127.0.0.1 pages auto-use it); A and B on the same planet: same mobs, each
+  other's style, challenge/accept/fight/results, host handoff when A leaves.
