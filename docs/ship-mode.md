@@ -1061,3 +1061,21 @@ NMS freighter expeditions, basically.
 1. Push rev 20–24 (stable) so the station/NPCs/stores are finally live.
 2. ship-craft.js + ship-interior.js + gorCoin lingo (parallel, new files).
 3. ship.js wiring: gorCoin, crafting table UI, interior enter/exit, pens, pods, board.
+
+## Revision 29 (2026-10-06)
+1. **Orbits freeze in the game** (galaxy3d.js): while piloting, every body's position
+   is computed at a fixed orbital time T0 (constant, same for every client, so
+   multiplayer stays consistent) → planets stand still in the game like real life; the
+   galaxy view keeps its drift. The boarding/exit cinematics blend between the live
+   layout and the T0 layout. Spin stays (slow). This removes the "can't catch a planet"
+   problem and the frame-drag/stale-position class of bugs.
+2. **7/11 + Burger House redo** (ship-world.js): correct colors/shapes (7/11: white box,
+   orange/green/red stripe band, red lettering on white sign, glass front with door,
+   flat roof with the sign tower; Burger House: 1950s stand, red/white, angled canopy,
+   walk-up window, neon script), interior scale ×2.5 (aisles you can walk between, tall
+   ceilings for the jetpack), cleaner geometry.
+3. **Foot movement** (ship.js): walk = today's run speed; run (Shift) = 2×; never
+   through the ground (re-run g14 after). **Jetpack flight**: hold Space 2 s → FLIGHT
+   mode on foot: orientation follows the mouse like the ship (pitch/yaw), W = forward
+   thrust, Space = climb, Shift = fast; release → glide down; landing crouch. Terrain and
+   wall collision as a capsule, substepped.

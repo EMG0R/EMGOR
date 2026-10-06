@@ -6826,7 +6826,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var hw = hum.w, st0 = SITE().interior.stores[0], npcs = SITE().interior.npcs, ped = SITE().interior.mapPedestal, i;
         if (st0 && hw.distanceTo(st0.counter.pos) < Math.max(st0.counter.radius * 1.8, 2 * SK_H * L)) { skI.kind = 'store'; skI.obj = st0; skI.label = 'F · SHOP'; return skI; }
         for (i = 0; i < npcs.length; i++) if (hw.distanceTo(npcs[i].pos) < 1.4 * L) { skI.kind = 'npc'; skI.obj = npcs[i]; skI.label = 'F · TALK'; return skI; }
-        var tr = SITE().interior.trade; if (tr && tr.pos && hw.distanceTo(tr.pos) < Math.max(tr.radius || 0, 1.2 * L)) { skI.kind = 'trade'; skI.obj = tr; skI.label = 'F · TRADE'; return skI; }
+        var tr = SITE().interior.trade; if (tr && tr.pos && hw.distanceTo(tr.pos) < Math.max(tr.radius || 0, 1.8 * L)) { skI.kind = 'trade'; skI.obj = tr; skI.label = 'F · TRADE'; return skI; }
         var yd = !R27.dsite && SITE().interior.shipyard; if (yd && yd.pos && yd.ships && hw.distanceTo(yd.pos) < Math.max(yd.radius || 0, 1.5 * L)) { skI.kind = 'shipyard'; skI.obj = yd; skI.label = 'F · SHIPYARD'; return skI; }
         if (R27.dsite) { var dc = dkCrateNear(); if (dc) { skI.kind = 'loot'; skI.obj = dc; skI.label = 'F · LOOT'; return skI; } }
         if (hw.distanceTo(ped.pos) < ped.radius + 0.3 * L) { skI.kind = 'map'; skI.label = 'F · GALAXY MAP'; return skI; }
@@ -7397,7 +7397,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (m.ok) { r.retry = 0; return; }          // prof.ok
         if (m.why === 'none') { r.loaded = true; r.retry = 0; if (net && net.profSave) { net.profSave(r.name, r.key, relayData(pf)); r.lastSend = performance.now(); r.sig = relaySig(pf); addRow('', '', 'PROFILE REGISTERED · ' + String(r.name).toUpperCase(), 'is-sys'); } return; }
         if (m.why === 'key') { addRow('', '', 'RELAY · wrong key for ' + String(r.name).toUpperCase(), 'is-sys'); r.name = ''; r.key = ''; return; }
-        if (m.why === 'rate') { r.retry = performance.now() + 11000; return; }
+        if (m.why === 'rate') { r.retry = performance.now() + 11000; if (r.loaded) { r.sig = ''; r.lastSend = performance.now() - 60000 + 11000; } return; }      // the relay rate-limits load+save to 1 per 10 s: a save right after the load was dropped, so re-send in ~11 s
         if (m.why === 'big') { if (!r.bigWarned) { r.bigWarned = true; addRow('', '', 'RELAY · profile too large to sync', 'is-sys'); } return; }
         addRow('', '', 'RELAY · ' + m.why, 'is-sys');
     }
@@ -7436,7 +7436,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!EVT_TXT[ev.kind]) return;
         var key = ev.kind + ':' + Math.round((Date.now() + ev.left * 1000) / 20000);
         if (key === R27.evKey) return; R27.evKey = key;
-        var pl = ev.planetId != null ? planetOfId(ev.planetId) : null, txt = EVT_TXT[ev.kind] + ((ev.kind === 'titan' || ev.kind === 'meteor') && pl ? planetLabel(pl).toUpperCase() : '');
+        var pl = ev.planetId != null ? planetOfId(ev.planetId) : null, txt = EVT_TXT[ev.kind] + ((ev.kind === 'titan' || ev.kind === 'meteor') ? (pl ? planetLabel(pl).toUpperCase() : 'THE SYSTEM') : '');
         evtBanner('EVENT · ' + txt); addRow('', '', 'EVENT · ' + txt + ' · ' + Math.round(ev.minutes || ev.left / 60) + ' MIN', 'is-sys');
         R27.evt = { kind: ev.kind, until: Date.now() + Math.max(1, ev.left) * 1000, node: pl, applied: false };
         if (ev.kind === 'friesSale') R27.sale = R27.evt.until;
@@ -7644,7 +7644,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }).catch(function () { /* single-player */ });
     // ═══ rev 28: shelves + shoplifting, conversations, mining, blueprints, shipyard, station board, landmarks, specials, pet joy ═══════════════
     // Every module hook is guarded: an older ship-world / ship-space / ship-station leaves its feature off.
-    var R28 = { inStore: '', t: 0, t2: 0, siren: false, cartTxt: '', cubes: null, got: {}, gotT: 0, pilotT: 0, mineLoaded: false, mineSig: '', mineT: 0, lmSeen: {}, lmT: 0, book: false, bookSig: '', hullStats: null,
+    var R28 = { seenAt: -1e9, inStore: '', t: 0, t2: 0, siren: false, cartTxt: '', cubes: null, got: {}, gotT: 0, pilotT: 0, mineLoaded: false, mineSig: '', mineT: 0, lmSeen: {}, lmT: 0, book: false, bookSig: '', hullStats: null,
         mine: { n: 0, id: [], x: [], y: [], z: [], r: [], t: -9 } };
     var DLG = { open: false, id: '', name: '', role: '', kind: '', obj: null, seed: 0, st: null, res: null, ch: [], mood: 0, tm: 0 };
     var r28V = new THREE.Vector3(), r28Q = new THREE.Quaternion(), r28M = new THREE.Matrix4(), r28S = new THREE.Vector3(), r28E = new THREE.Euler(), r28Col = new THREE.Color();
@@ -7704,9 +7704,10 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var s = (gmode === 'foot' && hum.obj && world && world.node) ? r28StoreAt(hum.pos) : null, id = s ? s.id : '';
         if (R28.inStore && !id && world && world.cart && world.cart.length) {                          // walked out with an unpaid cart
             var st = world.stores.filter(function (q) { return q.id === R28.inStore; })[0], sec = st && st.security;
-            if (sec && sec.cop && sec.seen) { world.heat = Math.max(world.heat, 2); world.heatStore = st.id; addRow(String(sec.cop.name || 'GUARD').toUpperCase(), '#ff6a6a', 'HEY. THAT CART IS NOT PAID FOR.'); aPlay('copWarn'); }
+            if (sec && sec.cop && (sec.seen || world.heat >= 1 || performance.now() - R28.seenAt < 2500)) { world.heat = Math.max(world.heat, 2.6); world.heatStore = st.id; addRow(String(sec.cop.name || 'GUARD').toUpperCase(), '#ff6a6a', 'HEY. THAT CART IS NOT PAID FOR.'); aPlay('copWarn'); }
             else { world.cart.length = 0; addRow('', '', 'walked out clean · nobody saw', 'is-sys'); }
         }
+        if (id) { var st1 = world.stores.filter(function (q) { return q.id === id; })[0]; if (st1 && st1.security && st1.security.seen) R28.seenAt = performance.now(); }      // sec.seen drops the instant you step outside (sees() needs you inside), so remember it
         R28.inStore = id;
         var tx = '';
         if (world && world.cart && world.cart.length) tx = 'CART ' + world.cart.length + ' · ' + CRF.fmt(world.cartTotal()) + (world.heat > 0 ? ' · HEAT ' + world.heat : '');
@@ -8032,7 +8033,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             get R() { return R28; }, get dlg() { return { open: DLG.open, id: DLG.id, name: DLG.name, text: DLG.res ? DLG.res.text : '', choices: DLG.ch.map(function (c) { return c.label; }), done: !!(DLG.res && DLG.res.done), mood: DLG.mood }; },
             shelfFind: r28ShelfFind, grab: r28Grab, checkout: r28Checkout, talk: r28Talk, pick: dlgPick, mineList: function () { return r28MineList(); }, mineBolt: r28MineBolt, chunkTick: r28ChunkTick, bookSet: r28BookSet,
             buy: r28Buy, hulls: function () { return r28Hulls(qPf()).slice(); }, shipCmd: r28ShipCmd, openShipyard: openShipyard, dock: r28Dock, lmTick: function () { R28.lmT = 0; r28LmTick(); }, craftCtx: r28CraftCtx, bpDrop: r28BpDrop,
-            busted: r28Busted, copSay: r28CopSay, shopTick: r28ShopTick, storeAt: r28StoreAt
+            get pf() { return qPf(); }, busted: r28Busted, copSay: r28CopSay, shopTick: r28ShopTick, storeAt: r28StoreAt
         },
         enemies: enemies, shipRoot: shipRoot,
         destroy: function () { if (net) { net.destroy(); net = null; } },
