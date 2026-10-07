@@ -502,6 +502,7 @@ export default function mount(engine) {
         o.shieldTier = clamp(o.shieldTier | 0, 0, 3); o.engineTier = clamp(o.engineTier | 0, 0, 3);
         o.style = (typeof o.style === 'string' && /^[a-z0-9_-]{1,16}$/i.test(o.style)) ? o.style : '';      // rev 30: character style id ('' = PILOT)
         if (!o.blk || typeof o.blk !== 'object' || Array.isArray(o.blk)) o.blk = {};      // mashup: STEEV blocks per planet id {b:[up xyz, fwd xyz], c:[[i,j,k,mat]]} <= 64
+        if (!o.hubs || typeof o.hubs !== 'object' || Array.isArray(o.hubs)) o.hubs = {};      // mob hub state per planet id (hub.serialize())
         if (!Array.isArray(o.items)) o.items = [];       // rev 23: inventory stacks {id, seed, n, d (dealer variant)}
         o.items = o.items.filter(function (r) { return r && typeof r === 'object' && typeof r.id === 'string' && r.n > 0 && (typeof r.seed === 'number' || (r.it && typeof r.it === 'object')); }).map(function (r) { var q = { id: r.id, seed: (r.seed >>> 0) || 0, n: Math.min(9999, r.n | 0), d: r.d ? 1 : 0 }; if (r.it && typeof r.it === 'object') q.it = r.it; return q; }).slice(-400);
         if (!Array.isArray(o.crew)) o.crew = [];          // rev 25: [{id,name,role,color,rank,lines[],busy}] cap 4
@@ -1280,6 +1281,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         store: '<path d="M1 6V4l2-3h10l2 3v2z"/><path fill-rule="evenodd" d="M2 7h12v8H2zM6 10v5h4v-5z"/>',
         fries: '<path d="M3 7h10l-1 8H4z"/><path d="M4 2h1.5v5H4zM7.2 1h1.6v6H7.2zM10.5 2H12v5h-1.5z"/>',
         pad: '<path d="M1 11h14v3H1z"/><path d="M8 1l5 7H3z"/><path d="M7 8h2v3H7z"/>',
+        skull: '<path fill-rule="evenodd" d="M8 1a6 6 0 0 0-6 6v4h2v3h2v-2h4v2h2v-3h2V7a6 6 0 0 0-6-6zM5 6h2v3H5zM9 6h2v3H9z"/>',
         station: '<path fill-rule="evenodd" d="M8 1a7 7 0 1 0 .01 0zM8 4a4 4 0 1 1-.01 0z"/><path d="M0 7h16v2H0z"/>',
         flag: '<path d="M3 1h2v14H3z"/><path d="M5 2h9l-3 3.5L14 9H5z"/>',
         freighter: '<path d="M1 5h10v6H1z"/><path d="M12 7h3l1 2v2h-4z"/><path d="M2 12h12v2H2z"/>',
@@ -1993,6 +1995,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 }
             } catch (e0) { /* ignore */ }
         }
+        if (HB.hub && !HB.in && gmode !== 'fly') hlMark(hubToWorld(hbE.set(0, 4, 0), hbD), 'post', 'DUNGEON', org, 'skull');
         if (w && w.shards) { var sn = 0; for (i = 0; i < w.shards.length && sn < 14; i++) { var sh = w.shards[i]; if (!sh || sh.taken) continue; hlMark(locToWorld(sh.pos, vHl2), 'shard', 'SHARD', org); sn++; } }
         if (station && station.group.visible) {
             var sst = station.interior.stores[0];
@@ -4115,6 +4118,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         net && net.setMode && net.setMode('fly');
     }
     function leaveGround() {                    // Esc from any ground state: hand the ship back to the exit cinematic from where the player is
+        if (HB.in) hubExit(true);
         jetKill(); mobPlLeave();
         if (gmode === 'foot' && hum.obj && land.node) {
             shipRoot.position.copy(hum.obj.group.position);
@@ -4423,7 +4427,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         else if (gmode === 'landed') exitShip();
         else if (gmode === 'foot') {
             var ft = footTarget();
-            if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') r28Checkout(); else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'dealer') { if (!r28Talk({ id: ft.obj.id, name: ft.obj.name || 'DEALER', role: 'dealer', kind: 'dealer', obj: ft.obj, seed: ft.obj.seed })) openDealer(ft.obj); }
+            if (ft.kind === 'hub') hubEnter(); else if (ft.kind === 'hubexit') hubExit(false); else if (ft.kind === 'hubchest') hubChest(ft.obj);
+            else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') r28Checkout(); else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'dealer') { if (!r28Talk({ id: ft.obj.id, name: ft.obj.name || 'DEALER', role: 'dealer', kind: 'dealer', obj: ft.obj, seed: ft.obj.seed })) openDealer(ft.obj); }
             else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj); else if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); }
             else if (ft.kind === 'creature') tameStart(ft.obj);
             else if (ft.kind === 'resource') harvStart(ft.obj);
@@ -4803,7 +4808,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                     gB.add(gC).add(gD); fx.impact(gB, 0xc8b89a, 3);
                 }
             } else exOff(exMe);
-            if (gmode === 'foot') focus = footStep(dt, c, qM);
+            if (gmode === 'foot') focus = HB.in ? hubFootStep(dt, c, qM) : footStep(dt, c, qM);
             else {                                                                                       // low 3/4 view from the front-right, near the ground
                 gA.copy(NEG_Z).applyQuaternion(shipRoot.quaternion); gB.copy(X).applyQuaternion(shipRoot.quaternion); gC.copy(Y).applyQuaternion(shipRoot.quaternion);
                 gD.copy(P).addScaledVector(gA, 1.5 * L).addScaledVector(gB, 3.3 * L).addScaledVector(gC, (0.55 - legDrop) * L);
@@ -4851,6 +4856,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (boarding || exiting) { cinematicStep(dt); return; }
         if (landReq) { landReq = false; startLanding(); }
         ehTick(dt);
+        hubLife(dt);
         if (gmode === 'ifoot') { interiorStep(dt); return; }
         if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') { stationStep(dt); return; }
         if (gmode !== 'fly') { groundStep(dt); return; }
@@ -6360,7 +6366,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     // ── mobs: spawn / AI (host or local) / snapshots (guests) ──
     var MOB_SPD = 6, MOB_CAP = 12, MB = { peaceful: false, nid: 0, spawnT: 0, host: true, hostId: '', planet: '', joined: false, snapT: 0, seq: 0, last: null, lastAt: 0, hitQ: [], hitT: 0, evQ: [], evT: 0, bolts: [], nightForce: -1, stats: { spawned: 0, killed: 0, exploded: 0, teleports: 0, bolts: 0, stare: 0, snapsOut: 0, snapsIn: 0 }, msgT: 0 };
     function mobList() { var o = [], i; for (i = 0; i < R27.gnd.length; i++) if (R27.gnd[i].mob && R27.gnd[i].alive) o.push(R27.gnd[i]); return o; }
-    function mobNight() { if (MB.nightForce >= 0) return MB.nightForce; return land.node && hum.obj ? nightAt(land.node, hum.w) : 0; }
+    function mobNight() { if (HB.in) return 1; if (MB.nightForce >= 0) return MB.nightForce; return land.node && hum.obj ? nightAt(land.node, hum.w) : 0; }
     function mobIsHost() { return !(net && net.online && MB.hostId && MB.hostId !== net.id); }
     function mobPlId() { return land.node ? String(land.node.id).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 24) : ''; }
     function mobPlJoin(again) {
@@ -6391,7 +6397,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function mobSpawnTick(dt) {
         MB.spawnT -= dt; if (MB.spawnT > 0) return; MB.spawnT = 1;
-        if (peaceful || MB.peaceful || !mobIsHost() || !ps || ps.active !== land.node) return;
+        if (peaceful || MB.peaceful || !mobIsHost() || !ps || ps.active !== land.node || HB.in) return;
         var live = mobList().length; if (live >= MOB_CAP) return;
         var night = mobNight(), look = ps.lookOf ? ps.lookOf(land.node) : 'rocky', i, ws = [], tot = 0;
         for (i = 0; i < ENM.MOB_KINDS.length; i++) { var w = ENM.mobSpawnRule(ENM.MOB_KINDS[i], { night: night, lightLevel: 1 - night, biome: look }); ws.push(w); tot += w; }
@@ -6458,6 +6464,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         MB.bolts.push({ p: snC.clone(), v: snD.clone().multiplyScalar(sp), t: 2, dmg: st.dmg }); MB.stats.bolts++;
     }
     function mobTeleport(e, tw, minH, maxH) {
+        if (e.hub) return false;
         var Hw = hwU(), R = ps.radius || 1, d = (minH + Math.random() * (maxH - minH)) * Hw;
         bkLocal(tw, snA); snA.normalize(); snB.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); snB.addScaledVector(snA, -snB.dot(snA)).normalize();
         snD.copy(snA).addScaledVector(snB, d / R).normalize(); if (!ps.landLocal(snD.x, snD.y, snD.z)) return false;
@@ -6471,7 +6478,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (dH < ex.radius + 0.5) footHurt(Math.round(ex.edgeDmg + (ex.dmg - ex.edgeDmg) * clamp(1 - dH / ex.radius, 0, 1)));
         mobEv({ k: 'x', p: [+e.w.x.toFixed(2), +e.w.y.toFixed(2), +e.w.z.toFixed(2)], r: ex.radius, a: ex.dmg, b: ex.edgeDmg });
         bkExplode(e.w, ex.radius);
-        for (var q = 0; q < 3; q++) { snD.copy(e.face).applyAxisAngle(e.up, q * 1.047); try { ps.scar(e.w, snD, 2 * ex.radius * Hw, 25); } catch (e0) { /* ignore */ } }
+        for (var q = 0; q < 3 && !e.hub; q++) { snD.copy(e.face).applyAxisAngle(e.up, q * 1.047); try { ps.scar(e.w, snD, 2 * ex.radius * Hw, 25); } catch (e0) { /* ignore */ } }
         gndFree(e);
     }
     function mobStep(e, dt, hw) {
@@ -6535,7 +6542,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!(net && net.online && net.plSnap && MB.joined && MB.hostId === net.id)) return;
         var inv = snQ.copy(land.node.mesh.quaternion).invert(), m = [], ks = ENM.MOB_KINDS;
         mobList().forEach(function (e) {
-            if (e.remote) return; snA.copy(e.face).applyQuaternion(inv); var p = e.dir;
+            if (e.remote || e.hub) return; snA.copy(e.face).applyQuaternion(inv); var p = e.dir;
             m.push([e.mid, ks.indexOf(e.mob), +(p.x * e.hr).toFixed(3), +(p.y * e.hr).toFixed(3), +(p.z * e.hr).toFixed(3), +snA.x.toFixed(2), +snA.y.toFixed(2), +snA.z.toFixed(2), Math.round(e.hp), (e.mvd ? 1 : 0) | (e.fuseT > 0 ? 2 : 0) | (e.angry ? 4 : 0), +(e.cr.fuse || 0).toFixed(2)]);
         });
         if (net.plSnap(MB.planet, { n: ++MB.seq, m: m.slice(0, 24) })) MB.stats.snapsOut++;
@@ -6558,7 +6565,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (m.planet !== MB.planet) return; var was = mobIsHost(); MB.hostId = String(m.host || '');
             var now = mobIsHost();
             if (now && !was) { if (MB.last) mobApplySnap(MB.last); R27.gnd.forEach(function (e) { if (e.mob) { e.remote = false; MB.nid = Math.max(MB.nid, e.mid); } }); addRow('', '', 'PLANET HOST · you run the night here', 'is-sys'); }
-            else if (!now && was) R27.gnd.forEach(function (e) { if (e.mob) { e.remote = true; e.sdir.copy(e.dir); e.shr = e.hr; e.sface.copy(e.face); } });
+            else if (!now && was) R27.gnd.forEach(function (e) { if (e.mob && !e.hub) { e.remote = true; e.sdir.copy(e.dir); e.shr = e.hr; e.sface.copy(e.face); } });
         } else if (m.t === 'pl.snap') {
             if (m.planet !== MB.planet || !m.data) return; MB.last = m.data; MB.lastAt = performance.now(); MB.stats.snapsIn++; if (!mobIsHost()) mobApplySnap(m.data);
         } else if (m.t === 'pl.ev' && m.data) {
@@ -6578,6 +6585,243 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         bkTick();
         if (gmode !== 'foot' || !hum.obj || !land.node) return;
         mobSpawnTick(dt); mobBoltTick(dt); mobSnapOut(dt); mobFlush(dt);
+    }
+    // ═══ mob hub: one dungeon per planet (ship-hub.js). Lives in the planet-local frame under the ride group; on foot inside it a Cartesian hub-local controller replaces the spherical one ═══
+    var hubMod = null, HB = { hub: null, node: null, nid: '', L: 0, mu: 0, in: false, fail: false, t: 0, p: new THREE.Vector3(), vy: 0, air: false, up: new THREE.Vector3(0, 1, 0), upW: new THREE.Vector3(0, 1, 0), pos: new THREE.Vector3(), q: new THREE.Quaternion(), qi: new THREE.Quaternion(), fight: null, cd: 5, camD: 3 };
+    var hbA = new THREE.Vector3(), hbB = new THREE.Vector3(), hbC = new THREE.Vector3(), hbD = new THREE.Vector3(), hbE = new THREE.Vector3();
+    import('./ship-hub.js').then(function (m) { hubMod = m; }).catch(function (e) { console.info('[ship] ship-hub unavailable', e); });
+    function hubToLocal(ph, out) { return out.copy(ph).multiplyScalar(HB.mu).applyQuaternion(HB.q).add(HB.pos); }       // hub metres -> planet-local
+    function hubFromLocal(pl, out) { return out.copy(pl).sub(HB.pos).applyQuaternion(HB.qi).multiplyScalar(1 / HB.mu); }
+    function hubFree(x, y, z, r) {       // no active wall within r of the capsule (feet y, 1.5 m tall)
+        var ws = HB.hub.interior.walls, i, w;
+        for (i = 0; i < ws.length; i++) { w = ws[i]; if (w.active === false) continue; if (x + r > w.min[0] && x - r < w.max[0] && z + r > w.min[2] && z - r < w.max[2] && y + 1.5 > w.min[1] && y + 0.1 < w.max[1]) return false; }
+        return true;
+    }
+    function hubCeil(x, y, z) { var rm = HB.hub.interior.roomAt([x, y + 0.3, z]); return rm ? rm.box.max[1] : 1e9; }
+    function hubSpot(seed) {             // deterministic land direction (every client finds the same one)
+        var s = seed >>> 0, first = null, i, a, y, d;
+        for (i = 0; i < 64; i++) {
+            s = (Math.imul(s ^ (s >>> 15), 2246822519) + 0x9E3779B9) >>> 0; a = s / 4294967296 * 6.2832;
+            s = (Math.imul(s ^ (s >>> 13), 3266489917) + 0x7F4A7C15) >>> 0; y = (s / 4294967296) * 1.4 - 0.7;
+            d = { x: Math.cos(a) * Math.sqrt(1 - y * y), y: y, z: Math.sin(a) * Math.sqrt(1 - y * y) }; if (!first) first = d;
+            try { if (ps.landLocal(d.x, d.y, d.z)) return d; } catch (e0) { /* ignore */ }
+        }
+        return first;
+    }
+    function hubMake() {
+        var node = land.node, rg = world && world.group && world.group.parent;
+        if (!hubMod || !rg || !node) return;
+        try {
+            var pid = String(node.id), hb = hubMod.createHub(engine, GM * L, { seed: pid, planetNode: { id: pid, name: pid, radius: ps.radius, biome: ps.lookOf ? ps.lookOf(node) : 'rocky', hubSpot: hubSpot, heightLocal: function (d) { return ps.floorLocal(d.x, d.y, d.z); } } });
+            rg.add(hb.group); hb.group.updateMatrixWorld(true);
+            HB.hub = hb; HB.node = node; HB.nid = pid; HB.L = L; HB.mu = GM * L; HB.in = false; HB.fight = null; HB.t = 0;
+            HB.pos.copy(hb.group.position); HB.q.copy(hb.group.quaternion); HB.qi.copy(HB.q).invert(); HB.up.copy(hb.anchor.up);
+            var pf = curProfile(), d = pf && pf.hubs && pf.hubs[pid]; if (d) hb.restore(d);
+        } catch (e) { console.info('[ship] hub build failed', e); HB.fail = true; if (HB.hub) { try { HB.hub.dispose(); } catch (e1) { /* ignore */ } } HB.hub = null; }
+    }
+    function hubDispose() {
+        if (HB.in) hubExit(true);
+        for (var i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].hub) gndFree(R27.gnd[i]);
+        if (HB.hub) { try { HB.hub.dispose(); } catch (e0) { /* ignore */ } }
+        HB.hub = null; HB.node = null; HB.fight = null; HB.fail = false; HB.in = false; HB.rebuild = false;
+    }
+    function hubLife(dt) {
+        var want = !!(land.node && (gmode === 'landing' || gmode === 'landed' || gmode === 'foot') && ps && ps.active === land.node && hubMod && world && world.group && world.group.parent);
+        if (HB.hub && (!want || HB.rebuild || HB.node !== land.node || HB.L !== L)) hubDispose();
+        if (!want) HB.fail = false;
+        if (!HB.hub && want && !HB.fail) hubMake();
+        if (HB.hub) hubTick(dt);
+    }
+    function hubSave() {
+        if (!HB.hub || !HB.nid) return; var pf = curProfile() || ensureProfile(userName()); if (!curUser) curUser = userName();
+        if (!pf.hubs) pf.hubs = {}; pf.hubs[HB.nid] = HB.hub.serialize(); var ks = Object.keys(pf.hubs); if (ks.length > 24) delete pf.hubs[ks[0]];
+        writeSave();
+    }
+    function hubTick(dt) {
+        var hb = HB.hub, node = land.node; HB.t += dt;
+        HB.upW.copy(HB.up).applyQuaternion(node.mesh.quaternion);
+        if (HB.in) {
+            if (gmode !== 'foot') { hubExit(true); return; }
+            var ev = hb.update(HB.t, dt, HB.p);
+            if (ev && ev.type === 'lock') hubFightStart(ev.room);
+            hubFightTick(dt);
+            if (!HB.fight && HB.p.z < 1.4 && !HB.air) hubExit(false);
+        } else {
+            HB.cd -= dt; if (HB.cd > 0) return; HB.cd = 0.05;
+            if (gmode === 'foot' && hum.obj && hum.w.distanceToSquared(hubToWorld(hbE.set(0, 1, 0), hbD)) < (900 * GM * L) * (900 * GM * L)) hb.update(HB.t, 0.05, null);
+        }
+    }
+    function hubToWorld(ph, out) { hubToLocal(ph, out); var n = land.node; return out.applyQuaternion(n.mesh.quaternion).add(n.anchor.position); }
+    function hubEnter() {
+        var hb = HB.hub; if (!hb || HB.in || gmode !== 'foot' || !hum.obj) return false;
+        jetKill(); fl.on = false; for (var i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob && !R27.gnd[i].hub) gndFree(R27.gnd[i]);
+        HB.in = true; HB.p.fromArray(hb.interior.spawn); HB.vy = 0; HB.air = false; HB.fight = null; HB.cd = 0; HB.camD = 3;
+        hum.hf.set(0, 0, 1).applyQuaternion(HB.q); hum.face.copy(hum.hf); hum.pitch = 0.3; hum.air = false; hum.vv = 0; camRelInit = false; mdx = mdy = 0;
+        hum.up.copy(HB.up); hubToLocal(HB.p, hum.pos); hum.hr = hum.gr = hum.vh = hum.pos.length();
+        setPrompt('', false); aPlay('land', { vel: 0.5 }); addRow('', '', 'THE HUB · clear every arena · F at the start to leave', 'is-sys');
+        return true;
+    }
+    function hubExit(force) {
+        var hb = HB.hub; if (!hb || !HB.in) return false;
+        if (HB.fight && !force) { addRow('', '', 'SEALED · clear the room', 'is-sys'); return false; }
+        HB.in = false; if (HB.fight) HB.rebuild = true; HB.fight = null;      // a forced exit mid-fight leaves the gates shut: rebuild the hub (saved state restores)
+        for (var i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].hub) gndFree(R27.gnd[i]);
+        hubToLocal(hbA.fromArray(hb.interior.exit), hbB); hbC.copy(hbB).normalize();
+        var fr = land.node && ps && ps.active === land.node ? mFloor(hbC.x, hbC.y, hbC.z) : hbB.length();
+        hum.hr = hum.gr = hum.vh = fr + 0.02 * L; hum.pos.copy(hbC).multiplyScalar(hum.hr); hum.air = false; hum.vv = 0;
+        hum.hf.set(0, 0, -1).applyQuaternion(HB.q); hum.hf.addScaledVector(hbC, -hum.hf.dot(hbC)).normalize(); hum.face.copy(hum.hf);
+        hum.up.copy(hbC); camRelInit = false; mdx = mdy = 0; setPrompt('', false); hubSave();
+        if (hum.obj && land.node) { hum.w.copy(hum.pos).applyQuaternion(land.node.mesh.quaternion).add(land.node.anchor.position); hum.obj.group.position.copy(hum.w); }
+        return true;
+    }
+    // ── on-foot controller inside the hub (metres, +y up, walls = hub.interior.walls, floor = hub.interior.floorAt) ──
+    function hubFootStep(dt, c, qM) {
+        var H = 0.09 * L, o = hum.obj, up = hum.up, hb = HB.hub, I = hb.interior, p = HB.p, k, mu = HB.mu;
+        if (cmdOpen) { mdx = mdy = 0; }
+        up.copy(HB.up);
+        if (mdx !== 0) hum.hf.applyAxisAngle(up, -mdx * MOUSE_SENS * 1.3);
+        hum.pitch = clamp(hum.pitch + mdy * MOUSE_SENS * 1.3, -0.3, 1.4); mdx = mdy = 0;
+        hum.hf.addScaledVector(up, -hum.hf.dot(up)); if (hum.hf.lengthSq() < 1e-8) hum.hf.crossVectors(up, X); hum.hf.normalize();
+        gA.crossVectors(hum.hf, up);
+        var fw = cmdOpen ? 0 : ((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0)), sd = cmdOpen ? 0 : ((keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0));
+        gB.set(0, 0, 0).addScaledVector(hum.hf, fw).addScaledVector(gA, sd);
+        var ml = gB.length(), moving = ml > 0.01, run = moving && !!(keys.ShiftLeft || keys.ShiftRight);
+        if (moving) gB.divideScalar(ml);
+        var wantJump = !cmdOpen && !!keys.Space;
+        if (!HB.air && wantJump && !jumpHeld) { HB.air = true; HB.vy = 7.5; }
+        jumpHeld = wantJump;
+        hum.moving = moving; hum.running = run; hum.air = HB.air; if (moving) hum.face.lerp(gB, damp(14, dt));
+        hbA.copy(gB).applyQuaternion(HB.qi); hbA.y = 0; if (moving && hbA.lengthSq() > 1e-8) hbA.normalize(); else moving = false;
+        var spd = (run ? 18 : 10) * fxSpeed, nSub = Math.min(12, Math.max(1, Math.ceil(spd * dt / 0.3))), h = dt / nSub, nx, nz, f, s;
+        for (s = 0; s < nSub; s++) {
+            if (moving) {
+                nx = p.x + hbA.x * spd * h; nz = p.z + hbA.z * spd * h;
+                if (hubStepOK(nx, p.y, nz)) { p.x = nx; p.z = nz; }
+                else if (hubStepOK(nx, p.y, p.z)) p.x = nx;
+                else if (hubStepOK(p.x, p.y, nz)) p.z = nz;
+            }
+            f = I.floorAt(p); if (f == null) f = p.y;
+            if (HB.air) {
+                HB.vy -= 22 * h; p.y += HB.vy * h; k = hubCeil(p.x, p.y, p.z);
+                if (p.y + 1.8 > k) { p.y = k - 1.8; HB.vy = Math.min(HB.vy, 0); }
+                if (p.y <= f && HB.vy <= 0) { p.y = f; HB.vy = 0; HB.air = false; }
+            } else if (p.y - f > 0.7) { HB.air = true; HB.vy = 0; } else p.y = f;
+        }
+        hubToLocal(p, hum.pos); hum.hr = hum.gr = hum.vh = hum.pos.length(); hum.vv = 0; hum.air = HB.air;
+        hum.w.copy(hum.pos).applyQuaternion(qM).add(c);
+        hum.face.addScaledVector(up, -hum.face.dot(up)); if (hum.face.lengthSq() < 1e-8) hum.face.copy(hum.hf); hum.face.normalize();
+        gA.copy(hum.face).applyQuaternion(qM); gB.copy(up).applyQuaternion(qM); styUpW.copy(gB);
+        gC.crossVectors(gA, gB); gD.copy(gA).negate(); mM.makeBasis(gC, gB, gD);
+        o.group.quaternion.setFromRotationMatrix(mM); o.group.position.copy(hum.w); o.group.scale.set(H, H, H);
+        flHud(false, 0);
+        o.update(dt, { moving: moving, running: run, airborne: HB.air, speed: moving ? (run ? 1 : 0.5) : 0, facing: 0, jet: 0, scan: scanT > 0 ? Math.min(1, scanT / 1.2) : 0 });
+        // camera: orbit behind the head, shortened until the ray is clear of walls / floor / ceiling
+        hbC.set(p.x, p.y + 1.44, p.z); hbD.copy(hum.hf).applyQuaternion(HB.qi); hbD.y = 0; hbD.normalize();
+        var cp = Math.cos(hum.pitch), sp = Math.sin(hum.pitch), d, dm = 0.5, ok = true, fl2, qx, qy, qz;
+        for (d = 0.5; d <= 5.5 && ok; d += 0.4) {
+            qx = hbC.x - hbD.x * cp * d; qy = hbC.y + sp * d; qz = hbC.z - hbD.z * cp * d;
+            fl2 = I.floorAt([qx, qy, qz]);
+            if (fl2 == null || qy < fl2 + 0.3 || qy > hubCeil(qx, qy - 0.3, qz) - 0.2 || !hubFree(qx, qy - 0.9, qz, 0.2)) ok = false; else dm = d;
+        }
+        if (dm < HB.camD) HB.camD = dm; else HB.camD += (dm - HB.camD) * damp(3, dt);
+        d = HB.camD; hbE.set(hbC.x - hbD.x * cp * d, hbC.y + sp * d, hbC.z - hbD.z * cp * d);
+        hubToLocal(hbC, hbA); hubToLocal(hbE, hbB);
+        gC.copy(hbA).applyQuaternion(qM).add(c); gD.copy(hbB).applyQuaternion(qM).add(c);
+        mM.lookAt(gD, gC, gB); gQ.setFromRotationMatrix(mM);
+        camera.position.copy(gD); camera.quaternion.copy(gQ); camRelInit = false;
+        return gC;
+    }
+    function hubStepOK(x, y, z) {
+        var f = HB.hub.interior.floorAt([x, y, z]); if (f == null || f - y > 0.6) return false;
+        return hubFree(x, Math.max(y, f), z, 0.4);
+    }
+    // ── hub mobs: the regular mob / ground-entity sim, glued to the hub floor, local-only (not in the planet-host snapshots) ──
+    function hubPlace(e, ph) { hubToLocal(ph, hbA); e.hr = hbA.length(); e.dir.copy(hbA).divideScalar(e.hr); }
+    function hubGndMove(e, v, s) {
+        if (!(s > 0) || !HB.hub) return false;
+        var n = e.node, I = HB.hub.interior;
+        qW.copy(n.mesh.quaternion).invert();
+        hbA.copy(e.w).addScaledVector(v, s).sub(n.anchor.position).applyQuaternion(qW); hubFromLocal(hbA, hbB);
+        hbC.copy(e.dir).multiplyScalar(e.hr); hubFromLocal(hbC, hbD);
+        var f = I.floorAt(hbB); if (f == null || f - hbD.y > 0.7 || !hubFree(hbB.x, f, hbB.z, 0.5)) return false;
+        hbB.y = f; hubPlace(e, hbB); return true;
+    }
+    function hubMobMake(kind, ph, w) {
+        if (typeof ENM.generateMob !== 'function' || !land.node) return null;
+        var cr; try { cr = ENM.generateMob(THREE, hash25(HB.nid + ':h' + (MB.nid + 1)), kind); } catch (e0) { return null; }
+        var e = gndWrap(cr); if (!e) return null;
+        e.mode = 'planet'; e.node = land.node; e.hub = true; e.remote = false; e.mid = ++MB.nid; e.aggro = 80; e.cd = 1 + Math.random(); hubPlace(e, ph);
+        e.hp = e.hpMax = Math.round(e.hp * ((w && w.hpMul) || 1));
+        r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.face.copy(r27C).applyQuaternion(land.node.mesh.quaternion);
+        e.sdir.copy(e.dir); e.shr = e.hr; gndPlace(e); MB.stats.spawned++; return e;
+    }
+    function hubBossMake(spec) {
+        if (typeof ENM.generateGroundEnemy !== 'function' || !land.node) return null;      // generateBoss builds flying hulls; the walking WARDEN is the tier-4 ground enemy scaled by spec.scaleH
+        var sd = hash25(HB.nid + ':boss'), cr; try { cr = ENM.generateGroundEnemy(THREE, sd, spec.tier || 4, ENM.GROUND_KINDS[sd % 3]); } catch (e0) { return null; }
+        var e = gndWrap(cr), S = spec.scaleH || 3; if (!e) return null;
+        e.mode = 'planet'; e.node = land.node; e.hub = true; e.boss = true; e.aggro = 90; e.cd = 2; hubPlace(e, hbE.fromArray(spec.spawn));
+        e.g.scale.setScalar(GM * L * S); cr.hitR *= S; if (cr.stats) cr.stats.height *= S;
+        (cr.moves || []).forEach(function (m) { m.reachL *= S; m.dmg = Math.round(m.dmg * 0.5); });
+        e.hp = e.hpMax = spec.hp || 300; r27C.set(0, 0, -1).applyQuaternion(HB.q).applyQuaternion(land.node.mesh.quaternion); e.face.copy(r27C); gndPlace(e); return e;
+    }
+    function hubFightStart(room) {
+        var hb = HB.hub, ws = hb.waves(room); if (!ws.length) return;
+        HB.fight = { room: room, wi: 0, ws: ws, ents: [], gap: 0.4, summoned: false, boss: room === 'boss' };
+        addRow('', '', room === 'boss' ? 'WARDEN · the gates are sealed' : 'SEALED · wave 1/' + ws.length, 'is-sys'); aPlay('hit', { pitch: 0.4, vel: 0.6 });
+    }
+    function hubSpawnWave(F, w, isBoss) {
+        var pts = HB.hub.spawns(F.room), i, e;
+        if (isBoss) { e = hubBossMake(w.boss); if (e) { F.ents.push(e); F.bossE = e; } return; }
+        for (i = 0; i < w.count; i++) { var pt = pts[i % pts.length]; hbE.set(pt[0] + (i >= pts.length ? 0.8 : 0), pt[1], pt[2]); e = hubMobMake(w.kinds[i] || 'zomby', hbE, w); if (e) F.ents.push(e); }
+    }
+    function hubFightTick(dt) {
+        var F = HB.fight; if (!F) return; var i, alive = 0;
+        for (i = 0; i < F.ents.length; i++) if (F.ents[i].alive) alive++;
+        if (F.gap > 0) { F.gap -= dt; if (F.gap <= 0) hubSpawnWave(F, F.ws[F.wi], F.boss && F.wi === 0); return; }
+        if (F.boss) {
+            var b = F.bossE;
+            if (b && b.alive && !F.summoned && b.hp <= b.hpMax * 0.5 && F.ws[1]) { F.summoned = true; hubSpawnWave(F, F.ws[1], false); addRow('', '', 'WARDEN · summons', 'is-sys'); }
+            if (!b || !b.alive) { hubBossDrop(); hubClear(F.room); }
+            return;
+        }
+        if (alive > 0) return;
+        F.wi++;
+        if (F.wi >= F.ws.length) { hubClear(F.room); return; }
+        F.gap = 1.4; addRow('', '', 'WAVE ' + (F.wi + 1) + '/' + F.ws.length, 'is-sys');
+    }
+    function hubClear(room) {
+        var F = HB.fight; if (F && F.room === room) { for (var i = 0; i < F.ents.length; i++) if (F.ents[i].alive) gndFree(F.ents[i]); HB.fight = null; }
+        if (!HB.hub) return; HB.hub.setCleared(room); aPlay('tame', { vel: 0.6 }); addRow('', '', room === 'boss' ? 'WARDEN DOWN · the chest is open' : 'ROOM CLEARED · gates open', 'is-sys'); hubSave();
+    }
+    function hubBossDrop() {
+        var sp = HB.hub.bossSpec, dr = sp.drop || {}, n = 100 + Math.floor(Math.random() * 101);
+        if (dr.coin) n = Math.round(dr.coin[0] + Math.random() * (dr.coin[1] - dr.coin[0]));
+        mobGive('gor coin', n); addRow('', '', '+' + n + ' ɢ · WARDEN', 'is-sys');
+        var bp = dr.blueprint && CRF.blueprintItem ? CRF.blueprintItem(dr.blueprint) : null; if (bp) giveItem(bp, 1);
+    }
+    function hubChest(c) {
+        if (!c || !HB.hub) return;
+        if (c.locked) { addRow('', '', 'LOCKED · clear the room', 'is-sys'); aPlay('ui', { vel: 0.4, pitch: 0.6 }); return; }
+        var loot = HB.hub.open(c.id); if (!loot) return;
+        aPlay('blueprint', { vel: 0.6 });
+        loot.forEach(function (s) {
+            if (s.id === 'gor coin') { mobGive('gor coin', s.n); addRow('', '', '+' + s.n + ' ɢ', 'is-sys'); }
+            else if (s.item) { giveItem(s.item, s.n || 1); addRow('', '', '+' + (s.n || 1) + ' ' + String(s.item.name || 'LOOT').toUpperCase(), 'is-sys'); }
+        });
+        hubSave();
+    }
+    function hubTarget() {
+        var hb = HB.hub; if (!hb) return null;
+        if (!HB.in) {
+            if (hum.w.distanceToSquared(hubToWorld(hbE.set(0, 1, 0), hbD)) < (7 * HB.mu) * (7 * HB.mu)) { ftI.kind = 'hub'; ftI.obj = hb; ftI.label = 'F · ENTER'; return ftI; }
+            return null;
+        }
+        var p = HB.p, i, c, best = null, bd = 2.8 * 2.8, d;
+        for (i = 0; i < hb.chests.length; i++) { c = hb.chests[i]; if (c.opened) continue; d = (c.pos[0] - p.x) * (c.pos[0] - p.x) + (c.pos[2] - p.z) * (c.pos[2] - p.z); if (d < bd && Math.abs(c.pos[1] - p.y) < 2) { bd = d; best = c; } }
+        if (best) { ftI.kind = 'hubchest'; ftI.obj = best; ftI.label = best.locked ? 'LOCKED' : 'F · OPEN'; return ftI; }
+        var rm = hb.interior.roomAt(p);
+        if (!HB.fight && ((rm && rm.id === 'start') || p.z < 24)) { ftI.kind = 'hubexit'; ftI.label = 'F · LEAVE'; return ftI; }
+        return null;
     }
     // ── menus (kitchen, pens, pods, board) ──
     var menuOpen = false, menuSpec = null, menuRows = [], menuSel = 0;
@@ -7410,6 +7654,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function footTarget() {
         ftI.kind = ''; ftI.obj = null; ftI.label = '';
         if (gmode !== 'foot' || !hum.obj || !world || !world.node) return ftI;
+        if (HB.hub) { var hk = hubTarget(); if (hk || HB.in) return ftI; }
         var c = counterNear(), n, k;
         if (c) {
             if (world.cart && world.cart.length) { ftI.kind = 'checkout'; ftI.obj = c; ftI.label = 'F · CHECKOUT ' + CRF.fmt(world.cartTotal()); return ftI; }
@@ -7980,7 +8225,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function gndClear(mode) { for (var i = R27.gnd.length - 1; i >= 0; i--) if (!mode || R27.gnd[i].mode === mode) gndFree(R27.gnd[i]); }
     function gndPlace(e) {          // world position / up from the entity's frame, then the holder pose
         if (e.mode === 'derelict') { if (!e.site) return; e.site.toWorld(e.lp, e.w); e.up.set(0, 1, 0).applyQuaternion(e.site.quat); }
-        else { if (!e.node) return; e.w.copy(e.dir).multiplyScalar(e.hr).applyQuaternion(e.node.mesh.quaternion).add(e.node.anchor.position); e.up.copy(e.dir).applyQuaternion(e.node.mesh.quaternion); }
+        else { if (!e.node) return; e.w.copy(e.dir).multiplyScalar(e.hr).applyQuaternion(e.node.mesh.quaternion).add(e.node.anchor.position); e.up.copy(e.hub ? HB.up : e.dir).applyQuaternion(e.node.mesh.quaternion); }
         e.face.addScaledVector(e.up, -e.face.dot(e.up)); if (e.face.lengthSq() < 1e-8) e.face.set(1, 0, 0).addScaledVector(e.up, 0); e.face.normalize();
         r27R.crossVectors(e.face, e.up); r27B.copy(e.face).negate();
         mM.makeBasis(r27R, e.up, r27B); e.g.quaternion.setFromRotationMatrix(mM); e.g.position.copy(e.w);
@@ -8018,6 +8263,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function gndMove(e, v, s) {
         if (!(s > 0)) return false;
+        if (e.hub) return hubGndMove(e, v, s);
         if (e.mode === 'derelict') {
             r27A.copy(e.w).addScaledVector(v, s); e.site.toLocal(r27A, r27B); e.lp.x = r27B.x; e.lp.z = r27B.z; e.lp.y = 0; dkCollide(e.lp, 0.04);
         } else {
@@ -8323,7 +8569,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!am || typeof am.set !== 'function') return;
         R27.ambT -= dt; if (R27.ambT > 0) return; R27.ambT = 0.1;
         var o = ambO, node = ps && ps.active, depth = (node && ps.depth > 0.02) ? ps.depth : 0, place = 'space';
-        if (gmode === 'ifoot' || R27.dsite) place = 'interior';
+        if (gmode === 'ifoot' || R27.dsite || HB.in) place = 'interior';      // hub.ambience = 'hub' has no bed of its own yet: the interior bed
         else if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') place = storeOpen ? 'store' : 'station';
         else if (storeOpen) place = 'store';
         else if (depth > 0) place = (gmode === 'foot' || gmode === 'landed' || gmode === 'landing') ? 'surface' : 'atmo';
@@ -8841,6 +9087,15 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             blkFloor: blkFloor, footFloor: function (dir, H, ref) { return footFloor(dir, H, ref); }, saved: function () { var pf = curProfile(), d = pf && pf.blk && pf.blk[BK.nid]; return d ? d.c.length : 0; }, mobs: mobList, spawn: function (kind, distH, ang) { return mobSpawnAt(kind, distH == null ? 12 : distH, ang || 0); }, night: function (v) { MB.nightForce = (v == null || v < 0) ? -1 : +v; }, peaceful: function (b) { MB.peaceful = !!b; },
             place: function (i, j, k, mat) { return bkPlace(i, j, k, mat || 'stone'); }, cellAhead: function () { var T = bkTarget(); return { px: T.px, py: T.py, pz: T.pz, dist: T.dist, mat: T.mat }; }, brk: bkBreak, explodeBlocks: bkExplode, punch: punch, tongue: tongueGrab,
             hurt: mobHurt, snapNow: function () { MB.snapT = 0; }, applySnap: mobApplySnap, netMsg: mobNetMsg, setStyle: function (id) { styleSet(id, true); }, hostId: function (h) { MB.hostId = h; }
+        },
+        hub: {
+            get state() { return HB.hub ? HB.hub.state : null; }, get raw() { return HB; },
+            enter: function () { if (!HB.hub && hubMod) hubMake(); return hubEnter(); }, exit: function () { return hubExit(true); },
+            info: function () { var h = HB.hub; return h ? { in: HB.in, planet: HB.nid, p: HB.p.toArray().map(function (v) { return +v.toFixed(2); }), room: HB.in ? (h.roomAt(HB.p) || {}).id : null, fight: HB.fight ? { room: HB.fight.room, wave: HB.fight.wi + 1, alive: HB.fight.ents.filter(function (e) { return e.alive; }).length } : null, cleared: Object.keys(h.state.cleared), chests: h.chests.map(function (c) { return [c.id, c.opened ? 1 : 0, c.locked ? 1 : 0]; }), mobs: R27.gnd.filter(function (e) { return e.hub && e.alive; }).length, stats: h.stats, anchor: h.anchor.pos.toArray() } : null; },
+            clear: function (room) { hubClear(room || (HB.fight && HB.fight.room)); },
+            goto: function (id) { var h = HB.hub, r = h && h.interior.rooms.filter(function (q) { return q.id === id; })[0]; if (!r || !HB.in) return false; HB.p.set((r.box.min[0] + r.box.max[0]) / 2, r.box.min[1], r.box.min[2] + 1); HB.air = false; return true; },
+            open: function (id) { var c = HB.hub && HB.hub.chests.filter(function (q) { return q.id === id; })[0]; hubChest(c); return c ? c.opened : false; },
+            face: function (x, z) { hum.hf.set(x, 0, z).applyQuaternion(HB.q).normalize(); }
         },
         rev25: {
             set noInterior(b) { R25.noInt = !!b; },
