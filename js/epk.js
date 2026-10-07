@@ -44,6 +44,7 @@
     Object.keys(frames).forEach(function (k) { ro.observe(frames[k]); });
   }
   addEventListener('resize', function () { Object.keys(frames).forEach(function (k) { clampSlot(slotOf(k), frames[k]); }); });
+  addEventListener('epk-fit', function () { Object.keys(frames).forEach(function (k) { layout(slotOf(k), frames[k]); }); });
 
   function render() {
     Object.keys(frames).forEach(function (key) {
@@ -219,4 +220,31 @@
       if (wantEdit) enableEditor();
       render();
     });
+})();
+
+// ── fit each full-screen view to the window (desktop): shrink the row until it fits one screen ──
+(function () {
+  var phone = matchMedia('(max-width: 760px)');
+  function fit() {
+    var views = document.querySelectorAll('.view');
+    Array.prototype.forEach.call(views, function (v) {
+      var row = v.querySelector('.row'); if (!row) return;
+      row.style.zoom = '';
+      if (phone.matches) return;
+      var cs = getComputedStyle(v);
+      var avail = innerHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      var cta = v.querySelector('.cta');
+      if (cta) avail -= cta.getBoundingClientRect().height + parseFloat(getComputedStyle(cta).marginTop);
+      var z = 1;
+      while (row.getBoundingClientRect().height > avail && z > 0.55) {
+        z -= 0.03; row.style.zoom = z.toFixed(2);
+      }
+    });
+    dispatchEvent(new Event('epk-fit'));
+  }
+  var t; function queue() { clearTimeout(t); t = setTimeout(fit, 60); }
+  addEventListener('resize', queue);
+  addEventListener('load', fit);
+  document.fonts && document.fonts.ready.then(fit);
+  setTimeout(fit, 300); setTimeout(fit, 1200);
 })();
