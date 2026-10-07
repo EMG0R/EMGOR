@@ -503,6 +503,7 @@ export default function mount(engine) {
         o.style = (typeof o.style === 'string' && /^[a-z0-9_-]{1,16}$/i.test(o.style)) ? o.style : '';      // rev 30: character style id ('' = PILOT)
         if (!o.blk || typeof o.blk !== 'object' || Array.isArray(o.blk)) o.blk = {};      // mashup: STEEV blocks per planet id {b:[up xyz, fwd xyz], c:[[i,j,k,mat]]} <= 64
         if (!o.hubs || typeof o.hubs !== 'object' || Array.isArray(o.hubs)) o.hubs = {};      // mob hub state per planet id (hub.serialize())
+        if (!o.vill || typeof o.vill !== 'object' || Array.isArray(o.vill)) o.vill = {};      // village trade stock per planet id (village.serialize())
         if (!Array.isArray(o.items)) o.items = [];       // rev 23: inventory stacks {id, seed, n, d (dealer variant)}
         o.items = o.items.filter(function (r) { return r && typeof r === 'object' && typeof r.id === 'string' && r.n > 0 && (typeof r.seed === 'number' || (r.it && typeof r.it === 'object')); }).map(function (r) { var q = { id: r.id, seed: (r.seed >>> 0) || 0, n: Math.min(9999, r.n | 0), d: r.d ? 1 : 0 }; if (r.it && typeof r.it === 'object') q.it = r.it; return q; }).slice(-400);
         if (!Array.isArray(o.crew)) o.crew = [];          // rev 25: [{id,name,role,color,rank,lines[],busy}] cap 4
@@ -1281,6 +1282,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         store: '<path d="M1 6V4l2-3h10l2 3v2z"/><path fill-rule="evenodd" d="M2 7h12v8H2zM6 10v5h4v-5z"/>',
         fries: '<path d="M3 7h10l-1 8H4z"/><path d="M4 2h1.5v5H4zM7.2 1h1.6v6H7.2zM10.5 2H12v5h-1.5z"/>',
         pad: '<path d="M1 11h14v3H1z"/><path d="M8 1l5 7H3z"/><path d="M7 8h2v3H7z"/>',
+        house: '<path fill-rule="evenodd" d="M8 1l7 6h-2v8H3V7H1zM7 10v5h2v-5z"/>',
         skull: '<path fill-rule="evenodd" d="M8 1a6 6 0 0 0-6 6v4h2v3h2v-2h4v2h2v-3h2V7a6 6 0 0 0-6-6zM5 6h2v3H5zM9 6h2v3H9z"/>',
         station: '<path fill-rule="evenodd" d="M8 1a7 7 0 1 0 .01 0zM8 4a4 4 0 1 1-.01 0z"/><path d="M0 7h16v2H0z"/>',
         flag: '<path d="M3 1h2v14H3z"/><path d="M5 2h9l-3 3.5L14 9H5z"/>',
@@ -1289,7 +1291,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         diamond: '<path d="M8 1l7 7-7 7-7-7z"/>',
         coin: '<path fill-rule="evenodd" d="M8 1a7 7 0 1 0 .01 0zM8 4a4 4 0 1 1-.01 0z"/><path d="M7 6h2v4H7z"/>'
     };
-    var MK_KIND = { '7/11': 'store', store: 'store', burger: 'fries', pad: 'pad', landmark: 'flag', post: 'station', shard: 'coin', friend: 'diamond', resource: 'crystal' };
+    var MK_KIND = { '7/11': 'store', store: 'store', burger: 'fries', pad: 'pad', landmark: 'flag', post: 'station', village: 'house', shard: 'coin', friend: 'diamond', resource: 'crystal' };
     function mkSvg(g) { return '<svg viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges" fill="currentColor">' + (MK_G[g] || MK_G.diamond) + '</svg>'; }
     var mkV = new THREE.Vector3();
     function mkAng(p) { mkV.copy(p).applyMatrix4(camera.matrixWorldInverse); var l = mkV.length() || 1; return mkV.z < 0 ? Math.acos(clamp(-mkV.z / l, -1, 1)) * 57.2958 : 180; }
@@ -1327,6 +1329,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         }
         pads.sort(function (a, b) { return a.d - b.d; });
         if (bs) list.push(bs); if (bb) list.push(bb); if (lmk) list.push(lmk);
+        if (VG.v && VG.nid === String(n.id)) list.push({ kind: 'village', name: 'VILLAGE ' + VG.v.name, loc: VG.v.anchor.pos.clone(), d: 0 });
         for (i = 0; i < pads.length && list.length < GD_N; i++) list.push(pads[i]);
         gdLocal = list.map(function (p) { return { kind: p.kind, name: p.name, loc: p.loc }; });
     }
@@ -1996,6 +1999,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             } catch (e0) { /* ignore */ }
         }
         if (HB.hub && !HB.in && gmode !== 'fly') hlMark(hubToWorld(hbE.set(0, 4, 0), hbD), 'post', 'DUNGEON', org, 'skull');
+        if (VG.v && gmode !== 'fly') { var vtg = VG.v.scanTargets(); for (i = 0; i < vtg.length; i++) hlMark(locToWorld(vtg[i].pos, vHl2), 'post', vtg[i].name, org, 'house'); }
         if (w && w.shards) { var sn = 0; for (i = 0; i < w.shards.length && sn < 14; i++) { var sh = w.shards[i]; if (!sh || sh.taken) continue; hlMark(locToWorld(sh.pos, vHl2), 'shard', 'SHARD', org); sn++; } }
         if (station && station.group.visible) {
             var sst = station.interior.stores[0];
@@ -4428,6 +4432,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         else if (gmode === 'foot') {
             var ft = footTarget();
             if (ft.kind === 'hub') hubEnter(); else if (ft.kind === 'hubexit') hubExit(false); else if (ft.kind === 'hubchest') hubChest(ft.obj);
+            else if (ft.kind === 'villager') villageTalk(ft.obj);
             else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') r28Checkout(); else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'dealer') { if (!r28Talk({ id: ft.obj.id, name: ft.obj.name || 'DEALER', role: 'dealer', kind: 'dealer', obj: ft.obj, seed: ft.obj.seed })) openDealer(ft.obj); }
             else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj); else if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); }
             else if (ft.kind === 'creature') tameStart(ft.obj);
@@ -4535,6 +4540,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (I && I.matrix && I.inverse && I.walls) put(I.matrix, I.inverse, I.unit, (I.size ? I.size.w : 40) / 2 + 1, (I.size ? I.size.d : 26) / 2 + 1, (I.size ? I.size.h : 16) + 1, I.walls, I.aisles);
         }
         if (world && world.node && bh && bh.walls && bh.matrix) put(bh.matrix, opBhI.copy(bh.matrix).invert(), bh.unit, 6, 5, 8, bh.walls, null);
+        if (VG.v && VG.v.solid && world && world.node) { var vs = VG.v.solid; put(vs.m, vs.inv, vs.K, vs.hw, vs.hd, vs.hh, vs.a, vs.b); }      // villages: hut walls, the well and the stall are solid + indestructible
         opList.length = n;
         return 1;     // the hull is always a solid
     }
@@ -4856,7 +4862,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (boarding || exiting) { cinematicStep(dt); return; }
         if (landReq) { landReq = false; startLanding(); }
         ehTick(dt);
-        hubLife(dt);
+        hubLife(dt); villageLife(dt);
         if (gmode === 'ifoot') { interiorStep(dt); return; }
         if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') { stationStep(dt); return; }
         if (gmode !== 'fly') { groundStep(dt); return; }
@@ -6261,6 +6267,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!BK.basis) bkBasisFromHere();
         for (t = 0.25 * H; t <= 3 * H; t += 0.125 * H) {
             snB.copy(snA).addScaledVector(snD, t); bkCellOf(snB);
+            if (VG.v && VG.v.overlaps(snB, 0.05 * H)) { T.dist = t / H; T.mat = 'air'; T.cx = T.cy = T.cz = 0; T.px = null; hit = true; break; }      // a village wall: not breakable, not a place target
             var m = BK.n ? bkAt(BK.ci, BK.cj, BK.ck) : -1;
             if (m >= 0) { T.dist = t / H; T.mat = BK_MAT[m]; T.hardness = BK_HARD[m]; T.cx = BK.ci; T.cy = BK.cj; T.cz = BK.ck; if (havePrev) { T.px = prevI; T.py = prevJ; T.pz = prevK; } hit = true; break; }
             var l = snB.length(); if (l < mFloor(snB.x / l, snB.y / l, snB.z / l)) { T.dist = t / H; T.mat = 'air'; T.cx = T.cy = T.cz = 0; if (havePrev) { T.px = prevI; T.py = prevJ; T.pz = prevK; } hit = true; break; }
@@ -6272,6 +6279,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!land.node || !hum.obj) return false;
         if (!BK.basis) bkBasisFromHere();
         if (bkAt(i, j, k) >= 0) return false;
+        bkCenter(i, j, k, snB); if (VG.v && VG.v.overlaps(snB, BK.H * 0.75)) return false;      // village walls are indestructible and never built into
         bkCenter(i, j, k, snB); if (snB.normalize().dot(BK.e3) < Math.cos(0.45)) return false;      // build zone: 0.45 rad round the anchor
         var pu = hum.pos.dot(BK.e1) / BK.H, pv = hum.pos.dot(BK.e2) / BK.H, pw = hum.pos.dot(BK.e3) / BK.H;
         if (Math.abs(pu - (i + 0.5)) < 0.5 + FOOT_R && Math.abs(pv - (j + 0.5)) < 0.5 + FOOT_R && pw < k + 1 - 0.02 && pw + 1 > k + 0.02) return false;      // not inside the capsule
@@ -6440,6 +6448,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (e.mob) mobHurt(e, 6, 'me'); else { e.hp -= 6; e.hitF = 1; if (e.hp <= 0) gndKill(e); }
             fx.impact(e.w, 0xffd36a, 1, 'hit'); hit++;
         });
+        if (VG.v) { var vp = VG.v.punchHit(hum.pos, hum.hf, 2.2 * Hw, 6); if (vp) { hit++; fx.impact(hum.w, vp.type === 'golum' ? 0xb070ff : 0xffd36a, 1, 'hit'); } }      // villagers flinch + the golums answer; golums are tough
         aPlay(hit ? 'hit' : 'ui', { vel: 0.5, pitch: hit ? 1 : 0.8 });
     }
     function tongueGrab(rH) {
@@ -6822,6 +6831,59 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var rm = hb.interior.roomAt(p);
         if (!HB.fight && ((rm && rm.id === 'start') || p.z < 24)) { ftI.kind = 'hubexit'; ftI.label = 'F · LEAVE'; return ftI; }
         return null;
+    }
+    // ═══ villages: one per lush/rocky planet (ship-village.js). Planet-local frame under the ride group (like the hub); huts are solid for the capsule and indestructible for STEEV ═══
+    var villMod = null, VG = { v: null, node: null, nid: '', L: 0, fail: false, nightForce: -1, evT: 0 }, vgA = new THREE.Vector3(), vgB = new THREE.Vector3(), vgQ = new THREE.Quaternion();
+    var vgCtx = { t: 0, night: 0, player: null, known: null, mobs: [], hurtMob: function (ref, dmg) { if (ref && ref.alive) { mobHurt(ref, dmg, 'golum'); fx.impact(ref.w, 0xb070ff, 1.5, 'hit'); aPlay('hit', { dist: aDist(ref.w), pitch: 0.7 }); } }, hurtPlayer: function (dmg) { footHurt(dmg); addRow('', '', 'GOLUM HIT · -' + dmg, 'is-sys'); } };
+    import('./ship-village.js').then(function (m) { villMod = m; }).catch(function (e) { console.info('[ship] ship-village unavailable', e); });
+    function villageMake() {
+        var node = land.node, rg = world && world.group && world.group.parent;
+        if (!villMod || !rg || !node) return;
+        try {
+            var pid = String(node.id), avoid = [], i, pp; vgQ.copy(node.mesh.quaternion).invert();
+            if (ps.outposts) for (i = 0; i < ps.outposts.length; i++) { pp = posOf(ps.outposts[i]); if (pp) avoid.push(new THREE.Vector3().copy(pp).sub(node.anchor.position).applyQuaternion(vgQ).normalize()); }
+            var vg = villMod.createVillage(engine, GM * L, { L: L, planetNode: { id: pid, name: pid, radius: ps.radius, biome: ps.lookOf ? ps.lookOf(node) : 'rocky', avoid: avoid,
+                floor: function (x, y, z) { return ps.floorLocal(x, y, z); }, live: function (x, y, z) { return ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); }, land: function (x, y, z) { return ps.landLocal(x, y, z); } } });
+            VG.node = node; VG.nid = pid; VG.L = L;
+            if (!vg) { VG.fail = true; return; }
+            rg.add(vg.group); vg.group.updateMatrixWorld(true); VG.v = vg;
+            var pf = curProfile(), d = pf && pf.vill && pf.vill[pid]; if (d) vg.restore(d);
+        } catch (e) { console.info('[ship] village build failed', e); VG.fail = true; if (VG.v) { try { VG.v.dispose(); } catch (e1) { /* ignore */ } } VG.v = null; }
+    }
+    function villageDispose() { if (VG.v) { try { VG.v.dispose(); } catch (e0) { /* ignore */ } } VG.v = null; VG.node = null; VG.fail = false; }
+    function villageSave() {
+        if (!VG.v || !VG.nid) return; var pf = curProfile() || ensureProfile(userName()); if (!curUser) curUser = userName();
+        if (!pf.vill) pf.vill = {}; pf.vill[VG.nid] = VG.v.serialize(); var ks = Object.keys(pf.vill); if (ks.length > 24) delete pf.vill[ks[0]];
+        writeSave();
+    }
+    function villageNight() { return VG.nightForce >= 0 ? VG.nightForce : (land.node && VG.v ? nightAt(land.node, locToWorld(VG.v.anchor.pos, vgA)) : 0); }
+    function villageLife(dt) {
+        var want = !!(land.node && (gmode === 'landing' || gmode === 'landed' || gmode === 'foot') && ps && ps.active === land.node && villMod && world && world.group && world.group.parent);
+        if (VG.v && (!want || VG.node !== land.node || VG.L !== L)) villageDispose();
+        if (!want) VG.fail = false;
+        if (!VG.v && want && !VG.fail) villageMake();
+        if (!VG.v) return;
+        var foot = gmode === 'foot' && hum.obj && !HB.in, i, e, ml = vgCtx.mobs;
+        ml.length = 0;
+        if (foot && hum.pos.distanceTo(VG.v.anchor.pos) < 70 * L) for (i = 0; i < R27.gnd.length; i++) { e = R27.gnd[i]; if (e.mob && e.alive && !e.hub && e.node === land.node) ml.push({ id: e.mid, ref: e, pos: new THREE.Vector3().copy(e.dir).multiplyScalar(e.hr) }); }
+        vgCtx.t = Date.now() / 1000; vgCtx.night = villageNight(); vgCtx.player = foot ? hum.pos : null; vgCtx.known = knownFor();
+        VG.v.update(dt, vgCtx);
+        var ev = VG.v.drain();
+        for (i = 0; i < ev.length; i++) {
+            if (ev[i].type === 'greet') { addRow(String(ev[i].v.name).toUpperCase(), '#8fe0a8', ev[i].text); aPlay('npc', { seed: ev[i].v.id, vel: 0.4 }); }
+            else { addRow('', '', ev[i].text, 'is-sys'); aPlay('hit', { vel: 0.4, pitch: 0.6 }); }
+        }
+    }
+    function villageTarget() {
+        if (!VG.v || HB.in) return null;
+        var v = VG.v.nearVillager(hum.pos, 3 * 0.09 * L); if (!v) return null;
+        ftI.kind = 'villager'; ftI.obj = v; ftI.label = 'F · TALK'; return ftI;
+    }
+    function villageTalk(v) { knownFor(); if (!r28Talk({ id: v.id, name: v.name, role: v.role, kind: 'village', obj: v, seed: v.seed })) return; }
+    function villageTrade(v) {
+        if (!VG.v || !v) return;
+        var m = VG.v.market(v); if (!m) return;
+        if (openTrade(m, v.name + ' · TRADER', String(v.name).toUpperCase(), '') && shopCtx) shopCtx.vil = true;
     }
     // ── menus (kitchen, pens, pods, board) ──
     var menuOpen = false, menuSpec = null, menuRows = [], menuSel = 0;
@@ -7580,6 +7642,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (!storeOpen) return;
         if (DLG.open) dlgHide();
         if (qOpen) qHide();
+        if (shopCtx && shopCtx.vil && VG.v) { VG.v.syncStock(); villageSave(); }
         storeOpen = false; cmdOpen = false; shopSt = null; shopCtx = null; shopDrag = null;
         hud.classList.remove('is-store'); elStore.classList.remove('is-on');
         keys = Object.create(null); mdx = mdy = 0;
@@ -7655,6 +7718,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         ftI.kind = ''; ftI.obj = null; ftI.label = '';
         if (gmode !== 'foot' || !hum.obj || !world || !world.node) return ftI;
         if (HB.hub) { var hk = hubTarget(); if (hk || HB.in) return ftI; }
+        if (VG.v && villageTarget()) return ftI;
         var c = counterNear(), n, k;
         if (c) {
             if (world.cart && world.cart.length) { ftI.kind = 'checkout'; ftI.obj = c; ftI.label = 'F · CHECKOUT ' + CRF.fmt(world.cartTotal()); return ftI; }
@@ -8793,13 +8857,13 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function dlgPf() { var pf = qPf(); if (!pf.moods || typeof pf.moods !== 'object') pf.moods = {}; return pf; }
     function dlgConverse(st) {
         var res = null;
-        if (DLG.kind !== 'station' && world && typeof world.converse === 'function') { try { res = world.converse(DLG.id, st); } catch (e0) { res = null; } }
+        if (DLG.kind !== 'station' && DLG.kind !== 'village' && world && typeof world.converse === 'function') { try { res = world.converse(DLG.id, st); } catch (e0) { res = null; } }
         if (!res) res = LNG.converse({ seed: DLG.seed, role: DLG.role, name: DLG.name, known: knownFor(), mood: DLG.mood }, st);
         return res;
     }
     function dlgMoodSet(delta) {
         var pf = dlgPf();
-        if (DLG.kind !== 'station' && world && typeof world.npcMood === 'function') { DLG.mood = world.npcMood(DLG.id, delta | 0); }
+        if (DLG.kind !== 'station' && DLG.kind !== 'village' && world && typeof world.npcMood === 'function') { DLG.mood = world.npcMood(DLG.id, delta | 0); }
         else DLG.mood = clamp(DLG.mood + (delta | 0), -2, 2);
         pf.moods[DLG.id] = DLG.mood;
         var ks = Object.keys(pf.moods); if (ks.length > 80) delete pf.moods[ks[0]];
@@ -8820,6 +8884,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var ex = [], e = res.effects || {}, k = DLG.kind;
         if ((k === 'clerk' || k === 'dealer') && (e.item || (DLG.st.steps | 0) <= 1)) ex.push({ extra: 'shop', label: k === 'dealer' ? '[ BROWSE THEIR STOCK ]' : '[ OPEN THE SHOP ]' });
         if (e.quest) ex.push({ extra: 'quest', label: '[ SEE THEIR QUESTS ]' });
+        if (k === 'village' && DLG.role === 'trader') ex.push({ extra: 'vtrade', label: '[ BROWSE THE STALL ]' });
+        if (k === 'village' && DLG.role === 'elder' && !ex.length) ex.push({ extra: 'quest', label: '[ ASK FOR WORK ]' });
         return ex;
     }
     function dlgRender() {
@@ -8854,7 +8920,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         knownFor();
         DLG.id = String(sp.id); DLG.name = String(sp.name || 'NPC'); DLG.role = String(sp.role || 'shopper'); DLG.kind = sp.kind || 'shopper'; DLG.obj = sp.obj || null; DLG.seed = sp.seed != null ? sp.seed : DLG.id;
         var stored = pf.moods[DLG.id];
-        if (DLG.kind !== 'station' && world && typeof world.npcMood === 'function') {
+        if (DLG.kind !== 'station' && DLG.kind !== 'village' && world && typeof world.npcMood === 'function') {
             var cur = world.npcMood(DLG.id, 0); if (stored != null && stored !== cur) world.npcMood(DLG.id, stored - cur); DLG.mood = world.npcMood(DLG.id, 0);
         } else DLG.mood = stored != null ? clamp(stored, -2, 2) : 0;
         DLG.st = { mood: DLG.mood }; DLG.res = null; DLG.ch = [];
@@ -8873,6 +8939,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (DLG.res.done || !c) { closeStore(); return; }
         aPlay('ui', { vel: 0.5 });
         if (c.extra === 'shop') { closeStore(); if (kind === 'dealer') openDealer(obj); else if (obj) openStore(obj); return; }
+        if (c.extra === 'vtrade') { closeStore(); villageTrade(obj); return; }
         if (c.extra === 'quest') { closeStore(); openQuests(id, nm, kind === 'dealer' ? 'dealer' : (kind === 'clerk' ? 'clerk' : 'npc')); return; }
         dlgGo(c.next);
     }
@@ -9087,6 +9154,20 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             blkFloor: blkFloor, footFloor: function (dir, H, ref) { return footFloor(dir, H, ref); }, saved: function () { var pf = curProfile(), d = pf && pf.blk && pf.blk[BK.nid]; return d ? d.c.length : 0; }, mobs: mobList, spawn: function (kind, distH, ang) { return mobSpawnAt(kind, distH == null ? 12 : distH, ang || 0); }, night: function (v) { MB.nightForce = (v == null || v < 0) ? -1 : +v; }, peaceful: function (b) { MB.peaceful = !!b; },
             place: function (i, j, k, mat) { return bkPlace(i, j, k, mat || 'stone'); }, cellAhead: function () { var T = bkTarget(); return { px: T.px, py: T.py, pz: T.pz, dist: T.dist, mat: T.mat }; }, brk: bkBreak, explodeBlocks: bkExplode, punch: punch, tongue: tongueGrab,
             hurt: mobHurt, snapNow: function () { MB.snapT = 0; }, applySnap: mobApplySnap, netMsg: mobNetMsg, setStyle: function (id) { styleSet(id, true); }, hostId: function (h) { MB.hostId = h; }
+        },
+        village: {
+            get raw() { return VG; }, get v() { return VG.v; },
+            info: function () { var v = VG.v; return v ? { id: v.id, name: v.name, huts: v.huts.length, walls: v.walls.length, night: +v.night.toFixed(2), tris: v.stats.tris, draws: v.stats.draws, villagers: v.villagers.map(function (q) { return { id: q.id, name: q.name, role: q.role, x: +q.x.toFixed(1), z: +q.z.toFixed(1), inside: !!q.inside, tgt: q.tgt, human: !!q.human }; }), golums: v.golums.map(function (g) { return { id: g.id, hp: g.hp, x: +g.x.toFixed(1), z: +g.z.toFixed(1), target: g.target }; }), threat: v.threat, anchor: v.anchor.pos.toArray().map(function (x) { return +x.toFixed(2); }) } : null; },
+            night: function (x) { VG.nightForce = (x == null || x < 0) ? -1 : +x; },
+            make: function () { if (!VG.v && villMod) { VG.fail = false; villageMake(); } return !!VG.v; },
+            goto: function (x, z) {
+                var v = VG.v; if (!v || gmode !== 'foot' || !hum.obj) return false;
+                vgA.set(x == null ? 0 : x, 0, z == null ? 11 : z); vgA.y = v.groundAt(vgA.x, vgA.z) + 0.5; v.toParent(vgA, vgB);
+                hum.pos.copy(vgB); hum.hr = hum.gr = hum.vh = vgB.length(); hum.air = true; hum.vv = 0; camRelInit = false; return true;
+            },
+            talk: function (i) { var v = VG.v && VG.v.villagers[i | 0]; if (!v) return false; villageTalk(v); return true; },
+            trade: function (i) { var v = VG.v && VG.v.villagers[i | 0]; villageTrade(v); return storeOpen; },
+            hit: function (i) { var v = VG.v && VG.v.villagers[i | 0]; return v ? VG.v.onHit(v.id, 'me') : false; },
         },
         hub: {
             get state() { return HB.hub ? HB.hub.state : null; }, get raw() { return HB; },

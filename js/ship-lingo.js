@@ -192,6 +192,19 @@ const ROLE = {
     'Is this the real [station]? Where do I buy [gorcoin]? I only have [dust].', 'I got lost looking for the [door]. I think I am in a different [void].', 'Excuse me, [friend]: where is the [fries]? My guide book is [ancient].',
     'Everyone here is [strange]! I [love] it. How much is one [gorcoin]?', 'I took a wrong turn at the [moon]. Now I live here. It is fine.',
   ],
+  farmer: [
+    'The [water] is late and the [sky] is early. Crops do not care.', 'Planted at [dawn]. Harvested never. Eaten by a [fool] with a [ship].', 'Good soil, [good] light, bad [night]s. The golum keeps the bad ones off.',
+    'I talk to the plants. They are [quiet]. I respect that.', 'Another [day], another row. The [star] does half the work.',
+  ],
+  trader: [
+    'Real [price]s. Village [price]s. Not station [price]s.', 'I [buy] crystals and [sell] oddities. Ask me about the oddities.', 'A [deal] is a handshake with [gorcoin] in it.', 'Everything on this stall was somebody\'s [secret]. Now it is [cheap].',
+  ],
+  elder: [
+    'I have seen forty [night]s of this place. The golums were here first.', 'Sit. [Listen]. The [void] hums a different [song] over this village.', 'Young [friend]: [work] is the only [quiet] thing worth having.', 'My knees know the weather. My [dream]s know the rest.',
+  ],
+  guard: [
+    'Golum says: [danger] stays outside the fence.', 'Do not hit the villagers. The golum has opinions.',
+  ],
   cop: [
     'I see everything. I do nothing. It is a [good] arrangement.', 'Move along. Or do not. It is not in my job description.', '[Law] is a suggestion with a badge. I am the badge.',
     'Off-duty. Mostly. Just here for the [coffee] and the [sugar].',
@@ -318,6 +331,9 @@ const CV_ROLE = {
   chef: { personal: ['I cook what [hungry] people deserve.', 'A pinch of [salt], a pinch of [danger].', 'The perfect [fries] is a rumor.'], trade: ['I trade recipes for [rare] spices.'] },
   scout: { personal: ['I map what is not on the [map].', 'First one in, last one to complain.', 'I sleep under [star]s. Mostly.'], lore: ['I found a [bright] ruin once. It was gone by morning.'] },
   conspiracy: { gossip: ['The shelves are [map]s. They always were.', 'Nobody can prove the [moon] exists.'], lore: ['Wake up. The [void] is a ceiling.'] },
+  farmer: { personal: ['Dirt under my nails, [sky] over my head.', 'I am growing something [rare]. Do not step on it.', 'The [night] mobs hate the golum. So do I, a little. It never talks.'], trade: ['Ask the trader. I only grow things.'], gossip: ['The elder rings the bell when something is wrong.'] },
+  trader: { personal: ['My stall is my whole [home].', 'Small village, honest [price]s. Mostly.', 'I trade [crystal]s for things from far away.'], trade: ['Six deals a day. All seeded. All fair-ish.', 'Bring me [crystal]s, [ore], [ice]. I pay above the station.'], lore: ['The golums were built by the first settlers. Nobody remembers how.'] },
+  elder: { personal: ['I keep the [bell]. When it rings, hide.', 'I am old. The golum is older.'], mission: ['The village always needs a [good] pair of hands. Yours, maybe.', 'Work is posted. Take what you can carry.'], lore: ['The huts will outlive us all. They cannot be broken. Do not try.', 'The first golum stood up out of the [dust] and never sat down.'], gossip: ['Hit one of mine and the golum learns your name.'] },
   kid: { personal: ['I am [small] but I am going to be [big].', 'Mom says do not talk to strangers. You are fine.', 'I am building a [ship] from boxes.'], mission: ['Find my toy [ship]! It is [lost] under the aisle.'] },
   shopper: {},
 };
