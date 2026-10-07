@@ -29,6 +29,7 @@ def page_bio():
     t = re.sub(r'<h2>.*?</h2>', '', t, flags=re.S)
     t = re.sub(r'<p class="bio-links">.*?</p>', '', t, flags=re.S)
     t = re.sub(r'<li>', '- ', t); t = re.sub(r'</li>|</p>|<br>', '\n', t)
+    t = re.sub(r'<span>([^<]*)</span>[ \t]*(?=\n)', r'\1', t)
     t = re.sub(r'<span>([^<]*)</span>', r'\1: ', t)
     t = re.sub(r'<[^>]+>', '', t)
     import html as H; t = H.unescape(t)

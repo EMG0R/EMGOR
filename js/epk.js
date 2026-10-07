@@ -184,6 +184,8 @@
         clearTimeout(bioT);
         bioT = setTimeout(function () {
           var clone = bio.cloneNode(true); var h = clone.querySelector('h2'); if (h) h.remove();
+          Array.prototype.forEach.call(clone.querySelectorAll('[style]'), function (n) { n.removeAttribute('style'); });
+          Array.prototype.forEach.call(clone.querySelectorAll('span:not([class]):empty, font'), function (n) { n.remove(); });
           post('/__epk/bio', { html: clone.innerHTML.replace(/^\s*\n/, '').replace(/\n\s*$/, '') })
             .then(function () { setStatus('bio saved to epk.html'); })
             .catch(function () { setStatus('bio NOT saved — is tools/epk-dev.py running?'); });
