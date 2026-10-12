@@ -4540,7 +4540,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (I && I.matrix && I.inverse && I.walls) put(I.matrix, I.inverse, I.unit, (I.size ? I.size.w : 40) / 2 + 1, (I.size ? I.size.d : 26) / 2 + 1, (I.size ? I.size.h : 16) + 1, I.walls, I.aisles);
         }
         if (world && world.node && bh && bh.walls && bh.matrix) put(bh.matrix, opBhI.copy(bh.matrix).invert(), bh.unit, 6, 5, 8, bh.walls, null);
-        if (VG.v && VG.v.solid && world && world.node) { var vs = VG.v.solid; put(vs.m, vs.inv, vs.K, vs.hw, vs.hd, vs.hh, vs.a, vs.b); }      // villages: hut walls, the well and the stall are solid + indestructible
+        if (VG.v && VG.v.solid && world && world.node && VG.node === land.node) { var vs = VG.v.solid; put(vs.m, vs.inv, vs.K, vs.hw, vs.hd, vs.hh, vs.a, vs.b); }      // villages: hut walls, the well and the stall are solid + indestructible
         opList.length = n;
         return 1;     // the hull is always a solid
     }
@@ -4862,7 +4862,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (boarding || exiting) { cinematicStep(dt); return; }
         if (landReq) { landReq = false; startLanding(); }
         ehTick(dt);
-        hubLife(dt); villageLife(dt);
+        try { hubLife(dt); } catch (eh0) { HB.fail = true; if (!HB.errT) { HB.errT = 1; console.info('[ship] hub tick failed', eh0); } }      // hub/village can never break landing
+        try { villageLife(dt); } catch (ev0) { VG.fail = true; if (!VG.errT) { VG.errT = 1; console.info('[ship] village tick failed', ev0); } }
         if (gmode === 'ifoot') { interiorStep(dt); return; }
         if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') { stationStep(dt); return; }
         if (gmode !== 'fly') { groundStep(dt); return; }

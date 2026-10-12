@@ -32,8 +32,9 @@ function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; le
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 const RP = 7;                     // plaza ring radius (villagers walk it)
-const TW = 0.5, DOOR_W = 1.7, DOOR_H = 2.5, FOUND = 1.6;     // wall thickness, door gap, foundation depth
-const TMPL = [{ id: 'cottage', w: 6, d: 5, h: 3.1, roof: 'gable' }, { id: 'longhouse', w: 9, d: 5, h: 3.1, roof: 'gable' }, { id: 'tower', w: 5, d: 5, h: 4.6, roof: 'pyramid' }];
+const BIG = 1.6;                  // structures read at the 7/11's player scale: huts, well and stall are 1.6x
+const TW = 0.5 * BIG, DOOR_W = 1.7 * BIG, DOOR_H = 2.5 * BIG, FOUND = 1.6;     // wall thickness, door gap, foundation depth
+const TMPL = [{ id: 'cottage', w: 6 * BIG, d: 5 * BIG, h: 3.1 * BIG, roof: 'gable' }, { id: 'longhouse', w: 9 * BIG, d: 5 * BIG, h: 3.1 * BIG, roof: 'gable' }, { id: 'tower', w: 5 * BIG, d: 5 * BIG, h: 4.6 * BIG, roof: 'pyramid' }];
 const ROLE_COL = { farmer: 0x8FD06A, trader: 0xFFD36A, elder: 0xB08CFF, kid: 0xFF8AE0 };
 const WALK = 2.6, GOLUM_V = 3.1, GOLUM_HP = 600, GOLUM_DMG_MOB = 45, GOLUM_DMG_ME = 12, VILL_ACT_L = 40;
 
@@ -54,7 +55,7 @@ export function createVillage(engine, u, opts) {
   const R0 = pn.radius || 1, avoid = pn.avoid || [];
   let best = null;
   const sr = mulberry(seed ^ 0x517E);
-  const ringPts = [[14, 8], [24, 10], [34, 12]];
+  const ringPts = [[14 * BIG, 10], [24 * BIG, 12], [34 * BIG, 14]];
   for (let k = 0; k < 220; k++) {
     const z = (sr() * 2 - 1) * 0.85, ph = sr() * 6.2831853, q = Math.sqrt(1 - z * z), d = vec(q * Math.cos(ph), z, q * Math.sin(ph));
     let ok = true; for (let i = 0; i < avoid.length; i++) if (Math.acos(Math.max(-1, Math.min(1, d.dot(avoid[i])))) < 0.3) { ok = false; break; }
@@ -121,7 +122,7 @@ export function createVillage(engine, u, opts) {
     const inner = i % 2 === 0, base = (i / nHuts) * 6.2831853;
     let placed = null, fallback = null;
     for (let tries = 0; tries < 18 && !placed; tries++) {
-      const a = base + (rng() - 0.5) * 0.5, rr = (inner ? 17 : 27) + (rng() - 0.5) * 3, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, tm = TMPL[Math.floor(rng() * 3)];
+      const a = base + (rng() - 0.5) * 0.5, rr = (inner ? 17 * BIG : 27 * BIG) + (rng() - 0.5) * 3, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, tm = TMPL[Math.floor(rng() * 3)];
       const side = Math.abs(cx) > Math.abs(cz) ? (cx > 0 ? 'nx' : 'px') : (cz > 0 ? 'nz' : 'pz');      // door faces the well (axis aligned: AABB walls)
       const swap = side === 'px' || side === 'nx';
       const hx = (swap ? tm.d : tm.w) / 2, hz = (swap ? tm.w : tm.d) / 2, rect = { x0: cx - hx, x1: cx + hx, z0: cz - hz, z1: cz + hz };
@@ -144,11 +145,11 @@ export function createVillage(engine, u, opts) {
   }
   let stall = null;
   for (let tries = 0; tries < 60 && !stall; tries++) {
-    const a = rng() * 6.2831853, rr = 10.5, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, rect = { x0: cx - 2, x1: cx + 2, z0: cz - 1.4, z1: cz + 1.4 };
+    const a = rng() * 6.2831853, rr = 10.5, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, rect = { x0: cx - 2 * BIG, x1: cx + 2 * BIG, z0: cz - 1.4 * BIG, z1: cz + 1.4 * BIG };
     if (occupied.some((o) => hit(rect, o, 0.8))) continue;
     occupied.push(rect); stall = { cx, cz, a, rect };
   }
-  if (!stall) { stall = { cx: 0, cz: 10.5, a: Math.PI / 2, rect: { x0: -2, x1: 2, z0: 9.1, z1: 11.9 } }; }
+  if (!stall) { stall = { cx: 0, cz: 10.5, a: Math.PI / 2, rect: { x0: -2 * BIG, x1: 2 * BIG, z0: 10.5 - 1.4 * BIG, z1: 10.5 + 1.4 * BIG } }; }
 
   // ── build: huts ──
   const torches = [];
@@ -212,6 +213,7 @@ export function createVillage(engine, u, opts) {
   }
 
   // well: ring walls (solid), posts, roof, water + bell
+  const wellLP0 = LP.length, wellWalls0 = walls.length;
   { const wy0 = wellY - 0.4, wy1 = wellY + 1.1, sc = tint(STONE, 1);
     const wb = (nm, x0, z0, x1, z1) => { const b = mkBox('well-' + nm, x0, wy0, z0, x1, wy1, z1); walls.push(b); boxG(LP, LC, x0, wy0, z0, x1, wy1, z1, sc); return b; };
     const w1 = wb('n', -1.5, -1.5, 1.5, -0.8), w2 = wb('s', -1.5, 0.8, 1.5, 1.5), w3 = wb('w', -1.5, -0.8, -0.8, 0.8), w4 = wb('e', 0.8, -0.8, 1.5, 0.8);
@@ -223,17 +225,22 @@ export function createVillage(engine, u, opts) {
     quad(LP, LC, [-0.8, wellY + 0.55, -0.8], [0.8, wellY + 0.55, -0.8], [0.8, wellY + 0.55, 0.8], [-0.8, wellY + 0.55, 0.8], [0.3, 0.75, 1.0], [0, 1, 0], 1.25);
     boxG(LP, LC, -0.16, wellY + 2.15, -0.14, 0.16, wellY + 2.75, 0.14, [1.0, 0.82, 0.3]);       // the bell
   }
-  const bell = { pos: [0, wellY + 2.4, 0] };
+  function scaleGeo(P, i0, px, py, pz, k) { for (let i = i0; i + 2 < P.length; i += 3) { P[i] = px + (P[i] - px) * k; P[i + 1] = py + (P[i + 1] - py) * k; P[i + 2] = pz + (P[i + 2] - pz) * k; } }
+  function scaleBoxes(i0, px, py, pz, k) { for (let i = i0; i < walls.length; i++) { const b = walls[i]; b.min.set(px + (b.min.x - px) * k, py + (b.min.y - py) * k, pz + (b.min.z - pz) * k); b.max.set(px + (b.max.x - px) * k, py + (b.max.y - py) * k, pz + (b.max.z - pz) * k); } }
+  scaleGeo(LP, wellLP0, 0, wellY, 0, BIG); scaleBoxes(wellWalls0, 0, wellY, 0, BIG);
+  const bell = { pos: [0, wellY + 2.4 * BIG, 0] };
 
   // market stall (solid counter + awning)
+  const stLP0 = LP.length, stEP0 = EP.length, stW0 = walls.length;
   { const sx = stall.cx, sz = stall.cz, sy = Math.max(groundAt(sx - 2, sz), groundAt(sx + 2, sz), groundAt(sx, sz)), wc = tint(WOOD, 1.3);
     const b = mkBox('stall', sx - 1.6, sy - 0.8, sz - 0.5, sx + 1.6, sy + 1.0, sz + 0.5); walls.push(b); boxG(LP, LC, b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z, wc);
     for (const k of [-1, 1]) boxG(LP, LC, sx + k * 1.7 - 0.1, sy, sz - 0.1 + (stall.cz > 0 ? -0.9 : 0.9), sx + k * 1.7 + 0.1, sy + 2.5, sz + 0.1 + (stall.cz > 0 ? -0.9 : 0.9), tint(WOOD, 1));
     const zA = sz + (stall.cz > 0 ? -1.6 : 0.4), zB = zA + 1.2; boxG(LP, LC, sx - 2.0, sy + 2.5, zA, sx + 2.0, sy + 2.75, zB + 0.6, tint(ROOF, 1.2));
     stall.y = sy;
-    stall.stand = [stall.cx - Math.cos(stall.a) * 1.8, stall.cz - Math.sin(stall.a) * 1.8];       // the trader stands on the well side of the counter
+    stall.stand = [stall.cx - Math.cos(stall.a) * 1.8 * BIG, stall.cz - Math.sin(stall.a) * 1.8 * BIG];       // the trader stands on the well side of the counter
     for (const k of [-1, 1]) boxG(EP, EC, sx + k * 1.1 - 0.12, sy + 1.0, sz - 0.12, sx + k * 1.1 + 0.12, sy + 1.25, sz + 0.12, [1.4, 0.95, 0.4]);
   }
+  scaleGeo(LP, stLP0, stall.cx, stall.y, stall.cz, BIG); scaleGeo(EP, stEP0, stall.cx, stall.y, stall.cz, BIG); scaleBoxes(stW0, stall.cx, stall.y, stall.cz, BIG);
   // farm plots + fences
   for (const p of plots) {
     const y = Math.max(groundAt(p.cx - 2.8, p.cz - 2), groundAt(p.cx + 2.8, p.cz + 2), groundAt(p.cx, p.cz)) + 0.12; p.y = y;
@@ -413,13 +420,13 @@ export function createVillage(engine, u, opts) {
   }
   const events = [];
   const village = {
-    id: pid, name: vname, group, anchor, radius: 44, huts: null, walls, well: { pos: [0, wellY, 0], box: wellBoxes }, bell, plots, stall, torches, villagers, golums, threat: null, events,
+    id: pid, name: vname, group, anchor, radius: 44 * BIG, huts: null, walls, well: { pos: [0, wellY, 0], box: wellBoxes }, bell, plots, stall, torches, villagers, golums, threat: null, events,
     scanColor: 0xFFC060, lastMarket: null, stats: { tris, draws: 2 }, night: 0, near: null,
     toParent, toLocal, groundAt, market, setNight, stockOf: () => stock,
     solid: null, poi: null,
   };
   village.huts = huts.map((h) => ({ id: pid + ':h' + h.idx, tmpl: h.tm.id, center: [h.cx, h.cz], box: h.boxOut, door: { pos: [h.door.c[0], h.yb, h.door.c[1]], front: h.door.front, side: h.side }, walls: h.walls }));
-  village.solid = { m: MAT, inv: INV, K: u, hw: 62, hd: 62, hh: 14, a: walls, b: null };
+  village.solid = { m: MAT, inv: INV, K: u, hw: 62 * BIG, hd: 62 * BIG, hh: 14 * BIG, a: walls, b: null };
   village.poi = { kind: 'village', name: vname, pos: anchor.pos.clone() };
   village.drain = () => events.splice(0, events.length);
   village.scanTargets = () => [{ type: 'village', id: pid, kind: 'village', name: 'VILLAGE ' + vname, pos: anchor.pos.clone(), color: village.scanColor }];
