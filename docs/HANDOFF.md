@@ -27,6 +27,22 @@ Shipped in code, syntax-checked (node --check + acorn). Browser: g1-g16 run once
 6. **Audit** — A1: landed/foot poses also sent planet-local (`frame:'planet'`, pid, lx..lqw); receivers compose with their own planet pose
    (`planetToWorld`). Relay `server.js` passes the fields — **relay NOT redeployed to gorcave** (old relay drops them; clients fall back to world poses).
    A2: planetFail disposes + rebuilds after 1 s (max 3), on-foot player boards the ship, floors guard `ps === null`.
+**Regression fix (same day, second pass)** — two regressions vs main found by the harness, both fixed:
+- **Stranded on foot** (g9 left `gmode 'foot'`, `land.node` = supercollider R 20.4, feet at r 702.6 = archive's floor; g9/g10/g11 then "cannot approach", g16 "no planet").
+  Trace (gmode-write log): g9 lands on supercollider normally (`startLanding` <- `ship.land`, `touchdown`, `exitShip` <- `onKeyF`, ps.active = supercollider);
+  no key changed gmode. Root cause: audit A4 moved `ps.update` BEFORE the foot step and fed it `hum.w` (last frame's smoothed feet), and `exitShip` never wrote
+  `hum.w`, so the first foot frame passed ps the PREVIOUS walk's spot (generative-pieces). ps re-activated on the parent (archive), `footStep`'s `mFloor` read
+  archive's floor (702) in supercollider's frame, the feet jumped there, and every later frame confirmed archive. Not a moonlet issue (supercollider is
+  > 60 L). The broken pose was also SAVED (profile pose on pagehide) and restored on the next load. Fix (`ship.js`): `groundPos()` feeds ps.update this
+  frame's feet / parked hull composed on `land.node`; `exitShip` refuses unless `ps.active === land.node` and seeds `hum.w`; `applyResume` (foot) seeds `hum.w`;
+  the foot step runs only while `ps.active === land.node`, else `boardShip()` (a restored stranded pose self-heals: verified from the bad saved pose).
+- **843 shader errors** (`'color' : undeclared identifier` at `vC = color`, `vFragDepth does not match`): the test-only `ps.idPass` (g9 see-through check)
+  cloned each mesh's vertexShader without `vertexColors`/`defines`, and gave built-in materials three's default vertex (no logdepth varyings).
+  Fix (`ship-planet.js` idPass): ShaderMaterials keep defines + vertexColors; others get `idVert` (begin/project_vertex + logdepthbuf). Gameplay never hit it.
+- Tests after the fix (one run, `{only:['g2','g9','g10','g11','g16']}`, 598.5 s, starting from the stranded saved pose): g2 PASS (20 trials, endRatioMax 1.347,
+  maxCross 40 u/s, speedAt2s 12, hpLoss 0); g9 PASS (260 poses, 15718 px, 0 bad, camUnder 0, minCam 0.168 L); g10 FAIL only on `boardBig:false` at all 3
+  sites (pre-existing on main; landed/foot/walked 20 L/reboarded/flying all true); g11 PASS (entry 0.0243 L, leaving 0.165 L, hpLoss 0); g16 PASS (1250
+  frames, drift 0, nan 0). Console: 0 errors, 0 shader errors for the whole run.
 Unverified: everything in person, two-window test of A1, perf of the hi-res globe on a Chromebook, store interior feel at 2.5x (shelves are 2.5x taller).
 
 For a fresh Fable session taking over. Read this, then `docs/ship-mode.md` (the full spec history,

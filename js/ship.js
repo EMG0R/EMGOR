@@ -1278,6 +1278,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (!hum.obj) { hum.obj = makeHuman(effColor()); scene.add(hum.obj.group); } else hum.obj.setColor(effColor());
             hum.pos.copy(rs.hum.pos); hum.hr = rs.hum.hr; hum.gr = rs.hum.gr; hum.vv = 0; hum.air = false; hum.vh = 0;
             hum.hf.copy(rs.hum.hf); hum.face.copy(rs.hum.face); hum.pitch = rs.hum.pitch; hum.moving = hum.running = false;
+            hum.w.copy(hum.pos).applyQuaternion(q).add(c);
             hum.obj.group.visible = true; jumpHeld = true;
         } else if (hum.obj) hum.obj.group.visible = false;
         setGround(true, rs.mode === 'foot'); setPrompt('', false);
@@ -4280,7 +4281,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         return best;
     }
     function exitShip() {
-        if (gmode !== 'landed' || !land.node) return;
+        if (gmode !== 'landed' || !land.node || !ps || ps.active !== land.node) return;      // 2026-10-14: ps floors are ps.active's: never step out onto another body's
         if (!hum.obj) {
             hum.obj = makeHuman(effColor());
             scene.add(hum.obj.group);
@@ -4294,6 +4295,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var fr0 = 0; try { fr0 = ps ? mFloor(gC.x, gC.y, gC.z, 0) : 0; } catch (e) { fr0 = 0; }      // 2026-10-14 (audit A3): the rendered ground under the hatch (was the analytic floor: up to a human height off on rough ground)
         hum.hr = fr0 > 0 ? fr0 : land.rg - legDrop * L; hum.gr = hum.hr; hum.vv = 0; hum.air = false; hum.vh = 0;
         hum.pos.copy(gC).multiplyScalar(hum.hr);
+        syncPlanet(land.node); hum.w.copy(hum.pos).applyQuaternion(land.node.mesh.quaternion).add(land.node.anchor.position);      // 2026-10-14: the smoothed feet start HERE (were last walk's)
         gD.copy(NEG_Z).applyQuaternion(land.sQuat); gD.addScaledVector(gB, -gD.dot(gB)); gD.normalize();
         hum.hf.copy(gD); hum.face.copy(gD); hum.pitch = 0.3; hum.moving = hum.running = false;
         hum.obj.group.visible = true;
@@ -5094,6 +5096,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         groundCam(dt, gC, gD, gQ, 16);
         return gC;
     }
+    var gpV = new THREE.Vector3();
+    function groundPos(node, c, qM, P) {      // world position of whatever stands on land.node this frame (feet / parked hull / descending hull)
+        if (gmode === 'foot' && hum.obj && !HB.in) return gpV.copy(hum.pos).applyQuaternion(qM).add(c);
+        if (gmode === 'landed') return gpV.copy(land.sPos).applyQuaternion(qM).add(c);
+        return P;
+    }
     function groundStep(dt) {
         var node = land.node, P = shipRoot.position, i;
         if (!node || !node.anchor || !node.mesh) { leaveGround(); return; }
@@ -5102,7 +5110,10 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         psCalls = 0;
         // 2026-10-14 (audit A4): the planet module (patch re-centre, world, creatures) updates FIRST, from last frame's ship / feet position, so the floors
         // read below (meshFloorLocal = the patch's own triangles) are the patch that renders this frame. The sky dome re-follows the camera at the end.
-        if (ps) { try { ps.footMode = gmode === 'foot'; ps.update(dt, gmode === 'foot' && hum.obj ? hum.w : P); r25HideTaken(); } catch (e2) { planetFail(e2); } }
+        // 2026-10-14 regression fix: ps.update picks the active body from the position it is given. hum.w is last frame's SMOOTHED feet, and exitShip did
+        // not write it, so the first foot frame handed ps the previous walk's spot (another planet): ps re-activated on the parent (archive), the feet then
+        // read that planet's floor (radius 702 vs land.node R 20) and the player was stranded off the ship for good. Feed it this frame's ground pose instead.
+        if (ps) { try { ps.footMode = gmode === 'foot'; ps.update(dt, groundPos(node, c, qM, P)); r25HideTaken(); } catch (e2) { planetFail(e2); } }
         if (gmode === 'landing') {
             if (land.t === 0) {            // the flight position was placed against last frame's planet: remember the offset and fade it out over the descent
                 land.off.copy(P).sub(gA.copy(land.gDir).multiplyScalar(land.r0).applyQuaternion(qM).add(c));
@@ -5135,7 +5146,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                 }
             } else if (sum.on && sum.ex > 0.01) { exMe.holder.visible = true; exUpdate(exMe, P, shipRoot.quaternion, L, sum.ex); }      // summoned ship under power
             else exOff(exMe);
-            if (gmode === 'foot') { if (HB.in) focus = hubFootStep(dt, c, qM); else if (ps) focus = footStep(dt, c, qM); else boardShip(); }
+            if (gmode === 'foot') { if (HB.in) focus = hubFootStep(dt, c, qM); else if (ps && ps.active === node) focus = footStep(dt, c, qM); else boardShip(); }      // the feet only walk on the ACTIVE surface (ps floors belong to ps.active)
             else {                                                                                       // low 3/4 view from the front-right, near the ground
                 gA.copy(NEG_Z).applyQuaternion(shipRoot.quaternion); gB.copy(X).applyQuaternion(shipRoot.quaternion); gC.copy(Y).applyQuaternion(shipRoot.quaternion);
                 gD.copy(P).addScaledVector(gA, 1.5 * L).addScaledVector(gB, 3.3 * L).addScaledVector(gC, (0.55 - legDrop) * L);

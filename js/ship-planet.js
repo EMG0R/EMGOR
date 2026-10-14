@@ -2739,13 +2739,18 @@ export function createPlanetSurface(engine, L) {
         if (!node || !alloc) return null;
         var rt = new THREE.WebGLRenderTarget(W, H), saved = [], kids = scene.children, i, restore = [];
         var idFrag = '#include <common>\n#include <logdepthbuf_pars_fragment>\nvoid main() {\n#include <logdepthbuf_fragment>\n gl_FragColor = vec4(1.0);\n}';
+        var idVert = '#include <common>\n#include <logdepthbuf_pars_vertex>\nvoid main() {\n#include <begin_vertex>\n#include <project_vertex>\n#include <logdepthbuf_vertex>\n}';
         var ids = [];
         for (i = 0; i < kids.length; i++) { saved.push(kids[i].visible); kids[i].visible = (kids[i] === alloc.ride || kids[i] === node.anchor); }
         alloc.ride.traverse(function (o) {
             if (!o.isMesh) return;
             var m = o.material;
             if (m.blending === THREE.AdditiveBlending || o === alloc.dome) { restore.push([o, 'vis', o.visible]); o.visible = false; return; }
-            var im = new THREE.ShaderMaterial({ uniforms: m.uniforms, vertexShader: m.vertexShader, fragmentShader: idFrag, side: THREE.DoubleSide, depthWrite: true, transparent: false });
+            // 2026-10-14: keep a ShaderMaterial's own vertex stage (GPU terrain / billboards) WITH its defines + vertexColors (the store / resource shaders read
+            // the 'color' attribute: without vertexColors three never declares it -> "'color' : undeclared identifier"); built-in materials (no vertexShader)
+            // get idVert, which carries the logdepthbuf varyings idFrag expects (three's default ShaderMaterial vertex has none -> "vFragDepth does not match").
+            var own = m.isShaderMaterial && m.vertexShader;
+            var im = new THREE.ShaderMaterial({ uniforms: own ? m.uniforms : {}, defines: own && m.defines ? Object.assign({}, m.defines) : {}, vertexShader: own ? m.vertexShader : idVert, fragmentShader: idFrag, vertexColors: !!(own && m.vertexColors), side: THREE.DoubleSide, depthWrite: true, transparent: false });
             restore.push([o, 'mat', m]); o.material = im; ids.push(im);
         });
         var nm = node.mesh, oldMat = nm.material, kidVis = nm.children.map(function (c) { return c.visible; });
