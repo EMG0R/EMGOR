@@ -9125,7 +9125,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     var elCart = document.createElement('div'); elCart.className = 'sh-cart'; hud.appendChild(elCart);
     function r28ShelfFind() {
         if (gmode !== 'foot' || !hum.obj || !world || !world.node || typeof world.nearShelf !== 'function' || dead) return null;
-        try { return world.nearShelf(hum.pos, 0.14 * L) || null; } catch (e0) { return null; }
+        try { return world.nearShelf(hum.pos, 0.14 * L * ((ps && ps.outScale) || 1)) || null; } catch (e0) { return null; }      // 2026-10-14: reach scales with the 2.5x store
     }
     function r28Grab(sh) {
         if (!sh || !world || typeof world.grabShelf !== 'function') return null;

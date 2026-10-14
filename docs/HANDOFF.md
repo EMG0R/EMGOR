@@ -1,5 +1,34 @@
 # NO MANS GOR — HANDOFF (2026-10-13)
 
+## 2026-10-14 structures/summon/surface pass (branch `structures-vibe`, NOT merged, NOT verified by Emory)
+Shipped in code, syntax-checked (node --check + acorn). Browser: g1-g16 run once (see report in the commit log / ship-mode Rev 32). Nothing seen in person.
+1. **Structures** — outposts 2.5x (`ship-planet.js OUT_S`: pad, flat ground, tower, beacon, NPC spot; `ship-world.js` 7/11 + Burger House via `ps.outScale`,
+   NPC humans counter-scaled `hs = 1/OS`, walk speeds too; collision unit = `interior.unit` = KS). Village 2.5x (`ship-village.js VS`: huts, doors, well,
+   stall, plaza, paths, torches; villagers/golums unchanged). Hub arch 2.5x (`ship-hub.js ARCH`, dungeon unchanged). Placement: first outpost = flattest
+   land inside 0.15 rad of `ps.siteDir` (planet->ship at activation, remembered per planet in localStorage `nmg-site-<id>`); village searched in the same
+   cap first (`villageSite`, exported, predicted at 3 R by `sitesTick` in ship.js and reused at build). Sky beacon columns: `ps-cols`, ONE instanced draw
+   (outposts at the tower, village, hub). HUD markers with distance for all of them inside 3 R.
+   Test: fly toward any rocky/lush planet; at <3 R orange (first outpost) / purple (others) / green (village, dungeon) columns stand on the near side;
+   markers show distance. `EMGOR_SHIP` debug: `ps.columns()` count. LIMIT: siteDir is per client (multiplayer peers can see different first-outpost / village spots).
+2. **Ship summon** — on foot away from the hatch, hold F 1 s (`SUMMON SHIP` ring). Search <=2 s for land, strut slope < 0.45, not in a store / Burger House /
+   village wall, 2.5-6 L from you; ship lifts, flies (<=8 s), lands with leg deploy + settle. >500 L or nothing found: set down directly. Ship marker (cyan,
+   distance) always on the foot HUD (same marker system). Test: walk 50 L away, hold F, watch it land, tap F at the hatch.
+3. **Surface** — landing + landed settle on the max `meshFloorLocal` under 3 struts (`strutFloor`); exitShip feet on the rendered ground under the hatch;
+   `ps.update` now runs BEFORE the foot step (dome re-synced after). Foot sounds `step / jump / footLand` (ship-audio.js). Jetpack (Emory mid-pass ask):
+   climb ramps 1x->3.5x over 1.2 s of Space, Shift in the air dives (16 H/s), FLIGHT mode Shift alone pulls down, landing crouch + dust + thump.
+   Test: land on rough ground, step out: feet on the drawn ground, ship struts touching.
+4. **Far planet rendering** — measured (see ship-mode Rev 32): globe was 48x34 (3168 tris) / 32x22 / 20x14 spheres with NO relief, terrain up to ~0.08 R.
+   Now the ACTIVE planet's globe swaps to 192x128 (48,768 tris; 128x88 at quality <2) with `GLOBE_VERT` = same height function as the patch, relief eases in
+   3.0->2.6 R, patch uRel = 1 (no flat-silhouette fake). PILOT_PLANET_SCALE {6,4} -> {4,3}; L pinned to the x6 reference so ship/speeds/combat keep size.
+   Test: approach from 3 R; mountains on the limb, no pop at the patch fade (2.4-1.8 R), no globe poking through the patch.
+5. **Finding things** — in flight: station + nearest 7/11 world + nearest village world anywhere (edge arrows); inside 3 R exact markers. On foot: NPC dots
+   (clerks, shoppers, dealers, villagers, creatures) within 200 L, on-screen only, distance; V lists them in chat + tags them. Markers now update AFTER the step
+   (`pilotFrame`), composed with the synced planet pose.
+6. **Audit** — A1: landed/foot poses also sent planet-local (`frame:'planet'`, pid, lx..lqw); receivers compose with their own planet pose
+   (`planetToWorld`). Relay `server.js` passes the fields — **relay NOT redeployed to gorcave** (old relay drops them; clients fall back to world poses).
+   A2: planetFail disposes + rebuilds after 1 s (max 3), on-foot player boards the ship, floors guard `ps === null`.
+Unverified: everything in person, two-window test of A1, perf of the hi-res globe on a Chromebook, store interior feel at 2.5x (shelves are 2.5x taller).
+
 For a fresh Fable session taking over. Read this, then `docs/ship-mode.md` (the full spec history,
 revisions 1–30), `docs/mashup-plan.md`, `docs/smash-plan.md`, `docs/multiplayer-plan.md`,
 `docs/playtest-1.md`, `docs/playtest-2.md`. Memory rules: `~/EMGOR_SKILLS/_EMORY.md` is loaded
