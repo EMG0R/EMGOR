@@ -1163,6 +1163,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (p && p.catch) p.catch(function () { console.log('[ship] pointer lock refused; keyboard only'); });
         } catch (err) { console.log('[ship] pointer lock unavailable; keyboard only'); }
         var rs = resumeSnap, inFrame = false; resumeSnap = null;
+        if (!rs && state === 'docked') rs = poseFromProfile();
         if (state === 'docked') {
             if (!rs) pushOutOfBodies(shipRoot.position, gatherBodies(), 2.2);      // fly from where the ship sits on screen (seamless boarding), never inside a body
             resetGame(resumeWave, resumeKills);
@@ -1170,7 +1171,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; pulseT = 0;
         mdx = mdy = 0; firing = false;
         keys = Object.create(null);
-        if (rs && rs.f === 'world') { try { inFrame = applyResume(rs); } catch (err) { console.info('[ship] resume', err); inFrame = false; } }
+        if (rs && rs.f === 'world') { try { inFrame = applyResume(rs); } catch (err) { console.info('[ship] resume', err); inFrame = false; } if (!inFrame) pushOutOfBodies(shipRoot.position, gatherBodies(), 2.2); }
         else if (rs) { resumePend = rs; resumeWait = 3; inFrame = true; }      // planet / station frames: the bodies only take their piloting-scale pose after the first engine frames, so the pose is applied then
         // boarding cinematic: from wherever the camera is right now to the chase pose, hull log-lerping galaxy scale -> true L
         cineS0 = shipScale; cineQ0.copy(camera.quaternion);
@@ -1274,6 +1275,56 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         net && net.setMode && net.setMode(rs.mode);
         return true;
     }
+
+    // ─── pose persistence: pf.pose = { v:1, t, mode:'space'|'planet', ... } mirrors the Esc-resume snapshot (takeSnap / applyResume) in a JSON form ───
+    var poseUsed = false, poseT = 0;
+    function poseA(v) { return [v.x, v.y, v.z]; }
+    function poseFromSnap(rs) {
+        if (!rs) return null;
+        if (rs.f === 'world') return { v: 1, t: Date.now(), mode: 'space', pos: poseA(rs.pos), quat: rs.quat.toArray() };
+        if (rs.f === 'planet' && rs.node) {
+            var o = { v: 1, t: Date.now(), mode: 'planet', id: String(rs.node.id), sub: rs.mode };
+            if (rs.mode === 'fly') { o.lp = poseA(rs.lp); o.lq = rs.lq.toArray(); o.R = rs.R; o.alt = rs.alt; }
+            else {
+                o.sPos = poseA(rs.sPos); o.sQuat = rs.sQuat.toArray(); o.rg = rs.rg;      // planet-local direction + radius offset + facing
+                if (rs.hum) o.hum = { pos: poseA(rs.hum.pos), hr: rs.hum.hr, gr: rs.hum.gr, hf: poseA(rs.hum.hf), face: poseA(rs.hum.face), pitch: rs.hum.pitch };
+            }
+            return o;
+        }
+        return null;      // station / interior: keep the previous pose
+    }
+    function poseToSnap(o) {
+        var v3 = function (a) { if (!Array.isArray(a) || a.length < 3 || !a.every(isFinite)) throw new Error('bad vec'); return new THREE.Vector3(+a[0], +a[1], +a[2]); };
+        var q4 = function (a) { if (!Array.isArray(a) || a.length < 4 || !a.every(isFinite)) throw new Error('bad quat'); return new THREE.Quaternion(+a[0], +a[1], +a[2], +a[3]).normalize(); };
+        if (!o || o.v !== 1) return null;
+        if (o.mode === 'space') return { f: 'world', pos: v3(o.pos), quat: q4(o.quat) };
+        if (o.mode === 'planet') {
+            var node = null, d = engine.drawOrder, i;
+            for (i = 0; i < d.length; i++) if (d[i].anchor && String(d[i].id) === o.id) { node = d[i]; break; }
+            if (!node) return null;      // the planet no longer exists: dock spawn
+            if (o.sub === 'fly') return { f: 'planet', node: node, mode: 'fly', lp: v3(o.lp), lq: q4(o.lq), R: +o.R || 0, alt: +o.alt || -1 };
+            var rs = { f: 'planet', node: node, mode: o.sub === 'foot' ? 'foot' : 'landed', sPos: v3(o.sPos), sQuat: q4(o.sQuat), rg: +o.rg || 0 };
+            if (rs.mode === 'foot' && o.hum) rs.hum = { pos: v3(o.hum.pos), hr: +o.hum.hr, gr: +o.hum.gr, hf: v3(o.hum.hf), face: v3(o.hum.face), pitch: +o.hum.pitch || 0 };
+            else rs.mode = 'landed';
+            return rs;
+        }
+        return null;
+    }
+    function savePose() {
+        try {
+            if (state !== 'piloting' || exiting || boarding || dead || resumePend) return;
+            var keep = resumeSnap; takeSnap(); var o = poseFromSnap(resumeSnap); resumeSnap = keep;
+            if (o) { ensureProfile(userName()).pose = o; writeSave(); }
+        } catch (e) { console.info('[ship] savePose', e); }
+    }
+    function poseFromProfile() {
+        if (poseUsed) return null;
+        poseUsed = true;
+        try { var pf = curProfile(); return pf && pf.pose ? poseToSnap(pf.pose) : null; } catch (e) { console.info('[ship] pose restore', e); return null; }
+    }
+    function poseClear() { poseUsed = true; var pf = curProfile(); if (pf) { delete pf.pose; writeSave(); } return true; }
+    document.addEventListener('visibilitychange', function () { if (document.hidden) savePose(); });
+    window.addEventListener('pagehide', savePose);
 
     // ─── rev 24: guidance. Inside 2.5 R of a surface planet: markers for the nearest 7/11, the Burger House and the pads; the station mouth in
     // space within 3 x coreR. On-screen = icon + name + distance (L); off-screen = an edge chevron. Pooled DOM, text / icon written on change only. ───
@@ -1412,6 +1463,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         r25MenuClose(); closeInv(); closeStore(); fxReset();
         if (gmode === 'ifoot') leaveInterior(false);
         takeSnap();
+        try { var po = poseFromSnap(resumeSnap); if (po) ensureProfile(userName()).pose = po; } catch (ep) { /* ignore */ }
         if (sk.mode) skAbort(); else if (gmode !== 'fly') leaveGround();
         aEngine({ throttle: 0, boost: false, pulse: 0, inAtmo: false });
         musicStop(); scanT = 0; ramT = 0; writeSave();
@@ -3567,6 +3619,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (ukey) { if (ukey.length < 4) return bad('KEY NEEDS 4+ CHARACTERS'); if (!/^[a-z0-9_-]{2,20}$/i.test(un)) return bad('RELAY NAME · 2-20 of a-z 0-9 _ -'); return ok('USER ' + un + ' · ' + r27Login(un, ukey)); }
             return ok('USER ' + un);
         }
+        if (/^respawn$/i.test(raw)) { poseClear(); return ok('SAVED POSE FORGOTTEN · NEXT ENTRY FROM THE DOCK'); }
         if ((m = /^colou?r(?:\s+(.*))?$/i.exec(raw))) {
             var cn = String(m[1] || '').trim().toLowerCase(), cv = Object.prototype.hasOwnProperty.call(COLOR_NAMES, cn) ? COLOR_NAMES[cn] : null, hx = null;
             if (cv == null) hx = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(cn);
@@ -4856,6 +4909,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (dt > 0.05) dt = 0.05;
         if (dt <= 0) return;
         if (resumePend) { resumeTick(); return; }
+        if ((poseT += dt) >= 10) { poseT = 0; savePose(); }
         if (scaleChecks > 0) { scaleChecks--; refreshScale(); }
         if (station && station.group.visible) { try { station.update(engine.time, dt, shipRoot.position); } catch (e) { console.info('[ship] station.update', e); station.setVisible(false); } }
         if (sk.cd > 0) sk.cd -= dt;
@@ -9278,6 +9332,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         tryRam: tryRam, doScan: doScan, addUnits: function (n) { addUnits(n, shipRoot.position); return unitsNow(); }, nearNpc: npcNear, talkNpc: talkNpc,
         get states() { return enemies.filter(function (e) { return e.alive; }).map(function (e) { return { role: e.isBoss ? 'BOSS' + e.kind : ROLE_T[e.role].name, tier: e.tier, sig: e.cr ? e.cr.signature : '', state: e.fstate, hp: Math.round(e.hp), max: e.maxHp, flees: e.fleeN, grace: +e.grace.toFixed(1), phase: e.bphase, open: e.open, dist: Math.round(e.g.position.distanceTo(shipRoot.position) / L) }; }); },
         drops: drops,
+        pose: { save: savePose, clear: poseClear, get: function () { var pf = curProfile(); return pf ? pf.pose || null : null; } },
         get save() { try { return localStorage.getItem(SAVE_KEY); } catch (e) { return null; } },
         get state() { return state; },
         get gmode() { return gmode; },
