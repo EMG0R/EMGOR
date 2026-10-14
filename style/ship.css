@@ -686,6 +686,12 @@ body.is-piloting .ship-online { display: none; }
 .sh-gd .gd-i { filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.9)); }
 .sh-gd .gd-d { margin-left: 0; margin-right: 6px; font-size: 9px; }
 .sh-gd .gd-n:empty, .sh-gd .gd-d:empty, .sh-hl b:empty, .sh-pl b:empty { display: none; }
+/* 2026-10-14: your ship (always on foot) and NPC dots (on-screen only, small) */
+.sh-gd.is-ship { color: #7cffe0; }
+.sh-gd.is-ship .gd-d { color: #7cffe0; }
+.sh-gd.is-npc { font-size: 10px; opacity: 0.85; color: #bfe8ff; }
+.sh-gd.is-npc .gd-i { width: 12px; height: 12px; margin-right: 3px; }
+.sh-gd.is-npc .gd-d { font-size: 9px; color: #bfe8ff; }
 .sh-hl i { width: 18px; height: 18px; border: 0; transform: none; box-shadow: none; background: none; filter: drop-shadow(0 0 5px currentColor); }
 .sh-hl.k-shard i { width: 14px; height: 14px; }
 .sh-hl b { font-size: 9px; }

@@ -52,6 +52,7 @@ export function villageSite(engine, u, pn, Lw) {
   const floorFn = typeof pn.floor === 'function' ? pn.floor : null, landFn = typeof pn.land === 'function' ? pn.land : () => true;
   if (!floorFn) return null;
   Lw = Lw > 0 ? Lw : u / 0.05;
+  if (pn.site && pn.site.d && pn.site.ex) return pn.site;      // ship.js already predicted it (same inputs): no second search on landing
   const pid = String(pn.id != null ? pn.id : (pn.name || 'planet')), seed = hashStr('village:' + pid);
   const vec = (x, y, z) => new T.Vector3(x, y, z);
   const R0 = pn.radius || 1, avoid = pn.avoid || [];

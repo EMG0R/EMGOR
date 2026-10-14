@@ -186,7 +186,7 @@ export function connect(engine, hooks) {
             var flying = g.s === 'piloting' && g.samples.length > 0;
             if (flying) {
                 sampleAt(g, rt); tmpPos.copy(vP); tmpQuat.copy(qP);
-                if (g.sf && !(hooks.stationToWorld && hooks.stationToWorld(tmpPos, tmpQuat))) { g.root.visible = false; if (g.lblShown) { g.lblShown = false; g.label.style.display = 'none'; } continue; }
+                if ((g.sf && !(hooks.stationToWorld && hooks.stationToWorld(tmpPos, tmpQuat))) || (g.pf && !hooks.planetToWorld(g.pf, tmpPos, tmpQuat))) { g.root.visible = false; if (g.human) g.human.group.visible = false; if (g.lblShown) { g.lblShown = false; g.label.style.display = 'none'; } continue; }
             }
             else { hooks.dockSlot((dockA || 0) + 2 * Math.PI * (i + 1) / (n + 1), tmpPos, tmpQuat); }
             var foot = g.mode === 'foot' && g.fsamples.length > 0 && hooks.buildHuman;
@@ -213,6 +213,7 @@ export function connect(engine, hooks) {
                 if (g.human) {
                     sampleAt(g, rt, g.fsamples);
                     if (g.sf && hooks.stationToWorld) hooks.stationToWorld(vP, qP);
+                    else if (g.pf && hooks.planetToWorld) hooks.planetToWorld(g.pf, vP, qP);
                     var hs = Math.max(0.09 * L, camera.position.distanceTo(vP) * 0.004);
                     g.human.group.position.copy(vP); g.human.group.quaternion.copy(qP); g.human.group.scale.setScalar(hs);
                     g.human.group.visible = fade > 0.35;
@@ -360,6 +361,11 @@ export function connect(engine, hooks) {
                 var sf = m.v === -1 || m.frame === 'station';      // rev 22: station frame (x/y/z are station-local L units; the relay cannot carry a frame id, v = -1 is the flag)
                 if (!!g.sf !== sf) { g.samples.length = 0; g.fsamples.length = 0; }
                 g.sf = sf;
+                // 2026-10-14 (audit A1): planet frame -> interpolate in the planet's local frame, compose with OUR planet pose at render time (hooks.planetToWorld)
+                var pf = (!sf && m.frame === 'planet' && typeof m.pid === 'string' && isFinite(m.lx) && isFinite(m.lqw) && hooks.planetToWorld && (!hooks.planetKnown || hooks.planetKnown(m.pid))) ? m.pid : '';      // unknown planet id here: keep the world pose
+                if ((g.pf || '') !== pf) { g.samples.length = 0; g.fsamples.length = 0; }
+                g.pf = pf;
+                if (pf) m = { t: m.t, id: m.id, x: m.lx, y: m.ly, z: m.lz, qx: m.lqx, qy: m.lqy, qz: m.lqz, qw: m.lqw, v: 0, st: m.st, hp: m.hp, mode: m.mode, style: m.style };
                 g.mode = m.mode === 'foot' ? 'foot' : (m.mode === 'landed' ? 'landed' : 'fly');
                 if (g.mode === 'foot') setGhostStyle(g, typeof m.style === 'string' ? m.style.slice(0, 16) : '');
                 if (g.mode === 'foot') pushFoot(g, m, now); else { g.fsamples.length = 0; pushSample(g, m, now); }
@@ -410,6 +416,9 @@ export function connect(engine, hooks) {
         if (p.v === -1) o.frame = 'station';
         if (myMode !== 'fly') o.mode = myMode;          // rev 14: 'landed' | 'foot' (foot: x/y/z/q are the HUMAN's pose, st bits 1 moving 2 running 4 airborne)
         if (myMode === 'foot') { o.x = r4(p.x); o.y = r4(p.y); o.z = r4(p.z); if (myStyle) { o.style = myStyle; o.st = (o.st | 16); } }
+        if (myMode !== 'fly' && typeof p.pid === 'string' && isFinite(p.lx)) {      // 2026-10-14 (audit A1): planet frame (L units + local quaternion); x/y/z stay world for old peers
+            o.frame = 'planet'; o.pid = p.pid.slice(0, 48); o.lx = r4(p.lx); o.ly = r4(p.ly); o.lz = r4(p.lz); o.lqx = r4(p.lqx); o.lqy = r4(p.lqy); o.lqz = r4(p.lqz); o.lqw = r4(p.lqw);
+        }
         send(o);
     }
     function setMode(m) { myMode = m === 'foot' || m === 'landed' ? m : 'fly'; lastPos = 0; }

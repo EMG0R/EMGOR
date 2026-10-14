@@ -246,6 +246,11 @@ function handle(ws, c, m, now) {
       if (m.mode === 'landed' || m.mode === 'foot' || m.mode === 'docked') pos.mode = m.mode;
       // frame: 'station' = pose is station-local (docked / on the station deck)
       if (m.frame === 'station') pos.frame = 'station';
+      // 2026-10-14: frame 'planet' = landed / on foot: pid + lx..lz (planet-local, ship lengths) + lqx..lqw (local quaternion); x/y/z stay world for old clients
+      if (m.frame === 'planet' && typeof m.pid === 'string' && ['lx', 'ly', 'lz', 'lqx', 'lqy', 'lqz', 'lqw'].every((k) => num(m[k]))) {
+        pos.frame = 'planet'; pos.pid = m.pid.replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 48);
+        pos.lx = m.lx; pos.ly = m.ly; pos.lz = m.lz; pos.lqx = m.lqx; pos.lqy = m.lqy; pos.lqz = m.lqz; pos.lqw = m.lqw;
+      }
       p.pos = pos;
       broadcast(Object.assign({ t: 'pos', id: p.id }, pos), p.id);
       if (p.s !== 'piloting') { p.s = 'piloting'; broadcastRoster(); }

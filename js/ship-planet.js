@@ -2604,6 +2604,8 @@ export function createPlanetSurface(engine, L) {
         return out;
     };
 
+    // 2026-10-14: ship.js runs ps.update BEFORE it moves the camera on the ground (audit A4); this re-centres the camera-attached sky dome afterwards
+    ps.syncDome = function () { if (alloc && node) { alloc.dome.position.copy(camera.position); alloc.dome.updateMatrixWorld(); } };
     ps.setVisible = function (v) {
         ps.visible = !!v;
         globeHi(node, ps.visible);

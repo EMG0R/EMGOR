@@ -119,6 +119,7 @@ Room traffic (`sm.in`, `sm.snap`, `pl.snap`, `pl.ev`) uses its own bucket (150/s
 |---|---|
 | `hi` / `{t:'hi', id, name, color, hs, style, pet, crew}` | `style` <= 16 printable chars, `pet`/`crew` ints 0-99. All three appear on each ship in `roster`. |
 | `pos` | `st` now `& 31`: bit 16 = in a fight. |
+| `pos` | 2026-10-14: optional `frame:'planet'` + `pid` + `lx ly lz` (planet-local, ship lengths) + `lqx lqy lqz lqw` (local quaternion) for landed / on-foot poses; passed through. x/y/z stay world. NOT live on gorcave until the relay is redeployed (old relay drops the fields; clients fall back to world poses). |
 | `{t:'sm.challenge', to}` (2/s) | To `to`: `{t:'sm.challenge', from, name}` (valid 30 s). Unknown `to`: `{t:'sm.no', why:'gone'}`. |
 | `{t:'sm.accept', from}` | Needs a live challenge from `from`. Creates `sm_<8hex>`, host = challenger. Both get `{t:'sm.start', room, host, members:[ids], spec:[ids], seed}`. Else `sm.no` (`expired`/`busy`). |
 | `{t:'sm.join', room, fight?}` | Joiner gets `sm.start`; others get `{t:'sm.member', room, id, name, role:'fighter'\|'spec'}`. Cap 4 fighters (`fight:true`, else falls to spectator) + 8 spectators; `sm.no why:'full'\|'none'`. |
