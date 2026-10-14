@@ -1,4 +1,4 @@
-# NO MANS GOR — HANDOFF (2026-10-07)
+# NO MANS GOR — HANDOFF (2026-10-13)
 
 For a fresh Fable session taking over. Read this, then `docs/ship-mode.md` (the full spec history,
 revisions 1–30), `docs/mashup-plan.md`, `docs/smash-plan.md`, `docs/multiplayer-plan.md`,
@@ -44,7 +44,73 @@ skelly — working names) with planet-host netcode, GOR BRAWL (`/smash.html`): d
 platform fighter, 13 original fighters mimicking the classic cast's movesets, bots, hot-seat,
 gamepad, finals meter, NO items; `js/smash-world.js` runs fights in-world (host/guest verified).
 
-## State at handoff (everything committed, tree clean)
+## State at handoff (2026-10-13, HEAD 8945b3c, tree clean, all pushed → Netlify)
+Session 2026-10-07..13 (Fable main window, one Sonnet builder at a time). Commits, newest first:
+- 8945b3c **Ship pose persists across sessions.** `pf.pose {v:1, t, mode:'space'|'planet', ...}` built from the
+  Esc-resume snapshot; planet mode stores planet id + sub-mode (fly/landed/foot) + local dir + radius offset +
+  facing (+ human pose on foot). Saved on exit, pagehide, visibilitychange-hidden, every 10 s while piloting.
+  Restored on the first `enter()` per page load; missing planet / any error → dock spawn. `/respawn` or
+  `EMGOR_SHIP.pose.clear()` forgets it. Space-mode browser-verified (distance 0 after reload). Planet/foot
+  restore NOT tested. Limit: a space pose is a fixed world point; planets have orbited on by the next session.
+- 5fa6378 **Landing fix (unconfirmed by Emory).** Descent re-targets `land.rg` from `floorLocal` every frame;
+  landed + foot re-settle on `floorLocal` every frame; `ship-perf.js` quality manager gets `hold()` and ship.js
+  passes `hold: gmode !== 'fly'` (no tier changes while landing/landed/foot/interior/hub); hub + village now build
+  only in landed/foot, one per frame (village first, hub next), never during 'landing'.
+- 66726b7 hub/village per-frame hooks in try/catch; village solids only on the active planet; village 1.6x (`BIG`).
+- f00bafd **Villages** (`js/ship-village.js`, wiring in ship.js, lingo roles additive): one per lush/rocky planet,
+  flattest of 220 seeded directions ≥0.3 rad from outposts; 5–9 huts (3 templates), well+bell, market stall, farm
+  plots, fences, torches, path ribbons; 2 merged meshes (day mesh dims at night). Walls `solid:true,
+  indestructible:true`, STEEV placement/ray ignore them. Villagers farmer/trader/elder/kid, wall-clock schedule,
+  inside at night, greet ≤3 H, humans created lazily near the player. Trader = 6 seeded trades via the existing
+  trade UI (stock per UTC day). Elder opens the quests UI. Golums 1–2 per village, 4.5 m, 600 HP, no loot, hunt
+  mobs in the village radius and anyone who hits a villager (`village.onHit`, `golum.target`), melee via mobHurt.
+  House glyph scan marker + guide POI. Profile `pf.vill`. Hook `EMGOR_SHIP.village` {info, goto, night, talk,
+  trade, hit, make}. Limits: no pathfinding (golum can stall on a hut wall); villagers unkillable; mobs don't
+  target golums; all village/golum fights are local per client; village exists only after you land.
+- 6f9e024 **Hub wired.** Per-planet hub built lazily, seeded by planet id (`hubSpot` deterministic), rides in
+  `world.group.parent`. F at the arch enters (`F · ENTER`); F in the start room / walking to z<1.4 exits. Skull
+  scan marker "DUNGEON". Hub-local foot controller `hubFootStep` (walls, `floorAt`, wall-clamped cam). Arena
+  `lock` → waves from `hub.waves()` via the mob system; last wave clears + unlocks. Boss = `generateGroundEnemy`
+  tier 4 ×3, summons at 50 %, drops coin + blueprint. Chests via F (LOCKED until cleared). `pf.hubs[planetId]`.
+  Ambience uses the 'interior' bed. Hook `EMGOR_SHIP.hub` {enter, exit, info, clear, goto, open, face, raw,
+  state}. Limits: hub mobs are LOCAL-ONLY (excluded from pl.* snapshots); boss slam/charge phases not built;
+  ender can't teleport inside; forced exit mid-fight rebuilds the hub.
+
+### The landing bug (OPEN until Emory confirms)
+Emory (live site, real input): "F to land puts the ship way above the surface, like at atmosphere height,
+cannot reach the ground." Three builders + the main window could NOT reproduce it through the debug API
+(`s.land()` after teleporting the ship to 1.25 R: touchdown 0.3 L above `floorAt`, on HEAD and on baseline
+938ddd6). Measurements that matter:
+- Main window saw `floorAt` at the parked ship move 702.64→713.67→715.98→703.18→707.39 while looping
+  `ps.setQuality` 3→2→1→0→3. The next builder could not reproduce that (floorLocal at fixed LOCAL directions was
+  identical across tiers) and attributes the drift to sampling a fixed WORLD position while the planet spins.
+  Unresolved which is right; the fix in 5fa6378 (re-settle on the live floor every frame + hold quality + build
+  hub/village after touchdown) covers both readings. Baseline also showed −21 L (ship inside ground) right after
+  touchdown in the same harness, so the harness itself is noisy.
+- Untested leads if it persists: Emory's real profile (`pf.hubs`, `pf.vill`, now `pf.pose` restore on enter —
+  try `/respawn` first), the real F-hold path (`eh` hold → auto-land) vs `s.land()`, the live Netlify asset
+  cache (ship.js was 690,971 bytes on the live site = current), real-time rAF vs `step()`.
+- How to get real evidence: Chrome MCP on the live site with his profile, enter, fly to a planet with real key
+  events, hold F, read console (`read_console_messages`, onlyErrors) and log `shipRoot.position.distanceTo
+  (ps.active.anchor.position) - ps.floorAt(...).r` over the descent.
+
+### Not started this session
+- In-world FIGHT (spec below unchanged). A builder was launched and stopped before editing; nothing on disk.
+- Bug sweep: STEEV right-click placement 0 (input race), MARO wall kick never fires, g14 flaky, duplicate
+  pl.host on enter, banned-name pre-push grep script, efficiency pass (per-frame allocs, dead code, draw calls).
+- Not verified by Emory in person: hub, villages, golums, 1.6x scale, marker correctness, NPC walk-up F (builder
+  only verified via hooks; villagers were inside huts during its test), pose restore on a planet.
+
+### Session rules that were added
+- One Sonnet builder at a time (he sets the count); no experimenting/playing in the browser: read diff + console
+  first, one repro + one confirm, no screenshots. He was explicit about token spend.
+- `.claude/settings.local.json` now has `defaultMode: bypassPermissions` + blanket allows (his request).
+- Known-good comparison worktree pattern: `git worktree add --detach <tmp> 938ddd6`, serve with a tiny
+  no-store http.server on another port (the `/private/tmp/claude-501/nocache_server.py` script was gone; a copy
+  is at `~/.claude/jobs/4e9aa8fc/tmp/nocache.py <dir> <port>`). Remove the worktree when done
+  (`git worktree prune`).
+
+## State at the 2026-10-07 handoff (historical)
 - `js/ship-hub.js` — mob hub dungeon per planet (11 rooms, 3 arenas, WARDEN boss, chests w/
   blueprints). Built + screenshot-verified. COMMITTED but NOT wired into ship.js.
 - Villages: NOT STARTED (the agent was stopped before editing). Spec below.
@@ -98,9 +164,9 @@ gamepad, finals meter, NO items; `js/smash-world.js` runs fights in-world (host/
   /volume /quality /help (+ /gorcave, /smash alias planned).
 
 ## Next steps (priority)
-1. Commit `js/ship-hub.js`; finish villages (+ golums, indestructible huts); finish in-world
-   FIGHT + two-window tests; wire hub + villages into ship.js (F at the gate enters the hub; mobs
-   from `hub.waves`; chests; village trades/quests; golum AI); push; deploy relay.
+0. CONFIRM LANDING with Emory on the live site (see 'The landing bug'). If still broken, get real evidence
+   first (console + altitude log over a real F-hold), do not guess again.
+1. In-world FIGHT + two-window tests (spec below); hub mobs onto planet-host netcode; golum pathfinding.
 2. Brawl pass 3/4: real relay fights in production (two devices), results → gorCoin/rep, audio/
    polish; `/smash` cabinet in the station 7/11.
 3. Mashup pass: more styles (the rest of the 13), wall-kick on cliffs, SONIK loops (needs
