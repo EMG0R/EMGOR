@@ -144,7 +144,10 @@ export default function mount(engine) {
     // rev 20: L = refR_pilot / 12000 (was 5000), where refR_pilot = the root-level planet radius WITH the pilot scale (x3) applied (readRefR). The galaxy-scale
     // ship (docked / away) is sized from the unscaled radius (readRefRaw) because planets only grow while piloting.
     function readRefRaw() { var r = (root.kids && root.kids[0]) ? engine.renderedRadius(root.kids[0], true) : 0; return r > 0 && isFinite(r) ? r : 0; }
-    function readRefR() { var k = root.kids && root.kids[0], r = readRefRaw(); if (!r) return 0; return r * (k && engine.pilotScale ? engine.pilotScale(k) : 1); }
+    // 2026-10-14: L is pinned to the x6 pilot scale it was tuned at (L_REF_SCALE), so galaxy3d's smaller planets ({4, 3}) are smaller in L too; speeds (world u/s),
+    // enemies (L) and the ship keep their sizes. Root planets are now ~8000 L in radius (was ~12000 L).
+    var L_REF_SCALE = 6;
+    function readRefR() { var r = readRefRaw(); if (!r) return 0; return r * L_REF_SCALE; }
     var refR0 = readRefRaw() || 100, refR = readRefR() || 300;
     var L = refR / 12000;
     // rev 20: the engine sizes every body's minimum pilot radius from the ship length

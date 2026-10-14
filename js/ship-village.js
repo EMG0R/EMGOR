@@ -5,6 +5,8 @@
 //   village.anchor.pos (planet-local) and rotated so +y = up. Caller parents village.group into the planet ride group (same as ship-hub.js).
 //     planetNode: { id|name, radius, biome ('lush'|'rocky' only), floor(x,y,z)->radius (analytic), live(x,y,z)->radius (rendered mesh; optional),
 //                   land(x,y,z)->bool, avoid:[unit Vector3 dirs] (first outpost: the site is >= 0.3 rad away) }.  L = ship length in world units (40 L humans radius).
+//     2026-10-14: + prefer (unit dir), preferCap (rad), avoidNear (rad): the site is searched near `prefer` first (ship.js passes the approach direction).
+//   villageSite(engine, u, planetNode, L) -> { d, r0, ex, ez, dev } | null   the same site createVillage builds on (exported for the sky beacon / HUD).
 //   Seeded by the planet id -> every client finds the same site, huts, villagers, trades. Villager routines come from the shared wall clock (ctx.t), so no netcode.
 //   Golum vs mob fights are local to each client (golums act on the mobs THIS client sees); the player's own hits on villagers are local too.
 //
@@ -31,12 +33,69 @@ import * as lingo from './ship-lingo.js';
 function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-const RP = 7;                     // plaza ring radius (villagers walk it)
-const BIG = 1.6;                  // structures read at the 7/11's player scale: huts, well and stall are 1.6x
-const TW = 0.5 * BIG, DOOR_W = 1.7 * BIG, DOOR_H = 2.5 * BIG, FOUND = 1.6;     // wall thickness, door gap, foundation depth
+const VS = 2.5;                    // 2026-10-14: the whole village layout is 2.5x (huts, doors, well, stall, plaza, paths); villagers + golums stay their size
+const RP = 7 * VS;                // plaza ring radius (villagers walk it)
+const BIG = 1.6 * VS;             // structures read at the 7/11's player scale: huts, well and stall are 1.6x (x VS)
+const TW = 0.5 * BIG, DOOR_W = 1.7 * BIG, DOOR_H = 2.5 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap, foundation depth
 const TMPL = [{ id: 'cottage', w: 6 * BIG, d: 5 * BIG, h: 3.1 * BIG, roof: 'gable' }, { id: 'longhouse', w: 9 * BIG, d: 5 * BIG, h: 3.1 * BIG, roof: 'gable' }, { id: 'tower', w: 5 * BIG, d: 5 * BIG, h: 4.6 * BIG, roof: 'pyramid' }];
 const ROLE_COL = { farmer: 0x8FD06A, trader: 0xFFD36A, elder: 0xB08CFF, kid: 0xFF8AE0 };
 const WALK = 2.6, GOLUM_V = 3.1, GOLUM_HP = 600, GOLUM_DMG_MOB = 45, GOLUM_DMG_ME = 12, VILL_ACT_L = 40;
+
+// ── site: flattest seeded land direction; a tangent frame (X, Y = up, Z) at it. 2026-10-14: pn.prefer (unit planet-local dir) + pn.preferCap (rad):
+// first search a seeded cap around prefer, >= pn.avoidNear rad (default: village radius + 60 L) from every pn.avoid dir; then the old whole-sphere
+// search (>= 0.3 rad from the outposts). Pure function of (planet id, prefer): every client with the same prefer finds the same site.
+export function villageSite(engine, u, pn, Lw) {
+  const T = engine.THREE;
+  pn = pn || {};
+  if (!(u > 0)) return null;
+  if (pn.biome !== 'lush' && pn.biome !== 'rocky') return null;
+  const floorFn = typeof pn.floor === 'function' ? pn.floor : null, landFn = typeof pn.land === 'function' ? pn.land : () => true;
+  if (!floorFn) return null;
+  Lw = Lw > 0 ? Lw : u / 0.05;
+  const pid = String(pn.id != null ? pn.id : (pn.name || 'planet')), seed = hashStr('village:' + pid);
+  const vec = (x, y, z) => new T.Vector3(x, y, z);
+  const R0 = pn.radius || 1, avoid = pn.avoid || [];
+  const ringPts = [[14 * BIG, 10], [24 * BIG, 12], [34 * BIG, 14]];
+  function score(d, avoidRad) {
+    for (let i = 0; i < avoid.length; i++) if (Math.acos(Math.max(-1, Math.min(1, d.dot(avoid[i])))) < avoidRad) return null;
+    if (!landFn(d.x, d.y, d.z)) return null;
+    const r0 = floorFn(d.x, d.y, d.z); if (!(r0 > 0)) return null;
+    const ref = Math.abs(d.y) < 0.9 ? vec(0, 1, 0) : vec(1, 0, 0), ex = new T.Vector3().crossVectors(d, ref).normalize(), ez = new T.Vector3().crossVectors(ex, d);
+    let lo = 0, hi = 0;
+    for (const [rr, nn] of ringPts) {
+      for (let j = 0; j < nn; j++) {
+        const a = j / nn * 6.2831853, px = Math.cos(a) * rr, pz = Math.sin(a) * rr;
+        const p = d.clone().multiplyScalar(r0).addScaledVector(ex, px * u).addScaledVector(ez, pz * u), l = p.length(); p.divideScalar(l);
+        if (!landFn(p.x, p.y, p.z)) return null;
+        const y = (floorFn(p.x, p.y, p.z) * p.dot(d) - r0) / u; if (y < lo) lo = y; if (y > hi) hi = y;
+      }
+    }
+    return { d, r0, ex, ez, dev: hi - lo };
+  }
+  let best = null;
+  const pf = pn.prefer;
+  if (pf && pf.lengthSq && pf.lengthSq() > 1e-9) {
+    const P = pf.clone().normalize(), cap = pn.preferCap > 0 ? pn.preferCap : 0.15, near = pn.avoidNear > 0 ? pn.avoidNear : (44 * BIG * u + 60 * Lw) / R0;
+    const ref = Math.abs(P.y) < 0.9 ? vec(0, 1, 0) : vec(1, 0, 0), e1 = new T.Vector3().crossVectors(P, ref).normalize(), e2 = new T.Vector3().crossVectors(P, e1);
+    const cr = mulberry(seed ^ 0xCA9);
+    for (let k = 0; k < 160; k++) {
+      const a = cap * Math.sqrt(cr()), ph = cr() * 6.2831853, sa = Math.sin(a);
+      const d = P.clone().multiplyScalar(Math.cos(a)).addScaledVector(e1, Math.cos(ph) * sa).addScaledVector(e2, Math.sin(ph) * sa).normalize();
+      const c = score(d, near); if (!c) continue;
+      if (!best || c.dev < best.dev) { best = c; if (c.dev < 2.2 * VS) break; }
+    }
+    if (best && best.dev > 7 * VS) best = null;
+    if (best) return best;
+  }
+  const sr = mulberry(seed ^ 0x517E);
+  for (let k = 0; k < 220; k++) {
+    const z = (sr() * 2 - 1) * 0.85, ph = sr() * 6.2831853, q = Math.sqrt(1 - z * z), d = vec(q * Math.cos(ph), z, q * Math.sin(ph));
+    const c = score(d, 0.3); if (!c) continue;
+    if (!best || c.dev < best.dev) { best = c; if (c.dev < 2.2 * VS) break; }
+  }
+  if (!best || best.dev > 7 * VS) return null;
+  return best;
+}
 
 export function createVillage(engine, u, opts) {
   opts = opts || {};
@@ -51,30 +110,9 @@ export function createVillage(engine, u, opts) {
   if (!floorFn) return null;
   const vec = (x, y, z) => new T.Vector3(x, y, z);
 
-  // ── site: flattest seeded land direction >= 0.3 rad from the first outpost; a tangent frame (X, Y = up, Z) at it ──
-  const R0 = pn.radius || 1, avoid = pn.avoid || [];
-  let best = null;
-  const sr = mulberry(seed ^ 0x517E);
-  const ringPts = [[14 * BIG, 10], [24 * BIG, 12], [34 * BIG, 14]];
-  for (let k = 0; k < 220; k++) {
-    const z = (sr() * 2 - 1) * 0.85, ph = sr() * 6.2831853, q = Math.sqrt(1 - z * z), d = vec(q * Math.cos(ph), z, q * Math.sin(ph));
-    let ok = true; for (let i = 0; i < avoid.length; i++) if (Math.acos(Math.max(-1, Math.min(1, d.dot(avoid[i])))) < 0.3) { ok = false; break; }
-    if (!ok || !landFn(d.x, d.y, d.z)) continue;
-    const r0 = floorFn(d.x, d.y, d.z); if (!(r0 > 0)) continue;
-    const ref = Math.abs(d.y) < 0.9 ? vec(0, 1, 0) : vec(1, 0, 0), ex = new T.Vector3().crossVectors(d, ref).normalize(), ez = new T.Vector3().crossVectors(ex, d);
-    let lo = 0, hi = 0, wet = false;
-    for (const [rr, nn] of ringPts) {
-      for (let j = 0; j < nn && !wet; j++) {
-        const a = j / nn * 6.2831853, px = Math.cos(a) * rr, pz = Math.sin(a) * rr;
-        const p = d.clone().multiplyScalar(r0).addScaledVector(ex, px * u).addScaledVector(ez, pz * u), l = p.length(); p.divideScalar(l);
-        if (!landFn(p.x, p.y, p.z)) { wet = true; break; }
-        const y = (floorFn(p.x, p.y, p.z) * p.dot(d) - r0) / u; if (y < lo) lo = y; if (y > hi) hi = y;
-      }
-    }
-    if (wet) continue;
-    const dev = hi - lo; if (!best || dev < best.dev) { best = { d, r0, ex, ez, dev }; if (dev < 2.2) break; }
-  }
-  if (!best || best.dev > 7) return null;
+  // ── site: villageSite() (exported: ship.js predicts it for the sky beacon / HUD before the village is built) ──
+  const best = villageSite(engine, u, pn, Lw);
+  if (!best) return null;
   const up = best.d.clone(), X = best.ex.clone(), Z = best.ez.clone();
   const anchor = { dir: up, up: up.clone(), pos: up.clone().multiplyScalar(best.r0) };
   const group = new T.Group(); group.name = 'ship-village';
@@ -114,7 +152,7 @@ export function createVillage(engine, u, opts) {
   const walls = [];
 
   // ── layout ──
-  const wellY = Math.max(groundAt(-1.5, -1.5), groundAt(1.5, -1.5), groundAt(-1.5, 1.5), groundAt(1.5, 1.5), groundAt(0, 0));
+  const wellY = Math.max(groundAt(-1.5 * BIG, -1.5 * BIG), groundAt(1.5 * BIG, -1.5 * BIG), groundAt(-1.5 * BIG, 1.5 * BIG), groundAt(1.5 * BIG, 1.5 * BIG), groundAt(0, 0));
   const nHuts = 5 + Math.floor(rng() * 5);
   const huts = [], occupied = [{ x0: -RP - 1, x1: RP + 1, z0: -RP - 1, z1: RP + 1 }];
   const hit = (a, b, pad) => a.x0 - pad < b.x1 && a.x1 + pad > b.x0 && a.z0 - pad < b.z1 && a.z1 + pad > b.z0;
@@ -130,7 +168,7 @@ export function createVillage(engine, u, opts) {
       let lo = 1e9, hi = -1e9;
       for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]]) { const y = groundAt(cx + sx * hx, cz + sz * hz); if (y < lo) lo = y; if (y > hi) hi = y; }
       const cand = { cx, cz, hx, hz, side, tm, dev: hi - lo, rect, hi };
-      if (hi - lo <= 1.3) { placed = cand; break; }
+      if (hi - lo <= 1.3 * VS) { placed = cand; break; }
       if (!fallback || cand.dev < fallback.dev) fallback = cand;
     }
     placed = placed || fallback; if (!placed) continue;
@@ -139,17 +177,17 @@ export function createVillage(engine, u, opts) {
   // well + plots + stall
   const plots = [];
   for (let k = 0, tries = 0; k < 3 && tries < 60; tries++) {
-    const a = rng() * 6.2831853, rr = 9.5 + rng() * 2, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, rect = { x0: cx - 3, x1: cx + 3, z0: cz - 2.2, z1: cz + 2.2 };
+    const a = rng() * 6.2831853, rr = (9.5 + rng() * 2) * VS, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, rect = { x0: cx - 3, x1: cx + 3, z0: cz - 2.2, z1: cz + 2.2 };
     if (occupied.some((o) => hit(rect, o, 1.2))) continue;
     occupied.push(rect); plots.push({ cx, cz, a, rect }); k++;
   }
   let stall = null;
   for (let tries = 0; tries < 60 && !stall; tries++) {
-    const a = rng() * 6.2831853, rr = 10.5, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, rect = { x0: cx - 2 * BIG, x1: cx + 2 * BIG, z0: cz - 1.4 * BIG, z1: cz + 1.4 * BIG };
+    const a = rng() * 6.2831853, rr = 10.5 * VS, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, rect = { x0: cx - 2 * BIG, x1: cx + 2 * BIG, z0: cz - 1.4 * BIG, z1: cz + 1.4 * BIG };
     if (occupied.some((o) => hit(rect, o, 0.8))) continue;
     occupied.push(rect); stall = { cx, cz, a, rect };
   }
-  if (!stall) { stall = { cx: 0, cz: 10.5, a: Math.PI / 2, rect: { x0: -2 * BIG, x1: 2 * BIG, z0: 10.5 - 1.4 * BIG, z1: 10.5 + 1.4 * BIG } }; }
+  if (!stall) { stall = { cx: 0, cz: 10.5 * VS, a: Math.PI / 2, rect: { x0: -2 * BIG, x1: 2 * BIG, z0: 10.5 * VS - 1.4 * BIG, z1: 10.5 * VS + 1.4 * BIG } }; }
 
   // ── build: huts ──
   const torches = [];
@@ -185,10 +223,10 @@ export function createVillage(engine, u, opts) {
     else { const xx = h.side === 'px' ? cx + hx : cx - hx; boxG(LP, LC, xx - 0.35, yb, cz - DOOR_W / 2 - fr, xx + 0.35, yb + DOOR_H, cz - DOOR_W / 2, post); boxG(LP, LC, xx - 0.35, yb, cz + DOOR_W / 2, xx + 0.35, yb + DOOR_H, cz + DOOR_W / 2 + fr, post); }
     // windows: glowing squares on the two side walls (not the door wall)
     const WC = [1.5, 1.1, 0.55];
-    const wq = (x, y, z, nx, nz) => { const a = nx ? [0, 0.45] : [0.45, 0], b = [0, 0.45]; const P = EP, C = EC; const q = [[x - a[0], y - 0.4, z - a[1]], [x + a[0], y - 0.4, z + a[1]], [x + a[0], y + 0.4, z + a[1]], [x - a[0], y + 0.4, z - a[1]]]; quad(P, C, q[0], q[1], q[2], q[3], WC, [nx, 0, nz], 1.0); };
+    const wq = (x, y, z, nx, nz) => { const a = nx ? [0, 0.45 * VS] : [0.45 * VS, 0], b = [0, 0.45]; const P = EP, C = EC; const q = [[x - a[0], y - 0.4 * VS, z - a[1]], [x + a[0], y - 0.4 * VS, z + a[1]], [x + a[0], y + 0.4 * VS, z + a[1]], [x - a[0], y + 0.4 * VS, z - a[1]]]; quad(P, C, q[0], q[1], q[2], q[3], WC, [nx, 0, nz], 1.0); };
     const eps = 0.03;
-    if (h.side === 'px' || h.side === 'nx') { wq(cx, yb + 1.7, cz - hz - eps, 0, -1); wq(cx, yb + 1.7, cz + hz + eps, 0, 1); }
-    else { wq(cx - hx - eps, yb + 1.7, cz, -1, 0); wq(cx + hx + eps, yb + 1.7, cz, 1, 0); }
+    if (h.side === 'px' || h.side === 'nx') { wq(cx, yb + 1.7 * VS, cz - hz - eps, 0, -1); wq(cx, yb + 1.7 * VS, cz + hz + eps, 0, 1); }
+    else { wq(cx - hx - eps, yb + 1.7 * VS, cz, -1, 0); wq(cx + hx + eps, yb + 1.7 * VS, cz, 1, 0); }
     // roof
     const ov = 0.7, rc = tint(ROOF, 0.9 + rng() * 0.2), ax = hx >= hz, ha = (ax ? hx : hz) + ov, hb = (ax ? hz : hx) + ov, yR = y1 + 0.35, rh = tm.roof === 'pyramid' ? hb * 0.95 : hb * 0.72;
     const pt = (a, b, y) => (ax ? [cx + a, y, cz + b] : [cx + b, y, cz + a]);
@@ -207,7 +245,7 @@ export function createVillage(engine, u, opts) {
     if (tm.roof === 'gable') boxG(LP, LC, cx + (ax ? ha * 0.5 : hb * 0.4) - 0.3, yR + 0.2, cz + (ax ? -hb * 0.35 : ha * 0.5) - 0.3, cx + (ax ? ha * 0.5 : hb * 0.4) + 0.3, yR + rh + 1.1, cz + (ax ? -hb * 0.35 : ha * 0.5) + 0.3, tint(STONE, 0.8));
     // door torches (a post + flame each side of the door front)
     const pdx = -dr.d[1], pdz = dr.d[0];
-    for (const s of [-1, 1]) torches.push({ x: dr.front[0] + pdx * 1.5 * s + dr.d[0] * 0.2, z: dr.front[1] + pdz * 1.5 * s + dr.d[1] * 0.2 });
+    for (const s of [-1, 1]) torches.push({ x: dr.front[0] + pdx * 1.5 * VS * s + dr.d[0] * 0.2, z: dr.front[1] + pdz * 1.5 * VS * s + dr.d[1] * 0.2 });
     h.walls = hw;
     h.boxOut = { min: [cx - hx, y0, cz - hz], max: [cx + hx, y1 + 0.35, cz + hz] };
   }
@@ -256,7 +294,7 @@ export function createVillage(engine, u, opts) {
     }
   }
   // plaza torches
-  for (let k = 0; k < 4; k++) { const a = Math.PI / 4 + k * Math.PI / 2; torches.push({ x: Math.cos(a) * 5.8, z: Math.sin(a) * 5.8 }); }
+  for (let k = 0; k < 4; k++) { const a = Math.PI / 4 + k * Math.PI / 2; torches.push({ x: Math.cos(a) * 5.8 * VS, z: Math.sin(a) * 5.8 * VS }); }
   for (const t of torches) {
     const g = groundAt(t.x, t.z); t.y = g;
     boxG(LP, LC, t.x - 0.08, g - 0.2, t.z - 0.08, t.x + 0.08, g + 1.5, t.z + 0.08, tint(WOOD, 1));
@@ -271,9 +309,9 @@ export function createVillage(engine, u, opts) {
       quad(LP, LC, [ax + nx, groundAt(ax + nx, az + nz) + o, az + nz], [ax - nx, groundAt(ax - nx, az - nz) + o, az - nz], [bx - nx, groundAt(bx - nx, bz - nz) + o, bz - nz], [bx + nx, groundAt(bx + nx, bz + nz) + o, bz + nz], cc, [0, 1, 0], k);
     }
   }
-  for (let i = 0; i < 24; i++) { const a0 = i / 24 * 6.2831853, a1 = (i + 1) / 24 * 6.2831853; ribbon(Math.cos(a0) * RP, Math.sin(a0) * RP, Math.cos(a1) * RP, Math.sin(a1) * RP, 2.0, PATH); }
-  for (const h of huts) { const f = h.door.front, l = Math.hypot(f[0], f[1]) || 1; ribbon(f[0] / l * RP, f[1] / l * RP, f[0], f[1], 1.9, PATH); }
-  ribbon(0, 0, 0, 0, 1, PATH); ribbon(Math.cos(stall.a) * RP, Math.sin(stall.a) * RP, stall.cx - Math.cos(stall.a) * 2.5, stall.cz - Math.sin(stall.a) * 2.5, 1.6, PATH);
+  for (let i = 0; i < 24; i++) { const a0 = i / 24 * 6.2831853, a1 = (i + 1) / 24 * 6.2831853; ribbon(Math.cos(a0) * RP, Math.sin(a0) * RP, Math.cos(a1) * RP, Math.sin(a1) * RP, 2.0 * VS, PATH); }
+  for (const h of huts) { const f = h.door.front, l = Math.hypot(f[0], f[1]) || 1; ribbon(f[0] / l * RP, f[1] / l * RP, f[0], f[1], 1.9 * VS, PATH); }
+  ribbon(0, 0, 0, 0, 1, PATH); ribbon(Math.cos(stall.a) * RP, Math.sin(stall.a) * RP, stall.cx - Math.cos(stall.a) * 2.5 * VS, stall.cz - Math.sin(stall.a) * 2.5 * VS, 1.6 * VS, PATH);
 
   // ── meshes: ONE lit (day) + ONE emissive (windows / torches / stall lamps, night-bright) ──
   function mkGeo(P, C) { const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('color', new T.Float32BufferAttribute(C, 3)); g.computeBoundingSphere(); return g; }

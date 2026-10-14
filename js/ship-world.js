@@ -429,7 +429,7 @@ function makeNpc(T, parent, o) {
   return npc;
 }
 function createCrowd(T, parent, cfg) {
-  const dm = cfg.dims || PD, LANES_X = dm.lanes, GUARD_LOOP = dm.guard, ZS = dm.zS, HD = dm.HD, r = mulberry(hashStr(cfg.id) ^ 0x7777), K = cfg.unit || 1, known = cfg.known || new Set();
+  const dm = cfg.dims || PD, LANES_X = dm.lanes, GUARD_LOOP = dm.guard, ZS = dm.zS, HD = dm.HD, r = mulberry(hashStr(cfg.id) ^ 0x7777), K = cfg.unit || 1, HS = cfg.hs || 1, known = cfg.known || new Set();      // HS: human size / walk speed in store metres (1 / the store's build scale)
   const crowd = { frame: cfg.frame || new T.Matrix4(), npcs: [], shoppers: [], dealers: [], characters: [], clerk: null, known, node: parent };
   const lex = cfg.lex;
   // cashier behind the counter, facing the customers (+z)
@@ -463,6 +463,7 @@ function createCrowd(T, parent, cfg) {
     npc.home = { x: hx, z: hz }; npc.menu = dealerMenu(cfg.id + '-d' + i, 6); npc.state.wait = r() * 4;
     crowd.dealers.push(npc); crowd.npcs.push(npc);
   }
+  if (HS !== 1) crowd.npcs.forEach((n) => { n.speed *= HS; });
   crowd.setKnown = (set) => { crowd.known = set; crowd.npcs.forEach((n) => { n.known = set; }); };
   const pickTarget = (n) => {
     const rr = Math.random;
@@ -498,7 +499,7 @@ function createCrowd(T, parent, cfg) {
         const ch = crowd.chase;
         if (ch) {   // run at the thief; stop when close
           const dx = ch.x - n.lx, dz = ch.z - n.lz, d = Math.hypot(dx, dz);
-          if (d > 1.1) { const sp = Math.min(d - 1.0, 4.4 * dt); n.lx += dx / d * sp; n.lz += dz / d * sp; st.face = Math.atan2(-dx, -dz); moving = true; n.running = true; }
+          if (d > 1.1) { const sp = Math.min(d - 1.0, 4.4 * HS * dt); n.lx += dx / d * sp; n.lz += dz / d * sp; st.face = Math.atan2(-dx, -dz); moving = true; n.running = true; }
           else st.face = Math.atan2(-dx, -dz);
         } else if (st.wait > 0) { st.wait -= dt; st.face += Math.sin(performance.now() * 0.0007 + n.lx) * 0.004; }
         else {
@@ -523,7 +524,7 @@ function createCrowd(T, parent, cfg) {
       // face smoothly toward st.face when idle
       let df = st.face - n.yaw; df = Math.atan2(Math.sin(df), Math.cos(df)); n.yaw += df * Math.min(1, dt * (moving ? 12 : 4));
       if (n.human) {
-        const g = n.human.group; g.position.set(n.lx, FY, n.lz); g.rotation.y = n.yaw; g.scale.setScalar(1.75 * n.scale);
+        const g = n.human.group; g.position.set(n.lx, FY, n.lz); g.rotation.y = n.yaw; g.scale.setScalar(1.75 * n.scale * HS);
         try { n.human.update(dt, { moving, running: !!n.running, airborne: false, speed: 0.55 }); } catch (e) { /* ignore */ }
       }
       n.local.set(n.lx, FY, n.lz); n.pos.copy(n.local).applyMatrix4(crowd.frame);
@@ -766,6 +767,7 @@ export function createWorld(THREE, ps, L, mods) {
   const T = THREE, weapons = (mods && mods.weapons) || null, parts = (mods && mods.parts) || null;
   const rngOf = (seed) => (parts && parts.mulberry) ? parts.mulberry(seed) : mulberry(seed);
   const K = HUMAN_H * L / 1.75;                            // store unit = 1 m in world units (a 1.75 m human = 0.09 L)
+  const OS = (ps && ps.outScale > 0) ? ps.outScale : 1, KS = K * OS;   // 2026-10-14: the planet's 7/11 + Burger House are built OS x bigger (ship-planet OUT_S); NPC humans stay human-sized (crowd hs = 1 / OS)
   const group = new T.Group(); group.name = 'ship-world';
   const world = { group, stores: [], shards: [], nearStore: null, nearBurger: null, nearNpc: null, burgerHouse: null, onShard: null, onBusted: null, onCopSay: null, heat: 0, cart: [], lastCheckout: [], heatStore: null, resources: [], resGas: false, node: null, storeTris: 0, burgerTris: 0, known: new Set() };
 
@@ -824,7 +826,7 @@ export function createWorld(THREE, ps, L, mods) {
   // planet-local matrix of a store from its pad frame (store centre 9.6 L behind the pad so the glass front sits ~8.9 L away, as before)
   const _t = new T.Matrix4(), _sc = new T.Matrix4();
   function storeMatrix(padM, out) {
-    out.copy(padM).multiply(_t.makeTranslation(-0.75 * L, 0.05 * L, -(8.93 * L + PD.HD * K))).multiply(_sc.makeScale(K, K, K));
+    out.copy(padM).multiply(_t.makeTranslation(-0.75 * OS * L, 0.05 * L, -(8.93 * OS * L + PD.HD * KS))).multiply(_sc.makeScale(KS, KS, KS));
     return out;
   }
 
@@ -836,9 +838,9 @@ export function createWorld(THREE, ps, L, mods) {
     toW(PD.cX, FY, PD.cZ - 2.4, st.npcSpot.pos);
     st.npcSpot.facing.set(0, 0, 1).transformDirection(M);
     toW(PD.cX, FY, PD.cZ + 2.1, st.counter.pos);
-    st.counter.radius = 4.5 * K;
+    st.counter.radius = 4.5 * KS;
     site.node.matrix.copy(M); site.node.matrixWorldNeedsUpdate = true;
-    st.interior.setMatrix(M, K);
+    st.interior.setMatrix(M, KS);
     if (st.shelves) st.shelves.forEach((sh) => sh.world.copy(sh.pos).applyMatrix4(M));
   }
 
@@ -849,13 +851,13 @@ export function createWorld(THREE, ps, L, mods) {
     const cands = [[-6, -4], [-8, -9], [5, -8], [-10, 0], [7, -3], [0, -14], [-14, -6], [12, -10]];
     let best = null;
     for (const c of cands) {
-      const p = new T.Vector3(c[0] * L, 0, c[1] * L).applyMatrix4(pm), dir = p.clone().normalize();
+      const p = new T.Vector3(c[0] * OS * L, 0, c[1] * OS * L).applyMatrix4(pm), dir = p.clone().normalize();
       if (ps.landLocal && !ps.landLocal(dir.x * R, dir.y * R, dir.z * R)) continue;
       const fl = ps.floorLocal(dir.x, dir.y, dir.z); if (!isFinite(fl)) continue;
       const e1 = (Math.abs(dir.y) < 0.9 ? new T.Vector3(dir.z, 0, -dir.x) : new T.Vector3(0, -dir.z, dir.y)).normalize(), e2 = new T.Vector3().crossVectors(dir, e1).normalize();
       let worst = 0;
       for (let k = 0; k < 4; k++) {
-        const a = k * 1.5708 + 0.4, q = dir.clone().addScaledVector(e1, Math.cos(a) * 2.5 * L / R).addScaledVector(e2, Math.sin(a) * 2.5 * L / R).normalize();
+        const a = k * 1.5708 + 0.4, q = dir.clone().addScaledVector(e1, Math.cos(a) * 2.5 * OS * L / R).addScaledVector(e2, Math.sin(a) * 2.5 * OS * L / R).normalize();
         if (ps.landLocal && !ps.landLocal(q.x * R, q.y * R, q.z * R)) { worst = 9; break; }
         worst = Math.max(worst, Math.abs(ps.floorLocal(q.x, q.y, q.z) - fl));
       }
@@ -867,11 +869,11 @@ export function createWorld(THREE, ps, L, mods) {
     const padPos = new T.Vector3().setFromMatrixPosition(pm);
     const fwd = padPos.clone().sub(ground); fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.lengthSq() < 1e-12) fwd.set(1, 0, 0).addScaledVector(up, -up.x); fwd.normalize();
     const xA = new T.Vector3().crossVectors(up, fwd).normalize();
-    burger.matrix.makeBasis(xA, up, fwd).setPosition(ground); burger.matrix.multiply(_sc.makeScale(K, K, K));
+    burger.matrix.makeBasis(xA, up, fwd).setPosition(ground); burger.matrix.multiply(_sc.makeScale(KS, KS, KS));
     burger.node.matrix.copy(burger.matrix); burger.node.matrixWorldNeedsUpdate = true;
     const bh = world.burgerHouse;
-    bh.pos.set(0, 0, 0).applyMatrix4(burger.matrix); bh.windowPos.set(0, FY, 5.4).applyMatrix4(burger.matrix); bh.radius = 5.0 * K;
-    bh.matrix.copy(burger.matrix); bh.unit = K;
+    bh.pos.set(0, 0, 0).applyMatrix4(burger.matrix); bh.windowPos.set(0, FY, 5.4).applyMatrix4(burger.matrix); bh.radius = 5.0 * KS;
+    bh.matrix.copy(burger.matrix); bh.unit = KS;
     burger.clerk.pos.set(0, FY, 1.6).applyMatrix4(burger.matrix);
   }
 
@@ -997,7 +999,7 @@ export function createWorld(THREE, ps, L, mods) {
     group.add(node);
     burger = { node, meshes: [body, emi, sign], matrix: new T.Matrix4(), clerk, humans };
     world.burgerHouse = {
-      id: (world.node ? world.node.id : 'p') + '-burger', name: 'BURGER HOUSE', pos: new T.Vector3(), windowPos: new T.Vector3(), radius: 5.0 * K, matrix: new T.Matrix4(), unit: K,
+      id: (world.node ? world.node.id : 'p') + '-burger', name: 'BURGER HOUSE', pos: new T.Vector3(), windowPos: new T.Vector3(), radius: 5.0 * KS, matrix: new T.Matrix4(), unit: K,
       clerk: { name: clerk.name, seed: lex, role: 'fries', known: world.known, human: clerk.human, npc: clerk, say: clerk.say, lines: [clerk.say('fries'), clerk.say('greeting'), clerk.say('fries')] },
       menu: [FRIES], walls: boxV(T, bg.walls), lex, candidate: null,
     };
@@ -1009,7 +1011,7 @@ export function createWorld(THREE, ps, L, mods) {
       const color = [0x5CE8FF, 0xFF5CE1, 0xFFC46B, 0x7CFF8A, 0x8A6CFF, 0xFF7A3A][Math.floor(r() * 6)];
       const npc = { seed, role, known: world.known, name: lingo.name(seed) };
       const lines = [lingo.line(npc, 'recruit'), lingo.line(npc, 'recruit'), lingo.line(npc, 'mission')];
-      let human = null; try { human = createHuman(T, { color }); human.group.traverse((q) => { q.frustumCulled = false; }); human.group.position.set(2.4, FY, 5.2); human.group.rotation.y = Math.PI; burger.humans.add(human.group); } catch (e) { human = null; }
+      let human = null; try { human = createHuman(T, { color }); human.group.traverse((q) => { q.frustumCulled = false; }); human.group.position.set(2.4, FY, 5.2); human.group.rotation.y = Math.PI; human.group.scale.setScalar(1.75 / OS); burger.humans.add(human.group); } catch (e) { human = null; }
       if (bhr._cHuman && bhr._cHuman.group.parent) { bhr._cHuman.group.parent.remove(bhr._cHuman.group); try { bhr._cHuman.dispose(); } catch (e) { /* ignore */ } }
       bhr._cHuman = human;
       return (bhr.candidate = { seed, name: npc.name, role, color, lines, human });
@@ -1027,7 +1029,7 @@ export function createWorld(THREE, ps, L, mods) {
       frames.forEach((f, i) => {
         const seed = hashStr(f.id), r = rngOf(seed), lex = hashStr((world.node ? world.node.id : 'p') + '-lex');
         const node = new T.Group(); node.name = 'store-site'; node.matrixAutoUpdate = false; group.add(node);
-        const crowd = createCrowd(T, node, { id: f.id, lex, known: world.known, unit: K, dims: PD, frame: new T.Matrix4(), guard: (hashStr(f.id + ':guard') % 100) < 50 });
+        const crowd = createCrowd(T, node, { id: f.id, lex, known: world.known, unit: KS, hs: 1 / OS, dims: PD, frame: new T.Matrix4(), guard: (hashStr(f.id + ':guard') % 100) < 50 });
         const wlist = wpn && wpn.weaponSetFor ? wpn.weaponSetFor(f.id, 4) : [];
         wlist.forEach((w) => { if (w.price == null) w.price = PRICE[w.cls] || 200; });
         const shield = [1, 2, 3].map((tr) => ({ id: 'shield' + tr, tier: tr, name: 'Shield Cell ' + ['I', 'II', 'III'][tr - 1], maxShield: 20, price: [150, 350, 700][tr - 1] }));
@@ -1035,7 +1037,7 @@ export function createWorld(THREE, ps, L, mods) {
         const snack = { id: 'snack', name: SNACKS[Math.floor(r() * SNACKS.length)], price: 50, heal: 'full' };
         const store = {
           id: f.id, name: STORE_NAME + ' ' + (f.name || ''), pos: new T.Vector3(), npcSpot: { pos: new T.Vector3(), facing: new T.Vector3(0, 0, 1) },
-          counter: { pos: new T.Vector3(), radius: 4.5 * K },
+          counter: { pos: new T.Vector3(), radius: 4.5 * KS },
           inventory: { weapons: wlist, upgrades: { shield, engine }, snack },
           interior: makeInterior(T, A.geoms, PD), lineIdx: 0,
         };
@@ -1209,12 +1211,12 @@ export function createWorld(THREE, ps, L, mods) {
     if (outs.length && key !== lastKey) { build(); }
     else if (!outs.length && (ps.radius || 0).toFixed(3) !== lastKey.split('@')[1]) { build(); }
     // crowds: only animate stores near the player
-    const near2 = (30 * L) * (30 * L);
+    const near2 = (30 * OS * L) * (30 * OS * L);
     for (const s of sites) { const act = !pl || pl.distanceToSquared(s.store.pos) < near2; s.crowd.update(dt, act); }
     if (burger) {
       const act = !pl || pl.distanceToSquared(world.burgerHouse.pos) < near2;
       burger.humans.visible = act;
-      if (act) { const c = burger.clerk, g = c.human && c.human.group; if (g) { g.position.set(0, FY, 1.6); g.rotation.y = 0; g.scale.setScalar(1.75); try { c.human.update(dt, { moving: false }); } catch (e) { /* ignore */ } } }
+      if (act) { const c = burger.clerk, g = c.human && c.human.group; if (g) { g.position.set(0, FY, 1.6); g.rotation.y = 0; g.scale.setScalar(1.75 / OS); try { c.human.update(dt, { moving: false }); } catch (e) { /* ignore */ } } }
     }
     // shards: float, spin, shrink when taken
     const sc = 0.5 * L;

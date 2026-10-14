@@ -2,12 +2,13 @@
 // createAudio() -> { unlock(), play(name, opts), engine(state), setMaster(v), ready }
 // play opts: { dist (ship lengths), pitch (ratio), vel 0..1, twin, stop }
 // + one-shots: windup stall overheat ram scan shieldHit shieldBreak units(n) buy npc(seed) shard; loops: play('jetpack',{level}) / 'jetpackStop', play('siren',{level}) / 'sirenStop'
+// 2026-10-14 foot cues: step (o.level 1 = run: harder, brighter), jump, footLand (o.vel = impact 0..1)
 // r27 cues: copWarn grab checkout rockCrack(size) chunk(n) blueprint shipBuy landmark petHappy talk(role,seed) warp questFail
 // audio.music = { start(), stop(), set({key, mode:'lydian'|'dorian'|'aeolian', intensity}) }; setMusic(v)
 // audio.ambience = { set({place,weather,biome,night,intensity,seed}), stop(), setLevel(v) }; cues: craft questAccept questDone harvest tame hire levelUp
 // renderPreview(name | 'amb:place[:weather[:biome[:night]]]', seconds) -> Float32Array (OfflineAudioContext, for testing)
 
-const CAPS = { fire: 6, hit: 8, crit: 4, kill: 4, limbSever: 4, bossRoar: 2, explosion: 4, entry: 1, land: 2, liftoff: 2, ui: 4, windup: 3, stall: 3, overheat: 1, ram: 2, scan: 2, shieldHit: 6, shieldBreak: 3, units: 4, buy: 2, npc: 3, shard: 6, craft: 2, questAccept: 2, questDone: 2, harvest: 3, tame: 2, hire: 2, levelUp: 2, copWarn: 2, grab: 3, checkout: 2, rockCrack: 3, chunk: 6, blueprint: 1, shipBuy: 1, landmark: 1, petHappy: 2, talk: 3, warp: 1, questFail: 1 };
+const CAPS = { fire: 6, hit: 8, crit: 4, kill: 4, limbSever: 4, bossRoar: 2, explosion: 4, entry: 1, land: 2, liftoff: 2, ui: 4, windup: 3, stall: 3, overheat: 1, ram: 2, scan: 2, shieldHit: 6, shieldBreak: 3, units: 4, buy: 2, npc: 3, shard: 6, craft: 2, questAccept: 2, questDone: 2, harvest: 3, tame: 2, hire: 2, levelUp: 2, copWarn: 2, grab: 3, checkout: 2, rockCrack: 3, chunk: 6, blueprint: 1, shipBuy: 1, landmark: 1, petHappy: 2, talk: 3, warp: 1, questFail: 1, step: 3, jump: 2, footLand: 2 };
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hashSeed(x) { if (typeof x === 'number') return x | 0; let h = 2166136261; for (const c of String(x)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h; }
 const VOW = [[730, 1090], [270, 2290], [300, 870], [530, 1840], [660, 1720]];
@@ -185,6 +186,31 @@ function buildCore(ctx, masterVal) {
       const cn = noise(v, t + d), cl = filt('bandpass', 900, 3), cng = gain(0); env(cng, t + d, 0.002, 0.35, 0.06);
       cn.connect(cl); cl.connect(cng); cng.connect(out);
     });
+    return dur;
+  };
+  // 2026-10-14: on-foot contact cues (ship.js footStep ground-contact edges). Short, low, filtered: a crunch + a body thump; run = harder + brighter.
+  R.step = (v, out, t, p) => {
+    const run = p.level ? 1 : 0, dur = 0.12 + 0.04 * run;
+    const n = noise(v, t), bp = filt('bandpass', (520 + 380 * run) * p.pitch, 1.1), g = gain(0); env(g, t, 0.002, 0.16 + 0.1 * run, dur);
+    n.connect(bp); bp.connect(g); g.connect(out);
+    const o = osc(v, 'sine', (92 + 18 * run) * p.pitch, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.08);
+    const og = gain(0); env(og, t, 0.002, 0.22 + 0.12 * run, 0.09); o.connect(og); og.connect(out);
+    return dur;
+  };
+  R.jump = (v, out, t, p) => {
+    const dur = 0.28;
+    const n = noise(v, t), bp = filt('bandpass', 700, 0.9), g = gain(0);
+    bp.frequency.setValueAtTime(500 * p.pitch, t); bp.frequency.exponentialRampToValueAtTime(1800 * p.pitch, t + 0.22);
+    env(g, t, 0.02, 0.14, dur); n.connect(bp); bp.connect(g); g.connect(out);
+    const o = osc(v, 'sine', 110 * p.pitch, t), og = gain(0); env(og, t, 0.003, 0.2, 0.08); o.connect(og); og.connect(out);
+    return dur;
+  };
+  R.footLand = (v, out, t, p) => {
+    const dur = 0.32;
+    const o = osc(v, 'sine', 120 * p.pitch, t); o.frequency.exponentialRampToValueAtTime(36, t + 0.2);
+    const og = gain(0); env(og, t, 0.003, 0.6, 0.26); o.connect(og); og.connect(out);
+    const n = noise(v, t), lp = filt('lowpass', 1400 * p.pitch, 0.8), g = gain(0); env(g, t, 0.002, 0.3, 0.2);
+    n.connect(lp); lp.connect(g); g.connect(out);
     return dur;
   };
   R.liftoff = (v, out, t, p) => {
