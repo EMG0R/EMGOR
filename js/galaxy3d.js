@@ -1310,6 +1310,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         node.ny = (node.ny || 0) + (dy || 0);
         node.nz = (node.nz || 0) + (dz || 0);
     }
+    // ship.js mirrors spinTime/spinRateMul (engine getters) so its planet frame matches the rendered rotation.
     // rev 29: while piloting, orbits are evaluated at fixed ORBIT_T0 (planets stand still);
     // pilotBlend lerps angle (shorter arc) + radial breathing from live time to T0.
     var ORBIT_T0 = 0, orbitTime = 0, spinLag = 0, spinLastT = null, spinTime = 0;
@@ -2649,6 +2650,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             vision: visionApi,
             get time() { return time; },
             get orbitTime() { return orbitTime; },
+            get spinTime() { return spinTime; },
+            get spinRateMul() { return 1 - 0.75 * ((pilot && pilotBlend > 0) ? pilotBlend : 0); },   // d(spinTime)/dt, matches computePositions
             root: root, byId: byId, drawOrder: drawOrder,
             renderedRadius: renderedRadius,
             pilotScale: pilotScaleOf,

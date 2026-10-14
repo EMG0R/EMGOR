@@ -1116,3 +1116,8 @@ Every new system ships with its two-window test or it doesn't ship:
   sampled through both players (plus any nearby surfaces: store roof, pad, deck), with
   that planet's sky/parallax. No hand-made stages in-world; PLATEAU/HANGAR/ROOF stay
   only in the standalone smash.html.
+
+## Revision 31 (2026-10-13) — spin-clock parity (landing fix)
+- Since 094f8c3 the engine draws planets at `spinTime` (lagged 0.75x while piloting); ship.js kept using `engine.time` / full `spinRate`, so the ship frame and the drawn planet diverged without bound.
+- galaxy3d `engine.spinTime` + `engine.spinRateMul`; ship.js `syncPlanet` and `lfOmega` use them (fallback to old behaviour if absent).
+- Test g16 (ship-planet-tests.js): parked 20 s, ship planet-local position vs the mesh pose left after each frame must not move (< 0.05 L).

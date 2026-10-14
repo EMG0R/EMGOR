@@ -962,11 +962,39 @@ async function g15(T, o) {
     return res;
 }
 
+// g16 rendered-frame parity: the parked ship never moves relative to the planet as drawn (spinTime vs engine.time, commit 094f8c3 regression)
+async function g16(T, o) {
+    var ship = T.ship, THREE = T.THREE, L = T.L(), res = { pass: true }, i;
+    var cand = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; }), node = null;
+    for (i = 0; i < cand.length && !node; i++) { try { if (T.engage(cand[i])) node = cand[i]; } catch (e) { /* next */ } }
+    if (!node) return { pass: false, why: 'no planet' };
+    await T.pause(); T.fly(); T.clearKeys(); T.near(node);
+    var d = T.landDir(node); if (!d) return { pass: false, why: 'no land dir' };
+    T.hoverAt(node, d, 2); T.step(30);
+    if (!ship.land()) return { pass: false, why: 'land refused' };
+    for (i = 0; i < 900 && ship.gmode !== 'landed'; i++) T.step(1);
+    if (ship.gmode !== 'landed') return { pass: false, why: 'never landed (' + ship.gmode + ')' };
+    var root = ship.shipRoot;
+    var P = root ? root.position : null; if (!P) return { pass: false, why: 'no ship root' };
+    var v = new THREE.Vector3(), q = new THREE.Quaternion(), v0 = null, maxD = 0, nan = 0, frames = Math.round(20 / 0.016);
+    for (i = 0; i < frames; i++) {
+        T.step(1, 0.016);
+        q.copy(node.mesh.quaternion).invert();
+        v.copy(P).sub(node.anchor.position).applyQuaternion(q);
+        if (!isFinite(v.x + v.y + v.z)) { nan++; break; }
+        if (!v0) { v0 = v.clone(); res.first = [v.x, v.y, v.z]; }
+        maxD = Math.max(maxD, v.distanceTo(v0));
+    }
+    res.last = [v.x, v.y, v.z]; res.maxDriftL = +(maxD / L).toFixed(5); res.frames = frames; res.nan = nan;
+    res.pass = !nan && maxD < 0.05 * L;
+    return res;
+}
+
 export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
-    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15]];
+    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16]];
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         try { out[list[i][0]] = await list[i][1](T, opts); }
@@ -977,5 +1005,5 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15 };
+export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16 };
 export { mk as makeHarness };

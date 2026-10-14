@@ -4193,7 +4193,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function syncPlanet(n) {
         if (!n || !n.anchor || !n.mesh) return;
         n.anchor.position.set(n.wx, n.ny || 0, n.wy);
-        n.mesh.rotation.z = n.spinTilt; n.mesh.rotation.y = (reducedM ? 0 : engine.time) * n.spinRate + n.spinPhase;
+        n.mesh.rotation.z = n.spinTilt; n.mesh.rotation.y = (reducedM ? 0 : (engine.spinTime !== undefined ? engine.spinTime : engine.time)) * n.spinRate + n.spinPhase;
     }
 
     // ─── rev 18: LOCAL-FRAME flight (docs/ship-mode.md "Revision 18") ─────────────────────────────────────────────
@@ -4210,7 +4210,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     var MOON_L = 60;     // MOONLET rule (rev 20): pilot rendered radius < 60 L = no atmosphere, no landing, hard sphere only (the 320 L floor means nothing is that small)
     function isMoonlet(n) { return realRadius(n) < MOON_L * L; }
     function hasSurface(n) { if (isMoonlet(n)) return false; var u = n.mesh && n.mesh.material && n.mesh.material.uniforms; return !!(u && u.uSeed && n.anchor && n.anchor.visible); }
-    function lfOmega(n, p, c, out) { var w = reducedM ? 0 : n.spinRate; return out.set(w * (p.z - c.z), 0, -w * (p.x - c.x)); }   // spin is about world Y: w x r
+    function lfOmega(n, p, c, out) { var w = reducedM ? 0 : n.spinRate * (engine.spinRateMul !== undefined ? engine.spinRateMul : 1); return out.set(w * (p.z - c.z), 0, -w * (p.x - c.x)); }   // spin is about world Y: w x r
     function carryWorld(ddx, ddy, ddz) {
         var i, P = shipRoot.position;
         for (i = 0; i < enemies.length; i++) if (enemies[i].alive && !enemies[i].isBoss) { enemies[i].g.position.x += ddx; enemies[i].g.position.y += ddy; enemies[i].g.position.z += ddz; enemies[i].wander.x += ddx; enemies[i].wander.y += ddy; enemies[i].wander.z += ddz; enemies[i].base.x += ddx; enemies[i].base.y += ddy; enemies[i].base.z += ddz; enemies[i].home.x += ddx; enemies[i].home.y += ddy; enemies[i].home.z += ddz; }

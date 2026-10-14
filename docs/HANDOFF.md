@@ -76,23 +76,15 @@ Session 2026-10-07..13 (Fable main window, one Sonnet builder at a time). Commit
   state}. Limits: hub mobs are LOCAL-ONLY (excluded from pl.* snapshots); boss slam/charge phases not built;
   ender can't teleport inside; forced exit mid-fight rebuilds the hub.
 
-### The landing bug (OPEN until Emory confirms)
-Emory (live site, real input): "F to land puts the ship way above the surface, like at atmosphere height,
-cannot reach the ground." Three builders + the main window could NOT reproduce it through the debug API
-(`s.land()` after teleporting the ship to 1.25 R: touchdown 0.3 L above `floorAt`, on HEAD and on baseline
-938ddd6). Measurements that matter:
-- Main window saw `floorAt` at the parked ship move 702.64→713.67→715.98→703.18→707.39 while looping
-  `ps.setQuality` 3→2→1→0→3. The next builder could not reproduce that (floorLocal at fixed LOCAL directions was
-  identical across tiers) and attributes the drift to sampling a fixed WORLD position while the planet spins.
-  Unresolved which is right; the fix in 5fa6378 (re-settle on the live floor every frame + hold quality + build
-  hub/village after touchdown) covers both readings. Baseline also showed −21 L (ship inside ground) right after
-  touchdown in the same harness, so the harness itself is noisy.
-- Untested leads if it persists: Emory's real profile (`pf.hubs`, `pf.vill`, now `pf.pose` restore on enter —
-  try `/respawn` first), the real F-hold path (`eh` hold → auto-land) vs `s.land()`, the live Netlify asset
-  cache (ship.js was 690,971 bytes on the live site = current), real-time rAF vs `step()`.
-- How to get real evidence: Chrome MCP on the live site with his profile, enter, fly to a planet with real key
-  events, hold F, read console (`read_console_messages`, onlyErrors) and log `shipRoot.position.distanceTo
-  (ps.active.anchor.position) - ps.floorAt(...).r` over the descent.
+### The landing bug (RESOLVED 2026-10-13, awaiting Emory's live confirmation)
+Root cause: commit 094f8c3 made the engine render planet spin on a LAGGED clock (`spinTime = time - spinLag`, lag grows 0.75 s per second of piloting)
+but ship.js `syncPlanet` / `lfOmega` still used `engine.time` and the full `spinRate`. The ship (landing, landed, foot, local-frame flight, floor samples)
+was placed against a planet rotated by engine.time, then updateBodies re-rotated the drawn planet to spinTime: angle error = spinLag * spinRate, unbounded.
+Ship hovered/buried by the terrain-height difference between two longitudes and slid over the drawn ground at 0.75 * spinRate.
+Fix: engine exposes `spinTime` and `spinRateMul` (= d spinTime/dt); ship.js uses both. Guarantee test g16 (rendered-frame parity): old code drift 1919 L, fixed 0.
+Why nobody reproduced it: the step() harness clock barely advances, so spinLag was about 0; the old measurements below (floorAt moving at a fixed world position, -21 L after touchdown) were this drift.
+Old notes kept for history: 5fa6378 (re-settle every frame, hold quality) was a symptom patch and stays harmless.
+
 
 ### Not started this session
 - In-world FIGHT (spec below unchanged). A builder was launched and stopped before editing; nothing on disk.
