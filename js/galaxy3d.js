@@ -2535,10 +2535,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // focused "sun" of its own system: sysR * SUN_ROLE (uniformSizeFor(n, n)).
     // rev 14: planets grow while piloting (PILOT_PLANET_SCALE: x3 root-level, x2 deeper), blended 0..1 by the ship (boarding / exit cinematics).
     // renderedRadius(node, true) = the unscaled radius.
-    // 2026-10-14: {6, 4} -> {4, 3}. Planets are 2/3 (root) and 3/4 (deep) of their old pilot size in world units AND in ship lengths: ship.js pins L to the
-    // x6 reference (L_REF_SCALE), so the ship, speeds and combat keep their world size and only the planets shrink. ATM_R / LF_ON / PILOT_CLEAR0 are
-    // ratios of R (unchanged); PILOT_MIN_R_PER_L 320 still floors every body (deep bodies are 0.75 / 0.667 = 1.125x larger relative to their root).
-    var PILOT_PLANET_SCALE = { root: 4, deep: 3 }, pilotBlend = 1;
+    // 2026-10-14: tried {4, 3} (with L pinned to the x6 reference): guarantee tests g2 / g9 / g11 / g16 failed ('cannot approach ... embedded in a larger body',
+    // a 1.07 R crossing of a neighbour) while the {6, 4} baseline passes them, so the scale stays {6, 4}. See docs/ship-mode.md Revision 32.
+    var PILOT_PLANET_SCALE = { root: 6, deep: 4 }, pilotBlend = 1;
     var shipLength = 0, PILOT_MIN_R_PER_L = 320;   // rev 20: min pilot rendered radius = 320 L for every body (engine.setShipLength)
     var PILOT_CLEAR0 = 1.65;   // pilot orbit clearance (x parent rendered radius) at spread t=0, +0.55 t; keeps a 1.45R landing approach outside the parent's 1.6R sphere
     function pilotScaleOf(n) { return !n.parentNode ? 1 : (n.parentNode === root ? PILOT_PLANET_SCALE.root : PILOT_PLANET_SCALE.deep); }

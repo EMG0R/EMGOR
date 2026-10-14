@@ -1,7 +1,7 @@
 # NO MANS GOR — HANDOFF (2026-10-13)
 
 ## 2026-10-14 structures/summon/surface pass (branch `structures-vibe`, NOT merged, NOT verified by Emory)
-Shipped in code, syntax-checked (node --check + acorn). Browser: g1-g16 run once (see report in the commit log / ship-mode Rev 32). Nothing seen in person.
+Shipped in code, syntax-checked (node --check + acorn). Browser: g1-g16 run once on the {4,3} build: g1 g3-g8 pass, g2 g9-g16 fail (embedding, see Rev 32); scale reverted to {6,4}, rerun did not complete — RE-RUN runAll FIRST. Nothing seen in person.
 1. **Structures** — outposts 2.5x (`ship-planet.js OUT_S`: pad, flat ground, tower, beacon, NPC spot; `ship-world.js` 7/11 + Burger House via `ps.outScale`,
    NPC humans counter-scaled `hs = 1/OS`, walk speeds too; collision unit = `interior.unit` = KS). Village 2.5x (`ship-village.js VS`: huts, doors, well,
    stall, plaza, paths, torches; villagers/golums unchanged). Hub arch 2.5x (`ship-hub.js ARCH`, dungeon unchanged). Placement: first outpost = flattest
@@ -19,7 +19,7 @@ Shipped in code, syntax-checked (node --check + acorn). Browser: g1-g16 run once
    Test: land on rough ground, step out: feet on the drawn ground, ship struts touching.
 4. **Far planet rendering** — measured (see ship-mode Rev 32): globe was 48x34 (3168 tris) / 32x22 / 20x14 spheres with NO relief, terrain up to ~0.08 R.
    Now the ACTIVE planet's globe swaps to 192x128 (48,768 tris; 128x88 at quality <2) with `GLOBE_VERT` = same height function as the patch, relief eases in
-   3.0->2.6 R, patch uRel = 1 (no flat-silhouette fake). PILOT_PLANET_SCALE {6,4} -> {4,3}; L pinned to the x6 reference so ship/speeds/combat keep size.
+   3.0->2.6 R, patch uRel = 1 (no flat-silhouette fake). PILOT_PLANET_SCALE stays {6,4}: {4,3} failed g2/g9/g11/g16 (embedded moons) — reverted.
    Test: approach from 3 R; mountains on the limb, no pop at the patch fade (2.4-1.8 R), no globe poking through the patch.
 5. **Finding things** — in flight: station + nearest 7/11 world + nearest village world anywhere (edge arrows); inside 3 R exact markers. On foot: NPC dots
    (clerks, shoppers, dealers, villagers, creatures) within 200 L, on-screen only, distance; V lists them in chat + tags them. Markers now update AFTER the step

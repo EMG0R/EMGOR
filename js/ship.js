@@ -144,10 +144,7 @@ export default function mount(engine) {
     // rev 20: L = refR_pilot / 12000 (was 5000), where refR_pilot = the root-level planet radius WITH the pilot scale (x3) applied (readRefR). The galaxy-scale
     // ship (docked / away) is sized from the unscaled radius (readRefRaw) because planets only grow while piloting.
     function readRefRaw() { var r = (root.kids && root.kids[0]) ? engine.renderedRadius(root.kids[0], true) : 0; return r > 0 && isFinite(r) ? r : 0; }
-    // 2026-10-14: L is pinned to the x6 pilot scale it was tuned at (L_REF_SCALE), so galaxy3d's smaller planets ({4, 3}) are smaller in L too; speeds (world u/s),
-    // enemies (L) and the ship keep their sizes. Root planets are now ~8000 L in radius (was ~12000 L).
-    var L_REF_SCALE = 6;
-    function readRefR() { var r = readRefRaw(); if (!r) return 0; return r * L_REF_SCALE; }
+    function readRefR() { var k = root.kids && root.kids[0], r = readRefRaw(); if (!r) return 0; return r * (k && engine.pilotScale ? engine.pilotScale(k) : 1); }
     var refR0 = readRefRaw() || 100, refR = readRefR() || 300;
     var L = refR / 12000;
     // rev 20: the engine sizes every body's minimum pilot radius from the ship length
@@ -1520,7 +1517,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         gdShown = ni;
     }
     // ─── 2026-10-14: structure sites of the active planet, known from 3 R (before the village / hub are built): sky beacon columns + HUD markers ───
-    var SITE = { nid: '', R: 0, vill: null, villPos: new THREE.Vector3(), hubPos: new THREE.Vector3(), hubOk: false, prefer: new THREE.Vector3() };
+    var SITE = { cache: {}, nid: '', R: 0, vill: null, villPos: new THREE.Vector3(), hubPos: new THREE.Vector3(), hubOk: false, prefer: new THREE.Vector3() };
     function fnv(s0) { var h = 2166136261, s = String(s0); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }      // = ship-hub hashStr (its seed for hubSpot)
     function villagePn(node) {             // the planetNode both villageSite (prediction) and createVillage (build) see: identical inputs -> identical site
         var pid = String(node.id), avoid = [], i;
@@ -1534,7 +1531,14 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         var node = ps.active, nid = String(node.id);
         if (SITE.nid === nid && SITE.R === ps.radius) return;
         SITE.nid = nid; SITE.R = ps.radius; SITE.vill = null; SITE.hubOk = false;
-        var cols = [];
+        var cols = [], ck = nid + '@' + ps.radius, cc = SITE.cache[ck];
+        if (cc) {                                  // the village search is ~10^4 height samples: once per planet (and radius) per session
+            SITE.vill = cc.vill; SITE.hubOk = cc.hubOk; SITE.villPos.copy(cc.villPos); SITE.hubPos.copy(cc.hubPos);
+            if (SITE.vill) cols.push({ x: SITE.villPos.x, y: SITE.villPos.y, z: SITE.villPos.z, col: 0x7CFFB0 });
+            if (SITE.hubOk) cols.push({ x: SITE.hubPos.x, y: SITE.hubPos.y, z: SITE.hubPos.z, col: 0x66FF99 });
+            try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e3) { /* ignore */ }
+            gdT = 0; return;
+        }
         try {
             if (villMod.villageSite) {
                 var pn = villagePn(node); pn.site = null;
@@ -1546,6 +1550,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             var hd = hubSpot(fnv(nid));
             if (hd) { SITE.hubPos.set(hd.x, hd.y, hd.z).normalize(); var hr = ps.floorLocal(SITE.hubPos.x, SITE.hubPos.y, SITE.hubPos.z); if (hr > 0) { SITE.hubPos.multiplyScalar(hr); SITE.hubOk = true; cols.push({ x: SITE.hubPos.x, y: SITE.hubPos.y, z: SITE.hubPos.z, col: 0x66FF99 }); } }
         } catch (e1) { SITE.hubOk = false; }
+        SITE.cache[ck] = { vill: SITE.vill, hubOk: SITE.hubOk, villPos: SITE.villPos.clone(), hubPos: SITE.hubPos.clone() };
         try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e2) { /* ignore */ }
         gdT = 0;
     }
