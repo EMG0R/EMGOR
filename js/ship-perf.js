@@ -86,6 +86,8 @@ export function createQualityManager(engine, opts) {
     if (saved) { tier = Math.max(0, Math.min(3, saved.tier | 0)); if (saved.auto === false) auto = false; }
     if (opts.tier !== undefined) tier = Math.max(0, Math.min(3, opts.tier | 0));
     var listeners = [];
+    var holdRef = opts.hold || null, pend = -1;     // hold(): true on the ground (landing/landed/foot/interior/hub): no tier change until back in flight
+    function held() { try { return !!(holdRef && holdRef()); } catch (e) { return false; } }
 
     // ring buffers (time stamp, wall-or-work frame ms, work ms)
     var tS = new Float64Array(MAXS), fS = new Float32Array(MAXS), wS = new Float32Array(MAXS), head = 0, count = 0;
@@ -122,6 +124,8 @@ export function createQualityManager(engine, opts) {
         setTier: function (n, manual) {
             n = Math.max(0, Math.min(3, Math.round(+n)));
             if (manual) auto = false;
+            if (held()) { pend = n; stats.auto = auto; return tier; }      // deferred: the terrain patch must not rebuild under a landing ship
+            pend = -1;
             var prev = tier; tier = n; count = 0; lowSince = -1; lastChangeAt = performance.now();
             applyAll(); save();
             stats.tier = tier; stats.auto = auto;
@@ -132,11 +136,14 @@ export function createQualityManager(engine, opts) {
         attach: function (o) {
             if (o && o.fx !== undefined) fxRef = o.fx; if (o && o.getFx) fxRef = o.getFx;
             if (o && o.ps !== undefined) psRef = o.ps; if (o && o.getPs) psRef = o.getPs;
+            if (o && o.hold) holdRef = o.hold;
             applyAll();
         },
         // ms (optional): record a frame sample taken by the caller; with no ms this only evaluates the rules
         update: function (dt, ms, workMs) {
             var now = performance.now();
+            if (held()) { count = 0; lowSince = -1; return; }
+            if (pend >= 0) { var pn = pend; pend = -1; if (pn !== tier) { mgr.setTier(pn, false); return; } }
             if (ms !== undefined) {
                 if (document.hidden || ms > GAP_MS || !(ms > 0)) { count = 0; lowSince = -1; return; }
                 tS[head] = now; fS[head] = ms; wS[head] = workMs === undefined ? ms : workMs; head = (head + 1) % MAXS; if (count < MAXS) count++;

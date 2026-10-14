@@ -418,7 +418,7 @@ export default function mount(engine) {
     // rev 17 C: adaptive quality (js/ship-perf.js). attach() again whenever fx / ps are recreated.
     var perfQ = null, perfMod = null;
     function perfAttach() { if (perfQ) { try { perfQ.attach({ fx: fx, ps: ps }); } catch (e) { /* ignore */ } } }
-    import('./ship-perf.js').then(function (m) { perfMod = m; try { perfQ = m.createQualityManager(engine, { fx: fx, ps: ps }); } catch (e) { console.info('[ship] quality manager unavailable', e); } }).catch(function (e) { console.info('[ship] ship-perf unavailable', e); });
+    import('./ship-perf.js').then(function (m) { perfMod = m; try { perfQ = m.createQualityManager(engine, { fx: fx, ps: ps, hold: function () { return gmode !== 'fly'; } }); } catch (e) { console.info('[ship] quality manager unavailable', e); } }).catch(function (e) { console.info('[ship] ship-perf unavailable', e); });
     function makePs() { try { ps = psMod.createPlanetSurface(engine, L); if (state === 'piloting') ps.setVisible(true); } catch (e) { planetFail(e); } perfAttach(); makeWorld(); }
     import('./ship-planet.js').then(function (m) { psMod = m; makePs(); }).catch(function (e) { console.info('[ship] planet surfaces unavailable', e); });
 
@@ -4790,6 +4790,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (land.t === 0) {            // the flight position was placed against last frame's planet: remember the offset and fade it out over the descent
                 land.off.copy(P).sub(gA.copy(land.gDir).multiplyScalar(land.r0).applyQuaternion(qM).add(c));
             }
+            if (ps && ps.active === node) { var frL = ps.floorLocal(land.gDir.x, land.gDir.y, land.gDir.z); if (frL > 0) land.rg = frL + legDrop * L; }      // re-target the CURRENT surface every frame (a patch/quality/outpost change can never leave the ship hovering)
             land.t += dt;
             var k = clamp(land.t / land.T, 0, 1), e = easeInOut(k);
             P.copy(land.gDir).multiplyScalar(land.r0 + (land.rg - land.r0) * e).applyQuaternion(qM).add(c).addScaledVector(land.off, 1 - e);
@@ -4799,6 +4800,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             chaseTargets(dt); camera.position.copy(camPos); camera.quaternion.copy(camQuat);
             if (k >= 1) touchdown();
         } else {
+            if (ps && ps.active === node) { var frS = ps.floorLocal(land.gDir.x, land.gDir.y, land.gDir.z); if (frS > 0) { land.rg = frS + legDrop * L; land.sPos.copy(land.gDir).multiplyScalar(land.rg); } }      // settle against the live floor each frame
             P.copy(land.sPos).applyQuaternion(qM).add(c); shipRoot.quaternion.copy(qM).multiply(land.sQuat);
             if (land.settle > 0) {
                 land.settle = Math.max(0, land.settle - dt);
@@ -4862,6 +4864,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (boarding || exiting) { cinematicStep(dt); return; }
         if (landReq) { landReq = false; startLanding(); }
         ehTick(dt);
+        lazyBuilt = false;
         try { hubLife(dt); } catch (eh0) { HB.fail = true; if (!HB.errT) { HB.errT = 1; console.info('[ship] hub tick failed', eh0); } }      // hub/village can never break landing
         try { villageLife(dt); } catch (ev0) { VG.fail = true; if (!VG.errT) { VG.errT = 1; console.info('[ship] village tick failed', ev0); } }
         if (gmode === 'ifoot') { interiorStep(dt); return; }
@@ -6635,11 +6638,12 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (HB.hub) { try { HB.hub.dispose(); } catch (e0) { /* ignore */ } }
         HB.hub = null; HB.node = null; HB.fight = null; HB.fail = false; HB.in = false; HB.rebuild = false;
     }
+    var lazyBuilt = false;
     function hubLife(dt) {
-        var want = !!(land.node && (gmode === 'landing' || gmode === 'landed' || gmode === 'foot') && ps && ps.active === land.node && hubMod && world && world.group && world.group.parent);
+        var want = !!(land.node && (gmode === 'landed' || gmode === 'foot') && ps && ps.active === land.node && hubMod && world && world.group && world.group.parent);
         if (HB.hub && (!want || HB.rebuild || HB.node !== land.node || HB.L !== L)) hubDispose();
         if (!want) HB.fail = false;
-        if (!HB.hub && want && !HB.fail) hubMake();
+        if (!HB.hub && want && !HB.fail && !lazyBuilt && (VG.v || VG.fail || !villMod)) { lazyBuilt = true; hubMake(); }      // one heavy build per frame, hub after village, never during 'landing'
         if (HB.hub) hubTick(dt);
     }
     function hubSave() {
@@ -6859,10 +6863,10 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     }
     function villageNight() { return VG.nightForce >= 0 ? VG.nightForce : (land.node && VG.v ? nightAt(land.node, locToWorld(VG.v.anchor.pos, vgA)) : 0); }
     function villageLife(dt) {
-        var want = !!(land.node && (gmode === 'landing' || gmode === 'landed' || gmode === 'foot') && ps && ps.active === land.node && villMod && world && world.group && world.group.parent);
+        var want = !!(land.node && (gmode === 'landed' || gmode === 'foot') && ps && ps.active === land.node && villMod && world && world.group && world.group.parent);
         if (VG.v && (!want || VG.node !== land.node || VG.L !== L)) villageDispose();
         if (!want) VG.fail = false;
-        if (!VG.v && want && !VG.fail) villageMake();
+        if (!VG.v && want && !VG.fail && !lazyBuilt) { lazyBuilt = true; villageMake(); }
         if (!VG.v) return;
         var foot = gmode === 'foot' && hum.obj && !HB.in, i, e, ml = vgCtx.mobs;
         ml.length = 0;
