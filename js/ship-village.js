@@ -33,10 +33,10 @@ import * as lingo from './ship-lingo.js';
 function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-const VS = 2.5;                    // 2026-10-14: the whole village layout is 2.5x (huts, doors, well, stall, plaza, paths); villagers + golums stay their size
+const VS = 1;                    // 2026-10-14: the whole village layout is 2.5x (huts, doors, well, stall, plaza, paths); villagers + golums stay their size
 const RP = 7 * VS;                // plaza ring radius (villagers walk it)
-const BIG = 1.6 * VS;             // structures read at the 7/11's player scale: huts, well and stall are 1.6x (x VS)
-const TW = 0.5 * BIG, DOOR_W = 1.7 * BIG, DOOR_H = 2.5 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap, foundation depth
+const BIG = 1;             // structures read at the 7/11's player scale: huts, well and stall are 1.6x (x VS)
+const TW = 0.5 * BIG, DOOR_W = 1.7 * BIG, DOOR_H = 2.2 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap, foundation depth
 const TMPL = [{ id: 'cottage', w: 6 * BIG, d: 5 * BIG, h: 3.1 * BIG, roof: 'gable' }, { id: 'longhouse', w: 9 * BIG, d: 5 * BIG, h: 3.1 * BIG, roof: 'gable' }, { id: 'tower', w: 5 * BIG, d: 5 * BIG, h: 4.6 * BIG, roof: 'pyramid' }];
 const ROLE_COL = { farmer: 0x8FD06A, trader: 0xFFD36A, elder: 0xB08CFF, kid: 0xFF8AE0 };
 const WALK = 2.6, GOLUM_V = 3.1, GOLUM_HP = 600, GOLUM_DMG_MOB = 45, GOLUM_DMG_ME = 12, VILL_ACT_L = 40;

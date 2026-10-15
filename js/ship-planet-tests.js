@@ -990,11 +990,48 @@ async function g16(T, o) {
     return res;
 }
 
+// ─── 17. structures are mounted (2026-10-14): on foot in a village for 20 s, nothing slides in the planet frame; the ground under every hut door is the hut floor ───
+async function g17(T, o) {
+    var ship = T.ship, THREE = T.THREE, L = T.L(), H = 0.09 * L, G = T.G, ps = ship.ps, tries = [], res = null, nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    nodes.sort(function (a, b) { return (a.id.indexOf('metagor') >= 0 ? -1 : 0) - (b.id.indexOf('metagor') >= 0 ? -1 : 0); });
+    for (var ni = 0; ni < nodes.length && ni < 4 && !res; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) { tries.push(node.id + ': no land dir'); continue; }
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyF'); T.ku('KeyF'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyF'); T.ku('KeyF'); T.step(8);
+        if (ship.gmode !== 'foot') { tries.push(node.id + ': not on foot'); continue; }
+        T.step(120); if (!ship.village.make()) { tries.push(node.id + ': no village'); T.fly(); continue; }
+        T.step(20);
+        var v = ship.village.v, g = v.group, hum = ship._g.hum, q = new THREE.Vector3(), w = new THREE.Vector3();
+        ship.village.goto(0, 11); T.step(90);
+        var p0 = hum.pos.clone(), g0 = g.position.clone(), gq0 = g.quaternion.clone(), maxH = 0, maxG = 0, maxW = 0, maxHw = 0;
+        for (var k = 0; k < 1250; k++) {         // 20 s at 62.5 Hz
+            T.step(1, 0.016);
+            maxH = Math.max(maxH, hum.pos.distanceTo(p0)); maxG = Math.max(maxG, g.position.distanceTo(g0));
+            g.updateMatrixWorld(true); q.setFromMatrixPosition(g.matrixWorld);
+            w.copy(g.position).applyQuaternion(node.mesh.quaternion).add(node.anchor.position).add(T.engine.scene.position); maxW = Math.max(maxW, q.distanceTo(w));
+            w.copy(hum.pos).applyQuaternion(node.mesh.quaternion).add(node.anchor.position); maxHw = Math.max(maxHw, w.distanceTo(hum.w));
+        }
+        var rows = [], worst = 0, worstM = 0;
+        v.huts.forEach(function (h) {
+            var dp = h.door.pos, p = v.toParent(new THREE.Vector3(dp[0], dp[1], dp[2]), new THREE.Vector3()), dd = p.clone().normalize();
+            var fl = Math.abs(p.length() - ps.floorLocal(dd.x, dd.y, dd.z)) / H, mf = Math.abs(p.length() - ps.meshFloorLocal(dd.x, dd.y, dd.z)) / H;
+            worst = Math.max(worst, fl); worstM = Math.max(worstM, mf); rows.push([h.tmpl, +fl.toFixed(3), +mf.toFixed(3)]);
+        });
+        res = { planet: node.id.split('.').pop(), humLocalDrift_L: +(maxH / L).toFixed(4), groupLocalDrift_L: +(maxG / L).toFixed(5), groupWorldErr_L: +(maxW / L).toExponential(2), humWorldErr_L: +(maxHw / L).toExponential(2),
+            huts: rows.length, doorFloorWorst_H: +worst.toFixed(3), doorMeshFloorWorst_H: +worstM.toFixed(3), sitePad: !!ps.sitePadOf(0), tries: tries };
+        res.pass = maxH < 0.02 * L && maxG < 0.02 * L && maxW < 0.02 * L && maxHw < 0.02 * L && worst < 0.05 && worstM < 0.05 && res.sitePad;
+        T.fly();
+    }
+    return res || { pass: false, error: 'no village planet', tries: tries };
+}
+
 export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
-    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16]];
+    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17]];
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         try { out[list[i][0]] = await list[i][1](T, opts); }
@@ -1005,5 +1042,5 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16 };
+export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17 };
 export { mk as makeHarness };

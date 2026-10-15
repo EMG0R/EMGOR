@@ -1530,7 +1530,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     function sitesTick() {
         if (!ps || !ps.active || !villMod) return;
         var node = ps.active, nid = String(node.id);
-        if (SITE.nid === nid && SITE.R === ps.radius) return;
+        if (SITE.nid === nid && SITE.R === ps.radius) { if ((SITE.vill && !ps.sitePadOf(0)) || (SITE.hubOk && !ps.sitePadOf(1))) sitePads(); return; }
         SITE.nid = nid; SITE.R = ps.radius; SITE.vill = null; SITE.hubOk = false;
         var cols = [], ck = nid + '@' + ps.radius, cc = SITE.cache[ck];
         if (cc) {                                  // the village search is ~10^4 height samples: once per planet (and radius) per session
@@ -1538,7 +1538,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             if (SITE.vill) cols.push({ x: SITE.villPos.x, y: SITE.villPos.y, z: SITE.villPos.z, col: 0x7CFFB0 });
             if (SITE.hubOk) cols.push({ x: SITE.hubPos.x, y: SITE.hubPos.y, z: SITE.hubPos.z, col: 0x66FF99 });
             try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e3) { /* ignore */ }
-            gdT = 0; return;
+            sitePads(); gdT = 0; return;
         }
         try {
             if (villMod.villageSite) {
@@ -1553,7 +1553,15 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         } catch (e1) { SITE.hubOk = false; }
         SITE.cache[ck] = { vill: SITE.vill, hubOk: SITE.hubOk, villPos: SITE.villPos.clone(), hubPos: SITE.hubPos.clone() };
         try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e2) { /* ignore */ }
-        gdT = 0;
+        sitePads(); gdT = 0;
+    }
+    // 2026-10-14: every structure site is a terrain pad (flat in hFrac, the patch shader and the globe): village + hub arch, beside the outposts' own pads
+    function sitePads() {
+        if (!ps.setSitePad) return;
+        try {
+            ps.setSitePad(0, SITE.vill ? SITE.vill.d : null, 60 * GM, 90 * GM);
+            ps.setSitePad(1, SITE.hubOk ? SITE.hubPos.clone().normalize() : null, 30 * GM, 50 * GM);
+        } catch (e) { /* ignore */ }
     }
     // Esc: a TAP does nothing while piloting (it only releases the pointer lock); HOLDING it ESC_HOLD s exits to the galaxy. escLatch eats the
     // held key's auto-repeat so the engine's own Esc handler cannot bounce straight back in.
@@ -5057,7 +5065,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (air0 && !hum.air) { landImp = clamp(-Math.min(vv0, hum.vv) / (18 * H), 0, 1); aPlay('footLand', { vel: 0.3 + 0.7 * landImp }); if (landImp > 0.35) fl.cr = Math.max(fl.cr, landImp); stepPh = 0.6; }
         else if (!hum.air && moving) { stepPh += dt * (run ? 3.6 : 2.4); if (stepPh >= 1) { stepPh -= 1; aPlay('step', { level: run ? 1 : 0, vel: run ? 0.6 : 0.45 }); } }
         else if (!hum.air) stepPh = 0.6;      // the wall normal in the tangent frame (x right, z back) = against the wanted direction
-        if (R27.windOn) { var wd = footWind(dir, dt, hr, H, supNow); if (wd) { dir.copy(fsC2); supNow = wd; if (!hum.air) hr = supNow; } }
+        if (R27.windOn && moving && !(ps.inSite && ps.inSite(dir.x, dir.y, dir.z))) { var wd = footWind(dir, dt, hr, H, supNow); if (wd) { dir.copy(fsC2); supNow = wd; if (!hum.air) hr = supNow; } }
         hum.gr = supNow; hum.hr = hr;
         hum.pos.copy(dir).multiplyScalar(hr);                           // written once
         up.copy(dir);
