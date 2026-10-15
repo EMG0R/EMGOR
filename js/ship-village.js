@@ -331,8 +331,8 @@ export function createVillage(engine, u, opts) {
   // ── villagers ──
   const vname = lingo.name(seed ^ 0x5151);
   if (huts.length < 4) { litMat.dispose(); emiMat.dispose(); litMesh.geometry.dispose(); emiMesh.geometry.dispose(); return null; }
-  const nVill = Math.min(huts.length, 4 + Math.floor(rng() * 3));
-  const roleOrder = ['elder', 'trader', 'farmer', 'farmer', 'kid', 'kid', 'farmer'];
+  const nVill = 6 + Math.floor(rng() * 5);      // 2026-10-14: 6-10 villagers (several share a hut), always out and about by day
+  const roleOrder = ['elder', 'trader', 'farmer', 'farmer', 'kid', 'farmer', 'kid', 'farmer', 'elder', 'kid'];
   const villagers = [];
   const stopOf = {
     plaza: (a) => ({ x: Math.cos(a) * RP, z: Math.sin(a) * RP, kind: 'plaza' }),
