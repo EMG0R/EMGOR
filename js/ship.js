@@ -423,11 +423,55 @@ export default function mount(engine) {
         try { if (gmode === 'foot' && land.node && !(HB && HB.in)) boardShip(); } catch (e2) { /* ignore */ }
         if (psMod && psFails < 3 && !psRetryT) { psFails++; psRetryT = setTimeout(function () { psRetryT = 0; if (!ps && psMod) makePs(); }, 1000); }
     }
+
+    // ─── 2026-10-14: RENDER STATE RESTORE. The game (adaptive quality: pixel-ratio cap, bloom, star fraction; vision effects; the active planet's hi-res globe,
+    // halo hooks and relief) changes engine-wide render values. They are captured ONCE at init (before the quality manager's first applyAll, which is async) and
+    // put back every time you leave to the galaxy menu, so the site looks the same wherever the player left from. Any value that differs after the restore is logged.
+    var RS0 = null, rsLogN = 0;
+    function rsNum(v) { return typeof v === 'number' && isFinite(v); }
+    function rsRead() {
+        var r = engine.renderer, sc = engine.scene, o = { exp: r.toneMappingExposure, bloom: engine.bloom ? { on: engine.bloom.on, scale: engine.bloom.scale } : null, pr: engine.pixelRatio, fog: sc.fog ? { c: sc.fog.color ? sc.fog.color.getHex() : null, d: sc.fog.density, n: sc.fog.near, f: sc.fog.far } : null, nodes: [] };
+        (engine.drawOrder || []).forEach(function (n) {
+            var rec = { n: n, mv: n.mesh ? n.mesh.visible : null, av: n.anchor ? n.anchor.visible : null, geo: n.mesh ? n.mesh.geometry : null, gso: n.glowSprite ? n.glowSprite.material.opacity : null, gsv: n.glowSprite ? n.glowSprite.visible : null, uni: {} };
+            var u = n.mesh && n.mesh.material && n.mesh.material.uniforms;
+            if (u) for (var k in u) { var v = u[k].value; if (rsNum(v)) rec.uni[k] = v; else if (v && v.isColor) rec.uni[k] = v.getHex(); }
+            if (n.atmoMat && n.atmoMat.uniforms && n.atmoMat.uniforms.uAlpha) rec.atmoA = n.atmoMat.uniforms.uAlpha.value;
+            o.nodes.push(rec);
+        });
+        return o;
+    }
+    var RS_SKIP = /time|Time|^uR$|^uSeed/;      // per-frame engine values / ps-managed per active planet (checked through the globe geometry + uRel below)
+    function rsRestore(why) {
+        if (!RS0) return;
+        var bad = [];
+        try { if (ps && ps.release) ps.release(); } catch (e0) { bad.push('ps.release ' + e0); }
+        try { engine.vision.clear(); } catch (e1) { /* ignore */ }
+        try { engine.setPixelRatioCap(2); engine.setStarFraction(1); if (RS0.bloom) engine.setBloom(RS0.bloom.on, RS0.bloom.scale); } catch (e2) { bad.push('engine setters ' + e2); }
+        try { engine.renderer.toneMappingExposure = RS0.exp; } catch (e3) { /* ignore */ }
+        var sc = engine.scene;
+        if (RS0.fog && sc.fog) { if (RS0.fog.c != null && sc.fog.color) sc.fog.color.setHex(RS0.fog.c); if (rsNum(RS0.fog.d)) sc.fog.density = RS0.fog.d; } else if (!RS0.fog && sc.fog) sc.fog = null;
+        RS0.nodes.forEach(function (rec) {
+            var n = rec.n, u = n.mesh && n.mesh.material && n.mesh.material.uniforms, k;
+            if (n.mesh && rec.mv != null && n.mesh.visible !== rec.mv) { bad.push(n.id + ' mesh.visible ' + n.mesh.visible + ' -> ' + rec.mv); n.mesh.visible = rec.mv; }
+            if (n.anchor && rec.av != null && n.anchor.visible !== rec.av) { bad.push(n.id + ' anchor.visible ' + n.anchor.visible + ' -> ' + rec.av); n.anchor.visible = rec.av; }
+            if (n.mesh && rec.geo && n.mesh.geometry !== rec.geo) { bad.push(n.id + ' geometry swapped'); n.mesh.geometry = rec.geo; }
+            if (n.glowSprite && rec.gsv != null && n.glowSprite.visible !== rec.gsv) { bad.push(n.id + ' glow.visible'); n.glowSprite.visible = rec.gsv; }
+            if (u) for (k in rec.uni) {
+                if (RS_SKIP.test(k) || !u[k]) continue;
+                var cur = u[k].value, was = rec.uni[k];
+                if (u[k].value && u[k].value.isColor) { if (u[k].value.getHex() !== was) { bad.push(n.id + ' ' + k + ' ' + u[k].value.getHex() + ' -> ' + was); u[k].value.setHex(was); } }
+                else if (rsNum(cur) && Math.abs(cur - was) > 1e-6 * Math.max(1, Math.abs(was))) { bad.push(n.id + ' ' + k + ' ' + cur + ' -> ' + was); u[k].value = was; }
+            }
+        });
+        if (bad.length && rsLogN++ < 12) console.info('[ship] render restore (' + why + ') corrected ' + bad.length + ':', bad.slice(0, 20).join(' | '));
+        return bad;
+    }
+    try { RS0 = rsRead(); } catch (e) { RS0 = null; console.info('[ship] render snapshot unavailable', e); }
     var psMod = null;
     // rev 17 C: adaptive quality (js/ship-perf.js). attach() again whenever fx / ps are recreated.
     var perfQ = null, perfMod = null;
     function perfAttach() { if (perfQ) { try { perfQ.attach({ fx: fx, ps: ps }); } catch (e) { /* ignore */ } } }
-    import('./ship-perf.js').then(function (m) { perfMod = m; try { perfQ = m.createQualityManager(engine, { fx: fx, ps: ps, hold: function () { return gmode !== 'fly'; } }); } catch (e) { console.info('[ship] quality manager unavailable', e); } }).catch(function (e) { console.info('[ship] ship-perf unavailable', e); });
+    import('./ship-perf.js').then(function (m) { perfMod = m; try { perfQ = m.createQualityManager(engine, { fx: fx, ps: ps, hold: function () { return gmode !== 'fly' || state !== 'piloting'; } }); if (state !== 'piloting') rsRestore('perf-attach'); } catch (e) { console.info('[ship] quality manager unavailable', e); } }).catch(function (e) { console.info('[ship] ship-perf unavailable', e); });
     function makePs() { try { ps = psMod.createPlanetSurface(engine, L); if (state === 'piloting') ps.setVisible(true); } catch (e) { planetFail(e); } perfAttach(); makeWorld(); }
     import('./ship-planet.js').then(function (m) { psMod = m; makePs(); }).catch(function (e) { console.info('[ship] planet surfaces unavailable', e); });
 
@@ -1212,6 +1256,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         duck(false);
         engine.setPilot(pilotFrame);
         engine.onEscape(escEnter);
+        perfAttach();      // re-apply the adaptive-quality tier for flying (the exit restore put the galaxy defaults back)
     }
 
     // ─── rev 24: Esc resumes exactly. exit() freezes the pose in its current frame; enter() restores it relative to the moved planet / station ───
@@ -1623,6 +1668,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         exiting = false; state = 'away'; syncLod(); dk.glide = true; dk.follow = true; dk.still = 0; dk.recov = false;
         engine.setPilot(null);
         engine.onEscape(escEnter);
+        rsRestore('exit');
         combatRoot.visible = false;          // enemies stay in the scene, frozen and hidden
         hud.classList.remove('is-on', 'is-pulsing');
         setHudOpacity(1);

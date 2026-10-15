@@ -2794,6 +2794,7 @@ export function createPlanetSurface(engine, L) {
         return buf;
     };
 
+    ps.release = function () { if (node) deactivate(); };      // 2026-10-14: leave the active planet (hi-res globe, halo hooks, outposts, world) without disposing the module
     ps.dispose = function () {
         worldDetach(); ps.world = null;
         deactivate();
