@@ -642,7 +642,7 @@ export default function mount(engine) {
     var dead = false, deathT = 0, waveMsgT = 0, curWave = waveParams(1);
     var bossWave = false, waveQuiet = false;
     var steamT = 0, steamN = 0, heat = 0, ohT = 0, lastFireGt = -9, ramT = 0, ramCd = 0, ramFx = 0, cHeat = -1, cHeatCls = 0;      // rev 21: weapon heat 0..1, overheat lockout, ram tool window / cooldown
-var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFired: allies hold fire until the player fires this wave
+var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;   // playerFired: allies hold fire until the player fires this wave
     var gameFresh = true;
     // rev 9 combat state (all plain numbers / pooled objects: nothing allocates per frame)
     var waveActive = false, waveStartT = 0, qAt = [], qRole = [], qTry = [], qTier = [], qSeed = [], qKind = [], qTitle = [], qSq = [], qLd = [], qEl = [], qN = 0, dirA = new THREE.Vector3(1, 0, 0), dirB = new THREE.Vector3(-1, 0, 0);
@@ -921,7 +921,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
     document.addEventListener('mousedown', function (e) {
         if (state !== 'piloting' || e.button !== 0 || cmdOpen || gmode !== 'fly') return;
         if ((e.shiftKey || keys.ShiftLeft || keys.ShiftRight) && boostNow && !dead) { tryRam(); return; }      // rev 21: Shift+LMB while boosting = RAM (never fires the lasers)
-        firing = true;
+        firing = true; fireTapT = 0.12;      // 2026-10-14: a quick click (down+up inside one frame) still fires one volley
     }, true);
     document.addEventListener('mouseup', function (e) { if (e.button === 0) firing = false; }, true);
     window.addEventListener('contextmenu', function (e) { if (state === 'piloting') e.preventDefault(); }, true);   // Ctrl+click would open the menu while drifting
@@ -5646,8 +5646,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             sinceHit += dt;
             if (hp < HP_MAX && sinceHit >= regenDelay) hp = Math.min(HP_MAX, hp + REGEN * dt);
             // player lasers (Overdrive: fire x1.5, dmg x1.25)
-            fireCd -= dt;
-            if (firing && fireCd <= 0 && ohT <= 0) {
+            fireCd -= dt; fireTapT = Math.max(0, fireTapT - dt);
+            if ((firing || fireTapT > 0) && fireCd <= 0 && ohT <= 0) {
                 var wpn = curWeapon(), wst = wpn.stats, guard = 3, pdmg = wst.dmg * (od > 0 ? OD_DMG : 1), prate = wst.rate * (od > 0 ? OD_FIRE : 1);
                 var wcnt = Math.max(1, wst.count | 0), wspr = (wst.spread || 0) * Math.PI / 180, wsp0 = wst.speed || P_BOLT_SPEED, wcol = typeof wpn.color === 'number' ? wpn.color : null;      // rev 20: the equipped weapon (dmg / rate / count / spread / speed / color)
                 while (fireCd <= 0 && guard-- && ohT <= 0) {
@@ -5677,6 +5677,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
                     if (net) { vB.subVectors(vAim, P).normalize(); net.sendFire(0, P.x, P.y, P.z, vB.x, vB.y, vB.z); }   // one announce per volley; victims decide hits
                 }
                 if (fireCd < -0.2) fireCd = 0;
+                fireTapT = 0;
             } else if (fireCd < 0) fireCd = 0;
         }
         updateLock(dt);
