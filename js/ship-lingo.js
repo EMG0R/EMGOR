@@ -205,6 +205,14 @@ const ROLE = {
   guard: [
     'Golum says: [danger] stays outside the fence.', 'Do not hit the villagers. The golum has opinions.',
   ],
+  goodgame: [
+    '{greet}. [Good] game. Take the coin, you earned it.', '[Good] game, {role}! My ribs file a complaint, my pride does not.', '{greet}! That was a [good] one. Again later, maybe.',
+    'Well [fought], [friend]. Nothing broke that I need.', '[Good] game. I will be [sore] until the next sunrise.', 'Ha! [Good] game. You owe me nothing. I owe you coin.',
+  ],
+  taunt: [
+    'Not this time, {role}. Come back [stronger].', 'Ha. [Good] try, [friend]. Rematch when your knees recover.', 'You fight like a shopping cart. A [good] cart, but a cart.',
+    'I win. Do not take it personally. Take it a little.', 'Sit down for a minute. Eat something. Then try again.',
+  ],
   cop: [
     'I see everything. I do nothing. It is a [good] arrangement.', 'Move along. Or do not. It is not in my job description.', '[Law] is a suggestion with a badge. I am the badge.',
     'Off-duty. Mostly. Just here for the [coffee] and the [sugar].',

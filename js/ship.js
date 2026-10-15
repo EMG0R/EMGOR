@@ -717,7 +717,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         '<div class="sh-bar sh-pul"><span>PULSE</span><b><u></u></b></div></div>' +
         '<div id="ship-chat"><div class="sc-log"></div></div>' +
         '<input id="ship-cmd" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="420" aria-label="Chat or command">' +
-        '<div class="sh-hint">ESC exit · F land / board / talk · E inventory · LMB fire · SPACE pulse · SHIFT boost · SHIFT+LMB ram · V scan · A/D x2 roll · S x2 flip · CTRL drift · T target · Q focus · Z focus fire · ENTER chat · / commands</div>';
+        '<div class="sh-hint">ESC exit · Z land / board / lift off · F shop / fight · T talk · E inventory · LMB fire · SPACE pulse · SHIFT boost · SHIFT+LMB ram · V scan · A/D x2 roll · S x2 flip · CTRL drift · T target · Q focus · X focus fire · ENTER chat · / commands</div>';
     document.body.appendChild(hud);
     var elAtmo = hud.querySelector('.sh-atmo'), elAtmoU = elAtmo.querySelector('u'), elRam = hud.querySelector('.sh-ram');
     var elTarget = hud.querySelector('.sh-target'), elSpeed = hud.querySelector('.sh-speed');
@@ -946,16 +946,18 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         keys[e.code] = true;
         if (boarding || exiting) return;
         if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey && !e.altKey) { toggleInv(); return; }       // rev 23: E = inventory (grid overlay)
-        if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey) { if (gmode === 'landed') onKeyF(); else { eh.on = true; eh.held = 0; eh.t = 0; } return; }       // rev 20: tap = land / exit ship / board (fires on release), hold 0.6 s under 6 L = auto-land + step out, hold on foot = board + lift off
+        if (e.code === 'KeyZ' && !e.ctrlKey && !e.metaKey && !e.altKey) { if (gmode === 'landed') onKeyZ(); else { eh.on = true; eh.held = 0; eh.t = 0; } return; }       // 2026-10-14: Z = the SHIP key (land / board / lift off / summon / step out). F = people + shops
+        if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey) { onKeyF(); return; }
+        if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.altKey && gmode === 'foot') { onKeyTalk(); return; }       // rev 20: tap = land / exit ship / board (fires on release), hold 0.6 s under 6 L = auto-land + step out, hold on foot = board + lift off
         if (e.code === 'KeyW' && gmode === 'landed') { liftOff(); return; }
         if (e.code === 'KeyV' && !e.ctrlKey && !e.metaKey && !e.altKey) { doScan(); return; }        // rev 21: scanner pulse
         if (gmode !== 'fly') return;
         if (e.code === 'KeyA' || e.code === 'KeyD' || e.code === 'KeyS') tapKey(e.code);
-        else if (e.code === 'KeyZ') zFocusFire();
+        else if (e.code === 'KeyX') zFocusFire();
     }, true);
     window.addEventListener('keyup', function (e) {
         keys[e.code] = false;
-        if (e.code === 'KeyF' && eh.on) { eh.on = false; eh.t = 0; ehShow(0, ''); if (eh.held < EH_T && state === 'piloting' && !boarding && !exiting && !cmdOpen) onKeyF(); }
+        if (e.code === 'KeyZ' && eh.on) { eh.on = false; eh.t = 0; ehShow(0, ''); if (eh.held < EH_T && state === 'piloting' && !boarding && !exiting && !cmdOpen) onKeyZ(); }
     });
     window.addEventListener('blur', function () { keys = Object.create(null); firing = false; eh.on = false; eh.t = 0; });
     document.addEventListener('pointerlockchange', function () {
@@ -3730,7 +3732,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 0; i < allies.length; i++) { allies[i].alive = false; allies[i].g.visible = false; }
         wave = Math.max(0, n - 1); wavePending = true; nextWave = gt + 0.05;
     }
-    var HELP = 'KEYS · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · Z wingmen focus fire · F interact (land, board, talk, shop) · E inventory · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · /help';
+    var HELP = 'KEYS · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land, board, lift off, summon: hold) · F interact (shop, fight a person) · T talk (on foot) · E inventory · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · /help';
     function applyDifficultyLive() {
         var D = DIFFS[difficulty];
         for (var i = 0; i < enemies.length; i++) {
@@ -4628,7 +4630,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function ehTick(dt) {
         if (!eh.on) return;
-        if (!keys.KeyF) { eh.on = false; eh.t = 0; ehShow(0, ''); return; }
+        if (!keys.KeyZ) { eh.on = false; eh.t = 0; ehShow(0, ''); return; }
         eh.held += dt;
         var c = ehContext();
         if (!c) { eh.t = 0; ehShow(0, ''); return; }
@@ -4738,21 +4740,34 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         land.gDir.copy(sum.dir); land.sPos.copy(sum.dir).multiplyScalar(sum.r);
     }
-    function onKeyF() {
+    // 2026-10-14: Z = the SHIP (land / exit / board / step out of the hatch / launch). F = everything else you interact with on foot.
+    function onKeyZ() {
         if (gmode === 'fly') { if (cvHail()) return; if (landOk) landReq = true; else if (target && !dead) exit(target.node); }
         else if (gmode === 'landed') exitShip();
-        else if (gmode === 'foot') {
+        else if (gmode === 'foot') { if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); } }
+        else if (gmode === 'ifoot') { if (ixTarget().kind === 'hatch') interiorF(); }
+        else if (gmode === 'sfoot') { if (stationInteract().kind === 'ship') stationE(); }
+    }
+    function onKeyF() {
+        if (gmode === 'foot') {
             var ft = footTarget();
-            if (ft.kind === 'hub') hubEnter(); else if (ft.kind === 'hubexit') hubExit(false); else if (ft.kind === 'hubchest') hubChest(ft.obj);
-            else if (ft.kind === 'villager') villageTalk(ft.obj);
-            else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') r28Checkout(); else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'dealer') { if (!r28Talk({ id: ft.obj.id, name: ft.obj.name || 'DEALER', role: 'dealer', kind: 'dealer', obj: ft.obj, seed: ft.obj.seed })) openDealer(ft.obj); }
-            else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj); else if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); }
-            else if (ft.kind === 'creature') tameStart(ft.obj);
-            else if (ft.kind === 'resource') harvStart(ft.obj);
-            else punch();
+            if (ft.kind === 'villager' || ft.kind === 'shopper' || ft.kind === 'clerk' || ft.kind === 'dealer') { fightAsk(ft); return; }
+            footAct(ft);
         }
-        else if (gmode === 'ifoot') interiorF();
-        else if (gmode === 'sfoot') stationE();
+        else if (gmode === 'ifoot') { if (ixTarget().kind !== 'hatch') interiorF(); }
+        else if (gmode === 'sfoot') { if (stationInteract().kind !== 'ship') stationE(); }
+    }
+    function onKeyTalk() {         // T on foot: talk to the human in front of you (F challenges them)
+        var ft = footTarget();
+        if (ft.kind === 'villager') villageTalk(ft.obj); else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj);
+        else if (ft.kind === 'dealer') { if (!r28Talk({ id: ft.obj.id, name: ft.obj.name || 'DEALER', role: 'dealer', kind: 'dealer', obj: ft.obj, seed: ft.obj.seed })) openDealer(ft.obj); }
+    }
+    function footAct(ft) {
+        if (ft.kind === 'hub') hubEnter(); else if (ft.kind === 'hubexit') hubExit(false); else if (ft.kind === 'hubchest') hubChest(ft.obj);
+        else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') r28Checkout(); else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj);
+        else if (ft.kind === 'creature') tameStart(ft.obj);
+        else if (ft.kind === 'resource') harvStart(ft.obj);
+        else punch();
     }
     // rev 19: "near the ship" = within BOARD_L ship lengths of the spot on the ground directly under the hull (the old test measured to the hull origin, ~1.1 L above the feet, so it was never true on foot)
     var BOARD_L = 3.5, nsV = new THREE.Vector3();
@@ -5181,13 +5196,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         // prompt
         if (gmode === 'landing' || gmode === 'landed') setPrompt('', false);
         else if (gmode === 'foot' && !storeOpen && !invOpen && footTarget().kind) setPrompt(ftI.label, true);
-        else if (nearShip()) setPrompt(R25.mod ? 'F · ENTER SHIP · HOLD LIFT OFF' : 'F · BOARD', true);
+        else if (nearShip()) setPrompt(R25.mod ? 'Z · ENTER SHIP · HOLD LIFT OFF' : 'Z · BOARD', true);
         else setPrompt('', false);
         if (net) { net.sendPos(); net.update(dt, dockA); ghostFx(); }
         aEngine({ throttle: 0, inAtmo: true });
         if (gmode === 'foot' && hum.obj) { vTmp.copy(hum.w); shardTick(vTmp, 0.7 * L); } else if (gmode === 'landed') shardTick(P, 3 * L);
         scanUpdate(dt); musicTick(dt, null);
-        if (gmode === 'foot') { mutterTick(dt); r27Foot(dt); }
+        if (gmode === 'foot') { fightTick(dt); mutterTick(dt); r27Foot(dt); }
         updateBooms(dt);
         updateHud(0, aliveCount());
         hudDmg(dt);
@@ -5598,7 +5613,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (ps && psA && !dead && lf.on && lf.cap && lf.alt < PROMPT_L * L && vel.length() < 2) {     // rev 19: hovering (under 3 L) and nearly still
                 try {
                     var lr = ps.landable(P); landOk = !!lr.ok;
-                    lmsg = landOk ? 'F · LAND' : '';      // rev 20b: water / too steep / moonlet say nothing, the prompt just does not appear
+                    lmsg = landOk ? 'Z · LAND' : '';      // rev 20b: water / too steep / moonlet say nothing, the prompt just does not appear
                 } catch (e) { landOk = false; }
             }
             if (!lmsg && !dead) {       // MOONLET: within 3 R of a body too small to land on
@@ -7246,7 +7261,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function villageTarget() {
         if (!VG.v || HB.in) return null;
         var v = VG.v.nearVillager(hum.pos, 3 * 0.09 * L); if (!v) return null;
-        ftI.kind = 'villager'; ftI.obj = v; ftI.label = 'F · TALK'; return ftI;
+        ftI.kind = 'villager'; ftI.obj = v; ftI.label = fightLabel(v.id, 'T · TALK'); return ftI;
     }
     function villageTalk(v) { knownFor(); if (!r28Talk({ id: v.id, name: v.name, role: v.role, kind: 'village', obj: v, seed: v.seed })) return; }
     function villageTrade(v) {
@@ -7518,7 +7533,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return moved;
     }
     // ── onboarding: four prompts for a NEW profile (fly / pulse / land / shop), each dismissed when done, never shown again; plus two first-time hints ──
-    var onb = { t: 0, fly: 0, shown: '', hintT: 0, hint: '' }, ONB_TXT = ['FLY · HOLD W + MOVE THE MOUSE', 'PULSE · HOLD SPACE NEAR A PLANET', 'LAND · FLY UNDER 3 L OF THE SURFACE, PRESS F', 'SHOP · WALK TO A 7/11 COUNTER, PRESS F'];
+    var onb = { t: 0, fly: 0, shown: '', hintT: 0, hint: '' }, ONB_TXT = ['FLY · HOLD W + MOVE THE MOUSE', 'PULSE · HOLD SPACE NEAR A PLANET', 'LAND · FLY UNDER 3 L OF THE SURFACE, PRESS Z', 'SHOP · WALK TO A 7/11 COUNTER, PRESS F'];
     function onbSet(t) { if (t !== onb.shown) { onb.shown = t; elOnb.textContent = t; elOnb.classList.toggle('is-on', !!t); } }
     function onbTick(dt) {
         var pf = curProfile(); if (!pf || !pf.onb || state !== 'piloting') { onbSet(''); return; }
@@ -7536,7 +7551,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!txt && !storeOpen && !invOpen) {      // first-time hints (one line, 6 s)
             if (onb.hintT > 0) { onb.hintT -= dt; txt = onb.hint; }
             else if (!o.res && gmode === 'foot' && resFind()) { o.res = true; onb.hint = 'RESOURCE NODE · F TO HARVEST · SELL IT OR CRAFT AT A 7/11'; onb.hintT = 6; writeSave(); }
-            else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear())) { o.npc = true; onb.hint = 'F TO TALK · THEY MAY HAVE WORK (QUESTS)'; onb.hintT = 6; writeSave(); }
+            else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear())) { o.npc = true; onb.hint = 'T TO TALK (THEY MAY HAVE WORK) · F TO FIGHT'; onb.hintT = 6; writeSave(); }
         }
         onbSet(txt);
     }
@@ -7723,7 +7738,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         ik.hp.copy(lp); ik.hp.y = 0; ik.yaw = Math.atan2(-sp.dir.x, -sp.dir.z); ik.pitch = 0.3; ik.vv = 0; ik.air = false; ik.jumpHeld = true;
         camRelInit = true; ix.snap = 3; mdx = mdy = 0; setGround(true, true); setPrompt('', false);
         net && net.setMode && net.setMode('landed');
-        r25Refresh(); aPlay('land', { vel: 0.4 }); addRow('', '', 'ABOARD · F at the hatch to step out', 'is-sys');
+        r25Refresh(); aPlay('land', { vel: 0.4 }); addRow('', '', 'ABOARD · Z at the hatch to step out', 'is-sys');
         return true;
     }
     function leaveInterior(fadeSound) {
@@ -7747,7 +7762,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var d = hum.w.distanceTo(o.pos), lim = Math.max(o.radius || 0, 0.18 * L) + 0.1 * L;
             if (d < lim && d / lim < bd) { bd = d / lim; best = { kind: kind, obj: o, label: label, i: idx || 0 }; }
         }
-        test(int.hatch, 'hatch', 'F · STEP OUT');
+        test(int.hatch, 'hatch', 'Z · STEP OUT');
         test(int.table, 'table', 'F · CRAFTING TABLE');
         test(int.kitchen, 'kitchen', 'F · KITCHEN');
         test(int.board, 'board', 'F · MISSIONS');
@@ -8098,10 +8113,108 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var rn = resFind(); if (rn) { ftI.kind = 'resource'; ftI.obj = rn; ftI.label = 'F · HARVEST ' + String(rn.kind).toUpperCase(); return ftI; }
         var tc = tameFind(); if (tc) { ftI.kind = 'creature'; ftI.obj = tc; ftI.label = 'F · TAME'; return ftI; }
         n = world.nearNpc;
-        if (n) { k = n.role === 'dealer' ? 'dealer' : 'shopper'; ftI.kind = k; ftI.obj = n; ftI.label = k === 'dealer' ? 'F · DEAL' : 'F · TALK'; return ftI; }
+        if (n) { k = n.role === 'dealer' ? 'dealer' : 'shopper'; ftI.kind = k; ftI.obj = n; ftI.label = fightLabel(n.id || n.name || k, k === 'dealer' ? 'T · DEAL' : 'T · TALK'); return ftI; }
         c = npcNear();
-        if (c) { ftI.kind = 'clerk'; ftI.obj = c; ftI.label = 'F · TALK'; }
+        if (c) { ftI.kind = 'clerk'; ftI.obj = c; ftI.label = fightLabel(c.id || 'clerk', 'T · TALK'); }
         return ftI;
+    }
+
+    // ═══ 2026-10-14: in-world FIGHT. F on a human NPC -> "FIGHT? F AGAIN" -> a GOR BRAWL session (js/smash-world.js, local mode vs a CPU bot with the NPC's style) over the 3D
+    // page. The stage is terrain sampled around you and them; 2 stocks. Win = gorCoin by role + a "good game" line, 60 s rematch cooldown. Esc forfeits. No relay needed.
+    var FG = { ask: null, on: false, sess: null, mod: null, loading: false, cd: {}, npc: null, keys: Object.create(null), mouse: 0, tmpA: new THREE.Vector3(), tmpB: new THREE.Vector3(), tmpM: new THREE.Vector3(), tmpT: new THREE.Vector3(), tmpD: new THREE.Vector3(), t: 0 };
+    var FG_STYLE = { farmer: 'builder', trader: 'hauler', elder: 'seer', kid: 'sparklet', guard: 'bounty', golum: 'bounty', clerk: 'twin', cashier: 'twin', dealer: 'racer' };
+    var FG_COIN = { farmer: 25, kid: 25, villager: 25, shopper: 25, clerk: 25, cashier: 25, trader: 50, dealer: 50, elder: 100, golum: 100, guard: 100 };
+    function fightLabel(id, talk) {
+        var c = FG.cd[id]; if (c && Date.now() < c) return talk;
+        if (FG.ask && FG.ask.id === id && FG.ask.t > 0) return 'FIGHT? F AGAIN · ' + talk;
+        return 'F · FIGHT · ' + talk;
+    }
+    function fgInfo(ft) {          // { id, name, role, seed, pos (planet-local) } of the human in front of you
+        var o = ft.obj || {}, id = String(o.id || o.name || ft.kind), pos = FG.tmpD;
+        if (ft.kind === 'villager' && VG.v) VG.v.toParent(o.pos, pos);
+        else if (ft.kind === 'clerk' && o.npcSpot) pos.copy(o.npcSpot.pos);
+        else if (o.pos) pos.copy(o.pos); else pos.copy(hum.pos);
+        return { id: id, name: String(o.name || (ft.kind === 'clerk' ? 'CLERK' : ft.kind.toUpperCase())), role: String(o.role || (ft.kind === 'clerk' ? 'clerk' : ft.kind)), seed: o.seed != null ? o.seed : fnv(id), pos: pos };
+    }
+    function fightAsk(ft) {
+        if (FG.on || FG.loading || hum.air || gmode !== 'foot' || !ps || ps.active !== land.node) return;
+        var id = String((ft.obj && (ft.obj.id || ft.obj.name)) || ft.kind), c = FG.cd[id];
+        if (!FG.mod && !FG.loading) { FG.loading = true; import('./smash-world.js').then(function (m) { FG.mod = m; FG.loading = false; }).catch(function (e) { FG.loading = false; console.info('[ship] fight module unavailable', e); }); addRow('', '', 'loading the ring...', 'is-sys'); return; }
+        if (c && Date.now() < c) { addRow('', '', 'they are catching their breath · ' + Math.ceil((c - Date.now()) / 1000) + ' s', 'is-sys'); return; }
+        if (FG.ask && FG.ask.id === id && FG.ask.t > 0) { FG.ask = null; fightStart(ft); return; }
+        FG.ask = { id: id, t: 3 }; aPlay('ui', { vel: 0.6 });
+    }
+    function fgSamples(pa, pb) {       // 128 ground heights (human heights, up +) along the line through both of you, centred between you
+        var out = new Float32Array(128), H = 0.09 * L, m = FG.tmpM, t = FG.tmpT, q = FG.tmpA, k, i, R0 = ps.radius;
+        m.copy(pa).add(pb).normalize(); t.copy(pb).sub(pa); t.addScaledVector(m, -t.dot(m)); if (t.lengthSq() < 1e-14) t.copy(hum.hf); t.addScaledVector(m, -t.dot(m)).normalize();
+        var base = mFloor(m.x, m.y, m.z, 0);
+        for (i = 0; i < 128; i++) {
+            k = (i / 127 - 0.5) * 23 * H; q.copy(m).multiplyScalar(R0).addScaledVector(t, k).normalize();
+            out[i] = clamp((mFloor(q.x, q.y, q.z, 0) - base) / H, -12, 12);
+        }
+        return out;
+    }
+    function fightStart(ft) {
+        var info = fgInfo(ft), M = FG.mod; if (!M || !M.createFightSession) return;
+        var samples = fgSamples(hum.pos, info.pos), seed = fnv(info.id) | 0, role = info.role;
+        var styleNpc = FG_STYLE[role] || M.styleToFighter(info.id), night = (typeof mobNight === 'function') ? mobNight() : 0;
+        try {
+            FG.sess = M.createFightSession({
+                mode: 'local', seed: seed || 1, stageSamples: samples, stocks: 2, skyAlpha: 0.35,
+                skyPalette: night > 0.5 ? { top: '#07051a', horizon: '#2a1a5a' } : { top: '#2a4a9a', horizon: '#9ac0ff' },
+                fighters: [
+                    { slot: 0, styleId: curStyleId || 'PILOT', name: userName(), color: effColor(), isLocal: true, isBot: false, id: 'me' },
+                    { slot: 1, styleId: styleNpc, name: info.name, color: 0xffd36a, isLocal: false, isBot: true, id: info.id, level: role === 'elder' || role === 'golum' ? 3 : 2 }
+                ]
+            });
+        } catch (e) { console.info('[ship] fight session failed', e); FG.sess = null; return; }
+        FG.npc = info; FG.on = true; FG.keys = Object.create(null); FG.mouse = 0; FG.t = 0;
+        document.body.appendChild(FG.sess.el); FG.sess.onResult(fightResult); FG.sess.start();
+        cmdOpen = true; mdx = mdy = 0; firing = false;      // cmdOpen = the foot controller + ship keys ignore input (the fight reads its own)
+        window.addEventListener('keydown', fgKey, true); window.addEventListener('keyup', fgKey, true);
+        document.addEventListener('mousedown', fgMouse, true); document.addEventListener('mouseup', fgMouse, true);
+        aPlay('ui', { vel: 0.9 }); addRow('', '', 'FIGHT · ' + info.name + ' · WASD move · SPACE jump · J/K/L/I attacks · ESC forfeit', 'is-sys');
+    }
+    function fgKey(e) {
+        if (!FG.on) return;
+        if (e.type === 'keydown' && e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); fightEnd(null); return; }
+        FG.keys[e.code] = e.type === 'keydown'; if (e.code === 'Space' || e.code.indexOf('Arrow') === 0 || e.code === 'Tab') e.preventDefault();
+        e.stopImmediatePropagation();
+    }
+    function fgMouse(e) { if (!FG.on) return; var b = e.button === 0 ? 16 : (e.button === 2 ? 32 : 0); if (e.type === 'mousedown') FG.mouse |= b; else FG.mouse &= ~b; }
+    function fgMask() {
+        var k = FG.keys, m = FG.mouse;
+        if (k.KeyA || k.ArrowLeft) m |= 1; if (k.KeyD || k.ArrowRight) m |= 2; if (k.KeyW || k.ArrowUp) m |= 4; if (k.KeyS || k.ArrowDown) m |= 8;
+        if (k.KeyJ) m |= 16; if (k.KeyK) m |= 32; if (k.KeyL) m |= 64; if (k.KeyI) m |= 128; if (k.Space) m |= 256;
+        return m;
+    }
+    function fightTick(dt) {
+        if (FG.ask) { FG.ask.t -= dt; if (FG.ask.t <= 0) FG.ask = null; }
+        if (!FG.on) return;
+        if (gmode !== 'foot' || !FG.sess) { fightEnd(null); return; }
+        FG.t += dt; FG.sess.setInput(fgMask(), 0); FG.sess.update(dt);
+    }
+    function fightResult(res) {
+        if (!FG.on || !res) return;
+        var w = res.winner, info = FG.npc; FG.won = w === 0;
+        setTimeout(function () { fightEnd(w); }, 2600);      // let the GAME! card show
+        if (info && w === 0) {
+            var coin = FG_COIN[info.role] || 25; addUnits(coin, hum.w, true);
+            var line = ''; try { line = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'goodgame'); } catch (e0) { line = 'Good game.'; }
+            addRow(String(info.name).toUpperCase(), '#8fe0a8', line); addRow('', '', 'YOU WON · +' + coin + ' gorCoin', 'is-sys'); FG.cd[info.id] = Date.now() + 60000; aPlay('units', { n: 8 });
+        } else if (info && w === 1) {
+            var tl = ''; try { tl = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'taunt'); } catch (e1) { tl = 'Not today.'; }
+            addRow(String(info.name).toUpperCase(), '#ffb08f', tl); FG.cd[info.id] = Date.now() + 10000;
+        }
+    }
+    function fightEnd(w) {
+        if (!FG.on) return;
+        FG.on = false; var sess = FG.sess; FG.sess = null;
+        window.removeEventListener('keydown', fgKey, true); window.removeEventListener('keyup', fgKey, true);
+        document.removeEventListener('mousedown', fgMouse, true); document.removeEventListener('mouseup', fgMouse, true);
+        try { if (sess) sess.stop(); } catch (e) { /* ignore */ }
+        cmdOpen = false; keys = Object.create(null); mdx = mdy = 0; firing = false; FG.ask = null;
+        if (w == null && FG.npc) FG.cd[FG.npc.id] = Date.now() + 5000;
     }
     function talkShopper(n) {
         knownFor();
@@ -8319,7 +8432,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var yd = !R27.dsite && SITE().interior.shipyard; if (yd && yd.pos && yd.ships && hw.distanceTo(yd.pos) < Math.max(yd.radius || 0, 1.5 * L)) { skI.kind = 'shipyard'; skI.obj = yd; skI.label = 'F · SHIPYARD'; return skI; }
         if (R27.dsite) { var dc = dkCrateNear(); if (dc) { skI.kind = 'loot'; skI.obj = dc; skI.label = 'F · LOOT'; return skI; } }
         if (hw.distanceTo(ped.pos) < ped.radius + 0.3 * L) { skI.kind = 'map'; skI.label = 'F · GALAXY MAP'; return skI; }
-        if (hw.distanceTo(shipRoot.position) < BOARD_L * L) { skI.kind = 'ship'; skI.label = R25.mod ? 'F · ENTER SHIP · HOLD LAUNCH' : 'F · LAUNCH'; return skI; }
+        if (hw.distanceTo(shipRoot.position) < BOARD_L * L) { skI.kind = 'ship'; skI.label = R25.mod ? 'Z · ENTER SHIP · HOLD LAUNCH' : 'Z · LAUNCH'; return skI; }
         return skI;
     }
     function stationE() {
@@ -9648,7 +9761,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         get state() { return state; },
         get gmode() { return gmode; },
         get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
-        land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyE: onKeyF,
+        land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyZ: onKeyZ, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
         _g: { hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
         get stats() { return { hp: hp, wave: shownWave(), bossPhase: (api.boss || { bphase: 0 }).bphase, boss: (api.boss || { hp: 0 }).hp, bossMax: (api.boss || { maxHp: 0 }).maxHp, allies: allies.filter(function (a) { return a.alive; }).length, kills: kills, enemies: aliveCount(), L: L, dead: dead, gt: gt }; }

@@ -133,7 +133,7 @@ function mk(engine, ship, opts) {
             if (ship.resetUpgrades) ship.resetUpgrades();      // rev 22: shield / drive tiers bought in a store would change speeds and hp: tests run on the base ship
             if (ship.state !== 'piloting') ship.enter();
             return new Promise(function (res) { var t0 = performance.now(); (function wait() { if (performance.now() - t0 < 250) return T.pause().then(wait); T.clearKeys(); T.step(160);
-                if (ship.gmode === 'foot') { T.kd('KeyF'); T.ku('KeyF'); T.step(3); }          // board again
+                if (ship.gmode === 'foot') { T.kd('KeyZ'); T.ku('KeyZ'); T.step(3); }          // board again
                 if (ship.gmode === 'landed') { T.kd('KeyW'); T.ku('KeyW'); T.step(40); }       // lift off
                 res(); })(); });   // 160 frames: past the 1.6 s boarding cinematic
         },
@@ -145,8 +145,8 @@ function mk(engine, ship, opts) {
         fly: function () {
             T.clearKeys();
             if (ship.gmode === 'foot') {
-                T.kd('KeyF'); T.ku('KeyF'); T.step(3);
-                if (ship.gmode === 'foot') { var h = ship._g.hum, l = ship._g.land; h.pos.copy(l.sPos).normalize().multiplyScalar(h.hr); T.step(3); T.kd('KeyF'); T.ku('KeyF'); T.step(3); }
+                T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+                if (ship.gmode === 'foot') { var h = ship._g.hum, l = ship._g.land; h.pos.copy(l.sPos).normalize().multiplyScalar(h.hr); T.step(3); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3); }
             }
             if (ship.gmode === 'landed') { T.kd('KeyW'); T.ku('KeyW'); T.step(40); }
             if (ship.gmode === 'landing') { T.step(200); if (ship.gmode === 'landed') { T.kd('KeyW'); T.ku('KeyW'); T.step(40); } }
@@ -224,7 +224,7 @@ async function g1(T, o) {
     // human on the same frame
     var res = { pass: drift === 0 && werr < 1e-3 * L && flv === 0, parkedSeconds: frames * 0.05, localDrift: drift, worldTrackErrMax_u: werr, worldTrackErrMax_L: werr / L, floorVariation: flv, planet: node.id };
     // the human lives in the same local frame: step out, stand 20 s, local drift 0 and the world pose tracks the planet
-    T.kd('KeyF'); T.ku('KeyF'); T.step(5);
+    T.kd('KeyZ'); T.ku('KeyZ'); T.step(5);
     if (ship.gmode === 'foot') {
         var hum = ship._g.hum, hp0 = hum.pos.clone(), hd = 0, hw = 0;
         for (i = 0; i < 400; i++) {
@@ -232,10 +232,10 @@ async function g1(T, o) {
             T.localToWorld(node, hum.pos, W); hw = Math.max(hw, W.distanceTo(ship.humanObj.position));
         }
         res.human = { localDrift: hd, worldTrackErr_u: hw }; if (hd > 1e-9 || hw > 1e-3 * L) res.pass = false;      // rev 20: float noise (1e-13 u) in the human's ground re-projection is not drift; 1e-9 u is still 1e-8 L
-        T.kd('KeyF'); T.ku('KeyF'); T.step(3);          // back aboard (standing next to the ship)
+        T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);          // back aboard (standing next to the ship)
     } else { res.human = 'did not step out'; res.pass = false; }
     // lift off again so later tests start flying
-    ship.onKeyF && 0;
+    ship.onKeyZ && 0;
     T.kd('KeyW'); T.step(2); T.ku('KeyW'); T.step(30);
     res.liftedOff = ship.gmode === 'fly';
     return res;
@@ -338,7 +338,7 @@ async function g3(T, o) {
     T.clearKeys(); T.hoverAt(node, d, 1.2); T.step(40);
     res.altAtPrompt_L = +(ship.lf.alt / L).toFixed(2);
     res.landPrompt = document.querySelector('.sh-land').textContent;
-    if (!/F\s*·?\s*LAND/.test(res.landPrompt)) fail('landPrompt', res.landPrompt);
+    if (!/Z\s*·?\s*LAND/.test(res.landPrompt)) fail('landPrompt', res.landPrompt);
     // nose follows the horizon: level run for 12 s at boost, elevation angle stays small and altitude does not run away
     var attempt = 0, hz = null;
     while (attempt++ < 8 && !(hz && hz.valid)) {
@@ -513,10 +513,10 @@ async function g8(T, o) {
                 var dd = null;
                 for (var tries = 0; tries < 8; tries++) { dd = T.landDir(node); if (!dd) break; T.hoverAt(node, dd, 2); T.step(40); if (/LAND/.test(T.text('.sh-land'))) break; }
                 row.prompt = T.text('.sh-land'); row.tries = tries + 1; row.big = document.querySelector('.sh-land').classList.contains('is-big');
-                T.kd('KeyF'); T.ku('KeyF');
+                T.kd('KeyZ'); T.ku('KeyZ');
                 for (var j = 0; j < 700 && ship.gmode !== 'landed'; j++) T.step(1);
                 row.landed = ship.gmode === 'landed'; row.landedText = T.text('.sh-land');
-                if (!/F\s*·\s*LAND/.test(row.prompt) || !row.big || !row.landed) fails.push({ id: id, row: row });
+                if (!/Z\s*·\s*LAND/.test(row.prompt) || !row.big || !row.landed) fails.push({ id: id, row: row });
             }
             if (sea) {
                 T.fly(); T.hoverAt(node, sea, 1.2); T.step(40);
@@ -563,7 +563,7 @@ async function g9(T, o) {
         for (var q = 0; q < 700 && ship.gmode !== 'landed'; q++) T.step(1);
         T.step(120); if (ship.gmode !== 'landed') continue;
         check('landed', 'landed on ' + nd.id.split('.').pop());
-        T.kd('KeyF'); T.ku('KeyF'); T.step(6);
+        T.kd('KeyZ'); T.ku('KeyZ'); T.step(6);
         if (ship.gmode !== 'foot') continue;
         for (var w = 0; w < 3; w++) {
             T.kd('KeyW'); for (var f = 0; f < 40; f++) { if (f % 10 === 0) ship.dbg.inject(10 + T.rng() * 60, (T.rng() - 0.5) * 20); T.step(1); } T.ku('KeyW'); T.step(8);
@@ -585,14 +585,14 @@ async function g10(T, o) {
         var d = T.landDir(node); if (!d) { fails.push({ site: si, why: 'no land dir' }); continue; }
         T.hoverAt(node, d, 2); T.step(40);
         row.hoverPrompt = T.text('.sh-land'); row.hoverBig = big();
-        T.kd('KeyF'); T.ku('KeyF'); T.step(3); row.afterE = ship.gmode;
+        T.kd('KeyZ'); T.ku('KeyZ'); T.step(3); row.afterE = ship.gmode;
         var t0 = 0; for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) { T.step(1); t0++; }
         row.landed = ship.gmode === 'landed';
         // 1.2 s settle: hull dips, then rests; the HUD line appears when it is done
         var settleSeen = false, dipMin = 0; for (i = 0; i < 120; i++) { T.step(1, 0.016); var hy = ship.hullObjY; if (hy < dipMin) dipMin = hy; settleSeen = true; }      // rev 20b: the LANDING / LANDED titles are gone
         T.step(60);
         row.landedHud = T.text('.sh-land'); row.settleSeen = settleSeen; row.hullDip_L = +dipMin.toFixed(3);
-        T.kd('KeyF'); T.ku('KeyF'); T.step(5); row.foot = ship.gmode === 'foot';
+        T.kd('KeyZ'); T.ku('KeyZ'); T.step(5); row.foot = ship.gmode === 'foot';
         var hum = ship._g.hum, land = ship._g.land, start = hum.pos.clone(), dist = 0, k;
         for (k = 0; k < 1200 && dist < 20 * L; k++) { if (k % 40 === 0) ship.dbg.inject((T.rng() - 0.5) * 30, 0); T.kd('KeyW'); T.kd('ShiftLeft'); T.step(1, 0.05); dist = hum.pos.distanceTo(start); }
         T.ku('KeyW'); T.ku('ShiftLeft'); T.step(5);
@@ -608,10 +608,10 @@ async function g10(T, o) {
         }
         T.ku('KeyW'); T.ku('ShiftLeft'); T.step(5);
         row.boardPrompt = T.text('.sh-land'); row.boardBig = bigBoard;
-        T.kd('KeyF'); T.ku('KeyF'); T.step(5); row.reboarded = ship.gmode === 'landed';
+        T.kd('KeyZ'); T.ku('KeyZ'); T.step(5); row.reboarded = ship.gmode === 'landed';
         T.kd('KeyW'); T.ku('KeyW'); T.step(40); row.flying = ship.gmode === 'fly';
-        var ok = /F\s*·\s*LAND/.test(row.hoverPrompt) && row.hoverBig && row.landed && settleSeen &&
-            row.foot && row.walked_L >= 19.5 && /F\s*·\s*BOARD/.test(row.boardPrompt) && row.boardBig && row.reboarded && row.flying;
+        var ok = /Z\s*·\s*LAND/.test(row.hoverPrompt) && row.hoverBig && row.landed && settleSeen &&
+            row.foot && row.walked_L >= 19.5 && /Z\s*·\s*BOARD/.test(row.boardPrompt) && row.boardBig && row.reboarded && row.flying;
         if (!ok) fails.push({ site: si, row: row });
         rows.push(row); T.fly();
     }
@@ -755,7 +755,7 @@ async function g14(T, o) {
         T.hoverAt(node, d, 2); T.step(30);
         if (!ship.land()) { res.pass = false; row.why = 'land refused'; res.sites.push(row); continue; }
         for (i = 0; i < 900 && ship.gmode !== 'landed'; i++) T.step(1);
-        T.step(80); T.kd('KeyF'); T.ku('KeyF'); T.step(8);
+        T.step(80); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
         if (ship.gmode !== 'foot') { res.pass = false; row.why = 'did not step out'; res.sites.push(row); continue; }
         var hum = ship._g.hum, qM = node.mesh.quaternion;
         if (picks[si].steep) {            // teleport the human to the steepest land point found in 800 samples (height-function slope), then walk from there
@@ -808,7 +808,7 @@ async function g14(T, o) {
         if (si === 0 && o.shot) { row.flight = await flightSub(T, ship, node, o); res.sites.push(row); return res; }
         if (si === 0 && !o.noFlight) { row.flight = await flightSub(T, ship, node, o); if (!row.flight.pass) res.pass = false; }
         res.sites.push(row);
-        T.kd('KeyF'); T.ku('KeyF'); T.step(6);          // back toward the ship: fly() next loop handles any state
+        T.kd('KeyZ'); T.ku('KeyZ'); T.step(6);          // back toward the ship: fly() next loop handles any state
     }
     T.fly();
     return res;
@@ -884,7 +884,7 @@ async function g15(T, o) {
     var d = T.landDir(node); T.hoverAt(node, d, 2); T.step(30);
     if (!ship.land()) return { pass: false, why: 'land refused' };
     for (i = 0; i < 900 && ship.gmode !== 'landed'; i++) T.step(1);
-    T.step(80); T.kd('KeyF'); T.ku('KeyF'); T.step(8);
+    T.step(80); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
     if (ship.gmode !== 'foot') return { pass: false, why: 'did not step out' };
     ship.rev27.windOff(true); mu.peaceful(true); mu.night(1);
     if (o.shot) {        // leave the scene up for a screenshot: 'wall' | 'kreeper' | 'ender'
@@ -997,9 +997,9 @@ async function g17(T, o) {
     for (var ni = 0; ni < nodes.length && ni < 4 && !res; ni++) {
         var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
         var d = T.landDir(node); if (!d) { tries.push(node.id + ': no land dir'); continue; }
-        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyF'); T.ku('KeyF'); T.step(3);
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
         for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
-        T.step(180); T.kd('KeyF'); T.ku('KeyF'); T.step(8);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
         if (ship.gmode !== 'foot') { tries.push(node.id + ': not on foot'); continue; }
         T.step(120); if (!ship.village.make()) { tries.push(node.id + ': no village'); T.fly(); continue; }
         T.step(20);
