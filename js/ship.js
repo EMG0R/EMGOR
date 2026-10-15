@@ -4787,9 +4787,9 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         camera.position.copy(focus).add(camRel);
         camera.quaternion.slerp(tq, damp(rate, dt));
     }
-    var G_WALK = 22, G_RUN = 44, G_GRAV = 22, G_JUMP = 8.5, FOOT_CAM = 6;   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
+    var G_WALK = 22, G_RUN = 44, G_GRAV = 16, G_GRAV_UP = 7.93, G_JUMP = 4.36, FOOT_CAM = 6;   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
     var FL_HOLD = 2, FL_V = 36;
-    var JET_RAMP = 1.2, JET_DIVE = 16, stepPh = 0.6;      // 2026-10-14: jetpack climb ramp (s to 3.5x), Shift dive speed (heights/s), footstep phase               // rev 29: hold Space this many s = jetpack FLIGHT; flight cruise speed (heights/s)
+    var JET_RAMP = 1.2, JET_DIVE = 16, DIVE_V0 = 3, DIVE_TAU = 0.6, DIVE_CAP = 48, stepPh = 0.6, camDip = 0;      // 2026-10-14 jump: apex 1.2 H in 0.55 s (v0 4.36 H/s, g_up 7.93, falling g 16); Shift dive v = v0 * 2^(t/0.6) capped at 48 H/s      // 2026-10-14: jetpack climb ramp (s to 3.5x), Shift dive speed (heights/s), footstep phase               // rev 29: hold Space this many s = jetpack FLIGHT; flight cruise speed (heights/s)
     // rev 20b: the foot controller. The human lives in the planet's LOCAL frame (hum.pos), is a capsule (feet footprint FOOT_R) and walks on the ground AS RENDERED
     // (ps.meshFloorLocal: the patch's own triangles, not the finer height function that the mesh only approximates). Motion is substepped (<= FOOT_SUB heights per
     // substep) with a slope-limited step test (rise <= run + 0.05 H) and wall sliding; the position is written once per frame. hum.vh is the VISUAL height (what the
@@ -5020,6 +5020,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         // 2026-10-14 (Emory: "space bar goes higher / faster, left shift pulls it back down"): the climb ramps 1x -> 3.5x over JET_RAMP s of holding Space;
         // Shift in the air (no style) dives at JET_DIVE heights/s and cuts the jet
         var dive = hum.air && !sty && !cmdOpen && !!(keys.ShiftLeft || keys.ShiftRight);
+        if (dive) { if (!(hum.diveT > 0)) hum.diveV0 = Math.max(DIVE_V0, -hum.vv / H); hum.diveT = (hum.diveT || 0) + dt; } else hum.diveT = 0;
+        var diveV = Math.min(DIVE_CAP, (hum.diveV0 || DIVE_V0) * Math.pow(2, Math.min(hum.diveT, 8) / DIVE_TAU));      // exponential in hold time, from the speed you already have
         var jet = jetT > JET_HOLD && !dive, jetK = 1 + 2.5 * clamp((jetT - JET_HOLD) / JET_RAMP, 0, 1);
         // substepped capsule motion in the local frame
         var spd = (sSpd >= 0 ? sSpd : (jet ? G_RUN * (1 + 0.12 * R27.su.jetpack) : (run ? G_RUN * (1 + 0.1 * R27.su.sprint) : G_WALK))) * H * fxSpeed, nSub = 1;
@@ -5052,8 +5054,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
             }
             if (hum.air) {
                 if (jet) { hum.vv += (JET_UP * jetK * (1 + 0.2 * R27.su.jetpack) * H - hum.vv) * Math.min(1, 7 * h); if (hr > supNow + 400 * H) hum.vv = Math.min(hum.vv, 0); }
-                else if (dive) hum.vv += (-JET_DIVE * H - hum.vv) * Math.min(1, 6 * h);
-                else if (!sty) hum.vv -= G_GRAV * H * h;
+                else if (dive) hum.vv += (-diveV * H - hum.vv) * Math.min(1, 8 * h);
+                else if (!sty) hum.vv -= (hum.vv > 0 ? G_GRAV_UP : G_GRAV) * H * h;
                 hr += hum.vv * h;
                 if (hr <= supNow && !(sty && hum.vv > 0)) { hr = supNow; hum.vv = 0; hum.air = false; }
             } else if (hr - supNow > 0.6 * H) { hum.air = true; hum.vv = 0; }
@@ -5062,7 +5064,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (wallHit && moving) { hum.wallT = 0.12; hum.wallX = -(gB.dot(gA)); hum.wallZ = gB.dot(hum.hf); }
         // 2026-10-14: ground-contact cues. Landing edge = footLand (impact from the fall speed) + a crouch above a hard drop; steps on a walk / run cadence.
         var landImp = -1;
-        if (air0 && !hum.air) { landImp = clamp(-Math.min(vv0, hum.vv) / (18 * H), 0, 1); aPlay('footLand', { vel: 0.3 + 0.7 * landImp }); if (landImp > 0.35) fl.cr = Math.max(fl.cr, landImp); stepPh = 0.6; }
+        if (air0 && !hum.air) { landImp = clamp(-Math.min(vv0, hum.vv) / (18 * H), 0, 1); aPlay('footLand', { vel: 0.3 + 0.7 * landImp }); if (landImp > 0.35) fl.cr = Math.max(fl.cr, landImp); camDip = Math.max(camDip, (0.05 + 0.3 * landImp) * H); stepPh = 0.6; }
         else if (!hum.air && moving) { stepPh += dt * (run ? 3.6 : 2.4); if (stepPh >= 1) { stepPh -= 1; aPlay('step', { level: run ? 1 : 0, vel: run ? 0.6 : 0.45 }); } }
         else if (!hum.air) stepPh = 0.6;      // the wall normal in the tangent frame (x right, z back) = against the wanted direction
         if (R27.windOn && moving && !(ps.inSite && ps.inSite(dir.x, dir.y, dir.z))) { var wd = footWind(dir, dt, hr, H, supNow); if (wd) { dir.copy(fsC2); supNow = wd; if (!hum.air) hr = supNow; } }
@@ -5093,7 +5095,8 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         if (landImp > 0.35) fx.impact(hum.w, 0xc8b89a, 0.6 + landImp);
         // camera: 6 human heights back, pitched, never under the floor; it follows the SMOOTHED position (hum.w), not the raw step
         gA.copy(hum.hf).negate().multiplyScalar(Math.cos(hum.pitch)).addScaledVector(up, Math.sin(hum.pitch)).applyQuaternion(qM);   // world offset dir
-        gC.copy(gB).multiplyScalar(0.8 * H).add(hum.w);                // focus (head)
+        camDip *= Math.exp(-9 * dt); if (camDip < 1e-6) camDip = 0;
+        gC.copy(gB).multiplyScalar(0.8 * H - camDip).add(hum.w);       // focus (head), dips a little on landing
         gD.copy(gC).addScaledVector(gA, FOOT_CAM * H * styCam);                 // wanted camera position
         vTmp.subVectors(gD, c);
         var cr = vTmp.length();
@@ -6490,7 +6493,7 @@ var firing = false, fireCd = 0, fireSide = 0, playerFired = false;   // playerFi
         return { role: (o && o.role) || null, extra: (o && Array.isArray(o.extra)) ? o.extra : [] };
     }
     function skinRig(obj, id) { if (obj && obj.setSkin) obj.setSkin(skinArg(id)); }
-    function styleEnv() { return { walk: G_WALK, grav: G_GRAV, jump: G_JUMP }; }
+    function styleEnv() { return { walk: G_WALK, grav: 22, jump: 8.5 }; }      // the mashup styles keep their own tuned jump
     function styleSet(id, quiet) {
         var pf = ensureProfile(userName()); id = (id && id !== 'pilot' && stylesList().some(function (s) { return s.id === id; })) ? id : '';
         if (curStyle) { try { if (curStyle.reset) curStyle.reset(); } catch (e0) { /* ignore */ } }
