@@ -22,11 +22,12 @@ What exists: `ps.creatures()` / `ps.setCreatureTamed` / `ps.setFollower` (ship-p
 ### A3. Party + follower + commands
 - ONE active follows you (setFollower path / createPet follower on foot), rides in the ship. Hotbar slot shows it; number key swaps active (0.4 s poof).
 - It fights beside you against mobs/hub waves with a tiny AI using its 4 moves (cooldowns = 1/spd). T-hold on it = 4-move radial menu (T is talk now; reuse).
-- XP from fights/catches; level 1-50; stats grow by base × level curve. Faint → heal at Burger House (fries) or a treat item.
+- XP from fights/catches; level 1-50; stats grow by base × level curve.
+- HEALING (Emory 2026-10-15): NO potions/upgrade consumables. A pokemans that SURVIVES a battle is auto-healed to full for the next one. One that FAINTS is DEAD until revived at a POKEMANS CVS: a new structure (pharmacy look, red/white, same build pattern as the 7/11, seeded 1 per lush/rocky planet near the first outpost + one in the station) with a REVIVE counter (gorCoin, price by level) and a pointless but real HEAL counter (free, for the vibe). Fainted ones stay in the party as grey slots, cannot be summoned.
 
 ### A4. Upgrading, better than Pokémon ("graft" system)
 - No fixed evolution lines. The BODY IS THE STATS: every signature part is a stat. Harvest parts from defeated/caught creatures and resources (existing harvesting), graft at a village ELDER (role exists) or a 7/11 "GRAFT STATION": fins +spd, spikes +atk, shell +def, glow +sp, extra lungs +hp. Each graft changes the mesh (parts kit add) and the silhouette, so a trained one looks unique.
-- Infusions (the 96) feed to the pokemans: permanent +type affinity or a move re-roll; foods teach moves (food type → move type), so cooking is the move tutor.
+- Infusions (the 96) feed to the pokemans: permanent +type affinity or a move re-roll; foods teach moves (food type → move type), so cooking is the move tutor. No stat potions: stats only move by grafts, level and bond.
 - Bond meter from time following + wins; bond thresholds unlock a 5th "signature" move and a crit chance. Trades with other players over the relay (pl.ev) keep bond at 0.
 - Size and shiny carry through. Dex page per species (discoveries UI later).
 
