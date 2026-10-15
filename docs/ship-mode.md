@@ -1132,3 +1132,13 @@ Every new system ships with its two-window test or it doesn't ship:
 - **Surface:** landing/landed settle on max meshFloorLocal under 3 struts; exitShip on meshFloor; ps.update before the foot step + ps.syncDome after. Foot cues step/jump/footLand. Jetpack climb ramp 1x->3.5x, Shift dive.
 - **Markers:** one system (`gdItems` pool): planet POIs + village/hub sites (3 R), ship (foot), NPCs <= 200 L (foot, on-screen), station + nearest 7/11 / village worlds (flight). Runs after the step (`pilotFrame`). V on foot lists NPCs.
 - **Audit:** A1 planet-frame poses (needs relay redeploy), A2 planetFail rebuild (1 s, max 3) + floor guards.
+
+## Revision 33 (2026-10-14) — surface / villages / fights pass (`surface-vibe`)
+- **Site pads:** `ps.setSitePad(slot 0 village / 1 hub, dir, flatL, blendL)`; `uPadD/uPadP[5]` in patch + globe + hfunP shaders; pads tagged `site` never count as landing pads. Village flat 60 m / blend 90 m, hub 30 / 50 m. `ps.inSite()` gates the wind. Measured: structure matrixWorld error 1.8e-11 L, hum.w error 4e-12 L over 20 s; door floors within 0.006-0.009 H (g17).
+- **Village scale** back to human size (VS = BIG = 1, door 2.2 m); 6-10 villagers.
+- **Foot physics:** jump apex 1.16 H / 0.53 s; Shift dive exponential (DIVE_V0 3 H/s, tau 0.6 s, cap 48 H/s); camera dip on landing.
+- **Input:** Z ship key (hold = lift off / summon / exit), F interact + fight, T talk, X focus fire; LMB click latch.
+- **Fights:** js/ship.js `FG` (fightAsk / fightStart / fightTick / fightResult) over smash-world.js `createFightSession`; ship-lingo `goodgame` + `taunt` contexts.
+- **Render restore:** `RS0` + `rsRestore`; quality manager hold = not piloting.
+- **Tests (this machine, headless Chrome):** g1 g3 g5 pass, g4 fails identically on a31f994 (teleportFrames 1-2, environment), g6 g7 g8 pass, g9 g11 pass, g10 only boardBig:false, g2 g16 g17 pass, g12 g14 pass (g12 failed once in a batch, passes alone and in rerun), g15 order-sensitive (null mob), g13 not run.
+
