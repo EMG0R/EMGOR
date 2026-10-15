@@ -798,7 +798,7 @@ async function g14(T, o) {
         if (minClear < -0.05 || minClearVis < -0.05 || nan || wallFrames) res.pass = false;
         // parked 30 s: zero drift, world pose tracks the planet (weather wind is a real drift source: off for this check)
         try { ship.rev27.windOff(true); } catch (e) { /* older ship.js */ }
-        T.clearKeys(); T.step(30, dt);
+        T.clearKeys(); T.step(90, dt);      // 2026-10-14: 90 frames (was 30): the jump is 0.55 s up now, random play can end mid-air
         var p0 = hum.pos.clone(), vh0 = hum.vh, drift = 0, dv = 0, W = new THREE.Vector3(), werr = 0;
         for (i = 0; i < Math.round(30 / dt); i++) { if (i % 250 === 0) await T.pause(); T.step(1, dt); drift = Math.max(drift, hum.pos.distanceTo(p0)); dv = Math.max(dv, Math.abs(hum.vh - vh0)); T.localToWorld(node, hum.pos, W); }
         T.localToWorld(node, hum.pos.clone().multiplyScalar(hum.vh / hum.pos.length()), W); werr = W.distanceTo(hum.w);
