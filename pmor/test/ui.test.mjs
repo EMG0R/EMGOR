@@ -36,6 +36,16 @@ function makeEngine() {
   e.clear = () => { calls.length = 0; };
   return e;
 }
+// async storage interface (get/set/delete) over a Map; values are structured-cloned like IndexedDB does
+function makeStore() {
+  const m = new Map();
+  return {
+    m,
+    get: async (k) => (m.has(k) ? structuredClone(m.get(k)) : null),
+    set: async (k, v) => { m.set(k, structuredClone(v)); },
+    delete: async (k) => { m.delete(k); },
+  };
+}
 function makeEnv(storage) {
   let t = 100000;
   const timerList = new Map();
@@ -44,7 +54,7 @@ function makeEnv(storage) {
   const engine = makeEngine();
   const ctx = makeCtx();
   const canvas = { getContext: () => ctx };
-  const store = storage || (() => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v), m }; })();
+  const store = storage || makeStore();
   const ui = createPmorUI({ canvas, engine, storage: store, now: () => t, timers });
   ui.resize(390, 844, 3);
   const env = {
@@ -150,8 +160,9 @@ console.log('-- boot');
 console.log('-- patches storage');
 {
   const env = await started();
-  const st = JSON.parse(env.store.m.get('pmor.patches.v1'));
-  ok('storage key written, 16 slots', st.v === 1 && st.slots.length === 16);
+  const meta = env.store.m.get('meta');
+  const st = { exists: meta.exists, planted: meta.planted, slots: Array.from({ length: 16 }, (_, i) => env.store.m.get('s' + i) || null) };
+  ok('meta written, slot 0 and 1 stored under their own keys', meta.v === 1 && st.slots[0] && st.slots[1] && !env.store.m.has('s2'));
   ok('example is captured with the master muted', env.engine.calls.findIndex((c) => c[0] === 'set' && c[1] === 'mvol_idx' && c[2] === 0) < env.engine.calls.findIndex((c) => c[0] === 'toggleStep'));
   ok('example planted in slot 1 as DRUMS page', st.slots[1] && st.slots[1].page === MENU.DRUM && st.exists === 3 && st.planted === true);
   const tg = env.engine.of('toggleStep');
@@ -159,9 +170,14 @@ console.log('-- patches storage');
   const env2 = await started(env.store);
   ok('second boot with same storage plants nothing', env2.engine.of('toggleStep').length === 0);
   ok('second boot loads the stored active slot', env2.engine.of('setPersist').length === 1);
-  const bad = { getItem: () => '{nope', setItem() {} };
+  const bad = { get: async () => { throw new Error('nope'); }, set: async () => { throw new Error('quota'); }, delete: async () => { throw new Error('nope'); } };
   const env3 = await started(bad);
-  ok('corrupt storage is survivable', env3.ui.phase() === 'run');
+  ok('broken storage is survivable', env3.ui.phase() === 'run');
+  ok('broken storage: failure shown on the save icon, not a hung spinner', env3.ui.state().saveFailed === true && env3.ui.view().saveFail === true);
+  const f1 = makeFb(), f2 = makeFb();
+  renderOled(f1, Object.assign(env3.ui.view(), { spin: 0 })); renderOled(f2, Object.assign(env3.ui.view(), { spin: 8 }));
+  let dif = 0; for (let y = 0; y < 9; y++) for (let x = 119; x < 128; x++) dif += f1[y * 128 + x] ^ f2[y * 128 + x];
+  ok('failure icon flashes (two distinct phases)', dif > 20, dif);
 }
 
 console.log('-- navigation');
@@ -292,8 +308,9 @@ console.log('-- right click timing and per-page encoder behaviour');
   // GLOBALS
   gotoPage(env, 6); env.engine.clear();
   encTap(env, 1); rotate(env, 1, 1);
-  eq('GLOBALS BPM row: 120 -> 121 sets step_ms = 15000/121', env.engine.of('set').filter((c) => c[1] === 'step_ms'), [['set', 'step_ms', 123]]);
-  env.tick({ bpm: 121 }); encTap(env, 1); rotate(env, 1, 1); encTap(env, 1); rotate(env, 1, 1);
+  eq('GLOBALS BPM row delegates to adjust(bpm); the engine owns the range', env.engine.of('adjust'), [['adjust', 'bpm', 1]]);
+  ok('GLOBALS BPM never sends set(step_ms)', env.engine.of('set').filter((c) => c[1] === 'step_ms').length === 0);
+  env.tick({ bpm: 121 }); env.engine.clear(); encTap(env, 1); rotate(env, 1, 1); encTap(env, 1); rotate(env, 1, 1);
   eq('GLOBALS KEY row uses adjust(key)', env.engine.of('adjust'), [['adjust', 'key', 1]]);
 
   // FX bank cycling
@@ -558,8 +575,7 @@ console.log('-- patches (tap / hold timings)');
   ok('slot 0 can never be deleted', (env.ui.state().exists & 1) === 1);
   // persistence of the deletion
   env.adv(3500); await flush(env.ui); await flush(env.ui);
-  const st = JSON.parse(env.store.m.get('pmor.patches.v1'));
-  ok('autosave wrote the deletion (slot 1 null)', st.slots[1] === null && (st.exists & 2) === 0 && st.slots[0] !== null);
+  ok('autosave wrote the deletion (slot 1 gone, meta updated, slot 0 kept)', !env.store.m.has('s1') && (env.store.m.get('meta').exists & 2) === 0 && env.store.m.has('s0'));
 }
 
 console.log('-- screensaver, idle, visibility');
@@ -609,8 +625,35 @@ console.log('-- sensors');
   env.ui.pointerUp(sid);
   const q2 = L.sliders[2], s2 = ++pid;
   env.ui.pointerDown(s2, (q2.tx + q2.tw * 1.0) / D, (q2.y + q2.h / 2) / D); env.ui.pointerUp(s2);
-  eq('DASH tilt slider -> set(ax, g)', env.engine.of('set').filter((c) => c[1] === 'ax'), [['set', 'ax', 1]]);
+  eq('DASH tilt slider does not send ax (firmware updates the filter only on FX)', env.engine.of('set').filter((c) => c[1] === 'ax'), []);
+  gotoPage(env, 3);
+  eq('entering FX sends the stored tilt once', env.engine.of('set').filter((c) => c[1] === 'ax'), [['set', 'ax', 1]]);
+  gotoPage(env, 5); env.adv(500);
   ok('DASH shows lidar and octave zone', hasText(oled(env), 0, 27, 'D: 360mm S:00 O:+2'));
+}
+
+console.log('-- engine-driven state');
+{
+  const env = await started();
+  env.adv(4000); await flush(env.ui);
+  ok('quiet after boot', env.ui.state().saveBusy === false);
+  env.tick({ dirty: 0 }); env.tick({ dirty: 5 });
+  ok('tick.dirty change arms the autosave (icon busy)', env.ui.state().saveBusy === true);
+  env.engine.clear(); env.adv(3100); await flush(env.ui);
+  ok('autosave runs 3 s later and clears the icon', env.engine.of('getPersist').length === 1 && env.ui.state().saveBusy === false);
+  env.tick({ dirty: 5 }); ok('unchanged dirty counter does not re-arm', env.ui.state().saveBusy === false);
+  // FX stuck-hold cap resync
+  gotoPage(env, 3); env.adv(300);
+  const id = padDown(env, 5); env.adv(400);
+  const held = new Array(8).fill(0); held[0] = 1 << 5;
+  env.tick({ fx: Object.assign(blankTick().fx, { held }) });
+  eq('engine still holding: UI keeps its mask', env.engine.of('fxHeld').pop(), ['fxHeld', 0, 1 << 5]);
+  env.adv(500); env.engine.clear();
+  env.tick({ fx: blankTick().fx });          // engine capped the hold
+  env.ui.pointerUp(id);
+  ok('after the cap the UI mask follows the tick: release sends nothing stale', env.engine.of('fxHeld').length === 0);
+  const id2 = padDown(env, 5); env.adv(10); env.ui.pointerUp(id2);
+  eq('a fresh press after the cap still goes through', env.engine.of('fxHeld').map((c) => c[2]), [1 << 5, 0]);
 }
 
 console.log('-- audio interruption');

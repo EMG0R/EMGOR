@@ -2011,7 +2011,7 @@ function applyPersist(o) {
       smp_len[s] = n;
     }
   }
-  gstep = 0; songFix();
+  songFix();                                       // firmware persistApply/sessionLoad keep the playhead (wraps only past the new song end)
   dirty++;
 }
 
@@ -2054,7 +2054,7 @@ function onMessage(m) {
   switch (m.c) {
     case 'on': { const k = m.k & 15; held_mask |= (1 << k); keyNoteOn(k, now); } break;
     case 'off': { const k = m.k & 15; held_mask &= ~(1 << k); keyNoteOff(k); } break;
-    case 'drum': { const k = m.k & 15; drumPadHit(k); sel_drum = 3 - (k >> 2); dr_pad[sel_drum] = k; dirty++; } break;
+    case 'drum': { const k = m.k & 15, v = 3 - (k >> 2); drumPadHit(k); if (sel_drum !== v || dr_pad[v] !== k) dirty++; sel_drum = v; dr_pad[v] = k; } break;   // only a changed selection is worth a save
     case 'sPress': smp_press[m.k & 15] = Math.max(1, now); break;
     case 'sRel': samplerRelease(m.k & 15); break;
     case 'fxBank': fx_bank = clampi(m.n, 0, 7); dirty++; break;

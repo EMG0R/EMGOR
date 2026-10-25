@@ -267,7 +267,7 @@ function suite(sr) {
   const B2 = rig2.persist();
   const same = JSON.stringify(A, (k, v) => (v instanceof Int16Array ? Array.from(v) : v)) === JSON.stringify(B2, (k, v) => (v instanceof Int16Array ? Array.from(v) : v));
   check(same && A.prise === 4 && A.audio[3] && A.audio[3].n > sr * 0.3, 'getPersist -> setPersist round-trips (PRISE and audio included)', `audio ${A.audio[3] && A.audio[3].n} samples`);
-  check(rig2.lastTick.gstep <= 1 && rig2.lastTick.params.bars === 3, 'setPersist restarts the playhead and restores params');
+  check(rig2.lastTick.gstep <= 1 && rig2.lastTick.params.bars === 3, 'setPersist restores params (fresh rig, playhead small)');
   const rig3 = new Rig(sr);
   rig3.send({ c: 'setP', data: rig3.defaults }); rig3.run(0.1);
   const D = rig3.persist(); delete D.audio; const D0 = Object.assign({}, rig3.defaults); delete D0.audio;

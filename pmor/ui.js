@@ -47,7 +47,7 @@ const ENG_PARAMS = [
   ['csmp', 'vsmp', 'bars', 'beats'],
 ];
 const SYN_SEQ = 0;
-const STORE_KEY = 'pmor.patches.v1';
+const DB_NAME = 'pmor', DB_STORE = 'patches', LS_PREFIX = 'pmor.patches.v1.';
 const LED_MS = 80, OLED_MS = 66;
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -420,7 +420,11 @@ export function renderOled(fb, v) {
   }
   // save icon (L5229)
   if (!v.saver && !v.vol_mode) {
-    if (v.saveBusy) {
+    if (v.saveFail) {                      // a failed save must be visible: flashing '!' in the icon box
+      const on = (v.spin & 8) !== 0;
+      if (on) rect(fb, 119, 0, 127, 8, true, true);
+      text(fb, 121, 0, '!', !on);
+    } else if (v.saveBusy) {
       const sp = v.spin & 7;
       const dx = sp < 2 ? 2 : sp < 4 ? 0 : sp < 6 ? -2 : 0, dy = sp < 2 ? 0 : sp < 4 ? 2 : sp < 6 ? 0 : -2;
       px(fb, 124 + dx, 4 + dy, true); px(fb, 124, 4, true);
@@ -536,6 +540,7 @@ export function createPmorUI(opts) {
   let animStart = -1, animDir = 1;
   let fxBankHold = 0;
   const fxHeld = new Array(8).fill(0);
+  let fxSentAt = -1e9;
   let synArm = 0;
   const synCache = new Uint16Array(128);
   const sv = { pe: 0, sx: 0, sy: 0, sz: 0, gsp: 0, ph: 0 };
@@ -565,9 +570,10 @@ export function createPmorUI(opts) {
   const HOLD_FX_MS = 90;
 
   // patches
-  let slots = new Array(16).fill(null), slotStr = new Array(16).fill(undefined);
+  let slots = new Array(16).fill(null);
   let exists = 1, cur = 0, planted = false;
-  let saveAt = -1, saveBusy = false, saveFailed = false;
+  let saveAt = -1, saveBusy = false, saveFailed = false, saving = false, lastDirty = -1;
+  const slotDirty = new Set();
   let opChain = Promise.resolve();
   let lastWarn = -1, stripWasDash = false;
 
@@ -591,38 +597,52 @@ export function createPmorUI(opts) {
   function engSafe(fn) { try { return fn(); } catch (e) { return undefined; } }
 
   // ------------------------------------------------------------------ patches (SPEC 8)
-  function loadStore() {
+  // storage is async: get(key) -> value|null, set(key, value), delete(key). Keys: 'meta' and 's0'..'s15'.
+  async function loadStore() {
     try {
-      const raw = storage.getItem(STORE_KEY);
-      if (!raw) return null;
-      const o = JSON.parse(raw);
-      if (!o || o.v !== 1 || !Array.isArray(o.slots) || o.slots.length !== 16 || !o.slots[0]) return null;
-      return o;
+      const meta = await storage.get('meta');
+      if (!meta || meta.v !== 1 || typeof meta.exists !== 'number') return null;
+      const sl = new Array(16).fill(null);
+      for (let i = 0; i < 16; i++) {
+        if (!((meta.exists >> i) & 1)) continue;
+        const o = await storage.get('s' + i);
+        if (o && o.p) sl[i] = o;
+      }
+      if (!sl[0]) return null;
+      return { meta, slots: sl };
     } catch (e) { return null; }
   }
 
-  function persist() {
+  // writes only the slots that changed, then the meta record (so a half-written save never lists a missing slot)
+  async function persist() {
+    const todo = [...slotDirty];
+    slotDirty.clear();
+    let i = -1;
     try {
-      const parts = [];
-      for (let i = 0; i < 16; i++) {
-        if (!slots[i]) { parts.push('null'); continue; }
-        if (slotStr[i] === undefined) slotStr[i] = JSON.stringify(slots[i]);
-        parts.push(slotStr[i]);
+      for (i of todo) {
+        if (slots[i]) await storage.set('s' + i, slots[i]); else await storage.delete('s' + i);
       }
-      storage.setItem(STORE_KEY, '{"v":1,"cur":' + cur + ',"exists":' + exists + ',"planted":' + (planted ? 'true' : 'false') + ',"slots":[' + parts.join(',') + ']}');
+      await storage.set('meta', { v: 1, cur, exists, planted });
       saveFailed = false;
-    } catch (e) { saveFailed = true; }
+    } catch (e) {
+      for (const k of todo) slotDirty.add(k);
+      saveFailed = true;
+      throw e;
+    }
   }
 
   async function stash() {
     const p = await engine.getPersist();
     slots[cur] = { p, page: S.menu };
-    slotStr[cur] = undefined;
+    slotDirty.add(cur);
   }
 
   async function doSave() {
     saveAt = -1;
-    try { await stash(); persist(); } catch (e) { saveFailed = true; }
+    if (saving) { saveAt = now() + 500; return; }
+    saving = true;
+    try { await stash(); await persist(); } catch (e) { saveFailed = true; saveAt = now() + 10000; }
+    saving = false;
     if (saveAt < 0 && !saveFailed) saveBusy = false;
     requestFrame(false);
     schedule();
@@ -653,7 +673,7 @@ export function createPmorUI(opts) {
       await stash();
       cur = idx; exists |= 1 << idx;
       const d = JSON.parse(JSON.stringify(engine.defaults()));
-      slots[idx] = { p: d, page: MENU.SYNTH }; slotStr[idx] = undefined;
+      slots[idx] = { p: d, page: MENU.SYNTH }; slotDirty.add(idx);
       engine.setPersist(d);
       applyPage(MENU.SYNTH);
       resetEditState();
@@ -663,7 +683,7 @@ export function createPmorUI(opts) {
   }
   function sessionDelete(idx) {
     if (idx === 0) return opChain;
-    exists &= ~(1 << idx); slots[idx] = null; slotStr[idx] = undefined;
+    exists &= ~(1 << idx); slots[idx] = null; slotDirty.add(idx);
     markDirty();
     if (cur === idx) return sessionLoad(0);
     return opChain;
@@ -678,35 +698,43 @@ export function createPmorUI(opts) {
     for (const st of [4, 12]) engine.toggleStep(1, 1, st);
     for (let st = 0; st < 16; st += 2) engine.toggleStep(1, 2, st);
     const p = await engine.getPersist();
-    slots[1] = { p, page: MENU.DRUM }; slotStr[1] = undefined;
+    slots[1] = { p, page: MENU.DRUM }; slotDirty.add(1);
     exists |= 2; planted = true;
   }
 
   async function boot() {
-    const st = loadStore();
-    if (st) {
-      slots = st.slots.map((s) => (s && s.p ? s : null)); slotStr = new Array(16).fill(undefined);
-      exists = (st.exists | 1) & 0xffff; cur = st.cur >= 0 && st.cur < 16 && slots[st.cur] ? st.cur : 0; planted = !!st.planted;
-      for (let i = 0; i < 16; i++) if (!slots[i]) exists &= ~(1 << i);
-    } else {
-      slots[0] = { p: JSON.parse(JSON.stringify(engine.defaults())), page: MENU.SYNTH };
-      exists = 1; cur = 0;
+    try {
+      const st = await loadStore();
+      if (st) {
+        const m = st.meta;
+        slots = st.slots;
+        exists = (m.exists | 1) & 0xffff; cur = m.cur >= 0 && m.cur < 16 && slots[m.cur] ? m.cur : 0; planted = !!m.planted;
+        for (let i = 0; i < 16; i++) if (!slots[i]) exists &= ~(1 << i);
+      } else {
+        slots[0] = { p: JSON.parse(JSON.stringify(engine.defaults())), page: MENU.SYNTH };
+        slotDirty.add(0);
+        exists = 1; cur = 0;
+      }
+      if (!planted) {
+        if (!((exists >> 1) & 1)) await plantExample();
+        planted = true;
+      }
+      engine.setPersist(slots[cur].p);
+      applyPage(slots[cur].page);
+      engine.set('lid', 0);
+    } finally {
+      engine.set('mvol_idx', S.vol_pidx);   // always un-mute, even if the capture above threw
     }
-    if (!planted) {
-      if (!((exists >> 1) & 1)) await plantExample();
-      planted = true;
-    }
-    engine.setPersist(slots[cur].p);
-    applyPage(slots[cur].page);
-    engine.set('mvol_idx', S.vol_pidx);
-    engine.set('lid', 0); engine.set('ax', 0);
-    persist();
+    try { await persist(); } catch (e) { /* saveFailed is set: the icon flashes, the instrument still runs */ }
   }
 
   // ------------------------------------------------------------------ engine-facing actions
   function clearFxHeld() {
-    for (let b = 0; b < 8; b++) if (fxHeld[b]) { fxHeld[b] = 0; engine.fxHeld(b, 0); }
+    for (let b = 0; b < 8; b++) if (fxHeld[b]) { fxHeld[b] = 0; engine.fxHeld(b, 0); fxSentAt = now(); }
   }
+  // the firmware reads the tilt filter only while the FX page is up (L4779), so 'ax' is sent on entering FX
+  // and on a tilt change made there; the DASH slider just stores the value
+  function sendAx() { if (S.menu === MENU.FX) engine.set('ax', sensors.ax); }
   function setFxBank(b) {
     S.fx_bank = b; fxBankHold = now() + 250;
     engine.fxBank(b);
@@ -732,7 +760,7 @@ export function createPmorUI(opts) {
       S.vol_pidx = k; engine.set('mvol_idx', k); T.params.mvol_idx = k; markDirty();
     } else if (S.menu === MENU.FX) {
       const b = S.fx_bank & 7;
-      fxHeld[b] |= bit; engine.fxHeld(b, fxHeld[b]);
+      fxHeld[b] |= bit; engine.fxHeld(b, fxHeld[b]); fxSentAt = now();
     } else if (S.menu === MENU.SESS) {
       sessPress[k] = n;
     } else {
@@ -761,7 +789,7 @@ export function createPmorUI(opts) {
   function padUp(k) {
     const n = now(), bit = 1 << k;
     heldMask &= ~bit; padPress[k] = null;
-    for (let b = 0; b < 8; b++) if (fxHeld[b] & bit) { fxHeld[b] &= ~bit; engine.fxHeld(b, fxHeld[b]); }
+    for (let b = 0; b < 8; b++) if (fxHeld[b] & bit) { fxHeld[b] &= ~bit; engine.fxHeld(b, fxHeld[b]); fxSentAt = n; }
     if (noteHeld & bit) { noteHeld &= ~bit; engine.noteOff(k); }
     if (S.menu === MENU.SESS && sessPress[k] >= 0) {
       const held = n - sessPress[k];
@@ -833,6 +861,7 @@ export function createPmorUI(opts) {
       animStart = n; animDir = acc1 > 0 ? 1 : -1;
       S.menu = (S.menu + (acc1 > 0 ? 1 : MENU_COUNT - 1)) % MENU_COUNT;
       acc1 = 0;
+      sendAx();
       S.seq_view = false; S.seq_place = false; S.param_edit = false; S.mode_cur = 0;
       clearFxHeld();
       markDirty();
@@ -909,11 +938,9 @@ export function createPmorUI(opts) {
     syncHoldFx(n);
   }
 
+  // the engine owns every range and step (BPM 30..250 included); the OLED reads the result from the next tick
   function globAdj(idx, d) {
-    if (idx === 0) { // BPM +-1 (L677-683)
-      const bpm = clamp((T.bpm | 0) + d, 30, 250), st = Math.trunc(15000 / bpm);
-      engine.set('step_ms', st); T.bpm = bpm; T.step_ms = st;
-    } else engine.adjust(['', 'key', 'mode', 'swing'][idx], d);
+    engine.adjust(['bpm', 'key', 'mode', 'swing'][idx], d);
   }
 
   // right encoder held: FX automation record, synth live write. Debounced so a drag-to-rotate never
@@ -956,7 +983,7 @@ export function createPmorUI(opts) {
       T, menu: S.menu, mode_cur: S.mode_cur, param_edit: S.param_edit, seq_view: S.seq_view, seq_place: S.seq_place,
       vol_mode: S.vol_mode, vol_pidx: S.vol_pidx, eng_focus: S.eng_focus, fx_bank: S.fx_bank,
       animStep: as, animDir, saver: saverOn(n), sv, sensors, rand, spin: Math.floor(n / OLED_MS),
-      saveBusy: saveBusy || saveFailed, e1s: n < e1.until ? e1.s : '--', e2s: n < e2.until ? e2.s : '--',
+      saveBusy: saveBusy || saveFailed, saveFail: saveFailed, e1s: n < e1.until ? e1.s : '--', e2s: n < e2.until ? e2.s : '--',
       fsr: fsrRaw, sdOk: !saveFailed, held_mask: heldMask,
       recBadge: heldE(1) && !heldE(0) && S.menu === MENU.FX && !S.vol_mode,
       syn: { arm: synArm, cache: synCache, seq_edit: S.seq_edit },
@@ -1139,6 +1166,16 @@ export function createPmorUI(opts) {
     T = t; lastTickAt = n;
     if (n >= fxBankHold && t.fx && S.fx_bank !== (t.fx.bank & 7)) S.fx_bank = t.fx.bank & 7;
     if (S.seq_edit >= t.songLen) S.seq_edit = 0;
+    // the engine drops a bank-0 hold after 20 s: take its word for bits the UI believes are held. Ignored for
+    // 150 ms after our own fxHeld so a tick that was already in flight cannot undo a fresh press.
+    if (t.fx && t.fx.held && n - fxSentAt > 150) {
+      for (let b = 0; b < 8; b++) fxHeld[b] &= (t.fx.held[b] | 0);
+    }
+    // t.dirty counts autosave-worthy engine changes (tap tempo, FX automation, live write...)
+    if (typeof t.dirty === 'number') {
+      if (phase === 'run' && t.dirty !== lastDirty && saveAt < 0) { saveAt = n + 3000; saveBusy = true; }
+      lastDirty = t.dirty;
+    }
     if (t.syn_seq_page) { const base = (t.gstep >> 4) * 16; for (let i = 0; i < 16; i++) if (base + i < 128) synCache[base + i] = t.syn_seq_page[i]; }
     if (!S.vol_mode && S.menu !== MENU.FX && S.menu !== MENU.SESS && S.seq_view) S.view_page = t.gstep >> 4;
     if (phase !== 'run' && phase !== 'boot') return;
@@ -1170,7 +1207,7 @@ export function createPmorUI(opts) {
     const q = L.sliders[i], t = clamp((x - q.tx) / q.tw, 0, 1);
     if (i === 0) slid.lean = t;
     else if (i === 1) { slid.lidar = t; updateSensors(); engine.set('lid', sensors.dist); }
-    else { slid.tilt = t; updateSensors(); engine.set('ax', sensors.ax); }
+    else { slid.tilt = t; updateSensors(); sendAx(); }
     if (i === 0) sendFsr(false);
     stripDirty = true;
   }
@@ -1350,6 +1387,10 @@ export function attachDom(ui, canvas, win, doc) {
   // iOS only counts pointerup/touchend as an audio-unlocking gesture, so start on release
   canvas.addEventListener('pointerup', (e) => { e.preventDefault(); ui.pointerUp(e.pointerId); if (ui.phase() === 'idle') ui.tapStart(); }, { passive: false });
   canvas.addEventListener('pointercancel', (e) => ui.pointerCancel(e.pointerId));
+  // iOS Safari: touchend and click are the long-established audio-unlocking gestures; pointerup alone is not relied on
+  const kick = () => { if (ui.phase() === 'idle') ui.tapStart(); };
+  canvas.addEventListener('touchend', kick, { passive: true });
+  canvas.addEventListener('click', kick);
   for (const ev of ['contextmenu', 'dblclick', 'gesturestart', 'selectstart']) doc.addEventListener(ev, (e) => e.preventDefault());
   doc.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
   doc.addEventListener('visibilitychange', () => ui.setHidden(doc.hidden));
@@ -1361,11 +1402,57 @@ export function attachDom(ui, canvas, win, doc) {
   fit();
 }
 
+// ---------------------------------------------------------------------------------------------
+// Patch storage backends. Interface: async get(key) -> value|null, set(key, value), delete(key).
+
+export function idbBackend(idb, name = DB_NAME) {
+  return new Promise((resolve, reject) => {
+    let req;
+    try { req = idb.open(name, 1); } catch (e) { reject(e); return; }
+    req.onupgradeneeded = () => { try { req.result.createObjectStore(DB_STORE); } catch (e) { /* exists */ } };
+    req.onerror = () => reject(req.error || new Error('indexedDB open failed'));
+    req.onblocked = () => reject(new Error('indexedDB blocked'));
+    req.onsuccess = () => {
+      const db = req.result;
+      const run = (mode, fn) => new Promise((res, rej) => {
+        let tx, out;
+        try { tx = db.transaction(DB_STORE, mode); out = fn(tx.objectStore(DB_STORE)); } catch (e) { rej(e); return; }
+        tx.oncomplete = () => res(out && out.result !== undefined ? out.result : null);
+        tx.onerror = () => rej(tx.error || (out && out.error) || new Error('indexedDB transaction failed'));
+        tx.onabort = () => rej(tx.error || new Error('indexedDB transaction aborted'));
+      });
+      resolve({
+        get: (k) => run('readonly', (st) => st.get(k)),
+        set: (k, v) => run('readwrite', (st) => st.put(v, k)).then(() => undefined),
+        delete: (k) => run('readwrite', (st) => st.delete(k)).then(() => undefined),
+      });
+    };
+  });
+}
+
+// Fallback when IndexedDB is unavailable: the small, non-audio part of each patch only.
+export function lsBackend(ls) {
+  const strip = (v) => (v && v.p && v.p.audio && Object.keys(v.p.audio).length ? Object.assign({}, v, { p: Object.assign({}, v.p, { audio: {} }) }) : v);
+  return {
+    get: async (k) => { const r = ls.getItem(LS_PREFIX + k); return r ? JSON.parse(r) : null; },
+    set: async (k, v) => { ls.setItem(LS_PREFIX + k, JSON.stringify(strip(v))); },
+    delete: async (k) => { ls.removeItem(LS_PREFIX + k); },
+  };
+}
+
+// Resolves lazily so the UI can be built synchronously: IndexedDB first, localStorage if it will not open.
+export function openStorage(idb, ls) {
+  const ready = (idb ? idbBackend(idb) : Promise.reject(new Error('no indexedDB')))
+    .catch(() => (ls ? lsBackend(ls) : { get: async () => null, set: async () => { throw new Error('no storage'); }, delete: async () => {} }));
+  return { get: (k) => ready.then((b) => b.get(k)), set: (k, v) => ready.then((b) => b.set(k, v)), delete: (k) => ready.then((b) => b.delete(k)) };
+}
+
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   const canvas = document.getElementById('pmor');
-  let store = null;
-  try { store = window.localStorage; } catch (e) { /* blocked */ }
-  const storage = { getItem: (k) => { try { return store.getItem(k); } catch (e) { return null; } }, setItem: (k, v) => store.setItem(k, v) };
+  let idb = null, ls = null;
+  try { idb = window.indexedDB || null; } catch (e) { /* blocked */ }
+  try { ls = window.localStorage; } catch (e) { /* blocked */ }
+  const storage = openStorage(idb, ls);
   const stubEngine = { start: () => Promise.reject(new Error('engine')), set() {}, onTick: null };
   const boot = (engine) => {
     const ui = createPmorUI({ canvas, engine, storage, now: () => performance.now() });
