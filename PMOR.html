@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0714">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PMOR</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; background: #0b0714; overflow: hidden; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent; touch-action: none;
+  }
+  body { position: fixed; inset: 0; }
+  #pmor {
+    position: fixed; display: block; touch-action: none; outline: none;
+    left: env(safe-area-inset-left); top: env(safe-area-inset-top);
+    width: calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right));
+    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+  @supports (height: 100dvh) {
+    #pmor { height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  }
+</style>
+</head>
+<body>
+<canvas id="pmor"></canvas>
+<script type="module" src="pmor/ui.js"></script>
+</body>
+</html>
