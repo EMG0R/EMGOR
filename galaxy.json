@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-02",
+  "generated": "2026-10-26",
   "nodes": [
     {
       "id": "emgor",
@@ -1236,7 +1236,7 @@
       "path": "universe/web-synth/_index.md",
       "route": "/web-synth",
       "depth": 1,
-      "children": 4,
+      "children": 5,
       "downloads": [],
       "links": [],
       "tags": [
@@ -1248,6 +1248,39 @@
       ],
       "updated": "2026-08-02",
       "size": 1.4
+    },
+    {
+      "id": "emgor.web-synth.pmor",
+      "title": "PMOR",
+      "blurb": "The pocket groovebox, ported pad-for-pad to the browser — 4x4 pads, two encoders, the OLED, built for a phone in one hand",
+      "parent": "emgor.web-synth",
+      "path": "universe/web-synth/pmor.md",
+      "route": "/web-synth/pmor",
+      "depth": 2,
+      "children": 0,
+      "downloads": [],
+      "links": [
+        {
+          "label": "Play PMOR",
+          "url": "PMOR.html"
+        },
+        {
+          "label": "The hardware (PMOR planet)",
+          "url": "index.html#/papers/neptr-performance-system/pocket-opgorator"
+        }
+      ],
+      "tags": [
+        "web-audio",
+        "audioworklet",
+        "groovebox",
+        "sequencer",
+        "sampler",
+        "iphone",
+        "daisy"
+      ],
+      "updated": "2026-10-25",
+      "launch": "PMOR.html",
+      "order": 0
     },
     {
       "id": "emgor.web-synth.bouba",
