@@ -417,6 +417,15 @@ const SKINS = {
   STEEV: { color: 0x30C0C8, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 2 }, role: 'miner', extra: ['cube', 'blocky'] },           // cube head, block limbs, teal
   SONIK: { color: 0xFFC93C, suit: { jetpack: 0, scanner: 1, sprint: 3, storage: 0 }, role: null,    extra: ['quills', 'visor'] },          // quilled runner, pointed visor, gold + violet
 };
+// Q06: wall normal in the tangent frame (x right, z back) from the wanted move (dx,dz) and the first free slide direction (sx,sz):
+// perpendicular to the slide, facing against the move. Writes out.x/out.z; returns false when the slide is degenerate or parallel to the move.
+export function wallNormal2(dx, dz, sx, sz, out) {
+  const sl = Math.sqrt(sx * sx + sz * sz); if (sl < 1e-6) return false;
+  let nx = -sz / sl, nz = sx / sl;
+  const d = nx * dx + nz * dz; if (Math.abs(d) < 1e-3) return false;
+  if (d > 0) { nx = -nx; nz = -nz; }
+  out.x = nx; out.z = nz; return true;
+}
 export const STYLES = {
   MARO:  { id: 'MARO',  name: 'MARO',  portraitHint: 'stout runner, round cap, violet and orange',        skin: SKINS.MARO,  abilities: ['jumpChain', 'longJump', 'backflip', 'sideFlip', 'wallKick', 'dive', 'groundPound', 'slide', 'punch'], hitbox: { r: 0.24, h: 1.0 }, make: maro },
   JOSHI: { id: 'JOSHI', name: 'JOSHI', portraitHint: 'round lizard, nub nose, mint with orange crest',    skin: SKINS.JOSHI, abilities: ['flutter', 'eggThrow', 'tongue', 'groundPound'],                                                      hitbox: { r: 0.26, h: 0.95 }, make: joshi },

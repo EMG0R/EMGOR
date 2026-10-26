@@ -4278,7 +4278,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // ship-human.js (createHuman) and ps.landable arrive from other modules: both have fallbacks.
     var gmode = 'fly', landOk = false, landGnd = false, landCheckT = 0, legDrop = 0.4, jumpHeld = false;
     var land = { auto: false, settle: 0, dustT: 0, node: null, gDir: new THREE.Vector3(), r0: 0, rg: 0, t: 0, T: 2.2, qFrom: new THREE.Quaternion(), qTo: new THREE.Quaternion(), sPos: new THREE.Vector3(), sQuat: new THREE.Quaternion(), off: new THREE.Vector3() };
-    var hum = { obj: null, pos: new THREE.Vector3(), hr: 0, gr: 0, vv: 0, air: false, hf: new THREE.Vector3(0, 0, -1), face: new THREE.Vector3(0, 0, -1), pitch: 0.3, moving: false, running: false, w: new THREE.Vector3(), up: new THREE.Vector3() };
+    var hum = { obj: null, pos: new THREE.Vector3(), hr: 0, gr: 0, vv: 0, air: false, hf: new THREE.Vector3(0, 0, -1), face: new THREE.Vector3(0, 0, -1), pitch: 0.3, wallT: 9, wallX: 0, wallZ: 0, moving: false, running: false, w: new THREE.Vector3(), up: new THREE.Vector3() };
     var gQ = new THREE.Quaternion(), gQi = new THREE.Quaternion(), gA = new THREE.Vector3(), gB = new THREE.Vector3(), gC = new THREE.Vector3(), gD = new THREE.Vector3(), gE = new THREE.Vector3();
     var camRel = new THREE.Vector3(), camRelInit = false, gFo = { r: 0, n: new THREE.Vector3() };
     var humanMod = null;
@@ -4878,6 +4878,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // (ps.meshFloorLocal: the patch's own triangles, not the finer height function that the mesh only approximates). Motion is substepped (<= FOOT_SUB heights per
     // substep) with a slope-limited step test (rise <= run + 0.05 H) and wall sliding; the position is written once per frame. hum.vh is the VISUAL height (what the
     // human mesh and camera follow): it eases toward the physical height but never sinks below the ground.
+    var WALL_TAN = Math.tan(70 * Math.PI / 180);      // Q06: terrain steeper than 70 deg along the move counts as a wall
     var FOOT_R = 0.22, FOOT_SUB = 0.12, FOOT_SLIDE_A = [0, 0.7, -0.7, 1.4, -1.4], FOOT_SLIDE_K = [1, 0.8, 0.8, 0.5, 0.5];
     var fsD = new THREE.Vector3(), fsR = new THREE.Vector3(), fsF = new THREE.Vector3(), fsC = new THREE.Vector3(), fsT = new THREE.Vector3();
     function mFloor(x, y, z, ref) { if (!ps) return hum.gr; var r = ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); if (BK.n > 0 && ref > 0) { var bf = blkFloor(x, y, z, ref); if (bf > r) r = bf; } return r > 0 ? r : hum.gr; }      // mashup: ref = the feet radius, so the STEEV blocks are part of the ground (columns of 1 H cubes)
@@ -5112,7 +5113,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (moving) nSub = Math.max(nSub, Math.ceil(spd * dt / (FOOT_SUB * H)));
         if (hum.air) nSub = Math.max(nSub, Math.ceil(Math.abs(hum.vv) * dt / (0.25 * H)));
         nSub = Math.min(16, nSub);
-        var h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, supNow = footFloor(dir, H, hr), opN = objBegin(), edgeG = !!(sr && sr.edgeGuard), wallHit = false;
+        var h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, supNow = footFloor(dir, H, hr), opN = objBegin(), edgeG = !!(sr && sr.edgeGuard), wallHit = false, wallSl = false, wSx = 0, wSz = 0, wallNow = false;
         for (k = 0; k < nSub; k++) {
             if (moving) {
                 var step = spd * h;
@@ -5121,12 +5122,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                     var st = step * FOOT_SLIDE_K[i];
                     fsC.copy(dir).addScaledVector(fsT, st / hr).normalize();
                     var supC = footFloor(fsC, H, hr), rise = supC - supNow;
-                    if (edgeG && !hum.air && supNow - supC > 0.4 * H) { if (i === 0) wallHit = true; continue; }      // mashup: sneak (STEEV) refuses to step off a ledge
+                    if (edgeG && !hum.air && supNow - supC > 0.4 * H) { if (i === 0) { wallHit = wallNow = true; wallSl = false; } continue; }      // mashup: sneak (STEEV) refuses to step off a ledge
                     if (hum.air ? supC <= hr + 0.05 * H : rise <= st + 0.05 * H) {
-                        dir.copy(fsC); supNow = supC;
+                        if (wallNow && i > 0) { wallSl = true; wSx = fsT.dot(gA); wSz = -fsT.dot(hum.hf); }      // Q06: first free slide direction = the wall's tangent
+                        dir.copy(fsC); supNow = supC; wallNow = false;
                         break;
                     }
-                    if (i === 0) wallHit = true;
+                    if (i === 0) { wallNow = rise > WALL_TAN * st; if (wallNow) { wallHit = true; wallSl = false; } }      // Q06: only a wall steeper than WALL_DEG counts, whether or not a slide then succeeds
                 }
             }
             if (opN && (moving || hum.air)) {                      // rev 29: store / burger-house walls, shelves and the ship hull are solid for the capsule
@@ -5145,7 +5147,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             } else if (hr - supNow > 0.6 * H) { hum.air = true; hum.vv = 0; }
             else hr = supNow;
         }
-        if (wallHit && moving) { hum.wallT = 0.12; hum.wallX = -(gB.dot(gA)); hum.wallZ = gB.dot(hum.hf); }
+        hum.wallT += dt;                                                // Q06: seconds since the last wall contact (styles read c.wallNormal inside 0.12 s)
+        if (wallHit && moving) {
+            hum.wallT = 0; hum.wallX = -(gB.dot(gA)); hum.wallZ = gB.dot(hum.hf);
+            if (wallSl && stylesMod && stylesMod.wallNormal2) { if (stylesMod.wallNormal2(gB.dot(gA), -gB.dot(hum.hf), wSx, wSz, styWallO)) { hum.wallX = styWallO.x; hum.wallZ = styWallO.z; } }
+        }
         // 2026-10-14: ground-contact cues. Landing edge = footLand (impact from the fall speed) + a crouch above a hard drop; steps on a walk / run cadence.
         var landImp = -1;
         if (air0 && !hum.air) { landImp = clamp(-Math.min(vv0, hum.vv) / (18 * H), 0, 1); aPlay('footLand', { vel: 0.3 + 0.7 * landImp }); if (landImp > 0.35) fl.cr = Math.max(fl.cr, landImp); camDip = Math.max(camDip, (0.05 + 0.3 * landImp) * H); stepPh = 0.6; }
@@ -6779,7 +6785,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var il = 1 / Math.sqrt(gx * gx + 1 + gf * gf), k = Math.min(1, 14 * dt);
         styN.x += (-gx * il - styN.x) * k; styN.y += (il - styN.y) * k; styN.z += (gf * il - styN.z) * k;
         c.floorNormal = styN; c.slope = Math.acos(clamp(styN.y / (Math.sqrt(styN.x * styN.x + styN.y * styN.y + styN.z * styN.z) || 1), -1, 1)) * 57.29578;
-        if (hum.wallT > 0) { hum.wallT -= dt; styWallO.x = hum.wallX; styWallO.z = hum.wallZ; c.wallNormal = styWallO; } else c.wallNormal = undefined;
+        if (hum.wallT < 0.12) { styWallO.x = hum.wallX; styWallO.z = hum.wallZ; c.wallNormal = styWallO; } else c.wallNormal = undefined;
         c.facing = Math.atan2(-hum.face.dot(right), hum.face.dot(hf));
         // aim (camera ray) + homing / tongue targets + hostile proximity
         snB.set(0, 0, -1).applyQuaternion(camera.quaternion); snC.set(0, 0, 0);
