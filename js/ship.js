@@ -12,6 +12,10 @@ import * as CRF from './ship-craft.js';
 import * as QST from './ship-quests.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
+// rate-limited gameplay error log: max one console.warn per tag per 30 s (silent ignores stay for DOM / pointer lock / localStorage)
+var WARN_T = {};
+function warnOnce(tag, e) { var t = Date.now(); if (WARN_T[tag] && t - WARN_T[tag] < 30000) return; WARN_T[tag] = t; console.warn('[ship] ' + tag, e); }
+
 // ─── tuning (world units / seconds; L = ship length) ────────────────
 var CRUISE = 4, REVERSE = 1, BOOST = 60, PULSE_MAX = 450, PULSE_MAX2 = 675;   // world u/s (rev 13: x2); pulse ramps exponentially to PULSE_SPEED
 var PULSE_E = 1.5, PULSE_BLEED = 10, PULSE_LN = Math.log(PULSE_MAX2 / BOOST);   // rev 20b: pulse starts AT BOOST SPEED the instant Space goes down (no slow start): v = BOOST * e^(t/1.5), rev 24: capped at PULSE_MAX = 450 u/s (Space) or PULSE_MAX2 = 675 (Space + Shift); tau 1.5 s; `pulse` (0..1) drives the fx
@@ -2230,7 +2234,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (w && w.stores) for (var si = 0; si < w.stores.length; si++) { locToWorld(w.stores[si].pos, vHl2); if (vHl2.distanceToSquared(pp) < (10 * L) * (10 * L)) { dup = true; break; } }
             if (!dup) hlMark(pp, 'post', String(op0.name || 'OUTPOST').toUpperCase(), org);
         }
-        if (w && typeof w.scanTargets === 'function') { try { var stg = w.scanTargets(), rn2 = 0; for (i = 0; i < stg.length && rn2 < 16; i++) { var tg = stg[i]; if (tg.type !== 'resource') continue; locToWorld(tg.pos, vHl2); if (vHl2.distanceToSquared(org) > (120 * L) * (120 * L)) continue; hlMark(vHl2, 'resource', String(tg.name || tg.kind).toUpperCase(), org); rn2++; } } catch (e0) { /* ignore */ } }
+        if (w && typeof w.scanTargets === 'function') { try { var stg = w.scanTargets(), rn2 = 0; for (i = 0; i < stg.length && rn2 < 16; i++) { var tg = stg[i]; if (tg.type !== 'resource') continue; locToWorld(tg.pos, vHl2); if (vHl2.distanceToSquared(org) > (120 * L) * (120 * L)) continue; hlMark(vHl2, 'resource', String(tg.name || tg.kind).toUpperCase(), org); rn2++; } } catch (e0) { warnOnce('scan.stores', e0); } }
         if (space && typeof space.scanTargets === 'function') {
             try {
                 var sgt = space.scanTargets(), sn2 = 0, sr2 = (500 * L) * (500 * L);
@@ -2238,7 +2242,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                     var tg2 = sgt[i]; if (tg2.pos.distanceToSquared(org) > sr2) continue;
                     hlMark(tg2.pos, tg2.kind === 'crate' ? 'shard' : (tg2.kind === 'derelict' ? 'post' : (tg2.kind === 'convoy' ? 'friend' : 'resource')), tg2.kind === 'derelict' ? 'DERELICT' : (tg2.kind === 'crate' ? 'CRATE' : (tg2.kind === 'convoy' ? 'CONVOY' : String(tg2.kind).toUpperCase())), org, tg2.kind === 'convoy' ? 'freighter' : ''); sn2++;
                 }
-            } catch (e0) { /* ignore */ }
+            } catch (e0) { warnOnce('scan.highlight', e0); }
         }
         if (HB.hub && !HB.in && gmode !== 'fly') hlMark(hubToWorld(hbE.set(0, 4, 0), hbD), 'post', 'DUNGEON', org, 'skull');
         if (gmode === 'foot' && land.node && !HB.in) for (i = 0; i < scanNpcs.length && i < 12; i++) { if (npcLocal(scanNpcs[i], vHl2)) hlMark(locToWorld(vHl2, vHl2), 'post', scanNpcs[i].name, org, scanNpcs[i].t === 'k' ? 'paw' : 'npc'); }
@@ -5291,8 +5295,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (landReq) { landReq = false; startLanding(); }
         ehTick(dt);
         lazyBuilt = false;
-        try { hubLife(dt); } catch (eh0) { HB.fail = true; if (!HB.errT) { HB.errT = 1; console.info('[ship] hub tick failed', eh0); } }      // hub/village can never break landing
-        try { villageLife(dt); } catch (ev0) { VG.fail = true; if (!VG.errT) { VG.errT = 1; console.info('[ship] village tick failed', ev0); } }
+        try { hubLife(dt); } catch (eh0) { HB.fail = true; HB.errT = 0; warnOnce('hubLife', eh0); }      // hub/village can never break landing
+        try { villageLife(dt); } catch (ev0) { VG.fail = true; VG.errT = 0; warnOnce('villageLife', ev0); }
         if (gmode === 'ifoot') { interiorStep(dt); return; }
         if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') { stationStep(dt); return; }
         if (gmode !== 'fly') { groundStep(dt); return; }
@@ -6426,7 +6430,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (gmode === 'ifoot' && R25.int && ixNear(R25.int.table, 0.1 * L)) on = true;
             else if (gmode === 'foot' && counterNear()) on = true;
             else if (gmode === 'sfoot' && sk.mode === 'deck' && stationInteract().kind === 'store') on = true;
-        } catch (e0) { /* ignore */ }
+        } catch (e0) { warnOnce('r25CraftAvail', e0); }
         if (on !== R25.craftOn) r25ClearGrid();
         R25.craftOn = on;
     }
@@ -7440,7 +7444,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         pf.quests = pf.quests.filter(function (x) { return x.id !== q.id; });
         pf.qdone = (pf.qdone || []).concat([q.id]).slice(-80);
         addUnits(rw.gor || 0, shipRoot.position, true);
-        (rw.items || []).forEach(function (it) { try { giveItem(it.item, it.n || 1); } catch (e0) { /* ignore */ } });
+        (rw.items || []).forEach(function (it) { try { giveItem(it.item, it.n || 1); } catch (e0) { warnOnce('quest.reward', e0); } });
         if (rw.words > 0) learnWords(rw.words);
         var bpQ = q.kind === 'kill' ? r28BpDrop(q.id, 0.5) : r28BpDrop(q.id, 0.15); if (bpQ) giveItem(bpQ, 1);
         addRow('', '', 'QUEST COMPLETE · ' + q.title + ' · +' + (rw.gor || 0) + ' gorCoin' + ((rw.items || []).length ? ' + ' + rw.items.map(function (x) { return x.n + ' ' + (x.item && x.item.name || 'item'); }).join(', ') : ''), 'is-sys');
@@ -7556,13 +7560,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         try {
             var tg = world.scanTargets();
             for (i = 0; i < tg.length && n < 16; i++) { if (tg[i].type !== 'resource') continue; locToWorld(tg[i].pos, vHl2); if (vHl2.distanceToSquared(org) > (120 * L) * (120 * L)) continue; n++; questEvent({ type: 'scan', planetId: pl, target: 'resource' }); if (tg[i].kind === 'plant' || tg[i].kind === 'spore') questEvent({ type: 'scan', planetId: pl, target: 'plant' }); }
-        } catch (e0) { /* ignore */ }
+        } catch (e0) { warnOnce('questScan.res', e0); }
         try {
             if (ps && ps.active && land.node === ps.active) {
                 var cl = creatList(), cn = 0, cc;
                 for (i = 0; i < cl.length && cn < 12; i++) { if (cl[i].lp.distanceToSquared(gmode === 'foot' ? hum.pos : land.sPos) < (120 * L) * (120 * L)) { cn++; questEvent({ type: 'scan', planetId: pl, target: 'creature' }); } }
             }
-        } catch (e1) { /* ignore */ }
+        } catch (e1) { warnOnce('questScan.cr', e1); }
     }
     function questDeliver(st) {         // F at a 7/11 counter on the target planet: hand over the stacks
         var pf = curProfile(); if (!pf || !pf.quests) return;
@@ -7726,7 +7730,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var base = null, pi; for (pi = 0; pi < CRF.PARTS.length; pi++) if (CRF.PARTS[pi].id === s.k) base = CRF.PARTS[pi];
             if (!base) base = R25_SCRAP[0]; giveItem(base, s.n); got.push(s.n + ' ' + base.name);
         });
-        if (r < m.chance) { try { var gi = ITM.generateItem((Math.random() * 1e9) >>> 0); giveItem(gi, 1); got.push(gi.name); } catch (e0) { /* ignore */ } }
+        if (r < m.chance) { try { var gi = ITM.generateItem((Math.random() * 1e9) >>> 0); giveItem(gi, 1); got.push(gi.name); } catch (e0) { warnOnce('mission.roll', e0); } }
         if (c) { c.rank = (c.rank | 0) + 1; c.busy = ''; }
         aPlay('units', { n: 6 }); if (c) aPlay('levelUp');
         addRow(c ? String(c.name).toUpperCase() : 'CREW', c ? cssHex(c.color) : '#ffd36a', 'back from "' + m.name + '": +' + CRF.fmt(m.gor) + (got.length ? ', ' + got.join(', ') : '') + (c ? ' · rank ' + c.rank : ''));
@@ -8786,7 +8790,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         aPlay(c.rare ? 'levelUp' : 'harvest'); addRow('', '', 'SALVAGE · ' + got.join(', '), 'is-sys'); writeSave();
         for (i = 0; i < 3; i++) fx.impact(c.pos, c.rare ? 0xff5ce1 : 0xffb030, 2.5);
     }
-    function dkTick(dt) { try { if (space) space.update(dt, shipRoot.position); } catch (e0) { /* ignore */ } if (sk.mode === 'deck') r27Foot(dt); }
+    function dkTick(dt) { try { if (space) space.update(dt, shipRoot.position); } catch (e0) { warnOnce('space.update', e0); } if (sk.mode === 'deck') r27Foot(dt); }
     function dkCollide(p, r) {
         var st = R27.dsite, b = st.deck.bounds, w = st.deck.walls, i, q;
         p.x = clamp(p.x, b.min.x + r, b.max.x - r); p.z = clamp(p.z, b.min.z + r, b.max.z - r);
@@ -8997,7 +9001,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 var c = ps.active.anchor.position; r27D.subVectors(f.pp, c).normalize(); f.pp.copy(c).addScaledVector(r27D, fo.r);
                 f.holder.quaternion.premultiply(r27Qi.setFromUnitVectors(r27U, r27D));
             }
-        } catch (e0) { /* ignore */ }
+        } catch (e0) { warnOnce('pet.floor', e0); }
         f.holder.position.copy(f.pp);
         f.lpp.copy(f.pp).sub(ps.active.anchor.position).applyQuaternion(qW.copy(ps.active.mesh.quaternion).invert());
     }

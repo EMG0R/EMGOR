@@ -17,6 +17,9 @@ const RENDER_DELAY = 150, EXTRAP_MAX = 300, SNAP_DIST = 50000;
 const CONNECT_TIMEOUT = 2000, RETRY_MS = 60000, RETRY_LONG_MS = 300000, FADE_MS = 3000;
 const POS_MS = 100, HB_MS = 5000, FIRE_MIN_MS = 100;
 
+const WARN_T = {};
+function warnOnce(tag, e) { const t = Date.now(); if (WARN_T[tag] && t - WARN_T[tag] < 30000) return; WARN_T[tag] = t; console.warn('[ship-net] ' + tag, e); }
+
 let current = null;     // the one live instance (module-level wrappers below)
 
 function readId() {
@@ -265,7 +268,7 @@ export function connect(engine, hooks) {
         if (!transition && st && !st.intro && st.frame >= 2) return;
         clockOn = true;
         engine.setClock(sharedNow);                      // time = (relay clock); camera/yaw/pitch untouched
-        if (hooks.onClockSnap) { try { hooks.onClockSnap(); } catch (e) { /* ignore */ } }
+        if (hooks.onClockSnap) { try { hooks.onClockSnap(); } catch (e) { warnOnce('onClockSnap', e); } }
     }
     function clockOff() { if (clockOn) { clockOn = false; if (typeof engine.setClock === 'function') engine.setClock(null); } }
 
