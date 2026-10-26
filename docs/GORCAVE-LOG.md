@@ -169,3 +169,10 @@ SPLIT (not blocked): the engine half needs a browser: ps is keyed to one active 
 TESTS: node --check ok on ship-depth.js (as .mjs); node --test: 59 pass / 0 fail.
 VERIFY ON MAC: nothing yet (module not imported by the game).
 OPEN: Q17b integration + g18; B2 raises MAX_DEPTH.
+
+## Q17b Fractal depth integration — 2026-10-26 — see commit "Q17b split"
+BLOCKED (split, no game code touched): reading ship.js/ship-planet.js showed three missing prerequisites. (1) ps rocks are one InstancedMesh (ship-planet.js:1313, aSel/aCol buffers) with no index/position/pick API, so "crouched + hold Z on a ps rock" has no target to resolve. (2) ps is a single surface keyed to one active node (ps.info().active, ps.update(dt, groundPos) at ship.js:5256), so re-keying to a micro node plus floating-origin/unit rebase and the parent dome cannot be judged without rendering; a mistake blanks every planet (cf. Q14 shader note). (3) galaxy3d drawOrder/label loops (1341-1397, 1505, 1974) have no `micro` skip. Writing all three blind in one run is unsafe.
+DONE: queue split into Q17b1 (rock API), Q17b2 (persistence + HUD chip), Q17b3 (dive/climb integration + g18).
+TESTS: none run (docs only).
+VERIFY ON MAC: nothing.
+OPEN: Q17b1-b3.
