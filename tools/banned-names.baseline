@@ -1,0 +1,49 @@
+docs/HANDOFF.md	- ✅ "a way to play super smash bros on the website" → GOR BRAWL at /smash.html (13 fighters, bots,
+docs/HANDOFF.md	  board/interact ("if those r the same button prioritize Minecraft menu")
+docs/HANDOFF.md	- ❌ "certain areas 1 per plannet are like the mob hub… minecraft dungeons 3d fighting vibe" —
+docs/HANDOFF.md	- ❌ "find the decompiled smash melee… decompiled n64 mario for mechanics" — DECLINED for code
+docs/HANDOFF.md	- ✅ "hit q [→ E] and it opens infinte menu… as many slots as items player has… minecraft style",
+docs/HANDOFF.md	- ✅ "minecraft… creepers and endermen and zombies and skelletons on the plannets randomly" (night
+docs/HANDOFF.md	- ✅ "minecraft inventory… match exactly to the minecraft aesthetic… hitting escape escapes that
+docs/HANDOFF.md	- ❌ "pokemon… call them pokemans… full procedurally generated… catch… 1 at a time… follow you
+docs/HANDOFF.md	- ✅ "smash is 2d and ill mimic some main characters, yoshi, mario, steve… classic smash… 12 of
+docs/HANDOFF.md	stacking inventory in an ACCURATE Minecraft layout (E; player preview; armor = suit tiers; hotbar
+docs/HANDOFF.md	- ✅ "switch your character… thier movement style… n64 mario… sonic" (MARO/JOSHI/STEEV/SONIK live;
+docs/HANDOFF.md	- Symbols not words on HUD markers. Minecraft inventory must stay pixel-accurate.
+docs/HANDOFF.md	- ✅ "the minecraft menu (which needs to look and feel more accurate to the minecraft menu check
+docs/HANDOFF.md	- ❌ "the minecraft villages, this is huge aspect i want, not destroyable houses, iron golumns etc."
+docs/HANDOFF.md	  them… in moves and behavior and feel" (13 archetypes incl. Steve)
+docs/HANDOFF.md	  your ship and can run around" → keybind resolved: E = inventory (Minecraft), F = land/exit/
+docs/next-stage-plan.md	### A4. Upgrading, better than Pokémon ("graft" system)
+docs/next-stage-plan.md	## C. MARO = Mario 64 mechanics, exact
+docs/next-stage-plan.md	Conversion (Mario 160 units tall = 1 H; 30 frames/s): speed u/f → H/s = ×30/160 = ×0.1875; accel u/f² → H/s² = ×900/160 = ×5.625.
+docs/next-stage-plan.md	Legal line: the sm64 decompilation is Nintendo's copyrighted code reverse-engineered; do NOT copy code or assets. The documented constants and state machine (Ukikipedia / community tables, already the source "S1" in ship-styles.js) are facts and are fine. Names and looks stay ours (MARO, stout runner, violet/orange).
+docs/nms-mechanics.md	  speed-damp to boost on entry rather than a hard stop. Add a sonic-boom thump on the
+docs/ship-mode.md	- **3×3 crafting table** (Minecraft style) inside your ship and at every 7/11 counter.
+docs/ship-mode.md	6. **Minecraft inventory**: exact Minecraft look: dark semi-transparent grey panel with
+docs/ship-mode.md	- **Chat UI**: the `/` line and a chat log styled like Minecraft: pixel font
+docs/ship-mode.md	E = inventory (Minecraft). F = interact: tap F land, hold F land + step out, F exit ship,
+docs/ship-mode.md	   hover highlight, item tooltip (name, blurb, effect) in the Minecraft font, stack
+docs/ship-mode.md	- **Inventory = accurate Minecraft survival inventory**: check the real layout: 176×166
+docs/ship-mode.md	  module in place (no reload). The hotbar stays visible on the HUD like Minecraft.
+docs/ship-mode.md	- Q at ANY time: infinite Minecraft-style inventory: a grid of slots = owned items
+docs/ship-mode.md	## Revision 11 (2026-10-01) — Minecraft chat + nerfed gorcave
+docs/ship-mode.md	## Revision 24 (2026-10-04) — resume where you were, land/water balance, clean entry, speeds, guidance, Minecraft inventory
+docs/ship-mode.md	## Revision 30 (2026-10-06) — one game: character styles live in the Minecraft menu
+docs/ship-mode.md	- **Slash commands** (Minecraft style): while piloting, pressing `/` opens a one-line
+docs/ship-mode.md	  the same creeper. Villages are static seeded (already shared).
+docs/smash-plan.md	BUILDER is a blocky crafter; no Mojang names, no creeper/pickaxe-logo art. Sprite is a cube-head, cube-limb humanoid in OUR palette.
+docs/smash-plan.md	- **Movesets are close to the classic cast.** That's a mechanics choice; keep names, sprites, voices, SFX, stage art and text original. Run a final grep for banned proper nouns before ship (Nintendo, Mario, Zelda, Pokemon, Minecraft, Creeper, Steve, Smash, etc.).
+docs/smash-plan.md	Names, sprites, stages, sounds, UI chrome, logos are ALL original. No Nintendo/Mojang names or art anywhere, including code comments, file names, alt text.
+docs/superpowers/specs/2026-09-21-papers-accuracy-restructure-design.md	Ableton Link, hot-reloaded `live.conf` with graceful-failure re-routing,
+docs/superpowers/specs/2026-09-21-papers-accuracy-restructure-design.md	lower by design, learnability high, sonic range deliberately constrained,
+js/lava.js	    console.error("Program Link Error:", gl.getProgramInfoLog(program));
+js/ship-enemies.js	    // tapered mossy pillar on four stubby feet; head a notched block; face = two X-eyes and a slit (ours, not Mojang's)
+js/ship-icons.js	// Procedural 16x16 pixel-art icons for NO MANS GOR items + weapons (Minecraft item style).
+js/ship-interior.js	  // crafting table (Minecraft style cube)
+js/ship-items.js	  ['Neon Nonsense', 'psy', 3], ['Quibblex', 'dis', 2], ['Glitterspice', 'psy', 2], ['Turbo Toad Sweat', 'stim', 4], ['Slow-Mo Syrup', 'down', 3], ['Echo Elixir', 'dis', 3],
+js/ship.js	    // ─── chat log (rev 11): Minecraft style, newest at the bottom, max 8 rows, each fades after 10 s unless the input is open
+js/ship.js	    function bkExplode(wpos, radiusH) {      // creeper blast: every block whose centre is within radius H
+js/ship.js	    // ─── inventory (E): rev 30 = the Minecraft survival screen: 176x166 panel at a GUI scale (--g px per MC pixel), 27 main + 9 hotbar (weapons), armor + offhand, 2x2 craft (3x3 at a table), CHARACTER tab ───
+js/ship-planet-tests.js	    // blocks right at the creeper: put two beside it
+js/ship-styles.js	    out.caution = (ctx.hostileNear != null && ctx.hostileNear < 7) || (ctx.fuse != null && ctx.fuse > 0);                   // creeper-ish: hostile close / fuse hissing -> HUD/camera nudge

@@ -39,3 +39,9 @@ DONE: footStep (ship.js ~5115-5155): the old code already flagged `wallHit` on a
 TESTS: node --check ok on ship.js, ship-styles.js (as .mjs); node --test: 4 pass / 0 fail (tests/node/wall-normal.test.mjs, new).
 VERIFY ON MAC: run MARO into a vertical wall while airborne + Space: wall kick fires (g-test maroWall, ship-planet-tests.js:941, wallNormalFrames > 0, kicks > 0); walking up a ~45° slope must NOT kick; sliding along an angled wall keeps momentum; other styles unaffected.
 OPEN: the 70° test uses the rise of the straight probe, not a true surface normal; a very short step on a stair edge could still read as steep if rise/step is large.
+
+## Q07 Pre-push guard — 2026-10-26 — see commit "Q07 Pre-push guard"
+DONE: `tools/banned-names.sh` (case-insensitive term list + case-sensitive Link/Peach/Tails/Toad/Steve/Notch), scans js/ docs/, exit 1 on a NEW hit. Tree already had 49 legacy mentions (Minecraft/creeper comments, quoted asks in HANDOFF), so they are grandfathered in `tools/banned-names.baseline` (file + text, no line numbers; `--baseline` regenerates). `banned-ok` on a line exempts it. `.githooks/pre-push` calls it; `git config core.hooksPath .githooks` set in this clone only. HANDOFF.md section "Pre-push guard (Q07)" documents it.
+TESTS: bash -n ok; clean tree -> exit 0; planted `// Mario test` in js/ -> exit 1 (then removed). No js edited; tests/node not run.
+VERIFY ON MAC: `git config core.hooksPath .githooks` in the Mac clone, then `bash tools/banned-names.sh` -> clean; push triggers it.
+OPEN: baseline hides existing mentions (mostly Minecraft-style comments); a public-release scrub should clear them and empty the baseline. Hook is per-clone config, not versioned.

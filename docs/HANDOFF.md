@@ -63,6 +63,9 @@ revisions 1–30), `docs/mashup-plan.md`, `docs/smash-plan.md`, `docs/multiplaye
 `docs/playtest-1.md`, `docs/playtest-2.md`. Memory rules: `~/EMGOR_SKILLS/_EMORY.md` is loaded
 every session; the token-preservation rule is in `memory/emory/token-preservation-mode.md`.
 
+## Pre-push guard (Q07)
+`tools/banned-names.sh` greps js/ + docs/ for third-party character/game names and exits 1 on any NEW hit. Existing mentions (comments, Emory's quoted asks) are grandfathered in `tools/banned-names.baseline` (file + line text). Enable once per clone: `git config core.hooksPath .githooks` (pre-push runs the script). After deliberately adding an allowed mention, regenerate with `tools/banned-names.sh --baseline` and review the diff; or put `banned-ok` on the line. Skipped files: the handoff/queue/log/mashup-plan docs that must name the rule.
+
 ## What this is
 A No Man's Sky style game living inside emgor.online's Three.js galaxy (the portfolio site).
 Click the ship on the home page → same scene becomes the game. ~30k lines across `js/ship*.js`,
