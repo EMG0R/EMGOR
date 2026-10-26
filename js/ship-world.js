@@ -701,6 +701,15 @@ export function createStandaloneStore(THREE, opts) {
   };
   return out;
 }
+// Q14b: the POKEMANS CVS as a placeable prop (station deck). Shares the 7/11 standalone store's assets (`store.assets`), so ss.dispose() frees it.
+// Local metres, back wall at z -2.85, windows at z +3 (REVIVE x -CVS_WX, HEAL x +CVS_WX). Caller scales/rotates `group`.
+export function createCvsProp(THREE, assets) {
+  const T = THREE, cg = assets.cvsGeoms();
+  const group = new T.Group(); group.name = 'pokemans-cvs-prop';
+  const body = new T.Mesh(cg.body, assets.matBody), emi = new T.Mesh(cg.emi, assets.matEmi), sign = new T.Mesh(assets.cGeo, assets.cMat);
+  [body, emi, sign].forEach((m) => { m.frustumCulled = false; group.add(m); });
+  return { group, walls: boxV(T, cg.walls), reviveLocal: new T.Vector3(-CVS_WX, FY, 5.4), healLocal: new T.Vector3(CVS_WX, FY, 5.4), tris: cg.tris + 12 };
+}
 export const STORE_DIMS = { W: PD.W, D: PD.D, H: PD.H, floorY: FY, halfW: PD.HW, halfD: PD.HD, compact: { W: CD.W, D: CD.D, H: CD.H, halfD: CD.HD, npcSpot: { x: CD.cX, z: CD.cZ - 2.4 }, counter: { x: CD.cX, z: CD.cZ + 2.1 } } };
 export { fillStoreRecord };
 

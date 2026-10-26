@@ -8557,6 +8557,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!SITE() || !hum.obj || sk.mode !== 'deck' || storeOpen) return skI;
         var hw = hum.w, st0 = SITE().interior.stores[0], npcs = SITE().interior.npcs, ped = SITE().interior.mapPedestal, i;
         if (st0 && hw.distanceTo(st0.counter.pos) < Math.max(st0.counter.radius * 1.8, 2 * SK_H * L)) { skI.kind = 'store'; skI.obj = st0; skI.label = 'F · SHOP'; return skI; }
+        var cv = !R27.dsite && SITE().interior.cvs;      // Q14b station POKEMANS CVS: same {kind, cvs} shape as world.nearCvs
+        if (cv && cv.radius) {
+            var dR = hw.distanceTo(cv.reviveWin), dH = hw.distanceTo(cv.healWin);
+            if (Math.min(dR, dH) < cv.radius) { skI.kind = 'cvs'; skI.obj = { kind: dR <= dH ? 'revive' : 'heal', cvs: cv }; skI.label = dR <= dH ? cvsLabel() : 'F · HEAL'; return skI; }
+        }
         for (i = 0; i < npcs.length; i++) if (hw.distanceTo(npcs[i].pos) < 1.4 * L) { skI.kind = 'npc'; skI.obj = npcs[i]; skI.label = 'F · TALK'; return skI; }
         var tr = SITE().interior.trade; if (tr && tr.pos && hw.distanceTo(tr.pos) < Math.max(tr.radius || 0, 1.8 * L)) { skI.kind = 'trade'; skI.obj = tr; skI.label = 'F · TRADE'; return skI; }
         var yd = !R27.dsite && SITE().interior.shipyard; if (yd && yd.pos && yd.ships && hw.distanceTo(yd.pos) < Math.max(yd.radius || 0, 1.5 * L)) { skI.kind = 'shipyard'; skI.obj = yd; skI.label = 'F · SHIPYARD'; return skI; }
@@ -8568,6 +8573,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function stationE() {
         var si = stationInteract();
         if (si.kind === 'store') openStore(si.obj);
+        else if (si.kind === 'cvs') cvsUse(si.obj);
         else if (si.kind === 'trade') openTrade(si.obj, 'STATION TRADE', 'TRADER', null);
         else if (si.kind === 'shipyard') openShipyard();
         else if (si.kind === 'loot') dkLoot(si.obj);

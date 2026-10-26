@@ -16,8 +16,9 @@
 //   station.interior.trade { pos, radius, buys:[stackKey], buyPrices:{key:gorCoin}, sells:[{id,item,n,price}], day }  TRADE terminal on the right wall (market seeded per UTC day; refresh(day?) rebuilds)
 //   station.interior.shipyard { pos, radius, ships:[{kind,name,price,stats:{cruise,boost,cargo,guns,hp} (pct deltas vs hauler; guns absolute),blurb}] }  hangar-back alcove, 2 turntable display pads (fighter, explorer)
 //   station.interior.questBoard { pos, radius, quests, setQuests([{title,reward,kind}]) }  'BOUNTIES' screen beside the mission board;  .landingFee (0)  .greetingLine(seed?) seeded PA line on dock
+//   station.interior.cvs { id, name, pos, reviveWin, healWin (world), radius }  Q14b POKEMANS CVS on the right wall (null-safe: derelicts have none)
 //   station.toLocal(v)/toWorld(v)  (local in L units)   station.setVisible(b)   station.stats {tris, meshes}   station.dispose()
-import { STORE_NAME, STORE_DIMS, createStandaloneStore, transformBoxes, fillStoreRecord } from './ship-world.js';
+import { STORE_NAME, STORE_DIMS, createStandaloneStore, createCvsProp, transformBoxes, fillStoreRecord } from './ship-world.js';
 import * as lingo from './ship-lingo.js';
 import { createHuman } from './ship-human.js';
 import { weaponSetFor, generateWeapon } from './ship-weapons.js';
@@ -245,6 +246,7 @@ export function createStation(engine, L, opts) {
 
   // ── layout (set by build) ──
   let zF = 0, zR = 0, lenL = 0, padLocal = [], storeWalls = [];
+  let cvp = null;                                 // Q14b POKEMANS CVS prop on the right wall (shares ss.assets)
   let ss = null;                                  // the standalone INTERGALACTIC 7/11 (x1.5 scale, rotated so its glass front faces +x into the hangar)
   const STORE_S = 1.5 * HUMAN_H / 1.75;           // L per metre
   const lay = { counter: new T.Vector3(), clerk: new T.Vector3(), ped: new T.Vector3(), board: new T.Vector3(), yard: [new T.Vector3(), new T.Vector3()], quest: new T.Vector3(), trade: new T.Vector3(), npc: [] };
@@ -492,6 +494,13 @@ export function createStation(engine, L, opts) {
     // push the store's walls / shelves into the deck colliders (station-local L, axis aligned: the yaw is 90 degrees)
     storeWalls = transformBoxes(T, ss.interior.walls.concat(ss.interior.aisles), ss.group.matrix);
     storeWalls.forEach((w) => st.deck.walls.push({ name: 'store-' + w.name, min: w.min, max: w.max, field: false }));
+    // Q14b POKEMANS CVS: right wall between the mission board and the trade terminal, windows facing -x into the hangar
+    if (!cvp) { cvp = createCvsProp(T, ss.assets); group.add(cvp.group); st.interior.cvs = { id: 'station-cvs', name: 'POKEMANS CVS', pos: new T.Vector3(), reviveWin: new T.Vector3(), healWin: new T.Vector3(), radius: 0, localRevive: new T.Vector3(), localHeal: new T.Vector3() }; }
+    cvp.group.scale.setScalar(STORE_S); cvp.group.rotation.set(0, -Math.PI / 2, 0);
+    cvp.group.position.set(HW - 0.08 - 2.85 * STORE_S, 0, cz - 2.0); cvp.group.updateMatrix(); cvp.group.updateMatrixWorld(true);
+    transformBoxes(T, cvp.walls.filter((w) => w.name !== 'floorInside'), cvp.group.matrix).forEach((w) => st.deck.walls.push({ name: 'cvs-' + w.name, min: w.min, max: w.max, field: false }));
+    st.interior.cvs.localRevive.copy(cvp.reviveLocal).applyMatrix4(cvp.group.matrix); st.interior.cvs.localRevive.y = 0;
+    st.interior.cvs.localHeal.copy(cvp.healLocal).applyMatrix4(cvp.group.matrix); st.interior.cvs.localHeal.y = 0;
     if (!st.interior.stores.length) {
       const id = 'station-711';
       const base = weaponSetFor(id, 4), CL = ['C', 'B', 'A', 'S'];
@@ -535,6 +544,8 @@ export function createStation(engine, L, opts) {
       toW(s.localCounter.x, 0, s.localCounter.z, s.counter.pos); toW(s.localPos.x, 0, s.localPos.z, s.npcSpot.pos); s.pos.copy(s.counter.pos);
       s.npcSpot.facing.set(1, 0, 0).applyQuaternion(group.quaternion); s.counter.radius = 4.5 * STORE_S * L;
     }
+    const cv = st.interior.cvs;
+    if (cv) { toW(cv.localRevive.x, 0, cv.localRevive.z, cv.reviveWin); toW(cv.localHeal.x, 0, cv.localHeal.z, cv.healWin); cv.pos.copy(cv.reviveWin).add(cv.healWin).multiplyScalar(0.5); cv.radius = 3 * STORE_S * L; }
     st.interior.npcs.forEach((n) => toW(n.localPos.x, 0, n.localPos.z, n.pos));
     toW(lay.ped.x, 0, lay.ped.z, st.interior.mapPedestal.pos); st.interior.mapPedestal.radius = 0.45 * L;
     toW(lay.board.x, lay.board.y, lay.board.z, st.interior.board.pos); st.interior.board.radius = 0.6 * L;
@@ -667,7 +678,7 @@ export function createStation(engine, L, opts) {
     quadGeo.dispose(); matLit.dispose(); matEmi.dispose(); matLight.dispose(); matSign.dispose(); matField.dispose(); tex.dispose();
     yardTex.dispose(); qTex.dispose(); qMat.dispose(); yardSign.material.dispose(); yardHulls.forEach((g) => g.traverse((o) => { if (o.geometry) o.geometry.dispose(); }));
     humans.forEach((h) => { try { h.dispose(); } catch (e) { /* ignore */ } }); humans = [];
-    if (ss) { ss.dispose(); ss = null; }
+    if (ss) { ss.dispose(); ss = null; cvp = null; }
   };
 
   build(targetLenL());
