@@ -162,3 +162,10 @@ DONE: js/ship-planet-tests.js only (no game code). g10: board prompt now matched
 TESTS: node --check ok on ship-planet-tests.js (as .mjs); node --test: 53 pass / 0 fail.
 VERIFY ON MAC: run g10, g13, g15. g10 should pass with the interior module loaded; g13 report `formation.ratio` (expect ~0.99-1.0; if < 0.99 the game, not the test, is wrong); g15 if it now fails with noSpawn, the spawn cap is the real cause.
 OPEN: g4 teleportFrames flake and g14 steep site (listed in next-stage-plan.md:110) not in this item.
+
+## Q17 Fractal depth 1 prototype (Q17a) — 2026-10-26 — see commit "Q17 Fractal depth (pure module)"
+DONE: new js/ship-depth.js (pure, no DOM/THREE): microSeed/microSpec (hash of parent id + rock index, moons 0-3, micro:true), scale(depth) (g x0.85^d, day x0.7^d, loot tier 1+d, village x0.8^d), createDive() state machine (hold 0.6 s -> dive 2 s eased -> in -> climb reverse), shouldClimb at 3 R, depthStack push/pop/toSave/fromSave (MAX_DEPTH 1). tests/node/depth.test.mjs (6 tests). No game file touched.
+SPLIT (not blocked): the engine half needs a browser: ps is keyed to one active node with a floating origin, makeBody nodes need drawOrder/label hiding for micro, and the dome/unit rebase can only be judged visually. Writing that unattended without any run is a blank-every-planet risk (see Q14 shader note), so it is queued as Q17b with every hook behind a module-loaded guard.
+TESTS: node --check ok on ship-depth.js (as .mjs); node --test: 59 pass / 0 fail.
+VERIFY ON MAC: nothing yet (module not imported by the game).
+OPEN: Q17b integration + g18; B2 raises MAX_DEPTH.
