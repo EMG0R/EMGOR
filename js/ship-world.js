@@ -15,6 +15,7 @@
 //                               burgerHouse: world.burgerHouse on the first store, else null }]      all positions planet-local (Vector3)
 //        box = { name, min:Vector3, max:Vector3 } in STORE-LOCAL metres (x across, z toward the glass front (+z), y up from the slab; floorY = standing height).
 //        Convert with store.interior.toParent / matrix; 1 m = interior.unit world units (= 0.09 L / 1.75 = a human's height is 1.75 m).
+//     world.cvs               Q14 POKEMANS CVS { id, name, pos, reviveWin, healWin, radius, matrix, unit, walls:[box] } or null; world.setCvsSite(dir|null, nodeId) places it (flat pad slot 2, ship.js); world.nearCvs = { kind:'revive'|'heal', cvs } | null
 //     world.burgerHouse       { id, pos, windowPos, radius, clerk:{ name, seed, role:'fries', known, human, say(ctx) }, menu:[FRIES], walls:[box], interior-like matrix } or null before attach
 //     world.known             Set of learned concepts (ship-lingo). world.setKnown(set) rebinds every NPC to the player's saved Set.
 //     world.shards            [{ id, pos, taken }]    20 per planet; pos is the resting spot (planet-local), the crystal floats ~0.9 L above it
@@ -353,6 +354,69 @@ function burgerSignGeometry(T) {
 }
 
 
+// ── POKEMANS CVS (Q14): a pharmacy walk-up, red and white, same build pattern as the Burger House. Two counter windows on the +Z front: left REVIVE (x -2.8),
+//    right HEAL (x +2.8). Local metres, windows at z=+3. ──
+const CVS_WX = 2.8;
+function buildCvsGeoms(T) {
+  const B = makeSoup(T), E = makeSoup(T), walls = [];
+  const WH = 0xF8F6F4, RED = 0xD21F2E, DARK = 0x2A2024, CONC = 0xC4C0CC, CHROME = 0xB8BEC8, GRN = 0x39E58C;
+  const wall = (name, w, h, d, cx, y0, cz, hex) => { B.box(w, h, d, cx, y0, cz, hex); walls.push({ name, min: [cx - w / 2, y0, cz - d / 2], max: [cx + w / 2, y0 + h, cz + d / 2] }); };
+  B.box(17, 2.4, 15, 0, -2.2, 2.6, 0x6A6480); B.box(16, 0.3, 14, 0, -0.1, 2.6, CONC);                    // foundation + concrete lot
+  E.box(15.6, 0.02, 0.25, 0, 0.2, 9.2, RED, 0, 0.7);                                                       // painted kerb line
+  wall('back', 10, 3.4, 0.3, 0, 0.2, -2.85, WH); wall('sideL', 0.3, 3.4, 6, -4.85, 0.2, 0, WH); wall('sideR', 0.3, 3.4, 6, 4.85, 0.2, 0, WH);
+  wall('frontEdgeL', 0.85, 3.4, 0.3, -4.425, 0.2, 2.85, WH); wall('frontMid', 3.2, 3.4, 0.3, 0, 0.2, 2.85, WH); wall('frontEdgeR', 0.85, 3.4, 0.3, 4.425, 0.2, 2.85, WH);
+  for (const s of [-1, 1]) { wall('low' + s, 2.4, 1.1, 0.3, s * CVS_WX, 0.2, 2.85, WH); wall('high' + s, 2.4, 0.9, 0.3, s * CVS_WX, 2.7, 2.85, WH); }
+  B.box(10.2, 0.5, 6.2, 0, 0.2, 0, RED);                  // red base band
+  B.box(10.3, 0.22, 6.3, 0, 2.98, 0, RED);                // red stripe under the roof
+  B.box(10.6, 0.3, 6.6, 0, 3.6, 0, WH); B.box(10.8, 0.12, 6.8, 0, 3.9, 0, RED);                          // flat roof + red cap
+  for (const s of [-1, 1]) {
+    const x = s * CVS_WX;
+    B.box(2.6, 0.14, 0.1, x, 2.62, 3.04, CHROME); B.box(2.6, 0.14, 0.1, x, 1.25, 3.04, CHROME);          // chrome window trim
+    B.box(0.14, 1.5, 0.1, x - 1.25, 1.25, 3.04, CHROME); B.box(0.14, 1.5, 0.1, x + 1.25, 1.25, 3.04, CHROME);
+    B.box(2.6, 0.12, 1.0, x, 1.2, 3.55, RED); B.box(2.8, 0.05, 1.1, x, 1.32, 3.55, WH);                  // service ledge
+    E.box(2.4, 0.08, 0.08, x, 2.75, 3.12, s < 0 ? 0xFF4A5A : GRN); E.box(2.4, 0.08, 0.08, x, 1.3, 3.12, s < 0 ? 0xFF4A5A : GRN);   // neon outline: red = REVIVE, green = HEAL
+    E.box(0.08, 1.5, 0.08, x - 1.2, 1.3, 3.12, s < 0 ? 0xFF4A5A : GRN); E.box(0.08, 1.5, 0.08, x + 1.2, 1.3, 3.12, s < 0 ? 0xFF4A5A : GRN);
+    E.box(2.0, 1.1, 0.06, x, 1.4, -2.58, 0xE8FFF4, 0, 0.7);                                               // lit shelf glow behind each window
+  }
+  B.box(8.6, 1.5, 0.1, 0, 1.0, -2.65, DARK);
+  wall('floorInside', 9.4, 0.1, 5.4, 0, 0.2, 0, DARK);
+  // flat awning over both windows, red fascia, posts, bulbs
+  B.box(10.8, 0.16, 2.6, 0, 3.15, 4.3, WH, 0.14); B.box(10.8, 0.5, 0.14, 0, 2.6, 5.6, RED); B.box(0.14, 2.4, 0.14, -4.9, 0.2, 5.5, CHROME); B.box(0.14, 2.4, 0.14, 4.9, 0.2, 5.5, CHROME);
+  for (let k = 0; k < 14; k++) E.box(0.14, 0.14, 0.14, -5.2 + k * 0.8, 2.35, 5.65, k % 2 ? 0xFFFFFF : 0xFF8A94);
+  // roof sign: backing + red neon frame; the script plane is cGeo. Pylon with the cross.
+  B.box(8.0, 2.8, 0.35, 0, 4.0, 0, DARK); B.box(0.3, 0.9, 0.3, -3.0, 4.0, 0, CHROME); B.box(0.3, 0.9, 0.3, 3.0, 4.0, 0, CHROME);
+  E.box(8.3, 0.14, 0.14, 0, 4.0, 0.2, 0xFF4A5A); E.box(8.3, 0.14, 0.14, 0, 6.7, 0.2, 0xFF4A5A); E.box(0.14, 2.8, 0.14, -4.1, 4.0, 0.2, 0xFF4A5A); E.box(0.14, 2.8, 0.14, 4.1, 4.0, 0.2, 0xFF4A5A);
+  B.box(0.3, 6.2, 0.3, 7.2, 0.2, 5.5, RED); B.box(2.0, 2.0, 0.3, 7.2, 5.9, 5.5, DARK);
+  E.box(1.5, 0.45, 0.1, 7.2, 6.9, 5.68, 0xFF3A4A); E.box(0.45, 1.5, 0.1, 7.2, 6.4, 5.68, 0xFF3A4A);          // lit red cross on the pylon (vertical + horizontal arm)
+  for (const [tx, tz] of [[-5.5, 7.6], [4.6, 8.2]]) { B.box(1.1, 0.1, 1.1, tx, 0.55, tz, WH); B.box(0.16, 0.35, 0.16, tx, 0.2, tz, CHROME); }   // two waiting benches' tops
+  return { body: B.geometry(), emi: E.geometry(), tris: B.tris() + E.tris(), walls };
+}
+function cvsSignTexture(T) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
+  const x = c.getContext('2d');
+  x.fillStyle = '#160a10'; x.fillRect(0, 0, 1024, 512);
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  const neon = (txt, cx, cy, font, col, glow) => { x.font = font; x.shadowColor = glow; x.shadowBlur = 32; x.fillStyle = glow; x.fillText(txt, cx, cy); x.shadowBlur = 12; x.strokeStyle = glow; x.lineWidth = 6; x.strokeText(txt, cx, cy); x.shadowBlur = 0; x.fillStyle = col; x.fillText(txt, cx, cy); };
+  let fs = 150; do { x.font = '900 ' + fs + 'px "Arial Black", Impact, sans-serif'; fs -= 6; } while (x.measureText('POKEMANS').width > 760 && fs > 40);
+  neon('POKEMANS', 590, 128, x.font, '#fff0f0', '#ff2a3a');
+  x.shadowColor = '#ff2a3a'; x.shadowBlur = 30; x.fillStyle = '#ff2a3a'; x.fillRect(60, 86, 150, 44); x.fillRect(113, 33, 44, 150); x.shadowBlur = 0;   // red cross
+  neon('REVIVE', 256, 300, '900 112px "Arial Black", Impact, sans-serif', '#fff0f0', '#ff4a5a');
+  neon('HEAL', 768, 300, '900 112px "Arial Black", Impact, sans-serif', '#eafff4', '#2ae58c');
+  neon('pharmacy', 512, 440, 'italic 700 90px "Brush Script MT", "Snell Roundhand", cursive', '#ffe8ec', '#ff2a3a');
+  const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
+  return tex;
+}
+function cvsSignGeometry(T) {
+  const p = [], u = [];
+  const quad = (cx, cy, cz, w, h, u0, u1, v0, v1) => { p.push(cx - w / 2, cy - h / 2, cz, cx + w / 2, cy - h / 2, cz, cx + w / 2, cy + h / 2, cz, cx - w / 2, cy - h / 2, cz, cx + w / 2, cy + h / 2, cz, cx - w / 2, cy + h / 2, cz); u.push(u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1); };
+  quad(0, 5.4, 0.22, 7.8, 2.6, 0.01, 0.99, 0.52, 0.99);                  // roof sign: cross + POKEMANS (top half)
+  quad(-CVS_WX, 3.18, 3.1, 2.4, 0.7, 0.02, 0.5, 0.2, 0.46);              // REVIVE above the left window
+  quad(CVS_WX, 3.18, 3.1, 2.4, 0.7, 0.5, 0.98, 0.2, 0.46);               // HEAL above the right window
+  quad(0, 3.18, 3.1, 2.8, 0.7, 0.2, 0.8, 0.02, 0.18);                    // pharmacy script between them
+  const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(p, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(u, 2)); g.computeBoundingSphere();
+  return g;
+}
+
 // transform {min,max} arrays by a matrix -> axis-aligned boxes of Vector3 (works for 90 degree yaws and any translate/scale)
 export function transformBoxes(T, list, m) {
   const v = new T.Vector3();
@@ -395,7 +459,7 @@ function makeAssets(T, dims) {
     matBody: new T.ShaderMaterial(Object.assign({ fragmentShader: FRAG_LIT, uniforms: {} }, base)),
     matEmi: new T.ShaderMaterial(Object.assign({ fragmentShader: FRAG_EMI, uniforms: { uTime: uniformsT } }, base)),
     matGlass: new T.MeshBasicMaterial({ color: 0xA8ECFF, transparent: true, opacity: 0.16, depthWrite: false, side: T.DoubleSide }),
-    signTex: null, matSign: null, signGeo: null, glassGeo: null, bTex: null, bMat: null, bGeo: null,
+    signTex: null, matSign: null, signGeo: null, glassGeo: null, bTex: null, bMat: null, bGeo: null, cvs: null, cTex: null, cMat: null, cGeo: null,
   };
   A.geoms = buildStoreGeoms(T, { dims: dm }); A.dims = dm;
   A.signTex = signTexture(T); A.matSign = new T.MeshBasicMaterial({ map: A.signTex, toneMapped: false, side: T.DoubleSide });
@@ -406,9 +470,15 @@ function makeAssets(T, dims) {
     A.burger = buildBurgerGeoms(T); A.bTex = burgerSignTexture(T); A.bMat = new T.MeshBasicMaterial({ map: A.bTex, toneMapped: false, side: T.DoubleSide }); A.bGeo = burgerSignGeometry(T);
     return A.burger;
   };
+  A.cvsGeoms = () => {
+    if (A.cvs) return A.cvs;
+    A.cvs = buildCvsGeoms(T); A.cTex = cvsSignTexture(T); A.cMat = new T.MeshBasicMaterial({ map: A.cTex, toneMapped: false, side: T.DoubleSide }); A.cGeo = cvsSignGeometry(T);
+    return A.cvs;
+  };
   A.dispose = () => {
     A.geoms.body.dispose(); A.geoms.emi.dispose(); A.matBody.dispose(); A.matEmi.dispose(); A.matGlass.dispose(); A.matSign.dispose(); A.signTex.dispose(); A.signGeo.dispose(); A.glassGeo.dispose();
     if (A.burger) { A.burger.body.dispose(); A.burger.emi.dispose(); A.bTex.dispose(); A.bMat.dispose(); A.bGeo.dispose(); A.burger = null; }
+    if (A.cvs) { A.cvs.body.dispose(); A.cvs.emi.dispose(); A.cTex.dispose(); A.cMat.dispose(); A.cGeo.dispose(); A.cvs = null; }
   };
   return A;
 }
@@ -769,11 +839,12 @@ export function createWorld(THREE, ps, L, mods) {
   const K = HUMAN_H * L / 1.75;                            // store unit = 1 m in world units (a 1.75 m human = 0.09 L)
   const OS = (ps && ps.outScale > 0) ? ps.outScale : 1, KS = K * OS;   // 2026-10-14: the planet's 7/11 + Burger House are built OS x bigger (ship-planet OUT_S); NPC humans stay human-sized (crowd hs = 1 / OS)
   const group = new T.Group(); group.name = 'ship-world';
-  const world = { group, stores: [], shards: [], nearStore: null, nearBurger: null, nearNpc: null, burgerHouse: null, onShard: null, onBusted: null, onCopSay: null, heat: 0, cart: [], lastCheckout: [], heatStore: null, resources: [], resGas: false, node: null, storeTris: 0, burgerTris: 0, known: new Set() };
+  const world = { group, stores: [], shards: [], nearStore: null, nearBurger: null, nearCvs: null, nearNpc: null, burgerHouse: null, cvs: null, onShard: null, onBusted: null, onCopSay: null, heat: 0, cart: [], lastCheckout: [], heatStore: null, resources: [], resGas: false, node: null, storeTris: 0, burgerTris: 0, known: new Set() };
 
   let A = null, matShard = null, shardGeo = null;
   let bodies = null, emis = null, signs = null, glasses = null, shardMesh = null;
   let shelfShared = null;
+  let cvs = null, cvsSite = null;                           // Q14 POKEMANS CVS: { node, matrix }; cvsSite = { id, dir } set by ship.js (setCvsSite)
   let burger = null;                                        // { node, meshes[], matrix, ... }
   let sites = [], taken = new Set();
   let resMat = null, resGeos = null, resMeshes = {}; const rstate = new Map();
@@ -876,6 +947,38 @@ export function createWorld(THREE, ps, L, mods) {
     bh.matrix.copy(burger.matrix); bh.unit = KS;
     burger.clerk.pos.set(0, FY, 1.6).applyMatrix4(burger.matrix);
   }
+
+  // POKEMANS CVS (Q14): one per lush/rocky planet at the site ship.js registered as a flat pad (slot 2); front windows face the first outpost's pad
+  function ensureCvs() {
+    if (cvs || !cvsSite || !world.node || String(world.node.id) !== cvsSite.id || !A) return;
+    const cg = A.cvsGeoms();
+    const node = new T.Group(); node.name = 'pokemans-cvs'; node.matrixAutoUpdate = false;
+    const body = new T.Mesh(cg.body, A.matBody), emi = new T.Mesh(cg.emi, A.matEmi), sign = new T.Mesh(A.cGeo, A.cMat);
+    [body, emi, sign].forEach((m) => { m.frustumCulled = false; node.add(m); });
+    group.add(node);
+    cvs = { node, matrix: new T.Matrix4() };
+    world.cvs = { id: world.node.id + '-cvs', name: 'POKEMANS CVS', pos: new T.Vector3(), reviveWin: new T.Vector3(), healWin: new T.Vector3(), radius: 3.0 * KS, matrix: new T.Matrix4(), unit: KS, walls: boxV(T, cg.walls), tris: cg.tris + 12 };
+  }
+  function layoutCvs() {
+    if (!cvs || !cvsSite) return;
+    const R = ps.radius || 1, dir = cvsSite.dir, fl = ps.floorLocal(dir.x, dir.y, dir.z); if (!isFinite(fl)) return;
+    const ground = dir.clone().multiplyScalar(fl), up = dir.clone();
+    const target = sites[0] ? new T.Vector3().setFromMatrixPosition(sites[0].pad) : new T.Vector3(1, 0, 0);
+    const fwd = target.sub(ground); fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.lengthSq() < 1e-12) fwd.set(1, 0, 0).addScaledVector(up, -up.x); fwd.normalize();
+    const xA = new T.Vector3().crossVectors(up, fwd).normalize();
+    cvs.matrix.makeBasis(xA, up, fwd).setPosition(ground); cvs.matrix.multiply(_sc.makeScale(KS, KS, KS));
+    cvs.node.matrix.copy(cvs.matrix); cvs.node.matrixWorldNeedsUpdate = true;
+    const w = world.cvs;
+    w.pos.set(0, 0, 0).applyMatrix4(cvs.matrix); w.reviveWin.set(-CVS_WX, FY, 5.4).applyMatrix4(cvs.matrix); w.healWin.set(CVS_WX, FY, 5.4).applyMatrix4(cvs.matrix);
+    w.matrix.copy(cvs.matrix); w.unit = KS; w.radius = 3.0 * KS;
+  }
+  function disposeCvs() { if (cvs) { group.remove(cvs.node); cvs = null; } world.cvs = null; world.nearCvs = null; }
+  // dir: unit planet-local Vector3 | null; id: the planet node id it belongs to (a stale site from the previous planet is ignored)
+  world.setCvsSite = function (dir, id) {
+    disposeCvs();
+    cvsSite = dir ? { dir: dir.clone().normalize(), id: String(id) } : null;
+    if (world.node && cvsSite) { ensureCvs(); layoutCvs(); group.updateMatrixWorld(true); }
+  };
 
   function layoutShards(frames) {
     const R = ps.radius || 1, n = SHARDS_PER_PLANET, sd = hashStr(String(world.node && world.node.id)) + 4242, r = rngOf(sd);
@@ -1070,6 +1173,7 @@ export function createWorld(THREE, ps, L, mods) {
     }
     frames.forEach((f, i) => { sites[i].pad.copy(f.m); layoutStore(sites[i]); });
     layoutBurger(sites[0]);
+    ensureCvs(); layoutCvs();
     layoutShards(frames);
     layoutResources(frames);
     for (let i = 0; i < sites.length; i++) {
@@ -1083,7 +1187,7 @@ export function createWorld(THREE, ps, L, mods) {
     sites.forEach((s) => { s.crowd.dispose(); if (s.shelfMesh) s.shelfMesh.dispose(); group.remove(s.node); });
     world.cart = []; world.heat = 0; world.heatStore = null;
     if (burger) { if (burger.clerk.human) { try { burger.clerk.human.dispose(); } catch (e) { /* ignore */ } } group.remove(burger.node); burger = null; }
-    world.burgerHouse = null;
+    world.burgerHouse = null; disposeCvs();
     sites = []; world.stores = [];
     [bodies, emis, signs, glasses, shardMesh].forEach((m) => { if (m) { group.remove(m); m.dispose(); } });
     bodies = emis = signs = glasses = shardMesh = null;
@@ -1094,7 +1198,7 @@ export function createWorld(THREE, ps, L, mods) {
     world.detach(); world.node = node; taken = new Set(); rstate.clear(); build();
     return world;
   };
-  world.detach = function () { disposeSites(); world.shards = []; world.node = null; world.nearStore = world.nearBurger = world.nearNpc = null; lastKey = ''; };
+  world.detach = function () { disposeSites(); world.shards = []; world.node = null; world.nearStore = world.nearBurger = world.nearCvs = world.nearNpc = null; lastKey = ''; };
   world.markTaken = function (ids) { (ids || []).forEach((id) => taken.add(id)); world.shards.forEach((s) => { if (taken.has(s.id)) s.taken = true; }); };
   world.takeShard = function (id) {
     const s = world.shards.find((q) => q.id === id);
@@ -1247,10 +1351,11 @@ export function createWorld(THREE, ps, L, mods) {
     if (world.heat > 0) world.heat = Math.max(0, world.heat - dt / 60);
     for (const s of sites) secUpdate(s, dt);
     // proximity
-    world.nearStore = null; world.nearBurger = null; world.nearNpc = null;
+    world.nearStore = null; world.nearBurger = null; world.nearCvs = null; world.nearNpc = null;
     if (pl) {
       for (const st of world.stores) if (pl.distanceTo(st.counter.pos) < st.counter.radius) { world.nearStore = st; break; }
       if (world.burgerHouse && pl.distanceTo(world.burgerHouse.windowPos) < world.burgerHouse.radius) world.nearBurger = world.burgerHouse;
+      if (world.cvs) { const cr = world.cvs.radius; if (pl.distanceTo(world.cvs.reviveWin) < cr) world.nearCvs = { kind: 'revive', cvs: world.cvs }; else if (pl.distanceTo(world.cvs.healWin) < cr) world.nearCvs = { kind: 'heal', cvs: world.cvs }; }
       let bd = 3.5 * K * 3.5 * K;
       for (const s of sites) for (const n of s.crowd.npcs) { if (n.role === 'cashier') continue; const d2 = pl.distanceToSquared(n.pos); if (d2 < bd) { bd = d2; world.nearNpc = n; } }
       const pr = 1.6 * L;

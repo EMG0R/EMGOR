@@ -1419,12 +1419,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         freighter: '<path d="M1 5h10v6H1z"/><path d="M12 7h3l1 2v2h-4z"/><path d="M2 12h12v2H2z"/>',
         crystal: '<path d="M8 0l5 5-5 11-5-11z"/>',
         diamond: '<path d="M8 1l7 7-7 7-7-7z"/>',
+        cross: '<path d="M6 1h4v5h5v4h-5v5H6v-5H1V6h5z"/>',
         coin: '<path fill-rule="evenodd" d="M8 1a7 7 0 1 0 .01 0zM8 4a4 4 0 1 1-.01 0z"/><path d="M7 6h2v4H7z"/>',
         ship: '<path d="M8 0l3 7 4 3v3l-4-1-1 3H6l-1-3-4 1v-3l4-3z"/>',
         npc: '<path d="M6 1h4v4H6z"/><path d="M4 6h8v5h-2v4H6v-4H4z"/>',
         paw: '<path d="M3 4h2v3H3zM7 2h2v3H7zM11 4h2v3h-2zM4 8h8l1 3-2 3H5l-2-3z"/>'
     };
-    var MK_KIND = { '7/11': 'store', store: 'store', burger: 'fries', pad: 'pad', landmark: 'flag', post: 'station', village: 'house', shard: 'coin', friend: 'diamond', resource: 'crystal', ship: 'ship', npc: 'npc', creature: 'paw', hub: 'skull', station: 'station' };
+    var MK_KIND = { '7/11': 'store', store: 'store', burger: 'fries', cvs: 'cross', pad: 'pad', landmark: 'flag', post: 'station', village: 'house', shard: 'coin', friend: 'diamond', resource: 'crystal', ship: 'ship', npc: 'npc', creature: 'paw', hub: 'skull', station: 'station' };
     function mkSvg(g) { return '<svg viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges" fill="currentColor">' + (MK_G[g] || MK_G.diamond) + '</svg>'; }
     var mkV = new THREE.Vector3();
     function mkAng(p) { mkV.copy(p).applyMatrix4(camera.matrixWorldInverse); var l = mkV.length() || 1; return mkV.z < 0 ? Math.acos(clamp(-mkV.z / l, -1, 1)) * 57.2958 : 180; }
@@ -1450,6 +1451,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (gdIcons[kind]) return gdIcons[kind];
         var cv = document.createElement('canvas'); cv.width = 16; cv.height = 16; var cx = cv.getContext('2d');
         if (kind === 'landmark') { cx.fillStyle = '#ff5ce1'; cx.fillRect(7, 1, 2, 14); cx.fillRect(1, 7, 14, 2); cx.fillStyle = '#fff'; cx.fillRect(6, 6, 4, 4); }
+        else if (kind === 'cvs') { cx.fillStyle = '#f8f6f4'; cx.fillRect(1, 1, 14, 14); cx.fillStyle = '#d21f2e'; cx.fillRect(6, 2, 4, 12); cx.fillRect(2, 6, 12, 4); }
         else if (kind === 'pad') { cx.fillStyle = '#1a1030'; cx.fillRect(1, 5, 14, 7); cx.fillStyle = '#a855f7'; cx.fillRect(2, 6, 12, 5); cx.fillStyle = '#e8d4ff'; cx.fillRect(4, 8, 8, 1); cx.fillRect(7, 6, 2, 5); }
         else {
             if (!iconsMod) return null;      // icons module not loaded yet: do not cache
@@ -1459,16 +1461,16 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function gdFmt(d) { var l = d / L; return l >= 10000 ? (l / 1000).toFixed(0) + 'K L' : (l >= 1000 ? (l / 1000).toFixed(1) + 'K L' : Math.round(l) + ' L'); }
     function gdRefresh(n) {            // pois() allocates, so it runs at 2 Hz; markers are stored in the planet's local frame and re-spun every frame
-        var list = [], pois = [], i, bs = null, bb = null, pads = [], lmk = null, nid = String(n.id);
+        var list = [], pois = [], i, bs = null, bb = null, cvm = null, pads = [], lmk = null, nid = String(n.id);
         try { pois = ps.pois(); } catch (e0) { pois = []; }
         syncPlanet(n); var c = n.anchor.position, qi = lfQi.copy(n.mesh.quaternion).invert();
         var org = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position;
         for (i = 0; i < pois.length; i++) {
             var p = pois[i]; p.d = p.pos.distanceTo(org); p.loc = p.pos.sub(c).applyQuaternion(qi);
-            if (p.kind === '7/11') { if (!bs || p.d < bs.d) bs = p; } else if (p.kind === 'burger') bb = p; else if (p.kind === 'landmark') { if (!lmk || p.d < lmk.d) lmk = p; } else pads.push(p);
+            if (p.kind === '7/11') { if (!bs || p.d < bs.d) bs = p; } else if (p.kind === 'burger') bb = p; else if (p.kind === 'cvs') cvm = p; else if (p.kind === 'landmark') { if (!lmk || p.d < lmk.d) lmk = p; } else pads.push(p);
         }
         pads.sort(function (a, b) { return a.d - b.d; });
-        if (bs) list.push(bs); if (bb) list.push(bb);
+        if (bs) list.push(bs); if (bb) list.push(bb); if (cvm) list.push(cvm);
         if (VG.v && VG.nid === nid) list.push({ kind: 'village', name: 'VILLAGE ' + VG.v.name, loc: VG.v.anchor.pos.clone(), d: 0 });
         else if (SITE.vill && SITE.nid === nid) list.push({ kind: 'village', name: 'VILLAGE', loc: SITE.villPos.clone(), d: 0 });
         if (SITE.hubOk && SITE.nid === nid && !HB.in) list.push({ kind: 'hub', name: 'DUNGEON', loc: SITE.hubPos.clone(), d: 0 });
@@ -1597,7 +1599,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         gdShown = ni;
     }
     // ─── 2026-10-14: structure sites of the active planet, known from 3 R (before the village / hub are built): sky beacon columns + HUD markers ───
-    var SITE = { cache: {}, nid: '', R: 0, vill: null, villPos: new THREE.Vector3(), hubPos: new THREE.Vector3(), hubOk: false, prefer: new THREE.Vector3() };
+    var SITE = { cache: {}, nid: '', R: 0, vill: null, villPos: new THREE.Vector3(), hubPos: new THREE.Vector3(), hubOk: false, prefer: new THREE.Vector3(), cvsOk: false, cvsTried: false, cvsDir: new THREE.Vector3(), cvsPos: new THREE.Vector3() };
     function fnv(s0) { var h = 2166136261, s = String(s0); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }      // = ship-hub hashStr (its seed for hubSpot)
     function villagePn(node) {             // the planetNode both villageSite (prediction) and createVillage (build) see: identical inputs -> identical site
         var pid = String(node.id), avoid = [], i;
@@ -1609,15 +1611,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function sitesTick() {
         if (!ps || !ps.active || !villMod) return;
         var node = ps.active, nid = String(node.id);
-        if (SITE.nid === nid && SITE.R === ps.radius) { if ((SITE.vill && !ps.sitePadOf(0)) || (SITE.hubOk && !ps.sitePadOf(1))) sitePads(); return; }
-        SITE.nid = nid; SITE.R = ps.radius; SITE.vill = null; SITE.hubOk = false;
+        if (SITE.nid === nid && SITE.R === ps.radius) { if ((SITE.vill && !ps.sitePadOf(0)) || (SITE.hubOk && !ps.sitePadOf(1)) || (SITE.cvsOk && !ps.sitePadOf(2))) sitePads(); cvsEnsure(node); return; }
+        SITE.nid = nid; SITE.R = ps.radius; SITE.vill = null; SITE.hubOk = false; SITE.cvsOk = false; SITE.cvsTried = false;
         var cols = [], ck = nid + '@' + ps.radius, cc = SITE.cache[ck];
         if (cc) {                                  // the village search is ~10^4 height samples: once per planet (and radius) per session
             SITE.vill = cc.vill; SITE.hubOk = cc.hubOk; SITE.villPos.copy(cc.villPos); SITE.hubPos.copy(cc.hubPos);
             if (SITE.vill) cols.push({ x: SITE.villPos.x, y: SITE.villPos.y, z: SITE.villPos.z, col: 0x7CFFB0 });
             if (SITE.hubOk) cols.push({ x: SITE.hubPos.x, y: SITE.hubPos.y, z: SITE.hubPos.z, col: 0x66FF99 });
             try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e3) { /* ignore */ }
-            sitePads(); gdT = 0; return;
+            sitePads(); cvsEnsure(node); gdT = 0; return;
         }
         try {
             if (villMod.villageSite) {
@@ -1632,14 +1634,40 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         } catch (e1) { SITE.hubOk = false; }
         SITE.cache[ck] = { vill: SITE.vill, hubOk: SITE.hubOk, villPos: SITE.villPos.clone(), hubPos: SITE.hubPos.clone() };
         try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e2) { /* ignore */ }
-        sitePads(); gdT = 0;
+        sitePads(); cvsEnsure(node); gdT = 0;
     }
     // 2026-10-14: every structure site is a terrain pad (flat in hFrac, the patch shader and the globe): village + hub arch, beside the outposts' own pads
+    // Q14 POKEMANS CVS: lush / rocky planets only; a flat pad 60 L from the first outpost (tangent direction, first of 8 headings on land), a sky beacon,
+    // a marker (ps.pois via world.cvs) and the building itself (world.setCvsSite). Runs once per planet once the outposts exist.
+    function cvsEnsure(node) {
+        if (SITE.cvsTried || !ps.outposts || !ps.outposts.length || !ps.outposts[0].dir || !world) return;
+        SITE.cvsTried = true;
+        var look = 'rocky'; try { look = ps.lookOf ? ps.lookOf(node) : 'rocky'; } catch (e0) { look = 'rocky'; }
+        if (look === 'icy') return;
+        var d0 = ps.outposts[0].dir.clone().normalize(), R = ps.radius, e1 = (Math.abs(d0.y) < 0.9 ? new THREE.Vector3(d0.z, 0, -d0.x) : new THREE.Vector3(0, -d0.z, d0.y)).normalize(), e2 = new THREE.Vector3().crossVectors(d0, e1).normalize();
+        var ang = 60 * L / R, k, a, q = new THREE.Vector3(), fl;
+        for (k = 0; k < 8; k++) {
+            a = k * 0.7854 + 0.3; q.copy(d0).addScaledVector(e1, Math.cos(a) * ang).addScaledVector(e2, Math.sin(a) * ang).normalize();
+            try { if (ps.landLocal && !ps.landLocal(q.x * R, q.y * R, q.z * R)) continue; fl = ps.floorLocal(q.x, q.y, q.z); } catch (e1x) { continue; }
+            if (!isFinite(fl) || fl <= 0) continue;
+            SITE.cvsDir.copy(q); SITE.cvsPos.copy(q).multiplyScalar(fl); SITE.cvsOk = true; break;
+        }
+        if (!SITE.cvsOk) return;
+        var cols = [];
+        if (SITE.vill) cols.push({ x: SITE.villPos.x, y: SITE.villPos.y, z: SITE.villPos.z, col: 0x7CFFB0 });
+        if (SITE.hubOk) cols.push({ x: SITE.hubPos.x, y: SITE.hubPos.y, z: SITE.hubPos.z, col: 0x66FF99 });
+        cols.push({ x: SITE.cvsPos.x, y: SITE.cvsPos.y, z: SITE.cvsPos.z, col: 0xFF4A5A });
+        try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e2) { /* ignore */ }
+        sitePads();
+        try { world.setCvsSite(SITE.cvsDir, node.id); } catch (e3) { warnOnce('cvs.site', e3); }
+        gdT = 0;
+    }
     function sitePads() {
         if (!ps.setSitePad) return;
         try {
             ps.setSitePad(0, SITE.vill ? SITE.vill.d : null, 60 * GM, 90 * GM);
             ps.setSitePad(1, SITE.hubOk ? SITE.hubPos.clone().normalize() : null, 30 * GM, 50 * GM);
+            ps.setSitePad(2, SITE.cvsOk ? SITE.cvsDir : null, 6 * GM, 12 * GM);
         } catch (e) { /* ignore */ }
     }
     // Esc: a TAP does nothing while piloting (it only releases the pointer lock); HOLDING it ESC_HOLD s exits to the galaxy. escLatch eats the
@@ -4760,6 +4788,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var k, bh = world && world.burgerHouse;
         if (world && world.stores) for (k = 0; k < world.stores.length; k++) { var I = world.stores[k].interior; if (I && I.inside && I.inside(smB)) return -1; }
         if (bh && bh.pos && smB.distanceTo(bh.pos) < 2.2 * bh.radius) return -1;
+        if (world && world.cvs && smB.distanceTo(world.cvs.pos) < 4.4 * world.cvs.radius) return -1;
         if (VG.v && VG.node === land.node && VG.v.overlaps && VG.v.overlaps(smB, 1.2 * L)) return -1;
         return slope + 0.02 * rr / L;
     }
@@ -4842,7 +4871,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function footAct(ft) {
         if (ft.kind === 'hub') hubEnter(); else if (ft.kind === 'hubexit') hubExit(false); else if (ft.kind === 'hubchest') hubChest(ft.obj);
-        else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') r28Checkout(); else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj);
+        else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') r28Checkout(); else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'cvs') cvsUse(ft.obj);
         else if (ft.kind === 'creature') tameStart(ft.obj);
         else if (ft.kind === 'resource') harvStart(ft.obj);
         else punch();
@@ -4937,7 +4966,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (t !== fl.tag) { fl.tag = t; elFlight.textContent = t; elFlight.classList.toggle('is-on', on); }
     }
     function flKill() { if (!fl) return; fl.on = false; fl.v.set(0, 0, 0); fl.th = 0; fl.cr = 0; flT = 0; flHud(false, 0); }
-    var opList = [], opPool = [], opA = new THREE.Vector3(), opB = new THREE.Vector3(), opC = new THREE.Vector3(), opU = new THREE.Vector3(), opBhI = new THREE.Matrix4(), OP_HS = [0.25, 0.75];
+    var opList = [], opPool = [], opA = new THREE.Vector3(), opB = new THREE.Vector3(), opC = new THREE.Vector3(), opU = new THREE.Vector3(), opBhI = new THREE.Matrix4(), opCvI = new THREE.Matrix4(), OP_HS = [0.25, 0.75];
     function objBegin() {      // the solid sets for this frame (planet-local frame); returns how many
         var n = 0, i, s, I, bh = world && world.burgerHouse;
         if (gmode !== 'foot') { opList.length = 0; return 0; }
@@ -4947,6 +4976,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (I && I.matrix && I.inverse && I.walls) put(I.matrix, I.inverse, I.unit, (I.size ? I.size.w : 40) / 2 + 1, (I.size ? I.size.d : 26) / 2 + 1, (I.size ? I.size.h : 16) + 1, I.walls, I.aisles);
         }
         if (world && world.node && bh && bh.walls && bh.matrix) put(bh.matrix, opBhI.copy(bh.matrix).invert(), bh.unit, 6, 5, 8, bh.walls, null);
+        if (world && world.node && world.cvs && world.cvs.walls) put(world.cvs.matrix, opCvI.copy(world.cvs.matrix).invert(), world.cvs.unit, 6, 5, 8, world.cvs.walls, null);
         if (VG.v && VG.v.solid && world && world.node && VG.node === land.node) { var vs = VG.v.solid; put(vs.m, vs.inv, vs.K, vs.hw, vs.hd, vs.hh, vs.a, vs.b); }      // villages: hut walls, the well and the stall are solid + indestructible
         opList.length = n;
         return 1;     // the hull is always a solid
@@ -8204,6 +8234,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             ftI.kind = 'store'; ftI.obj = c; ftI.label = 'F · SHOP'; return ftI;
         }
         if (world.nearBurger) { ftI.kind = 'burger'; ftI.obj = world.nearBurger; ftI.label = 'F · FRIES'; return ftI; }
+        if (world.nearCvs) { ftI.kind = 'cvs'; ftI.obj = world.nearCvs; ftI.label = world.nearCvs.kind === 'revive' ? cvsLabel() : 'F · HEAL'; return ftI; }
         var shf = r28ShelfFind(); if (shf) { ftI.kind = 'shelf'; ftI.obj = shf; ftI.label = 'F · GRAB ' + String(shf.item && shf.item.name || 'ITEM').toUpperCase() + ' ' + ((shf.item && shf.item.price) | 0); return ftI; }
         var rn = resFind(); if (rn) { ftI.kind = 'resource'; ftI.obj = rn; ftI.label = 'F · HARVEST ' + String(rn.kind).toUpperCase(); return ftI; }
         var tc = tameFind(); if (tc) { ftI.kind = 'creature'; ftI.obj = tc; ftI.label = 'F · TAME'; return ftI; }
@@ -9180,6 +9211,23 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             h += '<span class="' + (m.dead ? 'is-dead ' : '') + (PKP.active(pf) === m ? 'is-act' : '') + '"><b>' + (i + 1) + '</b>' + m.sp.name.slice(0, 7).toUpperCase() + ' L' + m.level + '<i style="width:' + (m.dead ? 0 : Math.round(100 * m.hp / PKP.maxHp(m))) + '%"></i></span>';
         }
         elParty.innerHTML = h;
+    }
+    // Q14 POKEMANS CVS: REVIVE counter = first DEAD mon for 10 + 4·level gorCoin (PKP.reviveAtCvs); HEAL counter is free and only plays the vibe
+    var CVS_VIBE = ['all better. you were never hurt. enjoy the lobby music', 'the pharmacist nods slowly. nothing happened. it felt good', 'thank you for visiting. please take a mint', 'you are exactly as healthy as before. the staff are proud of you'];
+    var cvsVibeI = 0;
+    function cvsLabel() {
+        var pf = curProfile(), i, m, c = '';
+        if (pf) { for (i = 0; i < pf.party.length && !c; i++) { m = PKP.monById(pf, pf.party[i]); if (m && m.dead) c = ' ' + m.sp.name.toUpperCase() + ' ' + PKP.reviveCost(m); } }
+        return 'F · REVIVE' + c;
+    }
+    function cvsUse(near) {
+        var pf = curProfile(), r;
+        if (!near || !pf) return;
+        if (near.kind === 'heal') { addRow('', '', CVS_VIBE[cvsVibeI++ % CVS_VIBE.length], 'is-sys'); aPlay('tame', { vel: 0.35, pitch: 1.3 }); return; }
+        r = PKP.reviveAtCvs(pf);
+        if (!r.ok) { addRow('', '', r.why === 'poor' ? 'REVIVE ' + r.mon.sp.name.toUpperCase() + ' costs ' + r.cost + ' gorCoin' : 'nobody to revive', 'is-sys'); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+        addRow('', '', r.mon.sp.name.toUpperCase() + ' REVIVED · -' + r.cost + ' gorCoin', 'is-sys'); aPlay('tame', { vel: 0.7, pitch: 1.6 });
+        ptHud(true); writeSave();
     }
     function ptFaint(m) {
         addRow('', '', m.sp.name.toUpperCase() + ' FAINTED · DEAD until revived at a POKEMANS', 'is-sys'); aPlay('explosion', { pitch: 0.7, vel: 0.4 });

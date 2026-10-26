@@ -63,7 +63,7 @@ var GAS_DECK = 0.15;                      // rev 19: a gas giant has no surface:
 var FLORA_MAX = 700, CREAT_MAX = 40, ROCK_MAX = 400, SPORE_MAX = 60;
 var Q_RAIN = [500, 900, 1400, 1800];
 var FLORA_R = 1.3, CREAT_R = 1.2;         // x R
-var NPADU = 5;                           // 2026-10-14: shader pad slots = NPAD outposts + 2 site pads (village, hub arch): flat ground under every structure
+var NPADU = 6;                           // 2026-10-14: shader pad slots = NPAD outposts + 3 site pads (village, hub arch, Q14 POKEMANS CVS): flat ground under every structure
 var NPAD = 3;                             // outposts per planet (max)
 var OUT_S = 2.5;                          // 2026-10-14: outposts (pad, flat ground, tower, beacon, NPC spot, the 7/11 + Burger House via ps.outScale) read 2.5x bigger
 var PAD_L = 6 * OUT_S, BLD_S = 0.55 * OUT_S, PAD_FLAT = 15 * OUT_S, PAD_BLEND = 22 * OUT_S, NPC_OFF = 7.8 * OUT_S, BLD_OFF = 11 * OUT_S;   // x L
@@ -130,10 +130,10 @@ var PATCH_VERT = [
     '#include <logdepthbuf_pars_vertex>',
     NOISE_GLSL,
     HEIGHT_GLSL,
-    'uniform vec3 uPadD[5]; uniform vec3 uPadP[5];',       // outpost pads: local dir, (flat chord, blend chord, height frac)
+    'uniform vec3 uPadD[6]; uniform vec3 uPadP[6];',       // outpost pads: local dir, (flat chord, blend chord, height frac)
     'float hfunP(vec3 d) {',
     '    float h = hfun(d);',
-    '    for (int i = 0; i < 5; i++) {',
+    '    for (int i = 0; i < 6; i++) {',
     '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
     '    }',
     '    return uBias + (h - uBias) * uRel;',
@@ -577,13 +577,13 @@ var COL_FRAG = [
 // height function as the patch (hfun + pad flattening, x uRel). Under the patch (uFade) the relief is flattened so the globe never pokes through it.
 var GLOBE_VERT = [
     'uniform vec3 uC; uniform vec3 uT1; uniform vec3 uT2; uniform float uTan; uniform float uFade; uniform float uRel;',
-    'uniform vec3 uPadD[5]; uniform vec3 uPadP[5];',
+    'uniform vec3 uPadD[6]; uniform vec3 uPadP[6];',
     'varying vec3 vObjPos; varying vec3 vWorldNormal; varying vec3 vViewDir;',
     NOISE_GLSL,
     HEIGHT_GLSL,
     'float hG(vec3 d, float w) {',
     '    float h = hfun(d);',
-    '    for (int i = 0; i < 5; i++) {',
+    '    for (int i = 0; i < 6; i++) {',
     '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
     '    }',
     '    return max(0.0, h - uBias) * uRel * w;',
@@ -817,10 +817,10 @@ var HAZE_VERT = [
     '#include <logdepthbuf_pars_vertex>',
     NOISE_GLSL,
     HEIGHT_GLSL,
-    'uniform vec3 uPadD[5]; uniform vec3 uPadP[5];',
+    'uniform vec3 uPadD[6]; uniform vec3 uPadP[6];',
     'float hfunP(vec3 d) {',
     '    float h = hfun(d);',
-    '    for (int i = 0; i < 5; i++) {',
+    '    for (int i = 0; i < 6; i++) {',
     '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
     '    }',
     '    return uBias + (h - uBias) * uRel;',
@@ -1203,7 +1203,7 @@ export function createPlanetSurface(engine, L) {
             uSpeckle: { value: 0 }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK,
             uSeaH: { value: 0.5 }, uAmp: { value: AMP }, uBias: { value: BIAS }, uEps: { value: 0.0012 }, uTime: SH.uTime, uR: { value: 1 }, uDetD: { value: 140 * L }, uDetK: { value: 3000 },
             uC: { value: C }, uT1: { value: T1 }, uT2: { value: T2 }, uTan: { value: 0.3 }, uFade: { value: 1 }, uSurf: { value: 0 }, uRel: { value: 0 },
-            uPadD: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }, uPadP: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }
+            uPadD: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }, uPadP: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }
         };
         a.patchMat = new THREE.ShaderMaterial({
             uniforms: a.patchU, vertexShader: PATCH_VERT, fragmentShader: PATCH_FRAG,
@@ -1829,9 +1829,9 @@ export function createPlanetSurface(engine, L) {
         if (world && node) worldAttach();
     };
     // 2026-10-14: site pads (slot 0 village, 1 hub arch). Registered by ship.js once the site is predicted (3 R); re-applied after every outpost re-seed.
-    var siteDefs = [null, null];
+    var siteDefs = [null, null, null];
     function applySitePads() {
-        for (var si = 0; si < 2; si++) {
+        for (var si = 0; si < 3; si++) {
             var sd2 = siteDefs[si], slot = NPAD + si; if (!sd2 || !alloc) { if (alloc) alloc.patchU.uPadP.value[slot].set(0, 0, 0); continue; }
             var hh = hFrac(sd2.d.x, sd2.d.y, sd2.d.z), fl = sd2.flatL * L / R, bl = sd2.blendL * L / R;
             pads.push({ d: sd2.d, flat: fl, blend: bl, h: hh, site: true });
@@ -1839,7 +1839,7 @@ export function createPlanetSurface(engine, L) {
         }
     }
     ps.setSitePad = function (slot, dir, flatL, blendL) {        // dir: unit planet-local Vector3 | null; flatL/blendL in ship lengths
-        if (slot !== 0 && slot !== 1) return;
+        if (slot !== 0 && slot !== 1 && slot !== 2) return;
         siteDefs[slot] = dir ? { d: dir.clone().normalize(), flatL: flatL, blendL: blendL } : null;
         pads = pads.filter(function (q) { return !q.site; });
         applySitePads();
@@ -1965,7 +1965,7 @@ export function createPlanetSurface(engine, L) {
     function deactivate() {
         globeHi(null, false); colExtra.length = 0; colExtraId = null;
         worldDetach();
-        unhookHalo(); killScars(); clearOutposts(); siteDefs = [null, null]; pads = [];
+        unhookHalo(); killScars(); clearOutposts(); siteDefs = [null, null, null]; pads = [];
         node = null; ps.active = null; ps.depth = 0;
         if (alloc) { showObjs(false); alloc.domeU.uAlpha.value = 0; alloc.flora.count = 0; alloc.creat.count = 0; alloc.rocks.count = 0; alloc.spores.count = 0; rockSet = false; sporeSet = false; alloc.lm.count = 0; alloc.ffN = 0; alloc.steamN = 0; lmList = []; ffSet = false; }
     }
@@ -2620,6 +2620,7 @@ export function createPlanetSurface(engine, L) {
         var M = alloc.ride.matrix, w = ps.world, i;
         if (w && worldOn) {
             for (i = 0; w.stores && i < w.stores.length; i++) { var st = w.stores[i]; out.push({ kind: '7/11', name: st.name || '7/11', pos: st.pos.clone().applyMatrix4(M), id: st.id }); }
+            if (w.cvs) out.push({ kind: 'cvs', name: w.cvs.name || 'POKEMANS CVS', pos: w.cvs.pos.clone().applyMatrix4(M), id: w.cvs.id || 'cvs' });
             if (w.burgerHouse) out.push({ kind: 'burger', name: w.burgerHouse.name || 'Burger House', pos: w.burgerHouse.pos.clone().applyMatrix4(M), id: w.burgerHouse.id || 'burger' });
         }
         for (i = 0; i < lmList.length; i++) out.push({ kind: 'landmark', sub: lmList[i].kind, name: lmList[i].name, pos: lmList[i].lp.clone().applyMatrix4(M), id: lmList[i].id });

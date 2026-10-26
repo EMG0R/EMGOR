@@ -60,6 +60,18 @@ export function damage(mon, n) {            // returns true if this hit fainted 
 export function faint(mon) { mon.hp = 0; mon.dead = true; }
 export const reviveCost = (mon) => 10 + 4 * (mon.level | 0);
 export function revive(mon) { if (!mon.dead) return false; mon.dead = false; mon.hp = maxHp(mon); return true; }
+// Q14 POKEMANS CVS: REVIVE counter. First DEAD mon (party first, then pen) is revived for reviveCost gorCoin (10 + 4·level). Mutates pf.gor + the mon.
+// Returns { ok, why: ''|'none'|'poor', mon, cost }.
+export function reviveAtCvs(pf) {
+  let mon = null, i, m;
+  for (i = 0; i < pf.party.length && !mon; i++) { m = monById(pf, pf.party[i]); if (m && m.dead) mon = m; }
+  for (i = 0; pf.pen && i < pf.pen.length && !mon; i++) { m = monById(pf, pf.pen[i]); if (m && m.dead) mon = m; }
+  if (!mon) return { ok: false, why: 'none', mon: null, cost: 0 };
+  const cost = reviveCost(mon);
+  if ((pf.gor | 0) < cost) return { ok: false, why: 'poor', mon, cost };
+  pf.gor -= cost; revive(mon);
+  return { ok: true, why: '', mon, cost };
+}
 export function healParty(pf) { let n = 0; for (let i = 0; i < pf.party.length; i++) { const m = monById(pf, pf.party[i]); if (m && !m.dead) { m.hp = maxHp(m); n++; } } return n; }
 // summon / dismiss rules: DEAD can't be summoned; returns {ok, why}
 export function canSummon(mon) { return !mon ? { ok: false, why: 'empty' } : mon.dead ? { ok: false, why: 'dead' } : { ok: true, why: '' }; }
