@@ -37,7 +37,7 @@ Legend: `[ ]` todo · `[>]` in progress · `[x]` done · `[~]` blocked (reason i
 - [x] Q17b2 Persistence + HUD only: profile.depthStack via toSave/fromSave in writeSave/ensureProfile (ship.js:630), "DEPTH n" HUD chip hidden at 0, `depthMod` loaded via guarded import like ship-styles. No behaviour change at depth 0.
 - [~] Q17b3 Dive/climb integration behind `if (depthMod)`: crouch+hold Z on rock -> createDive; engine.makeBody(microSpec); ps re-keyed to micro node via ps.update(groundPos); micro:true skipped by drawOrder/labels in galaxy3d.js; disposeBody on climb; g18. VERIFY ON MAC heavily.
 - [~] Q18 ship.js module split, step 1 only: move the on-foot controller (footStep + helpers) to `js/ship-foot.js` with an identical API, zero behaviour change; node --check; list the remaining split candidates in the log. Stop there.
-- [ ] BENCHMARK-4: log block summarizing phases 3-4, all VERIFY ON MAC items, open risks.
+- [>] BENCHMARK-4: log block summarizing phases 3-4, all VERIFY ON MAC items, open risks.
 
 ## Notes for the manager (not for the builder)
 Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batches; play-check each BENCHMARK list; merge; append results to GORCAVE-LOG.md.
