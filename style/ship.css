@@ -697,3 +697,9 @@ body.is-piloting .ship-online { display: none; }
 .sh-hl i { width: 18px; height: 18px; border: 0; transform: none; box-shadow: none; background: none; filter: drop-shadow(0 0 5px currentColor); }
 .sh-hl.k-shard i { width: 14px; height: 14px; }
 .sh-hl b { font-size: 9px; }
+.sh-party { position: absolute; left: 12px; bottom: 96px; display: flex; flex-direction: column; gap: 3px; font: 600 10px/1 ui-monospace, monospace; color: #e6d8ff; pointer-events: none; z-index: 5; }
+.sh-party span { position: relative; display: block; min-width: 112px; padding: 3px 6px 5px 4px; background: rgba(20, 8, 40, 0.55); border-left: 2px solid #5b3a96; }
+.sh-party span b { color: #9a7bd6; margin-right: 5px; }
+.sh-party span i { position: absolute; left: 0; bottom: 0; height: 2px; background: #7CFF8A; }
+.sh-party .is-act { border-left-color: #C8A0FF; background: rgba(60, 24, 110, 0.7); }
+.sh-party .is-dead { filter: grayscale(1); opacity: 0.5; }

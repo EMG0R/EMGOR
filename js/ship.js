@@ -12,6 +12,7 @@ import * as CRF from './ship-craft.js';
 import * as QST from './ship-quests.js';
 import * as PKG from './pokemans-gen.js';
 import * as PKC from './pokemans-catch.js';
+import * as PKP from './pokemans-party.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
 // rate-limited gameplay error log: max one console.warn per tag per 30 s (silent ignores stay for DOM / pointer lock / localStorage)
@@ -6908,7 +6909,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var drops = [], kind = e.mob; try { drops = ENM.mobDrops(kind, Math.random) || []; } catch (e0) { drops = []; }
         for (var i = 0; i < 3; i++) fx.impact(e.w, 0xff8a5c, 2, 'explode');
         aPlay('explosion', { dist: aDist(e.w), pitch: 1.5 });
-        if (byMe) { drops.forEach(function (d) { mobGive(d.id, d.n); }); addUnits(UNIT_KILL, e.w, false); questEvent({ type: 'kill', n: 1 }); }
+        if (byMe) { drops.forEach(function (d) { mobGive(d.id, d.n); }); addUnits(UNIT_KILL, e.w, false); questEvent({ type: 'kill', n: 1 }); try { ptGainXp(PKP.xpForKill(2 + 2 * (e.cr.tier || 1), e.cr.tier || 1)); } catch (e1) { warnOnce('party.xp', e1); } }
         else if (e.lastBy) mobEv({ k: 'k', i: e.mid, b: e.lastBy, d: drops.map(function (d) { return [d.id, d.n]; }) });
         gndFree(e); writeSave();
     }
@@ -8986,6 +8987,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (e) { if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }
         else { try { ps.setCreatureTamed(g.id, true); } catch (e0) { /* ignore */ } crCache.t = -1e9; pf.taken.push({ n: pid, id: g.id, k: g.kind }); pf.taken = pf.taken.slice(-40); }
         discClaim('creature', pid + ':' + sp.name, sp.name);
+        ptGainXp(PKP.xpForCatch(sp.tier, lvl));
         addRow('', '', 'CAUGHT ' + sp.name.toUpperCase() + ' · L' + lvl + (ind.shiny ? ' · SHINY' : '') + (pf.party.indexOf(mon.id) >= 0 ? ' · party ' + pf.party.length + '/' + PKC.PARTY_MAX : ' · sent to the pen'), 'is-sys');
         writeSave(); invFill();
     }
@@ -9092,7 +9094,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         sinceHit += dt; if (sinceHit > 5 && hp < HP_MAX) hp = Math.min(HP_MAX, hp + 5 * dt);
         footFireTick(dt);
         if (onP) gbTick(dt); else if (GB.on) { if (GB.e) GB.e.held = false; gbEnd(); }
-        if (onP) { nestTick(dt); petFollowTick(dt); meteorTick(dt); }
+        if (onP) { nestTick(dt); petFollowTick(dt); ptTick(dt); meteorTick(dt); }
         if (R27.gnd.length) gndTick(dt, hum.w);
     }
     document.addEventListener('mousedown', function (e) {
@@ -9140,6 +9142,78 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         } catch (e0) { warnOnce('pet.floor', e0); }
         f.holder.position.copy(f.pp);
         f.lpp.copy(f.pp).sub(ps.active.anchor.position).applyQuaternion(qW.copy(ps.active.mesh.quaternion).invert());
+    }
+    // ─── Q13 party: ONE active mon follows (the petFollow rig), fights beside you with its 4 moves, XP, heal on survive, DEAD on faint. Rules: js/pokemans-party.js ───
+    var PT = { cds: [0, 0, 0, 0], poof: 0, bat: 0, calm: 0, hit: 0, tgt: null, chart: null, sig: '', foe: { def: 30, types: [] } };
+    function ptMon() { var pf = curProfile(); return pf ? PKP.active(pf) : null; }
+    function ptChart() { if (!PT.chart) PT.chart = PKG.typeChart(7); return PT.chart; }
+    function ptSummon(mon) {
+        var f = R27.follow, h = PKP.canSummon(mon); if (!h.ok) { addRow('', '', h.why === 'dead' ? 'DEAD · revive it at a POKEMANS' : 'no one there', 'is-sys'); return false; }
+        if (gmode !== 'foot' || !hum.obj || !ps || !ps.active) return false;
+        var pl = PKP.monById(curProfile(), mon.id) ? mon : null; if (!pl) return false;
+        if (f.key === mon.id) return true;
+        if (f.pet && f.holder) fx.impact(f.pp, 0xC8A0FF, 1, 'hit');
+        petStow(); PT.poof = PKP.SWAP_POOF; PT.cds[0] = PT.cds[1] = PT.cds[2] = PT.cds[3] = PKP.SWAP_POOF;
+        var ok = petFollowToggle({ id: mon.id, pet: { seed: (mon.sp.bodyRecipe.seed | 0) || 1, plan: Math.abs(hash25(String(mon.sp.bodyRecipe.plan || mon.sp.id))) % 3, name: mon.sp.name } });
+        if (ok && f.pp) { fx.impact(f.pp, 0xC8A0FF, 2, 'explode'); aPlay('tame', { vel: 0.5, pitch: 1.3 }); }
+        return ok;
+    }
+    function ptSwap(i) {
+        var pf = curProfile(); if (!pf || PT.poof > 0) return;
+        var m = pf.party[i] ? PKP.monById(pf, pf.party[i]) : null; if (!m) { addRow('', '', 'party slot ' + (i + 1) + ' is empty', 'is-sys'); return; }
+        if (m.dead) { addRow('', '', m.sp.name.toUpperCase() + ' is DEAD · revive it at a POKEMANS', 'is-sys'); return; }
+        PKP.pickActive(pf, i); ptSummon(m); writeSave(); ptHud(true);
+    }
+    window.addEventListener('keydown', function (e) {      // Alt+1..6 = party slot (plain 1-9 stays the weapon hotbar)
+        if (!e.altKey || e.repeat || e.ctrlKey || e.metaKey || !/^Digit[1-6]$/.test(e.code) || state !== 'piloting' || invOpen || cmdOpen || menuOpen || storeOpen || gmode !== 'foot') return;
+        e.preventDefault(); ptSwap(+e.code.slice(5) - 1);
+    }, true);
+    var elParty = document.createElement('div'); elParty.className = 'sh-party'; hud.appendChild(elParty);
+    function ptHud(force) {
+        var pf = curProfile(), sig = '', i, m, h = '';
+        if (pf && pf.party.length) for (i = 0; i < pf.party.length; i++) { m = PKP.monById(pf, pf.party[i]); if (m) sig += m.id + (m.dead ? 'x' : Math.ceil(10 * m.hp / PKP.maxHp(m))) + m.level + (pf.activeMon === m.id ? '*' : ''); }
+        if (!force && sig === PT.sig) return; PT.sig = sig;
+        elParty.style.display = sig ? '' : 'none'; if (!sig) return;
+        for (i = 0; i < pf.party.length; i++) {
+            m = PKP.monById(pf, pf.party[i]); if (!m) continue;
+            h += '<span class="' + (m.dead ? 'is-dead ' : '') + (PKP.active(pf) === m ? 'is-act' : '') + '"><b>' + (i + 1) + '</b>' + m.sp.name.slice(0, 7).toUpperCase() + ' L' + m.level + '<i style="width:' + (m.dead ? 0 : Math.round(100 * m.hp / PKP.maxHp(m))) + '%"></i></span>';
+        }
+        elParty.innerHTML = h;
+    }
+    function ptFaint(m) {
+        addRow('', '', m.sp.name.toUpperCase() + ' FAINTED · DEAD until revived at a POKEMANS', 'is-sys'); aPlay('explosion', { pitch: 0.7, vel: 0.4 });
+        if (R27.follow.key === m.id) { if (R27.follow.pp) fx.impact(R27.follow.pp, 0x888888, 2, 'explode'); petStow(); }
+        PT.tgt = null; writeSave();
+    }
+    function ptGainXp(amount) {
+        var m = ptMon(); if (!m) return; var g = PKP.awardXp(m, amount);
+        if (g > 0) { addRow('', '', m.sp.name.toUpperCase() + ' → L' + m.level, 'is-sys'); aPlay('tame', { vel: 0.6, pitch: 1.5 }); }
+        ptHud(true);
+    }
+    function ptTick(dt) {
+        var f = R27.follow, pf = curProfile(), m, i, e, bd, d, H = 0.09 * L, mv, k, dmg, live = 0;
+        if (!pf || !pf.party.length) { ptHud(false); return; }
+        if (PT.poof > 0) PT.poof -= dt;
+        m = PKP.active(pf);
+        if (m && !f.pet && !f.key && PT.poof <= 0) ptSummon(m);      // the active one walks out with you
+        if (!m || f.key !== m.id || !f.pet || !f.pp) { PT.calm += dt; ptHud(false); return; }
+        for (i = 0; i < 4; i++) if (PT.cds[i] > 0) PT.cds[i] -= dt;
+        bd = (16 * H) * (16 * H); PT.tgt = null;
+        for (i = 0; i < R27.gnd.length; i++) { e = R27.gnd[i]; if (!e.alive || !e.mob || e.remote) continue; live++; d = e.w.distanceToSquared(f.pp); if (d < bd) { bd = d; PT.tgt = e; } }
+        if (live) { PT.bat = 1; PT.calm = 0; } else { PT.calm += dt; }
+        e = PT.tgt;
+        if (e && PT.poof <= 0) {
+            PT.foe.def = 25 + 8 * (e.cr.tier || 1); k = PKP.chooseMove(m, PT.foe, ptChart(), PT.cds, Math.random());
+            if (k >= 0 && bd < (9 * H) * (9 * H)) {
+                mv = m.sp.moves[k]; dmg = PKP.moveDamage(m, mv, PT.foe, ptChart()); PT.cds[k] = PKP.moveCooldown(m) * 1.6; for (i = 0; i < 4; i++) if (i !== k && PT.cds[i] < 0.25) PT.cds[i] = 0.25;
+                mobHurt(e, dmg, 'me'); fx.impact(e.w, PKG.TYPES.indexOf(mv.type) >= 0 ? 0xC8A0FF : 0xffd36a, 1, 'hit'); aPlay('hit', { dist: aDist(e.w), vel: 0.4, pitch: 1.2 });
+            }
+            PT.hit -= dt; if (PT.hit <= 0 && e.alive && bd < (2.5 * H) * (2.5 * H)) {          // mobs bite the follower too: ~1 s cadence, scaled by their tier and its level
+                PT.hit = 1; if (PKP.damage(m, Math.max(1, Math.round((2 + 3 * (e.cr.tier || 1)) * (1 - Math.min(0.6, m.level / 90))))) ) { ptFaint(m); ptHud(true); return; }
+            }
+        }
+        if (PT.bat && !live && PT.calm > 3) { PT.bat = 0; if (PKP.healParty(pf) && PKP.active(pf)) { addRow('', '', 'party healed', 'is-sys'); writeSave(); } }      // survive a battle = full heal; no potions anywhere
+        ptHud(false);
     }
     function scanGlow(dt, org, w) {
         R27.sg -= dt; if (R27.sg > 0) return; R27.sg = 0.6;
