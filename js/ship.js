@@ -475,7 +475,7 @@ export default function mount(engine) {
     // rev 17 C: adaptive quality (js/ship-perf.js). attach() again whenever fx / ps are recreated.
     var perfQ = null, perfMod = null;
     function perfAttach() { if (perfQ) { try { perfQ.attach({ fx: fx, ps: ps }); } catch (e) { /* ignore */ } } }
-    import('./ship-perf.js').then(function (m) { perfMod = m; try { perfQ = m.createQualityManager(engine, { fx: fx, ps: ps, hold: function () { return gmode !== 'fly' || state !== 'piloting'; } }); if (state !== 'piloting') rsRestore('perf-attach'); } catch (e) { console.info('[ship] quality manager unavailable', e); } }).catch(function (e) { console.info('[ship] ship-perf unavailable', e); });
+    import('./ship-perf.js').then(function (m) { perfMod = m; try { perfQ = m.createQualityManager(engine, { fx: fx, ps: ps, hold: function () { return gmode !== 'fly' || state !== 'piloting' || (lf.on && lf.alt < 10 * L); } }); if (state !== 'piloting') rsRestore('perf-attach'); } catch (e) { console.info('[ship] quality manager unavailable', e); } }).catch(function (e) { console.info('[ship] ship-perf unavailable', e); });
     function makePs() { try { ps = psMod.createPlanetSurface(engine, L); if (state === 'piloting') ps.setVisible(true); } catch (e) { planetFail(e); } perfAttach(); makeWorld(); }
     import('./ship-planet.js').then(function (m) { psMod = m; makePs(); }).catch(function (e) { console.info('[ship] planet surfaces unavailable', e); });
 
@@ -7291,6 +7291,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         writeSave();
     }
     function villageNight() { return VG.nightForce >= 0 ? VG.nightForce : (land.node && VG.v ? nightAt(land.node, locToWorld(VG.v.anchor.pos, vgA)) : 0); }
+    var vgMobPool = [];      // pooled nearby-mob records (id, ref, pos): no object + Vector3 per mob per frame
     function villageLife(dt) {
         var want = !!(land.node && (gmode === 'landed' || gmode === 'foot') && ps && ps.active === land.node && villMod && world && world.group && world.group.parent);
         if (VG.v && (!want || VG.node !== land.node || VG.L !== L)) villageDispose();
@@ -7299,7 +7300,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!VG.v) return;
         var foot = gmode === 'foot' && hum.obj && !HB.in, i, e, ml = vgCtx.mobs;
         ml.length = 0;
-        if (foot && hum.pos.distanceTo(VG.v.anchor.pos) < 70 * L) for (i = 0; i < R27.gnd.length; i++) { e = R27.gnd[i]; if (e.mob && e.alive && !e.hub && e.node === land.node) ml.push({ id: e.mid, ref: e, pos: new THREE.Vector3().copy(e.dir).multiplyScalar(e.hr) }); }
+        if (foot && hum.pos.distanceTo(VG.v.anchor.pos) < 70 * L) for (i = 0; i < R27.gnd.length; i++) { e = R27.gnd[i]; if (e.mob && e.alive && !e.hub && e.node === land.node) { var pm = vgMobPool[ml.length] || (vgMobPool[ml.length] = { id: 0, ref: null, pos: new THREE.Vector3() }); pm.id = e.mid; pm.ref = e; pm.pos.copy(e.dir).multiplyScalar(e.hr); ml.push(pm); } }
         vgCtx.t = Date.now() / 1000; vgCtx.night = villageNight(); vgCtx.player = foot ? hum.pos : null; vgCtx.known = knownFor();
         VG.v.update(dt, vgCtx);
         var ev = VG.v.drain();

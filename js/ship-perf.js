@@ -98,13 +98,15 @@ export function createQualityManager(engine, opts) {
     function get(ref) { return typeof ref === 'function' ? ref() : ref; }
     function save() { try { localStorage.setItem(key, JSON.stringify({ tier: tier, auto: auto })); } catch (e) { /* private mode */ } }
 
-    function applyAll() {
+    function applyAll(objsOnly) {      // objsOnly: rebind fx/ps quality only; the engine-side tier work (pixel ratio, bloom, stars) is skipped while held
         var t = tier;
+        if (!objsOnly) {
         try { globalThis.EMGOR_PERF_TIER = t; } catch (e) { /* ignore */ }
         engine.setPixelRatioCap(PR_CAP[t]);
         try { globalThis.EMGOR_PERF_PR = engine.pixelRatio; } catch (e) { /* ignore */ }
         engine.setBloom(BLOOM[t][0], BLOOM[t][1]);
         engine.setStarFraction(STARS[t]);
+        }
         var fx = get(fxRef), ps = get(psRef);
         if (fx) { if (fx.setQuality) fx.setQuality(t); if (fx.setPixelRatio) fx.setPixelRatio(engine.pixelRatio); }
         if (ps && ps.setQuality) ps.setQuality(t);
@@ -137,7 +139,7 @@ export function createQualityManager(engine, opts) {
             if (o && o.fx !== undefined) fxRef = o.fx; if (o && o.getFx) fxRef = o.getFx;
             if (o && o.ps !== undefined) psRef = o.ps; if (o && o.getPs) psRef = o.getPs;
             if (o && o.hold) holdRef = o.hold;
-            applyAll();
+            applyAll(held());
         },
         // ms (optional): record a frame sample taken by the caller; with no ms this only evaluates the rules
         update: function (dt, ms, workMs) {
