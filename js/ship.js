@@ -1014,7 +1014,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey && !e.altKey) { toggleInv(); return; }       // rev 23: E = inventory (grid overlay)
         if (e.code === 'KeyZ' && !e.ctrlKey && !e.metaKey && !e.altKey) { if (gmode === 'landed') onKeyZ(); else { eh.on = true; eh.held = 0; eh.t = 0; } return; }       // 2026-10-14: Z = the SHIP key (land / board / lift off / summon / step out). F = people + shops
         if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey) { onKeyF(); return; }
-        if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.altKey && gmode === 'foot') { onKeyTalk(); return; }       // rev 20: tap = land / exit ship / board (fires on release), hold 0.6 s under 6 L = auto-land + step out, hold on foot = board + lift off
+        if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.altKey && gmode === 'foot') { if (ptTDown(e)) return; onKeyTalk(); return; }       // rev 20: tap = land / exit ship / board (fires on release), hold 0.6 s under 6 L = auto-land + step out, hold on foot = board + lift off
         if (e.code === 'KeyW' && gmode === 'landed') { liftOff(); return; }
         if (e.code === 'KeyV' && !e.ctrlKey && !e.metaKey && !e.altKey) { doScan(); return; }        // rev 21: scanner pulse
         if (gmode !== 'fly') return;
@@ -6549,6 +6549,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     window.addEventListener('keydown', function (e) {
         if (state !== 'piloting' || invOpen || cmdOpen || menuOpen || storeOpen || boarding || exiting || dead || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
         if (!/^Digit[1-9]$/.test(e.code)) return;
+        if (typeof PT !== 'undefined' && (PT.rad.on || (PT.keys && /^Digit[1-6]$/.test(e.code)))) return;      // Q13b: radial open / party-keys mode owns the digits
         hbSelect(+e.code.slice(5) - 1); aPlay('ui', { vel: 0.4 });
     }, true);
     // ─── rev 30: character preview (second renderer on a 49x70 box, the real human rig, turns to follow the mouse) ───
@@ -9144,7 +9145,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         f.lpp.copy(f.pp).sub(ps.active.anchor.position).applyQuaternion(qW.copy(ps.active.mesh.quaternion).invert());
     }
     // ─── Q13 party: ONE active mon follows (the petFollow rig), fights beside you with its 4 moves, XP, heal on survive, DEAD on faint. Rules: js/pokemans-party.js ───
-    var PT = { cds: [0, 0, 0, 0], poof: 0, bat: 0, calm: 0, hit: 0, tgt: null, chart: null, sig: '', foe: { def: 30, types: [] } };
+    var PT = { cds: [0, 0, 0, 0], poof: 0, bat: 0, calm: 0, hit: 0, tgt: null, chart: null, sig: '', foe: { def: 30, types: [] }, keys: false, forced: -1, fAge: 0, rad: { on: false, t: 0, dx: 0, dy: 0, sel: -1 }, pm: false };
     function ptMon() { var pf = curProfile(); return pf ? PKP.active(pf) : null; }
     function ptChart() { if (!PT.chart) PT.chart = PKG.typeChart(7); return PT.chart; }
     function ptSummon(mon) {
@@ -9191,10 +9192,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         ptHud(true);
     }
     function ptTick(dt) {
-        var f = R27.follow, pf = curProfile(), m, i, e, bd, d, H = 0.09 * L, mv, k, dmg, live = 0;
+        var f = R27.follow, pf = curProfile(), m, i, e, bd, d, H = 0.09 * L, mv, k, dmg, live = 0, nm;
         if (!pf || !pf.party.length) { ptHud(false); return; }
         if (PT.poof > 0) PT.poof -= dt;
         m = PKP.active(pf);
+        if (PT.rad.on) { PT.rad.t += dt; ptRadDraw(); }
         if (m && !f.pet && !f.key && PT.poof <= 0) ptSummon(m);      // the active one walks out with you
         if (!m || f.key !== m.id || !f.pet || !f.pp) { PT.calm += dt; ptHud(false); return; }
         for (i = 0; i < 4; i++) if (PT.cds[i] > 0) PT.cds[i] -= dt;
@@ -9203,7 +9205,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (live) { PT.bat = 1; PT.calm = 0; } else { PT.calm += dt; }
         e = PT.tgt;
         if (e && PT.poof <= 0) {
-            PT.foe.def = 25 + 8 * (e.cr.tier || 1); k = PKP.chooseMove(m, PT.foe, ptChart(), PT.cds, Math.random());
+            PT.foe.def = 25 + 8 * (e.cr.tier || 1); if (PT.forced >= 0) PT.fAge += dt;
+            nm = PKP.nextMove(m, PT.foe, ptChart(), PT.cds, Math.random(), PT.forced, PT.fAge); k = nm.k; if (!nm.keep && k >= 0) PT.forced = -1;      // Q13b: the player's radial pick first, AI otherwise
             if (k >= 0 && bd < (9 * H) * (9 * H)) {
                 mv = m.sp.moves[k]; dmg = PKP.moveDamage(m, mv, PT.foe, ptChart()); PT.cds[k] = PKP.moveCooldown(m) * 1.6; for (i = 0; i < 4; i++) if (i !== k && PT.cds[i] < 0.25) PT.cds[i] = 0.25;
                 mobHurt(e, dmg, 'me'); fx.impact(e.w, PKG.TYPES.indexOf(mv.type) >= 0 ? 0xC8A0FF : 0xffd36a, 1, 'hit'); aPlay('hit', { dist: aDist(e.w), vel: 0.4, pitch: 1.2 });
@@ -9214,6 +9217,86 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         if (PT.bat && !live && PT.calm > 3) { PT.bat = 0; if (PKP.healParty(pf) && PKP.active(pf)) { addRow('', '', 'party healed', 'is-sys'); writeSave(); } }      // survive a battle = full heal; no potions anywhere
         ptHud(false);
+    }
+
+    // ─── Q13b: T-hold radial (4 moves), plain-number party keys (0 toggles), party/pen manager (U), follower rides in the ship ───
+    var elRad = document.createElement('div'); elRad.className = 'sh-rad'; hud.appendChild(elRad);
+    var RAD_POS = ['up', 'right', 'down', 'left'];
+    function ptTDown(e) {          // true = T was taken by the radial; tap with nothing to talk to + follower beside you = hold opens it
+        var f = R27.follow, m = ptMon(), H = 0.09 * L;
+        if (PT.rad.on) return true;
+        if (e.repeat || !m || f.key !== m.id || !f.pet || !f.pp || !hum.obj || f.pp.distanceToSquared(hum.w) > (5 * H) * (5 * H) || footTarget().kind) return false;
+        PT.rad.on = true; PT.rad.t = 0; PT.rad.dx = PT.rad.dy = 0; PT.rad.sel = -1; return true;
+    }
+    function ptRadDraw() {
+        var m = ptMon(), r = PT.rad, h = '', i;
+        if (!r.on || r.t < 0.3 || !m) { elRad.classList.remove('is-on'); return; }
+        for (i = 0; i < 4; i++) { var mv = m.sp.moves[i]; h += '<span class="' + RAD_POS[i] + (r.sel === i ? ' is-sel' : '') + (PT.cds[i] > 0 ? ' is-cd' : '') + '"><b>' + (i + 1) + '</b>' + mv.name.toUpperCase() + '<i>' + mv.type + ' ' + mv.power + '</i></span>'; }
+        if (elRad.getAttribute('data-s') !== h) { elRad.innerHTML = h; elRad.setAttribute('data-s', h); }
+        elRad.classList.add('is-on');
+    }
+    function ptRadPick(k) {
+        var m = ptMon(); PT.rad.on = false; elRad.classList.remove('is-on'); if (k < 0 || !m || !m.sp.moves[k]) return;
+        PT.forced = k; PT.fAge = 0; addRow('', '', m.sp.name.toUpperCase() + ' → ' + m.sp.moves[k].name.toUpperCase(), 'is-sys'); aPlay('ui', { vel: 0.5 });
+    }
+    window.addEventListener('keyup', function (e) { if (e.code === 'KeyT' && PT.rad.on) ptRadPick(PT.rad.t > 0.25 ? PT.rad.sel : -1); }, true);
+    window.addEventListener('blur', function () { PT.rad.on = false; elRad.classList.remove('is-on'); });
+    document.addEventListener('mousemove', function (e) {
+        var r = PT.rad; if (!r.on) return;
+        r.dx += e.movementX || 0; r.dy += e.movementY || 0; var cl = 80; r.dx = clamp(r.dx, -cl, cl); r.dy = clamp(r.dy, -cl, cl);
+        r.sel = PKP.radialPick(r.dx, r.dy, 22);
+    });
+    window.addEventListener('keydown', function (e) {      // radial: 1-4 picks directly · 0 toggles plain-number party keys (1-6 = slot) · U = manager
+        if (state !== 'piloting' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || boarding || exiting || dead) return;
+        if (PT.rad.on && /^Digit[1-4]$/.test(e.code)) { e.preventDefault(); ptRadPick(+e.code.slice(5) - 1); return; }
+        if (invOpen || menuOpen || storeOpen || (cmdOpen && !PT.pm)) return;
+        if (PT.pm) { e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') e.__shipHandled = true; if (e.code === 'Escape' || e.code === 'KeyU') ptMgr(false); return; }
+        if (e.code === 'KeyU') { e.preventDefault(); ptMgr(true); return; }
+        if (gmode !== 'foot') return;
+        if (e.code === 'Digit0') { PT.keys = !PT.keys; elParty.classList.toggle('is-keys', PT.keys); addRow('', '', PT.keys ? 'PARTY KEYS · 1-6 swap · 0 = weapons' : 'WEAPON KEYS · 1-9 hotbar', 'is-sys'); aPlay('ui', { vel: 0.4 }); return; }
+        if (PT.keys && /^Digit[1-6]$/.test(e.code)) { e.preventDefault(); ptSwap(+e.code.slice(5) - 1); }
+    }, true);
+    var elPM = document.createElement('div'); elPM.className = 'sh-pm'; hud.appendChild(elPM);
+    function ptMgr(on) {
+        var pf = curProfile(); if (on === PT.pm || (on && (!pf || (!pf.party.length && !pf.pen.length)))) { if (on && pf) addRow('', '', 'no POKEMANS yet · catch one with a GOR BALL', 'is-sys'); return; }
+        PT.pm = on; elPM.classList.toggle('is-on', on);
+        if (on) {
+            cmdOpen = true; cmdGuardUntil = performance.now() + 600; keys = Object.create(null); firing = false; mdx = mdy = 0; PT.rad.on = false;
+            if (locked()) { try { document.exitPointerLock(); } catch (e0) { /* ignore */ } }
+            ptMgrFill(); aPlay('ui', { vel: 0.5 });
+        } else {
+            cmdOpen = false; keys = Object.create(null); mdx = mdy = 0; aPlay('ui', { vel: 0.4 });
+            try { var p = document.body.requestPointerLock(); if (p && p.catch) p.catch(function () { /* keyboard only */ }); } catch (e1) { /* ignore */ }
+        }
+    }
+    function ptMgrRow(pf, id, inParty) {
+        var m = PKP.monById(pf, id); if (!m) return '';
+        var act = inParty && PKP.active(pf) === m;
+        return '<div class="pm-r' + (m.dead ? ' is-dead' : '') + (act ? ' is-act' : '') + '"><span class="pm-n">' + m.sp.name.toUpperCase() + ' L' + m.level + '</span><span class="pm-t">' + m.sp.types.join('/') + ' · ' + (m.dead ? 'DEAD' : m.hp + '/' + PKP.maxHp(m)) + '</span>'
+            + (inParty && !m.dead && !act ? '<button data-pm="act" data-id="' + id + '">ACTIVE</button>' : act ? '<em>ACTIVE</em>' : '') + '<button data-pm="mv" data-id="' + id + '">' + (inParty ? 'TO PEN' : 'TO PARTY') + '</button></div>';
+    }
+    function ptMgrFill() {
+        var pf = curProfile(), i, h = '<div class="pm-h">PARTY ' + (pf ? pf.party.length : 0) + '/' + PKC.PARTY_MAX + ' · U / Esc closes</div>';
+        if (!pf) return;
+        for (i = 0; i < pf.party.length; i++) h += ptMgrRow(pf, pf.party[i], true);
+        h += '<div class="pm-h">PEN ' + pf.pen.length + '</div>';
+        for (i = Math.max(0, pf.pen.length - 30); i < pf.pen.length; i++) h += ptMgrRow(pf, pf.pen[i], false);
+        elPM.innerHTML = h;
+    }
+    elPM.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('button') : null, pf = curProfile(); if (!b || !pf) return;
+        var id = b.getAttribute('data-id'), a = b.getAttribute('data-pm'), r;
+        if (a === 'act') { var m = PKP.setActiveId(pf, id); if (m) { PT.poof = 0; ptSummon(m); addRow('', '', m.sp.name.toUpperCase() + ' is active', 'is-sys'); } }
+        else if (a === 'mv') { r = PKP.moveToggle(pf, id, PKC.PARTY_MAX); if (!r.ok) addRow('', '', r.why === 'full' ? 'party is full' : r.why === 'last' ? 'keep one living POKEMANS in the party' : 'not found', 'is-sys'); else if (r.to === 'pen' && R27.follow.key === id) petStow(); }
+        writeSave(); ptHud(true); ptMgrFill(); aPlay('ui', { vel: 0.4 });
+    });
+    function petRideTick() {       // follower rides along while you fly (shown on the dash, scaled to the hull); landing re-places it beside you
+        var f = R27.follow; if (!f.pet || !f.holder) return;
+        if (gmode === 'foot') { return; }
+        if (state !== 'piloting' || gmode === 'sfoot' || gmode === 'dock') { f.holder.visible = false; return; }
+        f.init = false; f.holder.visible = true;
+        vTmp.set(0, 0.2, 0.08).multiplyScalar(shipScale).applyQuaternion(shipRoot.quaternion).add(shipRoot.position);      // [guess] dash offset in hull-local units
+        f.holder.position.copy(vTmp); f.holder.quaternion.copy(shipRoot.quaternion); f.holder.scale.setScalar(0.11 * shipScale);
     }
     function scanGlow(dt, org, w) {
         R27.sg -= dt; if (R27.sg > 0) return; R27.sg = 0.6;
@@ -9400,6 +9483,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         R27.suitT -= dt; if (R27.suitT <= 0) { R27.suitT = 0.5; suitSync(); wxTick(); }
         R27.evT -= dt; if (R27.evT <= 0) { R27.evT = 1; evTick(dt); relayTick(1); if (state !== 'piloting' && R27.gnd.length) gndClear(); if (R27.follow.pet && state !== 'piloting') petStow(); }
         if (R27.gnd.length && gmode !== 'foot' && gmode !== 'sfoot') gndClear('planet');
+        petRideTick();
         r28Tick(dt);
     }
 

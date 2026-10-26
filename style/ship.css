@@ -703,3 +703,22 @@ body.is-piloting .ship-online { display: none; }
 .sh-party span i { position: absolute; left: 0; bottom: 0; height: 2px; background: #7CFF8A; }
 .sh-party .is-act { border-left-color: #C8A0FF; background: rgba(60, 24, 110, 0.7); }
 .sh-party .is-dead { filter: grayscale(1); opacity: 0.5; }
+.sh-party.is-keys { box-shadow: -2px 0 0 #C8A0FF; }
+.sh-rad { position: absolute; left: 50%; top: 50%; width: 0; height: 0; display: none; pointer-events: none; z-index: 6; font: 700 11px/1.2 ui-monospace, monospace; color: #e6d8ff; }
+.sh-rad.is-on { display: block; }
+.sh-rad span { position: absolute; transform: translate(-50%, -50%); min-width: 96px; padding: 5px 8px; text-align: center; background: rgba(20, 8, 40, 0.8); border: 1px solid #5b3a96; }
+.sh-rad span b { color: #9a7bd6; margin-right: 5px; }
+.sh-rad span i { display: block; font-style: normal; font-weight: 500; color: #9a7bd6; font-size: 9px; }
+.sh-rad span.up { left: 0; top: -70px; } .sh-rad span.down { left: 0; top: 70px; } .sh-rad span.left { left: -100px; top: 0; } .sh-rad span.right { left: 100px; top: 0; }
+.sh-rad span.is-sel { background: rgba(110, 60, 190, 0.9); border-color: #C8A0FF; }
+.sh-rad span.is-cd { opacity: 0.5; }
+.sh-pm { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, 92vw); max-height: 80vh; overflow-y: auto; display: none; padding: 10px; background: rgba(14, 6, 30, 0.92); border: 1px solid #5b3a96; font: 600 11px/1.3 ui-monospace, monospace; color: #e6d8ff; z-index: 8; pointer-events: auto; }
+.sh-pm.is-on { display: block; }
+.sh-pm .pm-h { color: #9a7bd6; margin: 8px 0 4px; }
+.sh-pm .pm-r { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-left: 2px solid #5b3a96; background: rgba(40, 16, 70, 0.5); margin-bottom: 2px; }
+.sh-pm .pm-r.is-act { border-left-color: #7CFF8A; }
+.sh-pm .pm-r.is-dead { opacity: 0.55; border-left-color: #666; }
+.sh-pm .pm-n { flex: 1; } .sh-pm .pm-t { color: #9a7bd6; }
+.sh-pm em { color: #7CFF8A; font-style: normal; }
+.sh-pm button { font: inherit; color: #e6d8ff; background: #3a1f66; border: 1px solid #5b3a96; padding: 2px 6px; cursor: pointer; }
+.sh-pm button:hover { background: #5b3a96; }

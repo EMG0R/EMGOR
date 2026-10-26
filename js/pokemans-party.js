@@ -63,3 +63,37 @@ export function revive(mon) { if (!mon.dead) return false; mon.dead = false; mon
 export function healParty(pf) { let n = 0; for (let i = 0; i < pf.party.length; i++) { const m = monById(pf, pf.party[i]); if (m && !m.dead) { m.hp = maxHp(m); n++; } } return n; }
 // summon / dismiss rules: DEAD can't be summoned; returns {ok, why}
 export function canSummon(mon) { return !mon ? { ok: false, why: 'empty' } : mon.dead ? { ok: false, why: 'dead' } : { ok: true, why: '' }; }
+// ─── Q13b: radial move pick, forced-move AI hand-off, party/pen manager ───
+// radialPick(dx, dy, dead): 4-move radial, mouse delta since T went down. 0 = up, 1 = right, 2 = down, 3 = left; -1 inside the dead zone
+export function radialPick(dx, dy, dead) {
+  if (dx * dx + dy * dy < (dead === undefined ? 20 : dead) ** 2) return -1;
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0);
+}
+export const FORCE_WAIT = 3;               // a player-picked move waits at most this long for its cooldown, then the AI resumes
+// nextMove: the player's pick (forced, -1 = none) wins when off cooldown; while it cools the AI holds fire (age < FORCE_WAIT); otherwise the AI
+// returns {k, keep}: k = move index or -1 (nothing this tick), keep = the forced pick is still pending
+export function nextMove(mon, foe, chart, cds, u, forced, age) {
+  if (forced >= 0 && forced < mon.sp.moves.length && age < FORCE_WAIT) {
+    if (!(cds && cds[forced] > 0)) return { k: forced, keep: false };
+    return { k: -1, keep: true };
+  }
+  return { k: chooseMove(mon, foe, chart, cds, u), keep: false };
+}
+// manager: move a mon between party and pen. Returns {ok, why, to}. A party must keep one living mon; the active mon is repaired after.
+export function moveToggle(pf, id, partyMax) {
+  const mon = monById(pf, id); if (!mon) return { ok: false, why: 'unknown' };
+  const pi = pf.party.indexOf(id);
+  if (pi >= 0) {
+    const others = pf.party.filter((x) => x !== id).some((x) => { const m = monById(pf, x); return m && !m.dead; });
+    if (!others && !mon.dead) return { ok: false, why: 'last' };
+    pf.party.splice(pi, 1); pf.pen.push(id);
+    if (pf.activeMon === id) pf.activeMon = '';
+    return { ok: true, to: 'pen' };
+  }
+  const ni = pf.pen.indexOf(id); if (ni < 0) return { ok: false, why: 'unknown' };
+  if (pf.party.length >= partyMax) return { ok: false, why: 'full' };
+  pf.pen.splice(ni, 1); pf.party.push(id);
+  return { ok: true, to: 'party' };
+}
+// setActiveId: make a specific party mon the active one (refuses DEAD / not in party)
+export function setActiveId(pf, id) { const i = pf.party.indexOf(id); return i < 0 ? null : pickActive(pf, i); }
