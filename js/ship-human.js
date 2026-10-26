@@ -4,10 +4,12 @@
 // API: createHuman(THREE, {color, suit:{jetpack,scanner,sprint,storage 0..3}, role:'pilot'|'miner'|'chef'|'scout'|null, pet:{seed,plan}|null})
 //   -> { group, update(dt, {moving,running,airborne,speed 0..1,facing rad, jet 0..1, scan 0..1}), setColor(hex), setSuit({suit,role}), pet, dispose }
 //   group.userData.jetNozzles = Vector3[] (human-local nozzle exits, for the flame fx) ; group.userData.jetBone = the bone those are relative to (world = jetBone's parent chain, use group-local)
+//   Q10 rig: setRig(recipe|null) (recipe per ship-styles.js normRig: headShape headScale torso limbLen limbShape feet tail quills cap eyeStyle palette gait) re-bones the human; also via setSuit({rig}). group.userData.rig = normalised rig (gait, hitbox, top).
 //   createPet(THREE, {seed, plan:'walker'|'jelly'|'strider'|0..2}) -> { group, update(dt), follow(target, dt), setMood(0..1), dispose }  (0.4 human height, <=600 tris)
 // Suit attachments live in their own skinned mesh pair on the same skeleton, so setSuit rebuilds only those.
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PARTS, mulberry as pmul } from './ship-parts.js';
+import { normRig } from './ship-styles.js';
 
 const VERT = /* glsl */`
 varying vec3 vC; varying vec3 vV;
@@ -191,12 +193,15 @@ export function createHuman(THREE, opts = {}) {
     scout: { c: 0x59E08A, g: ['.###.', '#...#', '#.#.#', '#...#', '.###.'] },
   };
   const clampT = v => Math.max(0, Math.min(3, Math.round(+v || 0)));
-  const cur = { suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 0 }, role: null, extra: [] };
+  const B = bones, HIP_Y = 0.52;
+  const rg = { tx: 1, ty: 1, tz: 1, hipOff: 0, stride: 1, bounce: 1, arm: 1, lean: 1 };
+  const cur = { suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 0 }, role: null, extra: [], rig: normRig(null) };
   function applySuit(o) {
     if (!o) return;
     const su = o.suit || (('jetpack' in o || 'scanner' in o || 'sprint' in o || 'storage' in o) ? o : null);
     if (su) for (const k of ['jetpack', 'scanner', 'sprint', 'storage']) if (k in su) cur.suit[k] = clampT(su[k]);
     if ('role' in o) cur.role = ROLES[o.role] ? o.role : null;
+    if ('rig' in o) cur.rig = normRig(o.rig);
     if ('extra' in o) cur.extra = Array.isArray(o.extra) ? o.extra.filter(n => typeof n === 'string') : [];   // re-skin parts (ship-styles.js skinFor): cap cube snout tail quills visor blocky crest
   }
   applySuit(opts);
@@ -250,14 +255,20 @@ export function createHuman(THREE, opts = {}) {
       else { seg([-0.1, hy, hz], B, 0.017, 0.017, DARK, 'hips'); box(0.014, 0.034, 0.034, -0.105, hy, hz, 0xBFFFE0, 'hips', { emis: true }); }
     }
     // re-skin extras (ship-styles.js): original silhouettes built from the same box/seg kit, tinted by the theme where marked
-    const EX = new Set(cur.extra);
+    const EX = new Set(cur.extra.concat(cur.rig.extras)), RG = cur.rig;
     if (EX.has('cap')) { const g = new THREE.SphereGeometry(0.125, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2); g.translate(0, 0.945, 0); put(g, theme, 'head', { panel: true }); box(0.2, 0.014, 0.1, 0, 0.95, -0.12, theme, 'head', { panel: true }); }
     if (EX.has('cube')) { box(0.25, 0.25, 0.25, 0, 0.925, 0, 0x7ED0B8, 'head'); box(0.17, 0.05, 0.02, 0, 0.94, -0.128, 0x1A1A22, 'head'); box(0.05, 0.05, 0.02, 0, 0.88, -0.128, 0x4A3A2A, 'head'); }
     if (EX.has('snout')) { box(0.1, 0.07, 0.11, 0, 0.9, -0.15, 0xFFE9C8, 'head'); box(0.035, 0.03, 0.03, 0, 0.935, -0.205, 0x2A2430, 'head'); }
-    if (EX.has('tail')) { seg([0, 0.5, 0.06], [0, 0.46, 0.2], 0.035, 0.03, theme, 'hips', { panel: true }); seg([0, 0.46, 0.2], [0, 0.5, 0.33], 0.03, 0.02, theme, 'hips', { panel: true }); seg([0, 0.5, 0.33], [0, 0.62, 0.4], 0.02, 0.008, 0xFFE9C8, 'hips'); }
-    if (EX.has('quills')) for (let i = 0; i < 5; i++) { const a = (i - 2) * 0.32; seg([Math.sin(a) * 0.06, 0.96 + 0.03 * Math.cos(a), 0.06], [Math.sin(a) * 0.2, 0.93 + 0.1 * Math.cos(a) - 0.04 * Math.abs(a), 0.27], 0.03, 0.002, i % 2 ? 0xF2C14E : 0x7A4CC8, 'head'); }
+    if (EX.has('tail')) {
+      const tl = RG.tail ? RG.tail.len : 1, tz = k => 0.06 + (k - 0.06) * tl;
+      seg([0, 0.5, 0.06], [0, 0.46, tz(0.2)], 0.035, 0.03, theme, 'hips', { panel: true }); seg([0, 0.46, tz(0.2)], [0, 0.5, tz(0.33)], 0.03, 0.02, theme, 'hips', { panel: true }); seg([0, 0.5, tz(0.33)], [0, 0.62, tz(0.4)], 0.02, 0.008, 0xFFE9C8, 'hips');
+      const sp = RG.tail ? RG.tail.spikes : 0;
+      for (let i = 0; i < sp; i++) box(0.03, 0.045, 0.035, 0, 0.51 + 0.012 * i, tz(0.12 + 0.2 * i / Math.max(1, sp)), 0xFF9A3C, 'hips');
+    }
+    if (EX.has('quills')) { const nq = RG.quills || 5; for (let i = 0; i < nq; i++) { const a = (i - (nq - 1) / 2) * (1.28 / Math.max(2, nq - 1)); seg([Math.sin(a) * 0.06, 0.96 + 0.03 * Math.cos(a), 0.06], [Math.sin(a) * 0.2, 0.93 + 0.1 * Math.cos(a) - 0.04 * Math.abs(a), 0.27], 0.03, 0.002, i % 2 ? 0xF2C14E : 0x7A4CC8, 'head'); } }
     if (EX.has('visor')) { box(0.2, 0.04, 0.05, 0, 0.935, -0.1, 0xFFE9A0, 'head', { emis: true }); box(0.03, 0.03, 0.1, 0, 0.935, -0.17, 0xFFE9A0, 'head', { emis: true }); }
     if (EX.has('crest')) for (let i = 0; i < 4; i++) box(0.03, 0.05 - 0.007 * i, 0.04, 0, 1.03 - 0.07 * i, 0.07 + 0.04 * i, 0xFF9A3C, 'head');
+    if (EX.has('bigfeet')) for (const sx of [-1, 1]) box(0.13, 0.085, 0.25, sx * 0.065, 0.043, -0.06, DARK, sx < 0 ? 'knL' : 'knR');
     if (EX.has('blocky')) for (const sx of [-1, 1]) {
       box(0.1, 0.19, 0.1, sx * 0.16, 0.67, 0, 0x4FA8A0, 'shL'.replace('L', sx < 0 ? 'L' : 'R'));
       box(0.1, 0.16, 0.1, sx * 0.065, 0.4, 0, 0x3A4A9A, sx < 0 ? 'hpL' : 'hpR');
@@ -274,7 +285,7 @@ export function createHuman(THREE, opts = {}) {
     for (const g of [attLit.geometry, attEmi.geometry]) g.dispose();
     attLit.geometry = S.geoLit; attEmi.geometry = S.geoEmi;
     if (attSet.lo) { attSet.lo[0].geometry = S.geoLit; attSet.lo[1].geometry = S.geoEmi; }
-    attSet.cur = S; paintSet(S);
+    attSet.cur = S; paintSet(S); applyRig();
     emiBase = 1 + 0.2 * cur.suit.scanner;
     group.userData.suit = Object.assign({}, cur.suit); group.userData.role = cur.role; group.userData.extra = cur.extra.slice();
   }
@@ -302,8 +313,22 @@ export function createHuman(THREE, opts = {}) {
     },
   });
 
+  // ── Q10 rig: bone scales (torso / head / arms / legs) + genAtt extras; the animator reads rg for hip height, breathing scale and the gait table ──
+  function applyRig() {
+    const r = cur.rig, ts = r.ts, aw = r.limbShape === 'cube' ? 1.15 : 1;
+    rg.tx = ts[0]; rg.ty = ts[1]; rg.tz = ts[2]; rg.hipOff = r.hipOff; rg.stride = r.gait.stride; rg.bounce = r.gait.bounce; rg.arm = r.gait.arm; rg.lean = r.gait.lean;
+    B.head.scale.set(r.hs[0] / ts[0], r.hs[1] / ts[1], r.hs[2] / ts[2]);                // counter the torso scale so headScale is absolute
+    B.head.position.set(0, JOINTS.head[1] - JOINTS.torso[1] - r.headDrop / ts[1], 0);
+    for (const sd of ['L', 'R']) {
+      B['sh' + sd].scale.set(aw / ts[0], r.arm / ts[1], aw / ts[2]);
+      B['hp' + sd].scale.set(1, r.leg, 1);
+    }
+    B.pack.scale.set(1 / ts[0], 1 / ts[1], 1 / ts[2]);
+    group.userData.rig = r; group.userData.eyeHeight = r.hipOff + HIP_Y + 0.41 * ts[1] - r.headDrop; group.userData.headPos.set(0, group.userData.eyeHeight, 0);
+    if (r.palette && r.palette.theme != null) setColor(r.palette.theme);
+  }
+  function setRig(rc) { setSuit({ rig: rc, extra: [] }); return cur.rig; }
   // ── procedural animation ──
-  const B = bones, HIP_Y = 0.52;
   let t = 0, phase = 0, mv = 0, run = 0, air = 0, crouch = 0, wasAir = false, landT = 0, yaw = 0;
   const lerp = (a, b, k) => a + (b - a) * k;
   const damp = (cur, tgt, rate, dt) => cur + (tgt - cur) * (1 - Math.exp(-rate * dt));
@@ -318,14 +343,14 @@ export function createHuman(THREE, opts = {}) {
     wasAir = !!st.airborne;
     landT = Math.max(0, landT - dt);
     crouch = damp(crouch, landT > 0 ? 1 : 0, landT > 0 ? 30 : 9, dt);
-    const freq = lerp(1.8, 2.6, run);
+    const freq = lerp(1.8, 2.6, run) * rg.stride;
     phase += dt * freq * Math.PI * 2 * (st.moving ? 1 : 0.0);
     if (st.facing != null) group.rotation.y = st.facing;
 
     const g = 1 - air;                         // ground weight
     const w = mv * g;                          // locomotion weight
     const s = Math.sin(phase), c = Math.cos(phase);
-    const amp = lerp(0.55, 0.95, run), arm = lerp(0.5, 1.0, run);
+    const amp = lerp(0.55, 0.95, run), arm = lerp(0.5, 1.0, run) * rg.arm;
     const br = Math.sin(t * 1.6), look = Math.sin(t * 0.37) * 0.35 + Math.sin(t * 0.91) * 0.12;
 
     // legs: +x swings forward (-Z)
@@ -340,13 +365,13 @@ export function createHuman(THREE, opts = {}) {
     B.knL.rotation.x = lk; B.knR.rotation.x = rk;
 
     // hips: bob + crouch lowering
-    const bob = Math.abs(Math.cos(phase)) * lerp(0.018, 0.04, run) * w;
-    B.hips.position.y = HIP_Y + bob - 0.17 * crouch - 0.05 * air + (1 - mv) * g * br * 0.003;
+    const bob = Math.abs(Math.cos(phase)) * lerp(0.018, 0.04, run) * w * rg.bounce;
+    B.hips.position.y = HIP_Y + rg.hipOff + bob - 0.17 * crouch - 0.05 * air + (1 - mv) * g * br * 0.003;
     B.hips.rotation.y = -s * 0.1 * w;
     // torso: lean, counter-twist, breathing
-    const lean = lerp(0.05, 0.38, run) * mv * g + 0.18 * crouch + 0.1 * air;
+    const lean = lerp(0.05, 0.38, run) * mv * g * rg.lean + 0.18 * crouch + 0.1 * air;
     B.torso.rotation.set(-lean + (1 - mv) * br * 0.012, s * 0.12 * w, 0);
-    B.torso.scale.set(1, 1 + (1 - mv) * br * 0.012, 1 + (1 - mv) * br * 0.02);
+    B.torso.scale.set(rg.tx, rg.ty * (1 + (1 - mv) * br * 0.012), rg.tz * (1 + (1 - mv) * br * 0.02));
     // head: counter the lean, idle look-around
     B.head.rotation.set(lean * 0.8 - 0.05 * air, look * (1 - mv) * g + (st.moving ? 0 : 0), 0);
 
@@ -375,7 +400,7 @@ export function createHuman(THREE, opts = {}) {
     geoLit.dispose(); geoEmi.dispose(); if (loGroup) loGroup.userData.geoms.forEach(g => g.dispose()); attLit.geometry.dispose(); attEmi.geometry.dispose(); if (pet) pet.dispose(); litMat.dispose(); emiMat.dispose(); skeleton.dispose();
     if (group.parent) group.parent.remove(group);
   }
-  return { group, update, setColor, setSuit, pet, dispose };
+  return { group, update, setColor, setSuit, setRig, pet, dispose };
 }
 
 // ── companion critter: 3 silhouettes, ~0.4 human height (feet at y=0, forward -Z), <= 600 tris, no skeleton ──

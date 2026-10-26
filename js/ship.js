@@ -4285,7 +4285,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     import('./ship-human.js').then(function (m) { humanMod = m; }).catch(function () { /* capsule fallback */ });
     function makeHuman(color, sid) {                 // { group (a holder, oriented + scaled by the caller), update(dt, st), setColor, dispose }
         var h = null, holder = new THREE.Group();
-        if (humanMod && typeof humanMod.createHuman === 'function') { try { var sa = skinArg(sid == null ? curStyleId : sid); h = humanMod.createHuman(THREE, { color: color, suit: suitOf(curProfile()), role: sa.role, extra: sa.extra }); } catch (e) { h = null; } }
+        if (humanMod && typeof humanMod.createHuman === 'function') { try { var sa = skinArg(sid == null ? curStyleId : sid); h = humanMod.createHuman(THREE, { color: color, suit: suitOf(curProfile()), role: sa.role, extra: sa.extra, rig: sa.rig }); } catch (e) { h = null; } }
         if (!h) {
             var cm = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.6, 3, 8), new THREE.MeshBasicMaterial({ color: color }));
             cm.position.y = 0.46;
@@ -6585,7 +6585,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function styleDef(id) { var l = stylesList(), i; for (i = 0; i < l.length; i++) if (l[i].id === (id || 'pilot')) return l[i]; return PILOT_DEF; }
     function skinArg(id) {
         var o = null; if (id && stylesMod && typeof stylesMod.skinFor === 'function') { try { o = stylesMod.skinFor(id); } catch (e0) { o = null; } }
-        return { role: (o && o.role) || null, extra: (o && Array.isArray(o.extra)) ? o.extra : [] };
+        return { role: (o && o.role) || null, extra: (o && Array.isArray(o.extra)) ? o.extra : [], rig: (o && o.rig) || null };
     }
     function skinRig(obj, id) { if (obj && obj.setSkin) obj.setSkin(skinArg(id)); }
     function styleEnv() { return { walk: G_WALK, grav: 22, jump: 8.5 }; }      // the mashup styles keep their own tuned jump

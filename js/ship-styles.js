@@ -410,12 +410,50 @@ function sonik(env) {
   return { reset, step, state: s, out, hitbox };
 }
 
+// Q10: rig recipes (pure data + maths; ship-human.js setRig applies them to bones/extras). PILOT = today's human.
+const RIG_ENUM = { headShape: ['round', 'cube', 'snout'], torso: ['normal', 'stout', 'slim', 'lizard', 'box'], limbShape: ['cyl', 'cube'], feet: ['normal', 'big', 'none'], eyeStyle: ['helmet', 'visor', 'dots', 'none'] };
+const TORSO_S = { normal: [1, 1, 1], stout: [1.3, 0.88, 1.25], slim: [0.85, 1.05, 0.85], lizard: [0.9, 0.9, 1.35], box: [1.1, 1, 1.1] };   // [x, y, z] bone scale of the torso
+export const GAITS = {            // stride = step frequency x, bounce = hip bob x, arm = arm swing x, lean = forward torso lean x. [guess] tune by playing
+  PILOT: { stride: 1, bounce: 1, arm: 1, lean: 1 },
+  MARO:  { stride: 1.1, bounce: 1.5, arm: 0.7, lean: 1.2 },
+  JOSHI: { stride: 1.35, bounce: 0.8, arm: 0.4, lean: 1.6 },
+  STEEV: { stride: 0.9, bounce: 0.5, arm: 1.15, lean: 0.4 },
+  SONIK: { stride: 1.6, bounce: 0.8, arm: 1.3, lean: 1.8 },
+};
+const num = (v, d, a, b) => { v = +v; return v === v ? clamp(v, a, b) : d; };
+const pick = (v, list) => list.indexOf(v) >= 0 ? v : list[0];
+// normRig(recipe, styleId?) -> flat, fully-defaulted rig: { headShape, hs:[x,y,z], neck, torso, ts:[x,y,z], arm, leg, limbShape, feet, tail:{len,spikes}|null, quills, cap:bool, crest, eyeStyle, palette,
+//   gait:{stride,bounce,arm,lean}, extras:[names for ship-human genAtt], hipOff (hips rise so scaled legs still reach y=0), top (helmet top y), hitbox:{r,h} }
+export function normRig(rc, id) {
+  rc = rc || {};
+  const hsr = rc.headScale, hs = typeof hsr === 'object' && hsr ? [num(hsr.x, 1, 0.5, 2.5), num(hsr.y, 1, 0.5, 2.5), num(hsr.z, 1, 0.5, 2.5)] : [num(hsr, 1, 0.5, 2.5), num(hsr, 1, 0.5, 2.5), num(hsr, 1, 0.5, 2.5)];
+  const ll = rc.limbLen || {}, arm = num(ll.arm, 1, 0.4, 1.6), leg = num(ll.leg, 1, 0.5, 1.8);
+  const headShape = pick(rc.headShape, RIG_ENUM.headShape), torso = pick(rc.torso, RIG_ENUM.torso), limbShape = pick(rc.limbShape, RIG_ENUM.limbShape), feet = pick(rc.feet, RIG_ENUM.feet), eyeStyle = pick(rc.eyeStyle, RIG_ENUM.eyeStyle);
+  const ts = TORSO_S[torso].slice(), neck = rc.neck !== false;
+  const tl = rc.tail ? { len: num(rc.tail.len, 1, 0.3, 3), spikes: Math.round(num(rc.tail.spikes, 0, 0, 6)) } : null;
+  const quills = Math.round(num(rc.quills, 0, 0, 9));
+  const gk = rc.gait && typeof rc.gait === 'object' ? rc.gait : (GAITS[String(id || '').toUpperCase()] || GAITS.PILOT), g0 = GAITS.PILOT;
+  const gait = { stride: num(gk.stride, g0.stride, 0.3, 3), bounce: num(gk.bounce, g0.bounce, 0, 3), arm: num(gk.arm, g0.arm, 0, 3), lean: num(gk.lean, g0.lean, 0, 3) };
+  const extras = [];
+  if (rc.cap) extras.push('cap');
+  if (headShape === 'cube') extras.push('cube'); else if (headShape === 'snout') extras.push('snout');
+  if (tl) extras.push('tail');
+  if (quills) extras.push('quills');
+  if (eyeStyle === 'visor') extras.push('visor');
+  if (rc.crest) extras.push('crest');
+  if (limbShape === 'cube') extras.push('blocky');
+  if (feet === 'big') extras.push('bigfeet');
+  const hipOff = 0.5 * (leg - 1), hipY = 0.52 + hipOff, headDrop = neck ? 0 : 0.04;
+  const top = hipY + (0.93 - 0.52) * ts[1] - headDrop + 0.115 * hs[1];
+  const hitbox = { r: +(0.2 * Math.max(ts[0], ts[2], 0.8 * hs[0], 0.9 * (tl ? 1 + 0.1 * tl.len : 1))).toFixed(3), h: +top.toFixed(3) };
+  return { headShape, hs, neck, torso, ts, arm, leg, limbShape, feet, tail: tl, quills, cap: !!rc.cap, crest: !!rc.crest, eyeStyle, palette: rc.palette && typeof rc.palette === 'object' ? { theme: rc.palette.theme != null ? rc.palette.theme : null } : null, gait, extras, hipOff, headDrop, top, hitbox };
+}
 // ── registry + skins ─────────────────────────────────────────────────────────────────────────────
 const SKINS = {
-  MARO:  { color: 0xB86CFF, suit: { jetpack: 0, scanner: 0, sprint: 1, storage: 0 }, role: 'miner', extra: ['cap'] },                       // stout runner, round cap, violet + orange
-  JOSHI: { color: 0x59E08A, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 1 }, role: 'scout', extra: ['snout', 'crest', 'tail'] },    // round lizard, nub nose, mint + orange crest
-  STEEV: { color: 0x30C0C8, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 2 }, role: 'miner', extra: ['cube', 'blocky'] },           // cube head, block limbs, teal
-  SONIK: { color: 0xFFC93C, suit: { jetpack: 0, scanner: 1, sprint: 3, storage: 0 }, role: null,    extra: ['quills', 'visor'] },          // quilled runner, pointed visor, gold + violet
+  MARO:  { color: 0xB86CFF, suit: { jetpack: 0, scanner: 0, sprint: 1, storage: 0 }, role: 'miner', rig: { headShape: 'round', headScale: 1.05, torso: 'stout', limbLen: { arm: 0.75, leg: 0.9 }, limbShape: 'cyl', feet: 'big', cap: 'brim', eyeStyle: 'dots' } },                       // stout runner, round cap, violet + orange
+  JOSHI: { color: 0x59E08A, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 1 }, role: 'scout', rig: { headShape: 'snout', headScale: 1.1, torso: 'lizard', limbLen: { arm: 0.55, leg: 0.85 }, limbShape: 'cyl', feet: 'normal', tail: { len: 1.7, spikes: 3 }, crest: true, eyeStyle: 'dots' } },    // round lizard, nub nose, mint + orange crest
+  STEEV: { color: 0x30C0C8, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 2 }, role: 'miner', rig: { headShape: 'cube', headScale: { x: 2, y: 1, z: 1 }, neck: false, torso: 'box', limbLen: { arm: 1, leg: 1 }, limbShape: 'cube', feet: 'normal', eyeStyle: 'dots' } },           // cube head, block limbs, teal
+  SONIK: { color: 0xFFC93C, suit: { jetpack: 0, scanner: 1, sprint: 3, storage: 0 }, role: null,    rig: { headShape: 'round', headScale: 1, torso: 'slim', limbLen: { arm: 1, leg: 1.35 }, limbShape: 'cyl', feet: 'big', quills: 5, eyeStyle: 'visor' } },          // quilled runner, pointed visor, gold + violet
 };
 // Q08: MARO action table part 1 — pure, allocation-free state machine in TRUE human heights (H) per docs/next-stage-plan.md §C (SM64 community constants x0.1875 speed / x5.625 accel).
 // NOT yet driving maro() (that still runs the env-scaled prototype above); part 2 (Q09) completes the table, then maro() is switched over and tuned on the Mac.
@@ -559,7 +597,8 @@ export const STYLES = {
 export function skinFor(id) {
   const k = SKINS[String(id || '').toUpperCase()];
   if (!k) return { color: 0xB86CFF };
-  return { color: k.color, suit: Object.assign({}, k.suit), role: k.role, extra: k.extra.slice() };
+  const rg = normRig(k.rig, id), rig = Object.assign({}, k.rig, { gait: rg.gait });
+  return { color: k.color, suit: Object.assign({}, k.suit), role: k.role, extra: rg.extras.slice(), rig, hitbox: rg.hitbox };
 }
 export function createStyle(id, env) {
   const S = STYLES[String(id || '').toUpperCase()]; if (!S) return null;
