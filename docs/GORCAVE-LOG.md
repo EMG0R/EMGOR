@@ -176,3 +176,10 @@ DONE: queue split into Q17b1 (rock API), Q17b2 (persistence + HUD chip), Q17b3 (
 TESTS: none run (docs only).
 VERIFY ON MAC: nothing.
 OPEN: Q17b1-b3.
+
+## Q17b1 Rock API — 2026-10-26 — see commit "Q17b1 Rock API"
+DONE: ship-planet.js: `rockIds` Int32Array filled in seedRocks (lattice cell i,j,k hash ^ node seed, tier-independent); `ps.rockCount()`, `ps.rockId(i)` (stable key for microSeed), `ps.rockAt(i,out)` (world centre via ride.matrix, returns bounding radius = max instance-matrix column length), `ps.rockUnderCrosshair(origin,dir,maxT=12 L)` -> slot index | -1 (near ps.info). ship-depth.js: pure `rayHitSphere`, `pickSphere` (no allocation, caller owns tmp). ship-depth.js loaded in ship-planet.js via guarded dynamic import; if it fails, picking returns -1 and nothing else changes. No shader/dive change.
+NOTE: spec said "index stable across quality tiers": slot indices are not (sorted by distance to player, capped by tier, reseeded after 40 L). The stable key is `rockId(i)`; Q17b3 must feed rockId, not the slot, to microSpec/depthStack.
+TESTS: node --check ok on ship-planet.js, ship-depth.js (as .mjs); node --test: 61 pass / 0 fail (2 new in depth.test.mjs).
+VERIFY ON MAC: on a rocky planet on foot, console `ps.rockCount()` > 0; aim at a rock, `ps.rockUnderCrosshair(camPos, camDir)` returns an index and `ps.rockAt(i,v)` lands on that rock; same rockId after switching quality tier at the same spot (for rocks present in both). Run g-tests as usual; rock rendering must be unchanged.
+OPEN: Q17b2, Q17b3.

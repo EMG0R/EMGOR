@@ -4,6 +4,7 @@
 //   scale(depth)                        -> { g, day, loot, villageF } content scaling by depth (g x 0.85^d, loot tier = depth)
 //   createDive() state machine          -> start(t, rock) / cancel() / tick(dt) / phase: 'idle' | 'hold' | 'dive' | 'in' | 'climb'
 //   shouldClimb(distL, R)               -> true once the player is >= 3 R from the micro planet centre
+//   rayHitSphere(...) / pickSphere(n, at, o, d, maxT, tmp) -> nearest-hit sphere index along a ray (rock under the crosshair), -1 if none
 //   push / pop / toSave / fromSave      -> profile.depthStack = [{ planetId, rockIndex }]
 export const HOLD_T = 0.6, DIVE_T = 2, CLIMB_R = 3, MAX_DEPTH = 1;     // B1 = one level; B2 raises MAX_DEPTH
 
@@ -48,4 +49,24 @@ export function fromSave(a) {
   if (!Array.isArray(a)) return out;
   for (const e of a) { if (out.length >= MAX_DEPTH) break; if (e && typeof e.planetId === 'string' && Number.isFinite(e.rockIndex) && e.rockIndex >= 0) out.push({ planetId: e.planetId, rockIndex: e.rockIndex | 0 }); }
   return out;
+}
+
+// ray (unit dir) vs sphere: distance along the ray to the entry point (0 if the origin is inside), or -1 on a miss
+export function rayHitSphere(ox, oy, oz, dx, dy, dz, cx, cy, cz, r) {
+  const lx = cx - ox, ly = cy - oy, lz = cz - oz, tc = lx * dx + ly * dy + lz * dz;
+  const d2 = lx * lx + ly * ly + lz * lz - tc * tc, r2 = r * r;
+  if (d2 > r2) return -1;
+  const th = Math.sqrt(r2 - d2), t0 = tc - th, t1 = tc + th;
+  return t0 >= 0 ? t0 : (t1 >= 0 ? 0 : -1);
+}
+// at(i, tmp) fills tmp = [x, y, z, radius]; no allocation per call (caller owns tmp). Nearest hit within maxT wins.
+export function pickSphere(n, at, ox, oy, oz, dx, dy, dz, maxT, tmp) {
+  let best = -1, bt = maxT;
+  for (let i = 0; i < n; i++) {
+    at(i, tmp);
+    if (!(tmp[3] > 0)) continue;
+    const t = rayHitSphere(ox, oy, oz, dx, dy, dz, tmp[0], tmp[1], tmp[2], tmp[3]);
+    if (t >= 0 && t <= bt) { bt = t; best = i; }
+  }
+  return best;
 }

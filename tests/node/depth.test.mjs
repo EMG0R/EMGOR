@@ -36,3 +36,17 @@ test('depthStack: cap at MAX_DEPTH, save round-trip, junk rejected', () => {
   assert.deepEqual(D.fromSave([{ planetId: 3, rockIndex: 1 }, null, { planetId: 'a', rockIndex: -1 }]), []);
   assert.deepEqual(D.pop(s), { planetId: 'p1', rockIndex: 4 }); assert.equal(D.pop(s), null);
 });
+
+test('rayHitSphere: hit, miss, behind, inside', () => {
+  assert.ok(Math.abs(D.rayHitSphere(0, 0, 0, 1, 0, 0, 10, 0, 0, 2) - 8) < 1e-9);
+  assert.equal(D.rayHitSphere(0, 0, 0, 1, 0, 0, 10, 3, 0, 2), -1);
+  assert.equal(D.rayHitSphere(0, 0, 0, 1, 0, 0, -10, 0, 0, 2), -1);
+  assert.equal(D.rayHitSphere(0, 0, 0, 1, 0, 0, 0.5, 0, 0, 2), 0);
+});
+test('pickSphere returns nearest hit, respects maxT, skips r<=0', () => {
+  const S = [[20, 0, 0, 2], [10, 0, 0, 2], [5, 5, 0, 1], [3, 0, 0, 0]], tmp = [0, 0, 0, 0];
+  const at = (i, o) => { const s = S[i]; o[0] = s[0]; o[1] = s[1]; o[2] = s[2]; o[3] = s[3]; };
+  assert.equal(D.pickSphere(4, at, 0, 0, 0, 1, 0, 0, 50, tmp), 1);
+  assert.equal(D.pickSphere(4, at, 0, 0, 0, 1, 0, 0, 5, tmp), -1);
+  assert.equal(D.pickSphere(4, at, 0, 0, 0, 0, 1, 0, 50, tmp), -1);
+});

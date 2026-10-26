@@ -1142,7 +1142,7 @@ export function createPlanetSurface(engine, L) {
     var C = new THREE.Vector3(0, 1, 0), T1 = new THREE.Vector3(1, 0, 0), T2 = new THREE.Vector3(0, 0, 1);
     var halfAng = 0.3, patchSet = false, sporeC = new THREE.Vector3(), sporeSet = false;
     // flora / creature seed centres (object-space unit directions)
-    var floraC = new THREE.Vector3(), floraSet = false, creatC = new THREE.Vector3(), creatSet = false, rockC = new THREE.Vector3(), rockSet = false, rockLim = Q_ROCK[3], look = 0;
+    var floraC = new THREE.Vector3(), floraSet = false, creatC = new THREE.Vector3(), creatSet = false, rockC = new THREE.Vector3(), rockSet = false, rockLim = Q_ROCK[3], look = 0, rockIds = new Int32Array(ROCK_MAX);
 
     // outpost pads (local dir, flat chord, blend chord, height frac) -- mirrors hfunP in the patch shader
     var pads = [], outR = 0, lastLand = false, rideKey = [NaN, 0, 0, 0, 0, 0, 0];
@@ -2020,6 +2020,7 @@ export function createPlanetSurface(engine, L) {
             var yaw = r3 * 6.2832, cyw = Math.cos(yaw), syw = Math.sin(yaw);
             var ux = rx * cyw + fx * syw, uy = ry * cyw + fy * syw, uz = rz * cyw + fz * syw;
             var vx = -rx * syw + fx * cyw, vy = -ry * syw + fy * cyw, vz = -rz * syw + fz * cyw;
+            rockIds[cnt] = (((cd[4] * 73856093) ^ (cd[5] * 19349663) ^ (cd[6] * 83492791) ^ seed) >>> 0) & 0x7fffffff;      // Q17b1: tier-independent id from the lattice cell
             var o = cnt * 16;
             mat[o] = ux * sw; mat[o + 1] = uy * sw; mat[o + 2] = uz * sw; mat[o + 3] = 0;
             mat[o + 4] = dx * sh; mat[o + 5] = dy * sh; mat[o + 6] = dz * sh; mat[o + 7] = 0;
@@ -2751,6 +2752,28 @@ export function createPlanetSurface(engine, L) {
         res.ok = land && res.slope < LAND_SLOPE && alt < LAND_ALT * L;
         res.why = res.ok ? '' : (!land ? 'water' : (res.slope >= LAND_SLOPE ? 'slope' : 'alt'));      // rev 19: why not (HUD message)
         return res;
+    };
+
+
+    // Q17b1 rock API (feeds ship-depth.js dives). Slot index i is only valid until the next reseed (player moved 40 L / tier change); rockId(i) is the
+    // stable key (lattice cell hash, identical at every quality tier) and is what microSeed(parentId, id) should receive.
+    var _rkP = new THREE.Vector3(), _rkSph = [0, 0, 0, 0], pickSphere = null;
+    import('./ship-depth.js').then(function (m) { pickSphere = m.pickSphere; }).catch(function () { /* depth module missing: rock picking stays off */ });
+    ps.rockCount = function () { return alloc && node ? alloc.rocks.count : 0; };
+    ps.rockId = function (i) { return alloc && i >= 0 && i < alloc.rocks.count ? rockIds[i] : -1; };
+    // out: Vector3 receiving the world centre; returns the bounding radius (world units), or -1 for a bad slot
+    ps.rockAt = function (i, out) {
+        if (!alloc || !node || i < 0 || i >= alloc.rocks.count) return -1;
+        rideKey[0] = NaN; syncRide();
+        var m = alloc.rocks.instanceMatrix.array, o = i * 16;
+        out.set(m[o + 12], m[o + 13], m[o + 14]).applyMatrix4(alloc.ride.matrix);
+        return Math.max(Math.hypot(m[o], m[o + 1], m[o + 2]), Math.hypot(m[o + 4], m[o + 5], m[o + 6]), Math.hypot(m[o + 8], m[o + 9], m[o + 10]));
+    };
+    // origin/dir: Vector3-likes in world space (dir normalised); maxT in world units (default 12 L). Returns slot index or -1.
+    ps.rockUnderCrosshair = function (origin, dir, maxT) {
+        if (!pickSphere || !alloc || !node || !alloc.rocks.count) return -1;
+        var lim = maxT || 12 * L;
+        return pickSphere(alloc.rocks.count, function (i, s) { s[3] = ps.rockAt(i, _rkP); s[0] = _rkP.x; s[1] = _rkP.y; s[2] = _rkP.z; }, origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, lim, _rkSph);
     };
 
     ps.info = function () { return { amp: amp, look: look, rocks: alloc ? alloc.rocks.count : 0, flora: alloc ? alloc.flora.count : 0, creatures: alloc ? alloc.creat.count : 0, grid: gridN, active: node ? node.id : null }; };
