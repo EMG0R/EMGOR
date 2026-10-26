@@ -150,3 +150,9 @@ UNSURE:
 - Station CVS has no HUD marker; foundation box may poke under the deck.
 - Follower HP persists only at writeSave points (faint/heal/swap).
 - Mouse look still turns the camera while the radial is open.
+
+## Q15 Relay redeploy — 2026-10-26T17:05Z — see commit "Q15 Relay redeploy"
+DONE: running copy was ~/nmg-relay/server.js (unit WorkingDirectory; 21950 B, Oct 6). Diff vs repo server/nmg-relay/server.js: repo adds the 'planet' frame block (+5 lines at ~249: pid, lx..lz, lqx..lqw). Backed up old to /tmp/server.js.before, copied repo server.js over, `sudo systemctl restart nmg-relay.service`. Only server.js copied (README differs, not deployed).
+TESTS: node --check server.js ok. Before: active, restarted fine. After: is-active = active, journal "listening on 127.0.0.1:8797", /healthz {"n":0}; Funnel /nmg with WS upgrade (HTTP/1.1) reaches relay (403 origin check from curl, not 404/502).
+VERIFY ON MAC: two clients, one landed/on foot: peer sees planet-local pose (frame:'planet') without jitter; ship-frame peers unaffected.
+OPEN: ~/nmg-relay/README.md is stale vs repo; no other service touched.
