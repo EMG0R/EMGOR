@@ -202,3 +202,25 @@ SPLIT CANDIDATES (ordered by lowest coupling): (1) pure helpers first: footFloor
 TESTS: none run (docs only).
 VERIFY ON MAC: nothing.
 OPEN: Q18 needs a Mac-attended session or the footState migration split into a prior item.
+
+## BENCHMARK-4 — 2026-10-26 — see commit "BENCHMARK-4"
+SCOPE: phases 3-4 (Q11-Q18, range 230c7da..HEAD). js/style/tests: 18 files, +1166/-40. ship.js +357, ship-world.js +124, pokemans-party.js +111 (new), pokemans-gen.js +87 (new), ship-depth.js +72 (new), ship-planet.js +50, pokemans-catch.js +37 (new), style/ship.css +27, ship-items.js 16, ship-station.js 15, ship-planet-tests.js 9, ship-fx.js 6; tests +295 (6 new files, incl. depth).
+TESTS: node --test tests/node: 61 pass / 0 fail. banned-names: clean. No browser tests run by the builder.
+STATUS: Q11-Q14b, Q15, Q16, Q17a, Q17b1, Q17b2 done. BLOCKED/needs Mac: Q17b (split), Q17b3 (dive/climb engine integration), Q18 (ship.js split). Phase 3 play-check list: see BENCHMARK-3.
+VERIFY ON MAC (all, in order):
+1. g1-g17 in 5 batches (b1 g1-4, b2 g5-8, b3 g9-12, b4 g13-15, b5 g16-17), reload between. Expect g10 pass (Q16), g13 report formation.ratio ~0.99-1.0, g15 may show punch.noSpawn (spawn cap).
+2. Planet shader: pad slots 5 -> 6 (`uPadD[6]`, 3 GLSL copies); no blank planets, no seams at pad edges (Q14).
+3. Store menus / FRIES_TIERS length 4 (Q12 balls + lurefries).
+4. POKEMANS loop: buy ball, catch, summon, fight (follower mobHurt 'me'), T radial, U manager, faint, revive at planet + station CVS (Q12-Q14b).
+5. Relay (Q15): two clients, one on foot, peer sees frame:'planet' poses without jitter.
+6. Depth plumbing (Q17b1/b2): `ps.rockCount()`, `ps.rockUnderCrosshair`, `ps.rockAt` on a rocky planet; no DEPTH chip at depth 0; set profile depthStack [{planetId:'x',rockIndex:1}] and reload -> "DEPTH 1"; chip does not overlap HUD.
+OPEN RISKS:
+- Q14 pad-slot shader edit: GLSL compile failure blanks every planet.
+- [guess] constants: ball arc/shake/hit radius, mob level, foe def, bite damage, XP, CVS offset (60 L) and size, riding-pet dash offset.
+- Tier-3 ball guarantees a catch below ~63 % hp.
+- bodyRecipe plan/sig hashed to existing follower plans, not mapped 1:1.
+- Station CVS has no HUD marker; foundation box may poke under the deck.
+- Follower HP persists only at writeSave points.
+- Mouse look still turns the camera while the T radial is open.
+- Depth: ps rock slots are not stable across tiers; use rockId for microSpec. Q17b3 needs an attended session (suggested split a/b/c in its log entry). Q18 needs footState migration first (candidates in its log entry).
+OPEN: queue has no unchecked items left.
