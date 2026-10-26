@@ -183,3 +183,9 @@ NOTE: spec said "index stable across quality tiers": slot indices are not (sorte
 TESTS: node --check ok on ship-planet.js, ship-depth.js (as .mjs); node --test: 61 pass / 0 fail (2 new in depth.test.mjs).
 VERIFY ON MAC: on a rocky planet on foot, console `ps.rockCount()` > 0; aim at a rock, `ps.rockUnderCrosshair(camPos, camDir)` returns an index and `ps.rockAt(i,v)` lands on that rock; same rockId after switching quality tier at the same spot (for rocks present in both). Run g-tests as usual; rock rendering must be unchanged.
 OPEN: Q17b2, Q17b3.
+
+## Q17b2 Persistence + HUD — 2026-10-26 — see commit "Q17b2 Persistence + HUD"
+DONE: ship.js migrateProfile (~607) adds `depthStack` (array, entries filtered, max 4); writeSave (~634) writes `pf.depthStack = depthMod.toSave(depthStack)` only when depthMod loaded; applyProfile calls `depthLoad()` (fromSave from profile). New block before `elFlight` (~4963): guarded `import('./ship-depth.js')` -> `depthMod`, `depthStack` runtime array, `elDepth` chip "DEPTH n" (hidden at 0), `depthHud()`. style/ship.css: `.sh-depth` top-right, violet, hidden unless `.is-on`. Nothing pushes onto depthStack yet (Q17b3), so depth stays 0 and no behaviour changes.
+TESTS: node --check ok on ship.js (as .mjs); node --test: 61 pass / 0 fail.
+VERIFY ON MAC: game loads with no console errors; no DEPTH chip visible; localStorage save users[*].depthStack === []; in console after load, set a profile's depthStack to [{planetId:'x',rockIndex:1}], reload (or switch user) -> chip shows "DEPTH 1".
+OPEN: Q17b3. Chip position (right, top 7vh+8px) may overlap other HUD; check visually.

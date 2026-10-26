@@ -605,6 +605,8 @@ export default function mount(engine) {
         if (!Array.isArray(o.known)) o.known = [];       // rev 23: learned lingo words
         o.known = o.known.filter(function (w) { return typeof w === 'string'; }).slice(0, 400);
         o.glowUntil = (typeof o.glowUntil === 'number' && isFinite(o.glowUntil)) ? o.glowUntil : 0;     // rev 23: fries glow expiry (epoch ms)
+        if (!Array.isArray(o.depthStack)) o.depthStack = [];     // Q17b2: fractal dive stack [{planetId, rockIndex}]; sanitized by ship-depth.fromSave once loaded
+        o.depthStack = o.depthStack.filter(function (e) { return e && typeof e.planetId === 'string' && isFinite(e.rockIndex) && e.rockIndex >= 0; }).slice(0, 4);
         if (!(o.created > 0)) o.created = Date.now();
         return o;
     }
@@ -631,6 +633,7 @@ export default function mount(engine) {
         var w = shownWave();
         if (w > bestWave) bestWave = w;
         var pf = curProfile();
+        if (pf && depthMod && depthStack) pf.depthStack = depthMod.toSave(depthStack);
         if (pf) { pf.kills = Math.max(pget(pf, 'kills', 0) | 0, kills); pf.bestWave = Math.max(pget(pf, 'bestWave', 0) | 0, bestWave); r27Touch(pf); }
         saveData.wave = w; saveData.kills = kills; saveData.bestWave = bestWave; saveData.difficulty = difficulty; saveData.peaceful = peaceful; saveData.volume = volume; saveData.users = users; saveData.user = curUser;
         flushSave();
@@ -3848,6 +3851,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
     }
     function applyProfile() {                  // push the current profile's color/name to the local hull and the relay
+        depthLoad();
         if (hullObj) tintGhost(hullObj, effColor());
         if (hullLow) tintGhost(hullLow, effColor());
         exColor(exMe, effColor());
@@ -4960,6 +4964,19 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // ─── rev 29: solid objects on the planet (store + burger-house boxes, the parked hull) and jetpack FLIGHT ───────────────────────────────────────────────
     var fl = { on: false, pit: 0, wy: 0, wp: 0, th: 0, cr: 0, lock: false, tag: '', v: new THREE.Vector3(), alt: 0 }, flT = 0;
     var flF = new THREE.Vector3(), flA = new THREE.Vector3();
+    // Q17b2: fractal depth persistence + HUD chip. depthMod is a guarded import like ship-styles: failure leaves depth 0 and nothing else changes.
+    var depthMod = null, depthStack = [], elDepth = document.createElement('div'), depthTag = '';
+    elDepth.className = 'sh-depth'; hud.appendChild(elDepth);
+    function depthLoad() {
+        var pf = curProfile();
+        depthStack = (depthMod && pf) ? depthMod.fromSave(pf.depthStack) : [];
+        depthHud();
+    }
+    function depthHud() {
+        var t = depthStack.length ? 'DEPTH ' + depthStack.length : '';
+        if (t !== depthTag) { depthTag = t; elDepth.textContent = t; elDepth.classList.toggle('is-on', !!t); }
+    }
+    import('./ship-depth.js').then(function (m) { depthMod = m; depthLoad(); }).catch(function (e) { console.info('[ship] ship-depth unavailable (depth 0 only)', e); });
     var elFlight = document.createElement('div'); elFlight.className = 'sh-flight'; hud.appendChild(elFlight);
     function flHud(on, alt) {
         var t = on ? 'FLIGHT · ' + Math.round(alt) + ' H' : '';
