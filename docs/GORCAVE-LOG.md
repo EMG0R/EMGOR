@@ -65,3 +65,9 @@ UNSURE:
 - Q04 scan/retrieve/boss quest steps have no world marker.
 - Q07 baseline hides 49 legacy mentions; hook is per-clone config (Mac must set core.hooksPath).
 - tests/node covers only wall-normal; nothing else in Q01-Q05 has automated coverage.
+
+## Q08 MARO action table part 1 — 2026-10-26T16:36:32Z — see commit "Q08 MARO action table part 1"
+DONE: ship-styles.js (before `wallNormal2`): exported `MARO_K` (spec constants in true H: g 22.5, v0 7.9/9.75/12.9, chain 0.17 s, acc 6.2, max 6.0, skid 11, long jump 9.0 fwd/5.6 up, back/side flip 11.6 up, side flip 1.5 fwd, crawl 1.9, triple needs >= 3.75 H/s), `MA`/`MA_NAMES` (idle walk run skid crouch crawl jump1-3 longjump backflip sideflip) and `maroTable()` = pure alloc-free state machine (`step(io, dt)`, own y/floor, exact ballistic integration). It is NOT wired into `maro()`: that still runs the env-scaled prototype (walk 22 / grav 22 / jump 8.5 in styleEnv, ship.js ~6591), whose units differ from true H; switching needs Mac feel-tuning, planned after Q09 completes the table.
+TESTS: node --check ok on ship-styles.js (as .mjs); node --test: 12 pass / 0 fail (tests/node/maro-table.test.mjs, 8 new: accel, apex within 3 % for jump1/2/3, chain window boundary + slow break, triple speed gate, skid > 90 deg above 3 H/s and not at 89 deg / 2.9 H/s, side flip from skid, long jump / backflip, crouch/crawl).
+VERIFY ON MAC: nothing yet (table unused by the game). maro() behaviour unchanged.
+OPEN: with the spec constants a long jump covers 2*5.6/22.5*9.0 = 4.5 H, not the >= 9 H in BENCHMARK-2 / plan feel gate; either the gate means 9 H/s speed or LJ_Y needs raising (~11 H/s up) — decide at the switch-over. Walk/run split (RUN_T 4.0), crawl speed, skid duration cap 0.6 s, decel 9 and long-jump min speed 1.5 are [guess].

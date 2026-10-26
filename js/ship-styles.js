@@ -417,6 +417,78 @@ const SKINS = {
   STEEV: { color: 0x30C0C8, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 2 }, role: 'miner', extra: ['cube', 'blocky'] },           // cube head, block limbs, teal
   SONIK: { color: 0xFFC93C, suit: { jetpack: 0, scanner: 1, sprint: 3, storage: 0 }, role: null,    extra: ['quills', 'visor'] },          // quilled runner, pointed visor, gold + violet
 };
+// Q08: MARO action table part 1 — pure, allocation-free state machine in TRUE human heights (H) per docs/next-stage-plan.md §C (SM64 community constants x0.1875 speed / x5.625 accel).
+// NOT yet driving maro() (that still runs the env-scaled prototype above); part 2 (Q09) completes the table, then maro() is switched over and tuned on the Mac.
+// Ground-only states here: idle walk run skid crouch crawl jump1 jump2 jump3 longjump backflip sideflip. Wall/dive/pound/ledge/slide/bonk/punch arrive in Q09.
+export const MARO_K = {
+  G: 22.5, V1: 7.9, V2: 9.75, V3: 12.9, CHAIN: 0.17, ACC: 6.2, MAX: 6.0, SKID: 11, SKID_MIN: 3.0, SKID_COS: 0, DECEL: 9,   // SKID_COS: skid when cos(turn) < 0 (> 90 deg)
+  LJ_F: 9.0, LJ_Y: 5.6, LJ_MUL: 1.5, LJ_MIN: 1.5, BF_Y: 11.6, SF_Y: 11.6, SF_F: 1.5, CRAWL: 1.9, RUN_T: 4.0, TRIPLE_MIN: 3.75, CHAIN_MIN: 0.19, TERM: 14.06, SKID_MAXT: 0.6,
+};
+export const MA = { IDLE: 0, WALK: 1, RUN: 2, SKID: 3, CROUCH: 4, CRAWL: 5, JUMP1: 6, JUMP2: 7, JUMP3: 8, LONG: 9, BACK: 10, SIDE: 11 };
+export const MA_NAMES = ['idle', 'walk', 'run', 'skid', 'crouch', 'crawl', 'jump1', 'jump2', 'jump3', 'longjump', 'backflip', 'sideflip'];
+export function maroTable() {
+  const K = MARO_K, s = { mode: MA.IDLE, vx: 0, vz: 0, vy: 0, y: 0, face: 0, chain: 0, landAge: 9, skidT: 0, grounded: true, jumps: 0 };
+  // io: { wx, wz, m (0..1 wish, tangent frame, forward = -z), jumpP, crouch }. Returns s (reused). Floor is y = 0 unless io.floor given.
+  function step(io, dt) {
+    const floor = io.floor || 0, wasG = s.grounded; let hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    s.landAge += dt;
+    if (s.grounded) {
+      const wantMove = io.m > 0.05;
+      if (io.jumpP) {                                                       // jump family
+        let hx = 0, hz = 0; if (hs > 0.05) { hx = s.vx / hs; hz = s.vz / hs; } else { hx = -Math.sin(s.face); hz = -Math.cos(s.face); }
+        if (s.mode === MA.SKID && s.skidT > 0) {                            // side flip: reverse to the wished direction
+          s.vy = K.SF_Y; s.mode = MA.SIDE; s.chain = 0; if (wantMove) { s.vx = io.wx * K.SF_F; s.vz = io.wz * K.SF_F; s.face = Math.atan2(-io.wx, -io.wz); } else { s.vx = s.vz = 0; }
+        } else if (io.crouch && hs >= K.LJ_MIN) {                           // long jump
+          const f = Math.min(hs * K.LJ_MUL, K.LJ_F); s.vx = hx * f; s.vz = hz * f; s.vy = K.LJ_Y; s.mode = MA.LONG; s.chain = 0;
+        } else if (io.crouch) { s.vx = s.vz = 0; s.vy = K.BF_Y; s.mode = MA.BACK; s.chain = 0; }   // backflip: straight up
+        else {
+          let c = (s.landAge <= K.CHAIN && s.chain > 0 && hs >= K.CHAIN_MIN) ? s.chain + 1 : 1;
+          if (c >= 3 && hs < K.TRIPLE_MIN) c = 2; if (c > 3) c = 1;
+          s.chain = c; s.vy = c === 1 ? K.V1 : c === 2 ? K.V2 : K.V3; s.mode = MA.JUMP1 + c - 1;
+        }
+        s.grounded = false; s.skidT = 0; s.jumps++;
+      } else if (s.mode === MA.SKID && s.skidT > 0) {                       // skidding: brake hard, then hand back control
+        const d = K.SKID * dt; if (hs <= d) { s.vx = s.vz = 0; hs = 0; } else { s.vx -= s.vx / hs * d; s.vz -= s.vz / hs * d; hs -= d; }
+        s.skidT -= dt; if (hs <= 0 || s.skidT <= 0) { s.skidT = 0; s.mode = MA.IDLE; }
+      } else {
+        if (io.crouch) {                                                    // crouch / crawl
+          s.chain = 0;
+          if (wantMove) { s.vx = io.wx * K.CRAWL * io.m; s.vz = io.wz * K.CRAWL * io.m; s.face = Math.atan2(-io.wx, -io.wz); s.mode = MA.CRAWL; }
+          else { s.vx = s.vz = 0; s.mode = MA.CROUCH; }
+        } else if (wantMove) {
+          const dot = hs > 0.05 ? (s.vx * io.wx + s.vz * io.wz) / (hs * Math.sqrt(io.wx * io.wx + io.wz * io.wz)) : 1;
+          if (hs > K.SKID_MIN && dot < K.SKID_COS) { s.mode = MA.SKID; s.skidT = K.SKID_MAXT; }   // > 90 deg turn at speed
+          else {
+            const tx = io.wx * K.MAX * io.m, tz = io.wz * K.MAX * io.m, ex = tx - s.vx, ez = tz - s.vz, d = Math.sqrt(ex * ex + ez * ez), st = K.ACC * dt;
+            if (d <= st || d < 1e-9) { s.vx = tx; s.vz = tz; } else { s.vx += ex / d * st; s.vz += ez / d * st; }
+            s.face = Math.atan2(-io.wx, -io.wz);
+            hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz); s.mode = hs > K.RUN_T ? MA.RUN : MA.WALK;
+          }
+        } else {
+          const d = K.DECEL * dt; if (hs <= d) { s.vx = s.vz = 0; } else { s.vx -= s.vx / hs * d; s.vz -= s.vz / hs * d; }
+          s.mode = (s.vx * s.vx + s.vz * s.vz) > 0.01 ? MA.WALK : MA.IDLE;
+        }
+        s.vy = 0; s.y = floor;
+      }
+    }
+    if (!s.grounded) {                                                      // airborne: exact ballistic step, light steering
+      hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+      if (io.m > 0.05 && s.mode !== MA.BACK) {
+        const lim = Math.max(hs, K.MAX), ax = io.wx * io.m * K.ACC * 0.55 * dt, az = io.wz * io.m * K.ACC * 0.55 * dt;
+        s.vx += ax; s.vz += az; const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (sp > lim) { s.vx *= lim / sp; s.vz *= lim / sp; }
+      }
+      const y1 = s.y + s.vy * dt - 0.5 * K.G * dt * dt; s.vy = Math.max(s.vy - K.G * dt, -K.TERM);
+      if (y1 <= floor && s.vy <= 0) {                                       // touchdown
+        s.y = floor; s.vy = 0; s.grounded = true; s.landAge = 0;
+        if (s.mode !== MA.JUMP1 && s.mode !== MA.JUMP2) s.chain = 0; else s.chain = s.mode - MA.JUMP1 + 1;
+        s.mode = MA.IDLE;
+      } else s.y = y1;
+    }
+    return s;
+  }
+  function reset() { s.mode = MA.IDLE; s.vx = s.vz = s.vy = s.y = s.face = 0; s.chain = 0; s.landAge = 9; s.skidT = 0; s.grounded = true; s.jumps = 0; }
+  return { s, step, reset };
+}
 // Q06: wall normal in the tangent frame (x right, z back) from the wanted move (dx,dz) and the first free slide direction (sx,sz):
 // perpendicular to the slide, facing against the move. Writes out.x/out.z; returns false when the slide is degenerate or parallel to the move.
 export function wallNormal2(dx, dz, sx, sz, out) {
