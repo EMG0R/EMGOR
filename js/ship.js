@@ -811,7 +811,16 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var cTarget = '', cSpeed = '', cThr = -1, cPul = -1, cRev = false, cPulsing = false;
     var cTargetEnemy = '', cHp = -1, cWave = '', cEn = '', cKills = '', cEdge = false, cLow = false, cWaveMsg = '', cWaveShow = false, cDead = false;
 
+    // Q04: the hint bar shows 10 s after entering the game and 6 s after any mode change (fly / landed / foot / interior / dock), then fades
+    var elHintBar = hud.querySelector('.sh-hint'), hintMode = '', hintUntil = 0, hintOn = true;
+    function hintTick() {
+        var m = gmode === 'landing' ? 'landed' : gmode, now = performance.now();
+        if (m !== hintMode) { hintUntil = now + (hintMode ? 6000 : 10000); hintMode = m; }
+        var on = now < hintUntil;
+        if (on !== hintOn) { hintOn = on; elHintBar.classList.toggle('is-faded', !on); }
+    }
     function updateHud(speedNow, enemiesAlive) {
+        hintTick();
         var s = (speedNow < 10 ? speedNow.toFixed(1) : String(Math.round(speedNow))) + ' u/s';
         if (s !== cSpeed) { cSpeed = s; elSpeed.textContent = s; }
         var t = Math.round(Math.abs(throttle) * 100);
@@ -843,10 +852,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var rowN = 0, kk, bi;                                    // stacked boss bars: titan, then giants, then minis
         bossLive.length = 0;
         for (bi = 0; bi < enemies.length; bi++) { var be = enemies[bi]; if (be.alive && be.kind >= 1) { be.bd = be.g.position.distanceToSquared(shipRoot.position); bossLive.push(be); } }
-        bossLive.sort(function (a, b) { return a.bd - b.bd; });          // rev 25: only the 2 nearest bosses get a bar, the rest are pips
-        for (bi = 0; bi < bossLive.length && rowN < 2; bi++) setBossRow(bossRows[rowN++], bossLive[bi]);
+        bossLive.sort(function (a, b) { return a.bd - b.bd; });          // rev 25: Q04: only the 3 nearest bosses get a bar, the rest are pips
+        for (bi = 0; bi < bossLive.length && rowN < 3; bi++) setBossRow(bossRows[rowN++], bossLive[bi]);
         var pk = '';
-        for (bi = 2; bi < bossLive.length; bi++) pk += '◆ ' + String(bossLive[bi].title).slice(0, 14) + ' ' + Math.round(bossLive[bi].hp / bossLive[bi].maxHp * 100) + '%   ';
+        for (bi = 3; bi < bossLive.length; bi++) pk += '◆ ' + String(bossLive[bi].title).slice(0, 14) + ' ' + Math.round(bossLive[bi].hp / bossLive[bi].maxHp * 100) + '%   ';
         if (pk !== cBossPips) { cBossPips = pk; elBossPips.textContent = pk; }
         for (; rowN < BOSS_ROWS; rowN++) if (bossRows[rowN].on) { bossRows[rowN].on = false; bossRows[rowN].el.classList.remove('is-on'); }
         var ks = 'KILLS ' + kills;
@@ -1254,7 +1263,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         shipRoot.visible = !dead;
         combatRoot.visible = true; fx.bolts.visible = true;
         document.body.classList.add('is-piloting');
-        hud.classList.add('is-on');
+        hud.classList.add('is-on'); hintMode = '';
         label.style.display = 'none'; labelShown = false;
         if (engine.setPilotBlend) engine.setPilotBlend(inFrame ? 1 : 0);
         duck(false);
@@ -1417,14 +1426,14 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     //   on foot: your SHIP (always, distance), NPCs within GD_NPC_L L (clerks, shoppers, dealers, villagers, creatures; small, on-screen only)  [GD_NPC]
     //   in flight anywhere in the system: the station, the nearest 7/11 world, the nearest village world (planet-level until that planet's own markers take over)
     var GD_N = 24, GD_POI = 9, GD_NPC = 10, GD_NPC_L = 200, GD_R = 3, GD_EVERY = 0.5, gdPool = [], gdLocal = [], gdT = 0, gdNode = null, gdShown = 0, gdIcons = {}, elGuide = hud.querySelector('.sh-guide');
-    var gdItems = [], gdNpc = [], gdNpcN = 0, gdNT = 0, gdNpcTmp = [];
+    var gdItems = [], gdNpc = [], gdNpcN = 0, gdNT = 0, gdNpcTmp = [], GD_SHOW = 3, gdQ7 = false;      // Q04: nearest GD_SHOW markers + the ship (on foot) + the active quest target
     (function buildGuide() {
         for (var i = 0; i < GD_N; i++) {
             var el = document.createElement('div'); el.className = 'sh-gd';
             el.innerHTML = '<i class="gd-c"></i><div class="gd-t"><span class="gd-i"></span><span class="gd-d"></span><span class="gd-n"></span></div>';
             elGuide.appendChild(el);
             gdPool.push({ el: el, c: el.firstChild, cv: el.querySelector('.gd-i'), c0: 0, n: el.querySelector('.gd-n'), d: el.querySelector('.gd-d'), key: '', name: '', dist: '', on: false, edge: false, rot: 0, tx: -1e9, ty: -1e9, cls: '' });
-            gdItems.push({ kind: '', name: '', cls: '', always: false, w: new THREE.Vector3() });
+            gdItems.push({ kind: '', name: '', cls: '', always: false, q: false, hide: false, d: 0, w: new THREE.Vector3() });
         }
         for (var j = 0; j < GD_NPC; j++) gdNpc.push({ t: '', o: null, id: '', name: '' });
     })();
@@ -1456,9 +1465,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (SITE.hubOk && SITE.nid === nid && !HB.in) list.push({ kind: 'hub', name: 'DUNGEON', loc: SITE.hubPos.clone(), d: 0 });
         if (lmk) list.push(lmk);
         for (i = 0; i < pads.length && list.length < GD_POI; i++) list.push(pads[i]);
-        gdLocal = list.map(function (p) { return { kind: p.kind, name: p.name, loc: p.loc }; });
+        gdQ7 = false;
+        var aq = activeQuests();
+        for (i = 0; i < aq.length && !gdQ7; i++) { var sq = aq[i].steps || []; for (var qj = 0; qj < sq.length; qj++) if (!sq[qj].done && sq[qj].type === 'deliver' && String(sq[qj].planetId) === nid) { gdQ7 = true; break; } }
+        gdLocal = list.map(function (p) { return { kind: p.kind, name: p.name, loc: p.loc, q: gdQ7 && p.kind === '7/11' }; });
     }
-    function gdItem(i, kind, name, cls, always) { var it = gdItems[i]; it.kind = kind; it.name = name; it.cls = cls || ''; it.always = !!always; return it.w; }
+    function gdItem(i, kind, name, cls, always) { var it = gdItems[i]; it.kind = kind; it.name = name; it.cls = cls || ''; it.always = !!always; it.q = false; return it.w; }
     // NPCs near the feet: the selection refreshes at 2 Hz (refs, no allocation), positions every frame. t: 'c' crowd npc (pos planet-local), 'v' villager
     // (village metres), 'k' creature (ps.creatLocal by id).
     var gdV = new THREE.Vector3(), gdV2 = new THREE.Vector3();
@@ -1528,7 +1540,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             gdT -= dt;
             if (gdNode !== n || gdT <= 0) { gdNode = n; gdT = GD_EVERY; gdRefresh(n); }
             syncPlanet(n); var c = n.anchor.position, q = n.mesh.quaternion;
-            for (i = 0; i < gdLocal.length && ni < GD_POI; i++) { var g = gdLocal[i]; gdItem(ni++, g.kind, g.name, '', g.kind !== 'landmark').copy(g.loc).applyQuaternion(q).add(c); }
+            for (i = 0; i < gdLocal.length && ni < GD_POI; i++) { var g = gdLocal[i]; gdItem(ni, g.kind, g.name, '', g.kind !== 'landmark').copy(g.loc).applyQuaternion(q).add(c); gdItems[ni++].q = g.q; }
         } else if (gdNode) { gdNode = null; gdLocal.length = 0; }
         if (ok && gmode === 'foot' && land.node && hum.obj && !HB.in) {
             syncPlanet(land.node);
@@ -1538,10 +1550,17 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (ok && gmode === 'fly') ni = gdSpace(ni, n);
         if (!ni) { if (gdShown) { for (i = 0; i < GD_N; i++) if (gdPool[i].on) { gdPool[i].on = false; gdPool[i].el.classList.remove('is-on'); } gdShown = 0; } return; }
         camera.updateMatrixWorld();
-        var W = window.innerWidth, H = window.innerHeight, org2 = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position;
+        var W = window.innerWidth, H = window.innerHeight, org2 = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position, a, b, rk;
+        for (a = 0; a < ni; a++) gdItems[a].d = gdItems[a].w.distanceToSquared(org2);
+        for (a = 0; a < ni; a++) {           // Q04: ship + quest target always; everything else only if it is one of the GD_SHOW nearest
+            var ia = gdItems[a]; ia.hide = false;
+            if (ia.q || ia.cls === 'is-ship') continue;
+            rk = 0; for (b = 0; b < ni; b++) { var ib = gdItems[b]; if (b !== a && !ib.q && ib.cls !== 'is-ship' && (ib.d < ia.d || (ib.d === ia.d && b < a))) rk++; }
+            ia.hide = rk >= GD_SHOW;
+        }
         for (i = 0; i < GD_N; i++) {
             m = gdPool[i];
-            if (i >= ni) { if (m.on) { m.on = false; m.el.classList.remove('is-on'); } continue; }
+            if (i >= ni || gdItems[i].hide) { if (m.on) { m.on = false; m.el.classList.remove('is-on'); } continue; }
             var it = gdItems[i], npcK = it.cls === 'is-npc';
             gdC.copy(it.w).applyMatrix4(camera.matrixWorldInverse);
             var front = gdC.z < 0;

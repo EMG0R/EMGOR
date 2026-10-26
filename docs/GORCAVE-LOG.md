@@ -21,3 +21,9 @@ DONE: ship.js landing check (~5663): `ps.landable` now sampled whenever lf.on &&
 TESTS: node --check ok on ship.js (as .mjs); tests/node does not exist, none run.
 VERIFY ON MAC: fly down at a landable planet holding W (no pulse/boost): ship stops inside 3 L and `Z · LAND` appears without releasing; over water/steep ground no damp, no prompt; Space or Shift still lets you climb out; new profile: hints show once for roll and for on-foot keys; g-tests touching landing/onboarding.
 OPEN: hint bar (.sh-hint) fade is Q04.
+
+## Q04 HUD declutter — 2026-10-26 — see commit "Q04 HUD declutter"
+DONE: ship.js guideTick (~1560): after collection, per-item `d` (sq dist) + `hide`; only the GD_SHOW=3 nearest non-priority markers render, plus the ship marker (`is-ship`, on foot) and the quest target (`it.q`). Quest target = the `7/11` marker on a planet where an active quest has an undone `deliver` step (flag `gdQ7`, computed at 2 Hz in gdRefresh via activeQuests()). Pool size GD_N unchanged. Hint bar: `hintTick()` (called from updateHud) shows `.sh-hint` 10 s after entering, 6 s after any gmode change (landing counts as landed); `.is-faded` opacity 0 with 0.8 s transition (style/ship.css:148). Boss HUD: 3 bars (was 2), further bosses as `◆` pips (elBossPips). BOSS_ROWS stays 4.
+TESTS: node --check ok on ship.js (as .mjs); tests/node does not exist, none run.
+VERIFY ON MAC: on foot in a village: ship marker + 3 nearest NPCs/POIs only; with a deliver quest for that planet, its 7/11 marker stays even when far; hint bar visible 10 s after entering, fades, reappears 6 s on land / lift off / board / dock; spawn 4+ bosses: 3 bars + pips; marker edge labels still stack correctly.
+OPEN: scan/retrieve/boss quest steps have no world marker (only deliver -> 7/11); not added.

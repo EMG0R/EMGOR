@@ -154,7 +154,9 @@ body.is-piloting { cursor: none; }
     font-size: 10px;
     letter-spacing: 0.28em;
     color: rgba(216, 196, 245, 0.6);
+    transition: opacity 0.8s ease;
 }
+.sh-hint.is-faded { opacity: 0; }
 
 
 /* ─── combat HUD ───────────────────────────────────────────── */
