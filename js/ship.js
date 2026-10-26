@@ -4257,7 +4257,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // Sub-state of 'piloting': gmode fly | landing | landed | foot. Everything on the ground lives in the PLANET frame (the globe's spin +
     // orbit carried by node.mesh.quaternion / node.anchor.position), so a parked ship and a walking human stay glued to the terrain.
     // ship-human.js (createHuman) and ps.landable arrive from other modules: both have fallbacks.
-    var gmode = 'fly', landOk = false, landCheckT = 0, legDrop = 0.4, jumpHeld = false;
+    var gmode = 'fly', landOk = false, landGnd = false, landCheckT = 0, legDrop = 0.4, jumpHeld = false;
     var land = { auto: false, settle: 0, dustT: 0, node: null, gDir: new THREE.Vector3(), r0: 0, rg: 0, t: 0, T: 2.2, qFrom: new THREE.Quaternion(), qTo: new THREE.Quaternion(), sPos: new THREE.Vector3(), sQuat: new THREE.Quaternion(), off: new THREE.Vector3() };
     var hum = { obj: null, pos: new THREE.Vector3(), hr: 0, gr: 0, vv: 0, air: false, hf: new THREE.Vector3(0, 0, -1), face: new THREE.Vector3(0, 0, -1), pitch: 0.3, moving: false, running: false, w: new THREE.Vector3(), up: new THREE.Vector3() };
     var gQ = new THREE.Quaternion(), gQi = new THREE.Quaternion(), gA = new THREE.Vector3(), gB = new THREE.Vector3(), gC = new THREE.Vector3(), gD = new THREE.Vector3(), gE = new THREE.Vector3();
@@ -5504,6 +5504,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (cut && Math.abs(speed) > CRUISE * 2) rate = 6;                       // brake when pulse was cut by a body ahead
         speed += (tgt - speed) * damp(rate, dt);
 
+        // Q03: auto-damp inside PROMPT_L over landable ground (vel -> 0 in ~0.6 s) so the Z · LAND prompt appears while cruising in; pulse / boost still escape
+        if (landGnd && !dead && lf.on && lf.cap && lf.alt < PROMPT_L * L && !pulseHeld && !boosting) { var lgd = Math.exp(-7.7 * dt); speed *= lgd; vel.multiplyScalar(lgd); }
         // velocity chases forward*speed: it carries through turns (mass). A drift turn drops the chase to 0.18/s: the nose swings, the velocity does not.
         vA.copy(vF).multiplyScalar(speed);
         if (hov && !cmdOpen) { var sdv = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0); if (sdv) vA.addScaledVector(vB.copy(X).applyQuaternion(shipRoot.quaternion), sdv * CRUISE); }     // hover strafe
@@ -5660,11 +5662,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (landCheckT <= 0) {
             landCheckT = 0.12; landOk = false;
             var lmsg = '';
-            if (ps && psA && !dead && lf.on && lf.cap && lf.alt < PROMPT_L * L && vel.length() < 2) {     // rev 19: hovering (under 3 L) and nearly still
+            landGnd = false;
+            if (ps && psA && !dead && lf.on && lf.cap && lf.alt < PROMPT_L * L) {     // rev 19: hovering (under 3 L); Q03: landGnd drives the auto-damp, the prompt still needs vel < 2
                 try {
-                    var lr = ps.landable(P); landOk = !!lr.ok;
+                    var lr = ps.landable(P); landGnd = !!lr.ok;
+                    landOk = landGnd && vel.length() < 2;
                     lmsg = landOk ? 'Z · LAND' : '';      // rev 20b: water / too steep / moonlet say nothing, the prompt just does not appear
-                } catch (e) { landOk = false; }
+                } catch (e) { landOk = false; landGnd = false; }
             }
             if (!lmsg && !dead) {       // MOONLET: within 3 R of a body too small to land on
                 for (i = 0; i < bodies.length; i++) {
@@ -7584,7 +7588,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return moved;
     }
     // ── onboarding: four prompts for a NEW profile (fly / pulse / land / shop), each dismissed when done, never shown again; plus two first-time hints ──
-    var onb = { t: 0, fly: 0, shown: '', hintT: 0, hint: '' }, ONB_TXT = ['FLY · HOLD W + MOVE THE MOUSE', 'PULSE · HOLD SPACE NEAR A PLANET', 'LAND · FLY UNDER 3 L OF THE SURFACE, PRESS Z', 'SHOP · WALK TO A 7/11 COUNTER, PRESS F'];
+    var onb = { t: 0, fly: 0, shown: '', hintT: 0, hint: '' }, ONB_TXT = ['FLY · HOLD W + MOVE THE MOUSE', 'PULSE · HOLD SPACE NEAR A PLANET', 'LAND · FLY UNDER 3 L OF THE SURFACE (THE SHIP SLOWS ITSELF), PRESS Z', 'SHOP · WALK TO A 7/11 COUNTER, PRESS F'];
     function onbSet(t) { if (t !== onb.shown) { onb.shown = t; elOnb.textContent = t; elOnb.classList.toggle('is-on', !!t); } }
     function onbTick(dt) {
         var pf = curProfile(); if (!pf || !pf.onb || state !== 'piloting') { onbSet(''); return; }
@@ -7603,6 +7607,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (onb.hintT > 0) { onb.hintT -= dt; txt = onb.hint; }
             else if (!o.res && gmode === 'foot' && resFind()) { o.res = true; onb.hint = 'RESOURCE NODE · F TO HARVEST · SELL IT OR CRAFT AT A 7/11'; onb.hintT = 6; writeSave(); }
             else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear())) { o.npc = true; onb.hint = 'T TO TALK (THEY MAY HAVE WORK) · F TO FIGHT'; onb.hintT = 6; writeSave(); }
+            else if (!o.roll && gmode === 'fly' && (o.done || (o.step | 0) >= 2)) { o.roll = true; onb.hint = 'A/D TWICE · ROLL · S TWICE · FLIP · CTRL · DRIFT TURN'; onb.hintT = 6; writeSave(); }
+            else if (!o.inv && gmode === 'foot' && (o.done || (o.step | 0) >= 3)) { o.inv = true; onb.hint = 'E INVENTORY · HOLD Z SUMMONS THE SHIP · F FIGHT · T TALK'; onb.hintT = 6; writeSave(); }
         }
         onbSet(txt);
     }
