@@ -1,7 +1,7 @@
 // ship-fx.js — star streaks, thruster exhaust cones, bolts (core + halo), muzzle flash, impact sparks.
 // API: const fx = createFx(THREE, scene, camera, L)
 //   fx.setMotion(vel, speedNorm, pulsing)   fx.exhaust(n) -> Object3D[]   fx.setExhaust(i, intensity 0 idle..1 boost..2 pulse)
-//   fx.spawnBolt(pos, dir, color, speed, life, opts?) -> id (-1 if full); opts {shape:'bolt'|'needle'|'orb'|'shard', size:mult, trail:bool (default on for orb/shard)}   fx.updateBolts(dt)   fx.boltPos(id, out)   fx.killBolt(id)
+//   fx.spawnBolt(pos, dir, color, speed, life, opts?) -> id (-1 if full); opts {shape:'bolt'|'needle'|'orb'|'shard', size:mult, trail:bool (default on for orb/shard)}   fx.updateBolts(dt)   fx.setBolt(id, x, y, z)   fx.boltPos(id, out)   fx.killBolt(id)
 //   fx.flash(pos, color, size?)   fx.impact(pos, color, size, kind?, opt?) kind 'hit'|'crit'|'burn'|'chain'(opt=to vec3)|'shieldHit'|'explode'
 //   fx.muzzle(pos, dir, color, shape)   fx.hitStop() (no-op hook)   fx.update(dt, camera)   fx.dispose()
 // rev 26: bolts, trail ghosts and ring/hex/smoke/arc sprites share ONE instanced draw (premultiplied blend: glow additive, smoke real alpha).
@@ -369,6 +369,10 @@ export function createFx(THREE, scene, camera, L) {
         bAlive[id] = 0; bSize[id * 2] = 0; aSizeA.needsUpdate = true;
         if (bTrail[id]) { bTrail[id] = 0; trailN--; for (var k = 0; k < 3; k++) bSize[(GH0 + id * 3 + k) * 2] = 0; }
         while (bHigh > 0 && !bAlive[bHigh - 1]) bHigh--;
+    };
+    fx.setBolt = function (id, x, y, z) {      // Q12: arcing projectiles (GOR BALL) steer a pooled bolt by hand: spawn with speed 0, then set the position each frame
+        if (id < 0 || id >= BOLT_CAP || !bAlive[id]) return false;
+        bPos[id * 3] = x; bPos[id * 3 + 1] = y; bPos[id * 3 + 2] = z; if (bTrail[id]) ghostPos(id); aPosA.needsUpdate = true; return true;
     };
     fx.boltPos = function (id, out) {
         if (id < 0 || id >= BOLT_CAP || !bAlive[id]) return null;

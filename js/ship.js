@@ -10,6 +10,8 @@ import * as LNG from './ship-lingo.js';
 import * as ENM from './ship-enemies.js';
 import * as CRF from './ship-craft.js';
 import * as QST from './ship-quests.js';
+import * as PKG from './pokemans-gen.js';
+import * as PKC from './pokemans-catch.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
 // rate-limited gameplay error log: max one console.warn per tag per 30 s (silent ignores stay for DOM / pointer lock / localStorage)
@@ -588,6 +590,12 @@ export default function mount(engine) {
         if (!o.harv || typeof o.harv !== 'object' || Array.isArray(o.harv)) o.harv = {};      // rev 25: harvested resource nodes {id:{n,at}} (the world respawns them 20 min after `at`)
         o.visits = Math.max(0, o.visits | 0);             // Burger House visits (every 3rd offers a recruit)
         o.pens = Math.max(0, o.pens | 0); o.pods = Math.max(0, o.pods | 0);
+        if (!Array.isArray(o.pokemans)) o.pokemans = [];  // Q12: every caught mon (full data, js/pokemans-catch.js makeMon); party / pen hold their ids
+        o.pokemans = o.pokemans.filter(function (m) { return m && typeof m === 'object' && typeof m.id === 'string' && m.sp && m.ind; }).slice(-200);
+        if (!Array.isArray(o.party)) o.party = [];       // max 6 mon ids
+        if (!Array.isArray(o.pen)) o.pen = [];           // overflow mon ids
+        o.party = o.party.filter(function (x) { return typeof x === 'string'; }).slice(0, PKC.PARTY_MAX); o.pen = o.pen.filter(function (x) { return typeof x === 'string'; }).slice(-200);
+        o.lureUntil = Math.max(0, +o.lureUntil || 0);    // Q12: Burger House lure fries: +catch chance until this epoch ms
         if (!Array.isArray(o.quests)) o.quests = [];     // rev 26: active quests (ship-quests.js objects + acceptedAt / expiresAt), max 3
         o.quests = o.quests.filter(function (q) { return q && typeof q === 'object' && typeof q.id === 'string' && Array.isArray(q.steps); }).slice(0, 3);
         if (!Array.isArray(o.qdone)) o.qdone = [];
@@ -6288,6 +6296,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function eatSlot(idx) {
         var pf = ensureProfile(userName()), rec = pf.items[idx], it = rec ? itemOf(rec) : null;
         if (!it) return;
+        if (it.kind === 'ball') { addRow('', '', 'hold B on foot to aim, release to throw', 'is-sys'); return; }
+        if (it.kind === 'pokemans') { addRow('', '', 'not food', 'is-sys'); return; }
+        if (it.effect && it.effect.extras && it.effect.extras.lure) { pf.lureUntil = Date.now() + 10 * 60000; addRow('', '', 'LURE · catch chance up for 10 min', 'is-sys'); }
         if (r25Use(it, rec, idx)) return;       // rev 25: mods / upgrades / pets are not food
         rec.n--; if (rec.n <= 0) pf.items.splice(idx, 1);
         aPlay('ui', { vel: 0.7 }); aPlay('hit', { pitch: 0.35, vel: 0.5 });
@@ -8920,6 +8931,93 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         questEvent({ type: 'kill', n: 1 });
         gndFree(e); writeSave();
     }
+    // ─── Q12 GOR BALL: hold B = 8-dot arc preview, release = throw (pooled fx bolt steered by fx.setBolt). Hit a wild creature: it hides inside, 3 shakes, then click (caught) or burst. ───
+    var GB = { aim: false, on: false, id: -1, t: 0, tier: 1, phase: '', ph: 0, e: null, gr: null, shakeT: 0, shakeN: 0, chance: 0, dots: [], o: new THREE.Vector3(), d: new THREE.Vector3(), up: new THREE.Vector3(), p: new THREE.Vector3(), q: new THREE.Vector3(), lp: new THREE.Vector3(), best: false };
+    for (var gbi = 0; gbi < PKC.BALL.dots; gbi++) GB.dots.push({ x: 0, y: 0, z: 0 });
+    function gbOwned(pf, hi) {      // tier of the lowest (or highest) GOR BALL stack in the bag, 0 if none
+        var t = 0, i, r, n;
+        for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; n = /^gorball-([123])$/.exec(r.id); if (n && r.n > 0) { n = +n[1]; if (!t || (hi ? n > t : n < t)) t = n; } }
+        return t;
+    }
+    function gbAim() {      // hand (GB.o), unit aim (GB.d), up (GB.up) in world space
+        var H = 0.09 * L;
+        r27A.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        r27R.set(1, 0, 0).applyQuaternion(hum.obj.group.quaternion); r27F.set(0, 0, -1).applyQuaternion(hum.obj.group.quaternion); GB.up.set(0, 1, 0).applyQuaternion(hum.obj.group.quaternion);
+        GB.o.copy(hum.w).addScaledVector(GB.up, 0.52 * H).addScaledVector(r27R, 0.14 * H).addScaledVector(r27F, 0.32 * H);
+        GB.d.copy(r27A);
+    }
+    function gbOk() { return gmode === 'foot' && hum.obj && !dead && !cmdOpen && !storeOpen && !invOpen && land.node && ps && ps.active === land.node; }
+    function gbPreview() {
+        if (!GB.aim || GB.on || !gbOk()) return;
+        gbAim(); var H = 0.09 * L, n = PKC.previewDots({ x: 0, y: 0, z: 0 }, GB.d, GB.up, GB.dots), i, dd;
+        for (i = 0; i < n; i++) { dd = GB.dots[i]; GB.p.set(GB.o.x + dd.x * H, GB.o.y + dd.y * H, GB.o.z + dd.z * H); fx.spawnBolt(GB.p, GB.d, 0xFFFFFF, 0, 0.05, { shape: 'orb', size: 0.35, trail: false }); }
+    }
+    function gbThrow() {
+        var pf = ensureProfile(userName()), tier = gbOwned(pf, GB.best);
+        if (GB.on || !gbOk()) return;
+        if (!tier) { addRow('', '', 'no GOR BALLS · 7/11', 'is-sys'); return; }
+        for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + tier) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; }
+        gbAim(); GB.id = fx.spawnBolt(GB.o, GB.d, ITM.GORBALL_TIERS[tier - 1].color, 0, PKC.BALL.tMax + 6, { shape: 'orb', size: 0.9, trail: true });
+        if (GB.id < 0) { giveItem(ITM.GORBALL_TIERS[tier - 1], 1); return; }
+        GB.on = true; GB.t = 0; GB.tier = tier; GB.phase = 'fly'; GB.e = null; GB.gr = null; aPlay('fire', { vel: 0.4, pitch: 0.8 }); writeSave(); invFill();
+    }
+    function gbEnd() { if (GB.id >= 0) fx.killBolt(GB.id); GB.id = -1; GB.on = false; GB.phase = ''; GB.e = null; GB.gr = null; }
+    function gbHitTest(H) {      // wild gnd creature (hp) or grazer (no hp, counts as full) near the ball; returns true on a hit
+        var i, e, r, cl, lpv;
+        for (i = 0; i < R27.gnd.length; i++) {
+            e = R27.gnd[i]; if (!e.alive || e.mob || e.held || e.mode !== 'planet' || e.node !== land.node) continue;
+            r = gndSphere(e, r27B) + PKC.BALL.radius * H;
+            if (GB.p.distanceToSquared(r27B) < r * r) { GB.e = e; e.held = true; return true; }
+        }
+        cl = creatList(); lpv = GB.lp.copy(GB.p).sub(land.node.anchor.position).applyQuaternion(qW.copy(land.node.mesh.quaternion).invert());
+        for (i = 0; i < cl.length; i++) { if (cl[i].lp.distanceToSquared(lpv) < (1.3 * H) * (1.3 * H)) { GB.gr = cl[i]; return true; } }
+        return false;
+    }
+    function gbCatch(pf) {
+        var node = land.node, pid = String(node.id), e = GB.e, g = GB.gr, tier, seed, kind, sp, ind, lvl, mon, nid;
+        if (e) { tier = e.cr.tier || 1; seed = e.cr.seed | 0; kind = e.cr.kind || 'creature'; } else { tier = 1 + (hash25(pid + ':' + g.id) % 2); seed = hash25(pid + ':' + g.id); kind = CR_NAMES[crKind(g)]; }
+        var lk = ps && ps.lookOf ? ps.lookOf(node) : 'rocky', biome = { lush: 'lush', icy: 'icy', rocky: 'rocky', gas: 'gas', lava: 'lava', sea: 'sea' }[lk] || 'rocky';
+        sp = PKG.species(pid, kind, { biome: biome, tier: Math.min(5, tier + (e ? 1 : 0)) }); ind = PKG.individual(sp, seed + ':' + pid); lvl = Math.min(PKG.MAX_LEVEL, 2 + sp.tier * 3);
+        mon = PKC.makeMon(sp, ind, lvl, PKG.xpForLevel(lvl), pid); mon.at = Date.now();
+        for (nid = 0; pf.pokemans.some(function (m) { return m.id === mon.id + (nid ? '#' + nid : ''); }); nid++) { /* same species+size twice: suffix */ } if (nid) mon.id += '#' + nid;
+        pf.pokemans.push(mon); pf.pokemans = pf.pokemans.slice(-200);
+        (pf.party.length < PKC.PARTY_MAX ? pf.party : pf.pen).push(mon.id);
+        giveItem({ id: mon.id, seed: seed >>> 0, name: sp.name, kind: 'pokemans', base: sp.types.join('/'), infusion: null, modifier: null, color: new THREE.Color().setHSL(sp.bodyRecipe.hue / 360, 0.6, 0.55).getHex(), price: 0, tier: sp.tier, category: 'pokemans', tags: ['pokemans'], stackKey: mon.id, iconHint: 'candy', mon: mon, blurb: sp.types.join(' / ') + ' · L' + lvl + ' · ' + sp.moves.map(function (m) { return m.name; }).join(', '), dealer: false }, 1);
+        if (e) { if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }
+        else { try { ps.setCreatureTamed(g.id, true); } catch (e0) { /* ignore */ } crCache.t = -1e9; pf.taken.push({ n: pid, id: g.id, k: g.kind }); pf.taken = pf.taken.slice(-40); }
+        discClaim('creature', pid + ':' + sp.name, sp.name);
+        addRow('', '', 'CAUGHT ' + sp.name.toUpperCase() + ' · L' + lvl + (ind.shiny ? ' · SHINY' : '') + (pf.party.indexOf(mon.id) >= 0 ? ' · party ' + pf.party.length + '/' + PKC.PARTY_MAX : ' · sent to the pen'), 'is-sys');
+        writeSave(); invFill();
+    }
+    function gbTick(dt) {
+        if (!GB.on) { if (GB.aim) gbPreview(); return; }
+        var H = 0.09 * L, pf = ensureProfile(userName());
+        if (!gbOk()) { if (GB.e) GB.e.held = false; gbEnd(); return; }
+        if (GB.phase === 'fly') {
+            GB.t += dt; PKC.arcPoint({ x: 0, y: 0, z: 0 }, GB.d, GB.up, GB.t, GB.q);
+            GB.p.set(GB.o.x + GB.q.x * H, GB.o.y + GB.q.y * H, GB.o.z + GB.q.z * H); fx.setBolt(GB.id, GB.p.x, GB.p.y, GB.p.z);
+            if (gbHitTest(H)) {
+                var hf = GB.e ? Math.max(0, Math.min(1, GB.e.hp / (GB.e.hpMax || 1))) : 1, bonus = (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0;
+                GB.chance = PKC.catchChance(GB.tier, hf, bonus); GB.phase = 'shake'; GB.shakeN = 0; GB.shakeT = 0; GB.ph = Math.random();
+                GB.o.copy(GB.p); fx.impact(GB.p, 0xFFFFFF, 2, 'hit'); aPlay('hit', { dist: aDist(GB.p), vel: 0.5 });
+            } else if (GB.t >= PKC.throwTime()) { gbEnd(); addRow('', '', 'missed', 'is-sys'); }
+            return;
+        }
+        GB.shakeT += dt;      // shake: 0.7 s each, a wobble on the ball and a rising tick
+        fx.setBolt(GB.id, GB.o.x + Math.sin(GB.shakeT * 18) * 0.12 * H * (GB.shakeT < 0.5 ? 1 : 0), GB.o.y, GB.o.z);
+        if (GB.shakeT < 0.7) return;
+        GB.shakeT = 0; GB.shakeN++;
+        if (GB.shakeN < 3) { aPlay('ui', { vel: 0.5, pitch: 0.8 + GB.shakeN * 0.15 }); return; }
+        var res = PKC.catchRoll(GB.chance, GB.ph);
+        if (res.caught) { fx.impact(GB.o, 0x7CFF8A, 3, 'explode'); aPlay('tame'); gbCatch(pf); }
+        else { fx.impact(GB.o, 0xFF8A5C, 3, 'explode'); aPlay('explosion', { dist: aDist(GB.o), pitch: 1.6, vel: 0.4 }); if (GB.e) { GB.e.held = false; GB.e.ph = 'idle'; GB.e.cd = 0.4; } addRow('', '', 'it broke free', 'is-sys'); }
+        gbEnd();
+    }
+    window.addEventListener('keydown', function (e) {
+        if (e.code !== 'KeyB' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || state !== 'piloting' || cmdOpen || invOpen || storeOpen || gmode !== 'foot') return;
+        GB.aim = true; GB.best = !!e.shiftKey;
+    }, true);
+    window.addEventListener('keyup', function (e) { if (e.code !== 'KeyB' || !GB.aim) return; GB.aim = false; if (state === 'piloting') gbThrow(); }, true);
     function footFireTick(dt) {
         if (R27.ffCd > 0) R27.ffCd -= dt;
         if (!R27.fire || curStyleId === 'STEEV' || R27.ffCd > 0 || cmdOpen || storeOpen || invOpen || !hum.obj || dead) return;
@@ -8983,6 +9081,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var e = R27.gnd[i];
             if (e.mode === 'planet' && (gmode !== 'foot' || !land.node || e.node !== land.node)) { gndFree(e); continue; }
             if (e.mode === 'derelict' && !(R27.dsite && R27.dsite === e.site)) { e.g.visible = false; continue; }
+            if (e.held) { e.g.visible = false; continue; }      // Q12: inside a GOR BALL while it shakes
             e.g.visible = true; gndPlace(e); if (e.mob) mobStep(e, dt, hw); else gndStep(e, dt, hw); if (!e.alive) continue; gndPlace(e); e.cr.update(gt + R27.t, dt);
         }
     }
@@ -8992,6 +9091,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!onP && !onD) { R27.fire = false; return; }
         sinceHit += dt; if (sinceHit > 5 && hp < HP_MAX) hp = Math.min(HP_MAX, hp + 5 * dt);
         footFireTick(dt);
+        if (onP) gbTick(dt); else if (GB.on) { if (GB.e) GB.e.held = false; gbEnd(); }
         if (onP) { nestTick(dt); petFollowTick(dt); meteorTick(dt); }
         if (R27.gnd.length) gndTick(dt, hum.w);
     }

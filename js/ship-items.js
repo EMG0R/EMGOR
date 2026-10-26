@@ -11,7 +11,7 @@
 //          effect: { duration (s of play time), params {blur, chroma, hue, wobble, double, contrast, invert, tint, fov, timeScale} (seeded subset),
 //                    tintColor (hex, when tint is set), extras { speed, jump, chatWobble } } }
 // Vision params feed engine.vision.set(): all 0..1 except hue (turns) and timeScale (0.85..1.15).
-export const ITEM_KINDS = ['food', 'drink', 'snack', 'fries'];
+export const ITEM_KINDS = ['food', 'drink', 'snack', 'fries', 'ball'];
 
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function mulberry(a) { a |= 0; return function () { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -196,6 +196,7 @@ export function storeMenu(storeId, n, day) {
     const it = out[idx.splice(Math.floor(r() * idx.length), 1)[0]];
     it.originalPrice = it.price; it.price = Math.max(1, Math.round(it.price * 0.7)); it.special = true; it.tag = 'TODAY ONLY'; it.discount = 0.3;
   }
+  for (const b of GORBALL_TIERS) out.push(b);      // Q12: the three GOR BALLS sit on every 7/11 shelf table
   return out.sort((a, b) => a.price - b.price);
 }
 const DEAL_A = ['The Full', 'Grand', 'Absolute', 'Ridiculous', 'Midnight', 'Cosmic', 'Mega', 'Tragic'], DEAL_B = ['Situation', 'Combo', 'Bundle', 'Spiral', 'Feast', 'Mistake', 'Hangout', 'Parade'];
@@ -293,10 +294,23 @@ export const FRIES_TIERS = [
   mkFries('fries-special', 'Burger House Special', 'Special Fries', 28, 60, 'The good bin. Dusted, double-fried, quietly legendary. Glows an hour and puts a tiny spring in your step.', 1.05),
 ];
 
+// ── Q12 GOR BALL (kind 'ball', tier 1-3) + Burger House lure fries. Catch maths: js/pokemans-catch.js. ──
+const mkBall = (tier, name, price, color, blurb) => ({ id: 'gorball-' + tier, seed: 1200 + tier, name, kind: 'ball', base: 'GOR BALL', infusion: null, family: null, modifier: null, tier, price, blurb, color, absurdity: 0, dealer: false, blurbs: [blurb], stackKey: 'gorball-' + tier, category: 'ball', tags: ['ball'], iconHint: 'candy',
+  effect: { duration: 0, params: {}, extras: {} } });
+export const GORBALL_TIERS = [
+  mkBall(1, 'GOR BALL', 15, 0xFF5C7A, 'Throw it at something tired. Works better the more tired it is.'),
+  mkBall(2, 'GREAT GOR BALL', 60, 0x5CE8FF, 'Bigger click. Twice the optimism.'),
+  mkBall(3, 'ULTRA GOR BALL', 200, 0xFFD25C, 'Almost never lets go. Costs like it knows.'),
+];
+// lure fries: eaten like fries (glow) and also doubles as bait: +LURE_BONUS catch chance for 10 REAL minutes (ship.js sets pf.lureUntil)
+export const LUREFRIES = Object.assign(mkFries('lurefries', 'Burger House Lure Fries', 'Lure Fries', 20, 10, 'Smells like a promise. Everything with a nose comes closer, and stays still for it.'), { effect: { duration: 10 * 60, realtime: true, params: {}, extras: { lure: 1 }, glow: { color: 0x7FD8FF, minutes: 10 } } });
+FRIES_TIERS.push(LUREFRIES);
+
 // rebuild an item from a saved stack key (profile migration safety). Returns null if unknown.
 export function itemFromKey(key) {
   key = String(key || '');
   const tier = FRIES_TIERS.find((f) => f.id === key || f.stackKey === key); if (tier) return tier;
+  const ball = GORBALL_TIERS.find((b) => b.id === key); if (ball) return ball;
   let m = /^it([0-9a-f]{8})(d?)$/.exec(key);
   if (m) return generateItem(parseInt(m[1], 16), { dealer: !!m[2] });
   m = /^res-(\w+)-(.+)$/.exec(key);
