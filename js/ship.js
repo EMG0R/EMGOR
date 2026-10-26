@@ -8199,10 +8199,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // page. The stage is terrain sampled around you and them; 2 stocks. Win = gorCoin by role + a "good game" line, 60 s rematch cooldown. Esc forfeits. No relay needed.
     var FG = { ask: null, on: false, sess: null, mod: null, loading: false, cd: {}, npc: null, keys: Object.create(null), mouse: 0, tmpA: new THREE.Vector3(), tmpB: new THREE.Vector3(), tmpM: new THREE.Vector3(), tmpT: new THREE.Vector3(), tmpD: new THREE.Vector3(), t: 0 };
     var FG_STYLE = { farmer: 'builder', trader: 'hauler', elder: 'seer', kid: 'sparklet', guard: 'bounty', golum: 'bounty', clerk: 'twin', cashier: 'twin', dealer: 'racer' };
+    var FG_TIER = { villager: 1, shopper: 1, clerk: 1, cashier: 1, farmer: 1, kid: 1, trader: 2, dealer: 2, guard: 2, elder: 3, golum: 3 };      // bot difficulty: 1 easy, 2 medium, 3 hard (smash-engine BOT_TIERS)
+    var FG_ASK_T = 4;
     var FG_COIN = { farmer: 25, kid: 25, villager: 25, shopper: 25, clerk: 25, cashier: 25, trader: 50, dealer: 50, elder: 100, golum: 100, guard: 100 };
     function fightLabel(id, talk) {
         var c = FG.cd[id]; if (c && Date.now() < c) return talk;
-        if (FG.ask && FG.ask.id === id && FG.ask.t > 0) return 'FIGHT? F AGAIN · ' + talk;
+        if (FG.ask && FG.ask.id === id && FG.ask.t > 0) return 'FIGHT? F AGAIN ' + ['◔', '◑', '◕', '●'][clamp(Math.floor((1 - FG.ask.t / FG_ASK_T) * 4), 0, 3)] + ' ' + Math.ceil(FG.ask.t) + ' · ' + talk;
         return 'F · FIGHT · ' + talk;
     }
     function fgInfo(ft) {          // { id, name, role, seed, pos (planet-local) } of the human in front of you
@@ -8218,7 +8220,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!FG.mod && !FG.loading) { FG.loading = true; import('./smash-world.js').then(function (m) { FG.mod = m; FG.loading = false; }).catch(function (e) { FG.loading = false; console.info('[ship] fight module unavailable', e); }); addRow('', '', 'loading the ring...', 'is-sys'); return; }
         if (c && Date.now() < c) { addRow('', '', 'they are catching their breath · ' + Math.ceil((c - Date.now()) / 1000) + ' s', 'is-sys'); return; }
         if (FG.ask && FG.ask.id === id && FG.ask.t > 0) { FG.ask = null; fightStart(ft); return; }
-        FG.ask = { id: id, t: 3 }; aPlay('ui', { vel: 0.6 });
+        FG.ask = { id: id, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 });
     }
     function fgSamples(pa, pb) {       // 128 ground heights (human heights, up +) along the line through both of you, centred between you
         var out = new Float32Array(128), H = 0.09 * L, m = FG.tmpM, t = FG.tmpT, q = FG.tmpA, k, i, R0 = ps.radius;
@@ -8240,7 +8242,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 skyPalette: night > 0.5 ? { top: '#07051a', horizon: '#2a1a5a' } : { top: '#2a4a9a', horizon: '#9ac0ff' },
                 fighters: [
                     { slot: 0, styleId: curStyleId || 'PILOT', name: userName(), color: effColor(), isLocal: true, isBot: false, id: 'me' },
-                    { slot: 1, styleId: styleNpc, name: info.name, color: 0xffd36a, isLocal: false, isBot: true, id: info.id, level: role === 'elder' || role === 'golum' ? 3 : 2 }
+                    { slot: 1, styleId: styleNpc, name: info.name, color: 0xffd36a, isLocal: false, isBot: true, id: info.id, level: role === 'elder' || role === 'golum' ? 3 : 2, tier: FG_TIER[role] || 1 }
                 ]
             });
         } catch (e) { console.info('[ship] fight session failed', e); FG.sess = null; return; }
@@ -8274,7 +8276,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!FG.on || !res) return;
         var w = res.winner, info = FG.npc; FG.won = w === 0;
         setTimeout(function () { fightEnd(w); }, 2600);      // let the GAME! card show
-        if (info && w === 0) {
+        if (info && w === 0 && !(res.dealt && res.dealt[0] >= 1)) {
+            addRow('', '', 'YOU WON · no hit landed · no payout', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
+        } else if (info && w === 0) {
             var coin = FG_COIN[info.role] || 25; addUnits(coin, hum.w, true);
             var line = ''; try { line = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'goodgame'); } catch (e0) { line = 'Good game.'; }
             addRow(String(info.name).toUpperCase(), '#8fe0a8', line); addRow('', '', 'YOU WON · +' + coin + ' gorCoin', 'is-sys'); FG.cd[info.id] = Date.now() + 60000; aPlay('units', { n: 8 });

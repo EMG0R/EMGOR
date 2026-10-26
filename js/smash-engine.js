@@ -53,7 +53,7 @@ const GROUND_STATES = { idle: 1, run: 1, crouch: 1 };
 function mkFighter(i, slot, stage, stocks) {
   const def = FIGHTERS[slot.fid];
   return {
-    i, fid: slot.fid, def, ctrl: slot.ctrl || 'cpu', level: slot.level || 2,
+    i, fid: slot.fid, def, ctrl: slot.ctrl || 'cpu', level: slot.level || 2, tier: slot.tier || 0,
     x: stage.start[i].x, y: stage.start[i].y, px: stage.start[i].x, py: stage.start[i].y, vx: 0, vy: 0, face: i & 1 ? -1 : 1, grounded: true, landed: false,
     state: 'idle', st: 0, animT: 0, pct: 0, stocks: stocks || STOCKS, hitlag: 0, pend: null, hitstun: 0, tumble: false, inv: 0, armorNow: 0,
     sh: 180, jumps: def.jumps, upUsed: false, flutterT: 0, jumpT: 99, ff: false, move: null, mf: 0, hitSet: 0, hbMove: null, hbT: 0, moveAir: false,
@@ -77,7 +77,7 @@ export function createMatch(cfg) {
   S.ledges = [];
   stage.solids.forEach((s, k) => { S.ledges.push({ x: s.x0, y: s.y0, side: -1 }, { x: s.x1, y: s.y0, side: 1 }); });
   S.ledgeOcc = S.ledges.map(() => -1);
-  S.fighters.forEach((f) => { if (f.ctrl === 'cpu') f.bot = { rng: mulberry(9000 + f.i * 77 + (cfg.seed | 0)), next: 0, tap: 0, hold: 0, shT: 0, lastB: 0, lvl: f.level, turn: 0 }; });
+  S.fighters.forEach((f) => { if (f.ctrl === 'cpu') f.bot = { rng: mulberry(9000 + f.i * 77 + (cfg.seed | 0)), next: 0, tap: 0, hold: 0, shT: 0, lastB: 0, lvl: f.level, turn: 0, tier: f.tier || 0 }; });
   // services used by the data tables
   S.sfx = (n) => S.events.push({ t: 'sfx', n });
   S.countProj = (f, kind) => S.projs.reduce((a, p) => a + (p.owner === f.i && p.kind === kind ? 1 : 0), 0);
@@ -723,12 +723,15 @@ export class Input {
 }
 
 // ---- CPU bots (3 levels: reaction 12/8/4 frames; approach / space / punish; recovery) ----------
+const BOT_TIERS = [null, { lvl: 1, react: 30, atk: 0.3, edge: false }, { lvl: 2, react: 18, atk: 0.6, edge: false }, { lvl: 3, react: 9, atk: 0.9, edge: true }];
+const botAtkGate = (b, R) => !b.tier || R() < 1 - Math.pow(1 - BOT_TIERS[b.tier].atk, BOT_TIERS[b.tier].react / 60);
 const dm = (d) => (d > 0 ? B.R : d < 0 ? B.L : 0);
 function botInput(S, f) {
   const b = f.bot; if (S.phase !== 'play') return 0;
   if (b.tap > 0) { b.tap--; return b.hold | b.tapMask; }
   if (b.hk > 0) { b.hk--; return B.K; }
-  const lvl = b.lvl, react = lvl === 1 ? 12 : lvl === 2 ? 8 : 4, miss = lvl === 1 ? 0.3 : lvl === 2 ? 0.12 : 0.03;
+  // world-fight tiers (slot.tier 1 easy / 2 medium / 3 hard): reaction 0.5/0.3/0.15 s, attack chance per second 30/60/90 %; tier 0 = the classic level 1-3 behaviour
+  const tr = b.tier ? BOT_TIERS[b.tier] : null, lvl = tr ? tr.lvl : b.lvl, react = tr ? tr.react : lvl === 1 ? 12 : lvl === 2 ? 8 : 4, miss = lvl === 1 ? 0.3 : lvl === 2 ? 0.12 : 0.03;
   if (S.frame < b.next) return b.hold;
   b.next = S.frame + react; b.hold = 0; b.tapMask = 0;
   let hold = 0, tap = 0; const R = b.rng, st = f.state;
@@ -763,13 +766,15 @@ function botInput(S, f) {
     if (Math.abs(f.x) > edge - 20 && f.x * dirT > 0 && !(ad < 44)) hold = dm(toC);
     return fin();
   }
+  if (b.tier === 3 && !E.grounded && Math.abs(E.x) > edge - 10 && ad > range) { hold = dm(dirT); if (Math.abs(f.x) > edge - 24) hold = 0; if (ad < range + 40 && Math.abs(dy) < 60) tap = B.A; return fin(); }     // edge-guard: stand at the ledge and swat the recovering player
   const onThin = supportAt(S, f) === 2;
   if (dy < -40 && ad < 100) { hold = dm(dirT); tap = B.J; return fin(); }
   if (dy > 45 && onThin && ad < 120) { tap = B.D; hold = 0; return fin(); }
   if (f.face !== dirT && ad < range + 40 && Math.abs(dy) < 40) { hold = dm(dirT); return fin(); }
   if (ad < range + 8 && Math.abs(dy) < 40) {
     if (E.state === 'shield' && lvl >= 2) { tap = B.G; return fin(); }
-    if (eEnd || (lvl >= 3 && R() < 0.5)) { tap = B.A; hold = dm(dirT); } else tap = B.A;
+    if (!botAtkGate(b, R)) { hold = dm(dirT) * 0; return fin(); }
+    if (eEnd || (lvl >= 3 && R() < 0.5) || (b.tier === 3 && E.state === 'hit')) { tap = B.A; hold = dm(dirT); } else tap = B.A;     // tier 3 chains into hitstun (combo)
     return fin();
   }
   if (hint.ranged && ad > 70 && ad < 220 && Math.abs(dy) < 50 && R() < lvl * 0.22 && S.frame - b.lastB > 40 && f.face === dirT) { tap = B.K; b.lastB = S.frame; return fin(); }
