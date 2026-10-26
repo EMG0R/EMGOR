@@ -423,20 +423,30 @@ const SKINS = {
 export const MARO_K = {
   G: 22.5, V1: 7.9, V2: 9.75, V3: 12.9, CHAIN: 0.17, ACC: 6.2, MAX: 6.0, SKID: 11, SKID_MIN: 3.0, SKID_COS: 0, DECEL: 9,   // SKID_COS: skid when cos(turn) < 0 (> 90 deg)
   LJ_F: 9.0, LJ_Y: 5.6, LJ_MUL: 1.5, LJ_MIN: 1.5, BF_Y: 11.6, SF_Y: 11.6, SF_F: 1.5, CRAWL: 1.9, RUN_T: 4.0, TRIPLE_MIN: 3.75, CHAIN_MIN: 0.19, TERM: 14.06, SKID_MAXT: 0.6,
+  // Q09 part 2 (all [guess] where the spec gives no number): wall kick / dive / belly slide / ground pound / ledge / steep slide / bonk / punch chain
+  WK_WIN: 0.17, WK_Y: 9.75, WK_OUT: 4.5, DIVE_F: 9, BELLY_FR: 0.55, BELLY_END: 1.0, HOP_Y: 6.0, POUND_HANG: 0.33, POUND_G: 56, POUND_TERM: 40, POUND_R: 3, POUND_DMG: 12, POUND_REC: 0.3,
+  LEDGE_REACH: 0.19, LEDGE_VMAX: 7.5, HANDS: 0.95, LEDGE_UP: 7.5, LEDGE_FWD: 1.5, LEDGE_CD: 0.4, STEEP: 0.62, SLIDE_MAX: 14, BONK_V: 3, BONK_T: 0.5, BONK_BACK: 2,
+  PUNCH_WIN: 0.27, PUNCH_R: 1.4, PUNCH_DMG: [6, 6, 10],
 };
-export const MA = { IDLE: 0, WALK: 1, RUN: 2, SKID: 3, CROUCH: 4, CRAWL: 5, JUMP1: 6, JUMP2: 7, JUMP3: 8, LONG: 9, BACK: 10, SIDE: 11 };
-export const MA_NAMES = ['idle', 'walk', 'run', 'skid', 'crouch', 'crawl', 'jump1', 'jump2', 'jump3', 'longjump', 'backflip', 'sideflip'];
+export const MA = { IDLE: 0, WALK: 1, RUN: 2, SKID: 3, CROUCH: 4, CRAWL: 5, JUMP1: 6, JUMP2: 7, JUMP3: 8, LONG: 9, BACK: 10, SIDE: 11, WALLKICK: 12, DIVE: 13, BELLY: 14, POUND: 15, LEDGE: 16, SLIDE: 17, BONK: 18, PUNCH1: 19, PUNCH2: 20, KICK: 21, POUNDL: 22 };
+export const FX = { NONE: 0, STOMP: 1, HIT: 2, BONK: 3 };   // s.fx for one step: STOMP/HIT carry s.fxR (radius H) + s.fxDmg
+export const MA_NAMES = ['idle', 'walk', 'run', 'skid', 'crouch', 'crawl', 'jump1', 'jump2', 'jump3', 'longjump', 'backflip', 'sideflip', 'wallkick', 'dive', 'belly', 'pound', 'ledge', 'slide', 'bonk', 'punch1', 'punch2', 'kick', 'poundland'];
 export function maroTable() {
-  const K = MARO_K, s = { mode: MA.IDLE, vx: 0, vz: 0, vy: 0, y: 0, face: 0, chain: 0, landAge: 9, skidT: 0, grounded: true, jumps: 0 };
-  // io: { wx, wz, m (0..1 wish, tangent frame, forward = -z), jumpP, crouch }. Returns s (reused). Floor is y = 0 unless io.floor given.
+  const K = MARO_K, s = { mode: MA.IDLE, vx: 0, vz: 0, vy: 0, y: 0, face: 0, chain: 0, landAge: 9, skidT: 0, grounded: true, jumps: 0, lock: 0, hang: 0, noLedge: 0, punchT: 0, fx: 0, fxR: 0, fxDmg: 0, lnx: 0, lnz: 1 };
+  const BELLY_LN = Math.log(K.BELLY_FR);
+  // io: { wx, wz, m (0..1 wish, tangent frame, forward = -z), jumpP, crouch, diveP, poundP, punchP (press edges),
+//       wallT (s since wall contact, default 9), wallNx/wallNz (unit normal pointing AWAY from the wall), wallHit (pushing into a wall now),
+//       slope (rise/run, default 0) + slopeX/slopeZ (unit downhill), ledgeTop (absolute y of a ledge in reach, else undefined) + ledgeNx/ledgeNz }.
+// Returns s (reused); s.fx/fxR/fxDmg are valid for the one step that raised them. Floor is y = 0 unless io.floor given.
   function step(io, dt) {
     const floor = io.floor || 0, wasG = s.grounded; let hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
-    s.landAge += dt;
+    s.landAge += dt; s.fx = 0; s.noLedge -= dt;
     if (s.grounded) {
       const wantMove = io.m > 0.05;
       if (io.jumpP) {                                                       // jump family
         let hx = 0, hz = 0; if (hs > 0.05) { hx = s.vx / hs; hz = s.vz / hs; } else { hx = -Math.sin(s.face); hz = -Math.cos(s.face); }
-        if (s.mode === MA.SKID && s.skidT > 0) {                            // side flip: reverse to the wished direction
+        if (s.mode === MA.BELLY) { s.vy = K.HOP_Y; s.mode = MA.JUMP1; s.chain = 0; }   // belly slide hop-out keeps speed
+        else if (s.mode === MA.SKID && s.skidT > 0) {                       // side flip: reverse to the wished direction
           s.vy = K.SF_Y; s.mode = MA.SIDE; s.chain = 0; if (wantMove) { s.vx = io.wx * K.SF_F; s.vz = io.wz * K.SF_F; s.face = Math.atan2(-io.wx, -io.wz); } else { s.vx = s.vz = 0; }
         } else if (io.crouch && hs >= K.LJ_MIN) {                           // long jump
           const f = Math.min(hs * K.LJ_MUL, K.LJ_F); s.vx = hx * f; s.vz = hz * f; s.vy = K.LJ_Y; s.mode = MA.LONG; s.chain = 0;
@@ -446,7 +456,26 @@ export function maroTable() {
           if (c >= 3 && hs < K.TRIPLE_MIN) c = 2; if (c > 3) c = 1;
           s.chain = c; s.vy = c === 1 ? K.V1 : c === 2 ? K.V2 : K.V3; s.mode = MA.JUMP1 + c - 1;
         }
-        s.grounded = false; s.skidT = 0; s.jumps++;
+        s.grounded = false; s.skidT = 0; s.lock = 0; s.punchT = 0; s.jumps++;
+      } else if (s.mode !== MA.BONK && io.wallHit && io.wallNx !== undefined && -(s.vx * io.wallNx + s.vz * io.wallNz) > K.BONK_V) {   // bonk: ran into a wall, not jumping
+        s.vx = io.wallNx * K.BONK_BACK; s.vz = io.wallNz * K.BONK_BACK; s.mode = MA.BONK; s.lock = K.BONK_T; s.chain = 0; s.punchT = 0; s.fx = FX.BONK; s.vy = 0; s.y = floor;
+      } else if (s.lock > 0) {                                              // bonk / stomp recovery: no control, friction only
+        const d = K.DECEL * dt; if (hs <= d) { s.vx = s.vz = 0; } else { s.vx -= s.vx / hs * d; s.vz -= s.vz / hs * d; }
+        s.lock -= dt; if (s.lock <= 0) { s.lock = 0; s.mode = MA.IDLE; } s.vy = 0; s.y = floor;
+      } else if (s.mode === MA.BELLY) {                                     // belly slide: exponential friction, hop out with jump
+        const k = Math.exp(BELLY_LN * dt); s.vx *= k; s.vz *= k; hs *= k;
+        if (hs < K.BELLY_END) { s.vx = s.vz = 0; s.mode = MA.IDLE; } s.vy = 0; s.y = floor;
+      } else if (io.punchP && !io.crouch && (s.mode === MA.IDLE || s.mode === MA.WALK || s.mode === MA.RUN || s.mode === MA.PUNCH1 || s.mode === MA.PUNCH2)) {   // jab / jab / kick
+        const n = (s.mode === MA.PUNCH1 || s.mode === MA.PUNCH2) && s.punchT <= K.PUNCH_WIN ? s.mode - MA.PUNCH1 + 1 : 0;   // 0 jab, 1 jab, 2 kick
+        if (n < 3) { s.mode = n === 0 ? MA.PUNCH1 : n === 1 ? MA.PUNCH2 : MA.KICK; s.punchT = 0; s.fx = FX.HIT; s.fxR = K.PUNCH_R; s.fxDmg = K.PUNCH_DMG[n]; }
+        s.vy = 0; s.y = floor;
+      } else if (s.mode === MA.PUNCH1 || s.mode === MA.PUNCH2 || s.mode === MA.KICK) {   // swing: friction, window to chain, then back to idle
+        const d = K.DECEL * dt; if (hs <= d) { s.vx = s.vz = 0; } else { s.vx -= s.vx / hs * d; s.vz -= s.vz / hs * d; }
+        s.punchT += dt; if (s.punchT > K.PUNCH_WIN) { s.mode = MA.IDLE; s.punchT = 0; } s.vy = 0; s.y = floor;
+      } else if (io.slope > K.STEEP && io.slopeX !== undefined) {           // steep slide: accelerate downhill, steering off
+        const sn = io.slope / Math.sqrt(1 + io.slope * io.slope); s.vx += io.slopeX * K.G * sn * dt; s.vz += io.slopeZ * K.G * sn * dt;
+        const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (sp > K.SLIDE_MAX) { s.vx *= K.SLIDE_MAX / sp; s.vz *= K.SLIDE_MAX / sp; }
+        s.face = Math.atan2(-io.slopeX, -io.slopeZ); s.mode = MA.SLIDE; s.chain = 0; s.vy = 0; s.y = floor;
       } else if (s.mode === MA.SKID && s.skidT > 0) {                       // skidding: brake hard, then hand back control
         const d = K.SKID * dt; if (hs <= d) { s.vx = s.vz = 0; hs = 0; } else { s.vx -= s.vx / hs * d; s.vz -= s.vz / hs * d; hs -= d; }
         s.skidT -= dt; if (hs <= 0 || s.skidT <= 0) { s.skidT = 0; s.mode = MA.IDLE; }
@@ -473,20 +502,43 @@ export function maroTable() {
     }
     if (!s.grounded) {                                                      // airborne: exact ballistic step, light steering
       hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
-      if (io.m > 0.05 && s.mode !== MA.BACK) {
+      if (s.mode === MA.LEDGE) {                                            // hanging: hop up on jump / forward, drop on crouch
+        s.vx = s.vz = s.vy = 0;
+        if (io.crouch) { s.mode = MA.JUMP1; s.chain = 0; s.noLedge = K.LEDGE_CD; }
+        else if (io.jumpP || io.m > 0.05) { s.vy = K.LEDGE_UP; s.vx = -s.lnx * K.LEDGE_FWD; s.vz = -s.lnz * K.LEDGE_FWD; s.mode = MA.JUMP1; s.chain = 0; s.noLedge = K.LEDGE_CD; }
+        if (s.mode === MA.LEDGE) return s;
+      }
+      const m0 = s.mode;
+      if (io.jumpP && io.wallT <= K.WK_WIN && io.wallNx !== undefined && m0 !== MA.POUND && m0 !== MA.DIVE) {   // wall kick: window after wall contact
+        s.vy = K.WK_Y; s.vx = io.wallNx * K.WK_OUT; s.vz = io.wallNz * K.WK_OUT; s.face = Math.atan2(-io.wallNx, -io.wallNz); s.mode = MA.WALLKICK; s.chain = 0; s.jumps++;
+      } else if (io.diveP && m0 !== MA.DIVE && m0 !== MA.POUND) {           // dive: fast forward, nose-down
+        let hx = 0, hz = 0; if (hs > 0.05) { hx = s.vx / hs; hz = s.vz / hs; } else { hx = -Math.sin(s.face); hz = -Math.cos(s.face); }
+        s.vx = hx * K.DIVE_F; s.vz = hz * K.DIVE_F; if (s.vy > 0) s.vy = 0; s.mode = MA.DIVE; s.face = Math.atan2(-hx, -hz);
+      } else if (io.poundP && m0 !== MA.POUND && m0 !== MA.DIVE) {          // ground pound: hang, then fall hard
+        s.vx = s.vz = 0; s.vy = 0; s.hang = K.POUND_HANG; s.mode = MA.POUND; s.chain = 0;
+      } else if (m0 !== MA.POUND && m0 !== MA.DIVE && s.noLedge <= 0 && s.vy <= 0 && hs < K.LEDGE_VMAX && io.ledgeTop !== undefined && Math.abs(io.ledgeTop - (s.y + K.HANDS)) <= K.LEDGE_REACH) {   // auto ledge grab
+        s.mode = MA.LEDGE; s.vx = s.vz = s.vy = 0; s.y = io.ledgeTop - K.HANDS; s.chain = 0;
+        if (io.ledgeNx !== undefined) { s.lnx = io.ledgeNx; s.lnz = io.ledgeNz; } else { s.lnx = Math.sin(s.face); s.lnz = Math.cos(s.face); }
+        s.face = Math.atan2(s.lnx, s.lnz); return s;
+      }
+      const fall = s.mode === MA.POUND, G = fall ? (s.hang > 0 ? 0 : K.POUND_G) : K.G, TERM = fall ? K.POUND_TERM : K.TERM;
+      if (fall && s.hang > 0) { s.hang -= dt; s.vy = 0; }
+      if (io.m > 0.05 && s.mode !== MA.BACK && s.mode !== MA.POUND && s.mode !== MA.DIVE) {
         const lim = Math.max(hs, K.MAX), ax = io.wx * io.m * K.ACC * 0.55 * dt, az = io.wz * io.m * K.ACC * 0.55 * dt;
         s.vx += ax; s.vz += az; const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (sp > lim) { s.vx *= lim / sp; s.vz *= lim / sp; }
       }
-      const y1 = s.y + s.vy * dt - 0.5 * K.G * dt * dt; s.vy = Math.max(s.vy - K.G * dt, -K.TERM);
+      const y1 = s.y + s.vy * dt - 0.5 * G * dt * dt; s.vy = Math.max(s.vy - G * dt, -TERM);
       if (y1 <= floor && s.vy <= 0) {                                       // touchdown
         s.y = floor; s.vy = 0; s.grounded = true; s.landAge = 0;
         if (s.mode !== MA.JUMP1 && s.mode !== MA.JUMP2) s.chain = 0; else s.chain = s.mode - MA.JUMP1 + 1;
-        s.mode = MA.IDLE;
+        if (s.mode === MA.POUND) { s.vx = s.vz = 0; s.mode = MA.POUNDL; s.lock = K.POUND_REC; s.fx = FX.STOMP; s.fxR = K.POUND_R; s.fxDmg = K.POUND_DMG; }
+        else if (s.mode === MA.DIVE) s.mode = MA.BELLY;
+        else s.mode = MA.IDLE;
       } else s.y = y1;
     }
     return s;
   }
-  function reset() { s.mode = MA.IDLE; s.vx = s.vz = s.vy = s.y = s.face = 0; s.chain = 0; s.landAge = 9; s.skidT = 0; s.grounded = true; s.jumps = 0; }
+  function reset() { s.mode = MA.IDLE; s.vx = s.vz = s.vy = s.y = s.face = 0; s.chain = 0; s.landAge = 9; s.skidT = 0; s.grounded = true; s.jumps = 0; s.lock = s.hang = s.noLedge = s.punchT = s.fx = 0; }
   return { s, step, reset };
 }
 // Q06: wall normal in the tangent frame (x right, z back) from the wanted move (dx,dz) and the first free slide direction (sx,sz):
