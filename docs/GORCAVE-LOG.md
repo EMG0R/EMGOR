@@ -130,3 +130,23 @@ DONE: ship-world.js: exported `createCvsProp(T, assets)` (reuses `buildCvsGeoms`
 TESTS: node --check ok on ship.js, ship-station.js, ship-world.js (as .mjs); node --test: 53 pass / 0 fail (no new test: placement needs THREE, no pure part).
 VERIFY ON MAC: dock at the station, walk onto the deck: red/white POKEMANS CVS against the right wall between the mission board and the trade terminal, facing the hangar centre, roof sign + cross pylon not clipping the ceiling (HH 4.8 L vs ~0.5 L tall), no overlap with the board/trade/pedestal or the NPC at the right wall (spot x 3.9, z zF-4.5). Stand at the left window: 'F · REVIVE NAME cost', right: 'F · HEAL'. Walls solid (can't walk through the back/sides), no collider on the floor slab. Faint a mon first to test revive on the deck. 7/11 and Burger still work.
 OPEN: no HUD marker: the guide markers exist only for flight/planet (gdRefresh/gdSpace), the deck has no marker mechanism, so the lit sign + pylon cross are the only cue. Position (z = cz-2, flush to x = HW) and window radius are [guess]; the foundation box may poke slightly under the floor.
+
+## BENCHMARK-3 — 2026-10-26 — see commit "BENCHMARK-3"
+SCOPE: Q11-Q14b (range 230c7da..HEAD). Diff, js/style/tests: 15 files, +994/-35. ship.js +340, ship-world.js +124, pokemans-party.js +111 (new), pokemans-gen.js +87 (new), pokemans-catch.js +37 (new), ship-planet.js 25, style/ship.css +25, ship-items.js 16, ship-station.js 15, ship-fx.js 6; tests +243 (5 new files).
+TESTS: node --test tests/node: 53 pass / 0 fail (cvs 5, gorball 6, maro-table2 7, maro-table 8, pokemans-gen 7, pokemans-party2 4, pokemans-party 6, rig 6, wall-normal 4). banned-names: clean. No browser tests were run by the builder.
+G-TESTS ON MAC (reload between batches): b1 g1-g4 · b2 g5-g8 · b3 g9-g12 · b4 g13-g15 · b5 g16-g17. Watch hardest: anything touching pads/sites/planet patch shader (Q14 raised pad slots 5 -> 6, `uPadD[6]`, 3 GLSL copies), store menus / FRIES_TIERS length (Q12 appended balls + lurefries), mob kill/drops/quest counts (Q13 follower kills via mobHurt 'me'), station layout/colliders (Q14b).
+PLAY-CHECK (one continuous run):
+1. Buy: 7/11 shelf -> GOR BALL checkout; Burger House lurefries optional (+0.15 catch).
+2. Catch: shoot a nest creature to low hp, hold B (8-dot arc, <= 12 H), release: hit, 3 shakes, click -> CAUGHT, DISCOVERED claim once, mon stack in inventory, party slot in .sh-party.
+3. Summon: land on foot, mon walks out with poof; Alt+1..6 or `0` + 1-6 swaps; U opens party/pen manager.
+4. Fight a mob: follower attacks within 9 H, XP row on kill; hold T beside it for the 4-move radial.
+5. Faint: let a mob bite it down; slot greys, DEAD, unsummonable.
+6. Revive: planet CVS (~60 L from outpost 0, lush/rocky only) or station CVS (right wall, between mission board and trade terminal): F at left window = REVIVE (10+4·level gorCoin), right = HEAL vibe only. Slot un-greys, follower returns. Out of combat 3 s: full heal.
+UNSURE:
+- Pad slot 6 shader change is the riskiest edit; a GLSL compile failure would blank every planet.
+- [guess] numbers: ball arc/shake/hit radius, mob level, foe def, bite damage, XP, CVS offset 60 L and sizes, ship dash offset for the riding pet.
+- Tier-3 ball guarantees a catch below ~63 % hp.
+- bodyRecipe plan/sig names are hashed to existing follower plans, not mapped one to one.
+- Station CVS has no HUD marker; foundation box may poke under the deck.
+- Follower HP persists only at writeSave points (faint/heal/swap).
+- Mouse look still turns the camera while the radial is open.
