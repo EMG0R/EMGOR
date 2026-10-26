@@ -45,3 +45,23 @@ DONE: `tools/banned-names.sh` (case-insensitive term list + case-sensitive Link/
 TESTS: bash -n ok; clean tree -> exit 0; planted `// Mario test` in js/ -> exit 1 (then removed). No js edited; tests/node not run.
 VERIFY ON MAC: `git config core.hooksPath .githooks` in the Mac clone, then `bash tools/banned-names.sh` -> clean; push triggers it.
 OPEN: baseline hides existing mentions (mostly Minecraft-style comments); a public-release scrub should clear them and empty the baseline. Hook is per-clone config, not versioned.
+
+## BENCHMARK-1 — 2026-10-26 — see commit "BENCHMARK-1"
+SCOPE: Q01-Q07 (range 641578f..HEAD). Diff (insertions/deletions, code only): ship.js 120 lines changed (~+80/-40), smash-engine.js 13, ship-styles.js +9, ship-perf.js 6, ship-net.js 5, smash-world.js 4, style/ship.css +2, tests/node/wall-normal.test.mjs +33 (new), tools/banned-names.sh +21, banned-names.baseline +49, .githooks/pre-push +2.
+TESTS: node --test tests/node: 4 pass / 0 fail. No browser tests were run by the builder.
+G-TESTS ON MAC (reload between batches): b1 g1-g4 · b2 g5-g8 · b3 g9-g12 · b4 g13-g15 · b5 g16-g17. Watch hardest: maroWall (ship-planet-tests.js:941, Q06), landing/onboarding tests (Q03 auto-damp), g14 parked-drift (Q03 damp could alter it), any test touching villageLife (Q02) or fightStart (Q05).
+PLAY-CHECK:
+- Landing prompt while cruising: hold W down at a landable planet, no pulse/boost; ship stops <3 L, `Z · LAND` appears. Over water/steep ground: no damp. Space/Shift still climbs out.
+- Hint bar: visible 10 s after enter, fades, returns 6 s on land / lift off / board / dock. Roll/flip/drift and on-foot hints appear once.
+- Marker count: on foot in a village, ship marker + 3 nearest + quest 7/11 only. 4+ bosses: 3 bars + pips.
+- Villager fight: slow, passive, easy to beat after landing a hit. Elder: fast, edge-guards, combos.
+- Idle-vs-bot payout = 0: idle vs elder loses; idle vs villager to time-out gives no payout row. Land one hit and win: payout + goodgame. F again within 4 s starts rematch.
+- MARO wall kick fires on vertical walls, not on ~45° slopes. Quality tier does not flip while hovering <10 L.
+- Console: no new warnOnce spam in normal play.
+UNSURE:
+- Q03 auto-damp (exp(-7.7 dt)) could interfere with g14 or any test that approaches the ground at low speed.
+- Q06 uses terrain rise of the straight probe as the 70° test, not a true normal; stair edges may misfire.
+- Q05 idle-vs-easy bots can time out rather than KO; tier numbers come from a headless sim only (tier3 won 6/6; tiers 1-2 did not finish in 120 s).
+- Q04 scan/retrieve/boss quest steps have no world marker.
+- Q07 baseline hides 49 legacy mentions; hook is per-clone config (Mac must set core.hooksPath).
+- tests/node covers only wall-normal; nothing else in Q01-Q05 has automated coverage.
