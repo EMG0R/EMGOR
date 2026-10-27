@@ -778,7 +778,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         '<div class="sh-bar sh-pul"><span>PULSE</span><b><u></u></b></div></div>' +
         '<div id="ship-chat"><div class="sc-log"></div></div>' +
         '<input id="ship-cmd" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="420" aria-label="Chat or command">' +
-        '<div class="sh-hint">ESC exit · Z land / board / lift off · F shop / fight · T talk · E inventory · LMB fire · SPACE pulse · SHIFT boost · SHIFT+LMB ram · V scan · A/D x2 roll · S x2 flip · CTRL drift · T target · Q focus · X focus fire · ENTER chat · / commands</div>';
+        '<div class="sh-hint">HOLD ESC exit · Z land / board / lift off · F shop / fight · T talk · E inventory · LMB fire · SPACE pulse · SHIFT boost · SHIFT+LMB ram · V scan · A/D x2 roll · S x2 flip · CTRL drift · T target · Q focus · X focus fire · ENTER chat · / commands</div>';
     document.body.appendChild(hud);
     var elAtmo = hud.querySelector('.sh-atmo'), elAtmoU = elAtmo.querySelector('u'), elRam = hud.querySelector('.sh-ram');
     var elTarget = hud.querySelector('.sh-target'), elSpeed = hud.querySelector('.sh-speed');
@@ -1570,10 +1570,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         camera.updateMatrixWorld();
         var W = window.innerWidth, H = window.innerHeight, org2 = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position, a, b, rk;
         for (a = 0; a < ni; a++) gdItems[a].d = gdItems[a].w.distanceToSquared(org2);
-        for (a = 0; a < ni; a++) {           // Q04: ship + quest target always; everything else only if it is one of the GD_SHOW nearest
+        for (a = 0; a < ni; a++) {           // Q04: ship + quest target always; everything else only if it is one of the GD_SHOW nearest (NPC dots rank among themselves so off-screen NPCs cannot starve the POIs)
             var ia = gdItems[a]; ia.hide = false;
             if (ia.q || ia.cls === 'is-ship') continue;
-            rk = 0; for (b = 0; b < ni; b++) { var ib = gdItems[b]; if (b !== a && !ib.q && ib.cls !== 'is-ship' && (ib.d < ia.d || (ib.d === ia.d && b < a))) rk++; }
+            rk = 0; for (b = 0; b < ni; b++) { var ib = gdItems[b]; if (b !== a && !ib.q && ib.cls !== 'is-ship' && (ib.cls === 'is-npc') === (ia.cls === 'is-npc') && (ib.d < ia.d || (ib.d === ia.d && b < a))) rk++; }
             ia.hide = rk >= GD_SHOW;
         }
         for (i = 0; i < GD_N; i++) {
@@ -3845,7 +3845,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 0; i < allies.length; i++) { allies[i].alive = false; allies[i].g.visible = false; }
         wave = Math.max(0, n - 1); wavePending = true; nextWave = gt + 0.05;
     }
-    var HELP = 'KEYS · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land, board, lift off, summon: hold) · F interact (shop, fight a person) · T talk (on foot) · E inventory · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · /help';
+    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land, board, lift off, summon: hold) · F interact (shop, fight a person) · T talk (on foot) · E inventory · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · /help';
     function applyDifficultyLive() {
         var D = DIFFS[difficulty];
         for (var i = 0; i < enemies.length; i++) {
@@ -5589,8 +5589,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (cut && Math.abs(speed) > CRUISE * 2) rate = 6;                       // brake when pulse was cut by a body ahead
         speed += (tgt - speed) * damp(rate, dt);
 
-        // Q03: auto-damp inside PROMPT_L over landable ground (vel -> 0 in ~0.6 s) so the Z · LAND prompt appears while cruising in; pulse / boost still escape
-        if (landGnd && !dead && lf.on && lf.cap && lf.alt < PROMPT_L * L && !pulseHeld && !boosting) { var lgd = Math.exp(-7.7 * dt); speed *= lgd; vel.multiplyScalar(lgd); }
+        // Q03: auto-damp inside PROMPT_L over landable ground (vel -> 0 in ~0.6 s) so the Z · LAND prompt appears while cruising in; pulse / boost / holding W (throttle > 0.25) still escape
+        if (landGnd && !dead && lf.on && lf.cap && lf.alt < PROMPT_L * L && !pulseHeld && !boosting && !(keys.KeyW && !cmdOpen && throttle > 0.25)) { var lgd = Math.exp(-7.7 * dt); speed *= lgd; vel.multiplyScalar(lgd); }
         // velocity chases forward*speed: it carries through turns (mass). A drift turn drops the chase to 0.18/s: the nose swings, the velocity does not.
         vA.copy(vF).multiplyScalar(speed);
         if (hov && !cmdOpen) { var sdv = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0); if (sdv) vA.addScaledVector(vB.copy(X).applyQuaternion(shipRoot.quaternion), sdv * CRUISE); }     // hover strafe
@@ -7687,7 +7687,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function onbTick(dt) {
         var pf = curProfile(); if (!pf || !pf.onb || state !== 'piloting') { onbSet(''); return; }
         var o = pf.onb, txt = '';
-        if (!o.done && !storeOpen && !invOpen) {
+        if (!o.done && ((!storeOpen && !invOpen) || ((o.step | 0) === 3 && storeOpen))) {      // step 3 (SHOP) completes while the store is open
             var s = o.step | 0; onb.t += dt;
             var ok = false;
             if (s === 0) { if (keys.KeyW || speed > 1.2 * CRUISE) onb.fly += dt; ok = onb.fly > 1.5; }
