@@ -778,7 +778,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         '<div class="sh-bar sh-pul"><span>PULSE</span><b><u></u></b></div></div>' +
         '<div id="ship-chat"><div class="sc-log"></div></div>' +
         '<input id="ship-cmd" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="420" aria-label="Chat or command">' +
-        '<div class="sh-hint">HOLD ESC exit · Z land / board / lift off · F shop / fight · T talk · E inventory · LMB fire · SPACE pulse · SHIFT boost · SHIFT+LMB ram · V scan · A/D x2 roll · S x2 flip · CTRL drift · T target · Q focus · X focus fire · ENTER chat · / commands</div>';
+        '<div class="sh-hint"></div>';
     document.body.appendChild(hud);
     var elAtmo = hud.querySelector('.sh-atmo'), elAtmoU = elAtmo.querySelector('u'), elRam = hud.querySelector('.sh-ram');
     var elTarget = hud.querySelector('.sh-target'), elSpeed = hud.querySelector('.sh-speed');
@@ -826,9 +826,17 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
 
     // Q04: the hint bar shows 10 s after entering the game and 6 s after any mode change (fly / landed / foot / interior / dock), then fades
     var elHintBar = hud.querySelector('.sh-hint'), hintMode = '', hintUntil = 0, hintOn = true;
+    // consistency: one hint line per mode, each listing only keys that work there (HELP's key list stays in sync by hand: see HELP)
+    var HINT_BY_MODE = {
+        fly: 'HOLD ESC exit · W throttle · LMB fire · SPACE pulse · SHIFT boost · SHIFT+LMB ram · V scan · T target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X focus fire · Z land (under 3 L) · E inventory · ENTER chat',
+        landed: 'Z step out · HOLD Z or W lift off · E inventory · V scan · ENTER chat · HOLD ESC exit',
+        foot: 'WASD walk · SHIFT run · SPACE jump (hold: jetpack) · LMB attack · F interact / shop / fight · T talk (hold: party) · Z board (hold: lift off, away: summon) · U POKEMANS · 1-9 hotbar · 0 party keys · B throw · E inventory · V scan',
+        ifoot: 'WASD walk · F interact · Z hatch · E inventory · HOLD ESC exit',
+        sfoot: 'WASD walk · F or T interact / talk · Z ship (board, launch) · E inventory · HOLD ESC exit'
+    };
     function hintTick() {
         var m = gmode === 'landing' ? 'landed' : gmode, now = performance.now();
-        if (m !== hintMode) { hintUntil = now + (hintMode ? 6000 : 10000); hintMode = m; }
+        if (m !== hintMode) { hintUntil = now + (hintMode ? 6000 : 10000); hintMode = m; var ht = HINT_BY_MODE[m] || HINT_BY_MODE.fly; if (elHintBar.textContent !== ht) elHintBar.textContent = ht; }
         var on = now < hintUntil;
         if (on !== hintOn) { hintOn = on; elHintBar.classList.toggle('is-faded', !on); }
     }
@@ -1016,7 +1024,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         keys[e.code] = true;
         if (boarding || exiting) return;
         if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey && !e.altKey) { toggleInv(); return; }       // rev 23: E = inventory (grid overlay)
-        if (e.code === 'KeyZ' && !e.ctrlKey && !e.metaKey && !e.altKey) { if (gmode === 'landed') onKeyZ(); else { eh.on = true; eh.held = 0; eh.t = 0; } return; }       // 2026-10-14: Z = the SHIP key (land / board / lift off / summon / step out). F = people + shops
+        if (e.code === 'KeyZ' && !e.ctrlKey && !e.metaKey && !e.altKey) { eh.on = true; eh.held = 0; eh.t = 0; return; }       // 2026-10-14: Z = the SHIP key (land / board / lift off / summon / step out). F = people + shops
         if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey) { onKeyF(); return; }
         if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.altKey && gmode === 'foot') { if (ptTDown(e)) return; onKeyTalk(); return; }       // rev 20: tap = land / exit ship / board (fires on release), hold 0.6 s under 6 L = auto-land + step out, hold on foot = board + lift off
         if (e.code === 'KeyW' && gmode === 'landed') { liftOff(); return; }
@@ -1027,7 +1035,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }, true);
     window.addEventListener('keyup', function (e) {
         keys[e.code] = false;
-        if (e.code === 'KeyZ' && eh.on) { eh.on = false; eh.t = 0; ehShow(0, ''); if (eh.held < EH_T && state === 'piloting' && !boarding && !exiting && !cmdOpen) onKeyZ(); }
+        if (e.code === 'KeyZ' && eh.on) { eh.on = false; eh.t = 0; ehShow(0, ''); if ((eh.held < EH_T || gmode === 'fly') && state === 'piloting' && !boarding && !exiting && !cmdOpen) onKeyZ(); }
     });
     window.addEventListener('blur', function () { keys = Object.create(null); firing = false; eh.on = false; eh.t = 0; });
     document.addEventListener('pointerlockchange', function () {
@@ -3850,7 +3858,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 0; i < allies.length; i++) { allies[i].alive = false; allies[i].g.visible = false; }
         wave = Math.max(0, n - 1); wavePending = true; nextWave = gt + 0.05;
     }
-    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land, board, lift off, summon: hold) · F interact (shop, fight a person) · T talk (on foot) · E inventory · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · /help';
+    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land; step out; board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person) · T talk (on foot / station) · U POKEMANS manager (on foot) · 1-9 weapon hotbar · 0 party keys (1-6 swap) · B throw GOR BALL · E inventory · F/E/Esc close any panel · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · /help';
     function applyDifficultyLive() {
         var D = DIFFS[difficulty];
         for (var i = 0; i < enemies.length; i++) {
@@ -4732,6 +4740,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function ehContext() {
         if (cmdOpen || dead || boarding || exiting || state !== 'piloting') return '';
         if (gmode === 'fly') return (lf.on && lf.cap && lf.alt < EH_ALT * L) ? 'exit' : '';
+        if (gmode === 'landed') return 'board';      // consistency: tap Z = step out, hold = lift off (W stays as an alias)
         if (gmode === 'foot') return nearShip() ? 'board' : (canSummon() && !footTarget().kind ? 'summon' : '');      // 2026-10-14: away from the hatch, hold = SHIP SUMMON
         if (gmode === 'sfoot' && sk.mode === 'deck' && !storeOpen) return stationInteract().kind === 'ship' ? 'board' : '';
         return '';
@@ -4761,6 +4770,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (c === 'summon') { summonStart(); return; }
         if (c === 'exit') ehExit();
         else if (gmode === 'sfoot') beginLaunch();
+        else if (gmode === 'landed') liftOff();
         else { boardShip(); liftOff(); }
     }
     // ─── 2026-10-14: SHIP SUMMON ("F will always get you back to your ship"). On foot, hold F SUMMON_T s anywhere away from the hatch: the parked ship
@@ -4867,7 +4877,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return true;
     }
     function onKeyZ() {
-        if (gmode === 'fly') { if (cvHail()) return; if (landOk && landStill()) landReq = true; else if (target && !dead) exit(target.node); }
+        if (gmode === 'fly') { if (cvHail()) return; if (landOk && landStill()) landReq = true; else if (!dead) ehExit(); }      // consistency: Z never leaves flight (HOLD ESC does); a failed land says why
         else if (gmode === 'landed') exitShip();
         else if (gmode === 'foot') { if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); } }
         else if (gmode === 'ifoot') { if (ixTarget().kind === 'hatch') interiorF(); }
@@ -5367,7 +5377,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (waveMsgT > 0) waveMsgT -= dt;
         fx.setMotion(vel, 0, false); try { fx.setAtmo(ps && ps.active ? ps.depth : 0); } catch (e0) { /* ignore */ } fx.update(dt, camera);
         // prompt
-        if (gmode === 'landing' || gmode === 'landed') setPrompt('', false);
+        if (gmode === 'landing') setPrompt('', false);
+        else if (gmode === 'landed') setPrompt('Z · STEP OUT · HOLD LIFT OFF', true);
         else if (gmode === 'foot' && !storeOpen && !invOpen && footTarget().kind) setPrompt(ftI.label, true);
         else if (nearShip()) setPrompt(R25.mod ? 'Z · ENTER SHIP · HOLD LIFT OFF' : 'Z · BOARD', true);
         else setPrompt('', false);
@@ -6474,7 +6485,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         e.preventDefault(); e.stopPropagation();
         if (c === 'Escape') { e.__shipHandled = true; closeInv(); return; }
         if (e.repeat) return;
-        if (c === 'KeyE' || c === 'Backspace') { closeInv(); return; }
+        if (c === 'KeyE' || c === 'KeyF' || c === 'Backspace') { closeInv(); return; }
         if (c === 'KeyR') { r28BookSet(!R28.book); return; }
         if (c === 'Tab') { invSetMode(invMode === 'inv' ? 'char' : 'inv'); return; }
         if (invMode === 'char' && (c === 'ArrowLeft' || c === 'KeyA')) { styleCycle(-1); return; }
@@ -7749,7 +7760,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function onbTick(dt) {
         var pf = curProfile(); if (!pf || !pf.onb || state !== 'piloting') { onbSet(''); return; }
         var o = pf.onb, txt = '';
-        if (!o.done && ((!storeOpen && !invOpen) || ((o.step | 0) === 3 && storeOpen))) {      // step 3 (SHOP) completes while the store is open
+        if (!o.done && ((!storeOpen && !invOpen && !cmdOpen && !menuOpen && !PT.pm) || ((o.step | 0) === 3 && storeOpen))) {      // step 3 (SHOP) completes while the store is open
             var s = o.step | 0; onb.t += dt;
             var ok = false;
             if (s === 0) { if (keys.KeyW || speed > 1.2 * CRUISE) onb.fly += dt; ok = onb.fly > 1.5; }
@@ -7757,7 +7768,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             else if (s === 2) ok = gmode === 'landing' || gmode === 'landed' || gmode === 'foot';
             else if (s === 3) ok = !!(shopCtx && shopCtx.mode === 'store' && storeOpen) || (storeOpen && !qOpen);
             if (ok || onb.t > 60) { o.step = s + 1; onb.t = 0; if (o.step >= 4) o.done = true; writeSave(); aPlay('ui', { vel: 0.5, pitch: 1.3 }); }
-            else txt = ONB_TXT[s];
+            else if (s <= 2) { if (gmode === 'fly') txt = ONB_TXT[s]; }      // fly-mode steps only show where they can be done
+            else if (gmode === 'foot' || storeOpen) txt = ONB_TXT[3];
+            else if (gmode === 'landing' || gmode === 'landed') txt = 'Z · STEP OUT, THEN WALK TO A 7/11';
         }
         if (!txt && !storeOpen && !invOpen) {      // first-time hints (one line, 6 s)
             if (onb.hintT > 0) { onb.hintT -= dt; txt = onb.hint; }
@@ -8437,6 +8450,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         document.removeEventListener('mousedown', fgMouse, true); document.removeEventListener('mouseup', fgMouse, true);
         try { if (sess) sess.stop(); } catch (e) { /* ignore */ }
         cmdOpen = false; keys = Object.create(null); mdx = mdy = 0; firing = false; FG.ask = null;
+        if (state === 'piloting') { try { var pL = document.body.requestPointerLock(); if (pL && pL.catch) pL.catch(function () { /* keyboard only */ }); } catch (eL) { /* ignore */ } }      // consistency: every panel close relocks
         if (w == null && FG.npc) FG.cd[FG.npc.id] = cooldownMax(FG.cd[FG.npc.id], Date.now() + 5000);      // never shorten the 60 s win / 10 s loss cooldown (Esc on the result card)
     }
     function talkShopper(n) {
@@ -9404,8 +9418,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (state !== 'piloting' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || boarding || exiting || dead) return;
         if (PT.rad.on && /^Digit[1-4]$/.test(e.code)) { e.preventDefault(); ptRadPick(+e.code.slice(5) - 1); return; }
         if (invOpen || menuOpen || storeOpen || (cmdOpen && !PT.pm)) return;
-        if (PT.pm) { e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') e.__shipHandled = true; if (e.code === 'Escape' || e.code === 'KeyU') ptMgr(false); return; }
-        if (e.code === 'KeyU') { if (gmode === 'foot') { e.preventDefault(); ptMgr(true); } return; }      // manager is a foot-mode overlay: in flight it released the pointer and left the ship uncontrolled
+        if (PT.pm) { e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') e.__shipHandled = true; if (e.code === 'Escape' || e.code === 'KeyU' || e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'Backspace') ptMgr(false); return; }
+        if (e.code === 'KeyU') { if (gmode === 'foot') { e.preventDefault(); ptMgr(true); } else addRow('', '', 'U · POKEMANS MANAGER · ON FOOT ONLY', 'is-sys'); return; }      // manager is a foot-mode overlay: in flight it released the pointer and left the ship uncontrolled
         if (gmode !== 'foot') return;
         if (e.code === 'Digit0') { PT.keys = !PT.keys; elParty.classList.toggle('is-keys', PT.keys); addRow('', '', PT.keys ? 'PARTY KEYS · 1-6 swap · 0 = weapons' : 'WEAPON KEYS · 1-9 hotbar', 'is-sys'); aPlay('ui', { vel: 0.4 }); return; }
         if (PT.keys && /^Digit[1-6]$/.test(e.code)) { e.preventDefault(); ptSwap(+e.code.slice(5) - 1); }
