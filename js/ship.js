@@ -9087,7 +9087,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         sp = PKG.species(pid, kind, { biome: biome, tier: Math.min(5, tier + (e ? 1 : 0)) }); ind = PKG.individual(sp, seed + ':' + pid); lvl = Math.min(PKG.MAX_LEVEL, 2 + sp.tier * 3);
         mon = PKC.makeMon(sp, ind, lvl, PKG.xpForLevel(lvl), pid); mon.at = Date.now();
         for (nid = 0; pf.pokemans.some(function (m) { return m.id === mon.id + (nid ? '#' + nid : ''); }); nid++) { /* same species+size twice: suffix */ } if (nid) mon.id += '#' + nid;
-        pf.pokemans.push(mon); pf.pokemans = pf.pokemans.slice(-200);
+        pf.pokemans.push(mon); PKP.trimMons(pf, 200);
         (pf.party.length < PKC.PARTY_MAX ? pf.party : pf.pen).push(mon.id);
         giveItem({ id: mon.id, seed: seed >>> 0, name: sp.name, kind: 'pokemans', base: sp.types.join('/'), infusion: null, modifier: null, color: new THREE.Color().setHSL(sp.bodyRecipe.hue / 360, 0.6, 0.55).getHex(), price: 0, tier: sp.tier, category: 'pokemans', tags: ['pokemans'], stackKey: mon.id, iconHint: 'candy', mon: mon, blurb: sp.types.join(' / ') + ' · L' + lvl + ' · ' + sp.moves.map(function (m) { return m.name; }).join(', '), dealer: false }, 1);
         if (e) { if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }

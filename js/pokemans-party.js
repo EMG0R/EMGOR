@@ -109,3 +109,16 @@ export function moveToggle(pf, id, partyMax) {
 }
 // setActiveId: make a specific party mon the active one (refuses DEAD / not in party)
 export function setActiveId(pf, id) { const i = pf.party.indexOf(id); return i < 0 ? null : pickActive(pf, i); }
+
+// Keep at most `max` mon records: drop the oldest that are NOT in the party or pen first; only if every record is in use does the oldest go,
+// and its id is then removed from party/pen so no slot dangles on a missing record.
+export function trimMons(pf, max) {
+  const keep = new Set((pf.party || []).concat(pf.pen || []));
+  while (pf.pokemans.length > max) {
+    let i = 0;
+    while (i < pf.pokemans.length && keep.has(pf.pokemans[i].id)) i++;
+    if (i >= pf.pokemans.length) { i = 0; const id = pf.pokemans[0].id; pf.party = (pf.party || []).filter((x) => x !== id); pf.pen = (pf.pen || []).filter((x) => x !== id); keep.delete(id); }
+    pf.pokemans.splice(i, 1);
+  }
+  return pf;
+}

@@ -37,3 +37,14 @@ test('setActiveId refuses dead / non-party', () => {
   PKP.faint(pf.pokemans[0]); assert.equal(PKP.setActiveId(pf, pf.party[0]), null);
   assert.equal(PKP.setActiveId(pf, 'zzz'), null);
 });
+
+test('trimMons drops unused mons first and never leaves a dangling party/pen id', async () => {
+  const { trimMons } = await import('../../js/pokemans-party.js');
+  const mk = (n) => Array.from({ length: n }, (_, i) => ({ id: 'm' + i }));
+  const pf = { pokemans: mk(5), party: ['m0'], pen: ['m1'] };
+  trimMons(pf, 3);
+  assert.deepEqual(pf.pokemans.map((m) => m.id), ['m0', 'm1', 'm4']);
+  const all = { pokemans: mk(3), party: ['m0', 'm1'], pen: ['m2'] };
+  trimMons(all, 2);
+  assert.deepEqual(all.party, ['m1']); assert.deepEqual(all.pen, ['m2']); assert.equal(all.pokemans.length, 2);
+});
