@@ -8758,17 +8758,18 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (!shopRows.length) shopRows.push({ k: '-', tag: '--', name: 'NOTHING THEY WANT', sub: (t.buys || []).length ? 'THEY WANT ' + t.buys.length + ' KINDS' : '', price: null });
         }
     }
+    function tradeSaveStock() { if (shopCtx && shopCtx.vil && VG.v) { VG.v.syncStock(); villageSave(); } }      // persist village stock at the purchase, not only on closeStore
     function tradePick(row, pf) {
         var t = shopCtx.trade;
         if (row.k === 'tb') {
             var s = t.sells[row.i]; if (!s || s.n <= 0) return;
             if ((pf.gor | 0) < s.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
             pf.gor -= s.price; giveItem(s.item, 1); s.n--; if (s.n <= 0) t.sells.splice(row.i, 1);
-            aPlay('buy'); shopMsg('BOUGHT ' + s.item.name); writeSave(); shopFill(); return;
+            aPlay('buy'); shopMsg('BOUGHT ' + s.item.name); tradeSaveStock(); writeSave(); shopFill(); return;
         }
         var rec = pf.items[row.i]; if (!rec) return;
         rec.n--; if (rec.n <= 0) pf.items.splice(row.i, 1);
-        pf.gor = (pf.gor | 0) + row.price; aPlay('buy', { pitch: 0.8 }); shopMsg('SOLD ' + row.name + ' · +' + row.price); writeSave(); shopFill();
+        pf.gor = (pf.gor | 0) + row.price; aPlay('buy', { pitch: 0.8 }); shopMsg('SOLD ' + row.name + ' · +' + row.price); tradeSaveStock(); writeSave(); shopFill();
     }
     // convoys: HUD markers (<= 300 L), hail at <= 20 L, piracy, hostile escorts, crates
     var cvEls = [], cvNear = null, cvNearD = 1e30;
