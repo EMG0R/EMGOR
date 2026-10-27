@@ -6558,7 +6558,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var pf = ensureProfile(userName()), i, c;
         if (s.getAttribute('data-i') != null) {
             var rec = pf.items[invTop * INV_COLS + (+s.getAttribute('data-i'))], it = rec ? itemOf(rec) : null;
-            if (!it || it.pet || rec.n - r25Reserved(rec.id) <= 0) return;
+            if (!it || it.pet || it.kind === 'blueprint' || it.kind === 'ball' || it.kind === 'pokemans' || rec.n - r25Reserved(rec.id) <= 0) return;      // never craft away a recipe, a ball or a caught mon
             for (i = 0; i < 9; i++) if (craftGrid[i] && craftGrid[i].key === rec.id) { craftGrid[i].n++; aPlay('ui', { vel: 0.5 }); invFill(); return; }
             for (i = 0; i < cl.length; i++) if (!craftGrid[cl[i]]) { craftGrid[cl[i]] = { key: rec.id, it: it, n: 1 }; aPlay('ui', { vel: 0.5 }); invFill(); return; }
         } else if (s.getAttribute('data-c') != null) {
@@ -8097,7 +8097,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             for (i = 0; i < pm.length; i++) { var pi = pm[i]; shopRows.push({ k: 'i', item: pi, name: pi.name, sub: String(pi.blurb || '').slice(0, 44), price: pi.price }); }
         } else if (tab === 2) {
             for (i = 0; i < pf.weapons.length; i++) { var o = pf.weapons[i]; shopRows.push({ k: 'x', i: i, tag: String(o.cls || 'C'), name: o.name, sub: (pf.weapon && pf.weapon.id === o.id) ? 'EQUIPPED' : 'OWNED', price: Math.round(shopPrice(o) * SELL_K) }); }
-            for (i = 0; i < pf.items.length; i++) { var r = pf.items[i], io = itemOf(r); if (io) shopRows.push({ k: 'xi', i: i, item: io, name: io.name, sub: 'x' + r.n + ' OWNED', price: (io.category || io.kind === 'part') ? CRF.sellPrice(io) : Math.max(1, Math.round(io.price * SELL_K)) }); }
+            for (i = 0; i < pf.items.length; i++) { var r = pf.items[i], io = itemOf(r); if (io && io.kind !== 'pokemans') shopRows.push({ k: 'xi', i: i, item: io, name: io.name, sub: 'x' + r.n + ' OWNED', price: (io.category || io.kind === 'part') ? CRF.sellPrice(io) : Math.max(1, Math.round(io.price * SELL_K)) }); }
             if (!shopRows.length) shopRows.push({ k: '-', tag: '--', name: 'NOTHING TO SELL', sub: '', price: null });
         }
         shopTop = clamp(shopTop, 0, Math.max(0, shopRows.length - SHOP_ROWS)); shopSel = clamp(shopSel, 0, Math.max(0, shopRows.length - 1));
