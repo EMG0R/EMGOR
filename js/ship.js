@@ -6972,7 +6972,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (punchCd > 0 || !hum.obj || cmdOpen) return; punchCd = 0.35; var Hw = hwU(), hit = 0;
         gA.copy(hum.hf).applyQuaternion(land.node.mesh.quaternion);
         R27.gnd.slice().forEach(function (e) {
-            if (!e.alive) return; snC.subVectors(e.w, hum.w); var d = snC.length(); if (d > 2.2 * Hw + e.cr.hitR * GM * L || snC.divideScalar(d || 1).dot(gA) < 0.3) return;
+            if (!e.alive || e.held) return; snC.subVectors(e.w, hum.w); var d = snC.length(); if (d > 2.2 * Hw + e.cr.hitR * GM * L || snC.divideScalar(d || 1).dot(gA) < 0.3) return;
             if (e.mob) mobHurt(e, 6, 'me'); else { e.hp -= 6; e.hitF = 1; if (e.hp <= 0) gndKill(e); }
             fx.impact(e.w, 0xffd36a, 1, 'hit'); hit++;
         });
@@ -9065,6 +9065,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             } else if (GB.t >= PKC.throwTime()) { gbEnd(); addRow('', '', 'missed', 'is-sys'); }
             return;
         }
+        if (GB.e && !GB.e.alive) { gbEnd(); return; }      // killed mid-shake: no second reward
         GB.shakeT += dt;      // shake: 0.7 s each, a wobble on the ball and a rising tick
         fx.setBolt(GB.id, GB.o.x + Math.sin(GB.shakeT * 18) * 0.12 * H * (GB.shakeT < 0.5 ? 1 : 0), GB.o.y, GB.o.z);
         if (GB.shakeT < 0.7) return;

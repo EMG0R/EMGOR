@@ -56,3 +56,7 @@ test('makeMon carries full data; ids differ per individual', () => {
   assert.notEqual(m.id, PKC.makeMon(sp, b, 5, 0, 'planetA').id);
   assert.equal(PKC.PARTY_MAX, 6);
 });
+
+test('catchChance with NaN hp fraction is finite', () => {
+  assert.ok(Number.isFinite(PKC.catchChance(1, NaN, 0)));
+});

@@ -10,7 +10,7 @@ export const PARTY_MAX = 6;
 export const LURE_BONUS = 0.15;
 
 export function catchChance(tier, hpFrac, bonus) {
-  const t = Math.max(1, Math.min(3, tier | 0 || 1)), h = Math.max(0, Math.min(1, hpFrac));
+  const t = Math.max(1, Math.min(3, tier | 0 || 1)), h = hpFrac === hpFrac ? Math.max(0, Math.min(1, hpFrac)) : 1;
   return Math.max(0.1, Math.min(1, t * (1 - h) * 0.9 + 0.1 + (bonus || 0)));
 }
 export function catchRoll(chance, u) { return { shakes: 3, caught: u < chance }; }
