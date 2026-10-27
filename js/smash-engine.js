@@ -314,7 +314,7 @@ function stepFighter(S, f) {
       if (f.holdT <= 0) { v.state = 'air'; v.heldBy = -1; v.inv = 20; f.hold = -1; f.state = 'idle'; f.st = 0; }
       break;
     }
-    case 'held': { f.inv = Math.max(f.inv, 2); break; }
+    case 'held': { f.inv = Math.max(f.inv, 2); const hd = f.heldBy >= 0 ? S.fighters[f.heldBy] : null; if (!hd || hd.hold !== f.i) { f.state = 'air'; f.heldBy = -1; f.inv = 20; f.st = 0; } break; }      // failsafe: holder no longer holds us
     case 'egg': {
       f.vx = 0; if (!f.grounded) gravity(f);
       if (f.ed & (B.A | B.K | B.L | B.R | B.U | B.D)) f.eggT -= 2;
@@ -358,7 +358,7 @@ function releaseHeld(v) { v.heldBy = -1; }
 function postPhysics(S, f) {
   const st = f.state;
   if (f.landed) {
-    if (st === 'attack' && f.move && f.moveAir) { const ll = f.move.landLag || 8; f.move = null; f.hbMove = null; f.state = 'land'; f.lag = ll; f.st = 0; S.sfx('land'); }
+    if (st === 'attack' && f.move && f.moveAir) { const ll = f.move.landLag || 8; releaseHold(S, f); f.move = null; f.hbMove = null; f.state = 'land'; f.lag = ll; f.st = 0; S.sfx('land'); }
     else if (st === 'hit' && f.hitstun > 0 && !f.tumble) { /* stays in hit */ }
   }
   if (!f.grounded && (st === 'idle' || st === 'run' || st === 'crouch' || st === 'land')) { f.state = 'air'; f.st = 0; }
