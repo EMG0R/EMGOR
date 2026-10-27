@@ -1698,6 +1698,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function escEnter() { if (escLatch) return; enter(); }
     window.addEventListener('keyup', function (e) { if (e.code === 'Escape') { escLatch = false; escCancel(); } }, true);
     window.addEventListener('blur', function () { escLatch = false; escCancel(); });
+    // PF2: lock lost any other way (system gesture, devtools, focus steal) starts the hold with no Escape keyup coming; any click or other key proves it is not an Esc hold
+    window.addEventListener('mousedown', function () { if (esc.on) escCancel(); }, true);
+    window.addEventListener('keydown', function (e) { if (esc.on && e.code !== 'Escape') escCancel(); }, true);
     document.addEventListener('mousedown', function () {        // a click after an Esc tap takes the pointer lock back (and cancels a stray hold)
         if (state !== 'piloting' || locked() || cmdOpen || invOpen || storeOpen) return;
         escCancel();
