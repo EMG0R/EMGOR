@@ -7700,7 +7700,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!txt && !storeOpen && !invOpen) {      // first-time hints (one line, 6 s)
             if (onb.hintT > 0) { onb.hintT -= dt; txt = onb.hint; }
             else if (!o.res && gmode === 'foot' && resFind()) { o.res = true; onb.hint = 'RESOURCE NODE · F TO HARVEST · SELL IT OR CRAFT AT A 7/11'; onb.hintT = 6; writeSave(); }
-            else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear())) { o.npc = true; onb.hint = 'T TO TALK (THEY MAY HAVE WORK) · F TO FIGHT'; onb.hintT = 6; writeSave(); }
+            else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear() || (VG.v && VG.v.nearVillager && VG.v.nearVillager(hum.pos, 3 * 0.09 * L)))) { o.npc = true; onb.hint = 'T TO TALK (THEY MAY HAVE WORK) · F TO FIGHT'; onb.hintT = 6; writeSave(); }
             else if (!o.roll && gmode === 'fly' && (o.done || (o.step | 0) >= 2)) { o.roll = true; onb.hint = 'A/D TWICE · ROLL · S TWICE · FLIP · CTRL · DRIFT TURN'; onb.hintT = 6; writeSave(); }
             else if (!o.inv && gmode === 'foot' && (o.done || (o.step | 0) >= 3)) { o.inv = true; onb.hint = 'E INVENTORY · HOLD Z SUMMONS THE SHIP · F FIGHT · T TALK'; onb.hintT = 6; writeSave(); }
         }
@@ -8292,12 +8292,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (ft.kind === 'villager' && VG.v) VG.v.toParent(o.pos, pos);
         else if (ft.kind === 'clerk' && o.npcSpot) pos.copy(o.npcSpot.pos);
         else if (o.pos) pos.copy(o.pos); else pos.copy(hum.pos);
-        return { id: id, name: String(o.name || (ft.kind === 'clerk' ? 'CLERK' : ft.kind.toUpperCase())), role: String(o.role || (ft.kind === 'clerk' ? 'clerk' : ft.kind)), seed: o.seed != null ? o.seed : fnv(id), pos: pos };
+        var oc = (ft.kind === 'clerk' && o.clerk) ? o.clerk : o;      // the clerk, not the store, is the opponent
+        return { id: id, name: String(ft.kind === 'clerk' ? (oc.name || clerkName(o)) : (oc.name || ft.kind.toUpperCase())), role: String(ft.kind === 'clerk' ? 'cashier' : (oc.role || ft.kind)), seed: oc.seed != null ? oc.seed : fnv(id), pos: pos };
     }
     function fightAsk(ft) {
         if (FG.on || FG.loading || hum.air || gmode !== 'foot' || !ps || ps.active !== land.node) return;
         var id = String((ft.obj && (ft.obj.id || ft.obj.name)) || ft.kind), c = FG.cd[id];
-        if (!FG.mod && !FG.loading) { FG.loading = true; import('./smash-world.js').then(function (m) { FG.mod = m; FG.loading = false; }).catch(function (e) { FG.loading = false; console.info('[ship] fight module unavailable', e); }); addRow('', '', 'loading the ring...', 'is-sys'); return; }
+        if (!FG.mod && !FG.loading) { FG.loading = true; import('./smash-world.js').then(function (m) { FG.mod = m; FG.loading = false; if (!FG.on && !FG.ask) { FG.ask = { id: id, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 }); } }).catch(function (e) { FG.loading = false; console.info('[ship] fight module unavailable', e); }); addRow('', '', 'loading the ring...', 'is-sys'); return; }
         if (c && Date.now() < c) { addRow('', '', 'they are catching their breath · ' + Math.ceil((c - Date.now()) / 1000) + ' s', 'is-sys'); return; }
         if (FG.ask && FG.ask.id === id && FG.ask.t > 0) { FG.ask = null; fightStart(ft); return; }
         FG.ask = { id: id, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 });
