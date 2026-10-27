@@ -7708,9 +7708,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     // ── pets ──
     function petItem(p) { return { id: 'pet:' + p.seed, name: p.name, kind: 'pet', base: p.name, infusion: null, modifier: null, color: p.color, price: 150 + 20 * (p.happy | 0), tier: 1, category: 'pet', tags: ['pet'], stackKey: 'pet:' + p.seed, pet: p, iconHint: 'candy', blurb: 'Follows you home for fries. Lives in a pen aboard your ship.', dealer: false }; }
-    function treatIdx(pf) {
-        for (var i = 0; i < pf.items.length; i++) { var it = itemOf(pf.items[i]); if (it && (it.kind === 'fries' || (it.effect && it.effect.extras && it.effect.extras.treat))) return i; }
-        return -1;
+    function treatIdx(pf) {      // treats first, then the cheapest fries: never spend Golden or lure fries as bait
+        var bi = -1, bp = 1e12, i, it, pr;
+        for (i = 0; i < pf.items.length; i++) { it = itemOf(pf.items[i]); if (it && it.effect && it.effect.extras && it.effect.extras.treat) return i; }
+        for (i = 0; i < pf.items.length; i++) { it = itemOf(pf.items[i]); if (it && it.kind === 'fries') { pr = it.price || 0; if (pr < bp) { bp = pr; bi = i; } } }
+        return bi;
     }
     // rev 27: taming rides ps.creatures() / ps.setCreatureTamed (the instanced-colour hack is gone). Tamed ids live on profile.taken [{n: planet, id, k}].
     var CR_NAMES = ['Walker', 'Jelly', 'Ox', 'Strider'], CR_PLAN = ['walker', 'jelly', 'walker', 'strider'];
