@@ -6605,6 +6605,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         } else if (s.getAttribute('data-o') != null) {
             var res = craftCells.matchRes; if (!res) return;
             if (!bagRoom(res.output)) { addRow('', '', 'BAG FULL', 'is-sys'); return; }
+            var cpf = ensureProfile(userName()), cneed = {}, cshort = false;      // PF2: a reserved stack eaten / sold / used while on the grid must not craft for free
+            for (i = 0; i < res.consumes.length; i++) { c = craftGrid[res.consumes[i]]; if (c) cneed[c.key] = (cneed[c.key] || 0) + 1; }
+            Object.keys(cneed).forEach(function (k) { var have = 0; cpf.items.forEach(function (r) { if (r.id === k) have += r.n; }); if (have < cneed[k]) cshort = true; });
+            if (cshort) { r25ClearGrid(); addRow('', '', 'MATERIALS GONE · grid cleared', 'is-sys'); invFill(); invTip(null); return; }
             for (i = 0; i < res.consumes.length; i++) { c = craftGrid[res.consumes[i]]; if (!c) continue; takeKey(c.key, 1); c.n--; if (c.n <= 0) craftGrid[res.consumes[i]] = null; }
             if (!curUser) curUser = userName();
             giveItem(res.output, res.count);
