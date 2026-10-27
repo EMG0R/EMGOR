@@ -2501,6 +2501,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         hideEnemy(e); kills++;
         addUnits(uGain, vKill, wasBoss || wasLead); r25Scrap(wasBoss ? 3 : 0);
+        try { ptGainXp(PKP.xpForKill(2 + 2 * (e.tier || 1), e.tier || 1)); } catch (ex) { warnOnce('party.xp', ex); }      // consistency: party XP from every kill source
         var ksz = clamp(len / L / 6, 1, 4);
         burst(vKill, wasBoss ? 30 : 14, col, wasBoss ? 30 : 14, ksz);
         deathBooms(vKill, len, eR, wasBoss, BURST_COL[col] || 0xff7a2a);
@@ -7034,12 +7035,18 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (e.mob === 'ender' && !e.angry) { e.angry = true; e.lookT = 1; }
         if (e.hp <= 0) mobKill(e, e.lastBy === 'me');
     }
+    // consistency: ONE kill-reward path. Tier-scaled gorCoin (addUnits = float text + units chime), party XP, quest event stays with the caller; the 'kill' cue plays once in the caller.
+    function rewardKill(tier, pos, mult, big) {
+        tier = Math.max(1, tier | 0 || 1);
+        addUnits(UNIT_KILL * tier * (mult || 1), pos, !!big);
+        try { ptGainXp(PKP.xpForKill(2 + 2 * tier, tier)); } catch (e1) { warnOnce('party.xp', e1); }
+    }
     function mobKill(e, byMe) {
         if (!e.alive) return; MB.stats.killed++;
         var drops = [], kind = e.mob; try { drops = ENM.mobDrops(kind, Math.random) || []; } catch (e0) { drops = []; }
         for (var i = 0; i < 3; i++) fx.impact(e.w, 0xff8a5c, 2, 'explode');
-        aPlay('explosion', { dist: aDist(e.w), pitch: 1.5 });
-        if (byMe) { drops.forEach(function (d) { mobGive(d.id, d.n); }); addUnits(UNIT_KILL, e.w, false); questEvent({ type: 'kill', n: 1 }); try { ptGainXp(PKP.xpForKill(2 + 2 * (e.cr.tier || 1), e.cr.tier || 1)); } catch (e1) { warnOnce('party.xp', e1); } }
+        aPlay('kill', { dist: aDist(e.w) });
+        if (byMe) { drops.forEach(function (d) { mobGive(d.id, d.n); }); rewardKill(e.cr.tier || 1, e.w, 1, false); questEvent({ type: 'kill', n: 1 }); }
         else if (e.lastBy) mobEv({ k: 'k', i: e.mid, b: e.lastBy, d: drops.map(function (d) { return [d.id, d.n]; }) });
         gndFree(e); writeSave();
     }
@@ -7205,7 +7212,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         } else if (m.t === 'pl.ev' && m.data) {
             var d = m.data;
             if (d.k === 'h' && mobIsHost() && Array.isArray(d.a)) d.a.forEach(function (a) { R27.gnd.slice().forEach(function (e) { if (e.mob && e.mid === (a[0] | 0)) mobHurt(e, +a[1] || 0, String(m.id || 'x')); }); });
-            else if (d.k === 'k' && net && d.b === net.id && Array.isArray(d.d)) { d.d.slice(0, 8).forEach(function (x) { if (Array.isArray(x)) mobGive(String(x[0]), clamp(x[1] | 0, 0, 5000)); }); addUnits(UNIT_KILL, hum.w, false); questEvent({ type: 'kill', n: 1 }); }
+            else if (d.k === 'k' && net && d.b === net.id && Array.isArray(d.d)) { d.d.slice(0, 8).forEach(function (x) { if (Array.isArray(x)) mobGive(String(x[0]), clamp(x[1] | 0, 0, 5000)); }); rewardKill(1, hum.w, 1, false); questEvent({ type: 'kill', n: 1 }); }
             else if (d.k === 'x' && Array.isArray(d.p) && hum.obj && peerNums(d.p, 0, 2, 1e9) && typeof d.r === 'number' && d.r > 0 && peerNums([d.a, d.b], 0, 1, 1e4)) { snA.set(d.p[0], d.p[1], d.p[2]); var dH = snA.distanceTo(hum.w) / hwU(); if (dH < d.r + 0.5) footHurt(Math.round(d.b + (d.a - d.b) * clamp(1 - dH / d.r, 0, 1))); }
             else if (d.k === 'a' && hum.obj && typeof d.r === 'number' && isFinite(d.r)) { R27.gnd.forEach(function (e) { if (e.mob && e.mid === (d.i | 0) && e.w.distanceTo(hum.w) / (GM * L) < d.r) footHurt(d.d | 0); }); }
         }
@@ -8461,7 +8468,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         } else if (info && w === 0) {
             var coin = FG_COIN[info.role] || 25; addUnits(coin, hum.w, true);
             var line = ''; try { line = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'goodgame'); } catch (e0) { line = 'Good game.'; }
-            addRow(String(info.name).toUpperCase(), '#8fe0a8', line); addRow('', '', 'YOU WON · +' + coin + ' gorCoin', 'is-sys'); FG.cd[info.id] = Date.now() + 60000; aPlay('units', { n: 8 });
+            addRow(String(info.name).toUpperCase(), '#8fe0a8', line); addRow('', '', 'YOU WON · +' + coin + ' gorCoin', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
         } else if (info && w === 1) {
             var tl = ''; try { tl = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'taunt'); } catch (e1) { tl = 'Not today.'; }
             addRow(String(info.name).toUpperCase(), '#ffb08f', tl); FG.cd[info.id] = Date.now() + 10000;
@@ -9110,7 +9117,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gndKill(e) {
         if (e.mob) { mobKill(e, true); return; }
         for (var i = 0; i < 4; i++) fx.impact(e.w, 0xff8a5c, 3, 'explode');
-        aPlay('explosion', { dist: aDist(e.w), pitch: 1.3 }); addUnits(UNIT_KILL * 2, e.w, true);
+        aPlay('kill', { dist: aDist(e.w) }); rewardKill((e.cr && e.cr.tier) || 1, e.w, 2, true);
         if (e.guard) { e.guard._gdDead = true; addRow('', '', 'GUARDIAN DOWN', 'is-sys'); }
         if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000;
         questEvent({ type: 'kill', n: 1 });
@@ -9391,7 +9398,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function ptGainXp(amount) {
         var m = ptMon(); if (!m) return; var g = PKP.awardXp(m, amount);
-        if (g > 0) { addRow('', '', m.sp.name.toUpperCase() + ' → L' + m.level, 'is-sys'); aPlay('tame', { vel: 0.6, pitch: 1.5 }); }
+        if (g > 0) { addRow('', '', m.sp.name.toUpperCase() + ' → L' + m.level, 'is-sys'); aPlay('levelUp'); }
         ptHud(true);
     }
     function ptTick(dt) {

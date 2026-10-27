@@ -401,7 +401,7 @@ function sonik(env) {
     }
     // outputs
     const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz), onG = grounded && !s.air;
-    hitbox.rolling = s.roll || s.charge >= 0 || (s.air && s.jumped); hitbox.h = hitbox.rolling ? 0.5 : 0.9;
+    hitbox.rolling = s.roll || s.charge >= 0 || (s.air && s.jumped); hitbox.h = hitbox.rolling ? 0.5 * (hitbox.hStand || 0.9) / 0.9 : (hitbox.hStand || 0.9);
     out.vel.x = s.vx; out.vel.y = s.vy; out.vel.z = s.vz; out.groundSnap = onG && out.jumpImpulse === 0 && s.homing <= 0;       // glued to terrain at speed while on the ground
     a.moving = hs > 0.5; a.running = hs > 0.7 * TOP; a.airborne = !onG; a.speed = clamp(hs / TOP, 0, 1); a.facing = s.face; a.mode = s.homing > 0 ? 3 : s.charge >= 0 ? 2 : s.roll ? 1 : 0;
     a.ball = hitbox.rolling ? 1 : 0; a.charge = s.charge >= 0 ? s.charge / 8 : 0; a.crouch = s.charge >= 0 ? 1 : 0; a.pitch = s.homing > 0 ? 1 : 0;
@@ -605,6 +605,9 @@ export function createStyle(id, env) {
   const S = STYLES[String(id || '').toUpperCase()]; if (!S) return null;
   const e = Object.assign({ walk: 22, grav: 22, jump: 8.5 }, env || {});
   const m = S.make(e), api = { id: S.id, name: S.name, portraitHint: S.portraitHint, skin: skinFor(S.id), abilities: S.abilities.slice(), hitbox: m.hitbox || Object.assign({}, S.hitbox), reset: m.reset, step: m.step, state: m.state };
+  if (S.id === 'STEEV' || S.id === 'SONIK') {      // consistency: the capsule is the visible body (normRig recipe), not a hand-typed number; SONIK keeps its rolling squash
+    const rh = api.skin.hitbox; if (rh && rh.r > 0 && rh.h > 0) { api.hitbox.r = rh.r; if (S.id === 'SONIK') api.hitbox.hStand = rh.h; else api.hitbox.h = rh.h; }
+  }
   for (const k of ['swallow', 'previewArc', 'setTool']) if (m[k]) api[k] = m[k];
   if ('eggs' in m) Object.defineProperty(api, 'eggs', { get() { return m.eggs; } });
   m.reset(); return api;
