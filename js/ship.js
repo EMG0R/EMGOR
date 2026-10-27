@@ -6125,9 +6125,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function fmtT(s) { s = Math.max(0, Math.ceil(s)); var m = Math.floor(s / 60), r = s % 60; return m + ':' + (r < 10 ? '0' : '') + r; }
     function fxStart(it) {
         var e = it.effect || {}, pf = ensureProfile(userName()), i, a;
-        if (it.kind === 'fries' || e.realtime) {
+        var timed = !!((e.params && Object.keys(e.params).length) || (e.extras && (e.extras.speed || e.extras.jump)));      // crafted fries carry a timed effect too
+        if ((it.kind === 'fries' && (!timed || e.glow)) || e.realtime) {
             pf.glowUntil = Date.now() + ((e.glow && e.glow.minutes) || 45) * 60000; glowChk = 0; glowTick(0);
-            addRow('', '', 'you are glowing. ' + ((e.glow && e.glow.minutes) || 45) + ' minutes.', 'is-sys'); return;
+            addRow('', '', 'you are glowing. ' + ((e.glow && e.glow.minutes) || 45) + ' minutes.', 'is-sys'); if (!timed || e.realtime) return;
         }
         for (i = 0; i < fxAct.length; i++) if (fxAct[i].key === it.id) { fxAct[i].t = 0; fxAct[i].dur = e.duration || 60; return; }
         a = { key: it.id, name: it.name, col: it.color, t: 0, dur: Math.max(5, e.duration || 60), p: e.params || {}, ex: e.extras || {}, tc: e.tintColor, sg: e.signature || null };
