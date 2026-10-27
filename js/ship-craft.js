@@ -94,7 +94,7 @@ const FOOD = (base, color, price, eff, o) => Object.assign({ cat: 'food', base, 
 
 export const RECIPES = [
   // materials
-  R('seasoning-salt', 'Seasoning Salt', '~fries fries', MAT('Seasoning Salt', 0xF2EEE6, 18, { count: 3, hint: 'bag', blurb: 'The red-gold dust itself. Do not tell the clerk.' })),
+  R('seasoning-salt', 'Seasoning Salt', '~fries fries', MAT('Seasoning Salt', 0xF2EEE6, 10, { count: 3, hint: 'bag', blurb: 'The red-gold dust itself. Do not tell the clerk.' })),
   R('hull-plate', 'Reinforced Hull Plate', 'plate plate|plate plate', MAT('Reinforced Hull Plate', 0xC8C0E8, 150, { blurb: 'Four plates agreeing with each other.' })),
   R('bolt-core', 'Bolt Core', 'coil capacitor coil', MAT('Bolt Core', 0xFF8AE8, 260, { blurb: 'A tiny lightning argument in a can.' })),
   R('infusion-dust', 'Infusion Dust', '~infusion:any infusion:any', MAT('Infusion Dust', 0xC8A0FF, 70, { hint: 'candy', blurb: 'Two infusions, pressed flat. Smells like Tuesday.' })),
@@ -137,7 +137,7 @@ export const RECIPES = [
   R('pen-kit', 'Creature Pen Kit', 'plate lens plate|plate . plate|plate plate plate', UPG('pens', 1, { base: 'Pen Kit', color: 0xBEEFFF, price: 300, blurb: 'A glass pod with a tiny door. Adds one pen.' })),
   R('crew-pod-kit', 'Crew Pod Kit', 'plate plate|battery fin|plate plate', UPG('pods', 1, { base: 'Crew Pod Kit', color: 0xA8A0C8, price: 300, blurb: 'A bunk with opinions. Adds one crew pod.' })),
   // creature treats + snack combos
-  R('creature-treat', 'Creature Treat', '~fries infusion:any', FOOD('Creature Treat', 0xFFB06C, 40, E(60, {}, { treat: 1 }), { count: 2, blurb: 'Creatures will follow you home for this.' })),
+  R('creature-treat', 'Creature Treat', '~fries infusion:any', FOOD('Creature Treat', 0xFFB06C, 16, E(60, {}, { treat: 1 }), { count: 2, blurb: 'Creatures will follow you home for this.' })),
   R('creature-treat-salt', 'Salted Creature Treat', '~seasoning-salt jerky', FOOD('Salted Creature Treat', 0xE8C8A8, 55, E(60, {}, { treat: 2 }), { count: 2, blurb: 'Jerky, salted twice. Very good boy.' })),
   R('salted-fries', 'Salted Fries', '~fries out:seasoning-salt', FOOD('Salted Fries', 0xF4C84A, 30, E(120, { chroma: 0.2 }, { speed: 1.1 }), { kind: 'fries', blurb: 'Fries with the salt put back on purpose.' })),
   R('combo-meal', 'Combo Meal', '~food drink snack', FOOD('Combo Meal', 0xFFB84A, 60, E(150, { contrast: 0.2 }, { speed: 1.1, jump: 1.1 }), { blurb: 'The number three, no substitutions.' })),
@@ -338,7 +338,7 @@ const NEW = [
   R('alloy-ingot', 'Alloy Ingot', '~res:ore res:ore res:ore', REF('Alloy Ingot', 0xFFB030, 110, 'Ore that finally made up its mind.', 'bar')),
   R('cryo-cell', 'Cryo Cell', '~res:ice res:ice res:crystal', REF('Cryo Cell', 0x7ACBFF, 120, 'A cold battery. Hold with mittens.', 'energy')),
   R('spore-paste', 'Spore Paste', '~res:spore res:spore res:plant', REF('Spore Paste', 0xE080FF, 100, 'Do not inhale. Or do. Paste is fine either way.')),
-  R('fries-seasoning', 'Fries Seasoning', '~out:seasoning-salt res:plant', FOOD('Fries Seasoning', 0xFFD25A, 60, E(180, { chroma: 0.3, contrast: 0.15 }, { speed: 1.2, jump: 1.15 }), { tier: 1, count: 2, hint: 'bag', tags: ['seasoning'], blurb: 'Salt and green stuff. Fries will never be the same.' })),
+  R('fries-seasoning', 'Fries Seasoning', '~out:seasoning-salt res:plant', FOOD('Fries Seasoning', 0xFFD25A, 30, E(180, { chroma: 0.3, contrast: 0.15 }, { speed: 1.2, jump: 1.15 }), { tier: 1, count: 2, hint: 'bag', tags: ['seasoning'], blurb: 'Salt and green stuff. Fries will never be the same.' })),
   // alternate kit recipes from refined materials
   R('scope-refined', 'Crystal Scope', '~out:crystal-lens out:crystal-lens', MOD('scope', { range: 0.35, spread: -0.2 }, { base: 'Crystal Scope', price: 300 })),
   R('coil-refined', 'Spore Coil', '~out:alloy-ingot out:spore-paste', MOD('coil', { dmg: 0.3 }, { base: 'Spore Coil', price: 320 })),
