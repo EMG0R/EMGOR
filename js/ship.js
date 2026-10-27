@@ -6970,12 +6970,23 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.face.copy(r27C).applyQuaternion(land.node.mesh.quaternion);
         e.sdir.copy(e.dir); e.shr = e.hr; e.remote = !mobIsHost(); gndPlace(e); return e;
     }
+    function mobInsideOp(w) {      // world point inside any structure box (same op-local transform as hasLineOfSight)
+        losQ.copy(land.node.mesh.quaternion).invert();
+        losA.copy(w).sub(land.node.anchor.position).applyQuaternion(losQ);
+        for (var oi = 0; oi < opList.length; oi++) {
+            var o = opList[oi]; losC.copy(losA).applyMatrix4(o.inv);
+            for (var bi = 0; bi < 2; bi++) { var arr = bi ? o.b : o.a; if (!arr) continue; for (var j = 0; j < arr.length; j++) { var q = arr[j]; if (losC.x > q.min.x - 0.3 && losC.x < q.max.x + 0.3 && losC.y > q.min.y - 0.3 && losC.y < q.max.y + 0.3 && losC.z > q.min.z - 0.3 && losC.z < q.max.z + 0.3) return true; } }
+        }
+        return false;
+    }
     function mobSpawnAt(kind, distH, ang) {      // distH in human heights from the player along bearing ang (rad, 0 = forward)
         var R = ps.radius || 1, Hw = hwU(), dir0 = snA.copy(hum.pos).normalize(), f = snB.copy(hum.hf), r = snC.crossVectors(f, dir0).normalize();
         snD.copy(f).multiplyScalar(Math.cos(ang)).addScaledVector(r, Math.sin(ang));
         var dir = new THREE.Vector3().copy(dir0).addScaledVector(snD, distH * Hw / R).normalize();
         if (!ps.landLocal(dir.x, dir.y, dir.z)) return null;
-        var e = mobMake(kind, hash25(MB.planet + ':' + (MB.nid + 1)), dir); if (e) MB.stats.spawned++; return e;
+        var e = mobMake(kind, hash25(MB.planet + ':' + (MB.nid + 1)), dir);
+        if (e && opList.length && land.node && gmode === 'foot' && mobInsideOp(e.w)) { gndFree(e); return null; }      // PF2: never spawn inside a store / house / pad box
+        if (e) MB.stats.spawned++; return e;
     }
     function mobSpawnTick(dt) {
         MB.spawnT -= dt; if (MB.spawnT > 0) return; MB.spawnT = 1;
