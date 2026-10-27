@@ -10,6 +10,7 @@
    Client-authoritative, relay is a dumb fan-out. With nobody else online (or the
    relay unreachable) the game is the single-player game: no waits, no HUD errors. */
 import { roomKey } from './ship-keys.js';
+import { cleanPose, cleanName, cleanColor, cleanFire } from './ship-net-validate.js';
 
 const PROD_URL = 'wss://gorcave.taila85593.ts.net/nmg';
 const LOCAL_URL = 'ws://127.0.0.1:8796';
@@ -117,7 +118,7 @@ export function connect(engine, hooks) {
         if (g.label.parentNode) g.label.parentNode.removeChild(g.label);
     }
     function applyLook(g, rec) {
-        var nm = rec.name || g.name || 'PILOT';
+        var nm = cleanName(rec.name, g.name || 'PILOT');
         if (typeof rec.style === 'string') setGhostStyle(g, rec.style.slice(0, 16));
         if (typeof rec.hs === 'string' && rec.hs !== (g.hs || '') && hooks.buildGhost) {      // rev 26: the sender's upgraded hull
             g.hs = rec.hs;
@@ -127,8 +128,9 @@ export function connect(engine, hooks) {
             } catch (e) { /* keep the current hull */ }
         }
         if (nm !== g.name) { g.name = nm; g.nameEl.textContent = nm; }
-        if (rec.color != null && rec.color !== g.color) {
-            g.color = rec.color;
+        var rc = cleanColor(rec.color);
+        if (rc != null && rc !== g.color) {
+            g.color = rc;
             if (g.hull) { try { hooks.tint(g.hull, g.color); } catch (e) { /* keep default livery */ } }
             g.glow.material.color.setHex(g.color);
             g.label.style.color = hex6(g.color); g.label.style.borderColor = hex6(g.color) + '66';
@@ -348,7 +350,7 @@ export function connect(engine, hooks) {
                     if (!g) { g = makeGhost(r); ghosts.set(r.id, g); }
                     applyLook(g, r);
                     g.s = r.s === 'piloting' ? 'piloting' : (r.s === 'away' ? 'away' : 'docked');
-                    if (g.s === 'piloting' && typeof r.x === 'number' && !g.samples.length) pushSample(g, r, now);
+                    var rp = g.s === 'piloting' ? cleanPose(r) : null; if (rp && !g.samples.length) pushSample(g, rp, now);
                     if (g.s !== 'piloting') { g.samples.length = 0; g.fsamples.length = 0; g.mode = 'fly'; }
                 }
                 ghosts.forEach(function (gg, gid) { if (!seen[gid]) { disposeGhost(gg); ghosts.delete(gid); } });
@@ -372,7 +374,8 @@ export function connect(engine, hooks) {
                 if (pf) m = { t: m.t, id: m.id, x: m.lx, y: m.ly, z: m.lz, qx: m.lqx, qy: m.lqy, qz: m.lqz, qw: m.lqw, v: 0, st: m.st, hp: m.hp, mode: m.mode, style: m.style };
                 g.mode = m.mode === 'foot' ? 'foot' : (m.mode === 'landed' ? 'landed' : 'fly');
                 if (g.mode === 'foot') setGhostStyle(g, typeof m.style === 'string' ? m.style.slice(0, 16) : '');
-                if (g.mode === 'foot') pushFoot(g, m, now); else { g.fsamples.length = 0; pushSample(g, m, now); }
+                var cp = cleanPose(m); if (!cp) break;      // PF2: NaN / string / huge pose from a peer never reaches the interpolator
+                if (g.mode === 'foot') pushFoot(g, cp, now); else { g.fsamples.length = 0; pushSample(g, cp, now); }
                 break;
             case 'chat':
                 if (typeof m.text === 'string' && hooks.onChat) hooks.onChat(String(m.from || 'PILOT').slice(0, 24), m.text.slice(0, 200));
@@ -385,7 +388,7 @@ export function connect(engine, hooks) {
                 if (g) { disposeGhost(g); ghosts.delete(m.id); rebuildSorted(); }
                 break;
             case 'fire':
-                if (m.id !== id && hooks.onRemoteFire) hooks.onRemoteFire(m.id, m.w | 0, m.x, m.y, m.z, m.dx, m.dy, m.dz);
+                var cf = cleanFire(m); if (m.id !== id && cf && hooks.onRemoteFire) hooks.onRemoteFire(m.id, cf.w, cf.x, cf.y, cf.z, cf.dx, cf.dy, cf.dz);
                 break;
             case 'kill':
                 if (m.id !== id && hooks.onKill) {
