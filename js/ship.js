@@ -7172,7 +7172,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function hubSave() {
         if (!HB.hub || !HB.nid) return; var pf = curProfile() || ensureProfile(userName()); if (!curUser) curUser = userName();
-        if (!pf.hubs) pf.hubs = {}; pf.hubs[HB.nid] = HB.hub.serialize(); var ks = Object.keys(pf.hubs); if (ks.length > 24) delete pf.hubs[ks[0]];
+        if (!pf.hubs) pf.hubs = {}; putRecent(pf.hubs, HB.nid, HB.hub.serialize(), 24);
         writeSave();
     }
     function hubTick(dt) {
@@ -7380,7 +7380,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function villageDispose() { if (VG.v) { try { VG.v.dispose(); } catch (e0) { /* ignore */ } } VG.v = null; VG.node = null; VG.fail = false; }
     function villageSave() {
         if (!VG.v || !VG.nid) return; var pf = curProfile() || ensureProfile(userName()); if (!curUser) curUser = userName();
-        if (!pf.vill) pf.vill = {}; pf.vill[VG.nid] = VG.v.serialize(); var ks = Object.keys(pf.vill); if (ks.length > 24) delete pf.vill[ks[0]];
+        if (!pf.vill) pf.vill = {}; putRecent(pf.vill, VG.nid, VG.v.serialize(), 24);
         writeSave();
     }
     function villageNight() { return VG.nightForce >= 0 ? VG.nightForce : (land.node && VG.v ? nightAt(land.node, locToWorld(VG.v.anchor.pos, vgA)) : 0); }
