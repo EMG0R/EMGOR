@@ -6080,12 +6080,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var sk0 = CRF.stackKeyOf(it), bpNew = !!(it.tags && it.tags.indexOf('bp') >= 0 && !pf.items.some(function (q) { return q.id === sk0; }));
         if (bpNew) setTimeout(function () { r28BpGiven(it); }, 0);
         for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; if (r.id === sk0 && !!r.d === !!it.dealer) { r.n = Math.min(9999, r.n + n); return r; } }
+        if (pf.items.length >= 400) { addRow('', '', 'BAG FULL · ' + String(it.name || 'ITEM').toUpperCase() + ' LEFT BEHIND', 'is-sys'); return null; }      // never shift() an old stack away
         r = { id: sk0, seed: (it.seed >>> 0) || 0, n: n, d: it.dealer ? 1 : 0 };
         if (it.kind === 'part' || it.kind === 'material' || it.category || it.pet || it.stackKey) r.it = JSON.parse(JSON.stringify(it));
         pf.items.push(r); if (!r.it) itemCache[it.id + (it.dealer ? 'd' : '')] = it;
-        if (pf.items.length > 400) pf.items.shift();
         return r;
     }
+    function bagRoom(it) { var pf = ensureProfile(userName()), k = CRF.stackKeyOf(it), i; if (pf.items.length < 400) return true; for (i = 0; i < pf.items.length; i++) if (pf.items[i].id === k && !!pf.items[i].d === !!it.dealer) return true; return false; }
     var knownSet = null, knownPf = null;
     function knownFor() {                       // the profile's learned lingo words as ONE Set shared with the world's NPCs
         var pf = ensureProfile(userName());
@@ -6566,6 +6567,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             aPlay('ui', { vel: 0.4 }); invFill(); invTip(s);
         } else if (s.getAttribute('data-o') != null) {
             var res = craftCells.matchRes; if (!res) return;
+            if (!bagRoom(res.output)) { addRow('', '', 'BAG FULL', 'is-sys'); return; }
             for (i = 0; i < res.consumes.length; i++) { c = craftGrid[res.consumes[i]]; if (!c) continue; takeKey(c.key, 1); c.n--; if (c.n <= 0) craftGrid[res.consumes[i]] = null; }
             if (!curUser) curUser = userName();
             giveItem(res.output, res.count);
@@ -8202,11 +8204,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         if (row.k === 'deal') {
             if ((pf.gor | 0) < row.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+            if (!row.deal.items.every(bagRoom)) { shopMsg('BAG FULL', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
             pf.gor -= row.price; row.deal.items.forEach(function (x) { giveItem(x, 1); });
             aPlay('buy'); shopMsg('BOUGHT THE COMBO'); writeSave(); shopFill(); return;
         }
         if (row.k === 'i') {
             if ((pf.gor | 0) < row.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+            if (!bagRoom(row.item)) { shopMsg('BAG FULL', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
             pf.gor -= row.price; giveItem(row.item, 1);
             aPlay('buy'); shopMsg('BOUGHT ' + row.item.name); writeSave();
             learnWords(1 + Math.floor(Math.random() * 3));
@@ -8767,6 +8771,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (row.k === 'tb') {
             var s = t.sells[row.i]; if (!s || s.n <= 0) return;
             if ((pf.gor | 0) < s.price) { shopMsg('NOT ENOUGH gorCoin', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
+            if (!bagRoom(s.item)) { shopMsg('BAG FULL', true); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
             pf.gor -= s.price; giveItem(s.item, 1); s.n--; if (s.n <= 0) t.sells.splice(row.i, 1);
             aPlay('buy'); shopMsg('BOUGHT ' + s.item.name); tradeSaveStock(); writeSave(); shopFill(); return;
         }
