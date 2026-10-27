@@ -8595,7 +8595,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var si = stationInteract();
         if (si.kind === 'store') openStore(si.obj);
         else if (si.kind === 'cvs') cvsUse(si.obj);
-        else if (si.kind === 'trade') openTrade(si.obj, 'STATION TRADE', 'TRADER', null);
+        else if (si.kind === 'trade') { if (si.obj.refresh && Math.floor(Date.now() / 864e5) !== si.obj.day) si.obj.refresh(); openTrade(si.obj, 'STATION TRADE', 'TRADER', null); }      // roll the stock over at UTC midnight
         else if (si.kind === 'shipyard') openShipyard();
         else if (si.kind === 'loot') dkLoot(si.obj);
         else if (si.kind === 'npc') {
