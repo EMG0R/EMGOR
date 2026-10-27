@@ -224,3 +224,52 @@ OPEN RISKS:
 - Mouse look still turns the camera while the T radial is open.
 - Depth: ps rock slots are not stable across tiers; use rockId for microSpec. Q17b3 needs an attended session (suggested split a/b/c in its log entry). Q18 needs footState migration first (candidates in its log entry).
 OPEN: queue has no unchecked items left.
+
+## PLAYTEST-FIX-1 — 2026-10-27 — gorcave playtest agents
+Six read-only playtest agents (structures, reference, npc, combat, economy, flight) traced faults; two builders fixed them on gorcave-backlog. Baseline 61 node tests, now 69 pass / 0 fail, `tools/banned-names.sh` clean after every commit.
+
+DONE, builder 1 (9 commits): 033d192 room-id hashing over 24 chars; 83993f4 station deck pose save/restore; 5c7da85 hub interior pose never saved as foot pose; 247859b hub/village save eviction keeps the key just written; 048bdb9 Esc on result card cannot shorten rematch cooldown; 1d17bf7 station trade stock rolls at UTC midnight; d72bd93 village stock saved at purchase; e4bd684 revived/changed active mon replaces mismatched follower; 4715e4a U manager foot-only.
+
+DONE, builder 2 (17 commits, newest first):
+- 0bfcbcf wall kick needs ctx.wallH >= 1 H (ship.js wRiseH -> hum.wallH -> c.wallH; ship-styles.js maro)
+- f39f739 human.update reads flip/flipKind/pitch/crouch (ship-human.js)
+- 85aea1e PKP.trimMons: >200 catches drops unused mons first, no dangling party/pen ids (test added)
+- 8ab61b8 hasLineOfSight(a,b): one segment vs the objPush boxes (opList); used by zomby melee, skelly fire, kreeper blast, mob bolt travel, foot fire. Foot fire also reads stats.range (x0.5, starter stays 60 L)
+- 1bfb463 discClaim keyed per profile, announces only fresh discoveries; writeSave copies depthStack only for the profile it was loaded for (depthOwner)
+- 91cf8eb clerk fight names the clerk; first F survives fight-module load; T/F onboarding hint fires near villagers
+- d82f42a onboarding SHOP step completes while store open; NPC marker dots rank apart from POIs; hint bar/HELP say HOLD ESC; holding W with throttle > 0.25 skips the low-altitude auto-damp
+- 169566d taming bait: treat first, then cheapest fries
+- 4c8b3c2 craft grid rejects blueprint/ball/pokemans; SELL tab omits pokemans stacks
+- 46351f1 scope-bolt, coil-bolt, creature-treat-salt craftable (out:/base: tokens; test added)
+- bb7a8da Seasoning Salt 18->10 (sells 5 x3 = 15 < two 8-coin fries), fries-seasoning 60->30, creature-treat 40->16; recipes kept
+- 349c0b9 full bag (400 stacks) refuses the new stack, "BAG FULL"; shop/combo/trade/craft check bagRoom before charging or consuming
+- 66fa133 crafted fries run their timed effect (glow kept only if e.glow or no timed effect)
+- ae91d05 suitOf reads upgrades['suit-<slot>']; applyUpgrade caps shield/engine/cargo/jetpack at 5, suit kits at 3, maxed kit refused not consumed (test added)
+- 4fcdf9a smash: landing out of an inhale releases the victim; held state self-releases if holder no longer holds
+- b2904d6 punch skips held creatures, gbTick ends if target died mid-shake; catchChance NaN hp = full hp (test added)
+Totals: 26 fixed (9 + 17 commits; some commits cover 2-4 faults).
+
+REJECTED as not real: none. Every cited site was confirmed, except the following that were already fixed by builder 1 and not redone: U-manager (npc F3), revived follower (npc F1), Esc cooldown (npc F2), room hash (reference F1).
+
+DEFERRED, with reason:
+- nmg-site layout lives in localStorage (structures 6): design item, needs per-profile siteDir plus relay agreement on `prefer`; not contained.
+- Follower bites (combat 4): design (bite is synthetic by intent in Q13); no code change.
+- Foot weapon specials pierce/chain/burn/homing/split (combat 3): only range is applied; specials need mobHurt follow-up design.
+- Pokemans inventory icon still carries a stale `mon` copy and release leaves an orphan icon (economy 6): only the sell hole is closed. Cleanest fix is not giving an inventory stack for mons.
+- Other craft-loop candidates: treat-* items sell ~22 each from gathered resources (no coin input), left alone.
+- All "suspected, unverified" lists skipped by instruction.
+
+TESTS: node --check ship.js, ship-human.js, ship-styles.js (copied to .mjs) ok; `node --test tests/node` 69 pass / 0 fail; banned-names clean. New tests: tests/node/upgrade-cap.test.mjs (caps + 3 recipes), gorball catchChance NaN, pokemans-party2 trimMons. hasLineOfSight, bag-full paths, fx, flight and onboarding changes live in the ship.js closure and have no node test (browser-only).
+
+VERIFY ON MAC:
+1. Walls: stand behind a village/outpost/CVS wall at night near a skelly, zomby, kreeper; no damage through the wall, bolts stop at the wall. Fire a foot weapon at a mob behind a wall: no hit. Confirm hasLineOfSight does not block in the open or from inside a store (box floors/ceilings) and costs no frame time with many mobs.
+2. Punch a creature while its GOR BALL shakes: no kill reward plus catch; throw a ball, kill it mid-shake: shake ends.
+3. MARO: triple jump front flip, backflip, skid flip rotate once; dive and belly slide tip face-down; crouch wind-up for long jump/backflip. Wall kick only on walls >= 1 H, not on curbs/stairs.
+4. Smash: sparklet vs jelly airborne inhale landing early; the victim is released.
+5. Crafted suit kit (Scanner/Sprint/Storage/Jetpack T1) changes the suit; ship upgrade past 5 shows MAXED and keeps the kit. Eat Salted/Golden Fries: speed effect runs. Craft scope-bolt, coil-bolt, creature-treat-salt. Craft grid refuses blueprint/ball/pokemans.
+6. Fill 400 stacks, buy or craft a new kind: BAG FULL, coins and inputs untouched.
+7. New profile: SHOP onboarding step clears after opening a 7/11; hints near villagers; markers visible in a crowded village; hint bar reads HOLD ESC; hold W low over land: ship no longer pinned.
+8. Clerk fight card shows the clerk name; first F in a session needs only the confirm F afterwards.
+9. Relay offline: reload and land on a known planet, no DISCOVERED row; /user switch then discovery records for the new profile.
+
+OPEN RISKS: foot fire range changed meaning (st.range*0.5, so a 168 range weapon now reaches 84 L, a 72 range 36 L); LOS uses chest-height points and structure boxes only (terrain and the parked hull do not block); craft-grid blacklist is by kind, not a whitelist; salt/treat prices are tuned by inspection, not measured against live fries pricing or friesSale (fries free during a sale still makes salt a small free-coin source of ~15 per cycle); wall-kick gating depends on `rise` being in the same units as H.
