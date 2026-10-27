@@ -78,7 +78,7 @@ function maro(env) {
     else if (s.mode === M_BELLY) { vy = J * 0.9; kind = 7; s.chain = 0; }                                                                                  // [doc] hop out of belly slide
     else if (s.mode === M_SLIDE) { vy = J; kind = 1; s.chain = 0; }
     else {
-      let c = (s.landAge < 0.4 && s.chain > 0 && hs > 0.35 * W) ? s.chain + 1 : 1;                                                                           // [doc] ~0.4 s window, must be moving
+      let c = (s.landAge <= MARO_K.CHAIN && s.chain > 0 && hs >= MARO_K.CHAIN_MIN * (RUN / MARO_K.MAX)) ? s.chain + 1 : 1;                                                                           // [doc] ~0.4 s window, must be moving
       if (c >= 3 && hs < 0.6 * W) c = 2; if (c > 3) c = 1;
       s.chain = c; vy = J * CHAIN_V[c - 1]; kind = c; if (c >= 2) { s.flipKind = 1; s.flipT = 0; }
     }
@@ -95,7 +95,7 @@ function maro(env) {
     if (grounded && !s.was) {                                         // touchdown
       s.landAge = 0; s.ctrl = 1;
       if (s.mode === M_DIVE) { s.mode = M_BELLY; s.chain = 0; }
-      else if (s.mode === M_POUND) { const e = fx.emit('pound'); e.dmg = 12; e.r = 2; s.stun = 0.3; s.vx = s.vz = 0; s.mode = M_G; s.chain = 0; }   // [doc/plan] 12 dmg, 2 H radius
+      else if (s.mode === M_POUND) { const e = fx.emit('pound'); e.dmg = MARO_K.POUND_DMG; e.r = MARO_K.POUND_R; s.stun = MARO_K.POUND_REC; s.vx = s.vz = 0; s.mode = M_G; s.chain = 0; }   // [doc/plan] 12 dmg, 2 H radius
       else { s.mode = M_G; const e = fx.emit('land'); e.v = -s.vy; }
       s.vy = 0;
     } else if (!grounded && s.was && s.mode !== M_AIR && s.mode < M_DIVE) { s.mode = M_AIR; s.coyote = 0.08; }
@@ -114,8 +114,8 @@ function maro(env) {
           else { const tx = io.wx * top * io.m, tz = io.wz * top * io.m; approach(s, tx, tz, (tx * tx + tz * tz < hs * hs) ? 2 * A : A, dt); turn(s, io, dt, 16); }
         } else brake(s, 2 * A, dt);
         if (io.LP && s.punchCd <= 0 && s.stun <= 0) {                // jab-jab-kick 6/6/10 [plan]
-          s.combo = s.comboT > 0 ? (s.combo % 3) + 1 : 1; s.comboT = 0.5; s.punchCd = 0.2;
-          const e = fx.emit('melee'); e.n = s.combo; e.dmg = s.combo === 3 ? 10 : 6; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); e.r = 0.9;
+          s.combo = s.comboT > 0 ? (s.combo % 3) + 1 : 1; s.comboT = MARO_K.PUNCH_WIN; s.punchCd = 0.12;
+          const e = fx.emit('melee'); e.n = s.combo; e.dmg = MARO_K.PUNCH_DMG[s.combo - 1]; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); e.r = MARO_K.PUNCH_R;
         }
         if (io.crouch) s.chain = 0;
       } else if (s.mode === M_SLIDE) {
@@ -457,7 +457,7 @@ const SKINS = {
   SONIK: { color: 0xFFC93C, suit: { jetpack: 0, scanner: 1, sprint: 3, storage: 0 }, role: null,    rig: { headShape: 'round', headScale: 1, torso: 'slim', limbLen: { arm: 1, leg: 1.35 }, limbShape: 'cyl', feet: 'big', quills: 5, eyeStyle: 'visor' } },          // quilled runner, pointed visor, gold + violet
 };
 // Q08: MARO action table part 1 — pure, allocation-free state machine in TRUE human heights (H) per docs/next-stage-plan.md §C (SM64 community constants x0.1875 speed / x5.625 accel).
-// NOT yet driving maro() (that still runs the env-scaled prototype above); part 2 (Q09) completes the table, then maro() is switched over and tuned on the Mac.
+// maro() reads these constants for: chain window + min speed, pound radius/damage/recovery, punch combo window/damage/radius (CONSISTENCY-1). The rest of the table (wall kick, dive, ledge, slide, bonk) still runs the env-scaled prototype; maroTable() remains the tested reference.
 // Ground-only states here: idle walk run skid crouch crawl jump1 jump2 jump3 longjump backflip sideflip. Wall/dive/pound/ledge/slide/bonk/punch arrive in Q09.
 export const MARO_K = {
   G: 22.5, V1: 7.9, V2: 9.75, V3: 12.9, CHAIN: 0.17, ACC: 6.2, MAX: 6.0, SKID: 11, SKID_MIN: 3.0, SKID_COS: 0, DECEL: 9,   // SKID_COS: skid when cos(turn) < 0 (> 90 deg)

@@ -6947,6 +6947,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 styStats.eggs++; aPlay('ui', { vel: 0.6, pitch: 1.4 });
             } else if (e.type === 'blockPlace') { if (bkPlace(e.x | 0, e.y | 0, e.z | 0, e.tag)) { styStats.placed++; aPlay('ui', { vel: 0.5 }); } }
             else if (e.type === 'blockBreak') { if (bkBreak(e.x | 0, e.y | 0, e.z | 0)) { styStats.broke++; aPlay('hit', { pitch: 1.2, vel: 0.4 }); } }
+            else if (e.type === 'melee') { punch(e.dmg, true); }
             else if (e.type === 'tongue') tongueGrab(Math.min(3, e.r || 3));
             else if (e.type === 'craft') { R25.sty = true; if (!invOpen) openInv(); }
             else if (e.type === 'pound' || e.type === 'groundpound') { aPlay('hit', { pitch: 0.3, vel: 0.8 }); shake = Math.max(shake, 0.05 * L); styStats.poundHits += mobAoe(hum.w, (e.r || 2), e.dmg || 12); }
@@ -7042,25 +7043,35 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         else if (e.lastBy) mobEv({ k: 'k', i: e.mid, b: e.lastBy, d: drops.map(function (d) { return [d.id, d.n]; }) });
         gndFree(e); writeSave();
     }
-    function mobAoe(wpos, rH, dmg) { var n = 0, Hw = hwU(); R27.gnd.slice().forEach(function (e) { if (e.alive && e.mob && e.w.distanceTo(wpos) < rH * Hw + e.cr.hitR * GM * L) { mobHurt(e, dmg, 'me'); n++; } }); return n; }
-    function mobNearHurt(dmg, rH) { var best = null, bd = 1e9, Hw = hwU(); R27.gnd.forEach(function (e) { var d = e.w.distanceTo(hum.w); if (e.alive && e.mob && d < bd) { bd = d; best = e; } }); if (best && bd < rH * Hw * 3) mobHurt(best, dmg, 'me'); }
+    function mobAoe(wpos, rH, dmg) { var n = 0, Hw = hwU(); R27.gnd.slice().forEach(function (e) { if (e.alive && e.mob && e.w.distanceTo(wpos) < rH * Hw + e.cr.hitR * GM * L && losMelee(wpos, e.w)) { mobHurt(e, dmg, 'me'); n++; } }); return n; }
+    function mobNearHurt(dmg, rH) { var best = null, bd = 1e9, Hw = hwU(); R27.gnd.forEach(function (e) { var d = e.w.distanceTo(hum.w); if (e.alive && e.mob && d < bd) { bd = d; best = e; } }); if (best && bd < rH * Hw * 3 && losMelee(hum.w, best.w)) mobHurt(best, dmg, 'me'); }
     var punchCd = 0;
-    function punch() {
-        if (punchCd > 0 || !hum.obj || cmdOpen) return; punchCd = 0.35; var Hw = hwU(), hit = 0;
+    // consistency: one LOS rule for melee / AoE / follower / tame / harvest, same function the ranged paths use. From the attacker's chest (0.8 H up) to the target centre;
+    // always allowed inside 1.5 H so a doorway frame or thin wall edge cannot false-negative a point-blank hit.
+    var losU = new THREE.Vector3(), losFrom = new THREE.Vector3();
+    function losMelee(from, to) {
+        var Hw = hwU(); if (from.distanceTo(to) < 1.5 * Hw) return true;
+        if (!land.node) return true;
+        losU.copy(from).sub(land.node.anchor.position).normalize();
+        losFrom.copy(from).addScaledVector(losU, 0.8 * Hw);
+        return hasLineOfSight(losFrom, to);
+    }
+    function punch(dmg, fromStyle) {
+        if ((punchCd > 0 && !fromStyle) || !hum.obj || cmdOpen) return; if (!fromStyle) punchCd = 0.35; dmg = dmg > 0 ? dmg : 6; var Hw = hwU(), hit = 0;
         gA.copy(hum.hf).applyQuaternion(land.node.mesh.quaternion);
         R27.gnd.slice().forEach(function (e) {
-            if (!e.alive || e.held) return; snC.subVectors(e.w, hum.w); var d = snC.length(); if (d > 2.2 * Hw + e.cr.hitR * GM * L || snC.divideScalar(d || 1).dot(gA) < 0.3) return;
-            if (e.mob) mobHurt(e, 6, 'me'); else { e.hp -= 6; e.hitF = 1; if (e.hp <= 0) gndKill(e); }
+            if (!e.alive || e.held) return; snC.subVectors(e.w, hum.w); var d = snC.length(); if (d > 2.2 * Hw + e.cr.hitR * GM * L || snC.divideScalar(d || 1).dot(gA) < 0.3 || !losMelee(hum.w, e.w)) return;
+            if (e.mob) mobHurt(e, dmg, 'me'); else { e.hp -= dmg; e.hitF = 1; if (e.hp <= 0) gndKill(e); }
             fx.impact(e.w, 0xffd36a, 1, 'hit'); hit++;
         });
-        if (VG.v) { var vp = VG.v.punchHit(hum.pos, hum.hf, 2.2 * Hw, 6); if (vp) { hit++; fx.impact(hum.w, vp.type === 'golum' ? 0xb070ff : 0xffd36a, 1, 'hit'); } }      // villagers flinch + the golums answer; golums are tough
+        if (VG.v) { var vp = VG.v.punchHit(hum.pos, hum.hf, 2.2 * Hw, dmg); if (vp) { hit++; fx.impact(hum.w, vp.type === 'golum' ? 0xb070ff : 0xffd36a, 1, 'hit'); } }      // villagers flinch + the golums answer; golums are tough
         aPlay(hit ? 'hit' : 'ui', { vel: 0.5, pitch: hit ? 1 : 0.8 });
     }
     function tongueGrab(rH) {
         var Hw = hwU(), best = null, bd = rH * Hw, kind = '', i, c, d;
-        for (i = 0; i < R27.gnd.length; i++) { c = R27.gnd[i]; if (!c.alive || !c.mob) continue; d = c.w.distanceTo(hum.w); if (d < bd) { bd = d; best = c; kind = 'mob'; } }
+        for (i = 0; i < R27.gnd.length; i++) { c = R27.gnd[i]; if (!c.alive || !c.mob) continue; d = c.w.distanceTo(hum.w); if (d < bd && losMelee(hum.w, c.w)) { bd = d; best = c; kind = 'mob'; } }
         var cl = (ps && ps.creatures) ? ps.creatures() : [], cb = null;
-        for (i = 0; i < cl.length; i++) { c = cl[i]; if (!c.pos) continue; d = c.pos.distanceTo(hum.w); if (d < bd) { bd = d; cb = c; best = null; kind = 'creature'; } }
+        for (i = 0; i < cl.length; i++) { c = cl[i]; if (!c.pos) continue; d = c.pos.distanceTo(hum.w); if (d < bd && losMelee(hum.w, c.pos)) { bd = d; cb = c; best = null; kind = 'creature'; } }
         if (!kind) return false;
         styStats.tongue++;
         if (kind === 'mob') { var dr = []; try { dr = ENM.mobDrops(best.mob, Math.random) || []; } catch (e0) { dr = []; } dr.forEach(function (x) { mobGive(x.id, x.n); }); fx.impact(best.w, 0x9cffd0, 1.5, 'hit'); gndFree(best); MB.stats.killed++; }
@@ -7138,7 +7149,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 if (looked) { e.burnT += st.stare.dps * dt; if (e.burnT >= 1) { e.burnT -= 1; footHurt(1); } }
                 if (e.tpT > st.teleport.every && dH > 6) { e.tpT = 0; mobTeleport(e, tw, st.teleport.min * 0.4, st.teleport.max * 0.4); }
                 if (dm > 2.6) moving = mobMoveDir(e, r27C, sp * 1.4);
-                else if (e.cd <= 0) { e.cd = 1.2; if (me) footHurt(7); else mobEv({ k: 'a', i: e.mid, d: 7, r: 3.4 }); aPlay('hit', { dist: aDist(e.w), pitch: 0.5, vel: 0.5 }); }
+                else if (e.cd <= 0) { e.cd = 1.2; if (me && !mobSees(e)) { /* no line of sight: the claw misses, same as zomby */ } else if (me) footHurt(7); else mobEv({ k: 'a', i: e.mid, d: 7, r: 3.4 }); aPlay('hit', { dist: aDist(e.w), pitch: 0.5, vel: 0.5 }); }
             }
         }
         cr.setSpeed(moving ? st.speed : 0); e.mvd = moving;
@@ -9396,6 +9407,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         bd = (16 * H) * (16 * H); PT.tgt = null;
         for (i = 0; i < R27.gnd.length; i++) { e = R27.gnd[i]; if (!e.alive || !e.mob || e.remote) continue; live++; d = e.w.distanceToSquared(f.pp); if (d < bd) { bd = d; PT.tgt = e; } }
         if (live) { PT.bat = 1; PT.calm = 0; } else { PT.calm += dt; }
+        if (PT.tgt && !losMelee(f.pp, PT.tgt.w)) PT.tgt = null;      // the follower fights through doorways, not walls
         e = PT.tgt;
         if (e && PT.poof <= 0) {
             PT.foe.def = 25 + 8 * (e.cr.tier || 1); if (PT.forced >= 0) PT.fAge += dt;
