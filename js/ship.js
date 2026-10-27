@@ -1657,6 +1657,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             a = k * 0.7854 + 0.3; q.copy(d0).addScaledVector(e1, Math.cos(a) * ang).addScaledVector(e2, Math.sin(a) * ang).normalize();
             try { if (ps.landLocal && !ps.landLocal(q.x * R, q.y * R, q.z * R)) continue; fl = ps.floorLocal(q.x, q.y, q.z); } catch (e1x) { continue; }
             if (!isFinite(fl) || fl <= 0) continue;
+            if ((SITE.vill && q.distanceToSquared(SITE.villPos.clone().normalize()) * R * R < 900 * L * L) || (SITE.hubOk && q.distanceToSquared(SITE.hubPos.clone().normalize()) * R * R < 900 * L * L)) continue;      // PF2: on a small planet the 60 L heading can land on the village / hub pad; take the next heading (30 L clearance)
             SITE.cvsDir.copy(q); SITE.cvsPos.copy(q).multiplyScalar(fl); SITE.cvsOk = true; break;
         }
         if (!SITE.cvsOk) return;
