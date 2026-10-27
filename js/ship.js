@@ -7125,11 +7125,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         });
         if (net.plSnap(MB.planet, { n: ++MB.seq, m: m.slice(0, 24) })) MB.stats.snapsOut++;
     }
+    function peerNums(a, from, to, lim) { for (var i = from; i <= to; i++) if (typeof a[i] !== 'number' || !isFinite(a[i]) || Math.abs(a[i]) > lim) return false; return true; }      // PF2: receive-boundary check for peer arrays
     function mobApplySnap(d) {
         if (!d || !Array.isArray(d.m) || !land.node || !ps || ps.active !== land.node || gmode !== 'foot') return;
         var seen = {}, ks = ENM.MOB_KINDS;
         d.m.forEach(function (a) {
-            if (!Array.isArray(a) || a.length < 11) return; var id = a[0] | 0; seen[id] = 1; MB.nid = Math.max(MB.nid, id);
+            if (!Array.isArray(a) || a.length < 11 || !peerNums(a, 2, 9, 1e7)) return; var id = a[0] | 0;      // PF2: host snapshot is untrusted
+             seen[id] = 1; MB.nid = Math.max(MB.nid, id);
             var e = null; R27.gnd.forEach(function (x) { if (x.mob && x.mid === id) e = x; });
             var v = new THREE.Vector3(a[2], a[3], a[4]), l = v.length() || 1;
             if (!e) { var nid0 = MB.nid; e = mobMake(ks[a[1]] || 'zomby', id * 7919, v.clone().normalize()); if (!e) return; MB.nid = nid0; e.mid = id; e.hr = l; e.dir.copy(v).normalize(); }
@@ -7149,9 +7151,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         } else if (m.t === 'pl.ev' && m.data) {
             var d = m.data;
             if (d.k === 'h' && mobIsHost() && Array.isArray(d.a)) d.a.forEach(function (a) { R27.gnd.slice().forEach(function (e) { if (e.mob && e.mid === (a[0] | 0)) mobHurt(e, +a[1] || 0, String(m.id || 'x')); }); });
-            else if (d.k === 'k' && net && d.b === net.id && Array.isArray(d.d)) { d.d.forEach(function (x) { mobGive(String(x[0]), x[1] | 0); }); addUnits(UNIT_KILL, hum.w, false); questEvent({ type: 'kill', n: 1 }); }
-            else if (d.k === 'x' && Array.isArray(d.p) && hum.obj) { snA.set(d.p[0], d.p[1], d.p[2]); var dH = snA.distanceTo(hum.w) / hwU(); if (dH < d.r + 0.5) footHurt(Math.round(d.b + (d.a - d.b) * clamp(1 - dH / d.r, 0, 1))); }
-            else if (d.k === 'a' && hum.obj) { R27.gnd.forEach(function (e) { if (e.mob && e.mid === (d.i | 0) && e.w.distanceTo(hum.w) / (GM * L) < d.r) footHurt(d.d | 0); }); }
+            else if (d.k === 'k' && net && d.b === net.id && Array.isArray(d.d)) { d.d.slice(0, 8).forEach(function (x) { if (Array.isArray(x)) mobGive(String(x[0]), clamp(x[1] | 0, 0, 5000)); }); addUnits(UNIT_KILL, hum.w, false); questEvent({ type: 'kill', n: 1 }); }
+            else if (d.k === 'x' && Array.isArray(d.p) && hum.obj && peerNums(d.p, 0, 2, 1e9) && typeof d.r === 'number' && d.r > 0 && peerNums([d.a, d.b], 0, 1, 1e4)) { snA.set(d.p[0], d.p[1], d.p[2]); var dH = snA.distanceTo(hum.w) / hwU(); if (dH < d.r + 0.5) footHurt(Math.round(d.b + (d.a - d.b) * clamp(1 - dH / d.r, 0, 1))); }
+            else if (d.k === 'a' && hum.obj && typeof d.r === 'number' && isFinite(d.r)) { R27.gnd.forEach(function (e) { if (e.mob && e.mid === (d.i | 0) && e.w.distanceTo(hum.w) / (GM * L) < d.r) footHurt(d.d | 0); }); }
         }
     }
     function mobFlush(dt) {
@@ -9027,6 +9029,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function gndSphere(e, out) { out.copy(e.w).addScaledVector(e.up, e.cr.stats.height * 0.5 * GM * L); return e.cr.hitR * GM * L; }
     function footHurt(dmg) {          // on-foot damage never kills: you are knocked to a sliver and the shield regrows
+        dmg = +dmg; if (!isFinite(dmg)) return; dmg = clamp(dmg, 0, 200);      // PF2: peer-sent damage could be NaN (hp became NaN)
         hp = Math.max(6, hp - dmg); sinceHit = 0; aPlay('hit', { pitch: 0.55, vel: Math.min(1, dmg / 30) });
         shake = Math.max(shake, Math.min(0.5 * L, dmg / 20 * 0.2 * L)); fovKick = Math.max(fovKick, 1.5);
     }
