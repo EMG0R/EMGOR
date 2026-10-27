@@ -9328,7 +9328,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (PT.rad.on && /^Digit[1-4]$/.test(e.code)) { e.preventDefault(); ptRadPick(+e.code.slice(5) - 1); return; }
         if (invOpen || menuOpen || storeOpen || (cmdOpen && !PT.pm)) return;
         if (PT.pm) { e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') e.__shipHandled = true; if (e.code === 'Escape' || e.code === 'KeyU') ptMgr(false); return; }
-        if (e.code === 'KeyU') { e.preventDefault(); ptMgr(true); return; }
+        if (e.code === 'KeyU') { if (gmode === 'foot') { e.preventDefault(); ptMgr(true); } return; }      // manager is a foot-mode overlay: in flight it released the pointer and left the ship uncontrolled
         if (gmode !== 'foot') return;
         if (e.code === 'Digit0') { PT.keys = !PT.keys; elParty.classList.toggle('is-keys', PT.keys); addRow('', '', PT.keys ? 'PARTY KEYS · 1-6 swap · 0 = weapons' : 'WEAPON KEYS · 1-9 hotbar', 'is-sys'); aPlay('ui', { vel: 0.4 }); return; }
         if (PT.keys && /^Digit[1-6]$/.test(e.code)) { e.preventDefault(); ptSwap(+e.code.slice(5) - 1); }
