@@ -5002,6 +5002,34 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         opList.length = n;
         return 1;     // the hull is always a solid
     }
+    // one segment (world points) against the same structure solids objPush uses (opList, rebuilt each foot frame); true when nothing solid is between them
+    var losA = new THREE.Vector3(), losB = new THREE.Vector3(), losC = new THREE.Vector3(), losD = new THREE.Vector3(), losQ = new THREE.Quaternion();
+    function losBoxes(arr) {
+        var j, q, t0, t1, lo, hi, d, a, ta, tb, ax;
+        if (!arr) return false;
+        for (j = 0; j < arr.length; j++) {
+            q = arr[j]; t0 = 0; t1 = 1;
+            for (ax = 0; ax < 3 && t0 <= t1; ax++) {
+                a = ax === 0 ? losC.x : ax === 1 ? losC.y : losC.z; d = (ax === 0 ? losD.x : ax === 1 ? losD.y : losD.z) - a;
+                lo = ax === 0 ? q.min.x : ax === 1 ? q.min.y : q.min.z; hi = ax === 0 ? q.max.x : ax === 1 ? q.max.y : q.max.z;
+                if (Math.abs(d) < 1e-9) { if (a < lo || a > hi) t0 = 2; continue; }
+                ta = (lo - a) / d; tb = (hi - a) / d; if (ta > tb) { var sw = ta; ta = tb; tb = sw; }
+                if (ta > t0) t0 = ta; if (tb < t1) t1 = tb;
+            }
+            if (t0 <= t1) return true;
+        }
+        return false;
+    }
+    function hasLineOfSight(wa, wb) {
+        if (!opList.length || !land.node || gmode !== 'foot' || HB.in) return true;
+        losQ.copy(land.node.mesh.quaternion).invert();
+        losA.copy(wa).sub(land.node.anchor.position).applyQuaternion(losQ); losB.copy(wb).sub(land.node.anchor.position).applyQuaternion(losQ);
+        for (var li = 0; li < opList.length; li++) {
+            var o = opList[li]; losC.copy(losA).applyMatrix4(o.inv); losD.copy(losB).applyMatrix4(o.inv);
+            if (losBoxes(o.a) || losBoxes(o.b)) return false;
+        }
+        return true;
+    }
     function opBoxes(arr, rs) {      // push opA (store metres) out of a box list; true if it moved
         var j, q, moved = false, cx, cy, cz, dx, dy, dz, d2, d, k, l, r, t, bb, u, dd;
         if (!arr) return false;
@@ -7017,7 +7045,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (var i = 0; i < 5; i++) fx.impact(e.w, i % 2 ? 0xffa040 : 0xfff0c0, 4, 'explode');
         aPlay('explosion', { dist: aDist(e.w), pitch: 0.7 }); shake = Math.max(shake, 0.25 * L); fovKick = Math.max(fovKick, 4);
         var dH = e.w.distanceTo(hum.w) / Hw;
-        if (dH < ex.radius + 0.5) footHurt(Math.round(ex.edgeDmg + (ex.dmg - ex.edgeDmg) * clamp(1 - dH / ex.radius, 0, 1)));
+        if (dH < ex.radius + 0.5 && mobSees(e)) footHurt(Math.round(ex.edgeDmg + (ex.dmg - ex.edgeDmg) * clamp(1 - dH / ex.radius, 0, 1)));
         mobEv({ k: 'x', p: [+e.w.x.toFixed(2), +e.w.y.toFixed(2), +e.w.z.toFixed(2)], r: ex.radius, a: ex.dmg, b: ex.edgeDmg });
         bkExplode(e.w, ex.radius);
         for (var q = 0; q < 3 && !e.hub; q++) { snD.copy(e.face).applyAxisAngle(e.up, q * 1.047); try { ps.scar(e.w, snD, 2 * ex.radius * Hw, 25); } catch (e0) { /* ignore */ } }
@@ -7047,7 +7075,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (dH < 40 && tl > 1e-9) {
                 e.face.lerp(r27C, damp(6, dt)).normalize();
                 if (dm > 2.4) { for (i = 0; i < R27.gnd.length; i++) { var o = R27.gnd[i]; if (o !== e && o.mob === 'zomby' && o.w.distanceTo(e.w) < 1.6 * Mm) { snA.subVectors(e.w, o.w); snA.addScaledVector(e.up, -snA.dot(e.up)).normalize(); r27C.addScaledVector(snA, 0.5).normalize(); } } moving = mobMoveDir(e, r27C, sp); }
-                else if (e.cd <= 0) { e.cd = 1; if (me) footHurt(3); else mobEv({ k: 'a', i: e.mid, d: 3, r: 3.4 }); aPlay('hit', { dist: aDist(e.w), pitch: 0.6, vel: 0.4 }); }
+                else if (e.cd <= 0) { e.cd = 1; if (me && !mobSees(e)) { /* wall between: the swing does nothing */ } else if (me) footHurt(3); else mobEv({ k: 'a', i: e.mid, d: 3, r: 3.4 }); aPlay('hit', { dist: aDist(e.w), pitch: 0.6, vel: 0.4 }); }
             }
         } else if (kind === 'skelly') {
             var rg = st.ranged;
@@ -7055,7 +7083,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (dH < rg.minRange) { snA.copy(r27C).negate(); moving = mobMoveDir(e, snA, sp); }
             else if (dH > rg.range * 0.9) { if (dH < 50) moving = mobMoveDir(e, r27C, sp); }
             else { snA.crossVectors(e.up, r27C); if (((e.mid + Math.floor(gt / 2)) & 1)) snA.negate(); moving = mobMoveDir(e, snA, sp * 0.6); }
-            if (e.cd <= 0 && dH < rg.range && dH < 40) { e.cd = dH < rg.farRange ? rg.closeInterval : rg.farInterval; if (me) mobFire(e, tw); else mobEv({ k: 'a', i: e.mid, d: rg.dmg, r: rg.range * 1.8 }); }
+            if (e.cd <= 0 && dH < rg.range && dH < 40) { if (me && !mobSees(e)) e.cd = 0.5; else { e.cd = dH < rg.farRange ? rg.closeInterval : rg.farInterval; if (me) mobFire(e, tw); else mobEv({ k: 'a', i: e.mid, d: rg.dmg, r: rg.range * 1.8 }); } }
         } else if (kind === 'ender') {
             snA.set(0, 0, -1).applyQuaternion(camera.quaternion); snB.copy(e.w).addScaledVector(e.up, (st.eyeY || 2.4) * Mm).sub(camera.position); var cdist = snB.length(); snB.divideScalar(cdist || 1);
             var looked = me && snA.dot(snB) > st.stare.dot && cdist / Hw < st.stare.range;
@@ -7071,9 +7099,16 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         cr.setSpeed(moving ? st.speed : 0); e.mvd = moving;
     }
+    var mobLosP = new THREE.Vector3();
+    function mobSees(e) {      // the mob's eye to the player's chest: one ray, called only once a mob is already in range
+        if (e.hub || e.mode === 'derelict' || !hum.obj) return true;
+        var Hw = hwU(); snA.copy(e.w).addScaledVector(e.up, 0.8 * Hw); snB.copy(hum.w).addScaledVector(styUpW, 0.5 * Hw);
+        return hasLineOfSight(snA, snB);
+    }
     function mobBoltTick(dt) {
         for (var i = MB.bolts.length - 1; i >= 0; i--) {
-            var b = MB.bolts[i]; b.t -= dt; b.p.addScaledVector(b.v, dt);
+            var b = MB.bolts[i]; b.t -= dt; mobLosP.copy(b.p); b.p.addScaledVector(b.v, dt);
+            if (b.t > 0 && !hasLineOfSight(mobLosP, b.p)) { b.t = 0; fx.impact(b.p, 0xe8d4ff, 0.8, 'hit'); }
             if (hum.obj && b.p.distanceTo(snA.copy(hum.w).addScaledVector(styUpW, 0.5 * hwU())) < 0.55 * hwU()) { footHurt(b.dmg || 4); b.t = 0; }
             if (b.t <= 0) MB.bolts.splice(i, 1);
         }
@@ -9098,7 +9133,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var wp = curWeapon(), st = wp.stats || STARTER.stats, H = 0.09 * L;
         R27.ffCd = 1 / clamp((st.rate || 4) * 0.7, 1, 5);
         r27A.set(0, 0, -1).applyQuaternion(camera.quaternion);                           // aim ray: camera centre
-        var best = null, bt = 60 * L, i, e, r, t, ocx, ocy, ocz, b, c;
+        var best = null, bt = clamp(st.range > 0 ? st.range * 0.5 : 60, 20, 90) * L, i, e, r, t, ocx, ocy, ocz, b, c;
         for (i = 0; i < R27.gnd.length; i++) {
             e = R27.gnd[i]; if (!e.alive || !e.g.visible) continue;
             gndPlace(e); r = gndSphere(e, r27B); ocx = r27B.x - camera.position.x; ocy = r27B.y - camera.position.y; ocz = r27B.z - camera.position.z;
@@ -9109,6 +9144,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         r27R.set(1, 0, 0).applyQuaternion(hum.obj.group.quaternion); r27F.set(0, 0, -1).applyQuaternion(hum.obj.group.quaternion); r27U.set(0, 1, 0).applyQuaternion(hum.obj.group.quaternion);
         r27G.copy(hum.w).addScaledVector(r27U, 0.52 * H).addScaledVector(r27R, 0.14 * H).addScaledVector(r27F, 0.32 * H);      // the hand
+        if (best) { gndSphere(best, r27B); if (!hasLineOfSight(r27G, r27B)) { best = null; bt = 40 * L; } }      // a wall between you and the target: the bolt flies, nothing is hit
         r27T.copy(camera.position).addScaledVector(r27A, best ? bt : 40 * L);
         r27D.subVectors(r27T, r27G).normalize();
         fx.spawnBolt(r27G, r27D, effColor(), 170 * L, 0.28); fx.muzzle(r27G, r27D, effColor(), 'bolt'); aPlay('fire', { vel: 0.5, pitch: 1.35 });
