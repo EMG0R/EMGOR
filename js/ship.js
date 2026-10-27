@@ -560,6 +560,7 @@ export default function mount(engine) {
         if (!o.shards || typeof o.shards !== 'object' || Array.isArray(o.shards)) o.shards = { day: '', ids: [] };      // rev 22: taken shard ids, reset when the date key changes
         if (typeof o.shards.day !== 'string') o.shards.day = '';
         if (!Array.isArray(o.shards.ids)) o.shards.ids = [];
+        if (!o.tstock || typeof o.tstock !== 'object' || Array.isArray(o.tstock) || typeof o.tstock.day !== 'string' || !o.tstock.m || typeof o.tstock.m !== 'object') o.tstock = { day: '', m: {} };      // consistency: station / convoy stock persists per UTC day like the village's
         o.shieldTier = clamp(o.shieldTier | 0, 0, 3); o.engineTier = clamp(o.engineTier | 0, 0, 3);
         o.style = (typeof o.style === 'string' && /^[a-z0-9_-]{1,16}$/i.test(o.style)) ? o.style : '';      // rev 30: character style id ('' = PILOT)
         if (!o.blk || typeof o.blk !== 'object' || Array.isArray(o.blk)) o.blk = {};      // mashup: STEEV blocks per planet id {b:[up xyz, fwd xyz], c:[[i,j,k,mat]]} <= 64
@@ -1026,7 +1027,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey && !e.altKey) { toggleInv(); return; }       // rev 23: E = inventory (grid overlay)
         if (e.code === 'KeyZ' && !e.ctrlKey && !e.metaKey && !e.altKey) { eh.on = true; eh.held = 0; eh.t = 0; return; }       // 2026-10-14: Z = the SHIP key (land / board / lift off / summon / step out). F = people + shops
         if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey) { onKeyF(); return; }
-        if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.altKey && gmode === 'foot') { if (ptTDown(e)) return; onKeyTalk(); return; }       // rev 20: tap = land / exit ship / board (fires on release), hold 0.6 s under 6 L = auto-land + step out, hold on foot = board + lift off
+        if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.altKey && (gmode === 'foot' || gmode === 'sfoot')) { if (gmode === 'foot' && ptTDown(e)) return; onKeyTalk(); return; }       // rev 20: tap = land / exit ship / board (fires on release), hold 0.6 s under 6 L = auto-land + step out, hold on foot = board + lift off
         if (e.code === 'KeyW' && gmode === 'landed') { liftOff(); return; }
         if (e.code === 'KeyV' && !e.ctrlKey && !e.metaKey && !e.altKey) { doScan(); return; }        // rev 21: scanner pulse
         if (gmode !== 'fly') return;
@@ -1310,7 +1311,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         resumeSnap = null;
         if (dead) return;
         var P = shipRoot.position;
-        if (gmode === 'sfoot' && station && sk.mode === 'deck') {
+        if (gmode === 'sfoot' && R27.dsite) {      // consistency: a derelict has no station deck; resume in flight where the ship is parked at its mouth
+            resumeSnap = { f: 'world', pos: P.clone(), quat: shipRoot.quaternion.clone() };
+        } else if (gmode === 'ifoot' && ix.from === 'sfoot' && station && sk.mode === 'deck') {
+            resumeSnap = { f: 'station', pad: sk.pad, hp: sk.hp.clone(), yaw: sk.yaw, pitch: sk.pitch };
+        } else if (gmode === 'ifoot' && land.node) {      // ship interior: resume beside the ship on the planet it sits on
+            resumeSnap = { f: 'planet', node: land.node, mode: 'landed', sPos: land.sPos.clone(), sQuat: land.sQuat.clone(), rg: land.rg };
+        } else if (gmode === 'sfoot' && station && sk.mode === 'deck') {
             resumeSnap = { f: 'station', pad: sk.pad, hp: sk.hp.clone(), yaw: sk.yaw, pitch: sk.pitch };
         } else if ((gmode === 'landed' || gmode === 'foot' || gmode === 'landing') && land.node) {
             var sp = gmode === 'landing' ? land.gDir.clone().multiplyScalar(land.rg) : land.sPos.clone();
@@ -4892,14 +4899,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         else if (gmode === 'ifoot') { if (ixTarget().kind !== 'hatch') interiorF(); }
         else if (gmode === 'sfoot') { if (stationInteract().kind !== 'ship') stationE(); }
     }
-    function onKeyTalk() {         // T on foot: talk to the human in front of you (F challenges them)
+    function onKeyTalk() {         // T on foot: talk to the human in front of you (F challenges them); consistency: station NPCs use T too
+        if (gmode === 'sfoot') { if (stationInteract().kind === 'npc') stationE(); return; }
         var ft = footTarget();
         if (ft.kind === 'villager') villageTalk(ft.obj); else if (ft.kind === 'shopper') talkShopper(ft.obj); else if (ft.kind === 'clerk') talkNpc(ft.obj);
         else if (ft.kind === 'dealer') { if (!r28Talk({ id: ft.obj.id, name: ft.obj.name || 'DEALER', role: 'dealer', kind: 'dealer', obj: ft.obj, seed: ft.obj.seed })) openDealer(ft.obj); }
     }
     function footAct(ft) {
         if (ft.kind === 'hub') hubEnter(); else if (ft.kind === 'hubexit') hubExit(false); else if (ft.kind === 'hubchest') hubChest(ft.obj);
-        else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') r28Checkout(); else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'cvs') cvsUse(ft.obj);
+        else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') { questDeliver(ft.obj); r28Checkout(); } else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'cvs') cvsUse(ft.obj);
         else if (ft.kind === 'creature') tameStart(ft.obj);
         else if (ft.kind === 'resource') harvStart(ft.obj);
         else punch();
@@ -6073,7 +6081,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return out.copy(v).applyQuaternion(n.mesh.quaternion).add(n.anchor.position);
     }
     // ─── shards: persisted per planet id, reset daily ───────────────────────────────────────────────────────────────────────────────
-    function dayKey() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+    function dayKey() { var d = new Date(); return d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1) + '-' + d.getUTCDate(); }
     function grantShard(sh) {
         if (!sh) return;
         var pf = ensureProfile(userName()); if (!curUser) curUser = userName();
@@ -7274,7 +7282,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         HB.in = true; HB.p.fromArray(hb.interior.spawn); HB.vy = 0; HB.air = false; HB.fight = null; HB.cd = 0; HB.camD = 3;
         hum.hf.set(0, 0, 1).applyQuaternion(HB.q); hum.face.copy(hum.hf); hum.pitch = 0.3; hum.air = false; hum.vv = 0; camRelInit = false; mdx = mdy = 0;
         hum.up.copy(HB.up); hubToLocal(HB.p, hum.pos); hum.hr = hum.gr = hum.vh = hum.pos.length();
-        setPrompt('', false); aPlay('land', { vel: 0.5 }); addRow('', '', 'THE HUB · clear every arena · F at the start to leave', 'is-sys');
+        setPrompt('', false); aPlay('land', { vel: 0.5 }); addRow('', '', 'DUNGEON · clear every arena · F at the start to leave', 'is-sys');
         return true;
     }
     function hubExit(force) {
@@ -7429,7 +7437,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function hubTarget() {
         var hb = HB.hub; if (!hb) return null;
         if (!HB.in) {
-            if (hum.w.distanceToSquared(hubToWorld(hbE.set(0, 1, 0), hbD)) < (7 * HB.mu) * (7 * HB.mu)) { ftI.kind = 'hub'; ftI.obj = hb; ftI.label = 'F · ENTER'; return ftI; }
+            if (hum.w.distanceToSquared(hubToWorld(hbE.set(0, 1, 0), hbD)) < (7 * HB.mu) * (7 * HB.mu)) { ftI.kind = 'hub'; ftI.obj = hb; ftI.label = 'F · ENTER DUNGEON'; return ftI; }
             return null;
         }
         var p = HB.p, i, c, best = null, bd = 2.8 * 2.8, d;
@@ -7489,6 +7497,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function villageTrade(v) {
         if (!VG.v || !v) return;
         var m = VG.v.market(v); if (!m) return;
+        questDeliver(v);      // consistency: the village trader takes quest deliveries like a 7/11 counter
         if (openTrade(m, v.name + ' · TRADER', String(v.name).toUpperCase(), '') && shopCtx) shopCtx.vil = true;
     }
     // ── menus (kitchen, pens, pods, board) ──
@@ -7545,15 +7554,18 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var elQWho = elQ.querySelector('.sq-who'), elQList = elQ.querySelector('.sq-list'), elQMsg = elQ.querySelector('.sq-msg');
     var elQT = document.createElement('div'); elQT.className = 'sh-qt'; hud.appendChild(elQT);
     var elOnb = document.createElement('div'); elOnb.className = 'sh-onb'; hud.appendChild(elOnb);
-    function qDay() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+    function qDay() { var d = new Date(); return d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1) + '-' + d.getUTCDate(); }      // UTC, same basis as station / village stock
     function planetLabel(n) { return n ? String(n.name || n.title || n.id || 'Planet') : ''; }
+    function curPlanetId() { var n = (land && land.node) || (world && world.node); return n && n.id != null ? String(n.id) : ''; }
     function curPlanetLabel() { return planetLabel((land && land.node) || (world && world.node)); }
     function questCtx(kind) {
-        var ids = [], i, d = engine.drawOrder || [];
-        for (i = 0; i < d.length && ids.length < 12; i++) { var n = d[i]; if (n && n.anchor && n.mesh && !n.isSun) { var lb = planetLabel(n); if (ids.indexOf(lb) < 0) ids.push(lb); } }
-        var cur = curPlanetLabel() || ids[0] || 'Home';
+        var ids = [], names = {}, i, d = engine.drawOrder || [];      // consistency: planets are identified by String(node.id) everywhere; names are display only
+        for (i = 0; i < d.length; i++) { var n = d[i]; if (n && n.anchor && n.mesh && !n.isSun && n.id != null) { var pid = String(n.id); if (ids.indexOf(pid) < 0) { ids.push(pid); names[pid] = planetLabel(n); } } }
+        ids.sort(); ids = ids.slice(0, 12);      // stable pool (not draw-order dependent): same giver, same day, same offers
+        var curN = (land && land.node) || (world && world.node), cur = curN && curN.id != null ? String(curN.id) : (ids[0] || 'Home');
+        if (curN && curN.id != null) names[cur] = planetLabel(curN);
         if (ids.indexOf(cur) < 0) ids.unshift(cur);
-        return { planetIds: ids, currentPlanetId: cur, giverKind: kind || 'npc', wave: Math.max(1, shownWave()), bossNameFn: bossName };
+        return { planetNames: names, planetIds: ids, currentPlanetId: cur, giverKind: kind || 'npc', wave: Math.max(1, shownWave()), bossNameFn: bossName };
     }
     function activeQuests() { var pf = curProfile(); return pf && Array.isArray(pf.quests) ? pf.quests : []; }
     function qPf() { if (!curUser) curUser = userName(); return ensureProfile(userName()); }
@@ -7668,7 +7680,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 var o = { g: qMakeObj(0x7CFFB0), kind: 'crate', belt: true }, r = (b.mid || (b.inner + b.outer) / 2) * sp.pos[1];
                 o.g.position.set(rk.center.x + Math.cos(sp.pos[0]) * r, rk.center.y + sp.pos[2] * (b.yMax || 0) * 2, rk.center.z + Math.sin(sp.pos[0]) * r);
                 o.g.scale.setScalar(2.6 * L); qObjs[q.id] = o;
-            } else if (gmode === 'foot' && ps && ps.active && land.node === ps.active && curPlanetLabel() === sp.planetId && hum.obj) {
+            } else if (gmode === 'foot' && ps && ps.active && land.node === ps.active && (curPlanetId() === sp.planetId || curPlanetLabel() === sp.planetId) && hum.obj) {
                 var dir = new THREE.Vector3().copy(hum.pos).normalize(), tg = new THREE.Vector3().crossVectors(dir, Y).normalize(), tg2 = new THREE.Vector3().crossVectors(dir, tg);
                 var a = sp.seed % 628 / 100, dd = (28 + sp.seed % 17) * L / (ps.radius || 1);
                 dir.addScaledVector(tg, Math.cos(a) * dd).addScaledVector(tg2, Math.sin(a) * dd).normalize();
@@ -7728,7 +7740,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function questScan() {          // V on the target planet: every highlighted resource / creature in range counts
         var a = activeQuests().filter(function (q) { var s = q.steps.filter(function (x) { return !x.done; })[0]; return s && s.type === 'scan'; });
         if (!a.length || !world || !world.node || gmode === 'fly') return;
-        var pl = curPlanetLabel(), n = 0, i, org = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position;
+        var pl = curPlanetId(), n = 0, i, org = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position;
         try {
             var tg = world.scanTargets();
             for (i = 0; i < tg.length && n < 16; i++) { if (tg[i].type !== 'resource') continue; locToWorld(tg[i].pos, vHl2); if (vHl2.distanceToSquared(org) > (120 * L) * (120 * L)) continue; n++; questEvent({ type: 'scan', planetId: pl, target: 'resource' }); if (tg[i].kind === 'plant' || tg[i].kind === 'spore') questEvent({ type: 'scan', planetId: pl, target: 'plant' }); }
@@ -7742,9 +7754,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function questDeliver(st) {         // F at a 7/11 counter on the target planet: hand over the stacks
         var pf = curProfile(); if (!pf || !pf.quests) return;
-        var pl = curPlanetLabel(), moved = false;
+        var pl = curPlanetId(), moved = false;
         pf.quests.slice().forEach(function (q) {
-            var s = q.steps.filter(function (x) { return !x.done; })[0]; if (!s || s.type !== 'deliver' || s.planetId !== pl) return;
+            var s = q.steps.filter(function (x) { return !x.done; })[0]; if (!s || s.type !== 'deliver' || (s.planetId !== pl && s.planetId !== curPlanetLabel())) return;      // legacy saves keyed the label
+            if (s.planetId !== pl) s.planetId = pl;
             for (var i = 0; i < pf.items.length; i++) {
                 var rec = pf.items[i]; if (rec.id !== s.item.stackKey) continue;
                 var n = Math.min(rec.n, s.item.n - s.have); if (n <= 0) break;
@@ -8669,7 +8682,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var dR = hw.distanceTo(cv.reviveWin), dH = hw.distanceTo(cv.healWin);
             if (Math.min(dR, dH) < cv.radius) { skI.kind = 'cvs'; skI.obj = { kind: dR <= dH ? 'revive' : 'heal', cvs: cv }; skI.label = dR <= dH ? cvsLabel() : 'F · HEAL'; return skI; }
         }
-        for (i = 0; i < npcs.length; i++) if (hw.distanceTo(npcs[i].pos) < 1.4 * L) { skI.kind = 'npc'; skI.obj = npcs[i]; skI.label = 'F · TALK'; return skI; }
+        for (i = 0; i < npcs.length; i++) if (hw.distanceTo(npcs[i].pos) < 1.4 * L) { skI.kind = 'npc'; skI.obj = npcs[i]; skI.label = 'T · TALK'; return skI; }
         var tr = SITE().interior.trade; if (tr && tr.pos && hw.distanceTo(tr.pos) < Math.max(tr.radius || 0, 1.8 * L)) { skI.kind = 'trade'; skI.obj = tr; skI.label = 'F · TRADE'; return skI; }
         var yd = !R27.dsite && SITE().interior.shipyard; if (yd && yd.pos && yd.ships && hw.distanceTo(yd.pos) < Math.max(yd.radius || 0, 1.5 * L)) { skI.kind = 'shipyard'; skI.obj = yd; skI.label = 'F · SHIPYARD'; return skI; }
         if (R27.dsite) { var dc = dkCrateNear(); if (dc) { skI.kind = 'loot'; skI.obj = dc; skI.label = 'F · LOOT'; return skI; } }
@@ -8681,7 +8694,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var si = stationInteract();
         if (si.kind === 'store') openStore(si.obj);
         else if (si.kind === 'cvs') cvsUse(si.obj);
-        else if (si.kind === 'trade') { if (si.obj.refresh && Math.floor(Date.now() / 864e5) !== si.obj.day) si.obj.refresh(); openTrade(si.obj, 'STATION TRADE', 'TRADER', null); }      // roll the stock over at UTC midnight
+        else if (si.kind === 'trade') { if (si.obj.refresh && Math.floor(Date.now() / 864e5) !== si.obj.day) si.obj.refresh(); openTrade(si.obj, 'STATION TRADE', 'TRADER', null, 'st'); }      // roll the stock over at UTC midnight
         else if (si.kind === 'shipyard') openShipyard();
         else if (si.kind === 'loot') dkLoot(si.obj);
         else if (si.kind === 'npc') {
@@ -8824,10 +8837,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function salePrice(p) { return R27.sale > Date.now() ? 0 : p; }
 
     // ── 5. trade overlay (convoys via space.hail, station via interior.trade) ──
-    function openTrade(trade, title, who, convoyId) {
+    function openTrade(trade, title, who, convoyId, stockKey) {
         if (storeOpen || cmdOpen || state !== 'piloting' || !trade) return false;
         knownFor(); shopSt = null; shopTab = 0;
+        if (stockKey) {      // restore what is left of today's stock (a reload no longer refills a bought-out shelf)
+            var pf0 = curProfile(), sv = pf0 && pf0.tstock && pf0.tstock.day === dayKey() ? pf0.tstock.m[stockKey] : null;
+            if (sv && trade.sells) trade.sells = trade.sells.filter(function (r) { if (!(r.id in sv)) return false; r.n = Math.min(r.n, sv[r.id] | 0); return r.n > 0; });
+        }
         shopOpenCommon({ mode: 'trade', trade: trade, cid: convoyId || '' }, title, who, convoyId ? 'Cargo is cargo. Make it quick.' : 'Prices move with the day.', null);
+        if (shopCtx) shopCtx.stockKey = stockKey || '';
         return true;
     }
     function tradeFill(ctx, pf) {
@@ -8844,7 +8862,14 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (!shopRows.length) shopRows.push({ k: '-', tag: '--', name: 'NOTHING THEY WANT', sub: (t.buys || []).length ? 'THEY WANT ' + t.buys.length + ' KINDS' : '', price: null });
         }
     }
-    function tradeSaveStock() { if (shopCtx && shopCtx.vil && VG.v) { VG.v.syncStock(); villageSave(); } }      // persist village stock at the purchase, not only on closeStore
+    function tradeSaveStock() {
+        if (shopCtx && shopCtx.vil && VG.v) { VG.v.syncStock(); villageSave(); return; }
+        if (shopCtx && shopCtx.stockKey && shopCtx.trade) {
+            var pf = curProfile(); if (!pf) return;
+            if (!pf.tstock || pf.tstock.day !== dayKey()) pf.tstock = { day: dayKey(), m: {} };
+            var m = {}; shopCtx.trade.sells.forEach(function (r) { if (r.n > 0) m[r.id] = r.n; }); pf.tstock.m[shopCtx.stockKey] = m;
+        }
+    }      // persist village stock at the purchase, not only on closeStore
     function tradePick(row, pf) {
         var t = shopCtx.trade;
         if (row.k === 'tb') {
@@ -8935,7 +8960,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!cvNear || dead || !space || typeof space.hail !== 'function') return false;
         var t = null; try { t = space.hail(cvNear.id); } catch (e0) { t = null; }
         if (!t) return false;
-        return openTrade(t, (cvNear.faction === 'dealers' ? 'DEALER' : 'CORP') + ' CONVOY', 'HAULER', cvNear.id);
+        return openTrade(t, (cvNear.faction === 'dealers' ? 'DEALER' : 'CORP') + ' CONVOY', 'HAULER', cvNear.id, 'cv:' + cvNear.id);
     }
 
     // ── 6. derelicts: the station dock sequence on an adapter that quacks like `station` (deck floor shifted to y = 0) ──

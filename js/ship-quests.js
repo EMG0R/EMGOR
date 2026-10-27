@@ -59,27 +59,28 @@ export function generateQuest(seed, ctx, kind) {
   const k = KINDS.indexOf(kind) >= 0 ? kind : pick(r, KINDS);
   const diff = difficultyFor(r, wave);
   const dest = pick(r, pool), resKind = pick(r, RES);
-  const q = { dest, res: null, n: 0, target: null, boss: null, where: null };
+  const destName = (ctx.planetNames && ctx.planetNames[dest]) || dest;      // planetId is node.id; the name is display only
+  const q = { dest: destName, res: null, n: 0, target: null, boss: null, where: null };
   const steps = []; let gor = 0, title = '', expires = 20 + diff * 10, spawnMeta = null;
 
   if (k === 'deliver') {
     const it = resourceItem(resKind, cur); q.n = ri(r, 2, 3) * diff + 1; q.res = it.name;
-    steps.push({ type: 'deliver', planetId: dest, item: { stackKey: it.stackKey, n: q.n, name: it.name } });
-    gor = Math.round(q.n * it.price * 1.6 + 40 * diff); title = `Deliver ${q.n} ${it.name} to ${dest}`;
+    steps.push({ type: 'deliver', planetId: dest, planetName: destName, item: { stackKey: it.stackKey, n: q.n, name: it.name } });
+    gor = Math.round(q.n * it.price * 1.6 + 40 * diff); title = `Deliver ${q.n} ${it.name} to ${destName}`;
   } else if (k === 'bounty') {
     const bw = wave + diff - 1; q.boss = (ctx.bossNameFn || fallbackBoss)(bw);
     steps.push({ type: 'kill', bossName: q.boss }); gor = 250 * diff + wave * 20; title = `Bounty: ${q.boss}`; expires = 45 + diff * 15;
   } else if (k === 'scan') {
     q.n = 2 + diff; q.target = pick(r, SCAN_TARGETS);
-    steps.push({ type: 'scan', planetId: dest, target: q.target, count: q.n });
-    gor = 60 * q.n + 30 * diff; title = `Scan ${q.n} ${q.target}s on ${dest}`;
+    steps.push({ type: 'scan', planetId: dest, planetName: destName, target: q.target, count: q.n });
+    gor = 60 * q.n + 30 * diff; title = `Scan ${q.n} ${q.target}s on ${destName}`;
   } else if (k === 'retrieve') {
-    const belt = r() < 0.5; q.where = belt ? 'in the asteroid belt' : `on ${dest}`;
+    const belt = r() < 0.5; q.where = belt ? 'in the asteroid belt' : `on ${destName}`;
     const pos = belt ? [r() * Math.PI * 2, 0.8 + r() * 0.4, (r() - 0.5) * 0.3] : (() => { const z = r() * 2 - 1, a = r() * Math.PI * 2, s = Math.sqrt(1 - z * z); return [s * Math.cos(a), z, s * Math.sin(a)]; })();
     const id = 'q' + sd.toString(36);
-    steps.push({ type: 'retrieve', planetId: belt ? null : dest, questId: id });
+    steps.push({ type: 'retrieve', planetId: belt ? null : dest, planetName: belt ? null : destName, questId: id });
     spawnMeta = { where: belt ? 'belt' : 'planet', planetId: belt ? null : dest, seed: sd, pos };
-    gor = 120 * diff + 50; title = belt ? 'Retrieve a lost crate (belt)' : `Retrieve a lost crate on ${dest}`;
+    gor = 120 * diff + 50; title = belt ? 'Retrieve a lost crate (belt)' : `Retrieve a lost crate on ${destName}`;
   } else if (k === 'escort') {
     steps.push({ type: 'escort', seconds: 60, have: 0 }); gor = 140 * diff + 40; title = 'Escort a freighter (60 s)';
     const route = []; for (let i = 0; i < 4; i++) route.push([Math.round((r() - 0.5) * 4000), Math.round((r() - 0.5) * 600), Math.round((r() - 0.5) * 4000)]);
@@ -123,7 +124,7 @@ export function progress(quest, ev) {
     s.have = Math.min(s.item.n, s.have + (ev.n | 0)); hit = true; s.done = s.have >= s.item.n; msg = `${s.item.name} ${s.have}/${s.item.n}`;
   } else if (ev.type === 'deliver' && s.type === 'deliver' && ev.planetId === s.planetId && ev.stackKey === s.item.stackKey) {
     s.have = Math.min(s.item.n, s.have + (ev.n | 0)); hit = true; s.done = s.have >= s.item.n; msg = `Delivered ${s.have}/${s.item.n}`;
-  } else if (ev.type === 'scan' && s.type === 'scan' && ev.planetId === s.planetId && (ev.target === s.target || s.target === 'creature' && ev.target === 'plant' && false)) {
+  } else if (ev.type === 'scan' && s.type === 'scan' && ev.planetId === s.planetId && ev.target === s.target) {
     s.have = Math.min(s.count, s.have + 1); hit = true; s.done = s.have >= s.count; msg = `Scanned ${s.have}/${s.count}`;
   } else if (ev.type === 'retrieve' && s.type === 'retrieve' && ev.questId === s.questId) { s.have = 1; s.done = true; hit = true; msg = 'Crate secured.'; }
   else if (ev.type === 'escort' && s.type === 'escort') { s.have = Math.min(s.seconds, s.have + Math.max(0, +ev.seconds || 0)); hit = true; s.done = s.have >= s.seconds; msg = `Escort ${Math.floor(s.have)}/${s.seconds}s`; }
@@ -134,10 +135,10 @@ export function progress(quest, ev) {
 }
 
 function stepText(s) {
-  if (s.type === 'deliver') return `Deliver ${s.item.name} to ${s.planetId} 7/11 (${s.have}/${s.item.n})`;
+  if (s.type === 'deliver') return `Deliver ${s.item.name} to ${s.planetName || s.planetId} 7/11 (${s.have}/${s.item.n})`;
   if (s.type === 'kill') return `Kill ${s.bossName}`;
-  if (s.type === 'scan') return `Scan ${s.target}s on ${s.planetId} (${s.have}/${s.count})`;
-  if (s.type === 'retrieve') return s.planetId ? `Find the crate on ${s.planetId}` : 'Find the crate in the belt';
+  if (s.type === 'scan') return `Scan ${s.target}s on ${s.planetName || s.planetId} (${s.have}/${s.count})`;
+  if (s.type === 'retrieve') return s.planetId ? `Find the crate on ${s.planetName || s.planetId}` : 'Find the crate in the belt';
   if (s.type === 'escort') return `Stay beside the freighter (${Math.floor(s.have)}/${s.seconds}s)`;
   return `Bring ${s.item.name} (${s.have}/${s.item.n})`;
 }
