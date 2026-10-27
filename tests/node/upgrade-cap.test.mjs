@@ -12,3 +12,15 @@ test('applyUpgrade caps ship slots and suit kits', () => {
   assert.ok(CRF.applyUpgrade(s.profile, { slot: 'suit-scanner', level: 1 }).refused);
   assert.equal(CRF.applyUpgrade({ upgrades: {} }, { slot: 'pens', level: 1 }).profile.pens, 1);
 });
+
+test('bolt scope/coil and salted creature treat are craftable from crafted outputs', () => {
+  const core = { id: 'cr:bolt-core:1', kind: 'material', category: 'material', name: 'Bolt Core', recipe: 'bolt-core', tags: [] };
+  const lens = { id: 'lens', kind: 'part', base: 'lens', name: 'Lens', tags: ['part', 'lens'] };
+  const bat = { id: 'bat', kind: 'part', base: 'battery', name: 'Battery', tags: ['part', 'battery'] };
+  const salt = { id: 'salt', kind: 'material', category: 'material', name: 'Seasoning Salt', recipe: 'seasoning-salt', tags: [] };
+  const jerky = { id: 'j', kind: 'snack', name: 'Beef Jerky', base: 'Beef Jerky', tags: [] };
+  const g = (...its) => its.map((item) => ({ item, n: 1 }));
+  assert.equal(CRF.match(g(lens, core), {}).recipe.id, 'scope-bolt');
+  assert.equal(CRF.match(g(core, bat), {}).recipe.id, 'coil-bolt');
+  assert.equal(CRF.match(g(salt, jerky), {}).recipe.id, 'creature-treat-salt');
+});

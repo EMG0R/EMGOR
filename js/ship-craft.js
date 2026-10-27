@@ -106,7 +106,7 @@ export const RECIPES = [
   R('scope-sniper', 'Sniper Scope', 'lens lens plate', MOD('scope', { range: 0.5, speed: 0.2 }, { base: 'Sniper Scope', price: 280 })),
   R('scope-gyro', 'Gyro Scope', 'lens|gyro|lens', MOD('scope', { spread: -0.4, range: 0.15 }, { base: 'Gyro Scope', price: 260 })),
   R('scope-seeker', 'Seeker Scope', '~lens antenna chip', MOD('scope', { range: 0.2 }, { special: 'homingLite', base: 'Seeker Scope', price: 330 })),
-  R('scope-bolt', 'Bolt Scope', '~lens bolt-core', MOD('scope', { range: 0.3, dmg: 0.2 }, { base: 'Bolt Scope', price: 400 })),
+  R('scope-bolt', 'Bolt Scope', '~lens out:bolt-core', MOD('scope', { range: 0.3, dmg: 0.2 }, { base: 'Bolt Scope', price: 400 })),
   R('scope-fin', 'Cool Scope', 'lens fin', MOD('scope', { range: 0.15, rate: 0.1 }, { base: 'Cool Scope', price: 140 })),
   // coil mods
   R('coil-mod', 'Coil Mod', 'coil|capacitor', MOD('coil', { dmg: 0.2 }, { base: 'Coil Mod' })),
@@ -114,7 +114,7 @@ export const RECIPES = [
   R('coil-burn', 'Ember Coil', '~coil coil infusion:any', MOD('coil', { dmg: 0.1 }, { special: 'burn', base: 'Ember Coil', price: 300 })),
   R('coil-chain', 'Arc Coil', '~coil antenna capacitor', MOD('coil', { dmg: 0.1 }, { special: 'chain', base: 'Arc Coil', price: 310 })),
   R('coil-servo', 'Whip Coil', 'servo|coil', MOD('coil', { speed: 0.25, rate: 0.1 }, { base: 'Whip Coil', price: 200 })),
-  R('coil-bolt', 'Bolt Coil', 'bolt-core battery', MOD('coil', { dmg: 0.5 }, { base: 'Bolt Coil', price: 480, tier: 3 })),
+  R('coil-bolt', 'Bolt Coil', 'out:bolt-core battery', MOD('coil', { dmg: 0.5 }, { base: 'Bolt Coil', price: 480, tier: 3 })),
   // chamber mods
   R('chamber-mod', 'Chamber Mod', 'plate chip|plate battery', MOD('chamber', { rate: 0.2 }, { base: 'Chamber Mod' })),
   R('chamber-pierce', 'Piercing Chamber', '~chip plate plate coil', MOD('chamber', { dmg: 0.1 }, { special: 'pierce', base: 'Piercing Chamber', price: 320 })),
@@ -138,7 +138,7 @@ export const RECIPES = [
   R('crew-pod-kit', 'Crew Pod Kit', 'plate plate|battery fin|plate plate', UPG('pods', 1, { base: 'Crew Pod Kit', color: 0xA8A0C8, price: 300, blurb: 'A bunk with opinions. Adds one crew pod.' })),
   // creature treats + snack combos
   R('creature-treat', 'Creature Treat', '~fries infusion:any', FOOD('Creature Treat', 0xFFB06C, 16, E(60, {}, { treat: 1 }), { count: 2, blurb: 'Creatures will follow you home for this.' })),
-  R('creature-treat-salt', 'Salted Creature Treat', '~seasoning-salt jerky', FOOD('Salted Creature Treat', 0xE8C8A8, 55, E(60, {}, { treat: 2 }), { count: 2, blurb: 'Jerky, salted twice. Very good boy.' })),
+  R('creature-treat-salt', 'Salted Creature Treat', '~out:seasoning-salt base:beef-jerky', FOOD('Salted Creature Treat', 0xE8C8A8, 55, E(60, {}, { treat: 2 }), { count: 2, blurb: 'Jerky, salted twice. Very good boy.' })),
   R('salted-fries', 'Salted Fries', '~fries out:seasoning-salt', FOOD('Salted Fries', 0xF4C84A, 30, E(120, { chroma: 0.2 }, { speed: 1.1 }), { kind: 'fries', blurb: 'Fries with the salt put back on purpose.' })),
   R('combo-meal', 'Combo Meal', '~food drink snack', FOOD('Combo Meal', 0xFFB84A, 60, E(150, { contrast: 0.2 }, { speed: 1.1, jump: 1.1 }), { blurb: 'The number three, no substitutions.' })),
   R('snack-trio', 'Snack Trio', 'snack snack snack|drink drink drink', FOOD('Party Pack', 0xFF9ACD, 110, E(200, { chroma: 0.3, double: 0.15 }, { chatWobble: 0.3 }), { blurb: 'Six things in a bag. Share. Or do not.' })),
