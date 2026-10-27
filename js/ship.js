@@ -1398,7 +1398,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function savePose() {
         try {
             if (state !== 'piloting' || exiting || boarding || dead || resumePend) return;
-            var keep = resumeSnap; takeSnap(); var o = poseFromSnap(resumeSnap); resumeSnap = keep;
+            var keep = resumeSnap; takeSnap(); if (HB.in && resumeSnap && resumeSnap.hum) delete resumeSnap.hum;      // hub interior pos is buried planet-local: save 'landed' at the ship, never the hub coords
+            var o = poseFromSnap(resumeSnap); resumeSnap = keep;
             if (o) { ensureProfile(userName()).pose = o; writeSave(); }
         } catch (e) { console.info('[ship] savePose', e); }
     }
