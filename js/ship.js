@@ -9274,6 +9274,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         m = PKP.active(pf);
         if (PT.rad.on) { PT.rad.t += dt; ptRadDraw(); }
         if (m && !f.pet && !f.key && PT.poof <= 0) ptSummon(m);      // the active one walks out with you
+        if (m && f.pet && f.key && f.key !== m.id && PT.poof <= 0) ptSummon(m);      // revive / activeMon changed behind the follower's back: the active mon walks out (ptSummon stows the other)
         if (!m || f.key !== m.id || !f.pet || !f.pp) { PT.calm += dt; ptHud(false); return; }
         for (i = 0; i < 4; i++) if (PT.cds[i] > 0) PT.cds[i] -= dt;
         bd = (16 * H) * (16 * H); PT.tgt = null;
