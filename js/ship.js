@@ -4858,8 +4858,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         land.gDir.copy(sum.dir); land.sPos.copy(sum.dir).multiplyScalar(sum.r);
     }
     // 2026-10-14: Z = the SHIP (land / exit / board / step out of the hatch / launch). F = everything else you interact with on foot.
+    function landStill() {      // PF2: landOk is sampled at 8 Hz; re-check on the press so a ridge flown over in the last 0.12 s cannot start a landing
+        try { if (!ps || !psA || vel.length() >= 2) { landOk = false; return false; } var lr = ps.landable(shipRoot.position); if (!lr.ok) { landOk = false; return false; } } catch (e) { landOk = false; return false; }
+        return true;
+    }
     function onKeyZ() {
-        if (gmode === 'fly') { if (cvHail()) return; if (landOk) landReq = true; else if (target && !dead) exit(target.node); }
+        if (gmode === 'fly') { if (cvHail()) return; if (landOk && landStill()) landReq = true; else if (target && !dead) exit(target.node); }
         else if (gmode === 'landed') exitShip();
         else if (gmode === 'foot') { if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); } }
         else if (gmode === 'ifoot') { if (ixTarget().kind === 'hatch') interiorF(); }
