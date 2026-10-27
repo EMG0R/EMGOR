@@ -2148,6 +2148,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         shake = Math.max(shake, Math.min(2.4 * L, dmg / 20 * 0.25 * L * (mult || 1) * 2));     // rev 9: camera shake on hit (boss 2x); rev 17: doubled again for any hit
         if (hp <= 0) {
             hp = 0; dead = true; deathT = DEATH_TIME; firing = false;
+            r25MenuClose(); closeInv(); closeStore();      // PF2: a panel left open over the death screen kept eating keys
             if (by && net) net.sendKill(by);        // killed by another pilot: they get the credit
             writeSave();
             burst(shipRoot.position, 22, 0, 18); burst(shipRoot.position, 14, 1, 12);
