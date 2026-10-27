@@ -9083,6 +9083,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gbEnd() { if (GB.id >= 0) fx.killBolt(GB.id); GB.id = -1; GB.on = false; GB.phase = ''; GB.e = null; GB.gr = null; }
     function gbHitTest(H) {      // wild gnd creature (hp) or grazer (no hp, counts as full) near the ball; returns true on a hit
         var i, e, r, cl, lpv;
+        if (!hasLineOfSight(GB.o, GB.p)) return false;      // PF2: hand -> ball must be clear of structure walls (the ball used to catch through them)
         for (i = 0; i < R27.gnd.length; i++) {
             e = R27.gnd[i]; if (!e.alive || e.mob || e.held || e.mode !== 'planet' || e.node !== land.node) continue;
             r = gndSphere(e, r27B) + PKC.BALL.radius * H;
@@ -9102,7 +9103,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         pf.pokemans.push(mon); PKP.trimMons(pf, 200);
         (pf.party.length < PKC.PARTY_MAX ? pf.party : pf.pen).push(mon.id);
         giveItem({ id: mon.id, seed: seed >>> 0, name: sp.name, kind: 'pokemans', base: sp.types.join('/'), infusion: null, modifier: null, color: new THREE.Color().setHSL(sp.bodyRecipe.hue / 360, 0.6, 0.55).getHex(), price: 0, tier: sp.tier, category: 'pokemans', tags: ['pokemans'], stackKey: mon.id, iconHint: 'candy', mon: mon, blurb: sp.types.join(' / ') + ' · L' + lvl + ' · ' + sp.moves.map(function (m) { return m.name; }).join(', '), dealer: false }, 1);
-        if (e) { if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }
+        if (e) { if (e.guard) e.guard._gdDead = true; if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }      // PF2: a caught guardian is dead for the guard spawner too, as in gndKill
         else { try { ps.setCreatureTamed(g.id, true); } catch (e0) { /* ignore */ } crCache.t = -1e9; pf.taken.push({ n: pid, id: g.id, k: g.kind }); pf.taken = pf.taken.slice(-40); }
         discClaim('creature', pid + ':' + sp.name, sp.name);
         ptGainXp(PKP.xpForCatch(sp.tier, lvl));
