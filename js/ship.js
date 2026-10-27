@@ -8119,7 +8119,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var t = ixTarget(); setPrompt(t.label, !!t.label);
     }
     // ─── store UI v2 (chat font): scrollable item menu + gear + sell tabs; dealers (6 items) and the Burger House window (fries only) reuse it ──
-    var PRICE_FB = { C: 120, B: 300, A: 700, S: 1500 }, SELL_K = 0.4;
+    var PRICE_FB = { C: 120, B: 300, A: 700, S: 1500 };
     var storeOpen = false, shopSt = null, shopCtx = null, shopTab = 0, shopRows = [], SHOP_ROWS = 8, shopTop = 0, shopSel = 0, shopDrag = null, shopWheel = 0;
     var TAB_NAMES = ['ITEMS', 'GEAR', 'SELL'];
     var elStore = document.createElement('div');
@@ -8197,8 +8197,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var pm = (inv && inv.parts && inv.parts.length) ? inv.parts : CRF.PARTS;
             for (i = 0; i < pm.length; i++) { var pi = pm[i]; shopRows.push({ k: 'i', item: pi, name: pi.name, sub: String(pi.blurb || '').slice(0, 44), price: pi.price }); }
         } else if (tab === 2) {
-            for (i = 0; i < pf.weapons.length; i++) { var o = pf.weapons[i]; shopRows.push({ k: 'x', i: i, tag: String(o.cls || 'C'), name: o.name, sub: (pf.weapon && pf.weapon.id === o.id) ? 'EQUIPPED' : 'OWNED', price: Math.round(shopPrice(o) * SELL_K) }); }
-            for (i = 0; i < pf.items.length; i++) { var r = pf.items[i], io = itemOf(r); if (io && io.kind !== 'pokemans') shopRows.push({ k: 'xi', i: i, item: io, name: io.name, sub: 'x' + r.n + ' OWNED', price: (io.category || io.kind === 'part') ? CRF.sellPrice(io) : Math.max(1, Math.round(io.price * SELL_K)) }); }
+            for (i = 0; i < pf.weapons.length; i++) { var o = pf.weapons[i]; shopRows.push({ k: 'x', i: i, tag: String(o.cls || 'C'), name: o.name, sub: (pf.weapon && pf.weapon.id === o.id) ? 'EQUIPPED' : 'OWNED', price: Math.round(shopPrice(o) * (CRF.SELL_K || 0.4)) }); }
+            for (i = 0; i < pf.items.length; i++) { var r = pf.items[i], io = itemOf(r); if (io && io.kind !== 'pokemans') shopRows.push({ k: 'xi', i: i, item: io, name: io.name, sub: 'x' + r.n + ' OWNED', price: CRF.sellPrice(io) }); }
             if (!shopRows.length) shopRows.push({ k: '-', tag: '--', name: 'NOTHING TO SELL', sub: '', price: null });
         }
         shopTop = clamp(shopTop, 0, Math.max(0, shopRows.length - SHOP_ROWS)); shopSel = clamp(shopSel, 0, Math.max(0, shopRows.length - 1));

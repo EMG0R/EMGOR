@@ -318,10 +318,10 @@ export function applyUpgrade(profile, upgrade) {
   if (slot === 'pens') p.pens = (p.pens || 0) + lv; else if (slot === 'pods') p.pods = (p.pods || 0) + lv; else if (slot === 'fuel') p.fuelMax = (p.fuelMax || 100) + 25 * lv;
   return { profile: p, line: slot.toUpperCase() + ' +' + lv + ' (now ' + ups[slot] + ')' };
 }
+export const SELL_K = 0.4;      // the one sell factor: every shop sells your bag at SELL_K x item price (ship.js SELL tab included)
 export function sellPrice(item) {
   if (!item) return 0;
-  const f = item.category === 'junk' ? 0.35 : item.kind === 'fries' ? 0.5 : 0.5;
-  return Math.max(1, Math.floor((item.price || 0) * f));
+  return Math.max(1, Math.floor((item.price || 0) * SELL_K));
 }
 
 // ── rev 26: resources -> refined materials -> kits, suit kits, treats, blueprints ──
@@ -390,6 +390,34 @@ const NEWBP = [
   BP('golden-fries', 'Golden Fries', '~out:fries-seasoning out:fries-seasoning fries fries out:crystal-lens', FOOD('Golden Fries', 0xFFD700, 500, E(600, { chroma: 0.4, contrast: 0.3, double: 0.1 }, { speed: 1.4, jump: 1.3 }), { kind: 'fries', hint: 'bag', blurb: 'Gold-flecked. Moves you faster than is polite.' })),
 ];
 for (const r of NEW.concat(NEWBP)) RECIPES.push(r);
+
+// ── CONSISTENCY-1: no craft loops. Every recipe's output sells (SELL_K x price x count) for at most LOOP_MAX x what its inputs cost at the cheapest shop. ──
+// Cost model (cheapest buy): parts at 0.8x list (Station / 7/11 discount), fries 12, any infusion item 8 (price floor), resources at 0.85x base, out:<id> = that recipe's own input cost per unit,
+// anything else (food:any, snack, base:<slug>, crafted:any) 8. tests/node/economy-loops.test.mjs asserts the cap over the whole table.
+export const LOOP_MAX = 0.8;
+const RES_COST = { crystal: 40, plant: 18, ore: 28, ice: 22, spore: 35 };
+const PART_COST = {}; for (const p of PARTS) PART_COST[p.id] = Math.round(p.price * 0.8);
+const REC_BY_ID = {}; for (const r of RECIPES) REC_BY_ID[r.id] = r;
+const COST_MEMO = {};
+function tokenCost(t, depth) {
+  t = String(t).replace(/^~/, '');
+  if (t.indexOf('part:') === 0) { const k = t.slice(5); return k === 'any' ? Math.min.apply(null, Object.values(PART_COST)) : (PART_COST[k] != null ? PART_COST[k] : 8); }
+  if (PART_COST[t] != null) return PART_COST[t];
+  if (t === 'fries') return 12;
+  if (t.indexOf('res:') === 0) return Math.round((RES_COST[t.slice(4)] || 28) * 0.85);
+  if (t.indexOf('out:') === 0) { const r = REC_BY_ID[t.slice(4)]; return r && depth < 8 ? recipeInputCost(r, depth + 1) / (r.count || 1) : 8; }
+  return 8;
+}
+export function recipeInputCost(r, depth) {
+  depth = depth || 0; if (depth === 0 && COST_MEMO[r.id] != null) return COST_MEMO[r.id];
+  const toks = r.shapeless ? r.list : [].concat.apply([], r.rows).filter(Boolean);
+  let c = 0; for (const t of toks) c += tokenCost(t, depth);
+  if (depth === 0) COST_MEMO[r.id] = c; return c;
+}
+for (const r of RECIPES) {      // clamp the declared price so floor(price * SELL_K) * count <= LOOP_MAX * cost
+  const cap = Math.floor(LOOP_MAX * recipeInputCost(r) / (r.count || 1) / SELL_K);
+  const cur = r.out.price || 40; if (cap >= 1 && cur > cap) r.out.price = cap;
+}
 export const BLUEPRINTS = NEWBP.map((r) => ({ id: r.bp, name: r.name + ' Blueprint', recipe: r.id, price: r.bpPrice, tag: 'bp:' + r.bp, iconHint: 'candy' }));
 export function blueprintItem(id) {
   const b = BLUEPRINTS.find((x) => x.id === id); if (!b) return null;
