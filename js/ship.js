@@ -5409,8 +5409,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (landReq) { landReq = false; startLanding(); }
         ehTick(dt);
         lazyBuilt = false;
-        try { hubLife(dt); } catch (eh0) { HB.fail = true; HB.errT = 0; warnOnce('hubLife', eh0); }      // hub/village can never break landing
-        try { villageLife(dt); } catch (ev0) { VG.fail = true; VG.errT = 0; warnOnce('villageLife', ev0); }
+        if (HB.errT > 0) HB.errT -= dt; else try { hubLife(dt); } catch (eh0) { HB.fail = true; HB.errT = 2; warnOnce('hubLife', eh0); }      // hub/village can never break landing
+        if (VG.errT > 0) VG.errT -= dt; else try { villageLife(dt); } catch (ev0) { VG.fail = true; VG.errT = 2; warnOnce('villageLife', ev0); }
         if (gmode === 'ifoot') { interiorStep(dt); return; }
         if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') { stationStep(dt); return; }
         if (gmode !== 'fly') { groundStep(dt); return; }
