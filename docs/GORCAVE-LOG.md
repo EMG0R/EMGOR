@@ -306,3 +306,46 @@ TESTS: node --test tests/node 72 pass (69 + 3 new). banned-names clean.
 VERIFY ON MAC: mob spawns near stores (mobInsideOp assumes e.w set by gndPlace); ball vs wall; CVS pad on a small planet; Esc hold after clicking out of the lock; /user A KEY then /user B shows no relay sync for B; death with inventory open.
 
 OPEN RISKS: hasLineOfSight(GB.o, GB.p) blocks catches when a wall is between hand and ball even if the creature is in front of it; fine intent, may feel strict at doorways. cleanPose rejects |coord| > 1e9 (above any galaxy coordinate by assumption).
+
+## CONSISTENCY-1 — 2026-10-27 — gorcave consistency pass
+Reports: cons-input / cons-world / cons-systems (static traces off HEAD 0527e47). Every item confirmed at file:line before the edit.
+
+FIXED
+- fix(input) d501524, js/ship.js: Z in flight never exits to the galaxy (onKeyZ now calls ehExit, which announces WATER / TOO STEEP / CANNOT LAND); a long Z hold in flight falls through to the tap action. Landed: Z is on the eh path (tap = step out, hold = lift off, W kept as alias), prompt `Z · STEP OUT · HOLD LIFT OFF`. Hint bar is per mode (HINT_BY_MODE: fly/landed/foot/ifoot/sfoot), HELP lists W, U, 1-9, 0, B, close keys. fightEnd relocks the pointer. Inventory closes on F (E/F/Backspace/Esc close every panel incl. the U manager). Onboarding: fly steps only show in fly, SHOP step only on foot (landed shows `Z · STEP OUT, THEN WALK TO A 7/11`), gated off while chat/menu/U manager is open. U off-foot prints `U · POKEMANS MANAGER · ON FOOT ONLY`.
+- fix(world) dca5a52, js/ship.js, js/ship-quests.js: quests use String(node.id) everywhere (questCtx emits sorted stable ids + planetNames, steps carry planetName for display, questDeliver / questScan / crate spawn / map flag all id-based; legacy label-keyed deliver + crate quests still accepted and migrated on delivery). questDeliver now also runs at the checkout path and the village trader. takeSnap: ship interior (ifoot) resumes landed beside the ship (or station deck if entered from the deck), derelict resumes as world/flight at its mouth. Station NPCs talk with T (label `T · TALK`, F still works). qDay + shard dayKey are UTC. Station and convoy trade stock persist per UTC day in profile.tstock (sanitized on load). One structure name: DUNGEON (enter message + prompt).
+- fix(systems) (MARO + LOS commit), js/ship-styles.js, js/ship.js: live maro() reads MARO_K for chain window (0.17 s), chain min speed (CHAIN_MIN scaled by RUN/MAX), pound radius/damage/recovery, punch combo window/damage/radius. The `melee` fx it already emitted is now handled in styleFx (punch(dmg, fromStyle), so LMB punches 6/6/10 for MARO). New losMelee(from, to) (chest height 0.8 H, always true inside 1.5 H) over hasLineOfSight gates punch, mobAoe, mobNearHurt, tongue, follower target, ender claw (mobSees).
+- fix(economy), js/ship-craft.js, js/ship.js: recipeInputCost model + price clamp after the RECIPES table is final (floor(price*SELL_K)*count <= 0.8 x cheapest input cost, so dream-cell, infusion-dust, mods, suit kits, blueprint tools all stop looping). One sell factor SELL_K = 0.4 (craft items, junk, fries, shop SELL tab, weapons).
+- fix(combat), js/ship.js, js/ship-styles.js: rewardKill(tier, pos, mult, big) = one coin + party XP path for mob, ground creature / guardian, guest-credited and ship-enemy kills; `kill` cue plays once (explosion cue removed from the mob/gnd paths); FG win no longer double-chimes; POKEMANS level-up plays `levelUp`. STEEV/SONIK capsule r/h come from skinFor(id).hitbox (SONIK keeps the roll squash via hStand).
+Commits: d501524 (input), dca5a52 (world), then systems, economy, combat on top (git log).
+
+NOT REAL / ALREADY OK
+- Plant scan quests: questScan already emits `plant`; progress() matched it through ev.target === s.target. The `&& false` clause was dead but harmless; removed.
+- Deliver destination pool "bodies with no 7/11": ship-world.attach builds one store per outpost, or one at the flattest spot, on every landable body (gas giants are landable), so no filter needed. Station store cannot complete a planet delivery by design (quest text names a planet).
+
+DEFERRED
+- Rest of maroTable (wall kick, dive, ledge, steep slide, bonk, speeds/gravity in table units): entry point ship-styles.js maro() step() vs maroTable() ~line 476; needs Mac tuning, not safe blind.
+- LOS for tame and harvest: tameStart (ship.js ~7843) / harvStart (~7850); creature/resource position frames unconfirmed, wrong frame would block valid actions.
+- Egg projectile LOS (styEggTick), range units H vs L (cons-systems M3), shield/engine tier vs craft upgrade unification (M6), villager talk fallback (cons-world M2), discovery claims for structures (M5), weapon purchase missing writeSave (L2), mob melee numbers read from cr.stats (L1). Quest toast unit strings.
+- Quest pool still uses first-12-sorted ids, not a full catalogue; ctx.wave can still vary offers (clamp not done).
+
+TESTS: node --check ok (ship.js, ship-styles.js, ship-craft.js, ship-quests.js via /tmp copies); node --test tests/node: 79 pass / 0 fail (new: quest-ids, economy-loops, style-hitbox); banned-names clean after each commit.
+
+VERIFY ON MAC
+1. Fly with a target set, press Z while moving / over water: no exit, message appears; HOLD ESC still exits.
+2. Land: prompt shows `Z · STEP OUT · HOLD LIFT OFF`; tap Z steps out, hold Z (0.6 s ring) and W both lift off.
+3. Hint bar changes text per mode (fly / landed / foot / interior / station); HELP lists the new keys.
+4. Fight: Esc forfeit and win/loss both return with the pointer locked. F closes inventory, U manager closes on E/F.
+5. New profile onboarding: SHOP text only on foot, landed shows STEP OUT line.
+6. Quest board: planet names show, plant/resource scan quests progress, deliver completes with a cart full (checkout) and at a village trader; map flag lights on the 7/11.
+7. Save inside a ship interior and inside a derelict, reload: resumes by the ship / at the derelict mouth in flight.
+8. Station NPC: T talks. Buy out station trade stock, reload: stays bought out until UTC midnight.
+9. MARO feel: triple-jump window is now 0.17 s (tight; tune MARO_K.CHAIN if too hard), pound radius 3 H, LMB combo 6/6/10 with melee fx. Punch through a wall / doorway: wall blocks, doorway allows.
+10. Kill a mob, a guardian, a ship enemy: one kill sound, tier-scaled coins, party XP row; POKEMANS level-up plays the levelUp jingle.
+11. STEEV and SONIK: walk through doorways, clipping against walls, SONIK roll squash.
+
+OPEN RISKS
+- Craft price clamp lowers declared prices of ~45 recipes (high-tier blueprint outputs most, e.g. s-weapon-core 1200 -> ~460); anything that reads out.price for display or dealer value sees the lower number.
+- SELL_K 0.4 lowers crafted/junk/fries resale versus before (0.5 / 0.35).
+- Z handling for landed moved from keydown to keyup; verify no stuck eh ring.
+- hintTick only rewrites text on a mode change; a hint refresh during a mode that does not change (e.g. landing -> landed share 'landed') is intentional.
+- Legacy label-keyed non-deliver quests (scan) saved before this commit will not progress; they expire by their timer.
