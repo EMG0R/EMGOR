@@ -273,3 +273,36 @@ VERIFY ON MAC:
 9. Relay offline: reload and land on a known planet, no DISCOVERED row; /user switch then discovery records for the new profile.
 
 OPEN RISKS: foot fire range changed meaning (st.range*0.5, so a 168 range weapon now reaches 84 L, a 72 range 36 L); LOS uses chest-height points and structure boxes only (terrain and the parked hull do not block); craft-grid blacklist is by kind, not a whitelist; salt/treat prices are tuned by inspection, not measured against live fries pricing or friesSale (fries free during a sale still makes salt a small free-coin source of ~15 per cycle); wall-kick gating depends on `rise` being in the same units as H.
+
+## PLAYTEST-FIX-2 — 2026-10-27 — gorcave test+fix agent
+
+FIXED (11 commits, branch gorcave-backlog)
+- save: relay login (R27.rl) leaked across /user switch, pushing/pulling the new profile under the old name+key; stale prof replies ignored; flushSave logs failures via warnOnce (quota was silent). js/ship.js. 008b491
+- net: receive-boundary validation of peer pos/fire/name/color (new pure js/ship-net-validate.js, tests/node/ship-net-validate.test.mjs). js/ship-net.js. (commit "fix(net): validate and clamp peer pose...")
+- net: peer mob snapshot arrays, pl.ev kill-reward (item count clamp, 8 rows), explosion event numbers checked; footHurt NaN guard (peer damage made hp NaN). js/ship.js. 934c86d
+- errors: hubLife/villageLife back off 2 s after a throw (errT was written, never read; threw every frame). js/ship.js. 08661ed
+- death: menu/inventory/store closed when the ship dies. d016681
+- land: Z re-checks ps.landable + speed on press (landStill). 47d0b16
+- input: click / non-Esc key cancels an Esc hold started by pointer-lock loss. f494d4e
+- catch: ball hit needs hand->ball line of sight; caught guardian sets _gdDead. 3da8a83
+- craft: crafting refuses and clears the grid when a reserved stack was eaten/used. f0518ee
+- mobs: spawns inside structure boxes rejected (mobInsideOp). 60d63f3
+- cvs: CVS pad heading skipped within 30 L of village/hub pad. 3a7ccce
+
+CONFIRMED NOT REAL
+- migrateProfile/migrate: every field defaulted/clamped, old saves trace clean; unbounded growth already capped (pokemans 200, pen 200, disc 120, mined 200, taken 40, qdone 80, known 400).
+- relay server.js: already clamps pos/name/color, payload 768 B, rate buckets, per-IP cap; stale peers removed by roster/bye; same-id reconnect handled by close 4000 and ghosts Map keyed by id.
+- warnOnce: 30 s per tag correct; all tags are literals (WARN_T bounded).
+- V repeat recount: doScan gated by scanCd, no recount.
+- onClockSnap: guarded by clockOn, try/caught.
+
+DEFERRED
+- hubs/vill/blk per-planet save objects have no size cap (bounded by planet count, not by array length). Needs a design call on caps.
+- pl.ev 'h' damage per hit unclamped on host (peer can one-shot mobs); low impact, mobs only.
+- event hook planetId from relay not validated (string only used as key).
+
+TESTS: node --test tests/node 72 pass (69 + 3 new). banned-names clean.
+
+VERIFY ON MAC: mob spawns near stores (mobInsideOp assumes e.w set by gndPlace); ball vs wall; CVS pad on a small planet; Esc hold after clicking out of the lock; /user A KEY then /user B shows no relay sync for B; death with inventory open.
+
+OPEN RISKS: hasLineOfSight(GB.o, GB.p) blocks catches when a wall is between hand and ball even if the creature is in front of it; fine intent, may feel strict at doorways. cleanPose rejects |coord| > 1e9 (above any galaxy coordinate by assumption).
