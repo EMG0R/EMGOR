@@ -6495,7 +6495,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             aPlay('buy', { pitch: 1.2 }); addRow('', '', res.line, 'is-sys'); writeSave(); invFill(); invTip(null); return true;
         }
         if (it.category === 'ship-upgrade' && it.upgrade) {
-            res = CRF.applyUpgrade(pf, it); Object.assign(pf, res.profile); applyUpgrades();
+            res = CRF.applyUpgrade(pf, it);
+            if (res.refused) { addRow('', '', res.line, 'is-sys'); return true; }      // maxed slot: the kit is not consumed
+            Object.assign(pf, res.profile); applyUpgrades();
             rec.n--; if (rec.n <= 0) pf.items.splice(idx, 1);
             aPlay('buy', { pitch: 1.2 }); addRow('', '', 'SHIP · ' + res.line, 'is-sys'); writeSave(); invFill(); invTip(null); return true;
         }
@@ -8717,7 +8719,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // ── 4. suit: tiers from the profile (7/11 GEAR tab rows + crafted kits) ──
     function suitOf(pf) {
         var s = (pf && pf.suit) || {}, u = (pf && pf.upgrades) || {};
-        return { jetpack: clamp(Math.max(s.jetpack | 0, u.jetpack | 0), 0, 3), scanner: clamp(s.scanner | 0, 0, 3), sprint: clamp(s.sprint | 0, 0, 3), storage: clamp(Math.max(s.storage | 0, u.cargo | 0), 0, 3) };
+        return { jetpack: clamp(Math.max(s.jetpack | 0, u.jetpack | 0, u['suit-jetpack'] | 0), 0, 3), scanner: clamp(Math.max(s.scanner | 0, u['suit-scanner'] | 0), 0, 3), sprint: clamp(Math.max(s.sprint | 0, u['suit-sprint'] | 0), 0, 3), storage: clamp(Math.max(s.storage | 0, u.cargo | 0, u['suit-storage'] | 0), 0, 3) };      // crafted suit kits land in upgrades['suit-<slot>']
     }
     function suitSync() {
         var s = suitOf(curProfile()), sig = s.jetpack + '' + s.scanner + s.sprint + s.storage;

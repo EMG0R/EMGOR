@@ -308,10 +308,13 @@ export function applyMod(weapon, mod) {
   const dps = (s) => s.dmg * s.rate * s.count, pct = Math.round((dps(stats) / Math.max(0.01, dps(before)) - 1) * 100);
   return { weapon: w, line: slot.toUpperCase() + ' slot: ' + (mod.name || 'mod') + ' | dps ' + (pct >= 0 ? '+' : '') + pct + '%' + (stats.special && stats.special !== before.special ? ', ' + stats.special : '') };
 }
+export const UPGRADE_CAP = { shield: 5, engine: 5, cargo: 5, jetpack: 5 };
 export function applyUpgrade(profile, upgrade) {
   const u = upgrade.upgrade || upgrade, slot = u.slot, lv = u.level || 1;
   const p = Object.assign({}, profile), ups = Object.assign({}, p.upgrades || {});
-  ups[slot] = (ups[slot] || 0) + lv; p.upgrades = ups;
+  const cur = ups[slot] || 0, cap = UPGRADE_CAP[slot] || (slot.indexOf('suit-') === 0 ? 3 : 0);
+  if (cap && cur >= cap) return { profile, line: slot.toUpperCase() + ' MAXED', refused: true };
+  ups[slot] = cap ? Math.min(cap, slot.indexOf('suit-') === 0 ? Math.max(cur, lv) : cur + lv) : cur + lv; p.upgrades = ups;
   if (slot === 'pens') p.pens = (p.pens || 0) + lv; else if (slot === 'pods') p.pods = (p.pods || 0) + lv; else if (slot === 'fuel') p.fuelMax = (p.fuelMax || 100) + 25 * lv;
   return { profile: p, line: slot.toUpperCase() + ' +' + lv + ' (now ' + ups[slot] + ')' };
 }
