@@ -8365,7 +8365,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         document.removeEventListener('mousedown', fgMouse, true); document.removeEventListener('mouseup', fgMouse, true);
         try { if (sess) sess.stop(); } catch (e) { /* ignore */ }
         cmdOpen = false; keys = Object.create(null); mdx = mdy = 0; firing = false; FG.ask = null;
-        if (w == null && FG.npc) FG.cd[FG.npc.id] = Date.now() + 5000;
+        if (w == null && FG.npc) FG.cd[FG.npc.id] = cooldownMax(FG.cd[FG.npc.id], Date.now() + 5000);      // never shorten the 60 s win / 10 s loss cooldown (Esc on the result card)
     }
     function talkShopper(n) {
         knownFor();
