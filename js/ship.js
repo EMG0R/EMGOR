@@ -634,7 +634,7 @@ export default function mount(engine) {
         var w = shownWave();
         if (w > bestWave) bestWave = w;
         var pf = curProfile();
-        if (pf && depthMod && depthStack) pf.depthStack = depthMod.toSave(depthStack);
+        if (pf && depthMod && depthStack && depthOwner === pf) pf.depthStack = depthMod.toSave(depthStack);
         if (pf) { pf.kills = Math.max(pget(pf, 'kills', 0) | 0, kills); pf.bestWave = Math.max(pget(pf, 'bestWave', 0) | 0, bestWave); r27Touch(pf); }
         saveData.wave = w; saveData.kills = kills; saveData.bestWave = bestWave; saveData.difficulty = difficulty; saveData.peaceful = peaceful; saveData.volume = volume; saveData.users = users; saveData.user = curUser;
         flushSave();
@@ -4969,11 +4969,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var fl = { on: false, pit: 0, wy: 0, wp: 0, th: 0, cr: 0, lock: false, tag: '', v: new THREE.Vector3(), alt: 0 }, flT = 0;
     var flF = new THREE.Vector3(), flA = new THREE.Vector3();
     // Q17b2: fractal depth persistence + HUD chip. depthMod is a guarded import like ship-styles: failure leaves depth 0 and nothing else changes.
-    var depthMod = null, depthStack = [], elDepth = document.createElement('div'), depthTag = '';
+    var depthMod = null, depthOwner = null, depthStack = [], elDepth = document.createElement('div'), depthTag = '';
     elDepth.className = 'sh-depth'; hud.appendChild(elDepth);
     function depthLoad() {
         var pf = curProfile();
-        depthStack = (depthMod && pf) ? depthMod.fromSave(pf.depthStack) : [];
+        depthStack = (depthMod && pf) ? depthMod.fromSave(pf.depthStack) : []; depthOwner = pf;      // the profile object this stack belongs to
         depthHud();
     }
     function depthHud() {
@@ -9456,10 +9456,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         r.lastSend = now; r.sig = sig; net.profSave(r.name, r.key, relayData(pf));
     }
     function discClaim(kind, id, name) {
-        var key = kind + ':' + id; if (R27.claimed[key]) return; R27.claimed[key] = 1;
-        var pf = ensureProfile(userName()), cid = String(id).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 48), nm = String(name).slice(0, 24), me = userName();
-        if (!pf.disc.some(function (d) { return d.k === kind && d.id === cid; })) { pf.disc.push({ k: kind, id: cid, name: nm, by: me }); pf.disc = pf.disc.slice(-120); writeSave(); }
-        if (!(net && net.online && net.discClaim && net.discClaim(kind, cid, nm, me))) addRow('', '', 'DISCOVERED · ' + nm.toUpperCase(), 'is-sys');
+        var me = userName(), key = me + '|' + kind + ':' + id; if (R27.claimed[key]) return; R27.claimed[key] = 1;      // per profile: a /user switch claims for the new profile too
+        var pf = ensureProfile(me), cid = String(id).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 48), nm = String(name).slice(0, 24), fresh = false;
+        if (!pf.disc.some(function (d) { return d.k === kind && d.id === cid; })) { fresh = true; pf.disc.push({ k: kind, id: cid, name: nm, by: me }); pf.disc = pf.disc.slice(-120); writeSave(); }
+        if (!(net && net.online && net.discClaim && net.discClaim(kind, cid, nm, me)) && fresh) addRow('', '', 'DISCOVERED · ' + nm.toUpperCase(), 'is-sys');      // already-known discoveries do not re-announce every session
     }
     function discPlanet(node) { if (node) discClaim('planet', String(node.id), planetLabel(node)); }
     function r27Disc(m) {
