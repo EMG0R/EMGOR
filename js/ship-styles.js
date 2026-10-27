@@ -137,9 +137,10 @@ function maro(env) {
       if (ctx.wallNormal) {
         const wx = ctx.wallNormal.x, wz = ctx.wallNormal.z, wl = Math.sqrt(wx * wx + wz * wz);
         if (wl > 0.1 && s.mode !== M_HANG && s.mode !== M_POUND) {
-          if (s.wallT <= 0) { s.wdx = hs > 0.3 ? s.vx / hs : -Math.sin(s.face); s.wdz = hs > 0.3 ? s.vz / hs : -Math.cos(s.face); s.wspd = hs; }
-          s.wallT = 0.2; s.wnx = wx / wl; s.wnz = wz / wl;                                // [doc] kick window ~0.2 s after contact
-          const into = s.vx * s.wnx + s.vz * s.wnz; if (into < 0) { s.vx -= into * s.wnx; s.vz -= into * s.wnz; }
+          const tall = ctx.wallH == null || ctx.wallH >= 1;      // a ledge under 1 H is not a wall to kick off (controller supplies wallH in H)
+          if (tall && s.wallT <= 0) { s.wdx = hs > 0.3 ? s.vx / hs : -Math.sin(s.face); s.wdz = hs > 0.3 ? s.vz / hs : -Math.cos(s.face); s.wspd = hs; }
+          if (tall) { s.wallT = 0.2; s.wnx = wx / wl; s.wnz = wz / wl; }                                // [doc] kick window ~0.2 s after contact
+          const into = tall ? s.vx * s.wnx + s.vz * s.wnz : 0; if (into < 0) { s.vx -= into * s.wnx; s.vz -= into * s.wnz; }
         }
       }
       if (s.jb > 0 && s.wallT > 0 && s.mode !== M_HANG && s.mode !== M_POUND) {                // wall kick: reflect, up 1.0, chainable

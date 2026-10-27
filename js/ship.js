@@ -5201,7 +5201,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (moving) nSub = Math.max(nSub, Math.ceil(spd * dt / (FOOT_SUB * H)));
         if (hum.air) nSub = Math.max(nSub, Math.ceil(Math.abs(hum.vv) * dt / (0.25 * H)));
         nSub = Math.min(16, nSub);
-        var h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, supNow = footFloor(dir, H, hr), opN = objBegin(), edgeG = !!(sr && sr.edgeGuard), wallHit = false, wallSl = false, wSx = 0, wSz = 0, wallNow = false;
+        var h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, supNow = footFloor(dir, H, hr), opN = objBegin(), edgeG = !!(sr && sr.edgeGuard), wallHit = false, wallSl = false, wSx = 0, wSz = 0, wallNow = false, wRiseH = 0;
         for (k = 0; k < nSub; k++) {
             if (moving) {
                 var step = spd * h;
@@ -5216,7 +5216,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                         dir.copy(fsC); supNow = supC; wallNow = false;
                         break;
                     }
-                    if (i === 0) { wallNow = rise > WALL_TAN * st; if (wallNow) { wallHit = true; wallSl = false; } }      // Q06: only a wall steeper than WALL_DEG counts, whether or not a slide then succeeds
+                    if (i === 0) { wallNow = rise > WALL_TAN * st; if (wallNow) { wallHit = true; wallSl = false; wRiseH = rise / H; } }      // Q06: only a wall steeper than WALL_DEG counts, whether or not a slide then succeeds
                 }
             }
             if (opN && (moving || hum.air)) {                      // rev 29: store / burger-house walls, shelves and the ship hull are solid for the capsule
@@ -5237,7 +5237,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         hum.wallT += dt;                                                // Q06: seconds since the last wall contact (styles read c.wallNormal inside 0.12 s)
         if (wallHit && moving) {
-            hum.wallT = 0; hum.wallX = -(gB.dot(gA)); hum.wallZ = gB.dot(hum.hf);
+            hum.wallT = 0; hum.wallH = wRiseH; hum.wallX = -(gB.dot(gA)); hum.wallZ = gB.dot(hum.hf);
             if (wallSl && stylesMod && stylesMod.wallNormal2) { if (stylesMod.wallNormal2(gB.dot(gA), -gB.dot(hum.hf), wSx, wSz, styWallO)) { hum.wallX = styWallO.x; hum.wallZ = styWallO.z; } }
         }
         // 2026-10-14: ground-contact cues. Landing edge = footLand (impact from the fall speed) + a crouch above a hard drop; steps on a walk / run cadence.
@@ -6882,7 +6882,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var il = 1 / Math.sqrt(gx * gx + 1 + gf * gf), k = Math.min(1, 14 * dt);
         styN.x += (-gx * il - styN.x) * k; styN.y += (il - styN.y) * k; styN.z += (gf * il - styN.z) * k;
         c.floorNormal = styN; c.slope = Math.acos(clamp(styN.y / (Math.sqrt(styN.x * styN.x + styN.y * styN.y + styN.z * styN.z) || 1), -1, 1)) * 57.29578;
-        if (hum.wallT < 0.12) { styWallO.x = hum.wallX; styWallO.z = hum.wallZ; c.wallNormal = styWallO; } else c.wallNormal = undefined;
+        if (hum.wallT < 0.12) { styWallO.x = hum.wallX; styWallO.z = hum.wallZ; c.wallNormal = styWallO; c.wallH = hum.wallH; } else c.wallNormal = undefined;
         c.facing = Math.atan2(-hum.face.dot(right), hum.face.dot(hf));
         // aim (camera ray) + homing / tongue targets + hostile proximity
         snB.set(0, 0, -1).applyQuaternion(camera.quaternion); snC.set(0, 0, 0);
