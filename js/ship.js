@@ -628,7 +628,7 @@ export default function mount(engine) {
         try { var o = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (o && typeof o === 'object') saveData = migrate(o); } catch (e) { /* storage unavailable */ }
         return saveData;
     }
-    function flushSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(saveData)); } catch (e) { /* ignore */ } }
+    function flushSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(saveData)); } catch (e) { warnOnce('save.flush', e); } }      // PF2: quota / private mode was invisible; progress silently stopped persisting
     function shownWave() { return Math.max(1, wavePending ? wave + 1 : wave); }
     function writeSave() {
         var w = shownWave();
@@ -3872,6 +3872,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if ((m = /^user(?:\s+(.*))?$/i.exec(raw))) {
             var ua = String(m[1] || '').replace(/[^\x20-\x7e]/g, '').trim().split(/\s+/), un = (ua[0] || '').slice(0, 16), ukey = ua.slice(1).join(' ').slice(0, 64);
             if (!un || un === '__proto__') return bad('USAGE · /user NAME [KEY]');
+            if (R27.rl.name && R27.rl.name !== un.toLowerCase()) { var rl0 = R27.rl; rl0.name = ''; rl0.key = ''; rl0.loaded = false; rl0.pend = false; rl0.retry = 0; rl0.sig = ''; try { sessionStorage.removeItem('nmg-rk'); } catch (e0) { /* ignore */ } }      // PF2: the relay login belongs to ITS user; switching away must not push/pull the new profile under the old name+key
             curUser = un; ensureProfile(un);
             applyProfile(); writeSave(); suitSync(true);
             announce('USER ' + un.toUpperCase());
@@ -9467,7 +9468,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function relaySig(pf) { var sa = pf.savedAt; pf.savedAt = 0; var s = JSON.stringify(pf); pf.savedAt = sa; return s; }
     function r27Prof(m) {
         var r = R27.rl, pf = curProfile();
-        if (!r.name || !pf) return;
+        if (!r.name || !pf || r.name !== String(curUser).toLowerCase()) return;      // PF2: stale reply for a user we switched away from
         if (m.loaded) {
             var srv = migrateProfile(m.data);
             if (srv.savedAt >= (pf.savedAt | 0)) { users[curUser] = srv; pf = srv; applyProfile(); suitSync(); R27.touchSig = relaySig(srv); writeSave(); addRow('', '', 'PROFILE LOADED · ' + String(r.name).toUpperCase(), 'is-sys'); }
