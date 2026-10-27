@@ -1374,13 +1374,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             }
             return o;
         }
-        return null;      // station / interior: keep the previous pose
+        if (rs.f === 'station' && rs.hp) return { v: 1, t: Date.now(), mode: 'station', pad: rs.pad | 0, hp: poseA(rs.hp), yaw: rs.yaw, pitch: rs.pitch };
+        return null;      // interior / derelict: keep the previous pose
     }
     function poseToSnap(o) {
         var v3 = function (a) { if (!Array.isArray(a) || a.length < 3 || !a.every(isFinite)) throw new Error('bad vec'); return new THREE.Vector3(+a[0], +a[1], +a[2]); };
         var q4 = function (a) { if (!Array.isArray(a) || a.length < 4 || !a.every(isFinite)) throw new Error('bad quat'); return new THREE.Quaternion(+a[0], +a[1], +a[2], +a[3]).normalize(); };
         if (!o || o.v !== 1) return null;
         if (o.mode === 'space') return { f: 'world', pos: v3(o.pos), quat: q4(o.quat) };
+        if (o.mode === 'station') return { f: 'station', pad: o.pad | 0, hp: v3(o.hp), yaw: +o.yaw || 0, pitch: +o.pitch || 0 };
         if (o.mode === 'planet') {
             var node = null, d = engine.drawOrder, i;
             for (i = 0; i < d.length; i++) if (d[i].anchor && String(d[i].id) === o.id) { node = d[i]; break; }
