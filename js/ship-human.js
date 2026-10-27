@@ -329,7 +329,7 @@ export function createHuman(THREE, opts = {}) {
   }
   function setRig(rc) { setSuit({ rig: rc, extra: [] }); return cur.rig; }
   // ── procedural animation ──
-  let t = 0, phase = 0, mv = 0, run = 0, air = 0, crouch = 0, wasAir = false, landT = 0, yaw = 0;
+  let t = 0, phase = 0, mv = 0, run = 0, air = 0, crouch = 0, pit = 0, wasAir = false, landT = 0, yaw = 0;
   const lerp = (a, b, k) => a + (b - a) * k;
   const damp = (cur, tgt, rate, dt) => cur + (tgt - cur) * (1 - Math.exp(-rate * dt));
 
@@ -342,7 +342,9 @@ export function createHuman(THREE, opts = {}) {
     if (wasAir && !st.airborne) landT = 0.28;
     wasAir = !!st.airborne;
     landT = Math.max(0, landT - dt);
-    crouch = damp(crouch, landT > 0 ? 1 : 0, landT > 0 ? 30 : 9, dt);
+    const wantC = landT > 0 || st.crouch > 0.5;      // MARO: styles drive crouch (long-jump / backflip wind-up, slide) as well as the landing
+    crouch = damp(crouch, wantC ? 1 : 0, wantC ? 30 : 9, dt);
+    pit = damp(pit, st.pitch > 0.5 ? 1 : 0, 14, dt);      // dive / belly slide: body face-down
     const freq = lerp(1.8, 2.6, run) * rg.stride;
     phase += dt * freq * Math.PI * 2 * (st.moving ? 1 : 0.0);
     if (st.facing != null) group.rotation.y = st.facing;
@@ -368,6 +370,8 @@ export function createHuman(THREE, opts = {}) {
     const bob = Math.abs(Math.cos(phase)) * lerp(0.018, 0.04, run) * w * rg.bounce;
     B.hips.position.y = HIP_Y + rg.hipOff + bob - 0.17 * crouch - 0.05 * air + (1 - mv) * g * br * 0.003;
     B.hips.rotation.y = -s * 0.1 * w;
+    // style flips: st.flip is 0..1 progress, flipKind 1 = front, 2 / 3 = back (backflip, skid flip), 4 = wall kick (no rotation); pitch tips the body face-down
+    B.hips.rotation.x = (st.flip > 0 && st.flipKind > 0 && st.flipKind < 4 ? (st.flipKind === 1 ? -1 : 1) * Math.PI * 2 * st.flip : 0) - 1.35 * pit;
     // torso: lean, counter-twist, breathing
     const lean = lerp(0.05, 0.38, run) * mv * g * rg.lean + 0.18 * crouch + 0.1 * air;
     B.torso.rotation.set(-lean + (1 - mv) * br * 0.012, s * 0.12 * w, 0);
