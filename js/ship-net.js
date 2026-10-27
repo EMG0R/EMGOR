@@ -9,6 +9,7 @@
      galaxyScale (docked ghost hull length)     onChat(from, text)   onGor(from, text)
    Client-authoritative, relay is a dumb fan-out. With nobody else online (or the
    relay unreachable) the game is the single-player game: no waits, no HUD errors. */
+import { roomKey } from './ship-keys.js';
 
 const PROD_URL = 'wss://gorcave.taila85593.ts.net/nmg';
 const LOCAL_URL = 'ws://127.0.0.1:8796';
@@ -440,10 +441,10 @@ export function connect(engine, hooks) {
         send({ t: 'fire', id: id, w: w | 0, x: r2(ox), y: r2(oy), z: r2(oz), dx: r4(dx), dy: r4(dy), dz: r4(dz) });
     }
     // mashup: planet rooms (server README: pl.enter / pl.leave / pl.snap host-only <=10/s <=4KB / pl.ev <=5/s <=512B). All return false when offline.
-    function plEnter(planet) { return send({ t: 'pl.enter', planet: String(planet).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 24) }); }
+    function plEnter(planet) { return send({ t: 'pl.enter', planet: roomKey(planet) }); }
     function plLeave() { return send({ t: 'pl.leave' }); }
-    function plSnap(planet, data) { return send({ t: 'pl.snap', planet: String(planet).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 24), data: data }); }
-    function plEv(planet, data) { return send({ t: 'pl.ev', planet: String(planet).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 24), data: data }); }
+    function plSnap(planet, data) { return send({ t: 'pl.snap', planet: roomKey(planet), data: data }); }
+    function plEv(planet, data) { return send({ t: 'pl.ev', planet: roomKey(planet), data: data }); }
     function sendKill(by) { send({ t: 'kill', by: by }); }
     function sendChat(text) { return send({ t: 'chat', text: String(text).slice(0, 200) }); }
     // rev 27: relay persistence + shared state (server/nmg-relay/README.md). All return false when offline.

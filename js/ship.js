@@ -13,6 +13,7 @@ import * as QST from './ship-quests.js';
 import * as PKG from './pokemans-gen.js';
 import * as PKC from './pokemans-catch.js';
 import * as PKP from './pokemans-party.js';
+import { roomKey, putRecent, cooldownMax } from './ship-keys.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
 // rate-limited gameplay error log: max one console.warn per tag per 30 s (silent ignores stay for DOM / pointer lock / localStorage)
@@ -6900,7 +6901,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function mobList() { var o = [], i; for (i = 0; i < R27.gnd.length; i++) if (R27.gnd[i].mob && R27.gnd[i].alive) o.push(R27.gnd[i]); return o; }
     function mobNight() { if (HB.in) return 1; if (MB.nightForce >= 0) return MB.nightForce; return land.node && hum.obj ? nightAt(land.node, hum.w) : 0; }
     function mobIsHost() { return !(net && net.online && MB.hostId && MB.hostId !== net.id); }
-    function mobPlId() { return land.node ? String(land.node.id).replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 24) : ''; }
+    function mobPlId() { return land.node ? roomKey(land.node.id) : ''; }      // hashed when > 24 chars (relay key limit): siblings with a shared prefix keep separate rooms
     function mobPlJoin(again) {
         var pid = mobPlId(); if (!pid || !(gmode === 'landed' || gmode === 'landing' || gmode === 'foot')) return;
         if (MB.joined && MB.planet === pid && !again) return;
