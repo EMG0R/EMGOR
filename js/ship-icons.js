@@ -413,6 +413,24 @@ export function weaponIcon(w) {
   const c = toCanvas(px); cache.set(key, c); return c;
 }
 
+// Q25: POKEMANS dex icon. Grid from pokemans-dex.iconGrid (pure), coloured here by the recipe hue; one cache entry per recipe.
+const CR_ACC = { f: [0.08, 0.62, 0.62], s: [0.1, 0.1, 0.78], c: [0.0, 0.3, 0.3], g: [0.0, 0.95, 0.8], p: [0.95, 0.55, 0.72] };
+export function creatureIcon(rec, grid, dim) {
+  rec = rec || {};
+  const key = 'C|' + rec.plan + '|' + (rec.seed | 0) + '|' + (rec.hue | 0) + '|' + (rec.segs | 0) + '|' + (rec.limbs | 0) + '|' + (rec.sig || []).join(',') + (dim ? '|x' : '');
+  const hit = cache.get(key); if (hit) return hit;
+  const hue = (rec.hue || 0) / 360, mp = { d: hsl2rgb(hue + 0.02, 0.6, 0.32), b: hsl2rgb(hue, 0.6, 0.55), l: hsl2rgb(hue - 0.01, 0.6, 0.67), h: hsl2rgb(hue - 0.02, 0.35, 0.85), O: hsl2rgb(hue, 0.4, 0.09), e: [250, 250, 250] };
+  const px = new Array(256).fill(null);
+  for (let i = 0; i < 256; i++) {
+    const c = grid[i]; if (c === '.') continue;
+    let v = mp[c];
+    if (!v && CR_ACC[c]) { const a = CR_ACC[c]; v = c === 'c' ? hsl2rgb(hue, 0.5, 0.22) : hsl2rgb(c === 'g' || c === 'p' ? a[0] : hue + a[0], a[1], a[2]); }
+    if (!v) continue;
+    px[i] = dim ? [Math.round(v[0] * 0.18 + 28), Math.round(v[1] * 0.18 + 24), Math.round(v[2] * 0.18 + 36)] : v;
+  }
+  const cv = toCanvas(px); cache.set(key, cv); return cv;
+}
+
 export function iconDataUrl(item) { return iconFor(item).toDataURL('image/png'); }
 
 export function drawIcon(ctx, item, x, y, scale) {

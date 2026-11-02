@@ -222,3 +222,35 @@
 .sh-hot .sh-hsel { position: absolute; box-sizing: border-box; border: calc(var(--g) * 1.5) solid #fff; box-shadow: 0 0 0 calc(var(--g) * 0.6) #000, inset 0 0 0 calc(var(--g) * 0.6) #000; }
 .sh-hot .sh-hname { position: absolute; left: 0; right: 0; bottom: calc(100% + var(--g) * 5); text-align: center; color: #fff; font-size: calc(var(--g) * 6); text-shadow: calc(var(--g) * 0.7) calc(var(--g) * 0.7) 0 #3f3f3f; opacity: 0; transition: opacity 0.4s; white-space: nowrap; }
 .sh-hot .sh-hname.is-on { opacity: 1; }
+
+/* Q25 DEX tab + POKEMANS party rows */
+.sh-inv .si-dex { display: none; gap: calc(var(--g) * 2); color: #202020; font-size: calc(var(--g) * 3.8); line-height: calc(var(--g) * 6); }
+.sh-inv .si-dex > div { position: relative; height: 100%; overflow-y: auto; box-sizing: border-box; background: #8B8B8B; box-shadow: inset calc(var(--g)) calc(var(--g)) 0 #373737, inset calc(var(--g) * -1) calc(var(--g) * -1) 0 #fff; padding: calc(var(--g) * 2); }
+.sh-inv .dx-l { width: calc(var(--g) * 78); flex: none; }
+.sh-inv .dx-d { flex: 1; min-width: 0; }
+.sh-inv .dx-c { color: #fff; margin-bottom: calc(var(--g)); }
+.sh-inv .dx-h { color: #2a1b5a; margin: calc(var(--g) * 2) 0 calc(var(--g)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-inv .dx-r { display: flex; align-items: center; gap: calc(var(--g) * 2); padding: 0 calc(var(--g)); cursor: pointer; height: calc(var(--g) * 9); }
+.sh-inv .dx-r:hover { background: #a5a5a5; }
+.sh-inv .dx-r.is-sel { background: #C6C6C6; box-shadow: 0 0 0 calc(var(--g) * 0.7) #000; }
+.sh-inv .dx-r.is-un span { opacity: 0.55; }
+.sh-inv .dx-r img { width: calc(var(--g) * 8); height: calc(var(--g) * 8); image-rendering: pixelated; flex: none; }
+.sh-inv .dx-r span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-inv .dx-r i { font-style: normal; color: #1d6b1d; }
+.sh-inv .dx-big { width: calc(var(--g) * 32); height: calc(var(--g) * 32); image-rendering: pixelated; display: block; margin: 0 auto calc(var(--g)); background: #1a1a1a; box-shadow: 0 0 0 calc(var(--g) * 0.7) #000; }
+.sh-inv .dx-n { text-align: center; font-size: calc(var(--g) * 5); color: #000; }
+.sh-inv .dx-t { text-align: center; color: #2b2b2b; }
+.sh-inv .dx-b { display: flex; align-items: center; gap: calc(var(--g)); }
+.sh-inv .dx-b u { text-decoration: none; width: calc(var(--g) * 9); }
+.sh-inv .dx-b s { flex: 1; height: calc(var(--g) * 2.4); background: #373737; text-decoration: none; }
+.sh-inv .dx-b b { display: block; height: 100%; background: #7CFF8A; }
+.sh-inv .dx-b em { font-style: normal; width: calc(var(--g) * 8); text-align: right; }
+.sh-inv .dx-m { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-inv .dx-m em { font-style: normal; color: #5a4a00; }
+.sh-pm .pm-i { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
+.sh-pm .pm-r .pm-n { flex: none; min-width: 90px; }
+.sh-pm .pm-r .pm-t { flex: 1; min-width: 0; }
+.sh-pm .pm-hp { display: block; height: 4px; margin-top: 3px; background: #2a1b46; }
+.sh-pm .pm-hp b { display: block; height: 100%; background: #7CFF8A; }
+.sh-pm .pm-r.is-dead .pm-hp b { background: #ff5a6a; }
+.sh-pm .pm-r.is-dead .pm-i { opacity: 0.6; }

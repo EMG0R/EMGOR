@@ -15,6 +15,7 @@ import * as PKG from './pokemans-gen.js';
 import * as PKC from './pokemans-catch.js';
 import * as PKP from './pokemans-party.js';
 import * as PKF from './pokemans-graft.js';
+import * as PDX from './pokemans-dex.js';
 import { roomKey, putRecent, cooldownMax } from './ship-keys.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
@@ -596,6 +597,7 @@ export default function mount(engine) {
         if (!o.harv || typeof o.harv !== 'object' || Array.isArray(o.harv)) o.harv = {};      // rev 25: harvested resource nodes {id:{n,at}} (the world respawns them 20 min after `at`)
         o.visits = Math.max(0, o.visits | 0);             // Burger House visits (every 3rd offers a recruit)
         o.pens = Math.max(0, o.pens | 0); o.pods = Math.max(0, o.pods | 0);
+        if (!o.dex || typeof o.dex !== 'object' || !o.dex.seen || typeof o.dex.seen !== 'object' || Array.isArray(o.dex.seen)) o.dex = { seen: {} };      // Q25: species seen (pokemans-dex.note)
         if (!Array.isArray(o.pokemans)) o.pokemans = [];  // Q12: every caught mon (full data, js/pokemans-catch.js makeMon); party / pen hold their ids
         o.pokemans = o.pokemans.filter(function (m) { return m && typeof m === 'object' && typeof m.id === 'string' && m.sp && m.ind; }).slice(-200);
         if (!Array.isArray(o.party)) o.party = [];       // max 6 mon ids
@@ -1567,6 +1569,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function guideTick(dt) {
         var i, m, on = 0, n = null, ni = 0;
         var ok = state === 'piloting' && !boarding && !exiting && !dead && !cmdOpen && gmode !== 'docking' && gmode !== 'launching' && gmode !== 'sfoot' && gmode !== 'ifoot';
+        var okS = state === 'piloting' && !boarding && !exiting && !dead && !cmdOpen && gmode === 'sfoot' && sk.mode === 'deck' && !R27.dsite && !!hum.obj;
         if (ok && ps && ps.active) {
             n = ps.active;
             var org = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position, Rn = n.mesh.scale.x;
@@ -1583,6 +1586,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             gdItem(ni++, 'ship', 'SHIP', 'is-ship', true).copy(land.sPos).applyQuaternion(land.node.mesh.quaternion).add(land.node.anchor.position);
             ni = gdNpcs(dt, ni);
         }
+        if (okS) { var scv = station && station.interior && station.interior.cvs; if (scv && scv.radius) gdItem(ni++, 'cvs', 'POKEMANS CVS', '', true).copy(scv.pos); }      // Q25: station CVS marker (deck frame = the frame stationInteract measures in)
         if (ok && gmode === 'fly') ni = gdSpace(ni, n);
         if (!ni) { if (gdShown) { for (i = 0; i < GD_N; i++) if (gdPool[i].on) { gdPool[i].on = false; gdPool[i].el.classList.remove('is-on'); } gdShown = 0; } return; }
         camera.updateMatrixWorld();
@@ -6348,7 +6352,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     import('./ship-icons.js').then(function (m) { iconsMod = m; if (invOpen) invFill(); hotFill(); }).catch(function (e) { console.info('[ship] ship-icons unavailable', e); });
     var elInv = document.createElement('div');
     elInv.className = 'sh-inv';
-    elInv.innerHTML = '<div class="si-tabs"><span class="is-on">INVENTORY</span><span>CHARACTER</span></div><div class="si-p"></div><div class="si-book"></div><div class="si-f">Right click eat / drink / fit mod · Left click hold weapon · 1-9 hotbar · Wheel scroll · E / Esc close</div>';
+    elInv.innerHTML = '<div class="si-tabs"><span class="is-on">INVENTORY</span><span>CHARACTER</span><span>DEX</span></div><div class="si-p"></div><div class="si-book"></div><div class="si-f">Right click eat / drink / fit mod · Left click hold weapon · 1-9 hotbar · Wheel scroll · E / Esc close</div>';
     hud.appendChild(elInv);
     var elInvTip = document.createElement('div'); elInvTip.className = 'si-tip'; hud.appendChild(elInvTip);
     var elP = elInv.querySelector('.si-p'), elTabs = elInv.querySelector('.si-tabs'), elBook = elInv.querySelector('.si-book'), invTipKey = '';
@@ -6356,7 +6360,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gput(el, x, y, w, h) { var S = 'calc(var(--g) * '; el.style.left = S + x + ')'; el.style.top = S + y + ')'; if (w != null) { el.style.width = S + w + ')'; el.style.height = S + h + ')'; } }
     function slotRec(attr, val, par, cls) { var d = document.createElement('div'); d.className = 'si-s is-empty' + (cls ? ' ' + cls : ''); d.setAttribute(attr, String(val)); d.innerHTML = '<canvas width="16" height="16"></canvas><em></em>'; (par || elP).appendChild(d); var cv = d.firstChild; return { el: d, cv: cv, ctx: cv.getContext('2d'), n: d.lastChild, k: '' }; }
     var elLblC = mkd('si-l', 'Crafting'), elLblI = mkd('si-l', 'Inventory'), elInvU = mkd('si-u', ''), elPv = mkd('si-pv', '<canvas></canvas>'), elArrow = mkd('si-ar', '<i></i>'), elRb = mkd('si-rb', '<i></i>');
-    var armorRec = [], offRec, elChar, chN, chS, chP, chD, chL, chR;
+    var armorRec = [], offRec, elChar, elDex, dxL, dxD, chN, chS, chP, chD, chL, chR;
     (function buildInv() {
         var i;
         for (i = 0; i < 4; i++) armorRec.push(slotRec('data-a', i));
@@ -6364,6 +6368,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 0; i < INV_SLOTS; i++) invSlots.push(slotRec('data-i', i));
         for (i = 0; i < INV_COLS; i++) invWSlots.push(slotRec('data-w', i));
         elChar = mkd('si-char', '<b class="ch-a" data-ch="-1">&#9664;</b><span class="ch-n"></span><b class="ch-a" data-ch="1">&#9654;</b><canvas class="ch-p" width="16" height="16"></canvas><div class="ch-s"></div><div class="ch-d"></div>');
+        elDex = mkd('si-dex', '<div class="dx-l"></div><div class="dx-d"></div>'); dxL = elDex.children[0]; dxD = elDex.children[1];
         chL = elChar.children[0]; chN = elChar.children[1]; chR = elChar.children[2]; chP = elChar.children[3]; chD = elChar.children[5]; chS = elChar.children[4];
     })();
     function invPaint(sl, ic, key) {          // pooled canvas per slot; repaint only when the icon changes
@@ -6413,7 +6418,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 s.n.textContent = ''; s.el.classList.toggle('is-eq', !!(pf.weapon && pf.weapon.id === w.id));
             } else { s.el.classList.add('is-empty'); s.el.classList.remove('is-eq'); invPaint(s, null, ''); s.n.textContent = ''; }
         }
-        armorFill(pf); r25Fill(); if (R28.book) r28BookFill(); if (invMode === 'char') charFill();
+        armorFill(pf); r25Fill(); if (R28.book) r28BookFill(); if (invMode === 'char') charFill(); if (invMode === 'dex') dexFill();
         elInvU.textContent = CRF.fmt(pf.gor);
         hotFill();
     }
@@ -6462,7 +6467,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     elInv.addEventListener('contextmenu', function (e) { e.preventDefault(); var s = invSlotOf(e.target); if (s && s.getAttribute('data-i') != null) eatSlot(invTop * INV_COLS + (+s.getAttribute('data-i'))); });
     elInv.addEventListener('click', function (e) {
         var t = e.target, s = invSlotOf(t);
-        if (t.closest && t.closest('.si-tabs') && t.parentNode === elTabs) { invSetMode(Array.prototype.indexOf.call(elTabs.children, t) === 1 ? 'char' : 'inv'); return; }
+        if (t.closest && t.closest('.si-tabs') && t.parentNode === elTabs) { invSetMode(['inv', 'char', 'dex'][Array.prototype.indexOf.call(elTabs.children, t)] || 'inv'); return; }
+        var dr = t.closest && t.closest('[data-dx]'); if (dr) { DXS.sel = dr.getAttribute('data-dx'); DXS.sig = ''; dexFill(); aPlay('ui', { vel: 0.4 }); return; }
         if (t.closest && t.closest('.si-rb')) { r28BookSet(!R28.book); return; }
         var ca = t.closest && t.closest('[data-ch]'); if (ca) { styleCycle(+ca.getAttribute('data-ch')); return; }
         if (!s || s.getAttribute('data-w') == null) return;
@@ -6470,6 +6476,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     });
     elInv.addEventListener('wheel', function (e) {
         if (R28.book && e.target.closest && e.target.closest('.si-book')) return;      // rev 28: the recipe book scrolls natively
+        if (invMode === 'dex') return;      // Q25: the dex list scrolls natively
         e.preventDefault();
         invTop += e.deltaY > 0 ? 1 : -1; invFill();
     }, { passive: false });
@@ -6482,15 +6489,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return clamp(Math.floor(Math.min((W - 16) / wmc, (H - 16) / hmc) * 2) / 2, 1, 5);
     }
     function invLayout() {
-        var g = invG = invG0(), tbl = R25.craftOn, ch = invMode === 'char', i, cx, cy, cl = tbl ? [0, 1, 2, 3, 4, 5, 6, 7, 8] : [0, 1, 3, 4], on;
+        var g = invG = invG0(), tbl = R25.craftOn, ch = invMode !== 'inv', dx = invMode === 'dex', i, cx, cy, cl = tbl ? [0, 1, 2, 3, 4, 5, 6, 7, 8] : [0, 1, 3, 4], on;
         elInv.style.setProperty('--g', g + 'px');
         elInv.style.setProperty('--sh', R28.book ? '77' : '0');
         for (i = 0; i < 4; i++) { gput(armorRec[i].el, 7, 7 + 18 * i, 18, 18); armorRec[i].el.style.display = ch || tbl ? 'none' : ''; }
         gput(offRec.el, 76, 61, 18, 18); offRec.el.style.display = ch || tbl ? 'none' : '';
-        gput(elPv, ch ? 7 : 25, 7, ch ? 52 : 51, 72); elPv.style.display = tbl && !ch ? 'none' : '';
-        for (i = 0; i < INV_SLOTS; i++) gput(invSlots[i].el, 7 + 18 * (i % 9), 83 + 18 * ((i / 9) | 0), 18, 18);
-        for (i = 0; i < 9; i++) gput(invWSlots[i].el, 7 + 18 * i, 141, 18, 18);
-        elLblI.style.display = ''; gput(elLblI, 8, 72); gput(elInvU, 128, 72, 40, 9); elInvU.style.display = ch ? 'none' : '';
+        gput(elPv, ch ? 7 : 25, 7, ch ? 52 : 51, 72); elPv.style.display = (tbl && !ch) || dx ? 'none' : '';
+        for (i = 0; i < INV_SLOTS; i++) { gput(invSlots[i].el, 7 + 18 * (i % 9), 83 + 18 * ((i / 9) | 0), 18, 18); invSlots[i].el.style.display = dx ? 'none' : ''; }
+        for (i = 0; i < 9; i++) { gput(invWSlots[i].el, 7 + 18 * i, 141, 18, 18); invWSlots[i].el.style.display = dx ? 'none' : ''; }
+        elLblI.style.display = dx ? 'none' : ''; gput(elLblI, 8, 72); gput(elInvU, 128, 72, 40, 9); elInvU.style.display = ch ? 'none' : '';
         for (i = 0; i < 9; i++) {
             on = cl.indexOf(i) >= 0 && !ch; craftCells[i].el.style.display = on ? '' : 'none';
             cx = tbl ? i % 3 : (i % 3 === 1 ? 1 : 0); cy = tbl ? (i / 3) | 0 : (i >= 3 ? 1 : 0);
@@ -6500,10 +6507,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         gput(craftOut.el, tbl ? 121 : 147, tbl ? 31 : 24, 26, 26); craftOut.el.style.display = ch ? 'none' : '';
         elLblC.style.display = ch ? 'none' : ''; gput(elLblC, tbl ? 28 : 97, tbl ? 5 : 7);
         elRb.style.display = ch ? 'none' : ''; gput(elRb, tbl ? 5 : 104, tbl ? 34 : 61, 20, 18);
-        gput(elChar, 62, 8, 106, 70); elChar.style.display = ch ? '' : 'none';
-        for (i = 0; i < modCells.length; i++) { gput(modCells[i].el, 94 + 15 * i, 27, 15, 18); modCells[i].el.style.display = ch ? '' : 'none'; }
+        gput(elChar, 62, 8, 106, 70); elChar.style.display = invMode === 'char' ? '' : 'none';
+        gput(elDex, 7, 7, 162, 152); elDex.style.display = dx ? 'flex' : 'none';
+        for (i = 0; i < modCells.length; i++) { gput(modCells[i].el, 94 + 15 * i, 27, 15, 18); modCells[i].el.style.display = invMode === 'char' ? '' : 'none'; }
         gput(chL, 0, 0, 12, 14); gput(chN, 12, 0, 82, 14); gput(chR, 94, 0, 12, 14); gput(chP, 0, 18, 24, 24); gput(chS, 30, 38, 76, 8); gput(chD, 0, 48, 106, 24);
-        for (i = 0; i < elTabs.children.length; i++) elTabs.children[i].classList.toggle('is-on', (i === 1) === ch);
+        for (i = 0; i < elTabs.children.length; i++) elTabs.children[i].classList.toggle('is-on', i === (invMode === 'inv' ? 0 : invMode === 'char' ? 1 : 2));
         elInv.classList.toggle('is-book', R28.book);
         pvResize();
     }
@@ -6534,7 +6542,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (e.repeat) return;
         if (c === 'KeyE' || c === 'KeyF' || c === 'Backspace') { closeInv(); return; }
         if (c === 'KeyR') { r28BookSet(!R28.book); return; }
-        if (c === 'Tab') { invSetMode(invMode === 'inv' ? 'char' : 'inv'); return; }
+        if (c === 'Tab') { invSetMode(invMode === 'inv' ? 'char' : invMode === 'char' ? 'dex' : 'inv'); return; }
+        if (invMode === 'dex') { if (c === 'ArrowDown' || c === 'KeyS') dexStep(1); else if (c === 'ArrowUp' || c === 'KeyW') dexStep(-1); return; }
         if (invMode === 'char' && (c === 'ArrowLeft' || c === 'KeyA')) { styleCycle(-1); return; }
         if (invMode === 'char' && (c === 'ArrowRight' || c === 'KeyD')) { styleCycle(1); return; }
         if (/^Digit[1-9]$/.test(c)) { hbSelect(+c.slice(5) - 1); invFill(); return; }
@@ -6810,6 +6819,47 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (has('quills')) { c.fillStyle = '#e8d4ff'; c.fillRect(3, 2, 1, 2); c.fillRect(6, 0, 1, 3); c.fillRect(9, 0, 1, 3); c.fillRect(12, 2, 1, 2); }
         if (has('snout')) { c.fillStyle = col; c.fillRect(11, 8, 4, 3); c.fillStyle = '#0b0b16'; c.fillRect(14, 8, 1, 1); }
         if (has('tail')) { c.fillStyle = col; c.fillRect(13, 12, 3, 1); c.fillRect(15, 10, 1, 3); }
+    }
+    // ── Q25 DEX tab: species seen/caught per planet, pixel icon from the recipe (ship-icons.creatureIcon), base stat bars, grafts, moves ──
+    var DXS = { sel: '', sig: '', ids: [], urls: {} }, DX_ST = ['hp', 'atk', 'def', 'spd', 'sp'];
+    function monIconUrl(rec, dim) {
+        if (!iconsMod || !iconsMod.creatureIcon) return '';
+        var k = rec.plan + '|' + (rec.seed | 0) + '|' + (rec.hue | 0) + '|' + (rec.segs | 0) + '|' + (rec.limbs | 0) + '|' + rec.sig.join(',') + (dim ? 'x' : '');
+        var u = DXS.urls[k]; if (u) return u;
+        try { u = iconsMod.creatureIcon(rec, PDX.iconGrid(rec), dim).toDataURL('image/png'); } catch (e0) { u = ''; }
+        return (DXS.urls[k] = u);
+    }
+    function dexStep(d) {
+        var i = DXS.ids.indexOf(DXS.sel); if (!DXS.ids.length) return;
+        DXS.sel = DXS.ids[clamp(i + d, 0, DXS.ids.length - 1)]; DXS.sig = ''; dexFill();
+        var el = dxL.querySelector('.dx-r.is-sel'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+    }
+    function dexFill() {
+        var pf = ensureProfile(userName()), list = PDX.entries(pf), i, j, e, h = '', sig = String(iconsMod ? 1 : 0), gr, caught = 0;
+        for (i = 0; i < list.length; i++) { e = list[i]; if (e.caught) caught++; sig += '|' + e.id + (e.caught ? 'c' + e.count + ':' + e.best : '') + JSON.stringify(e.grafts); }
+        sig += '#' + DXS.sel; if (sig === DXS.sig) return; DXS.sig = sig;
+        DXS.ids.length = 0; for (i = 0; i < list.length; i++) DXS.ids.push(list[i].id);
+        if (DXS.sel && DXS.ids.indexOf(DXS.sel) < 0) DXS.sel = '';
+        if (!DXS.sel && list.length) DXS.sel = list[0].id;
+        gr = PDX.groups(list);
+        h = '<div class="dx-c">DEX · ' + list.length + ' SEEN · ' + caught + ' CAUGHT</div>';
+        for (i = 0; i < gr.length; i++) {
+            h += '<div class="dx-h">' + qEsc(String(gr[i].planet).toUpperCase()) + '</div>';
+            for (j = 0; j < gr[i].list.length; j++) { e = gr[i].list[j]; h += '<div class="dx-r' + (e.id === DXS.sel ? ' is-sel' : '') + (e.caught ? '' : ' is-un') + '" data-dx="' + e.id + '"><img src="' + monIconUrl(e.rec, !e.caught) + '"><span>' + qEsc(e.name.toUpperCase()) + '</span><i>' + (e.caught ? '&#10003;' : '') + '</i></div>'; }
+        }
+        if (!list.length) h += '<div class="dx-h">NOTHING YET · scan or catch a creature</div>';
+        dxL.innerHTML = h;
+        var d = '', sel = null; for (i = 0; i < list.length; i++) if (list[i].id === DXS.sel) sel = list[i];
+        if (sel) {
+            var gk = Object.keys(sel.grafts), rec = sel.rec;
+            if (gk.length) rec = Object.assign({}, rec, { sig: rec.sig.concat(gk) });
+            d = '<img class="dx-big" src="' + monIconUrl(rec, !sel.caught) + '"><div class="dx-n">' + qEsc(sel.name.toUpperCase()) + '</div><div class="dx-t">' + sel.types.join(' / ') + ' · T' + sel.tier + '</div>'
+                + '<div class="dx-t">' + (sel.caught ? 'CAUGHT x' + sel.count + ' · BEST L' + sel.best : 'SEEN · NOT CAUGHT') + '</div>';
+            for (i = 0; i < DX_ST.length; i++) d += '<div class="dx-b"><u>' + DX_ST[i].toUpperCase() + '</u><s><b style="width:' + clamp(Math.round(sel.base[DX_ST[i]] / 1.2), 4, 100) + '%"></b></s><em>' + sel.base[DX_ST[i]] + '</em></div>';
+            d += '<div class="dx-t">GRAFTS ' + (gk.length ? gk.map(function (k) { return k.toUpperCase() + ' x' + sel.grafts[k]; }).join(' · ') : 'none') + '</div>';
+            for (i = 0; i < sel.moves.length; i++) d += '<div class="dx-m">' + qEsc(sel.moves[i].name.toUpperCase()) + ' <em>' + sel.moves[i].type + ' ' + sel.moves[i].power + '</em></div>';
+        }
+        dxD.innerHTML = d;
     }
     function charFill() {
         var l = stylesList(), id = curStyleId || 'pilot', def = styleDef(id), i = 0, j, ln = abilityLines(def);
@@ -9212,14 +9262,24 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 0; i < cl.length; i++) { if (cl[i].lp.distanceToSquared(lpv) < (1.3 * H) * (1.3 * H)) { GB.gr = cl[i]; return true; } }
         return false;
     }
+    function ptSpeciesOf(node, kind, tier) {      // the one species recipe for a wild creature (catch + dex sighting both use it)
+        var lk = ps && ps.lookOf ? ps.lookOf(node) : 'rocky', biome = { lush: 'lush', icy: 'icy', rocky: 'rocky', gas: 'gas', lava: 'lava', sea: 'sea' }[lk] || 'rocky';
+        return PKG.species(String(node.id), kind, { biome: biome, tier: Math.min(5, tier) });
+    }
+    var dxLast = '';
+    function dexSight(node, g) {      // Q25: nearest scanned creature -> dex (cheap: skipped while it is the same one)
+        var tier = 1 + (hash25(String(node.id) + ':' + g.id) % 2), kind = CR_NAMES[crKind(g)], key = node.id + ':' + g.id + ':' + kind;
+        if (key === dxLast) return; dxLast = key;
+        var pf = ensureProfile(userName()), sp = ptSpeciesOf(node, kind, tier);
+        if (PDX.note(pf, sp, planetLabel(node))) { addRow('', '', 'DEX · ' + sp.name.toUpperCase() + ' seen', 'is-sys'); writeSave(); }
+    }
     function gbCatch(pf) {
         var node = land.node, pid = String(node.id), e = GB.e, g = GB.gr, tier, seed, kind, sp, ind, lvl, mon, nid;
         if (e) { tier = e.cr.tier || 1; seed = e.cr.seed | 0; kind = e.cr.kind || 'creature'; } else { tier = 1 + (hash25(pid + ':' + g.id) % 2); seed = hash25(pid + ':' + g.id); kind = CR_NAMES[crKind(g)]; }
-        var lk = ps && ps.lookOf ? ps.lookOf(node) : 'rocky', biome = { lush: 'lush', icy: 'icy', rocky: 'rocky', gas: 'gas', lava: 'lava', sea: 'sea' }[lk] || 'rocky';
-        sp = PKG.species(pid, kind, { biome: biome, tier: Math.min(5, tier + (e ? 1 : 0)) }); ind = PKG.individual(sp, seed + ':' + pid); lvl = Math.min(PKG.MAX_LEVEL, 2 + sp.tier * 3);
+        sp = ptSpeciesOf(node, kind, tier + (e ? 1 : 0)); ind = PKG.individual(sp, seed + ':' + pid); lvl = Math.min(PKG.MAX_LEVEL, 2 + sp.tier * 3);
         mon = PKC.makeMon(sp, ind, lvl, PKG.xpForLevel(lvl), pid); mon.at = Date.now();
         for (nid = 0; pf.pokemans.some(function (m) { return m.id === mon.id + (nid ? '#' + nid : ''); }); nid++) { /* same species+size twice: suffix */ } if (nid) mon.id += '#' + nid;
-        pf.pokemans.push(mon); PKP.trimMons(pf, 200);
+        PDX.note(pf, sp, planetLabel(node)); pf.pokemans.push(mon); PKP.trimMons(pf, 200);
         (pf.party.length < PKC.PARTY_MAX ? pf.party : pf.pen).push(mon.id);
         giveItem({ id: mon.id, seed: seed >>> 0, name: sp.name, kind: 'pokemans', base: sp.types.join('/'), infusion: null, modifier: null, color: new THREE.Color().setHSL(sp.bodyRecipe.hue / 360, 0.6, 0.55).getHex(), price: 0, tier: sp.tier, category: 'pokemans', tags: ['pokemans'], stackKey: mon.id, iconHint: 'candy', mon: mon, blurb: sp.types.join(' / ') + ' · L' + lvl + ' · ' + sp.moves.map(function (m) { return m.name; }).join(', '), dealer: false }, 1);
         if (e) { if (e.guard) e.guard._gdDead = true; if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }      // PF2: a caught guardian is dead for the guard spawner too, as in gndKill
@@ -9570,8 +9630,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function ptMgrRow(pf, id, inParty) {
         var m = PKP.monById(pf, id); if (!m) return '';
-        var act = inParty && PKP.active(pf) === m;
-        return '<div class="pm-r' + (m.dead ? ' is-dead' : '') + (act ? ' is-act' : '') + '"><span class="pm-n">' + m.sp.name.toUpperCase() + ' L' + m.level + '</span><span class="pm-t">' + m.sp.types.join('/') + ' · ' + (m.dead ? 'DEAD' : m.hp + '/' + PKP.maxHp(m)) + '</span>'
+        var r = PDX.partyRow(pf, m, PKP.maxHp(m)), act = inParty && PKP.active(pf) === m, rec = PKF.bodyOf(m);
+        return '<div class="pm-r' + (r.dead ? ' is-dead' : '') + (act ? ' is-act' : '') + '"><img class="pm-i" src="' + monIconUrl(rec, r.dead) + '"><span class="pm-n">' + qEsc(r.name.toUpperCase()) + ' L' + r.level + '</span>'
+            + '<span class="pm-t">' + r.types.join('/') + ' · ' + (r.dead ? 'FAINTED' : r.hp + '/' + r.max) + ' · BOND ' + r.bond + (r.bondTier ? ' T' + r.bondTier : '') + (r.grafts ? ' · ' + r.grafts + ' GRAFT' + (r.grafts > 1 ? 'S' : '') : '') + '<s class="pm-hp"><b style="width:' + Math.round(r.frac * 100) + '%"></b></s></span>'
             + (inParty && !m.dead && !act ? '<button data-pm="act" data-id="' + id + '">ACTIVE</button>' : act ? '<em>ACTIVE</em>' : '') + '<button data-pm="mv" data-id="' + id + '">' + (inParty ? 'TO PEN' : 'TO PARTY') + '</button></div>';
     }
     function ptMgrFill() {
@@ -9604,7 +9665,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!land.node) return;
         var pid = String(land.node.id), pl = planetLabel(land.node), cl = creatList(), i, bd = (40 * L) * (40 * L), best = null;
         for (i = 0; i < cl.length; i++) { var d2 = cl[i].lp.distanceToSquared(hum.pos); if (d2 < bd) { bd = d2; best = cl[i]; } }
-        if (best) { var kn = CR_NAMES[crKind(best)]; discClaim('creature', pid + ':' + kn, kn + ' ' + pl); }
+        if (best) { var kn = CR_NAMES[crKind(best)]; discClaim('creature', pid + ':' + kn, kn + ' ' + pl); dexSight(land.node, best); }
         if (w && typeof w.scanTargets === 'function') {
             try { var tg = w.scanTargets(); for (i = 0; i < tg.length; i++) { if (tg[i].type !== 'resource') continue; locToWorld(tg[i].pos, vHl2); if (vHl2.distanceToSquared(org) < (40 * L) * (40 * L)) { discClaim('resource', pid + ':' + (tg[i].kind || 'ore'), String(tg[i].kind || 'ore').toUpperCase() + ' ' + pl); break; } } } catch (e1) { /* ignore */ }
         }
