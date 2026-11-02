@@ -14,7 +14,7 @@
 //                                          toParent(v,out), toStore(v,out), inside(p parent-frame) },
 //                               burgerHouse: world.burgerHouse on the first store, else null }]      all positions planet-local (Vector3)
 //        box = { name, min:Vector3, max:Vector3 } in STORE-LOCAL metres (x across, z toward the glass front (+z), y up from the slab; floorY = standing height).
-//        Convert with store.interior.toParent / matrix; 1 m = interior.unit world units (= 0.09 L / 1.75 = a human's height is 1.75 m).
+//        Convert with store.interior.toParent / matrix; 1 m = interior.unit world units (= H_RATIO L / 1.75 = a human's height is 1.75 m).
 //     world.cvs               Q14 POKEMANS CVS { id, name, pos, reviveWin, healWin, radius, matrix, unit, walls:[box] } or null; world.setCvsSite(dir|null, nodeId) places it (flat pad slot 2, ship.js); world.nearCvs = { kind:'revive'|'heal', cvs } | null
 //     world.burgerHouse       { id, pos, windowPos, radius, clerk:{ name, seed, role:'fries', known, human, say(ctx) }, menu:[FRIES], walls:[box], interior-like matrix } or null before attach
 //     world.known             Set of learned concepts (ship-lingo). world.setKnown(set) rebinds every NPC to the player's saved Set.
@@ -37,7 +37,7 @@
 //     world.cart [{item,shelfId,storeId}], world.cartTotal(), world.checkout() -> total gorCoin (clears cart + heat; world.lastCheckout = items). world.onCopSay({store,cop,state,line}) on warn/chase.
 //   STORE_NAME is the one constant to rename the shop (the lit sign, the UI and the clerk lines read it).
 //   Also exported for the station: createStandaloneStore(THREE, opts), transformBoxes(boxes, matrix).
-// Scale: the store is modelled in metres (planet store 64 x 40 x 15, station store 40 x 26 x 12; see makeDims); a human is 1.75 m = 0.09 L.
+// Scale: the store is modelled in metres (planet store 64 x 40 x 15, station store 40 x 26 x 12; see makeDims); a human is 1.75 m = H_RATIO L.
 // Draw calls: stores = 4 instanced draws (bodies, emissives, signs, glass) for all outposts + 2 per human (visible only within ~30 L); shards = 1; Burger House = 3.
 // Store shell + shelves + item boxes is ONE shared geometry (see world.storeTris, <= 6000) instanced per outpost.
 import { createHuman } from './ship-human.js';
@@ -48,7 +48,7 @@ export const STORE_NAME = 'INTERGALACTIC 7/11';
 export const STORE_COLOR = 0x8A3CFF;
 export const SHARDS_PER_PLANET = 20;
 export const SHARD_VALUE = 25;
-const HUMAN_H = 0.09;                   // human height in L
+import { H_RATIO as HUMAN_H } from './ship-scale.js';   // human height in L (one definition, ship-scale.js)
 const WT = 0.5, FY = 0.22;              // wall thickness, floor standing height (store footprints: see makeDims)
 
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -845,7 +845,7 @@ function resGeometries(T) {
 export function createWorld(THREE, ps, L, mods) {
   const T = THREE, weapons = (mods && mods.weapons) || null, parts = (mods && mods.parts) || null;
   const rngOf = (seed) => (parts && parts.mulberry) ? parts.mulberry(seed) : mulberry(seed);
-  const K = HUMAN_H * L / 1.75;                            // store unit = 1 m in world units (a 1.75 m human = 0.09 L)
+  const K = HUMAN_H * L / 1.75;                            // store unit = 1 m in world units (a 1.75 m human = H_RATIO L)
   const OS = (ps && ps.outScale > 0) ? ps.outScale : 1, KS = K * OS;   // 2026-10-14: the planet's 7/11 + Burger House are built OS x bigger (ship-planet OUT_S); NPC humans stay human-sized (crowd hs = 1 / OS)
   const group = new T.Group(); group.name = 'ship-world';
   const world = { group, stores: [], shards: [], nearStore: null, nearBurger: null, nearCvs: null, nearNpc: null, burgerHouse: null, cvs: null, onShard: null, onBusted: null, onCopSay: null, heat: 0, cart: [], lastCheckout: [], heatStore: null, resources: [], resGas: false, node: null, storeTris: 0, burgerTris: 0, known: new Set() };

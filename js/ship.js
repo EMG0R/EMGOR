@@ -5,6 +5,7 @@
    no procedural generation, no makeBody at runtime. */
 
 import { createFx } from './ship-fx.js';
+import { H_RATIO, GM_PER_L, hOf } from './ship-scale.js';
 import * as ITM from './ship-items.js';
 import * as LNG from './ship-lingo.js';
 import * as ENM from './ship-enemies.js';
@@ -155,8 +156,7 @@ export default function mount(engine) {
     function readRefR() { var k = root.kids && root.kids[0], r = readRefRaw(); if (!r) return 0; return r * (k && engine.pilotScale ? engine.pilotScale(k) : 1); }
     var refR0 = readRefRaw() || 100, refR = readRefR() || 300;
     var L = refR / 12000;
-    var H_RATIO = 0.09;                                  // human height as a fraction of ship length L (the one definition; hOf is the only reader)
-    function hOf(len) { return H_RATIO * len; }
+    // H_RATIO / hOf / GM_PER_L: imported from ship-scale.js (the one definition of human height vs ship length L)
     // rev 20: the engine sizes every body's minimum pilot radius from the ship length
     function pushShipLength() { try { if (typeof engine.setShipLength === 'function') engine.setShipLength(L); } catch (e) { /* engine without the hook */ } }
     pushShipLength();
@@ -8610,7 +8610,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     // ─── station docking: scripted approach, deck on foot, scripted launch ────────────────────────────────────────────────────────
     // The ship and the human are stored STATION-LOCAL (L units) and ride SITE().pos / quat every frame, like the planet frame.
-    var SK_R = 0.022, SK_H = 0.09, SK_CAM = 0.54;
+    var SK_R = 0.022, SK_H = 0.09, SK_CAM = 0.54;   // station deck + ship interior stay at the old 0.09 human (ship-scale.js)
     var sk = { mode: '', pad: 0, pts: [], cum: [], len: 0, t: 0, T: 6, q0: new THREE.Quaternion(), shipL: new THREE.Vector3(), hp: new THREE.Vector3(), yaw: 0, pitch: 0.3, vv: 0, air: false, moving: false, running: false, jumpHeld: false, nl: 0, cd: 0, fade: 0 };
     var skA = new THREE.Vector3(), skB = new THREE.Vector3(), skC = new THREE.Vector3(), skI = { kind: '', obj: null, label: '' };
     function skPathAt(s, out) {
@@ -9077,7 +9077,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
 
     // ── 7. ground predators (ship-enemies generateGroundEnemy / nestSpec; guarded) ──
-    var GM = 0.05;                                   // world units per metre = 0.09 L / 1.8 m, x L
+    var GM = GM_PER_L;                               // world units per metre = H_RATIO L / 1.8 m, x L (ship-scale.js)
     function gndMake(seed, tier, kind) {
         if (typeof ENM.generateGroundEnemy !== 'function') return null;
         var cr; try { cr = ENM.generateGroundEnemy(THREE, seed, tier, kind || undefined); } catch (e0) { console.info('[ship] ground enemy', e0); return null; }

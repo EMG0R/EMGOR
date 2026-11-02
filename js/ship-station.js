@@ -28,7 +28,7 @@ import { fmt } from './ship-craft.js';
 
 const HW = 4.5, HH = 4.8, HD = 26;          // hangar inner half-width, height, depth (L)
 const MOUTH_HW = 4.5, MOUTH_HH = 2.4;       // mouth half extents (opening is 9 x 4.8 L; centre y = 2.4)
-const HUMAN_H = 0.09;
+const HUMAN_H = 0.09;                 // station deck is its own space, modelled at the old human size (ship-scale.js H_RATIO governs planets)
 
 const C = { hull: 0x3a3352, hull2: 0x2c2640, hull3: 0x201b30, panel: 0x4a4266, violet: 0x8A3CFF, cyan: 0x5CE8FF, mag: 0xFF5CE1, amber: 0xFFC46B, white: 0xF4F8FF, floor: 0x7d7699, wall: 0x544c70, dark: 0x16121f };
 
