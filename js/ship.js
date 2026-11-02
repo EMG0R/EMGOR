@@ -11,6 +11,7 @@ import * as LNG from './ship-lingo.js';
 import * as ENM from './ship-enemies.js';
 import * as CRF from './ship-craft.js';
 import * as QST from './ship-quests.js';
+import * as OB from './ship-onboard.js';
 import * as PKG from './pokemans-gen.js';
 import * as PKC from './pokemans-catch.js';
 import * as PKP from './pokemans-party.js';
@@ -609,6 +610,7 @@ export default function mount(engine) {
         if (!Array.isArray(o.qdone)) o.qdone = [];
         o.qdone = o.qdone.filter(function (x) { return typeof x === 'string'; }).slice(-80);
         if (!o.onb || typeof o.onb !== 'object' || Array.isArray(o.onb)) { var oldP = (o.created > 0) || (o.kills | 0) > 0 || (o.bestWave | 0) > 0; o.onb = { step: oldP ? 4 : 0, done: !!oldP, res: !!oldP, npc: !!oldP }; }      // rev 26: onboarding flags (only a brand-new profile sees the prompts)
+        o.onb.c = OB.norm(o.onb.c, !!o.onb.done);      // Q26: first-steps chain (done profiles skip it)
         if (!Array.isArray(o.known)) o.known = [];       // rev 23: learned lingo words
         o.known = o.known.filter(function (w) { return typeof w === 'string'; }).slice(0, 400);
         o.glowUntil = (typeof o.glowUntil === 'number' && isFinite(o.glowUntil)) ? o.glowUntil : 0;     // rev 23: fries glow expiry (epoch ms)
@@ -1000,6 +1002,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function locked() { return document.pointerLockElement != null; }
     window.addEventListener('mousemove', function (e) {
         if (state !== 'piloting' || !locked()) return;
+        if (typeof PT !== 'undefined' && PT.rad && PT.rad.on) return;      // Q26: the T radial owns the mouse; the camera must not swing while you pick a move
         mdx += e.movementX || 0; mdy += e.movementY || 0;
     });
     document.addEventListener('mousedown', function (e) {
@@ -1463,7 +1466,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     //   on foot: your SHIP (always, distance), NPCs within GD_NPC_L L (clerks, shoppers, dealers, villagers, creatures; small, on-screen only)  [GD_NPC]
     //   in flight anywhere in the system: the station, the nearest 7/11 world, the nearest village world (planet-level until that planet's own markers take over)
     var GD_N = 24, GD_POI = 9, GD_NPC = 10, GD_NPC_L = 200, GD_R = 3, GD_EVERY = 0.5, gdPool = [], gdLocal = [], gdT = 0, gdNode = null, gdShown = 0, gdIcons = {}, elGuide = hud.querySelector('.sh-guide');
-    var gdItems = [], gdNpc = [], gdNpcN = 0, gdNT = 0, gdNpcTmp = [], GD_SHOW = 3, gdQ7 = false;      // Q04: nearest GD_SHOW markers + the ship (on foot) + the active quest target
+    var obMark = '', gdItems = [], gdNpc = [], gdNpcN = 0, gdNT = 0, gdNpcTmp = [], GD_SHOW = 3, gdQ7 = false;      // Q04: nearest GD_SHOW markers + the ship (on foot) + the active quest target
     (function buildGuide() {
         for (var i = 0; i < GD_N; i++) {
             var el = document.createElement('div'); el.className = 'sh-gd';
@@ -1506,7 +1509,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         gdQ7 = false;
         var aq = activeQuests();
         for (i = 0; i < aq.length && !gdQ7; i++) { var sq = aq[i].steps || []; for (var qj = 0; qj < sq.length; qj++) if (!sq[qj].done && sq[qj].type === 'deliver' && String(sq[qj].planetId) === nid) { gdQ7 = true; break; } }
-        gdLocal = list.map(function (p) { return { kind: p.kind, name: p.name, loc: p.loc, q: gdQ7 && p.kind === '7/11' }; });
+        gdLocal = list.map(function (p) { return { kind: p.kind, name: p.name, loc: p.loc, q: (gdQ7 && p.kind === '7/11') || (!!obMark && p.kind === obMark) }; });
     }
     function gdItem(i, kind, name, cls, always) { var it = gdItems[i]; it.kind = kind; it.name = name; it.cls = cls || ''; it.always = !!always; it.q = false; return it.w; }
     // NPCs near the feet: the selection refreshes at 2 Hz (refs, no allocation), positions every frame. t: 'c' crowd npc (pos planet-local), 'v' villager
@@ -1553,7 +1556,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gdLook(nd) { if (nd._gdLook === undefined) { try { nd._gdLook = ps && ps.lookOf ? ps.lookOf(nd) : 'rocky'; } catch (e0) { nd._gdLook = 'rocky'; } } return nd._gdLook; }
     function gdSpace(ni, nAct) {
         var P = shipRoot.position, list = engine.drawOrder, i, nd, bS = null, dS = 1e30, bV = null, dV = 1e30, d, Rn;
-        if (station && station.mouth && station.mouth.pos && ni < GD_N) gdItem(ni++, 'station', 'INTERGALACTIC 7/11 STATION', '', true).copy(station.mouth.pos);
+        if (station && station.mouth && station.mouth.pos && ni < GD_N) { gdItem(ni++, 'station', 'INTERGALACTIC 7/11 STATION', '', true).copy(station.mouth.pos); gdItems[ni - 1].q = obMark === 'station'; }
         if (nAct) return ni;
         for (i = 0; i < list.length; i++) {
             nd = list[i]; if (!nd.mesh || !nd.anchor || !hasSurface(nd)) continue;
@@ -1561,7 +1564,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (d < dS) { dS = d; bS = nd; }
             if (d < dV && nd.mesh.material.uniforms.uBiome.value < 0.5) { var lk = gdLook(nd); if (lk === 'lush' || lk === 'rocky') { dV = d; bV = nd; } }
         }
-        if (bS && ni < GD_N) { gdV.copy(P).sub(bS.anchor.position).normalize(); gdItem(ni++, '7/11', 'INTERGALACTIC 7/11', '', true).copy(bS.anchor.position).addScaledVector(gdV, bS.mesh.scale.x); }
+        if (bS && ni < GD_N) { gdV.copy(P).sub(bS.anchor.position).normalize(); gdItem(ni++, '7/11', 'INTERGALACTIC 7/11', '', true).copy(bS.anchor.position).addScaledVector(gdV, bS.mesh.scale.x); gdItems[ni - 1].q = obMark === '7/11'; }
         if (bV && ni < GD_N) { gdV.copy(P).sub(bV.anchor.position).normalize(); gdV2.crossVectors(gdV, Y); if (gdV2.lengthSq() < 1e-8) gdV2.set(1, 0, 0); gdV2.normalize(); gdItem(ni++, 'village', 'VILLAGE', '', true).copy(bV.anchor.position).addScaledVector(gdV, bV.mesh.scale.x * 0.8).addScaledVector(gdV2, bV.mesh.scale.x * 0.55); }
         return ni;
     }
@@ -5523,7 +5526,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 placeAtDock(); lfOff(); bhInv = 4;
                 resetGame(shownWave(), kills);
                 vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; mdx = mdy = 0;
-                shipRoot.visible = true;
+                shipRoot.visible = true; obCardShow();      // Q26: respawn shows the START card again while the first-steps chain is unfinished
             }
         } else {
             // throttle
@@ -7827,7 +7830,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (var k in qObjs) if (!ids[k]) qKill(k);
     }
     function trackerText() {
-        var a = activeQuests(), t = [], i;
+        var a = activeQuests(), t = [], i, ob = obChain(), oe = ob && OB.entry(ob);
+        if (oe) t.push(oe[0] + '\n' + oe[1]);      // Q26: the first-steps chain is the top quest-board entry
         for (i = 0; i < a.length; i++) {
             var d = QST.describe(a[i]).split('\n'), o = qObjs[a[i].id], ds = '';
             if (o) { var dd = o.g.position.distanceTo(shipRoot.position) / L; ds = ' · ' + (dd >= 1000 ? (dd / 1000).toFixed(1) + 'k' : Math.round(dd)) + ' L'; }
@@ -7873,30 +7877,50 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         });
         return moved;
     }
-    // ── onboarding: four prompts for a NEW profile (fly / pulse / land / shop), each dismissed when done, never shown again; plus two first-time hints ──
-    var onb = { t: 0, fly: 0, shown: '', hintT: 0, hint: '' }, ONB_TXT = ['FLY · HOLD W + MOVE THE MOUSE', 'PULSE · HOLD SPACE NEAR A PLANET', 'LAND · FLY UNDER 3 L OF THE SURFACE (THE SHIP SLOWS ITSELF), PRESS Z', 'SHOP · WALK TO A 7/11 COUNTER, PRESS F'];
+    // ── onboarding (Q26): js/ship-onboard.js chain on profile.onb.c, shown as a tracker entry + HUD marker + a top line for 8 s per new step; plus a START card ──
+    var onb = { t: 0, shown: '', hintT: 0, hint: '', line: '', lineT: 0, snapT: 0, card: false, cardT: 0 };
+    var elStart = document.createElement('div'); elStart.className = 'sh-start';
+    elStart.innerHTML = '<b>NO MANS GOR</b>' + OB.START_CARD.map(function (l) { return '<span>' + qEsc(l) + '</span>'; }).join('') + '<i>W TO BEGIN</i>'; hud.appendChild(elStart);
     function onbSet(t) { if (t !== onb.shown) { onb.shown = t; elOnb.textContent = t; elOnb.classList.toggle('is-on', !!t); } }
+    function obChain() { var pf = curProfile(); return pf && pf.onb && pf.onb.c && !OB.finished(pf.onb.c) ? pf.onb.c : null; }
+    function obCardShow() { if (!obChain()) return; onb.card = true; onb.cardT = 0; elStart.classList.add('is-on'); }
+    function obWon() { var c = obChain(); if (c) { c.won = true; obSync(true); } }
+    function obSnap(pf, c) {
+        var sn = obSn, i, g;
+        sn.planet = !!(ps && ps.active) || gmode === 'landing' || gmode === 'landed' || gmode === 'foot';
+        sn.landed = gmode === 'landing' || gmode === 'landed' || gmode === 'foot';
+        sn.beacon = false;
+        if (gmode === 'foot' && hum.obj) for (i = 0; i < gdLocal.length; i++) { g = gdLocal[i]; if (g.kind === '7/11' && g.loc.distanceTo(hum.pos) < 15 * L) { sn.beacon = true; break; } }
+        sn.ball = false; for (i = 0; i < pf.items.length; i++) if (/^gorball-/.test(pf.items[i].id) && pf.items[i].n > 0) { sn.ball = true; break; }
+        sn.caught = pf.party.length + pf.pen.length > 0; sn.won = c.won; sn.station = gmode === 'docking' || gmode === 'sfoot' || gmode === 'ifoot';
+        return sn;
+    }
+    var obSn = { planet: false, landed: false, beacon: false, ball: false, caught: false, won: false, station: false };
+    function obSync(force) {          // the chain advances from game state (never from a timer); each new step shows its line for 8 s
+        var pf = curProfile(), c = obChain(); if (!pf || !c) { obMark = ''; return; }
+        var was = c.i, n = OB.advance(c, obSnap(pf, c));
+        if (n || force) {
+            obMark = OB.markKind(c); qTrkC = ''; gdT = 0;
+            if (n) {
+                var s = OB.current(c); if (c.i >= OB.STEPS.length) pf.onb.done = true;
+                if (was > 0 || n > 1 || gmode !== 'fly') aPlay('ui', { vel: 0.5, pitch: 1.3 });
+                onb.line = s ? s.text : 'FIRST STEPS DONE'; onb.lineT = 8; if (!s) addRow('', '', 'FIRST STEPS COMPLETE', 'is-sys'); writeSave();
+            }
+        } else if (obMark !== OB.markKind(c)) obMark = OB.markKind(c);
+    }
     function onbTick(dt) {
-        var pf = curProfile(); if (!pf || !pf.onb || state !== 'piloting') { onbSet(''); return; }
-        var o = pf.onb, txt = '';
-        if (!o.done && ((!storeOpen && !invOpen && !cmdOpen && !menuOpen && !PT.pm) || ((o.step | 0) === 3 && storeOpen))) {      // step 3 (SHOP) completes while the store is open
-            var s = o.step | 0; onb.t += dt;
-            var ok = false;
-            if (s === 0) { if (keys.KeyW || speed > 1.2 * CRUISE) onb.fly += dt; ok = onb.fly > 1.5; }
-            else if (s === 1) ok = pulse > 0.5 || pulseT > 0.2;
-            else if (s === 2) ok = gmode === 'landing' || gmode === 'landed' || gmode === 'foot';
-            else if (s === 3) ok = !!(shopCtx && shopCtx.mode === 'store' && storeOpen) || (storeOpen && !qOpen);
-            if (ok || onb.t > 60) { o.step = s + 1; onb.t = 0; if (o.step >= 4) o.done = true; writeSave(); aPlay('ui', { vel: 0.5, pitch: 1.3 }); }
-            else if (s <= 2) { if (gmode === 'fly') txt = ONB_TXT[s]; }      // fly-mode steps only show where they can be done
-            else if (gmode === 'foot' || storeOpen) txt = ONB_TXT[3];
-            else if (gmode === 'landing' || gmode === 'landed') txt = 'Z · STEP OUT, THEN WALK TO A 7/11';
-        }
+        var pf = curProfile(); if (!pf || !pf.onb || state !== 'piloting') { onbSet(''); if (onb.card) { onb.card = false; elStart.classList.remove('is-on'); } return; }
+        var o = pf.onb, txt = '', c = obChain();
+        if (c && !o.c.card && !onb.card && (gmode === 'fly' || gmode === 'foot')) { o.c.card = true; obCardShow(); writeSave(); }      // first entry of a new profile
+        if (onb.card) { onb.cardT += dt; if (onb.cardT > 1.5 && (keys.KeyW || keys.Enter || keys.Space || speed > 1.2 * CRUISE)) { onb.card = false; elStart.classList.remove('is-on'); onb.lineT = 8; onb.line = c ? OB.current(c).text : ''; } }
+        onb.snapT -= dt; if (c && onb.snapT <= 0) { onb.snapT = 0.4; obSync(false); c = obChain(); }
+        if (c && !onb.card && !storeOpen && !invOpen && !cmdOpen && !menuOpen && !PT.pm && onb.lineT > 0) { onb.lineT -= dt; txt = onb.line; }
         if (!txt && !storeOpen && !invOpen) {      // first-time hints (one line, 6 s)
             if (onb.hintT > 0) { onb.hintT -= dt; txt = onb.hint; }
             else if (!o.res && gmode === 'foot' && resFind()) { o.res = true; onb.hint = 'RESOURCE NODE · F TO HARVEST · SELL IT OR CRAFT AT A 7/11'; onb.hintT = 6; writeSave(); }
             else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear() || (VG.v && VG.v.nearVillager && VG.v.nearVillager(hum.pos, 3 * hOf(L))))) { o.npc = true; onb.hint = 'T TO TALK (THEY MAY HAVE WORK) · F TO FIGHT'; onb.hintT = 6; writeSave(); }
-            else if (!o.roll && gmode === 'fly' && (o.done || (o.step | 0) >= 2)) { o.roll = true; onb.hint = 'A/D TWICE · ROLL · S TWICE · FLIP · CTRL · DRIFT TURN'; onb.hintT = 6; writeSave(); }
-            else if (!o.inv && gmode === 'foot' && (o.done || (o.step | 0) >= 3)) { o.inv = true; onb.hint = 'E INVENTORY · HOLD Z SUMMONS THE SHIP · F FIGHT · T TALK'; onb.hintT = 6; writeSave(); }
+            else if (!o.roll && gmode === 'fly' && (o.done || o.c.i >= 2)) { o.roll = true; onb.hint = 'A/D TWICE · ROLL · S TWICE · FLIP · CTRL · DRIFT TURN'; onb.hintT = 6; writeSave(); }
+            else if (!o.inv && gmode === 'foot' && (o.done || o.c.i >= 3)) { o.inv = true; onb.hint = 'E INVENTORY · HOLD Z SUMMONS THE SHIP · F FIGHT · T TALK'; onb.hintT = 6; writeSave(); }
         }
         onbSet(txt);
     }
@@ -8561,7 +8585,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (info && w === 0 && !(res.dealt && res.dealt[0] >= 1)) {
             addRow('', '', 'YOU WON · no hit landed · no payout', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
         } else if (info && w === 0) {
-            var coin = FG_COIN[info.role] || 25; if (FG.tr) coin *= FG.tr.team.length; addUnits(coin, hum.w, true);
+            var coin = FG_COIN[info.role] || 25; if (FG.tr) coin *= FG.tr.team.length; addUnits(coin, hum.w, true); obWon();
             if (FG.tr) { try { var tt = 1; FG.tr.team.forEach(function (q) { tt = Math.max(tt, q.sp.tier); }); var pd = PKF.partDrop(tt, 'catch', 0, Math.random()), pit = PKF.partItem(pd.part, pd.tier); if (giveItem(pit, 1)) addRow('', '', '+ ' + pit.name, 'is-sys'); } catch (eP) { warnOnce('trainer.part', eP); } }
             var line = ''; try { line = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'goodgame'); } catch (e0) { line = 'Good game.'; }
             addRow(String(info.name).toUpperCase(), '#8fe0a8', line); addRow('', '', 'YOU WON · +' + coin + ' gorCoin', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
@@ -9445,7 +9469,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         f.lpp.copy(f.pp).sub(ps.active.anchor.position).applyQuaternion(qW.copy(ps.active.mesh.quaternion).invert());
     }
     // ─── Q13 party: ONE active mon follows (the petFollow rig), fights beside you with its 4 moves, XP, heal on survive, DEAD on faint. Rules: js/pokemans-party.js ───
-    var PT = { cds: [0, 0, 0, 0, 0], learn: null, learnT: 0, bondAcc: 0, poof: 0, bat: 0, calm: 0, hit: 0, tgt: null, chart: null, sig: '', foe: { def: 30, types: [] }, keys: false, forced: -1, fAge: 0, rad: { on: false, t: 0, dx: 0, dy: 0, sel: -1 }, pm: false };
+    var PT = { dirty: false, svAt: 0, cds: [0, 0, 0, 0, 0], learn: null, learnT: 0, bondAcc: 0, poof: 0, bat: 0, calm: 0, hit: 0, tgt: null, chart: null, sig: '', foe: { def: 30, types: [] }, keys: false, forced: -1, fAge: 0, rad: { on: false, t: 0, dx: 0, dy: 0, sel: -1 }, pm: false };
     function ptMon() { var pf = curProfile(); return pf ? PKP.active(pf) : null; }
     function ptChart() { if (!PT.chart) PT.chart = PKG.typeChart(7); return PT.chart; }
     function ptSummon(mon) {
@@ -9571,10 +9595,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 mobHurt(e, dmg, 'me'); fx.impact(e.w, PKG.TYPES.indexOf(mv.type) >= 0 ? 0xC8A0FF : 0xffd36a, 1, 'hit'); aPlay('hit', { dist: aDist(e.w), vel: 0.4, pitch: 1.2 });
             }
             PT.hit -= dt; if (PT.hit <= 0 && e.alive && bd < (2.5 * H) * (2.5 * H)) {          // mobs bite the follower too: ~1 s cadence, scaled by their tier and its level
-                PT.hit = 1; if (PKP.damage(m, Math.max(1, Math.round((2 + 3 * (e.cr.tier || 1)) * (1 - Math.min(0.6, m.level / 90))))) ) { ptFaint(m); ptHud(true); return; }
+                PT.hit = 1; PT.dirty = true; if (PKP.damage(m, Math.max(1, Math.round((2 + 3 * (e.cr.tier || 1)) * (1 - Math.min(0.6, m.level / 90))))) ) { ptFaint(m); ptHud(true); return; }
             }
         }
         if (PT.bat && !live && PT.calm > 3) { PT.bat = 0; if (PKP.healParty(pf) && PKP.active(pf)) { addRow('', '', 'party healed', 'is-sys'); writeSave(); } }      // survive a battle = full heal; no potions anywhere
+        if (PT.dirty && Date.now() - PT.svAt > 1000) { PT.dirty = false; PT.svAt = Date.now(); writeSave(); }      // Q26: follower hp persists on every change (bites are 1/s, so 1 write/s)
         ptHud(false);
     }
 
