@@ -137,7 +137,7 @@ export function createUI(root) {
     clearInterval(selTimer); sel.classList.remove('on'); res.classList.remove('on'); hud.classList.add('on'); pause.classList.remove('on');
     cards.innerHTML = ''; cardEls = []; cache = [];
     sim.fighters.forEach((f) => {
-      const c = el('div', 'sm-card'), d = FIGHTERS[f.fid];
+      const c = el('div', 'sm-card'), d = f.def || FIGHTERS[f.fid];
       c.innerHTML = '<div class="nm"><i class="sw" style="background:' + PLAYER_COLORS[f.i] + '"></i>P' + (f.i + 1) + ' ' + d.name + (f.ctrl === 'cpu' ? ' <span style="color:#a890d8">CPU' + f.level + '</span>' : '') + '</div><div class="pc">0<small>%</small></div><div class="pips"></div>';
       cards.appendChild(c); cardEls.push({ c, pc: c.querySelector('.pc'), pips: c.querySelector('.pips') }); cache.push({});
     });
@@ -166,7 +166,7 @@ export function createUI(root) {
       if (k.key === key) return; k.key = key;
       ce.pc.innerHTML = pct + '<small>%</small>'; ce.pc.style.color = pcColor(pct); ce.c.classList.toggle('out', f.stocks <= 0);
       let h = ''; for (let s = 0; s < 3; s++) h += '<i class="pip' + (s < f.stocks ? '' : ' x') + '" style="background:' + PLAYER_COLORS[f.i] + '"></i>';
-      if (FIGHTERS[f.fid].res0 != null) h += '<span style="margin-left:4px;color:#e8c040">BLK ' + f.res + '</span>';
+      if ((f.def || FIGHTERS[f.fid]).res0 != null) h += '<span style="margin-left:4px;color:#e8c040">BLK ' + f.res + '</span>';
       h += f.final ? '<span class="sm-fin" style="color:#ffd84d">FINAL! SHIELD+SPECIAL</span>' : '<span class="sm-fin" style="color:#a890d8">' + (f.meter | 0) + '%</span>';
       ce.pips.innerHTML = h;
     });
@@ -176,11 +176,11 @@ export function createUI(root) {
   function showResults(r, game) {
     const sim = game.sim; hud.classList.remove('on'); say('', 0); res.innerHTML = ''; res.classList.add('on');
     const w = r.winner >= 0 ? sim.fighters[r.winner] : null;
-    const t = el('div', 'sm-rtitle', w ? 'P' + (w.i + 1) + ' ' + FIGHTERS[w.fid].name + ' WINS' : 'DRAW'); t.style.color = w ? PLAYER_COLORS[w.i] : '#fff'; res.appendChild(t);
+    const t = el('div', 'sm-rtitle', w ? 'P' + (w.i + 1) + ' ' + (w.def || FIGHTERS[w.fid]).name + ' WINS' : 'DRAW'); t.style.color = w ? PLAYER_COLORS[w.i] : '#fff'; res.appendChild(t);
     res.appendChild(el('div', 'sm-rh', '<span></span><span>FIGHTER</span><span>STOCKS</span><span>K.O.S</span><span>DEALT</span><span>TAKEN</span>'));
     const rows = el('div', 'sm-rrows');
     r.rows.forEach((row, k) => {
-      const d = el('div', 'sm-rrow' + (k === 0 && w ? ' w' : ''), '<b style="color:' + PLAYER_COLORS[row.i] + '">' + (k + 1) + '</b><span>P' + (row.i + 1) + ' ' + FIGHTERS[row.fid].name + (row.ctrl === 'cpu' ? ' (CPU)' : '') + '</span><span>' + row.stocks + '</span><span>' + sim.fighters.filter((f) => f.i !== row.i).reduce((a, f) => a + f.kos, 0) + '</span><span>' + row.dealt + '%</span><span>' + row.taken + '%</span>');
+      const d = el('div', 'sm-rrow' + (k === 0 && w ? ' w' : ''), '<b style="color:' + PLAYER_COLORS[row.i] + '">' + (k + 1) + '</b><span>P' + (row.i + 1) + ' ' + (row.nm || FIGHTERS[row.fid].name) + (row.ctrl === 'cpu' ? ' (CPU)' : '') + '</span><span>' + row.stocks + '</span><span>' + sim.fighters.filter((f) => f.i !== row.i).reduce((a, f) => a + f.kos, 0) + '</span><span>' + row.dealt + '%</span><span>' + row.taken + '%</span>');
       rows.appendChild(d);
     });
     res.appendChild(rows);

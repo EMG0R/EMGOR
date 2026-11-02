@@ -7547,7 +7547,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function villageTarget() {
         if (!VG.v || HB.in) return null;
         var v = VG.v.nearVillager(hum.pos, 3 * hOf(L)); if (!v) return null;
-        ftI.kind = 'villager'; ftI.obj = v; ftI.label = fightLabel(v.id, 'T · TALK'); return ftI;
+        ftI.kind = 'villager'; ftI.obj = v; ftI.label = fightLabel(v.id, 'T · TALK'); if (v.trainer) ftI.label = ftI.label.replace('FIGHT', 'TRAINER'); return ftI;
     }
     function villageTalk(v) { knownFor(); if (!r28Talk({ id: v.id, name: v.name, role: v.role, kind: 'village', obj: v, seed: v.seed })) return; }
     function villageTrade(v) {
@@ -8442,7 +8442,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function fightAsk(ft) {
         if (FG.on || FG.loading || hum.air || gmode !== 'foot' || !ps || ps.active !== land.node) return;
         var id = String((ft.obj && (ft.obj.id || ft.obj.name)) || ft.kind), c = FG.cd[id];
-        if (!FG.mod && !FG.loading) { FG.loading = true; import('./smash-world.js').then(function (m) { FG.mod = m; FG.loading = false; if (!FG.on && !FG.ask) { FG.ask = { id: id, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 }); } }).catch(function (e) { FG.loading = false; console.info('[ship] fight module unavailable', e); }); addRow('', '', 'loading the ring...', 'is-sys'); return; }
+        if (!FG.mod && !FG.loading) { FG.loading = true; Promise.all([import('./smash-world.js'), import('./pokemans-fighter.js')]).then(function (ms) { var m = ms[0]; FG.mod = m; FG.px = ms[1]; FG.loading = false; if (!FG.on && !FG.ask) { FG.ask = { id: id, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 }); } }).catch(function (e) { FG.loading = false; console.info('[ship] fight module unavailable', e); }); addRow('', '', 'loading the ring...', 'is-sys'); return; }
         if (c && Date.now() < c) { addRow('', '', 'they are catching their breath · ' + Math.ceil((c - Date.now()) / 1000) + ' s', 'is-sys'); return; }
         if (FG.ask && FG.ask.id === id && FG.ask.t > 0) { FG.ask = null; fightStart(ft); return; }
         FG.ask = { id: id, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 });
@@ -8461,13 +8461,18 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var info = fgInfo(ft), M = FG.mod; if (!M || !M.createFightSession) return;
         var samples = fgSamples(hum.pos, info.pos), seed = fnv(info.id) | 0, role = info.role;
         var styleNpc = FG_STYLE[role] || M.styleToFighter(info.id), night = (typeof mobNight === 'function') ? mobNight() : 0;
+        // Q24: a trainer's villager fights as their lead pokemans on the smash engine (one stock per mon); ft.wild = a wild mon: the player gets the GOR BALL slot (down+special)
+        var PX = FG.px, tr = null, wl = null, npcF = null, meF = null;
+        if (PX && ft.kind === 'villager' && ft.obj && ft.obj.trainer && land.node) { tr = PX.trainerSpec(PX.trainerTeam(String(land.node.id), info.seed, role, 1 + (hash25(land.node.id) % 2))); npcF = { fid: tr.fid, def: tr.def, stocks: tr.stocks, color: tr.color }; }
+        else if (PX && ft.wild) { wl = PX.creatureFighter(ft.wild); npcF = { fid: wl.fid, def: wl.def, color: wl.color }; meF = { fid: M.styleToFighter(curStyleId || 'PILOT') }; meF.def = PX.withBall(meF.fid, wl); }
+        FG.tr = tr; FG.wl = wl;
         try {
             FG.sess = M.createFightSession({
                 mode: 'local', seed: seed || 1, stageSamples: samples, stocks: 2, skyAlpha: 0.35,
                 skyPalette: night > 0.5 ? { top: '#07051a', horizon: '#2a1a5a' } : { top: '#2a4a9a', horizon: '#9ac0ff' },
                 fighters: [
-                    { slot: 0, styleId: curStyleId || 'PILOT', name: userName(), color: effColor(), isLocal: true, isBot: false, id: 'me' },
-                    { slot: 1, styleId: styleNpc, name: info.name, color: 0xffd36a, isLocal: false, isBot: true, id: info.id, level: role === 'elder' || role === 'golum' ? 3 : 2, tier: FG_TIER[role] || 1 }
+                    Object.assign({ slot: 0, styleId: curStyleId || 'PILOT', name: userName(), color: effColor(), isLocal: true, isBot: false, id: 'me' }, meF || {}),
+                    Object.assign({ slot: 1, styleId: styleNpc, name: info.name, color: 0xffd36a, isLocal: false, isBot: true, id: info.id, level: role === 'elder' || role === 'golum' ? 3 : 2, tier: FG_TIER[role] || 1 }, npcF || {})
                 ]
             });
         } catch (e) { console.info('[ship] fight session failed', e); FG.sess = null; return; }
@@ -8496,6 +8501,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!FG.on) return;
         if (gmode !== 'foot' || !FG.sess) { fightEnd(null); return; }
         FG.t += dt; FG.sess.setInput(fgMask(), 0); FG.sess.update(dt);
+        var br = FG.sess.sim.ballReq;      // Q24: the GOR BALL slot asked for a throw; the roll lives here, the sim never rolls
+        if (br && FG.wl) { FG.sess.sim.ballReq = null; var rr = FG.px.ballRoll(FG.wl, br.frac, Math.random()); addRow('', '', rr.caught ? 'GOR BALL · click · ' + FG.wl.name : 'GOR BALL · it broke free (' + Math.round(rr.chance * 100) + ' %)', 'is-sys'); aPlay('ui', { vel: 0.7 }); if (rr.caught) { FG.caught = FG.wl.mon; fightEnd(0); } }
     }
     function fightResult(res) {
         if (!FG.on || !res) return;
@@ -8504,7 +8511,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (info && w === 0 && !(res.dealt && res.dealt[0] >= 1)) {
             addRow('', '', 'YOU WON · no hit landed · no payout', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
         } else if (info && w === 0) {
-            var coin = FG_COIN[info.role] || 25; addUnits(coin, hum.w, true);
+            var coin = FG_COIN[info.role] || 25; if (FG.tr) coin *= FG.tr.team.length; addUnits(coin, hum.w, true);
+            if (FG.tr) { try { var tt = 1; FG.tr.team.forEach(function (q) { tt = Math.max(tt, q.sp.tier); }); var pd = PKF.partDrop(tt, 'catch', 0, Math.random()), pit = PKF.partItem(pd.part, pd.tier); if (giveItem(pit, 1)) addRow('', '', '+ ' + pit.name, 'is-sys'); } catch (eP) { warnOnce('trainer.part', eP); } }
             var line = ''; try { line = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'goodgame'); } catch (e0) { line = 'Good game.'; }
             addRow(String(info.name).toUpperCase(), '#8fe0a8', line); addRow('', '', 'YOU WON · +' + coin + ' gorCoin', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
         } else if (info && w === 1) {

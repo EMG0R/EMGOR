@@ -35,7 +35,7 @@ export function createFightSession(opts) {
   const stageDef = terrainStage(samples, 'terrain_' + (seed >>> 0).toString(16));
   const cols = fighters.map((f, i) => parseCol((opts.playerColors && opts.playerColors[i]) || f.color || PLAYER_COLORS[i % 4]));
   const cfg = {
-    players: fighters.map((f) => ({ fid: styleToFighter(f.styleId), ctrl: f.isBot ? 'cpu' : 'net', level: f.level || 2, tier: f.tier || 0 })),
+    players: fighters.map((f) => ({ fid: f.fid || styleToFighter(f.styleId), def: f.def || null, stocks: f.stocks || 0, ctrl: f.isBot ? 'cpu' : 'net', level: f.level || 2, tier: f.tier || 0 })),
     stageDef, seed, stocks: opts.stocks || 2, time: (opts.time || 180) * 60,
   };
   const ownIdx = mode === 'guest' ? fighters.findIndex((f) => f.isLocal) : -1;

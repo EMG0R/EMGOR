@@ -30,6 +30,9 @@ const seedOf = (s) => (typeof s === 'number' ? (s >>> 0) : hashStr(s));
 const mix = (a, b) => (Math.imul(a ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul(b ^ 0xC2B2AE35, 0x27D4EB2F)) >>> 0;
 const ri = (r, lo, hi) => lo + Math.floor(r() * (hi - lo + 1));
 
+// villagers that carry a team (pass 2b): every elder, and a seeded quarter of the other humans who live in a village
+export const isTrainer = (role, seed) => role === 'elder' || (role !== 'dealer' && role !== 'cashier' && role !== 'clerk' && (hashStr(String(seed) + ':trainer') & 3) === 0);
+
 export function typeChart(universeSeed) {
   const r = mulberry(seedOf(universeSeed) ^ 0x7C4A11), n = TYPES.length;
   // Each type beats 2 and is weak to 2: take two distinct non-zero offsets o1,o2 from a seeded cyclic order. Type at order position p beats

@@ -29,6 +29,7 @@ import { createHuman } from './ship-human.js';
 import { compose, makeMaterials, mergeLit, mulberry as pmul } from './ship-parts.js';
 import { storeMenu, resourceItem, RESOURCE_BASE } from './ship-items.js';
 import * as lingo from './ship-lingo.js';
+import { isTrainer } from './pokemans-gen.js';
 
 function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -352,7 +353,7 @@ export function createVillage(engine, u, opts) {
     const v = {
       id: vid, name: lingo.name(vseed ^ 0x77), role, seed: vseed, home: home.idx, homeHut: home, stops, total, off: vr() * total,
       pos: vec(home.cx, 0, home.cz), x: home.cx, z: home.cz, yaw: 0, inside: true, moving: false, human: null, path: null, pi: 0, tgt: '', panic: 0, greetCd: 0, mood: 0, flinch: 0,
-      known: null, _n: 0, trades: null,
+      known: null, _n: 0, trades: null, trainer: isTrainer(role, vseed),
       say(ctx) { return lingo.line(v, ctx || 'greeting'); },
       get lines() { return [lingo.line({ seed: vseed, role, name: v.name, known: v.known }, 'greeting'), lingo.line({ seed: vseed, role, name: v.name, known: v.known }, 'shopper'), lingo.line({ seed: vseed, role, name: v.name, known: v.known }, 'gossip')]; },
     };

@@ -51,11 +51,11 @@ function rndAt(S, k) { let h = (Math.imul(S.frame, 374761393) + Math.imul(k | 0,
 const GROUND_STATES = { idle: 1, run: 1, crouch: 1 };
 
 function mkFighter(i, slot, stage, stocks) {
-  const def = FIGHTERS[slot.fid];
+  const def = slot.def || FIGHTERS[slot.fid];      // slot.def: a runtime fighter def (pokemans-fighter.js); fid stays the sprite atlas key
   return {
     i, fid: slot.fid, def, ctrl: slot.ctrl || 'cpu', level: slot.level || 2, tier: slot.tier || 0,
     x: stage.start[i].x, y: stage.start[i].y, px: stage.start[i].x, py: stage.start[i].y, vx: 0, vy: 0, face: i & 1 ? -1 : 1, grounded: true, landed: false,
-    state: 'idle', st: 0, animT: 0, pct: 0, stocks: stocks || STOCKS, hitlag: 0, pend: null, hitstun: 0, tumble: false, inv: 0, armorNow: 0,
+    state: 'idle', st: 0, animT: 0, pct: 0, stocks: slot.stocks || stocks || STOCKS, hitlag: 0, pend: null, hitstun: 0, tumble: false, inv: 0, armorNow: 0,
     sh: 180, jumps: def.jumps, upUsed: false, flutterT: 0, jumpT: 99, ff: false, move: null, mf: 0, hitSet: 0, hbMove: null, hbT: 0, moveAir: false,
     bufA: 0, bufB: 0, bufG: 0, bufJ: 0, inp: 0, prev: 0, cd: {}, reflectT: 0, hold: -1, heldBy: -1, holdT: 0, ledge: -1, ledgeT: 0, ledgeLock: 0, dropT: 0,
     eggT: 0, stunT: 0, lag: 0, deadT: 0, respT: 0, dashx: 0, dashy: 0, res: def.res0 || 0, resT: 0, kos: 0, dealt: 0, taken: 0, eggShield: 1, rollDir: 1,
@@ -474,7 +474,7 @@ function hitFighter(S, att, vic, h, dir, src) {
   vic.pct += dmg; if (att) { att.dealt += dmg; meterGain(S, att, dmg * 0.9); } vic.taken += dmg; meterGain(S, vic, dmg * 0.25);
   let lag = Math.floor(dmg / 3) + 3; if (h.flinch === false) lag = 2;
   // armor: damage only
-  if (vic.armorNow) { vic.hitlag = lag; if (att) att.hitlag = lag; S.events.push({ t: 'hit', x: vic.x, y: vic.y - 22, dmg, kb: 0, dir, who: vic.i, by: att ? att.i : -1, armor: 1 }); S.sfx('hit_light'); return true; }
+  if (vic.armorNow) { vic.hitlag = lag; if (att) att.hitlag = lag; S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb: 0, dir, who: vic.i, by: att ? att.i : -1, armor: 1 }); S.sfx('hit_light'); return true; }
   if (h.sleep) {
     vic.state = 'sleep'; vic.sleepT = 80 + Math.floor(Math.min(100, vic.pct)); vic.move = null; vic.vx = 0; vic.hitlag = 4; if (att) att.hitlag = 4;
     S.sfx('sing'); S.events.push({ t: 'puff', x: vic.x, y: vic.y - 30 }); return true;
@@ -486,11 +486,11 @@ function hitFighter(S, att, vic, h, dir, src) {
   const kb = (h.bkb + h.gr * (vic.pct / 100)) * wscale(vic.def.weight);
   if (h.flinch === false || (h.bkb === 0 && h.gr === 0)) {
     vic.hitlag = lag; if (att) att.hitlag = lag;
-    S.events.push({ t: 'hit', x: vic.x, y: vic.y - 22, dmg, kb: 0, dir, who: vic.i, by: att ? att.i : -1 }); S.sfx('hit_light'); return true;
+    S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb: 0, dir, who: vic.i, by: att ? att.i : -1 }); S.sfx('hit_light'); return true;
   }
   vic.hitlag = lag; if (att) att.hitlag = lag;
   vic.pend = { kb, ang: h.ang, dir }; vic.move = null; vic.state = 'hit'; vic.st = 0; vic.hitstun = 999; vic.flash = 4;
-  S.events.push({ t: 'hit', x: vic.x, y: vic.y - 22, dmg, kb, dir, who: vic.i, by: att ? att.i : -1 });
+  S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb, dir, who: vic.i, by: att ? att.i : -1 });
   S.sfx(kb > 60 ? 'hit_heavy' : 'hit_light');
   return true;
 }
@@ -659,7 +659,7 @@ function hazardStep(S) {
   }
 }
 function results(S) {
-  const rows = S.fighters.map((f) => ({ i: f.i, fid: f.fid, stocks: f.stocks, pct: Math.floor(f.pct), kos: f.kos, dealt: Math.floor(f.dealt), taken: Math.floor(f.taken), ctrl: f.ctrl }));
+  const rows = S.fighters.map((f) => ({ i: f.i, fid: f.fid, nm: f.def.name, stocks: f.stocks, pct: Math.floor(f.pct), kos: f.kos, dealt: Math.floor(f.dealt), taken: Math.floor(f.taken), ctrl: f.ctrl }));
   rows.sort((a, b) => b.stocks - a.stocks || a.pct - b.pct);
   const tie = rows.length > 1 && rows[0].stocks === rows[1].stocks && rows[0].pct === rows[1].pct;
   return { winner: tie ? -1 : rows[0].i, rows, frames: S.frame, time: TIME - S.time };
@@ -912,7 +912,7 @@ export function updateView(view, S) {
 }
 export function viewEvent(view, e) {
   const burst = (x, y, n, sp, life, kind, col) => { for (let i = 0; i < n; i++) { const a = (i * 360 / n) + (i * 37 % 29), s = sp * (0.5 + ((i * 7) % 5) / 5); view.fx.push({ x, y, vx: cosD(a) * s, vy: -sinD(a) * s, g: 0.04, a: 0, life, kind, col }); } };
-  if (e.t === 'hit') { burst(e.x, e.y, 5 + Math.min(8, e.dmg | 0), 2.6, 12, 'star', null); view.shake = Math.max(view.shake, Math.min(5, 1 + e.dmg / 4)); }
+  if (e.t === 'hit') { burst(e.x, e.y, 5 + Math.min(8, e.dmg | 0), 2.6, 12, 'star', e.col || null); view.shake = Math.max(view.shake, Math.min(5, 1 + e.dmg / 4)); }
   else if (e.t === 'ko') { view.flash = 3; view.shake = 7; burst(e.x, e.y, 26, 5, 30, 'star', (view.pcol || PCOL)[e.who % 4]); }
   else if (e.t === 'puff') burst(e.x, e.y, 6, 1.1, 14, 'puff', null);
   else if (e.t === 'boom') { view.shake = 6; burst(e.x, e.y, 22, 3.5, 22, 'puff', [1, 0.6, 0.2]); view.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, g: 0, a: 0, life: 8, kind: 'blast' }); }
