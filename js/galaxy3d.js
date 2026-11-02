@@ -12,25 +12,22 @@
    No bundler, no build step — this *is* the shipped file. */
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import * as GL from './galaxy-layout.js';
 
 (function () {
     'use strict';
 
     // ─── constants (ported 1:1 from galaxy2d.js — same galaxy shape) ──
     var VOID = '#060112';   // near-black, faint violet — deep cinematic void
-    var ROOT_SYS_R = 1200;          // world radius of the root system
-    var SHRINK = 0.2;               // child system radius = parent * SHRINK
-    var BODY_F = 0.53;              // body radius = own system radius * BODY_F (+15%: planets read bigger)
+    var ROOT_SYS_R = GL.ROOT_SYS_R, BODY_F = GL.BODY_F, ORBIT_MIN = GL.ORBIT_MIN, ORBIT_MAX = GL.ORBIT_MAX;   // layout constants live in galaxy-layout.js (pure, node-tested)
     // pulled ~15% closer around the black hole vs. the old 0.58/1.0 (verified
     // against the accretion disk's outer radius below — see DISK_OUTER_MULT)
-    var ORBIT_MIN = 0.493, ORBIT_MAX = 0.85;
     var MARGIN_X = 8, MARGIN_Y = 14;   // tight frame: the system should reach the edges
     var FLY_DUR = 1.15;             // seconds, fractal zoom flight
     var CHILD_BOOST = 1.9;          // visual size boost for the focused nav ring
     var TAU = Math.PI * 2;
     var BASE_ROT = 0.022;           // rad/s — slow chill shared orbital drift
 
-    var SIZE_FALLBACK = { 'emgor.papers': 2.0, 'emgor.web-synth': 1.4 };
 
     // the primary (flat, in-orbital-plane) accretion disk's outer radius, as
     // a multiple of the black hole core radius. Pulled in from 3.2 to 1.6
@@ -43,7 +40,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // presence — every other black-hole element (disks, photon arcs,
     // particle field, halo) is sized as core * <multiplier>, so they all
     // grow proportionally for free.
-    var BH_CORE_BOOST = 1.3;
+    var BH_CORE_BOOST = GL.BH_CORE_BOOST;
 
     var reducedMotion = window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -51,22 +48,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // ─── seeded randomness (identical to galaxy2d.js — determinism is the
     // contract: same node id -> same hash -> same PRNG stream -> same look,
     // forever, in every renderer that ever reads this file) ───────────
-    function hash32(str) {
-        var h = 2166136261;
-        for (var i = 0; i < str.length; i++) {
-            h ^= str.charCodeAt(i);
-            h = Math.imul(h, 16777619);
-        }
-        return h >>> 0;
-    }
-    function mulberry32(a) {
-        return function () {
-            a |= 0; a = (a + 0x6D2B79F5) | 0;
-            var t = Math.imul(a ^ (a >>> 15), 1 | a);
-            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
-    }
+    var hash32 = GL.hash32, mulberry32 = GL.mulberry32;
 
     function easeInOut(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
     function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
@@ -172,82 +154,8 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     }
 
     function buildTree(data) {
-        root = {
-            id: 'emgor', title: 'EMGOR', route: '/', depth: 0, kids: [],
-            parentNode: null, sysR: ROOT_SYS_R, wx: 0, wy: 0, sizeF: 1
-        };
-        byId = { emgor: root };
-        byRoute = { '/': root };
-
-        var nodes = (data.nodes || []).filter(function (n) {
-            if (n.id === 'emgor' || !n.parent) {
-                if (n.path) root.path = n.path;
-                if (n.blurb) root.blurb = n.blurb;
-                return false;
-            }
-            return true;
-        });
-        nodes.forEach(function (n) {
-            var node = {
-                id: n.id, title: n.title || n.id, blurb: n.blurb || '',
-                parentId: n.parent || 'emgor', path: n.path || '',
-                route: n.route || ('/' + n.id.split('.').slice(1).join('/')),
-                depth: n.depth || 1, kids: [],
-                downloads: n.downloads || [], links: n.links || [],
-                tags: n.tags || [], updated: n.updated || '',
-                launch: typeof n.launch === 'string' ? n.launch : '',
-                read: typeof n.read === 'string' ? n.read : '',
-                zip: typeof n.zip === 'string' ? n.zip : '',
-                wx: 0, wy: 0, sx: 0, sy: 0, sr: 0, alpha: 0, rev: 1
-            };
-            var sz = typeof n.size === 'number' ? n.size : (SIZE_FALLBACK[node.id] || 1);
-            node.sizeF = clamp(sz, 0.5, 2.5);
-            byId[node.id] = node;
-            byRoute[node.route] = node;
-        });
-        nodes.forEach(function (n) {
-            var node = byId[n.id];
-            var p = byId[node.parentId] || root;
-            node.parentNode = p;
-            p.kids.push(node);
-        });
-
-        drawOrder = [];
-        (function walk(node) {
-            if (node !== root) drawOrder.push(node);
-            node.sysR = node === root ? ROOT_SYS_R : node.parentNode.sysR * SHRINK;
-            node.bodyR = node.sysR * BODY_F * node.sizeF;
-            var kids = node.kids;
-            var N = kids.length;
-            var sysRot = mulberry32(hash32(node.id + '::rot'))() * TAU;
-            // world-unit gap between two adjacent (by orbit radius) siblings'
-            // shells — caps the radial "breathing" wobble below so it can
-            // never nudge one orbit shell into its neighbour's.
-            var orbitGapWorld = N > 1 ? ((ORBIT_MAX - ORBIT_MIN) / (N - 1)) * node.sysR : node.sysR * 0.1;
-            var i, k;
-            for (i = 0; i < N; i++) {
-                k = kids[i];
-                var t = N === 1 ? 0.6 : i / (N - 1);
-                k.orbF = ORBIT_MIN + (ORBIT_MAX - ORBIT_MIN) * t;
-                k.spreadT = t;   // even spread, not center-bunched
-                var rng = mulberry32(hash32(k.id));
-                k.homeA = sysRot + (i / N) * TAU;
-                // RADIAL breathing only — the orbit radius gently pulses
-                // in/out. Never angular: an angular wobble's own derivative
-                // can exceed BASE_ROT and flip the sign of the planet's
-                // angular velocity, which is what read as back-and-forth
-                // jitter. A radius pulse has no direction to reverse, it
-                // just breathes, so the body still always advances the
-                // same way around its orbit.
-                var r = k.orbF * node.sysR;
-                var maxRadAmp = Math.min(orbitGapWorld * 0.3, r * 0.06);
-                k.vibDepth = (maxRadAmp / Math.max(1, r)) * (0.5 + rng() * 0.5);
-                k.vibF = 0.35 + rng() * 0.45;
-                k.vibPh = rng() * TAU;
-                seedIdentity(k, rng);
-                walk(k);
-            }
-        })(root);
+        var t = GL.buildTree(data, seedIdentity);
+        root = t.root; byId = t.byId; byRoute = t.byRoute; drawOrder = t.drawOrder;
     }
 
     // ─── locked color + identity seeding ───────────────────────
@@ -898,7 +806,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // sits mostly before the fade starts, while deep sub-system zooms
     // (much smaller camera distance -> much bigger ratio) still hit the
     // fade hard and don't balloon.
-    var BH_PILOT_SCALE = 8, bhLens = 0;
+    var BH_PILOT_SCALE = GL.BH_PILOT_SCALE, bhLens = 0;
     var BH_FADE_START = 0.23;   // angular-radius / (half-FOV) ratio where fade begins
     var BH_FADE_END = 0.41;     // ratio where it's fully faded out
     function updateBlackHoleFade() {
@@ -1340,19 +1248,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // of the node's whole system incl. a landing margin) bottom-up.
         // drawOrder is parent-first. Allocation-free.
         if (pilot && pilotBlend > 0) {
-            for (i = 0; i < drawOrder.length; i++) {
-                n = drawOrder[i]; p = n.parentNode;
-                base = uniformSizeFor(n, p);
-                n._pF = p === root ? base * PILOT_PLANET_SCALE.root : Math.min(base * PILOT_PLANET_SCALE.deep, 0.3 * p._pF);
-                if (n._pF < PILOT_MIN_R_PER_L * shipLength) n._pF = PILOT_MIN_R_PER_L * shipLength;   // floor applied BEFORE _ext/orbit layout so nothing embeds
-                n._ext = n._pF * 1.5;
-            }
-            for (i = drawOrder.length - 1; i >= 0; i--) {
-                n = drawOrder[i]; p = n.parentNode;
-                if (p === root) continue;
-                var rk = Math.max(n.orbF * p.sysR * (1 + n.vibDepth), p._pF * (PILOT_CLEAR0 + 0.55 * (n.spreadT || 0)), p._pF + 1.15 * n._pF, n.kids.length ? 1.65 * p._pF + n._ext : 0) + n._ext;
-                if (rk > p._ext) p._ext = rk;
-            }
+            GL.pilotPrepass(drawOrder, root, PILOT_PLANET_SCALE, PILOT_MIN_R_PER_L * shipLength);
         }
         // pilot: whole root-level systems (planet + every moon shell) must not
         // overlap each other, so spread the root ring radially just enough.
@@ -1360,26 +1256,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
         // linearly and one max over pairs is exact.
         var rootS = 1, need;
         if (pilot && pilotBlend > 0) {
-            var rk0 = root.kids, ia, ib, ka, kb, ra, rb, dx0, dy0;
-            for (ia = 0; ia < rk0.length; ia++) {
-                ka = rk0[ia];
-                ra = ka.orbF * root.sysR * (1 + orbVib(ka, pilotBlend) * ka.vibDepth);
-                var ua = orbAngle(ka, pilotBlend);
-                ka._ux = Math.cos(ua) * ra; ka._uy = Math.sin(ua) * ra;
-                if (ka._ext < 1.6 * ka._pF) ka._ext = 1.6 * ka._pF;
-                // rev 22: innermost orbit clears the x8 black hole + station (2.2 coreR) + dock margin
-                need = (bhCoreR * BH_PILOT_SCALE * 3.2 + 1.6 * ka._pF) / Math.max(1, Math.sqrt(ka._ux * ka._ux + ka._uy * ka._uy));
-                if (need > rootS) rootS = need;
-            }
-            for (ia = 0; ia < rk0.length; ia++) {
-                ka = rk0[ia];
-                for (ib = ia + 1; ib < rk0.length; ib++) {
-                    kb = rk0[ib]; dx0 = ka._ux - kb._ux; dy0 = ka._uy - kb._uy;
-                    need = (ka._ext + kb._ext) * 1.05 / Math.max(1, Math.sqrt(dx0 * dx0 + dy0 * dy0));
-                    if (need > rootS) rootS = need;
-                }
-            }
-            rootS = 1 + (rootS - 1) * pilotBlend;
+            rootS = GL.pilotRootSpread(root, pilotBlend, bhCoreR, orbAngle, orbVib);
         }
         for (i = 0; i < drawOrder.length; i++) {
             n = drawOrder[i];
@@ -1398,11 +1275,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
             // p._pF is already fresh. Blended by pilotBlend; angle untouched.
             var pb = pilot ? pilotBlend : 0;
             if (pb > 0 && p !== root) {
-                var rp = p._pF * (PILOT_CLEAR0 + 0.55 * (n.spreadT || 0));
-                if (rp < p._pF + 1.15 * n._pF) rp = p._pF + 1.15 * n._pF;   // floored (rev 20) children can be as big as the parent: never embed
-                // a node carrying moons must also carry them clear of its parent's globe
-                if (n.kids.length) rp = Math.max(rp, 1.65 * p._pF + n._ext);
-                if (rp > r) r += (rp - r) * pb;
+                r = GL.pilotOrbitRadius(n, p, r, pb);
             }
             if (p === root) r *= rootS;
             if (n.nx || n.ny || n.nz) {
@@ -1422,73 +1295,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // a system, with only a gentle nudge from a node's own `size` override —
     // the real sense of scale/depth now comes from orbit motion, self-spin
     // and camera framing instead of a dramatic size hierarchy.
-    var UNIFORM_MIX = 0.7;          // 0 = true hierarchy size, 1 = fully uniform by role
-    // nav-ring children read ~2x bigger than before (0.05 -> 0.133) once
-    // you've flown into a system, so sub-planets are no longer dwarfed by
-    // their freshly-huge parent "sun". Root itself gets a smaller, separate
-    // bump (0.05 -> 0.06, matched with the BODY_F bump above to land at
-    // "somewhat bigger" rather than 2x) since the root view's planets sit
-    // much closer together on screen than a zoomed-in nav ring does.
-    var CHILD_ROLE = 0.133;         // nav-ring children when zoomed into a sub-system (N=1 baseline)
-    var ROOT_CHILD_ROLE = 0.06;     // root-level planets around the black hole (N=1 baseline)
-    // root's kid count barely moves (<=6 here) — keep its old mild step
-    // curve so the "somewhat bigger" root-view bump from before is intact.
-    var CROWD_C_ROOT = 0.07;
-    function crowdAdjRoot(n) { return 1 / (1 + Math.max(0, n - 5) * CROWD_C_ROOT); }
-    // zoomed-in nav-ring children: a smooth curve over EVERY N (no flat
-    // plateau below 5) — a 3-kid system's planets read bigger than a 9-kid
-    // system's (papers), which read bigger than the 11/13-kid shelves
-    // (M4L, NEPTR). CHILD_CROWD_K tuned against the real tree so the
-    // tightest real system (NEPTR, 13 kids) still clears with margin —
-    // see the report for the per-N values this produces.
-    var CHILD_CROWD_K = 10;
-    function crowdAdjChild(n) { return CHILD_CROWD_K / (CHILD_CROWD_K + Math.max(0, n - 1)); }
-    // the focused "sun": close to ORBIT_MIN (so it barely shrinks from how
-    // big it read as a nav-ring child a moment ago) but strictly inside it,
-    // leaving just enough room for its own innermost child — verified
-    // against the real tree's worst case (an N=1/2 system, which keeps the
-    // full un-crowd-reduced CHILD_ROLE and so has the single biggest inner
-    // child to clear).
-    var SUN_ROLE = 0.36;
-    function uniformSizeFor(n, f) {
-        if (n === f) {
-            // the "sun": a flat size driven ONLY by its role in its OWN
-            // system — deliberately NOT blended with its true bodyR/sizeF
-            // the way every other tier is. A node with a big `size`
-            // override (e.g. papers at 2.0) has a huge bodyR as seen from
-            // OUTSIDE its system; blending that in here made the sun swell
-            // until it nearly touched (and sometimes visually swallowed)
-            // its own innermost orbiting child — the exact "children hidden
-            // behind/in front of the parent" bug. Fully role-based keeps
-            // the sun's radius always well inside ORBIT_MIN * f.sysR, no
-            // matter how big the focused node's own `size` is.
-            return f.sysR * SUN_ROLE;
-        }
-        var role, isChildTier = false, crowdN = 0, crowdFn = null;
-        if (n.parentNode === f) {                                   // nav-ring children — main tier
-            role = (f === root) ? ROOT_CHILD_ROLE : CHILD_ROLE;
-            crowdN = f.kids.length;
-            crowdFn = (f === root) ? crowdAdjRoot : crowdAdjChild;
-            isChildTier = true;
-        }
-        else if (n.parentNode && n.parentNode.parentNode === f) role = 0.02; // hinted grandkids
-        else if (f !== root && n === f.parentNode) role = 0.30;          // ambient background giant
-        else if (f !== root && n.parentNode === f.parentNode) {          // siblings
-            role = CHILD_ROLE;
-            crowdN = f.parentNode.kids.length;
-            crowdFn = crowdAdjChild;
-            isChildTier = true;
-        }
-        else role = n.bodyR / Math.max(1, f.sysR);
-        if (isChildTier) role *= crowdFn(crowdN);
-        var uniformR = f.sysR * role;
-        var sizeFVar = clamp(0.85 + (n.sizeF - 1) * 0.15, 0.8, 1.2);     // gentle per-node variation only
-        // the seeded sizeVar only applies to nav-ring/sibling children —
-        // the focused "sun" and the ambient background giant keep a
-        // predictable, stable size for framing/navigation clarity
-        var varMix = (n !== f && isChildTier) ? n.sizeVar : 1;
-        return lerp(n.bodyR, uniformR, UNIFORM_MIX) * sizeFVar * varMix;
-    }
+    function uniformSizeFor(n, f) { return GL.uniformSizeFor(n, f, root); }   // role/size tables live in galaxy-layout.js
     function alphaFor(n, f) {
         // procedural (ship-mode) focus is not in the tree: real nodes sit
         // at an ambient floor instead of vanishing, n === f still wins.
@@ -2535,11 +2342,11 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
     // focused "sun" of its own system: sysR * SUN_ROLE (uniformSizeFor(n, n)).
     // rev 14: planets grow while piloting (PILOT_PLANET_SCALE: x3 root-level, x2 deeper), blended 0..1 by the ship (boarding / exit cinematics).
     // renderedRadius(node, true) = the unscaled radius.
-    // 2026-10-14: tried {4, 3} (with L pinned to the x6 reference): guarantee tests g2 / g9 / g11 / g16 failed ('cannot approach ... embedded in a larger body',
-    // a 1.07 R crossing of a neighbour) while the {6, 4} baseline passes them, so the scale stays {6, 4}. See docs/ship-mode.md Revision 32.
-    var PILOT_PLANET_SCALE = { root: 6, deep: 4 }, pilotBlend = 1;
+    // 2026-10-14: {4, 3} (L pinned to x6) failed browser g2 / g9 / g11 / g16 ('cannot approach ... embedded in a larger body'), reverted to {6, 4}.
+    // Q22: clearance math now lives in galaxy-layout.js; tests/node/pilot-clearance.test.mjs proves no body embeds another for {6,4} and {4,3}
+    // over the real galaxy.json (min centre distance 1.34 x the radius sum for {4,3}), so {4, 3} is set again. If g2/g8/g9/g11 fail on the Mac, set {6, 4}.
+    var PILOT_PLANET_SCALE = { root: 4, deep: 3 }, pilotBlend = 1;
     var shipLength = 0, PILOT_MIN_R_PER_L = 320;   // rev 20: min pilot rendered radius = 320 L for every body (engine.setShipLength)
-    var PILOT_CLEAR0 = 1.65;   // pilot orbit clearance (x parent rendered radius) at spread t=0, +0.55 t; keeps a 1.45R landing approach outside the parent's 1.6R sphere
     function pilotScaleOf(n) { return !n.parentNode ? 1 : (n.parentNode === root ? PILOT_PLANET_SCALE.root : PILOT_PLANET_SCALE.deep); }
     function pilotMul(n) { return 1 + (pilotScaleOf(n) - 1) * pilotBlend; }
     function renderedRadius(node, raw) {
