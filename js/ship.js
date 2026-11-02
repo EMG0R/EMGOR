@@ -155,6 +155,8 @@ export default function mount(engine) {
     function readRefR() { var k = root.kids && root.kids[0], r = readRefRaw(); if (!r) return 0; return r * (k && engine.pilotScale ? engine.pilotScale(k) : 1); }
     var refR0 = readRefRaw() || 100, refR = readRefR() || 300;
     var L = refR / 12000;
+    var H_RATIO = 0.09;                                  // human height as a fraction of ship length L (the one definition; hOf is the only reader)
+    function hOf(len) { return H_RATIO * len; }
     // rev 20: the engine sizes every body's minimum pilot radius from the ship length
     function pushShipLength() { try { if (typeof engine.setShipLength === 'function') engine.setShipLength(L); } catch (e) { /* engine without the hook */ } }
     pushShipLength();
@@ -5137,7 +5139,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return pushed;
     }
     function flightStep(dt, c, qM) {
-        var H = 0.09 * L, o = hum.obj, up = hum.up, k, v = fl.v;
+        var H = hOf(L), o = hum.obj, up = hum.up, k, v = fl.v;
         if (cmdOpen) { mdx = mdy = 0; }
         up.copy(hum.pos).normalize();
         var wy = clamp(mdx * MOUSE_SENS * 1.3 / dt, -3, 3), wp = clamp(mdy * MOUSE_SENS * 1.3 / dt, -2.5, 2.5);
@@ -5208,7 +5210,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return gC;
     }
     function footStep(dt, c, qM) {
-        var H = 0.09 * L, o = hum.obj, up = hum.up, i, k;
+        var H = hOf(L), o = hum.obj, up = hum.up, i, k;
         if (cmdOpen) { mdx = mdy = 0; }
         up.copy(hum.pos).normalize();
         // rev 29: hold Space FL_HOLD s (continuously, in the air) = jetpack FLIGHT
@@ -6821,7 +6823,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var snA = new THREE.Vector3(), snB = new THREE.Vector3(), snC = new THREE.Vector3(), snD = new THREE.Vector3(), snM = new THREE.Matrix4(), snQ = new THREE.Quaternion();
     document.addEventListener('mousedown', function (e) { if (e.button === 0) styM.l = true; else if (e.button === 2) styM.r = true; }, true);
     document.addEventListener('mouseup', function (e) { if (e.button === 0) styM.l = false; else if (e.button === 2) styM.r = false; }, true);
-    function hwU() { return 0.09 * L; }
+    function hwU() { return hOf(L); }
     // ── STEEV blocks: 1 H cubes on a lattice anchored at the first placement (profile.blk[planet]); columns act as extra ground in mFloor ──
     var BK_MAT = ['dirt', 'stone', 'plank', 'table', 'torch', 'door', 'glass', 'brick', 'wool'], BK_COL = [0x8a6a4a, 0x8d8d9a, 0xc9a266, 0xb5793a, 0xffd36a, 0x7a5230, 0x9fe8ff, 0xb5503c, 0xe8e0f0], BK_HARD = [0.75, 1.5, 1, 1, 0.1, 1, 0.4, 1.5, 0.5], BK_MAX = 64;
     var BK = { n: 0, nid: '', basis: false, cols: new Map(), list: [], e1: new THREE.Vector3(1, 0, 0), e2: new THREE.Vector3(0, 0, 1), e3: new THREE.Vector3(0, 1, 0), H: 1, mesh: null, grp: null, ci: 0, cj: 0, ck: 0 };
@@ -7351,7 +7353,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     // ── on-foot controller inside the hub (metres, +y up, walls = hub.interior.walls, floor = hub.interior.floorAt) ──
     function hubFootStep(dt, c, qM) {
-        var H = 0.09 * L, o = hum.obj, up = hum.up, hb = HB.hub, I = hb.interior, p = HB.p, k, mu = HB.mu;
+        var H = hOf(L), o = hum.obj, up = hum.up, hb = HB.hub, I = hb.interior, p = HB.p, k, mu = HB.mu;
         if (cmdOpen) { mdx = mdy = 0; }
         up.copy(HB.up);
         if (mdx !== 0) hum.hf.applyAxisAngle(up, -mdx * MOUSE_SENS * 1.3);
@@ -7541,7 +7543,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function villageTarget() {
         if (!VG.v || HB.in) return null;
-        var v = VG.v.nearVillager(hum.pos, 3 * 0.09 * L); if (!v) return null;
+        var v = VG.v.nearVillager(hum.pos, 3 * hOf(L)); if (!v) return null;
         ftI.kind = 'villager'; ftI.obj = v; ftI.label = fightLabel(v.id, 'T · TALK'); return ftI;
     }
     function villageTalk(v) { knownFor(); if (!r28Talk({ id: v.id, name: v.name, role: v.role, kind: 'village', obj: v, seed: v.seed })) return; }
@@ -7839,7 +7841,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!txt && !storeOpen && !invOpen) {      // first-time hints (one line, 6 s)
             if (onb.hintT > 0) { onb.hintT -= dt; txt = onb.hint; }
             else if (!o.res && gmode === 'foot' && resFind()) { o.res = true; onb.hint = 'RESOURCE NODE · F TO HARVEST · SELL IT OR CRAFT AT A 7/11'; onb.hintT = 6; writeSave(); }
-            else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear() || (VG.v && VG.v.nearVillager && VG.v.nearVillager(hum.pos, 3 * 0.09 * L)))) { o.npc = true; onb.hint = 'T TO TALK (THEY MAY HAVE WORK) · F TO FIGHT'; onb.hintT = 6; writeSave(); }
+            else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear() || (VG.v && VG.v.nearVillager && VG.v.nearVillager(hum.pos, 3 * hOf(L))))) { o.npc = true; onb.hint = 'T TO TALK (THEY MAY HAVE WORK) · F TO FIGHT'; onb.hintT = 6; writeSave(); }
             else if (!o.roll && gmode === 'fly' && (o.done || (o.step | 0) >= 2)) { o.roll = true; onb.hint = 'A/D TWICE · ROLL · S TWICE · FLIP · CTRL · DRIFT TURN'; onb.hintT = 6; writeSave(); }
             else if (!o.inv && gmode === 'foot' && (o.done || (o.step | 0) >= 3)) { o.inv = true; onb.hint = 'E INVENTORY · HOLD Z SUMMONS THE SHIP · F FIGHT · T TALK'; onb.hintT = 6; writeSave(); }
         }
@@ -7885,7 +7887,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var harv = { on: false, t: 0, id: '', pos: new THREE.Vector3(), bt: 0 };
     function resFind() {
         if (gmode !== 'foot' || !hum.obj || !world || !world.node || typeof world.nearResource !== 'function' || !world.resources || !world.resources.length) return null;
-        try { return world.nearResource(hum.pos, Math.max(1.6 * L, 0.5 * L + 4 * 0.09 * L)) || null; } catch (e0) { return null; }
+        try { return world.nearResource(hum.pos, Math.max(1.6 * L, 0.5 * L + 4 * hOf(L))) || null; } catch (e0) { return null; }
     }
     function harvStart(r) { if (harv.on || !r) return; harv.on = true; harv.t = 0; harv.id = r.id; harv.bt = 0; aPlay('ui', { vel: 0.6 }); addRow('', '', 'harvesting ' + r.kind + '...', 'is-sys'); }
     function harvTick(dt) {
@@ -8443,7 +8445,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         FG.ask = { id: id, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 });
     }
     function fgSamples(pa, pb) {       // 128 ground heights (human heights, up +) along the line through both of you, centred between you
-        var out = new Float32Array(128), H = 0.09 * L, m = FG.tmpM, t = FG.tmpT, q = FG.tmpA, k, i, R0 = ps.radius;
+        var out = new Float32Array(128), H = hOf(L), m = FG.tmpM, t = FG.tmpT, q = FG.tmpA, k, i, R0 = ps.radius;
         m.copy(pa).add(pb).normalize(); t.copy(pb).sub(pa); t.addScaledVector(m, -t.dot(m)); if (t.lengthSq() < 1e-14) t.copy(hum.hf); t.addScaledVector(m, -t.dot(m)).normalize();
         var base = mFloor(m.x, m.y, m.z, 0);
         for (i = 0; i < 128; i++) {
@@ -8528,7 +8530,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (mutterT > 0 || storeOpen || invOpen || !world || !world.node || !hum.obj) return;
         var n = world.nearNpc;
         if (!n || n.role === 'dealer' || n.role === 'cashier' || n.role === 'fries') return;
-        if (locToWorld(n.pos, vSc).distanceTo(hum.w) > 2 * 0.09 * L) return;
+        if (locToWorld(n.pos, vSc).distanceTo(hum.w) > 2 * hOf(L)) return;
         mutterT = 8;
         addRow(String(n.name || 'SHOPPER').toUpperCase(), '#8fa0ff', npcLineOf(n.id, n) || '...');
         aPlay('npc', { seed: n.id, vel: 0.5 });
@@ -8539,7 +8541,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var best = null, bd = 1e30, i, st, r, d;
         for (i = 0; i < world.stores.length; i++) {
             st = world.stores[i]; locToWorld(st.counter.pos, vSc);
-            r = Math.max(st.counter.radius, 2 * 0.09 * L); d = vSc.distanceTo(hum.w);
+            r = Math.max(st.counter.radius, 2 * hOf(L)); d = vSc.distanceTo(hum.w);
             if (d < r && d < bd) { bd = d; best = st; }
         }
         return best;
@@ -9098,7 +9100,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         mM.makeBasis(r27R, e.up, r27B); e.g.quaternion.setFromRotationMatrix(mM); e.g.position.copy(e.w);
     }
     function gndStep(e, dt, hw) {
-        var cr = e.cr, st = cr.stats, H = 0.09 * L, d = e.w.distanceTo(hw), dM = d / (GM * L), mv = e.mv, moving = false, k;
+        var cr = e.cr, st = cr.stats, H = hOf(L), d = e.w.distanceTo(hw), dM = d / (GM * L), mv = e.mv, moving = false, k;
         r27C.subVectors(hw, e.w); r27C.addScaledVector(e.up, -r27C.dot(e.up)); var tl = r27C.length(); if (tl > 1e-9) r27C.divideScalar(tl);
         if (e.hurtT > 0) e.hurtT -= dt;
         if (e.ph === 'idle') {
@@ -9165,7 +9167,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return t;
     }
     function gbAim() {      // hand (GB.o), unit aim (GB.d), up (GB.up) in world space
-        var H = 0.09 * L;
+        var H = hOf(L);
         r27A.set(0, 0, -1).applyQuaternion(camera.quaternion);
         r27R.set(1, 0, 0).applyQuaternion(hum.obj.group.quaternion); r27F.set(0, 0, -1).applyQuaternion(hum.obj.group.quaternion); GB.up.set(0, 1, 0).applyQuaternion(hum.obj.group.quaternion);
         GB.o.copy(hum.w).addScaledVector(GB.up, 0.52 * H).addScaledVector(r27R, 0.14 * H).addScaledVector(r27F, 0.32 * H);
@@ -9174,7 +9176,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gbOk() { return gmode === 'foot' && hum.obj && !dead && !cmdOpen && !storeOpen && !invOpen && land.node && ps && ps.active === land.node; }
     function gbPreview() {
         if (!GB.aim || GB.on || !gbOk()) return;
-        gbAim(); var H = 0.09 * L, n = PKC.previewDots({ x: 0, y: 0, z: 0 }, GB.d, GB.up, GB.dots), i, dd;
+        gbAim(); var H = hOf(L), n = PKC.previewDots({ x: 0, y: 0, z: 0 }, GB.d, GB.up, GB.dots), i, dd;
         for (i = 0; i < n; i++) { dd = GB.dots[i]; GB.p.set(GB.o.x + dd.x * H, GB.o.y + dd.y * H, GB.o.z + dd.z * H); fx.spawnBolt(GB.p, GB.d, 0xFFFFFF, 0, 0.05, { shape: 'orb', size: 0.35, trail: false }); }
     }
     function gbThrow() {
@@ -9218,7 +9220,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function gbTick(dt) {
         if (!GB.on) { if (GB.aim) gbPreview(); return; }
-        var H = 0.09 * L, pf = ensureProfile(userName());
+        var H = hOf(L), pf = ensureProfile(userName());
         if (!gbOk()) { if (GB.e) GB.e.held = false; gbEnd(); return; }
         if (GB.phase === 'fly') {
             GB.t += dt; PKC.arcPoint({ x: 0, y: 0, z: 0 }, GB.d, GB.up, GB.t, GB.q);
@@ -9249,7 +9251,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function footFireTick(dt) {
         if (R27.ffCd > 0) R27.ffCd -= dt;
         if (!R27.fire || curStyleId === 'STEEV' || R27.ffCd > 0 || cmdOpen || storeOpen || invOpen || !hum.obj || dead) return;
-        var wp = curWeapon(), st = wp.stats || STARTER.stats, H = 0.09 * L;
+        var wp = curWeapon(), st = wp.stats || STARTER.stats, H = hOf(L);
         R27.ffCd = 1 / clamp((st.rate || 4) * 0.7, 1, 5);
         r27A.set(0, 0, -1).applyQuaternion(camera.quaternion);                           // aim ray: camera centre
         var best = null, bt = clamp(st.range > 0 ? st.range * 0.5 : 60, 20, 90) * L, i, e, r, t, ocx, ocy, ocz, b, c;
@@ -9349,7 +9351,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var f = R27.follow; if (!f.pet) return;
         f.chk -= dt; if (f.chk <= 0) { f.chk = 1; var pf = curProfile(); if (!pf || !pf.items.some(function (r) { return r.id === f.key; })) { petStow(); return; } }
         if (!hum.obj || !ps || !ps.active) { f.holder.visible = false; return; }
-        var H = 0.09 * L, hq = hum.obj.group.quaternion;
+        var H = hOf(L), hq = hum.obj.group.quaternion;
         f.holder.visible = true;
         r27R.set(1, 0, 0).applyQuaternion(hq); r27U.set(0, 1, 0).applyQuaternion(hq); r27F.set(0, 0, -1).applyQuaternion(hq);
         if (f.init) f.pp.copy(f.lpp).applyQuaternion(ps.active.mesh.quaternion).add(ps.active.anchor.position);      // the planet moves: the pet lives in its LOCAL frame between frames
@@ -9435,7 +9437,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         ptHud(true);
     }
     function ptTick(dt) {
-        var f = R27.follow, pf = curProfile(), m, i, e, bd, d, H = 0.09 * L, mv, k, dmg, live = 0, nm;
+        var f = R27.follow, pf = curProfile(), m, i, e, bd, d, H = hOf(L), mv, k, dmg, live = 0, nm;
         if (!pf || !pf.party.length) { ptHud(false); return; }
         if (PT.poof > 0) PT.poof -= dt;
         m = PKP.active(pf);
@@ -9468,7 +9470,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var elRad = document.createElement('div'); elRad.className = 'sh-rad'; hud.appendChild(elRad);
     var RAD_POS = ['up', 'right', 'down', 'left'];
     function ptTDown(e) {          // true = T was taken by the radial; tap with nothing to talk to + follower beside you = hold opens it
-        var f = R27.follow, m = ptMon(), H = 0.09 * L;
+        var f = R27.follow, m = ptMon(), H = hOf(L);
         if (PT.rad.on) return true;
         if (e.repeat || !m || f.key !== m.id || !f.pet || !f.pp || !hum.obj || f.pp.distanceToSquared(hum.w) > (5 * H) * (5 * H) || footTarget().kind) return false;
         PT.rad.on = true; PT.rad.t = 0; PT.rad.dx = PT.rad.dy = 0; PT.rad.sel = -1; return true;
@@ -9668,7 +9670,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function meteorTick(dt) {          // shard rain: glowing shards fall near you; walk into one to pick it up
         var m = R27.meteor; if (!m.node || Date.now() > m.until) { if (m.list.length) m.list.length = 0; return; }
         if (land.node !== m.node || !hum.obj) return;
-        m.t -= dt; var H = 0.09 * L, i, s;
+        m.t -= dt; var H = hOf(L), i, s;
         if (m.t <= 0 && m.list.length < 6) {
             m.t = 1.6 + Math.random() * 1.4;
             r27A.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar((6 + Math.random() * 12) * H);
@@ -9808,7 +9810,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             stationToWorld: function (v, q) { if (!station) return false; station.toWorld(v, v); q.premultiply(station.quat); return true; },
             planetToWorld: planetToWorld, planetKnown: function (pid) { var n = plNodes[pid]; if (!n) { var dl = engine.drawOrder; for (var i = 0; i < dl.length; i++) if (String(dl[i].id) === pid) { n = dl[i]; break; } plNodes[pid] = n || null; } return !!(n && n.mesh && n.anchor); },
             onPl: mobNetMsg, onProf: r27Prof, onDisc: r27Disc, onEvent: r27Event, onOpen: r27NetOpen,
-            buildHuman: function (color, sid) { return makeHuman(color, sid || ''); }, skinHuman: function (h, id) { skinRig(h, id); },
+            hOf: hOf, buildHuman: function (color, sid) { return makeHuman(color, sid || ''); }, skinHuman: function (h, id) { skinRig(h, id); },
             getPose: function () {
                 if (gmode === 'sfoot' && !R27.dsite) {        // rev 22: station frame. x/y/z are STATION-LOCAL (L units); v = -1 flags it (the relay passes v through untouched)
                     var onDeck = sk.nl <= 0, qq = skQ2.setFromAxisAngle(Y, sk.yaw);
@@ -10216,7 +10218,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             beginDock: beginDock, dkSite: dkSite, gndMove: gndMove, gndPlace: gndPlace, gndStep: gndStep, spawnGround: function (kind, tier) {
                 var e = gndMake((Math.random() * 1e9) | 0, tier || 1, kind || undefined); if (!e) return null;
                 if (R27.dsite) { e.mode = 'derelict'; e.site = R27.dsite; e.lp.copy(sk.hp); e.lp.z -= 4; e.lp.y = 0; }
-                else { e.mode = 'planet'; e.node = land.node; e.dir.copy(hum.pos).normalize(); r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.dir.addScaledVector(r27C, 8 * 0.09 * L / (ps.radius || 1)).normalize(); e.hr = mFloor(e.dir.x, e.dir.y, e.dir.z); }
+                else { e.mode = 'planet'; e.node = land.node; e.dir.copy(hum.pos).normalize(); r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.dir.addScaledVector(r27C, 8 * hOf(L) / (ps.radius || 1)).normalize(); e.hr = mFloor(e.dir.x, e.dir.y, e.dir.z); }
                 e.aggro = 40; gndPlace(e); return e;
             },
             footFire: function (on) { R27.fire = !!on; }, windOff: function (b) { R27.windOn = !b; }, wind: function () { return ps && ps.wind ? ps.wind.clone() : null; }
@@ -10352,7 +10354,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
         land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyZ: onKeyZ, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
-        _g: { hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
+        _g: { hOf: hOf, hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
         get stats() { return { hp: hp, wave: shownWave(), bossPhase: (api.boss || { bphase: 0 }).bphase, boss: (api.boss || { hp: 0 }).hp, bossMax: (api.boss || { maxHp: 0 }).maxHp, allies: allies.filter(function (a) { return a.alive; }).length, kills: kills, enemies: aliveCount(), L: L, dead: dead, gt: gt }; }
     };
     window.EMGOR_SHIP = api;   // debug / test hook

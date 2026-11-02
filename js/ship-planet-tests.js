@@ -742,7 +742,7 @@ async function g13(T, o) {
 //   no per-frame displacement > 2 x run speed x dt (a jump or a fall adds its own vertical speed), no NaN; parked 30 s: zero drift. g14 also reports the drift
 //   against the finer analytic height function (the old ground), to show why the controller uses the rendered one.
 async function g14(T, o) {
-    var ship = T.ship, THREE = T.THREE, L = T.L(), ps = ship.ps, H = 0.09 * L, G_RUN = 44, res = { pass: true, sites: [] };   // rev 29: walk = 22, run = 44 heights/s
+    var ship = T.ship, THREE = T.THREE, L = T.L(), ps = ship.ps, H = ship._g.hOf(L), G_RUN = 44, res = { pass: true, sites: [] };   // rev 29: walk = 22, run = 44 heights/s
     var terra = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; }), gas = T.planets().filter(function (n) { return T.isGas(n) && T.reachable(n); });
     // rev 22: only planets the ship can actually approach (a planet embedded in a bigger body has no approach and made this test throw); metagor is the steep-site planet
     function firstEngage(list, skipId) { for (var q = 0; q < list.length; q++) { if (list[q].id === skipId) continue; try { if (T.engage(list[q])) return list[q]; } catch (e) { /* next */ } } return null; }
@@ -818,7 +818,7 @@ async function g14(T, o) {
 // rev 29 flight sub-test: hold Space 2 s on foot -> flight; 60 s of random flight inputs kept at 1-10 heights above the floor (a store is aimed at when one exists):
 // never below the rendered floor, the capsule never inside a store/burger box, no NaN; then release everything and land.
 async function flightSub(T, ship, node, o) {
-    var THREE = T.THREE, L = T.L(), ps = ship.ps, H = 0.09 * L, g = ship._g, hum = g.hum, fl = g.fl, w = g.world(), r = { pass: true }, dt = 0.033, i, f;
+    var THREE = T.THREE, L = T.L(), ps = ship.ps, H = ship._g.hOf(L), g = ship._g, hum = g.hum, fl = g.fl, w = g.world(), r = { pass: true }, dt = 0.033, i, f;
     T.clearKeys(); T.step(10, dt);
     T.kd('Space'); for (i = 0; i < Math.round(2.4 / dt); i++) T.step(1, dt);
     r.entered = fl.on; if (!fl.on) { r.pass = false; r.why = 'Space hold did not start flight'; T.ku('Space'); return r; }
@@ -878,7 +878,7 @@ async function flightSub(T, ship, node, o) {
 //   numbers: MARO triple-jump apex ratios + wall kicks, JOSHI flutter airtime gain, SONIK spin-dash speed, STEEV placed blocks stop the capsule + persist; kreeper fuse+explode (hp,
 //   blocks destroyed), ender stare, zomby day burn, skelly bolts, punch. Two-window relay (host handoff) is exercised by hand (ship.mashup.netMsg).
 async function g15(T, o) {
-    var ship = T.ship, THREE = T.THREE, L = T.L(), H = 0.09 * L, res = { pass: true }, dt = 0.016, i, mu = ship.mashup, g = ship._g, hum = g.hum;
+    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), res = { pass: true }, dt = 0.016, i, mu = ship.mashup, g = ship._g, hum = g.hum;
     var node = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; })[0];
     try { if (!T.engage(node)) throw new Error('engage'); } catch (e) { return { pass: false, why: 'no planet' }; }
     await T.pause(); T.fly(); T.clearKeys(); T.near(node);
@@ -993,7 +993,7 @@ async function g16(T, o) {
 
 // ─── 17. structures are mounted (2026-10-14): on foot in a village for 20 s, nothing slides in the planet frame; the ground under every hut door is the hut floor ───
 async function g17(T, o) {
-    var ship = T.ship, THREE = T.THREE, L = T.L(), H = 0.09 * L, G = T.G, ps = ship.ps, tries = [], res = null, nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), G = T.G, ps = ship.ps, tries = [], res = null, nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
     nodes.sort(function (a, b) { return (a.id.indexOf('metagor') >= 0 ? -1 : 0) - (b.id.indexOf('metagor') >= 0 ? -1 : 0); });
     for (var ni = 0; ni < nodes.length && ni < 4 && !res; ni++) {
         var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);

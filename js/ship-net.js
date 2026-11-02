@@ -220,7 +220,7 @@ export function connect(engine, hooks) {
                     sampleAt(g, rt, g.fsamples);
                     if (g.sf && hooks.stationToWorld) hooks.stationToWorld(vP, qP);
                     else if (g.pf && hooks.planetToWorld) hooks.planetToWorld(g.pf, vP, qP);
-                    var hs = Math.max(0.09 * L, camera.position.distanceTo(vP) * 0.004);
+                    var hs = Math.max(hooks.hOf(L), camera.position.distanceTo(vP) * 0.004);
                     g.human.group.position.copy(vP); g.human.group.quaternion.copy(qP); g.human.group.scale.setScalar(hs);
                     g.human.group.visible = fade > 0.35;
                     var fs = g.fst | 0;
