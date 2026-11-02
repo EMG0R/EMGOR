@@ -14,6 +14,7 @@ import * as QST from './ship-quests.js';
 import * as PKG from './pokemans-gen.js';
 import * as PKC from './pokemans-catch.js';
 import * as PKP from './pokemans-party.js';
+import * as PKF from './pokemans-graft.js';
 import { roomKey, putRecent, cooldownMax } from './ship-keys.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
@@ -2536,7 +2537,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         hideEnemy(e); kills++;
         addUnits(uGain, vKill, wasBoss || wasLead); r25Scrap(wasBoss ? 3 : 0);
-        try { ptGainXp(PKP.xpForKill(2 + 2 * (e.tier || 1), e.tier || 1)); } catch (ex) { warnOnce('party.xp', ex); }      // consistency: party XP from every kill source
+        try { ptGainXp(PKP.xpForKill(2 + 2 * (e.tier || 1), e.tier || 1), e.tier || 1); } catch (ex) { warnOnce('party.xp', ex); }      // consistency: party XP from every kill source
         var ksz = clamp(len / L / 6, 1, 4);
         burst(vKill, wasBoss ? 30 : 14, col, wasBoss ? 30 : 14, ksz);
         deathBooms(vKill, len, eR, wasBoss, BURST_COL[col] || 0xff7a2a);
@@ -6445,6 +6446,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!it) return;
         if (it.kind === 'ball') { addRow('', '', 'hold B on foot to aim, release to throw', 'is-sys'); return; }
         if (it.kind === 'pokemans') { addRow('', '', 'not food', 'is-sys'); return; }
+        if (it.kind === 'graft') { addRow('', '', 'graft it at a POKEMANS counter (F on REVIVE with no one dead)', 'is-sys'); return; }
+        try { if (ptFood(it)) { rec.n--; if (rec.n <= 0) pf.items.splice(idx, 1); aPlay('ui', { vel: 0.7 }); writeSave(); invFill(); invTip(null); return; } } catch (e3) { warnOnce('graft.food', e3); }
         if (it.effect && it.effect.extras && it.effect.extras.lure) { pf.lureUntil = Date.now() + 10 * 60000; addRow('', '', 'LURE · catch chance up for 10 min', 'is-sys'); }
         if (r25Use(it, rec, idx)) return;       // rev 25: mods / upgrades / pets are not food
         rec.n--; if (rec.n <= 0) pf.items.splice(idx, 1);
@@ -7074,7 +7077,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function rewardKill(tier, pos, mult, big) {
         tier = Math.max(1, tier | 0 || 1);
         addUnits(UNIT_KILL * tier * (mult || 1), pos, !!big);
-        try { ptGainXp(PKP.xpForKill(2 + 2 * tier, tier)); } catch (e1) { warnOnce('party.xp', e1); }
+        try { ptGainXp(PKP.xpForKill(2 + 2 * tier, tier), tier); } catch (e1) { warnOnce('party.xp', e1); }
     }
     function mobKill(e, byMe) {
         if (!e.alive) return; MB.stats.killed++;
@@ -9213,6 +9216,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         giveItem({ id: mon.id, seed: seed >>> 0, name: sp.name, kind: 'pokemans', base: sp.types.join('/'), infusion: null, modifier: null, color: new THREE.Color().setHSL(sp.bodyRecipe.hue / 360, 0.6, 0.55).getHex(), price: 0, tier: sp.tier, category: 'pokemans', tags: ['pokemans'], stackKey: mon.id, iconHint: 'candy', mon: mon, blurb: sp.types.join(' / ') + ' · L' + lvl + ' · ' + sp.moves.map(function (m) { return m.name; }).join(', '), dealer: false }, 1);
         if (e) { if (e.guard) e.guard._gdDead = true; if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }      // PF2: a caught guardian is dead for the guard spawner too, as in gndKill
         else { try { ps.setCreatureTamed(g.id, true); } catch (e0) { /* ignore */ } crCache.t = -1e9; pf.taken.push({ n: pid, id: g.id, k: g.kind }); pf.taken = pf.taken.slice(-40); }
+        try { ptSpoils(sp.tier, 'catch'); } catch (e2) { warnOnce('graft.drop', e2); }
         discClaim('creature', pid + ':' + sp.name, sp.name);
         ptGainXp(PKP.xpForCatch(sp.tier, lvl));
         addRow('', '', 'CAUGHT ' + sp.name.toUpperCase() + ' · L' + lvl + (ind.shiny ? ' · SHINY' : '') + (pf.party.indexOf(mon.id) >= 0 ? ' · party ' + pf.party.length + '/' + PKC.PARTY_MAX : ' · sent to the pen'), 'is-sys');
@@ -9373,7 +9377,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         f.lpp.copy(f.pp).sub(ps.active.anchor.position).applyQuaternion(qW.copy(ps.active.mesh.quaternion).invert());
     }
     // ─── Q13 party: ONE active mon follows (the petFollow rig), fights beside you with its 4 moves, XP, heal on survive, DEAD on faint. Rules: js/pokemans-party.js ───
-    var PT = { cds: [0, 0, 0, 0], poof: 0, bat: 0, calm: 0, hit: 0, tgt: null, chart: null, sig: '', foe: { def: 30, types: [] }, keys: false, forced: -1, fAge: 0, rad: { on: false, t: 0, dx: 0, dy: 0, sel: -1 }, pm: false };
+    var PT = { cds: [0, 0, 0, 0, 0], learn: null, learnT: 0, bondAcc: 0, poof: 0, bat: 0, calm: 0, hit: 0, tgt: null, chart: null, sig: '', foe: { def: 30, types: [] }, keys: false, forced: -1, fAge: 0, rad: { on: false, t: 0, dx: 0, dy: 0, sel: -1 }, pm: false };
     function ptMon() { var pf = curProfile(); return pf ? PKP.active(pf) : null; }
     function ptChart() { if (!PT.chart) PT.chart = PKG.typeChart(7); return PT.chart; }
     function ptSummon(mon) {
@@ -9382,7 +9386,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var pl = PKP.monById(curProfile(), mon.id) ? mon : null; if (!pl) return false;
         if (f.key === mon.id) return true;
         if (f.pet && f.holder) fx.impact(f.pp, 0xC8A0FF, 1, 'hit');
-        petStow(); PT.poof = PKP.SWAP_POOF; PT.cds[0] = PT.cds[1] = PT.cds[2] = PT.cds[3] = PKP.SWAP_POOF;
+        petStow(); PT.poof = PKP.SWAP_POOF; PT.cds[0] = PT.cds[1] = PT.cds[2] = PT.cds[3] = PT.cds[4] = PKP.SWAP_POOF;
         var ok = petFollowToggle({ id: mon.id, pet: { seed: (mon.sp.bodyRecipe.seed | 0) || 1, plan: Math.abs(hash25(String(mon.sp.bodyRecipe.plan || mon.sp.id))) % 3, name: mon.sp.name } });
         if (ok && f.pp) { fx.impact(f.pp, 0xC8A0FF, 2, 'explode'); aPlay('tame', { vel: 0.5, pitch: 1.3 }); }
         return ok;
@@ -9415,6 +9419,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function cvsLabel() {
         var pf = curProfile(), i, m, c = '';
         if (pf) { for (i = 0; i < pf.party.length && !c; i++) { m = PKP.monById(pf, pf.party[i]); if (m && m.dead) c = ' ' + m.sp.name.toUpperCase() + ' ' + PKP.reviveCost(m); } }
+        if (!c && pf && pf.items.some(function (q) { return q.it && q.it.kind === 'graft'; })) return 'F · GRAFT';
         return 'F · REVIVE' + c;
     }
     function cvsUse(near) {
@@ -9422,17 +9427,55 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!near || !pf) return;
         if (near.kind === 'heal') { addRow('', '', CVS_VIBE[cvsVibeI++ % CVS_VIBE.length], 'is-sys'); aPlay('tame', { vel: 0.35, pitch: 1.3 }); return; }
         r = PKP.reviveAtCvs(pf);
+        if (!r.ok && r.why === 'none' && ptGraftCvs(pf)) return;      // Q23: nobody to revive -> the same counter grafts a held PART onto the active mon
         if (!r.ok) { addRow('', '', r.why === 'poor' ? 'REVIVE ' + r.mon.sp.name.toUpperCase() + ' costs ' + r.cost + ' gorCoin' : 'nobody to revive', 'is-sys'); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
         addRow('', '', r.mon.sp.name.toUpperCase() + ' REVIVED · -' + r.cost + ' gorCoin', 'is-sys'); aPlay('tame', { vel: 0.7, pitch: 1.6 });
         ptHud(true); writeSave();
+    }
+    // Q23 GRAFT: consume one held part + gorCoin, add it to the ACTIVE mon (stat via gen.statsAt, silhouette via PKF.bodyOf). Returns true if it handled the press.
+    function ptGraftCvs(pf) {
+        var m = PKP.active(pf), i, rec = null, c;
+        for (i = 0; i < pf.items.length && !rec; i++) if (pf.items[i].it && pf.items[i].it.kind === 'graft') rec = pf.items[i];
+        if (!rec || !m) return false;
+        c = PKF.canGraft(m, rec.it.tier, pf.gor);
+        if (!c.ok) { addRow('', '', c.why === 'full' ? m.sp.name.toUpperCase() + ' has ' + PKF.GRAFT_MAX + ' grafts' : 'GRAFT ' + rec.it.name + ' costs ' + c.cost + ' gorCoin', 'is-sys'); aPlay('ui', { vel: 0.3, pitch: 0.6 }); return true; }
+        PKF.applyGraft(m, rec.it.part, rec.it.tier); pf.gor -= c.cost; rec.n--; if (rec.n <= 0) pf.items.splice(pf.items.indexOf(rec), 1);
+        addRow('', '', m.sp.name.toUpperCase() + ' + ' + rec.it.name + ' · -' + c.cost + ' gorCoin', 'is-sys'); aPlay('tame', { vel: 0.7, pitch: 1.4 });
+        petStow(); PT.poof = 0; ptHud(true); writeSave(); return true;       // stow so the grafted body walks back out
+    }
+    // Q23 foods teach: eating a food whose family type matches one of the ACTIVE mon's types rolls 30 %; the proposal (weakest move replaced) is
+    // confirmed by eating another food of that type within 12 s. Returns true when the press was spent on the tutor (a confirm), false = normal eat.
+    function ptFood(it) {
+        var m = ptMon(), ty = PKF.foodType(it), pr, now = Date.now();
+        if (!m || !ty) return false;
+        if (PT.learn && PT.learn.mon === m.id && now < PT.learnT && PT.learn.move.type === ty) {
+            PKF.learn(m, PT.learn); addRow('', '', m.sp.name.toUpperCase() + ' learned ' + PT.learn.move.name.toUpperCase() + ' (forgot ' + PT.learn.old.name.toUpperCase() + ')', 'is-sys'); aPlay('levelUp', { pitch: 1.2 }); PT.learn = null; return true;
+        }
+        pr = PKF.teachRoll(m, ty, Math.random(), Math.random()); if (!pr) return false;
+        pr.mon = m.id; PT.learn = pr; PT.learnT = now + 12000;
+        addRow('', '', m.sp.name.toUpperCase() + ' wants ' + pr.move.name.toUpperCase() + ' (' + pr.move.power + ') over ' + pr.old.name.toUpperCase() + ' · eat another ' + ty + ' food within 12 s to confirm', 'is-sys');
+        return false;       // this food is still eaten; the confirm costs a second one
     }
     function ptFaint(m) {
         addRow('', '', m.sp.name.toUpperCase() + ' FAINTED · DEAD until revived at a POKEMANS', 'is-sys'); aPlay('explosion', { pitch: 0.7, vel: 0.4 });
         if (R27.follow.key === m.id) { if (R27.follow.pp) fx.impact(R27.follow.pp, 0x888888, 2, 'explode'); petStow(); }
         PT.tgt = null; writeSave();
     }
-    function ptGainXp(amount) {
-        var m = ptMon(); if (!m) return; var g = PKP.awardXp(m, amount);
+    // Q23: bond (time following + wins) unlocks +5 % crit at 10 and a 5th signature move at 30 (AI-only, mon.sig)
+    function ptBond(m, n) {
+        var t = PKF.bondAdd(m, n);
+        if (t === 1) { addRow('', '', m.sp.name.toUpperCase() + ' BOND 10 · crit +5%', 'is-sys'); aPlay('levelUp', { pitch: 1.3 }); }
+        else if (t === 2) { m.sig = PKF.sigMove(m); addRow('', '', m.sp.name.toUpperCase() + ' BOND 30 · learned ' + m.sig.name.toUpperCase(), 'is-sys'); aPlay('levelUp', { pitch: 1.6 }); writeSave(); }
+        else if (m.bond >= PKF.BOND_T2 && !m.sig) m.sig = PKF.sigMove(m);       // reloaded from a save without the cached move
+    }
+    // Q23: harvestable PART from a defeated creature (and from catches); lands in the bag as a kind 'graft' stack
+    function ptSpoils(tier, source) {
+        var d = PKF.partDrop(tier, source, Math.random(), Math.random()); if (!d) return;
+        var it = PKF.partItem(d.part, d.tier); if (giveItem(it, 1)) addRow('', '', '+ ' + it.name, 'is-sys');
+    }
+    function ptGainXp(amount, tier) {
+        if (tier) { try { ptSpoils(tier, 'kill'); } catch (e0) { warnOnce('graft.drop', e0); } }
+        var m = ptMon(); if (!m) return; var g = PKP.awardXp(m, amount); if (tier) ptBond(m, PKF.BOND_PER_WIN);
         if (g > 0) { addRow('', '', m.sp.name.toUpperCase() + ' → L' + m.level, 'is-sys'); aPlay('levelUp'); }
         ptHud(true);
     }
@@ -9445,7 +9488,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (m && !f.pet && !f.key && PT.poof <= 0) ptSummon(m);      // the active one walks out with you
         if (m && f.pet && f.key && f.key !== m.id && PT.poof <= 0) ptSummon(m);      // revive / activeMon changed behind the follower's back: the active mon walks out (ptSummon stows the other)
         if (!m || f.key !== m.id || !f.pet || !f.pp) { PT.calm += dt; ptHud(false); return; }
-        for (i = 0; i < 4; i++) if (PT.cds[i] > 0) PT.cds[i] -= dt;
+        for (i = 0; i < 5; i++) if (PT.cds[i] > 0) PT.cds[i] -= dt;
+        PT.bondAcc += dt; if (PT.bondAcc >= 6) { ptBond(m, PKF.BOND_PER_MIN * PT.bondAcc / 60); PT.bondAcc = 0; }      // Q23 bond: time following
         bd = (16 * H) * (16 * H); PT.tgt = null;
         for (i = 0; i < R27.gnd.length; i++) { e = R27.gnd[i]; if (!e.alive || !e.mob || e.remote) continue; live++; d = e.w.distanceToSquared(f.pp); if (d < bd) { bd = d; PT.tgt = e; } }
         if (live) { PT.bat = 1; PT.calm = 0; } else { PT.calm += dt; }
@@ -9455,7 +9499,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             PT.foe.def = 25 + 8 * (e.cr.tier || 1); if (PT.forced >= 0) PT.fAge += dt;
             nm = PKP.nextMove(m, PT.foe, ptChart(), PT.cds, Math.random(), PT.forced, PT.fAge); k = nm.k; if (!nm.keep && k >= 0) PT.forced = -1;      // Q13b: the player's radial pick first, AI otherwise
             if (k >= 0 && bd < (9 * H) * (9 * H)) {
-                mv = m.sp.moves[k]; dmg = PKP.moveDamage(m, mv, PT.foe, ptChart()); PT.cds[k] = PKP.moveCooldown(m) * 1.6; for (i = 0; i < 4; i++) if (i !== k && PT.cds[i] < 0.25) PT.cds[i] = 0.25;
+                mv = PKP.moveAt(m, k); dmg = PKP.moveDamage(m, mv, PT.foe, ptChart()); if (Math.random() < PKF.critChance(m)) dmg = Math.round(dmg * 1.5); PT.cds[k] = PKP.moveCooldown(m) * 1.6; for (i = 0; i < 5; i++) if (i !== k && PT.cds[i] < 0.25) PT.cds[i] = 0.25;
                 mobHurt(e, dmg, 'me'); fx.impact(e.w, PKG.TYPES.indexOf(mv.type) >= 0 ? 0xC8A0FF : 0xffd36a, 1, 'hit'); aPlay('hit', { dist: aDist(e.w), vel: 0.4, pitch: 1.2 });
             }
             PT.hit -= dt; if (PT.hit <= 0 && e.alive && bd < (2.5 * H) * (2.5 * H)) {          // mobs bite the follower too: ~1 s cadence, scaled by their tier and its level
@@ -9478,13 +9522,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function ptRadDraw() {
         var m = ptMon(), r = PT.rad, h = '', i;
         if (!r.on || r.t < 0.3 || !m) { elRad.classList.remove('is-on'); return; }
-        for (i = 0; i < 4; i++) { var mv = m.sp.moves[i]; h += '<span class="' + RAD_POS[i] + (r.sel === i ? ' is-sel' : '') + (PT.cds[i] > 0 ? ' is-cd' : '') + '"><b>' + (i + 1) + '</b>' + mv.name.toUpperCase() + '<i>' + mv.type + ' ' + mv.power + '</i></span>'; }
+        for (i = 0; i < 4; i++) { var mv = PKP.moveAt(m, i); h += '<span class="' + RAD_POS[i] + (r.sel === i ? ' is-sel' : '') + (PT.cds[i] > 0 ? ' is-cd' : '') + '"><b>' + (i + 1) + '</b>' + mv.name.toUpperCase() + '<i>' + mv.type + ' ' + mv.power + '</i></span>'; }
         if (elRad.getAttribute('data-s') !== h) { elRad.innerHTML = h; elRad.setAttribute('data-s', h); }
         elRad.classList.add('is-on');
     }
     function ptRadPick(k) {
-        var m = ptMon(); PT.rad.on = false; elRad.classList.remove('is-on'); if (k < 0 || !m || !m.sp.moves[k]) return;
-        PT.forced = k; PT.fAge = 0; addRow('', '', m.sp.name.toUpperCase() + ' → ' + m.sp.moves[k].name.toUpperCase(), 'is-sys'); aPlay('ui', { vel: 0.5 });
+        var m = ptMon(); PT.rad.on = false; elRad.classList.remove('is-on'); if (k < 0 || !m || !PKP.moveAt(m, k)) return;
+        PT.forced = k; PT.fAge = 0; addRow('', '', m.sp.name.toUpperCase() + ' → ' + PKP.moveAt(m, k).name.toUpperCase(), 'is-sys'); aPlay('ui', { vel: 0.5 });
     }
     window.addEventListener('keyup', function (e) { if (e.code === 'KeyT' && PT.rad.on) ptRadPick(PT.rad.t > 0.25 ? PT.rad.sel : -1); }, true);
     window.addEventListener('blur', function () { PT.rad.on = false; elRad.classList.remove('is-on'); });

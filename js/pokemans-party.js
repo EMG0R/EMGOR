@@ -12,6 +12,9 @@ import { statsAt, xpToLevel, MAX_LEVEL } from './pokemans-gen.js';
 export const SWAP_POOF = 0.4;
 export const MOVE_CD_BASE = 1;
 export const monById = (pf, id) => { for (let i = 0; i < pf.pokemans.length; i++) if (pf.pokemans[i].id === id) return pf.pokemans[i]; return null; };
+// moves: 4 species moves (a food-learned one replaces its slot, mon.learned) + a 5th signature move at bond 30 (mon.sig, AI-only, never in the radial)
+export const moveCount = (mon) => mon.sp.moves.length + (mon.sig ? 1 : 0);
+export const moveAt = (mon, i) => (i >= mon.sp.moves.length ? mon.sig : (mon.learned && mon.learned[i]) || mon.sp.moves[i]);
 export const maxHp = (mon) => statsAt(mon.sp, mon.ind, mon.level).hp;
 
 export function active(pf) {
@@ -37,9 +40,9 @@ export function moveDamage(mon, move, foe, chart) {
 }
 export function chooseMove(mon, foe, chart, cds, u) {
   let best = -1, bd = -1;
-  for (let i = 0; i < mon.sp.moves.length; i++) {
+  for (let i = 0, n = moveCount(mon); i < n; i++) {
     if (cds && cds[i] > 0) continue;
-    const d = moveDamage(mon, mon.sp.moves[i], foe, chart) * (0.85 + 0.3 * ((u * 7 + i * 0.37) % 1));
+    const d = moveDamage(mon, moveAt(mon, i), foe, chart) * (0.85 + 0.3 * ((u * 7 + i * 0.37) % 1));
     if (d > bd) { bd = d; best = i; }
   }
   return best;
@@ -85,7 +88,7 @@ export const FORCE_WAIT = 3;               // a player-picked move waits at most
 // nextMove: the player's pick (forced, -1 = none) wins when off cooldown; while it cools the AI holds fire (age < FORCE_WAIT); otherwise the AI
 // returns {k, keep}: k = move index or -1 (nothing this tick), keep = the forced pick is still pending
 export function nextMove(mon, foe, chart, cds, u, forced, age) {
-  if (forced >= 0 && forced < mon.sp.moves.length && age < FORCE_WAIT) {
+  if (forced >= 0 && forced < moveCount(mon) && age < FORCE_WAIT) {
     if (!(cds && cds[forced] > 0)) return { k: forced, keep: false };
     return { k: -1, keep: true };
   }

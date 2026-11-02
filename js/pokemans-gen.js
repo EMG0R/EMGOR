@@ -16,6 +16,8 @@ export const FAMILY_TYPE = { psy: 'void', stim: 'spark', down: 'brine', dis: 'va
 const FAMILIES = Object.keys(FAMILY_TYPE);
 export const STATS = ['hp', 'atk', 'def', 'spd', 'sp'];
 export const MAX_LEVEL = 50;
+export const GRAFT_STAT = { fin: 'spd', spike: 'atk', shell: 'def', glow: 'sp', lungs: 'hp' };
+export const GRAFT_MAX = 6;
 export const EFFECTS = ['burn', 'slow', 'shield', 'heal', 'flinch', 'launch', 'drain'];
 const VERBS = ['bite', 'lash', 'burst', 'slam', 'rake', 'pulse', 'crash', 'sting', 'surge', 'snap', 'hex', 'rush'];
 const TYPE_WORD = { leaf: 'Thorn', frost: 'Rime', vapor: 'Mist', stone: 'Grit', ember: 'Cinder', brine: 'Tide', spark: 'Volt', void: 'Null' };
@@ -67,6 +69,12 @@ export function species(seedPlanet, kind, opts) {
   return { id: sd.toString(16).padStart(8, '0'), name: nm, tier, biome, family, types: [t1, t2], base, bodyRecipe, moves };
 }
 
+// one procedural move of `type` from a seed (grafts / foods / bond signature); power fixed when given
+export function makeMove(type, seed, power) {
+  const r = mulberry(seedOf(seed) ^ 0x70e5), p = power || ri(r, 40, 100);
+  return { name: TYPE_WORD[type] + ' ' + VERBS[ri(r, 0, VERBS.length - 1)], type, power: p, accuracy: Math.max(70, Math.min(100, 100 - Math.round((p - 30) * 0.33))), effect: r() < 0.65 ? EFFECTS[ri(r, 0, EFFECTS.length - 1)] : null };
+}
+
 export function individual(sp, seed) {
   const r = mulberry(mix(seedOf(sp.id), seedOf(seed)) ^ 0x1d1d), iv = {};
   for (const s of STATS) iv[s] = Math.round((r() * 0.30 - 0.15) * 1000) / 1000;
@@ -78,9 +86,10 @@ export const xpForLevel = (lv) => { lv = Math.max(1, Math.min(MAX_LEVEL, lv | 0)
 export function xpToLevel(xp) { let lv = 1; while (lv < MAX_LEVEL && xp >= xpForLevel(lv + 1)) lv++; return lv; }
 
 export function statsAt(sp, ind, level) {
-  level = Math.max(1, Math.min(MAX_LEVEL, level | 0)); const o = {}, iv = (ind && ind.iv) || {};
+  level = Math.max(1, Math.min(MAX_LEVEL, level | 0)); const o = {}, iv = (ind && ind.iv) || {}, gf = ind && ind.grafts;
   for (const s of STATS) {
-    const b = sp.base[s] * (1 + (iv[s] || 0));
+    let gb = 0; if (gf) for (let i = 0; i < gf.length; i++) if (GRAFT_STAT[gf[i].p] === s) gb += 5 * gf[i].t;     // each graft: +5 base per part tier
+    const b = (sp.base[s] + gb) * (1 + (iv[s] || 0));
     o[s] = s === 'hp' ? Math.floor(b * 2 * level / 50 + level + 10) : Math.floor(b * 2 * level / 50 + 5);
   }
   return o;
