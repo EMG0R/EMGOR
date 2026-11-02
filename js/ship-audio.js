@@ -887,6 +887,7 @@ export function createAudio(opts = {}) {
       core.play(name, o);
     },
     engine(state) { if (core) core.engine(state); },
+    graph() { return core ? { ctx: core.ctx, bus: core.bus } : null; },      // Q19: ship-music.js hangs its voices on the shared bus
     setMusic(v) { musicLevel = Math.max(0, Math.min(1, v)); if (core) core.music.setLevel(musicLevel); },
     setMaster(v) {
       masterVal = Math.max(0, Math.min(1, v));

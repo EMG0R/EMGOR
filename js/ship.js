@@ -2364,7 +2364,40 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (n._mkey === undefined) { try { n.pal.hi.getHSL(musHsl); n._mkey = ((Math.round(musHsl.h * 12) % 12) + 12) % 12; } catch (e) { n._mkey = 2; } }
         return n._mkey;
     }
+    // Q19: ship-music.js (guarded import) replaces the audio.music loop below when it loads; one mechanism per job, the old one stays as the fallback.
+    var musicMod = null, musM = null, musAud = null, musSt = { biome: 'rocky', band: 'space', night: 0, danger: 0, depth: 0, speed: 0, wind: 0, seed: 7, mute: false }, musNode = null, musNT = 0;
+    import('./ship-music.js').then(function (m) { musicMod = m; }).catch(function (e) { console.info('[ship] ship-music unavailable (old music loop)', e); });
+    function musicNew(dt, bodies) {
+        if (musOn) { try { audio.music.stop(); } catch (e0) { /* ignore */ } musOn = false; }
+        if (!musM || musAud !== audio) { if (!audio.graph || !audio.graph()) return; musM = musicMod.createMusic(audio); musAud = audio; }
+        var st = musSt, i, nn = null, bd = 1e30, nr = 1;
+        st.mute = !!(FG.on || state !== 'piloting');
+        musNT -= dt;
+        if (musNT <= 0 && !st.mute) {
+            musNT = 0.5;
+            if (gmode !== 'fly' && land.node) nn = land.node;
+            else if (bodies) for (i = 0; i < bodies.length; i++) { var dd = bodies[i].node.anchor.position.distanceTo(shipRoot.position) - bodies[i].R; if (dd < bd) { bd = dd; nn = bodies[i].node; nr = bodies[i].R; } }
+            musNode = nn || (gmode === 'fly' ? musNode : null);
+            var node = ps && ps.active, depth = (node && ps.depth > 0.02) ? ps.depth : 0;
+            var look = musNode && ps && ps.lookOf ? ps.lookOf(musNode) : 'rocky';
+            st.biome = (musNode && !biomeWord(musNode)) ? 'gas' : look;
+            if (gmode === 'ifoot' || R27.dsite || HB.in) st.band = 'interior';
+            else if (gmode === 'sfoot' || gmode === 'docking' || gmode === 'launching') st.band = 'orbit';
+            else if (depth > 0) st.band = (gmode === 'foot' || gmode === 'landed' || gmode === 'landing') ? 'surface' : 'atmo';
+            else st.band = (musNode && bd < 3 * nr) ? 'orbit' : 'space';
+            st.night = depth > 0 ? nightAt(node, gmode === 'foot' && hum.obj ? hum.w : shipRoot.position) : 0;
+            var it = 0;
+            if (bossAlive()) it = 1;
+            else for (i = 0; i < enemies.length; i++) if (enemies[i].alive && enemies[i].g.position.distanceToSquared(shipRoot.position) < (220 * L) * (220 * L)) { it = 0.5; break; }
+            st.danger = it; st.depth = depthStack.length;
+            st.speed = clamp(vel.length() / (60 * L), 0, 1);
+            st.wind = (depth > 0 && ps.wind) ? clamp(ps.wind.length() / (7 * L), 0, 1) : 0;
+            st.seed = musNode ? (hash25(String(musNode.id)) & 0x7fffffff) : 7;
+        }
+        musM.update(dt, st);
+    }
     function musicTick(dt, bodies) {
+        if (musicMod) { try { musicNew(dt, bodies); } catch (eN) { warnOnce('music', eN); } return; }
         var m = audio && audio.music;
         if (!m) return;
         musT -= dt; if (musT > 0) return; musT = 0.8;
@@ -2379,7 +2412,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (it !== musInt || key !== musKey) { musInt = it; musKey = key; m.set({ key: key, intensity: it, mode: it > 0.8 ? 'aeolian' : (it > 0.5 ? 'dorian' : 'lydian') }); }
         } catch (e) { /* ignore */ }
     }
-    function musicStop() { try { if (musOn && audio.music) audio.music.stop(); } catch (e) { /* ignore */ } musOn = false; musT = 0; }
+    function musicStop() { try { if (musOn && audio.music) audio.music.stop(); if (musM) musM.stop(); } catch (e) { /* ignore */ } musOn = false; musT = 0; }
     function hudDmg(dt) {                                // hit marker decay + number positions (real dt)
         if (hmT > 0) hmT = Math.max(0, hmT - dt);
         var hv = hmT > 0 ? (hmCrit ? 2 : 1) : 0;
