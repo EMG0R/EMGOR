@@ -15,6 +15,13 @@ export function catchChance(tier, hpFrac, bonus) {
 }
 export function catchRoll(chance, u) { return { shakes: 3, caught: u < chance }; }
 
+// Q42 ring-fight catch: after a wild mon is KO'd in the ring the player has KO_WINDOW seconds to throw a GOR BALL at it.
+export const KO_WINDOW = 3;
+export const koOpen = (tKo, now) => now >= tKo && now - tKo <= KO_WINDOW;
+// remaining hp fraction of a ring fighter: pct = damage taken, budget = creatureFighter().hpPct (a KO has pct >= budget -> 0)
+export const wildHpFrac = (pct, budget) => Math.max(0, Math.min(1, 1 - (pct || 0) / Math.max(1, budget || 1)));
+export const ringCatchChance = (ballTier, hpFrac, bonus) => catchChance(ballTier, hpFrac, bonus);
+
 // o = {x,y,z} hand, d = {x,y,z} unit aim, up = {x,y,z} unit. Position at time t of a ball thrown at BALL.speed with BALL.lift added along up.
 export function arcPoint(o, d, up, t, out) {
   const vx = d.x * BALL.speed + up.x * BALL.lift * BALL.speed, vy = d.y * BALL.speed + up.y * BALL.lift * BALL.speed, vz = d.z * BALL.speed + up.z * BALL.lift * BALL.speed, h = 0.5 * BALL.g * t * t;

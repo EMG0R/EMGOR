@@ -8638,12 +8638,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (gmode !== 'foot' || !FG.sess) { fightEnd(null); return; }
         FG.t += dt; FG.sess.setInput(fgMask(), 0); FG.sess.update(dt);
         var br = FG.sess.sim.ballReq;      // Q24: the GOR BALL slot asked for a throw; the roll lives here, the sim never rolls
-        if (br && FG.wl) { FG.sess.sim.ballReq = null; var rr = FG.px.ballRoll(FG.wl, br.frac, Math.random()); addRow('', '', rr.caught ? 'GOR BALL · click · ' + FG.wl.name : 'GOR BALL · it broke free (' + Math.round(rr.chance * 100) + ' %)', 'is-sys'); aPlay('ui', { vel: 0.7 }); if (rr.caught) fightEnd(0); /* ft.wild is never set yet (no ring entry point): when wired, add the mon through gbCatch's creation, not a flag */ }
+        if (br && FG.wl) { FG.sess.sim.ballReq = null; var rr = FG.px.ballRoll(FG.wl, br.frac, Math.random()); addRow('', '', rr.caught ? 'GOR BALL · click · ' + FG.wl.name : 'GOR BALL · it broke free (' + Math.round(rr.chance * 100) + ' %)', 'is-sys'); aPlay('ui', { vel: 0.7 }); if (rr.caught) { try { ringCatch(ensureProfile(userName()), FG.wl.mon); } catch (eC) { warnOnce('fight.catch', eC); } FG.ko = null; fightEnd(0); } /* ft.wild still has no ring entry point (OPEN in the log) */ }
     }
     function fightResult(res) {
         if (!FG.on || !res) return;
         var w = res.winner, info = FG.npc; FG.won = w === 0;
-        setTimeout(function () { fightEnd(w); }, 2600);      // let the GAME! card show
+        setTimeout(function () { fightEnd(w); }, FG.wl && w === 0 ? 1000 : 2600);      // let the GAME! card show (a wild KO closes early: the 3 s GOR BALL window runs from the KO)
+        if (FG.wl && w === 0 && FG.wl.mon) { try { var wf = FG.sess.sim.fighters[1]; FG.ko = { t: Date.now() / 1000, node: land.node, mon: FG.wl.mon, hp: PKC.wildHpFrac(wf ? wf.pct : FG.wl.hpPct, FG.wl.hpPct) }; addRow('', '', 'GOR BALL · B · 3 s', 'is-sys'); } catch (eK) { warnOnce('fight.ko', eK); } }
         if (info && w === 0 && !(res.dealt && res.dealt[0] >= 1)) {
             addRow('', '', 'YOU WON · no hit landed · no payout', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
         } else if (info && w === 0) {
@@ -9348,6 +9349,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var pf = ensureProfile(userName()), tier = gbOwned(pf, GB.best);
         if (GB.on || !gbOk()) return;
         if (!tier) { addRow('', '', 'no GOR BALLS · 7/11', 'is-sys'); return; }
+        if (FG.ko && FG.ko.node === land.node && PKC.koOpen(FG.ko.t, Date.now() / 1000)) { koThrow(pf, tier); return; }
         for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + tier) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; }
         gbAim(); GB.id = fx.spawnBolt(GB.o, GB.d, ITM.GORBALL_TIERS[tier - 1].color, 0, PKC.BALL.tMax + 6, { shape: 'orb', size: 0.9, trail: true });
         if (GB.id < 0) { giveItem(ITM.GORBALL_TIERS[tier - 1], 1); return; }
@@ -9395,6 +9397,29 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         discClaim('creature', pid + ':' + sp.name, sp.name);
         ptGainXp(PKP.xpForCatch(sp.tier, lvl));
         addRow('', '', 'CAUGHT ' + sp.name.toUpperCase() + ' · L' + lvl + (ind.shiny ? ' · SHINY' : '') + (pf.party.indexOf(mon.id) >= 0 ? ' · party ' + pf.party.length + '/' + PKC.PARTY_MAX : ' · sent to the pen'), 'is-sys');
+        writeSave(); invFill();
+    }
+    function ringCatch(pf, m0) {      // Q42: a wild mon caught out of a ring fight: same record/party/dex path as gbCatch, keyed by the fight's mon (sp, ind, level)
+        var node = land.node, pid = String(node.id), sp = m0.sp, lvl = Math.max(1, m0.level | 0 || 1), mon = PKC.makeMon(sp, m0.ind, lvl, PKG.xpForLevel(lvl), pid), nid;
+        mon.at = Date.now();
+        for (nid = 0; pf.pokemans.some(function (m) { return m.id === mon.id + (nid ? '#' + nid : ''); }); nid++) { /* suffix */ } if (nid) mon.id += '#' + nid;
+        PDX.note(pf, sp, planetLabel(node)); pf.pokemans.push(mon);
+        (pf.party.length < PKC.PARTY_MAX ? pf.party : pf.pen).push(mon.id);
+        PKP.trimMons(pf, 200);
+        giveItem({ id: mon.id, seed: 0, name: sp.name, kind: 'pokemans', base: sp.types.join('/'), infusion: null, modifier: null, color: new THREE.Color().setHSL(sp.bodyRecipe.hue / 360, 0.6, 0.55).getHex(), price: 0, tier: sp.tier, category: 'pokemans', tags: ['pokemans'], stackKey: mon.id, iconHint: 'candy', blurb: sp.types.join(' / ') + ' · L' + lvl + ' · ' + sp.moves.map(function (m) { return m.name; }).join(', '), dealer: false }, 1);
+        try { ptSpoils(sp.tier, 'catch'); } catch (e2) { warnOnce('graft.drop', e2); }
+        discClaim('creature', pid + ':' + sp.name, sp.name);
+        ptGainXp(PKP.xpForCatch(sp.tier, lvl));
+        addRow('', '', 'CAUGHT ' + sp.name.toUpperCase() + ' · L' + lvl + (m0.ind && m0.ind.shiny ? ' · SHINY' : '') + (pf.party.indexOf(mon.id) >= 0 ? ' · party ' + pf.party.length + '/' + PKC.PARTY_MAX : ' · sent to the pen'), 'is-sys');
+        writeSave(); invFill();
+    }
+    function koThrow(pf, tier) {      // Q42: a ball thrown inside the 3 s KO window of a wild ring fight: no flight, three shakes' worth of roll
+        var k = FG.ko; FG.ko = null;
+        for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + tier) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; }
+        var bonus = (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0, ch = PKC.ringCatchChance(tier, k.hp, bonus);
+        aPlay('fire', { vel: 0.4, pitch: 0.8 });
+        if (PKC.catchRoll(ch, Math.random()).caught) { aPlay('tame'); ringCatch(pf, k.mon); }
+        else { aPlay('explosion', { pitch: 1.6, vel: 0.4 }); addRow('', '', 'it broke free (' + Math.round(ch * 100) + ' %)', 'is-sys'); }
         writeSave(); invFill();
     }
     function gbTick(dt) {
