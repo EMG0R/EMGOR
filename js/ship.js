@@ -6927,7 +6927,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (e.remote) { MB.hitQ.push([e.mid, Math.round(dmg)]); return; }      // guest: the host applies it
         e.hp -= dmg; e.lastBy = by || 'me';
         if (e.mob === 'ender' && !e.angry) { e.angry = true; e.lookT = 1; }
-        if (e.hp <= 0) mobKill(e, e.lastBy === 'me');
+        if (e.hp <= 0) { if (e.mob) mobKill(e, e.lastBy === 'me'); else gndKill(e); }      // hub WARDEN is a non-mob ground enemy
     }
     // consistency: ONE kill-reward path. Tier-scaled gorCoin (addUnits = float text + units chime), party XP, quest event stays with the caller; the 'kill' cue plays once in the caller.
     function rewardKill(tier, pos, mult, big) {
@@ -6962,7 +6962,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         gA.copy(hum.hf).applyQuaternion(land.node.mesh.quaternion);
         R27.gnd.slice().forEach(function (e) {
             if (!e.alive || e.held) return; snC.subVectors(e.w, hum.w); var d = snC.length(); if (d > 2.2 * Hw + e.cr.hitR * GM * L || snC.divideScalar(d || 1).dot(gA) < 0.3 || !losMelee(hum.w, e.w)) return;
-            if (e.mob) mobHurt(e, dmg, 'me'); else { e.hp -= dmg; e.hitF = 1; if (e.hp <= 0) gndKill(e); }
+            if (e.mob || e.hub) mobHurt(e, dmg, 'me'); else { e.hp -= dmg; e.hitF = 1; if (e.hp <= 0) gndKill(e); }
             fx.impact(e.w, 0xffd36a, 1, 'hit'); hit++;
         });
         if (VG.v) { var vp = VG.v.punchHit(hum.pos, hum.hf, 2.2 * Hw, dmg); if (vp) { hit++; fx.impact(hum.w, vp.type === 'golum' ? 0xb070ff : 0xffd36a, 1, 'hit'); } }      // villagers flinch + the golums answer; golums are tough
@@ -7092,20 +7092,28 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (!e) { var nid0 = MB.nid; e = mobMake(ks[a[1]] || 'zomby', id * 7919, v.clone().normalize()); if (!e) return; MB.nid = nid0; e.mid = id; e.hr = l; e.dir.copy(v).normalize(); }
             e.remote = !mobIsHost(); e.sdir.copy(v).normalize(); e.shr = l; e.sface.set(a[5], a[6], a[7]).applyQuaternion(land.node.mesh.quaternion); e.hp = a[8]; e.sfl = a[9]; e.sfuse = a[10];
         });
-        for (var i = R27.gnd.length - 1; i >= 0; i--) { var g = R27.gnd[i]; if (g.mob && g.remote && !seen[g.mid]) gndFree(g); }
+        for (var i = R27.gnd.length - 1; i >= 0; i--) { var g = R27.gnd[i]; if (g.mob && g.remote && !g.hub && !seen[g.mid]) gndFree(g); }
     }
     function mobNetMsg(m) {
         if (!m) return;
         if (m.t === 'pl.host') {
             if (m.planet !== MB.planet) return; var was = mobIsHost(); MB.hostId = String(m.host || '');
             var now = mobIsHost();
-            if (now && !was) { if (MB.last) mobApplySnap(MB.last); R27.gnd.forEach(function (e) { if (e.mob) { e.remote = false; MB.nid = Math.max(MB.nid, e.mid); } }); addRow('', '', 'PLANET HOST · you run the night here', 'is-sys'); }
+            if (now && !was) { if (MB.last) mobApplySnap(MB.last); R27.gnd.forEach(function (e) { if (e.mob && !e.hub) { e.remote = false; MB.nid = Math.max(MB.nid, e.mid); } }); addRow('', '', 'PLANET HOST · you run the night here', 'is-sys'); }
             else if (!now && was) R27.gnd.forEach(function (e) { if (e.mob && !e.hub) { e.remote = true; e.sdir.copy(e.dir); e.shr = e.hr; e.sface.copy(e.face); } });
         } else if (m.t === 'pl.snap') {
             if (m.planet !== MB.planet || !m.data) return; MB.last = m.data; MB.lastAt = performance.now(); MB.stats.snapsIn++; if (!mobIsHost()) mobApplySnap(m.data);
         } else if (m.t === 'pl.ev' && m.data) {
             var d = m.data;
-            if (d.k === 'h' && mobIsHost() && Array.isArray(d.a)) d.a.forEach(function (a) { R27.gnd.slice().forEach(function (e) { if (e.mob && e.mid === (a[0] | 0)) mobHurt(e, +a[1] || 0, String(m.id || 'x')); }); });
+            if (d.k === 'h' && Array.isArray(d.a)) d.a.slice(0, 12).forEach(function (a) {
+                if (!Array.isArray(a)) return; var hid = a[0] | 0;
+                R27.gnd.slice().forEach(function (e) {
+                    if (e.mid !== hid) return;
+                    if (e.hub) { if (HB.in && !e.remote && hubIsHost() && hubPeerOk(m.id)) mobHurt(e, clamp(+a[1] || 0, 0, 250), String(m.id || 'x')); }      // hub: host applies, damage clamped at the boundary
+                    else if (e.mob && mobIsHost()) mobHurt(e, +a[1] || 0, String(m.id || 'x'));
+                });
+            });
+            else if (d.k === 'he' || d.k === 'hx' || d.k === 'hs' || d.k === 'hc') hubNetEv(m);
             else if (d.k === 'k' && net && d.b === net.id && Array.isArray(d.d)) { d.d.slice(0, 8).forEach(function (x) { if (Array.isArray(x)) mobGive(String(x[0]), clamp(x[1] | 0, 0, 5000)); }); rewardKill(1, hum.w, 1, false); questEvent({ type: 'kill', n: 1 }); }
             else if (d.k === 'x' && Array.isArray(d.p) && hum.obj && peerNums(d.p, 0, 2, 1e9) && typeof d.r === 'number' && d.r > 0 && peerNums([d.a, d.b], 0, 1, 1e4)) { snA.set(d.p[0], d.p[1], d.p[2]); var dH = snA.distanceTo(hum.w) / hwU(); if (dH < d.r + 0.5) footHurt(Math.round(d.b + (d.a - d.b) * clamp(1 - dH / d.r, 0, 1))); }
             else if (d.k === 'a' && hum.obj && typeof d.r === 'number' && isFinite(d.r)) { R27.gnd.forEach(function (e) { if (e.mob && e.mid === (d.i | 0) && e.w.distanceTo(hum.w) / (GM * L) < d.r) footHurt(d.d | 0); }); }
@@ -7179,8 +7187,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (HB.in) {
             if (gmode !== 'foot') { hubExit(true); return; }
             var ev = hb.update(HB.t, dt, HB.p);
-            if (ev && ev.type === 'lock') hubFightStart(ev.room);
-            hubFightTick(dt);
+            if (ev && ev.type === 'lock' && hubIsHost()) hubFightStart(ev.room);
+            hubNetTick(dt); if (hubIsHost()) hubFightTick(dt);
             if (!HB.fight && HB.p.z < 1.4 && !HB.air) hubExit(false);
         } else {
             HB.cd -= dt; if (HB.cd > 0) return; HB.cd = 0.05;
@@ -7191,7 +7199,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function hubEnter() {
         var hb = HB.hub; if (!hb || HB.in || gmode !== 'foot' || !hum.obj) return false;
         jetKill(); fl.on = false; for (var i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob && !R27.gnd[i].hub) gndFree(R27.gnd[i]);
-        HB.in = true; HB.p.fromArray(hb.interior.spawn); HB.vy = 0; HB.air = false; HB.fight = null; HB.cd = 0; HB.camD = 3;
+        HB.in = true; hubNetEnter(); HB.p.fromArray(hb.interior.spawn); HB.vy = 0; HB.air = false; HB.fight = null; HB.cd = 0; HB.camD = 3;
         hum.hf.set(0, 0, 1).applyQuaternion(HB.q); hum.face.copy(hum.hf); hum.pitch = 0.3; hum.air = false; hum.vv = 0; camRelInit = false; mdx = mdy = 0;
         hum.up.copy(HB.up); hubToLocal(HB.p, hum.pos); hum.hr = hum.gr = hum.vh = hum.pos.length();
         setPrompt('', false); aPlay('land', { vel: 0.5 }); addRow('', '', 'DUNGEON · clear every arena · F at the start to leave', 'is-sys');
@@ -7200,7 +7208,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function hubExit(force) {
         var hb = HB.hub; if (!hb || !HB.in) return false;
         if (HB.fight && !force) { addRow('', '', 'SEALED · clear the room', 'is-sys'); return false; }
-        HB.in = false; if (HB.fight) HB.rebuild = true; HB.fight = null;      // a forced exit mid-fight leaves the gates shut: rebuild the hub (saved state restores)
+        hubNetLeave(); HB.in = false; if (HB.fight) HB.rebuild = true; HB.fight = null;      // a forced exit mid-fight leaves the gates shut: rebuild the hub (saved state restores)
         for (var i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].hub) gndFree(R27.gnd[i]);
         hubToLocal(hbA.fromArray(hb.interior.exit), hbB); hbC.copy(hbB).normalize();
         var fr = land.node && ps && ps.active === land.node ? mFloor(hbC.x, hbC.y, hbC.z) : hbB.length();
@@ -7282,23 +7290,76 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var f = I.floorAt(hbB); if (f == null || f - hbD.y > 0.7 || !hubFree(hbB.x, f, hbB.z, 0.5)) return false;
         hbB.y = f; hubPlace(e, hbB); return true;
     }
-    function hubMobMake(kind, ph, w) {
+    function hubMobMake(kind, ph, w, rid) {
         if (typeof ENM.generateMob !== 'function' || !land.node) return null;
         var cr; try { cr = ENM.generateMob(THREE, hash25(HB.nid + ':h' + (MB.nid + 1)), kind); } catch (e0) { return null; }
         var e = gndWrap(cr); if (!e) return null;
-        e.mode = 'planet'; e.node = land.node; e.hub = true; e.remote = false; e.mid = ++MB.nid; e.aggro = 80; e.cd = 1 + Math.random(); hubPlace(e, ph);
+        e.mode = 'planet'; e.node = land.node; e.hub = true; e.remote = !!rid; e.mid = rid || ++MB.nid; e.aggro = 80; e.cd = 1 + Math.random(); hubPlace(e, ph);
         e.hp = e.hpMax = Math.round(e.hp * ((w && w.hpMul) || 1));
         r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.face.copy(r27C).applyQuaternion(land.node.mesh.quaternion);
         e.sdir.copy(e.dir); e.shr = e.hr; gndPlace(e); MB.stats.spawned++; return e;
     }
-    function hubBossMake(spec) {
+    function hubBossMake(spec, rid) {
         if (typeof ENM.generateGroundEnemy !== 'function' || !land.node) return null;      // generateBoss builds flying hulls; the walking WARDEN is the tier-4 ground enemy scaled by spec.scaleH
         var sd = hash25(HB.nid + ':boss'), cr; try { cr = ENM.generateGroundEnemy(THREE, sd, spec.tier || 4, ENM.GROUND_KINDS[sd % 3]); } catch (e0) { return null; }
         var e = gndWrap(cr), S = spec.scaleH || 3; if (!e) return null;
-        e.mode = 'planet'; e.node = land.node; e.hub = true; e.boss = true; e.aggro = 90; e.cd = 2; hubPlace(e, hbE.fromArray(spec.spawn));
+        e.mode = 'planet'; e.node = land.node; e.hub = true; e.boss = true; e.remote = !!rid; e.mid = rid || ++MB.nid; e.aggro = 90; e.cd = 2; hubPlace(e, hbE.fromArray(spec.spawn));
         e.g.scale.setScalar(GM * L * S); cr.hitR *= S; if (cr.stats) cr.stats.height *= S;
         (cr.moves || []).forEach(function (m) { m.reachL *= S; m.dmg = Math.round(m.dmg * 0.5); });
         e.hp = e.hpMax = spec.hp || 300; r27C.set(0, 0, -1).applyQuaternion(HB.q).applyQuaternion(land.node.mesh.quaternion); e.face.copy(r27C); gndPlace(e); return e;
+    }
+    // ── hub netcode (Q28): hub host = first entrant (earliest enter time, id tiebreak). Host runs waves/boss and broadcasts snapshots over pl.ev (the relay only lets the PLANET host send pl.snap); guests mirror them as remote puppets, send hits ('h', host applies), the room-clear ('hc') opens their gates. Every inbound field is validated here. ──
+    var HN = { peers: {}, enterT: 0, hbT: 0, snT: 0, wasHost: true, room: '', seq: 0 };
+    function hubSend(o) { if (net && net.online && net.plEv && MB.joined && HB.in) net.plEv(MB.planet, o); }
+    function hubPeersPrune() { var now = performance.now(); for (var k in HN.peers) if (now - HN.peers[k].seen > 7000) delete HN.peers[k]; }
+    function hubHostId() {
+        if (!(net && net.online)) return '';
+        var best = net.id, bt = HN.enterT; hubPeersPrune();
+        for (var k in HN.peers) { var p = HN.peers[k]; if (p.t < bt || (p.t === bt && k < best)) { best = k; bt = p.t; } }
+        return best;
+    }
+    function hubIsHost() { return !(net && net.online) || hubHostId() === net.id; }
+    function hubPeerOk(id) { return !!HN.peers[String(id)]; }
+    function hubNetEnter() { HN.enterT = Date.now(); HN.peers = {}; HN.hbT = 0; HN.snT = 0; HN.wasHost = true; HN.room = ''; hubSend({ k: 'he', t: HN.enterT }); }
+    function hubNetLeave() { hubSend({ k: 'hx' }); HN.peers = {}; }
+    function hubNetEv(m) {
+        if (!HB.in || m.planet !== MB.planet) return; var d = m.data, id = String(m.id || ''); if (!id || !d) return;
+        if (d.k === 'he') { if (typeof d.t === 'number' && isFinite(d.t) && d.t > 0 && d.t < 4e12) { var isNew = !HN.peers[id]; HN.peers[id] = { t: d.t, seen: performance.now() }; if (isNew) HN.hbT = 0; } }
+        else if (d.k === 'hx') delete HN.peers[id];
+        else if (d.k === 'hs') { if (HN.peers[id] && id === hubHostId()) hubApplySnap(d); }
+        else if (d.k === 'hc') { if (HN.peers[id] && id === hubHostId() && typeof d.r === 'string' && /^[a-z0-9_-]{1,16}$/.test(d.r) && !hubIsHost()) { var wasBoss = d.r === 'boss'; hubClear(d.r, true); if (wasBoss) hubBossDrop(); } }
+    }
+    function hubNetTick(dt) {
+        HN.hbT -= dt; if (HN.hbT <= 0) { HN.hbT = 2; hubSend({ k: 'he', t: HN.enterT }); }
+        var host = hubIsHost();
+        if (host && !HN.wasHost) {      // the old host left: free the puppets, restart the sealed room's waves here
+            for (var i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].hub) gndFree(R27.gnd[i]);
+            if (HN.room && !HB.hub.state.cleared[HN.room] && !HB.fight) hubFightStart(HN.room);
+        }
+        HN.wasHost = host; if (!host || !HB.fight) return;
+        HN.snT -= dt; if (HN.snT > 0) return; HN.snT = 0.4;
+        var F = HB.fight, ks = ENM.MOB_KINDS, m = [], i2, e;
+        for (i2 = 0; i2 < F.ents.length && m.length < 10; i2++) {
+            e = F.ents[i2]; if (!e.alive) continue;
+            m.push([e.mid, e.boss ? -1 : Math.max(0, ks.indexOf(e.mob)), +(e.dir.x * e.hr).toFixed(2), +(e.dir.y * e.hr).toFixed(2), +(e.dir.z * e.hr).toFixed(2), Math.round(e.hp), (e.mvd ? 1 : 0) | (e.fuseT > 0 ? 2 : 0)]);
+        }
+        hubSend({ k: 'hs', r: F.room, w: F.wi, m: m });
+    }
+    function hubApplySnap(d) {
+        if (hubIsHost() || typeof d.r !== 'string' || !/^[a-z0-9_-]{1,16}$/.test(d.r) || !Array.isArray(d.m) || !land.node) return;
+        HN.room = d.r; var seen = {}, ks = ENM.MOB_KINDS, spec = HB.hub.bossSpec;
+        d.m.slice(0, 12).forEach(function (a) {
+            if (!Array.isArray(a) || a.length < 7 || !peerNums(a, 0, 6, 1e9)) return; var id = a[0] | 0; if (id <= 0) return; seen[id] = 1;
+            var e = null; R27.gnd.forEach(function (x) { if (x.hub && x.mid === id) e = x; });
+            snA.set(a[2], a[3], a[4]); var l = snA.length() || 1;
+            if (!e) {
+                e = a[1] < 0 ? hubBossMake(spec, id) : hubMobMake(ks[a[1] | 0] || 'zomby', hbE.set(0, 0, 0), null, id); if (!e) return;
+                e.dir.copy(snA).divideScalar(l); e.hr = l; e.sdir.copy(e.dir); e.shr = l;
+            }
+            snC.copy(snA).divideScalar(l).sub(e.sdir); if (snC.lengthSq() > 1e-12) { snC.addScaledVector(e.dir, -snC.dot(e.dir)).normalize(); e.sface.copy(snC).applyQuaternion(land.node.mesh.quaternion); }
+            e.sdir.copy(snA).divideScalar(l); e.shr = l; e.hp = clamp(a[5], 0, e.hpMax); e.sfl = a[6] | 0; e.sfuse = e.sfl & 2 ? 1 : 0; e.remote = true;
+        });
+        for (var i = R27.gnd.length - 1; i >= 0; i--) { var g = R27.gnd[i]; if (g.hub && g.remote && !seen[g.mid]) gndFree(g); }
     }
     function hubFightStart(room) {
         var hb = HB.hub, ws = hb.waves(room); if (!ws.length) return;
@@ -7325,7 +7386,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (F.wi >= F.ws.length) { hubClear(F.room); return; }
         F.gap = 1.4; addRow('', '', 'WAVE ' + (F.wi + 1) + '/' + F.ws.length, 'is-sys');
     }
-    function hubClear(room) {
+    function hubClear(room, fromNet) {
+        if (!fromNet) hubSend({ k: 'hc', r: room });
+        if (fromNet) for (var gi = R27.gnd.length - 1; gi >= 0; gi--) if (R27.gnd[gi].hub) gndFree(R27.gnd[gi]);
         var F = HB.fight; if (F && F.room === room) { for (var i = 0; i < F.ents.length; i++) if (F.ents[i].alive) gndFree(F.ents[i]); HB.fight = null; }
         if (!HB.hub) return; HB.hub.setCleared(room); aPlay('tame', { vel: 0.6 }); addRow('', '', room === 'boss' ? 'WARDEN DOWN · the chest is open' : 'ROOM CLEARED · gates open', 'is-sys'); hubSave();
     }
@@ -8988,6 +9051,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         mM.makeBasis(r27R, e.up, r27B); e.g.quaternion.setFromRotationMatrix(mM); e.g.position.copy(e.w);
     }
     function gndStep(e, dt, hw) {
+        if (e.remote && e.hub) { e.dir.lerp(e.sdir, damp(10, dt)).normalize(); e.hr += (e.shr - e.hr) * damp(10, dt); e.face.lerp(e.sface, damp(10, dt)); if (e.hitF > 0) { e.hitF = Math.max(0, e.hitF - dt * 5); e.cr.setHit(e.hitF); } return; }      // hub puppet (Q28)
         var cr = e.cr, st = cr.stats, H = hOf(L), d = e.w.distanceTo(hw), dM = d / (GM * L), mv = e.mv, moving = false, k;
         r27C.subVectors(hw, e.w); r27C.addScaledVector(e.up, -r27C.dot(e.up)); var tl = r27C.length(); if (tl > 1e-9) r27C.divideScalar(tl);
         if (e.hurtT > 0) e.hurtT -= dt;
@@ -9170,7 +9234,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         fx.spawnBolt(r27G, r27D, effColor(), 170 * L, 0.28); fx.muzzle(r27G, r27D, effColor(), 'bolt'); aPlay('fire', { vel: 0.5, pitch: 1.35 });
         if (best) {
             var dmg = (st.dmg || 8) * (st.count || 1) * 0.8;
-            if (best.mob) { fx.impact(r27T, 0xff8a5c, 1.4, 'hit'); aPlay('hit', { dist: aDist(r27T), vel: 0.5 }); mobHurt(best, dmg, 'me'); return; }
+            if (best.mob || best.hub) { fx.impact(r27T, 0xff8a5c, 1.4, 'hit'); aPlay('hit', { dist: aDist(r27T), vel: 0.5 }); mobHurt(best, dmg, 'me'); return; }
             best.hp -= dmg; best.hitF = 1; fx.impact(r27T, 0xff8a5c, 1.4, 'hit'); aPlay('hit', { dist: aDist(r27T), vel: 0.5 });
             if (best.ph === 'idle') best.cd = Math.min(best.cd, 0.4);
             if (best.hp <= 0) gndKill(best);
