@@ -14,6 +14,7 @@ const BUCKET_RATE = 30, BUCKET_BURST = 60, OVER_CLOSE_MS = 5000;
 const ROOM_RATE = 150, ROOM_BURST = 150;   // separate bucket for sm.in / sm.snap / pl.snap / pl.ev only
 const SM_MAX_FIGHTERS = 4, SM_MAX_SPEC = 8, SM_SNAP_MAX = 2048, PL_SNAP_MAX = 4096, PL_EV_MAX = 512;
 const ROOM_RE = /"t"\s*:\s*"(sm\.in|sm\.snap|pl\.snap|pl\.ev)"/;
+const ROOM_T = new Set(['sm.in', 'sm.snap', 'pl.snap', 'pl.ev']);
 const FIRE_MAX = 12;                 // per second per connection
 const SILENCE_MS = +process.env.SILENCE_MS || 15000, SWEEP_MS = 5000, STRIKES_MAX = 5;
 const EPOCH = Date.now();            // constant until restart
@@ -106,7 +107,7 @@ function leavePlanet(p) {
 function dropPlayer(p) { leaveRoom(p); leavePlanet(p); }
 
 function cnt(v) { return num(v, 1000) ? Math.max(0, Math.min(99, Math.floor(v))) : 0; }
-function cleanProfName(s) { s = typeof s === 'string' ? s.trim().toLowerCase() : ''; return /^[a-z0-9_-]{2,20}$/.test(s) ? s : ''; }
+function cleanProfName(s) { s = typeof s === 'string' ? s.trim().toLowerCase() : ''; return /^[a-z0-9_-]{2,20}$/.test(s) && s !== '__proto__' ? s : ''; }
 function cleanText(s, n) { return String(s == null ? '' : s).replace(/[^\x20-\x7e]/g, '').replace(/[<>]/g, '').trim().slice(0, n); }
 function hashKey(k) { return crypto.createHash('sha256').update('nmg:' + k).digest('hex'); }
 function keyOk(a, b) { return a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)); }
@@ -207,7 +208,12 @@ function onConnection(ws, req) {
     const maxLen = roomMsg ? (head.indexOf('pl.snap') > 0 ? PL_SNAP_MAX : SM_SNAP_MAX) + 256 : MAX_PAYLOAD;
     if (!isBinary && data.length > maxLen && head.indexOf('"prof.save"') < 0) { if (++c.strikes >= STRIKES_MAX) ws.close(4004, 'bad'); return; }
     if (!isBinary) { try { m = JSON.parse(data.toString()); } catch (e) { m = null; } }
-    if (!m || typeof m !== 'object' || typeof m.t !== 'string' || !handle(ws, c, m, now)) {
+    let ok = false;
+    try {
+      // a duplicate "t" key can fake the room-bucket/size class in the first 48 bytes; the parsed t must agree
+      ok = !!m && typeof m === 'object' && typeof m.t === 'string' && (!roomMsg || ROOM_T.has(m.t)) && handle(ws, c, m, now);
+    } catch (e) { ok = false; }
+    if (!ok) {
       if (++c.strikes >= STRIKES_MAX) ws.close(4004, 'bad');
     }
   });
@@ -220,7 +226,7 @@ function handle(ws, c, m, now) {
     if (c.id && c.id !== m.id) return false;
     let p = players.get(m.id);
     if (!c.id) {
-      if (p && p.ws !== ws) { const old = p.ws; players.delete(m.id); try { old.close(4000, 'replaced'); } catch (e) { /* gone */ } p = null; }
+      if (p && p.ws !== ws) { const old = p.ws; dropPlayer(p); players.delete(m.id); try { old.close(4000, 'replaced'); } catch (e) { /* gone */ } p = null; }
       c.id = m.id;
       p = { ws: ws, id: m.id, name: cleanName(m.name, m.id), color: cleanColor(m.color), s: 'docked', last: now, pos: null, hs: (typeof m.hs === 'string' ? m.hs.slice(0, 32) : ''), style: cleanText(m.style, 16), pet: cnt(m.pet), crew: cnt(m.crew), room: null, planet: null };
       players.set(m.id, p);
@@ -288,7 +294,7 @@ function handle(ws, c, m, now) {
       c.profAt = now;
       const nm = cleanProfName(m.name), key = typeof m.key === 'string' ? m.key : '';
       if (!nm || key.length < 4 || key.length > 64) { send(ws, { t: 'prof.err', why: 'bad' }); return true; }
-      const profs = store.get('profiles'), rec = profs[nm], h = hashKey(key);
+      const profs = store.get('profiles'), rec = Object.prototype.hasOwnProperty.call(profs, nm) ? profs[nm] : null, h = hashKey(key);
       if (m.t === 'prof.load') {
         if (!rec || !keyOk(rec.h, h)) send(ws, { t: 'prof.err', why: rec ? 'key' : 'none' });
         else send(ws, { t: 'prof', name: nm, data: rec.data });
@@ -421,6 +427,7 @@ function handle(ws, c, m, now) {
 
 setInterval(function () {
   const now = Date.now();
+  challenges.forEach(function (exp, k) { if (exp < now) challenges.delete(k); });
   players.forEach(function (p) { if (now - p.last > SILENCE_MS) { try { p.ws.close(4005, 'silent'); } catch (e) { /* gone */ } p.ws.terminate(); } });
 }, SWEEP_MS).unref();
 
