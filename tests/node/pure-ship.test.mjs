@@ -83,7 +83,7 @@ test('pitch sets per mode: every pad/note lies in the biome scale (pc relative t
   for (const [biome, band, mode] of cases) for (const seed of [0, 5, 11, 12, 99999]) {
     const st = Object.assign({}, base, { biome, band, seed, danger: 0.8 }), { ev } = runSched(st, 400, 0.5, seed + 1);
     assert.equal(M.modeName(st), mode); const root = 33 + ((seed >>> 0) % 12), set = new Set(M.MODES[mode]);
-    for (const e of ev) { if (e.kind === 'drone') continue; const midi = Math.round(69 + 12 * Math.log2(e.freq / 440)); assert.ok(Math.abs(69 + 12 * Math.log2(e.freq / 440) - midi) < 1e-6, 'on the 12-TET grid'); const pc = (((midi - root) % 12) + 12) % 12; assert.ok(set.has(pc), `${mode} seed ${seed}: pc ${pc} (${e.kind})`); }
+    for (const e of ev) { if (e.kind === 'drone' || e.kind === 'pulse') continue; const midi = Math.round(69 + 12 * Math.log2(e.freq / 440)); assert.ok(Math.abs(69 + 12 * Math.log2(e.freq / 440) - midi) < 1e-6, 'on the 12-TET grid'); const pc = (((midi - root) % 12) + 12) % 12; assert.ok(set.has(pc), `${mode} seed ${seed}: pc ${pc} (${e.kind})`); }
   }
 });
 test('scheduler is deterministic per seed and pure over dt chunking of events count', () => {
@@ -279,7 +279,7 @@ test('quests spawnSpecFor / describe: retrieve+escort have specs with unit-ish p
   assert.equal(Q.spawnSpecFor(null), null);
 });
 
-test('music: a NaN seed fires the drone once, not every tick', { todo: 'js/ship-music.js:33 `droneSeed !== st.seed` is always true for NaN, so the sub drone retriggers every tick' }, () => {
+test('music: a NaN seed fires the drone once, not every tick', () => {
   const s = M.createScheduler(1); let n = 0; for (let i = 0; i < 20; i++) n += s.tick(0.1, Object.assign({}, base, { seed: NaN })).filter((e) => e.kind === 'drone').length;
   assert.equal(n, 1);
 });

@@ -68,7 +68,7 @@ test('createStyle: unknown id -> null, case-insensitive id works', () => {
 
 // ── MARO table extras ──
 const none = { wx: 0, wz: 0, m: 0 }, fwd = { wx: 0, wz: -1, m: 1 };
-test('MARO: long jump covers >= 9 H horizontally over its flight', { todo: 'js/ship-styles.js:491 + MARO_K.LJ_Y (:464) 5.6 up at g 22.5 gives 2*5.6/22.5*9 = 4.48 H of travel; the 9.0 is a speed (H/s), not a distance' }, () => {
+test('MARO: long jump covers >= 9 H horizontally over its flight', () => {
   const T = maroTable(), DT = 1 / 120; T.s.mode = MA.RUN;
   for (let i = 0; i < 240; i++) T.step(fwd, DT);
   T.step(Object.assign({}, fwd, { crouch: true, jumpP: true }), DT);

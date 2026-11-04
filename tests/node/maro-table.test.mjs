@@ -52,10 +52,10 @@ test('side flip out of a skid: 11.6 up, 1.5 fwd toward the wish', () => {
   assert.equal(T.s.mode, MA.SIDE); near3(T.s.vy + K.G * DT, K.SF_Y); assert.ok(Math.abs(T.s.vz - K.SF_F) < 0.1);
 });
 
-test('long jump: crouch + A at speed = 9.0 fwd cap, 5.6 up; slow = backflip 11.6 up, 0 fwd', () => {
+test('long jump: crouch + A at speed = 19.2 fwd cap (fast + flat), 5.6 up; slow = backflip 11.6 up, 0 fwd', () => {
   const T = maroTable(); run(T, fwd, 1.5); jump(T, Object.assign({}, fwd, { crouch: true }));
   assert.equal(T.s.mode, MA.LONG); near3(T.s.vy + K.G * DT, K.LJ_Y); near3(Math.hypot(T.s.vx, T.s.vz), K.LJ_F);
-  let d = 0; while (!T.s.grounded) { T.step(none, DT); d += Math.hypot(T.s.vx, T.s.vz) * DT; } near3(d, 2 * K.LJ_Y / K.G * K.LJ_F);   // ~4.5 H with the spec constants
+  let d = 0; while (!T.s.grounded) { T.step(none, DT); d += Math.hypot(T.s.vx, T.s.vz) * DT; } near3(d, 2 * K.LJ_Y / K.G * K.LJ_F); assert.ok(d >= 9 && d <= 10, 'distance ' + d); assert.ok(K.LJ_Y * K.LJ_Y / (2 * K.G) <= 0.8, 'apex <= 0.8 H');   // ~9.56 H, apex 0.70 H, flight 0.498 s
   const B = maroTable(); jump(B, { wx: 0, wz: 0, m: 0, crouch: true });
   assert.equal(B.s.mode, MA.BACK); near3(B.s.vy + K.G * DT, K.BF_Y); assert.equal(Math.hypot(B.s.vx, B.s.vz), 0);
 });
