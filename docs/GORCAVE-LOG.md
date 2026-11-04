@@ -604,3 +604,23 @@ DONE: HOPPER, HUM, RACER (the three unused §1.5 extras) + SEER (4th, NOT in the
 TESTS: node --check ok on ship-styles.js, ship.js (as .mjs); node --test tests/node: 338 tests, 323 pass / 0 fail / 15 skipped. New tests/node/styles-q46.test.mjs (registry, rigParts <= 60 % shared vs every other style incl. PILOT and all recipes distinct, determinism, no NaN, RACER ramp/reset/ram, flutter/feather/float durations, sing cooldown, SEER reflect). styles-fuzz.test.mjs picks the new ids up through STYLES.
 VERIFY ON MAC: `/char HOPPER|HUM|RACER|SEER`: skins distinct and capsule fits; HOPPER flutter ~0.9 s then falls; HUM two jumps then feather fall, LMB near a mob freezes it ~3 s (check mobs stop moving, not attacking); RACER builds speed over ~2 s, wide turns, LMB ram hurts a mob; SEER double jump + short float, RMB reflects a bolt. Remote peers re-skin by id.
 OPEN: sleeping mobs only skip mobStep (a mob attack inside it); a mob already mid-attack animation or ranged bolts already in flight are not cancelled. `gt` resets to 0 on a new run, so a stale sleepT could outlast it. RACER has no real drift (low accel only). Rig recipes unseen in a browser.
+
+## BENCHMARK-8 Phase 8 summary (Q40-Q46) — 2026-11-04 — (this commit)
+DONE: Q40 relay redeploy #3 (live, /disc and /board answer), Q41 style ability consumers, Q42 ring-fight catch, Q43 touch pads + debounce + poll gate, Q44 NPC audit + g18, Q45 station dock hardening + g20, Q46 four styles (HOPPER/HUM/RACER/SEER). Diff Q41-Q46 (795be0c..HEAD, excl. relay): 12 files, +505/-35; ship.js +172, ship-planet-tests.js +56, ship-styles.js +52, ship-touch.js +52, 5 node test files new/extended.
+TESTS: node --test tests/node: 338 tests, 323 pass / 0 fail / 15 skipped (todo flags). All edited .js node --check ok. No browser run of anything.
+VERIFY ON MAC (in order):
+1. Full runAll in one batch incl. g18 (NPC reachability; check unreachable is empty) and g20 (station dock; NOT g19, which is Q29 villagers). If g20 assist is false at 40 L, enlarge the dock cone or shorten gotoStation.
+2. Q40: open nomansgor/board.html against the live relay; counters render and move across two tabs.
+3. Q41: `/char SWIFT` dash i-frames + RMB reflect; `/char JELLY` regen only after 3 s calm; `/char HAULER` RMB grab, LMB throw (10 dmg on landing), style switch drops the mob.
+4. Q42: force `ft.wild` from the console, win the ring, press B within 3 s with a GOR BALL: CAUGHT + mon in party/pen; after 3 s B flies normally.
+5. Q43: touch emulation: P and CHAT pads, T/E pads, stick wiggle gives no roll, overlay re-syncs on next touch.
+6. Q46: `/char HOPPER|HUM|RACER|SEER`: skins distinct, glide/feather/ramp/sing/reflect per Q46 log.
+OPEN / RISKS:
+- ft.wild still has no world entry point; Q42 is only reachable via console.
+- Q44 only reports unreachable NPCs, does not relocate them; station interior NPCs uncovered.
+- Q41: held mob at chest height, no wall stop on throw, not net-synced; reflect only hits mob bolts.
+- Q45: lights are fx flashes, not station meshes; deck F-gate applies 1.2 s to all interactions; "40 H" implemented as 40 L.
+- Q46: sleep only skips mobStep (mid-attack / in-flight bolts continue); `gt` reset can leave stale sleepT; RACER has no real drift; rig recipes unseen in a browser.
+- Q43: overlay not re-synced after 10 s idle until next touch; no stick-based roll.
+- Carry-overs: H_RATIO 0.2, pilot {4,3}, Q30 station gaps, Q32 gbLocalize/gbProject frame math, Q39 root cause unreproduced.
+NEXT 5 TO QUEUE: (1) world entry point for wild ring fights (set ft.wild from a mob/creature encounter); (2) relocate NPCs that fail the Q44 audit, per Mac g18 results; (3) wall stop + hand-bone attach for HAULER throw, net-sync of held mobs; (4) remaining mashup styles from mashup-plan §1 (skip-in-3D list: BOUNTY/RANGER/TWIN) or real RACER drift; (5) station interior NPC reachability + real dock light meshes.

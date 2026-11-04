@@ -77,7 +77,7 @@ Legend: `[ ]` todo · `[>]` in progress · `[x]` done · `[~]` blocked (reason i
 - [x] Q44 NPC reachability guarantee (code-side only, pairs with the Mac g-tests): every village NPC and station NPC must have a walkable floor within 1.5 H of its anchor (use ps.floorLocal), stand on the pad not inside walls, and expose `ship.dbg.npcs()` returning [{id,kind,pos,reachable,distToPad}]. Add `ship.dbg.gotoNpc(i)` (teleport player 2 H in front, facing it). Add harness test g18 in js/ship-planet-tests.js: all reachable, and T within 2 H opens a talk line. VERIFY ON MAC: g18.
 - [x] Q45 Station 7/11 docking hardening: `ship.dbg.gotoStation()` teleports the ship 40 H in front of the dock mouth; Z inside the dock cone auto-docks (existing path); on dock: light sequence, then F opens the 7/11 shop; Z undocks. Harness test g19 (gotoStation → dock → shop open → buy GOR BALL → undock) asserting the stock contains GOR BALL tiers 1-3. VERIFY ON MAC: g19.
 - [x] Q46 Next four mashup styles from docs/mashup-plan.md §1 (same contract and tests as Q35; ≤ 60 % shared rig parts vs every existing style).
-- [>] BENCHMARK-8: log block (same format as BENCHMARK-7).
+- [x] BENCHMARK-8: log block (same format as BENCHMARK-7).
 
 ## Notes for the manager (not for the builder)
 Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batches; play-check each BENCHMARK list; merge; append results to GORCAVE-LOG.md.
