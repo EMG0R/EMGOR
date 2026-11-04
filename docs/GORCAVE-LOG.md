@@ -437,3 +437,34 @@ DONE: origin/wt-smash and origin/wt-tests were NOT yet in the branch; merged bot
 TESTS: node --check ok on ship.js, ship-styles.js, ship-music.js; tools/test-node.sh: 215 pass / 0 fail / 0 todo.
 VERIFY ON MAC: win a trainer fight and a villager fight (hit at least once): result card shows coin/xp/part/bond/line/who; active mon XP + bond rise; no mon active -> xp 0. Long jump: run + crouch + jump covers ~9 H (apex now ~2.8 H, check it is not absurd; lower LJ_Y with a longer horizontal speed if so). Wall-kick and triple-jump feel unchanged.
 OPEN: long jump apex is high; tuning is by feel. XP formula is a placeholder.
+
+## BENCHMARK-5 — 2026-11-04 — (this commit)
+SCOPE: Q19-Q31 (range 9c467a2^..ea6bbb9, js/style/tests/tools/server): 41 files, +2593/-579. ship.js +703 net churn, ship-foot.js +232 (new), pokemans-fighter +118, ship-music +123 (new), pokemans-dex +97 (new), pokemans-graft +66 (new), smash-engine +78, ship-onboard +45, ship-npc-access +37; tests: 15 files (music, npc-access, onboard, pilot-clearance, dex, fighter, graft, scale, styles-fuzz, smash-bot/creature, pure-*).
+TESTS: `bash tools/test-node.sh`: 215 pass / 0 fail / 0 todo. No browser tests run by the builder.
+VERIFY ON MAC (in order; details in each Q entry):
+1. g1-g19 in batches of <=5 with reloads. Priority: g2, g8, g9, g10, g11, g14, g16, g17 (Q20-Q22, Q27), g19 NEW (Q29).
+2. Q19 music: 3 biomes + night + wind + fight mute; old loop never audible together; /volume scales; no work when muted.
+3. Q20/Q21 scale (H_RATIO 0.2): screenshots of player beside ship, hut door, 7/11 door/interior, CVS, hub arch, creatures 2.2x, store vs ship-parking overlap. If wrong, change H_RATIO only.
+4. Q22 pilot {4,3}: landing approach in-browser (the 2026-10-14 failure mode). Revert = PILOT_PLANET_SCALE {root:6,deep:4}. L no longer pinned: check flight speed feel.
+5. Q23-Q25 POKEMANS: parts drops, CVS GRAFT, food tutor, bond 10/30, trainer fight end to end, DEX tab icons, U manager rows.
+6. Q26 onboarding: new profile START card, 7-step chain, respawn card, T radial no camera swing, follower HP persists.
+7. Q27 ship-foot.js: walk/jump/jetpack/dive/land/styles/wall slide/store collision; console clean.
+8. Q28 hub mobs: two tabs, host handoff.
+9. Q29 NPC access: g19, prompt names + keys, stop-and-face 6 s.
+10. Q30 station: marker, Z DOCK sequence, W interrupt, deck markers, launch, pose resume on deck.
+11. Q31 fight rewards: result card coin/xp/part/bond/line/who; long jump ~9 H (apex ~2.8 H, check feel).
+OPEN RISKS:
+- Q14-style shader/pad edits and Q21 world-scale change touch many L/H constants; HUMAN_H consts in ship-world/ship-station were changed together but unrun.
+- Q22 clearance test does not model the in-browser approach crossing.
+- Q24: wild-ring fights have no entry point (ball slot unit-tested only); elder grafts don't change the sprite; trainer mons don't heal.
+- Q23: grafts not visible on the 3D follower mesh; no elder GRAFT counter; no resource-node part drops.
+- Q29: E · TRADE unbound (E = inventory); pointer-lock rule 5 unaudited; slope/water rule 6 untested in g19.
+- Q30: no 7/11 shelves on the station deck, launch is 4-8 s not 2 s, no approach beam, no explicit governor ramp.
+- Q31: long jump apex high; XP formula placeholder.
+- [guess] constants throughout: danger mapping in music, dock duration divisor, beacon radius 15 L.
+NEXT 5 TO QUEUE:
+1. Station deck 7/11 shelves (GOR BALLS/fries/parts) with F pick-up + 2 s launch lift + approach beam (Q30 OPEN 1-4).
+2. Wild-ring capture entry: set ft.wild, successful ball roll adds the mon to the party; creature ring fights from the T radial.
+3. Graft visibility: pet generator consumes bodyRecipe sig parts; elder GRAFT counter; resource-node part drops.
+4. ship.js split step 2: footFloor/mFloor/objBegin/objPush collision into ship-foot.js, then hubFootStep and the style bridge.
+5. Trader `E · TRADE` rebind decision + pointer-lock audit for talk/trade/fight (Q29 b), plus slope/water checks wired into g19.
