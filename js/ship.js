@@ -6612,7 +6612,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         MARO: ['Jump chain: single, double, triple', 'Long jump, backflip, side flip, wall kick', 'Dive, ground pound, slide, punch'],
         JOSHI: ['Flutter jump: hold Space past the apex', 'Throw eggs, tongue grab', 'Ground pound; Space 2 s = jetpack flight'],
         STEEV: ['Sprint jump, sneak at ledges', 'Mine and place blocks', 'Opens the 3x3 crafting table'],
-        SONIK: ['Momentum builds on flats and slopes', 'Roll and spin dash (charge, release)', 'Homing attack in the air']
+        SONIK: ['Momentum builds on flats and slopes', 'Roll and spin dash (charge, release)', 'Homing attack in the air'],
+        SWIFT: ['Double-tap W to dash (air dash once)', 'Hold C in the air to fast fall', 'Right click reflects, left click jabs'],
+        SPARKLET: ['Tiny and fast', 'Left click zaps a chain arc'],
+        JELLY: ['Five mini-jumps, then hold Space to glide', 'Hold right click to sleep and heal (you are hit harder)'],
+        HAULER: ['Slow and heavy', 'C in the air for a quake pound', 'Right click grabs, left click throws']
     };
     function abilityLines(def) {
         var tx = STYLE_TXT[def.id]; if (tx) return tx;
@@ -6859,6 +6863,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             else if (e.type === 'craft') { R25.sty = true; if (!invOpen) openInv(); }
             else if (e.type === 'pound' || e.type === 'groundpound') { aPlay('hit', { pitch: 0.3, vel: 0.8 }); shake = Math.max(shake, 0.05 * L); styStats.poundHits += mobAoe(hum.w, (e.r || 2), e.dmg || 12); }
             else if (e.type === 'homing') { styStats.homing++; aPlay('hit', { pitch: 0.9, vel: 0.5 }); if (styTg.length && e.n >= 0 && e.n < styTg.length) mobNearHurt(6, 3); }
+            else if (e.type === 'zap') { mobNearHurt(e.dmg || 5, e.r || 6); aPlay('hit', { pitch: 1.4, vel: 0.4 }); }
+            else if (e.type === 'throw') { aPlay('hit', { pitch: 0.7, vel: 0.6 }); mobAoe(hum.w, e.r || 4, e.dmg || 10); }
             else if (e.type === 'spindash' || e.type === 'spinRelease') { aPlay('hit', { pitch: 0.9, vel: 0.5 }); mobAoe(hum.w, 1.6, 5); }
         }
     }

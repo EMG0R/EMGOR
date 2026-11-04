@@ -411,6 +411,88 @@ function sonik(env) {
   return { reset, step, state: s, out, hitbox };
 }
 
+// ── Q35 variants: SWIFT / SPARKLET (dash+zap), JELLY (float), HAULER (heavy) — one parameterised machine, tuned by table (docs/mashup-plan.md §1.5) ─────────────
+// P: spd/jump/acc (x walk, x jump, seconds to top), air (air accel x ground), dash (double-tap W dash), fastFall, reflect (mouse2), melee dmg, zap (mouse1 chain arc), mini (air mini-jumps incl. the first), glide, sleep (mouse2 hold regen),
+//    pound (crouch in air), grab (mouse2 grab + mouse1 throw, game answers with grab(n)). Events: dash zap reflect regen grab throw + existing jump land pound poundStart melee. [guess] numbers unless noted.
+const VARIANTS = {
+  SWIFT:    { spd: 1.15, jump: 1, acc: 0.25, air: 0.9, dash: true, fastFall: 1.6, reflect: true, melee: 5 },                                 // [plan] 0.35 s dash, i-frames 0.15, air dash x1, fast fall x1.6, reflector on mouse2
+  SPARKLET: { spd: 1.4, jump: 0.9, acc: 0.2, air: 1, zap: 5, zapChain: 2, zapR: 6 },                                                        // [plan] 1.4x speed, zap arc chains 2 mobs for 5 dmg
+  JELLY:    { spd: 0.85, jump: 0.775, acc: 0.35, air: 1, mini: 5, glide: 0.15, glideV: 3, sleep: true, regen: 5 },                          // [plan] 5 mini-jumps (apex 0.6), then glide; sleep regens 5 hp/s
+  HAULER:   { spd: 0.7, jump: 0.8, acc: 0.45, air: 0.5, pound: true, poundDmg: 14, poundR: 3, grab: true, throwDmg: 10, throwR: 4 },        // [plan] 0.7x, quake pound, grab+throw within 4 H
+};
+function variant(env, P) {
+  const W = env.walk * P.spd, g = env.grav, J = env.jump * P.jump, A = W / P.acc, DS = 3.2 * env.walk, DT0 = 0.35;
+  const fx = mkFx(), out = mkOut(fx), io = mkIO(), a = out.anim; out.vulnerable = false;
+  const s = { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, ddx: 0, ddz: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 };
+  function reset() { Object.assign(s, { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 }); io.jump = io.crouch = io.L = io.R = io.F = io.fwdH = false; }
+  function jumpNow(v) { s.vy = v; out.jumpImpulse = v; s.air = true; s.jgrace = 0.06; s.jb = 0; s.n++; const e = fx.emit('jump'); e.n = s.n; e.v = v; }
+  function aimDir(ctx, e) { const ax = ctx.aim; if (ax) { e.dx = ax.x; e.dy = ax.y; e.dz = ax.z; } else { e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); } }
+  function step(input, ctx, dt) {
+    readIn(io, input, ctx); fx.clear(); out.jumpImpulse = 0;
+    if (!s.fi) { s.face = ctx.facing || 0; s.fi = true; }
+    const grounded = ctx.onGround && s.jgrace <= 0; s.jgrace = Math.max(0, s.jgrace - dt);
+    s.jb -= dt; s.coyote -= dt; s.dashCd -= dt; s.tap -= dt; s.spin -= dt; s.zapCd -= dt; s.stun -= dt; s.meleeCd -= dt;
+    if (io.jumpP) s.jb = 0.12;
+    let wantDash = false; if (io.fwdP) { wantDash = P.dash && s.tap > 0; s.tap = wantDash ? 0 : 0.25; }
+    if (grounded && !s.was) {
+      s.air = false; s.n = 0; s.adash = false; s.gl = false; s.vy = 0;
+      if (s.pound === 2) { const e = fx.emit('pound'); e.dmg = P.poundDmg; e.r = P.poundR; e.v = 1; s.stun = 0.35; s.vx = s.vz = 0; } else { const e = fx.emit('land'); e.v = -s.vy; }
+      s.pound = 0;
+    }
+    if (!grounded && s.was) { s.air = true; s.coyote = 0.1; }
+    s.was = grounded;
+    if (P.dash && wantDash && s.dashCd <= 0 && s.stun <= 0 && s.pound === 0 && (grounded || !s.adash)) {
+      let dx, dz; if (io.m > 0.05) { dx = io.wx; dz = io.wz; const l = Math.sqrt(dx * dx + dz * dz) || 1; dx /= l; dz /= l; } else { dx = -Math.sin(s.face); dz = -Math.cos(s.face); }
+      s.dashT = DT0; s.ddx = dx; s.ddz = dz; s.dashCd = 0.6; if (!grounded) s.adash = true; s.face = Math.atan2(-dx, -dz);
+      const e = fx.emit('dash'); e.n = grounded ? 0 : 1; e.v = 0.15; e.dx = dx; e.dz = dz;           // v = i-frame seconds
+    }
+    if (s.dashT > 0) {                                                                // dash owns the velocity for 0.35 s; in the air it holds height
+      s.dashT -= dt; s.vx = s.ddx * DS; s.vz = s.ddz * DS; if (!grounded) s.vy = 0;
+      if (s.dashT <= 0) { s.vx *= W / DS; s.vz *= W / DS; }
+    } else {
+      s.sleep = (grounded && P.sleep && io.R && s.stun <= 0) ? s.sleep + dt : 0;
+      if (grounded) {
+        if (s.jb > 0 && s.stun <= 0 && s.sleep <= 0) { s.n = 0; jumpNow(J); }
+        else {
+          if (s.stun > 0 || s.sleep > 0) brake(s, 3 * A, dt);
+          else if (io.m > 0.05) { approach(s, io.wx * W * io.m, io.wz * W * io.m, A, dt); turn(s, io, dt, 14); } else brake(s, 2 * A, dt);
+          s.vy = 0;
+          if (s.sleep > 0) { s.regenT += dt; if (s.regenT >= 1) { s.regenT -= 1; const e = fx.emit('regen'); e.v = P.regen; } } else s.regenT = 0;
+        }
+      } else {
+        if (s.coyote > 0 && s.jb > 0 && s.vy <= 0 && s.n === 0) { jumpNow(J); s.coyote = 0; }
+        else if (P.mini && io.jumpP && s.n < P.mini && s.pound === 0) jumpNow(J);       // mini-jumps: each press in the air, up to P.mini total
+        airSteer(s, io, dt, P.air * A, W); turn(s, io, dt, 10);
+        if (P.pound && s.pound === 0 && io.crouchP) { s.pound = 1; s.hang = 0.25; fx.emit('poundStart'); }
+        let gm = 1;
+        if (s.pound === 1) { s.vx = s.vz = s.vy = 0; s.hang -= dt; if (s.hang <= 0) { s.pound = 2; s.vy = -J * 1.2; } gm = 0; }
+        else if (s.pound === 2) { gm = 2.4; brake(s, 6 * W, dt); }
+        else if (P.fastFall && io.crouch && s.vy <= 0) gm = P.fastFall;
+        else if (P.glide && io.jump && s.n >= P.mini && s.vy < 0) { gm = P.glide; s.gl = true; } else s.gl = false;
+        s.vy -= g * gm * dt; s.vy = Math.max(s.vy, s.gl ? -P.glideV : -40);
+      }
+    }
+    // actions
+    if (P.reflect && io.RP && s.spin <= 0 && s.stun <= 0) { s.spin = 0.3; const e = fx.emit('reflect'); e.r = 1.6; e.v = 0.3; }
+    if (P.melee && io.LP && s.meleeCd <= 0 && s.stun <= 0 && s.dashT <= 0) { s.meleeCd = 0.25; const e = fx.emit('melee'); e.n = 1; e.dmg = P.melee; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); e.r = 1.3; }
+    if (P.zap && io.LP && s.zapCd <= 0 && s.stun <= 0) { s.zapCd = 0.4; const e = fx.emit('zap'); aimDir(ctx, e); e.dmg = P.zap; e.n = P.zapChain; e.r = P.zapR; }
+    if (P.grab && s.stun <= 0) {
+      if (io.RP && grounded && s.held <= 0) { const e = fx.emit('grab'); e.r = P.throwR; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); }
+      else if (io.LP && s.held > 0) { s.held--; const e = fx.emit('throw'); aimDir(ctx, e); e.dmg = P.throwDmg; e.r = P.throwR; e.v = 14; }
+    }
+    const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    out.vel.x = s.vx; out.vel.z = s.vz; out.vel.y = (grounded && out.jumpImpulse === 0) ? 0 : s.vy; out.groundSnap = grounded && out.jumpImpulse === 0;
+    out.vulnerable = s.sleep > 0;
+    a.moving = hs > 0.5; a.running = s.dashT > 0; a.airborne = !grounded; a.speed = clamp(hs / W, 0, 1.5); a.facing = s.face; a.mode = s.pound ? 2 : s.dashT > 0 ? 3 : s.spin > 0 ? 4 : s.sleep > 0 ? 5 : s.gl ? 1 : 0;
+    a.flutter = s.gl ? 1 : 0; a.sprint = s.dashT > 0 ? 1 : 0; a.crouch = (s.stun > 0 || s.sleep > 0) ? 1 : 0; a.tongue = s.held > 0 ? 1 : 0; a.charge = s.spin > 0 ? s.spin / 0.3 : 0;
+    a.stamina = P.mini ? clamp((P.mini - s.n) / P.mini, 0, 1) : 1;
+    out.camHint.fov = s.dashT > 0 ? 1.12 : 1; out.camHint.dist = 1; out.camHint.shake = s.pound === 2 ? 0.2 : 0;
+    return out;
+  }
+  return { reset, step, state: s, out, grab(n) { s.held = Math.min(3, s.held + (n | 0)); }, get held() { return s.held; } };
+}
+const mkVariant = id => env => variant(env, VARIANTS[id]);
+
 // Q10: rig recipes (pure data + maths; ship-human.js setRig applies them to bones/extras). PILOT = today's human.
 const RIG_ENUM = { headShape: ['round', 'cube', 'snout'], torso: ['normal', 'stout', 'slim', 'lizard', 'box'], limbShape: ['cyl', 'cube'], feet: ['normal', 'big', 'none'], eyeStyle: ['helmet', 'visor', 'dots', 'none'] };
 const TORSO_S = { normal: [1, 1, 1], stout: [1.3, 0.88, 1.25], slim: [0.85, 1.05, 0.85], lizard: [0.9, 0.9, 1.35], box: [1.1, 1, 1.1] };   // [x, y, z] bone scale of the torso
@@ -420,6 +502,10 @@ export const GAITS = {            // stride = step frequency x, bounce = hip bob
   JOSHI: { stride: 1.35, bounce: 0.8, arm: 0.4, lean: 1.6 },
   STEEV: { stride: 0.9, bounce: 0.5, arm: 1.15, lean: 0.4 },
   SONIK: { stride: 1.6, bounce: 0.8, arm: 1.3, lean: 1.8 },
+  SWIFT: { stride: 1.5, bounce: 0.7, arm: 1.2, lean: 1.7 },
+  SPARKLET: { stride: 1.9, bounce: 1.2, arm: 1.4, lean: 1.0 },
+  JELLY: { stride: 0.7, bounce: 1.8, arm: 0.5, lean: 0.2 },
+  HAULER: { stride: 0.7, bounce: 0.6, arm: 0.6, lean: 0.6 },
 };
 const num = (v, d, a, b) => { v = +v; return v === v ? clamp(v, a, b) : d; };
 const pick = (v, list) => list.indexOf(v) >= 0 ? v : list[0];
@@ -464,6 +550,10 @@ const SKINS = {
   JOSHI: { color: 0x59E08A, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 1 }, role: 'scout', rig: { headShape: 'snout', headScale: 1.1, torso: 'lizard', limbLen: { arm: 0.55, leg: 0.85 }, limbShape: 'cyl', feet: 'normal', tail: { len: 1.7, spikes: 3 }, crest: true, eyeStyle: 'dots' } },    // round lizard, nub nose, mint + orange crest
   STEEV: { color: 0x30C0C8, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 2 }, role: 'miner', rig: { headShape: 'cube', headScale: { x: 2, y: 1, z: 1 }, neck: false, torso: 'box', limbLen: { arm: 1, leg: 1 }, limbShape: 'cube', feet: 'normal', eyeStyle: 'dots' } },           // cube head, block limbs, teal
   SONIK: { color: 0xFFC93C, suit: { jetpack: 0, scanner: 1, sprint: 3, storage: 0 }, role: null,    rig: { headShape: 'round', headScale: 1, torso: 'slim', limbLen: { arm: 1, leg: 1.35 }, limbShape: 'cyl', feet: 'big', quills: 5, eyeStyle: 'visor' } },          // quilled runner, pointed visor, gold + violet
+  SWIFT:    { color: 0xFF5C8A, suit: { jetpack: 0, scanner: 0, sprint: 2, storage: 0 }, role: 'scout', rig: { headShape: 'snout', headScale: 0.9, torso: 'slim', limbLen: { arm: 1.3, leg: 1.5 }, limbShape: 'cyl', feet: 'normal', tail: { len: 2.2, spikes: 0 }, crest: true, eyeStyle: 'none' } },                 // lean dasher, long tail, pink
+  SPARKLET: { color: 0x5CE1FF, suit: { jetpack: 0, scanner: 1, sprint: 2, storage: 0 }, role: null,    rig: { headShape: 'round', headScale: 1.3, neck: false, torso: 'normal', limbLen: { arm: 0.5, leg: 0.5 }, limbShape: 'cyl', feet: 'none', tail: { len: 0.6, spikes: 2 }, quills: 3, eyeStyle: 'dots' } },   // tiny big-headed spark, cyan
+  JELLY:    { color: 0xC8A2FF, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 1 }, role: 'miner', rig: { headShape: 'round', headScale: { x: 1.5, y: 1.2, z: 1.5 }, neck: false, torso: 'stout', limbLen: { arm: 0.4, leg: 0.5 }, limbShape: 'cyl', feet: 'none', crest: true, eyeStyle: 'none' } },   // wide soft dome, lavender
+  HAULER:   { color: 0xE0702A, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 3 }, role: 'miner', rig: { headShape: 'cube', headScale: { x: 1.2, y: 0.8, z: 1.2 }, neck: false, torso: 'box', limbLen: { arm: 1.5, leg: 0.7 }, limbShape: 'cube', feet: 'big', cap: true, eyeStyle: 'visor' } },        // broad slab, long arms, rust orange
 };
 // Q08: MARO action table part 1 — pure, allocation-free state machine in TRUE human heights (H) per docs/next-stage-plan.md §C (SM64 community constants x0.1875 speed / x5.625 accel).
 // maro() reads these constants for: chain window + min speed, pound radius/damage/recovery, punch combo window/damage/radius (CONSISTENCY-1). The rest of the table (wall kick, dive, ledge, slide, bonk) still runs the env-scaled prototype; maroTable() remains the tested reference.
@@ -603,6 +693,10 @@ export const STYLES = {
   JOSHI: { id: 'JOSHI', name: 'JOSHI', portraitHint: 'round lizard, nub nose, mint with orange crest',    skin: SKINS.JOSHI, abilities: ['flutter', 'eggThrow', 'tongue', 'groundPound'],                                                      hitbox: { r: 0.26, h: 0.95 }, make: joshi },
   STEEV: { id: 'STEEV', name: 'STEEV', portraitHint: 'cube head, block limbs, teal shirt',                skin: SKINS.STEEV, abilities: ['sprintJump', 'blockMine', 'blockPlace', 'craftTable', 'sneak'],                                      hitbox: { r: 0.2, h: 1.05 }, make: steev },
   SONIK: { id: 'SONIK', name: 'SONIK', portraitHint: 'quilled gold runner, pointed visor',                skin: SKINS.SONIK, abilities: ['momentum', 'roll', 'spinDash', 'homingAttack'],                                                      hitbox: { r: 0.2, h: 0.9 }, make: sonik },
+  SWIFT:    { id: 'SWIFT',    name: 'SWIFT',    portraitHint: 'lean pink dasher, long tail, blank mask',          skin: SKINS.SWIFT,    abilities: ['dash', 'airDash', 'fastFall', 'reflect', 'jab'],             hitbox: { r: 0.2, h: 1.0 },  make: mkVariant('SWIFT') },
+  SPARKLET: { id: 'SPARKLET', name: 'SPARKLET', portraitHint: 'tiny big-headed spark, cyan, three quills',        skin: SKINS.SPARKLET, abilities: ['fastRun', 'zapArc', 'chainZap'],                              hitbox: { r: 0.2, h: 0.7 },  make: mkVariant('SPARKLET') },
+  JELLY:    { id: 'JELLY',    name: 'JELLY',    portraitHint: 'wide lavender dome, no neck, stub limbs',          skin: SKINS.JELLY,    abilities: ['miniJumps', 'glide', 'sleepRegen'],                           hitbox: { r: 0.3, h: 0.8 },  make: mkVariant('JELLY') },
+  HAULER:   { id: 'HAULER',   name: 'HAULER',   portraitHint: 'broad rust slab, long arms, visor, hard cap',      skin: SKINS.HAULER,   abilities: ['quakePound', 'grab', 'throw', 'slowStrong'],                  hitbox: { r: 0.3, h: 1.0 },  make: mkVariant('HAULER') },
 };
 export function skinFor(id) {
   const k = SKINS[String(id || '').toUpperCase()];
@@ -614,10 +708,11 @@ export function createStyle(id, env) {
   const S = STYLES[String(id || '').toUpperCase()]; if (!S) return null;
   const e = Object.assign({ walk: 22, grav: 22, jump: 8.5 }, env || {});
   const m = S.make(e), api = { id: S.id, name: S.name, portraitHint: S.portraitHint, skin: skinFor(S.id), abilities: S.abilities.slice(), hitbox: m.hitbox || Object.assign({}, S.hitbox), reset: m.reset, step: m.step, state: m.state };
-  if (S.id === 'STEEV' || S.id === 'SONIK' || S.id === 'MARO' || S.id === 'JOSHI') {      // consistency: the capsule is the visible body (normRig recipe), not a hand-typed number; SONIK keeps its rolling squash
+  {      // consistency: the capsule is the visible body (normRig recipe), not a hand-typed number; SONIK keeps its rolling squash
     const rh = api.skin.hitbox; if (rh && rh.r > 0 && rh.h > 0) { api.hitbox.r = rh.r; if (S.id === 'SONIK') api.hitbox.hStand = rh.h; else api.hitbox.h = rh.h; }
   }
-  for (const k of ['swallow', 'previewArc', 'setTool']) if (m[k]) api[k] = m[k];
+  for (const k of ['swallow', 'previewArc', 'setTool', 'grab']) if (m[k]) api[k] = m[k];
+  if ('held' in m) Object.defineProperty(api, 'held', { get() { return m.held; } });
   if ('eggs' in m) Object.defineProperty(api, 'eggs', { get() { return m.eggs; } });
   m.reset(); return api;
 }
