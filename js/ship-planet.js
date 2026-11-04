@@ -2867,6 +2867,7 @@ export function createPlanetSurface(engine, L) {
         return buf;
     };
 
+    ps.sunDir = function () { return SH.uLightDir.value; };      // Q37: the live sun vector (photo mode rotates it for time of day and restores it)
     ps.release = function () { if (node) deactivate(); };      // 2026-10-14: leave the active planet (hi-res globe, halo hooks, outposts, world) without disposing the module
     ps.dispose = function () {
         worldDetach(); ps.world = null;

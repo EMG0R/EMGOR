@@ -18,6 +18,7 @@ import * as PKC from './pokemans-catch.js';
 import * as PKP from './pokemans-party.js';
 import * as PKF from './pokemans-graft.js';
 import * as PDX from './pokemans-dex.js';
+import * as PHO from './ship-photo.js';
 import { roomKey, putRecent, cooldownMax } from './ship-keys.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
@@ -1008,7 +1009,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         mdx += e.movementX || 0; mdy += e.movementY || 0;
     });
     document.addEventListener('mousedown', function (e) {
-        if (state !== 'piloting' || e.button !== 0 || cmdOpen || gmode !== 'fly') return;
+        if (state !== 'piloting' || e.button !== 0 || cmdOpen || gmode !== 'fly' || photo.on) return;
         if ((e.shiftKey || keys.ShiftLeft || keys.ShiftRight) && boostNow && !dead) { tryRam(); return; }      // rev 21: Shift+LMB while boosting = RAM (never fires the lasers)
         firing = true; fireTapT = 0.12;      // 2026-10-14: a quick click (down+up inside one frame) still fires one volley
     }, true);
@@ -1019,6 +1020,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (state === 'piloting' && storeOpen) { storeKey(e); return; }
         if (state === 'piloting' && invOpen) { invKey(e); return; }
         if (state !== 'piloting' || cmdOpen) return;
+        if (photoKey(e)) return;      // Q37: P toggles photo mode; while it is on, only its own keys act
         if (e.key === '/') { e.preventDefault(); openCmd('/'); return; }
         if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (!e.repeat && gmode === 'fly') cycleTarget(); return; }      // rev 9b: T cycles targets; chat is Enter or /
         if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openCmd(''); return; }
@@ -1282,6 +1284,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (p && p.catch) p.catch(function () { console.log('[ship] pointer lock refused; keyboard only'); });
         } catch (err) { console.log('[ship] pointer lock unavailable; keyboard only'); }
         var rs = resumeSnap, inFrame = false; resumeSnap = null;
+        if (shareIn) { var sSnap = null; try { sSnap = shareSnap(shareIn); } catch (es) { warnOnce('shareLink', es); } if (sSnap) { rs = sSnap; photo.auto = shareIn.t; photo.autoUntil = performance.now() + 20000; } shareIn = null; }      // Q37: ?p=&d=&t= restores the shared view once
         if (!rs && state === 'docked') rs = poseFromProfile();
         if (state === 'docked') {
             if (!rs) pushOutOfBodies(shipRoot.position, gatherBodies(), 2.2);      // fly from where the ship sits on screen (seamless boarding), never inside a body
@@ -1784,6 +1787,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function finishExit() {
         exiting = false; state = 'away'; syncLod(); dk.glide = true; dk.follow = true; dk.still = 0; dk.recov = false;
+        try { photoOff(); } catch (ep) { /* photo mode is sugar */ }
         engine.setPilot(null);
         engine.onEscape(escEnter);
         rsRestore('exit');
@@ -3931,7 +3935,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 0; i < allies.length; i++) { allies[i].alive = false; allies[i].g.visible = false; }
         wave = Math.max(0, n - 1); wavePending = true; nextWave = gt + 0.05;
     }
-    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land; step out; board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person) · T talk (on foot / station) · U POKEMANS manager (on foot) · 1-9 weapon hotbar · 0 party keys (1-6 swap) · B throw GOR BALL · E inventory · F/E/Esc close any panel · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · /help';
+    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land; step out; board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person) · T talk (on foot / station) · U POKEMANS manager (on foot) · 1-9 weapon hotbar · 0 party keys (1-6 swap) · B throw GOR BALL · E inventory · P photo mode (drag orbit, wheel FOV, [ ] time, S save + share link) · F/E/Esc close any panel · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · /help';
     function applyDifficultyLive() {
         var D = DIFFS[difficulty];
         for (var i = 0; i < enemies.length; i++) {
@@ -5296,7 +5300,117 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return true;
     }
     // 2026-10-14: the HUD markers run AFTER the whole step (camera and planet pose final for this frame), so every marker sits on the object it names
-    function pilotFrame(dt) { step(dt); try { guideTick(dt > 0.05 ? 0.05 : (dt > 0 ? dt : 0)); } catch (eg) { /* never break the frame */ } }
+    // ─── Q37: photo mode. P toggles: HUD hidden (css body.sh-photo), world pinned, free orbit camera around the player / ship (mouse), wheel = FOV, [ ] = time of day
+    // (rotates the planet's sun about world Y), S = save a PNG (+ watermark) and copy a share link ?p=<planetId>&d=<dir>&t=<time> that enter() restores. No upload.
+    var shareIn = null;
+    try { shareIn = PHO.parseShare(location.search); } catch (e0) { shareIn = null; }
+    var photo = { on: false, off: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), tgt: new THREE.Vector3(), fov: 60, t: 0, dx: 0, dy: 0, snap: false, sun: null, base: new THREE.Vector3(), auto: -1, autoUntil: 0, toast: null, toastT: 0, a: [0, 0, 0], u: [0, 0, 0], sv: { x: 0, y: 0, z: 0 } };
+    function photoToast(msg) {
+        if (!photo.toast) { photo.toast = document.createElement('div'); photo.toast.className = 'sh-ph'; document.body.appendChild(photo.toast); }
+        photo.toast.textContent = msg; photo.toast.classList.add('is-on');
+        clearTimeout(photo.toastT); photo.toastT = setTimeout(function () { photo.toast.classList.remove('is-on'); }, 3500);
+    }
+    function photoCan() { return state === 'piloting' && !dead && !boarding && !exiting && !resumePend && !menuOpen && !storeOpen && !invOpen && !cmdOpen && gmode !== 'ifoot'; }
+    function photoAim() {      // target = the human on foot, else the ship; up = planet radial on a planet, else world Y
+        if (gmode === 'foot' && hum.obj) photo.tgt.copy(hum.w); else photo.tgt.copy(shipRoot.position);
+        var n = (gmode !== 'fly' && land.node) ? land.node : (lf.on ? lf.node : null);
+        if (n && n.anchor) photo.up.copy(photo.tgt).sub(n.anchor.position).normalize(); else photo.up.set(0, 1, 0);
+    }
+    function photoOn() {
+        photoAim();
+        photo.off.copy(camera.position).sub(photo.tgt);
+        if (!(photo.off.lengthSq() > 1e-12)) photo.off.copy(photo.up).multiplyScalar(0.5 * L);
+        photo.fov = PHO.clampFov(camera.fov); photo.on = true; photo.dx = photo.dy = 0;
+        document.body.classList.add('sh-photo'); firing = false;
+        photoToast('PHOTO · DRAG ORBIT · WHEEL FOV · [ ] TIME · S SAVE · P EXIT');
+    }
+    function photoOff() {
+        if (!photo.on) return;
+        photo.on = false; document.body.classList.remove('sh-photo'); camera.up.set(0, 1, 0);
+        if (photo.sun) { photo.sun.copy(photo.base); photo.sun = null; }
+        photo.t = 0; mdx = mdy = 0;
+    }
+    function photoKey(e) {
+        if (e.ctrlKey || e.metaKey || e.altKey) return false;
+        if (e.code === 'KeyP') { e.preventDefault(); if (e.repeat) return true; if (photo.on) photoOff(); else if (photoCan()) photoOn(); return true; }
+        if (!photo.on) return false;
+        if (e.code === 'Escape') return false;      // the game's own hold-to-leave still works; photoFrame drops photo mode when it starts
+        e.preventDefault();
+        if (e.repeat && e.code !== 'BracketLeft' && e.code !== 'BracketRight') return true;
+        if (e.code === 'BracketLeft') photo.t = PHO.stepT(photo.t, -1);
+        else if (e.code === 'BracketRight') photo.t = PHO.stepT(photo.t, 1);
+        else if (e.code === 'KeyS') photoShot();
+        return true;
+    }
+    window.addEventListener('wheel', function (e) { if (!photo.on) return; e.preventDefault(); photo.fov = PHO.fovFromWheel(photo.fov, e.deltaY); }, { capture: true, passive: false });
+    function shareSnap(si) {      // ?p=&d=&m= -> an applyResume snapshot (fly: hover at d, landed: set down at d), or null if the planet is gone
+        var d = engine.drawOrder, i, n = null, k, dir, q;
+        for (i = 0; i < d.length; i++) if (d[i].anchor && String(d[i].id) === si.id) { n = d[i]; break; }
+        if (!n || !n.mesh || !(n.mesh.scale.x > 0)) return null;
+        k = n.mesh.scale.x; dir = new THREE.Vector3(si.d[0], si.d[1], si.d[2]);
+        q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+        if (si.mode === 'l') { dir.multiplyScalar(k); return { f: 'planet', node: n, mode: 'landed', sPos: dir, sQuat: q, rg: dir.length() }; }
+        return { f: 'planet', node: n, mode: 'fly', lp: dir, lq: q, R: 1, alt: -1 };
+    }
+    function photoLink() {
+        var keep = resumeSnap, rs, k, d, m;
+        takeSnap(); rs = resumeSnap; resumeSnap = keep;
+        if (!rs || rs.f !== 'planet' || !rs.node || !rs.node.mesh) return '';
+        k = rs.node.mesh.scale.x; if (!(k > 0)) return '';
+        if (rs.mode === 'fly') { d = rs.lp.clone().multiplyScalar(1 / (rs.R > 0 ? rs.R : k)); m = 'f'; } else { d = rs.sPos.clone().multiplyScalar(1 / k); m = 'l'; }
+        var q = PHO.shareQuery(rs.node.id, [d.x, d.y, d.z], photo.t, m);
+        return q ? location.origin + location.pathname + q : '';
+    }
+    function photoShot() {
+        var link = '';
+        try { link = photoLink(); } catch (e0) { warnOnce('photoLink', e0); }
+        photo.snap = true;      // the PNG is read in the engine's frame callback (same task as the render, so the drawing buffer is still valid)
+        if (link) {
+            var done = function (ok) { photoToast(ok ? 'SAVED · LINK COPIED' : 'SAVED · LINK ' + link); if (!ok) { try { window.prompt('Share link', link); } catch (e1) { /* ignore */ } } };
+            try { navigator.clipboard.writeText(link).then(function () { done(true); }, function () { done(false); }); } catch (e2) { done(false); }
+        } else photoToast('SAVED · NO LINK (NOT ON A PLANET)');
+    }
+    if (typeof engine.onFrame === 'function') engine.onFrame(function () {
+        if (!photo.snap) return;
+        photo.snap = false;
+        try {
+            var src = engine.renderer.domElement, w = src.width, h = src.height, c = document.createElement('canvas'), g, fs, a;
+            c.width = w; c.height = h; g = c.getContext('2d');
+            g.fillStyle = '#05000a'; g.fillRect(0, 0, w, h); g.drawImage(src, 0, 0);
+            fs = Math.max(12, Math.round(h * 0.022)); g.font = fs + 'px monospace'; g.textAlign = 'right'; g.textBaseline = 'bottom';
+            g.shadowColor = 'rgba(0,0,0,0.8)'; g.shadowBlur = fs * 0.4; g.fillStyle = 'rgba(232,220,255,0.8)'; g.fillText(PHO.WATERMARK, w - fs, h - fs * 0.8);
+            a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = 'nomansgor-' + Date.now() + '.png'; a.click();
+        } catch (e0) { warnOnce('photoShot', e0); }
+    });
+    function photoPre() {      // before step(): swallow the mouse for the orbit, pin the ship (nothing flies off while you frame the shot)
+        photo.dx += mdx; photo.dy += mdy; mdx = mdy = 0;
+        if (gmode === 'fly') { vel.set(0, 0, 0); speed = 0; throttle = 0; }
+        if (esc.on) photoOff();      // the game started its hold-to-leave: photo mode steps aside
+    }
+    function photoPost() {      // after step(): sun, then the orbit camera over whatever the mode just set
+        var s = (ps && ps.sunDir) ? ps.sunDir() : null, o = photo.a, u = photo.u, sv = photo.sv, d;
+        if (s) {
+            if (s !== photo.sun) { if (photo.sun) photo.sun.copy(photo.base); photo.sun = s; photo.base.copy(s); }
+            PHO.sunAt(photo.base.x, photo.base.y, photo.base.z, photo.t, sv); s.set(sv.x, sv.y, sv.z);
+        }
+        photoAim();
+        o[0] = photo.off.x; o[1] = photo.off.y; o[2] = photo.off.z; u[0] = photo.up.x; u[1] = photo.up.y; u[2] = photo.up.z;
+        PHO.orbitStep(o, u, -photo.dx * 0.0035, photo.dy * 0.0035, o); photo.dx = photo.dy = 0;
+        photo.off.set(o[0], o[1], o[2]);
+        if (gmode !== 'fly') { d = photo.off.dot(photo.up) - 0.06 * photo.off.length(); if (d < 0) photo.off.addScaledVector(photo.up, -d); }      // never under the ground
+        camera.position.copy(photo.tgt).add(photo.off);
+        camera.up.copy(photo.up);
+        vA.copy(photo.tgt); if (gmode === 'foot') vA.addScaledVector(photo.up, 0.05 * L);
+        camera.lookAt(vA);
+        if (Math.abs(camera.fov - photo.fov) > 0.01) { camera.fov = photo.fov; camera.updateProjectionMatrix(); }
+        camera.updateMatrixWorld(true);
+    }
+    function photoAuto() {      // a share link asked for photo mode: wait for the landing/hover to settle, then switch on once
+        if (performance.now() > photo.autoUntil || state !== 'piloting') { photo.auto = -1; return; }
+        if (!photoCan() || !(ps && ps.active)) return;
+        photo.t = PHO.wrapT(photo.auto); photo.auto = -1; photoOn();
+    }
+    function pilotFrame(dt) { if (photo.on) photoPre(); else if (photo.auto >= 0) photoAuto(); step(dt); if (photo.on) photoPost(); try { guideTick(dt > 0.05 ? 0.05 : (dt > 0 ? dt : 0)); } catch (eg) { /* never break the frame */ } }
     function step(dt) {
         if (dt > 0.05) dt = 0.05;
         if (dt <= 0) return;
