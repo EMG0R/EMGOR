@@ -708,10 +708,10 @@ async function g13(T, o) {
     if (bosses.length < 3) { res.pass = false; res.tooFewBosses = true; return res; }
     function reachMin(b) { var r = 1e30; if (b.cr && b.cr.moves) for (var i = 0; i < b.cr.moves.length; i++) r = Math.min(r, b.cr.moves[i].reachL * b.sc); return r; }
     var P = ship.shipRoot.position, n = bosses.length, maxLen = Math.max.apply(null, bosses.map(function (b) { return b.len; })), need = 1.5 * maxLen;
-    var sPos = [], prev = bosses.map(function (b) { return b.g.position.distanceTo(P); }), startD = prev.slice(), minSep = 1e9, nonDec = 0, reached = 0, samples = 0;
+    var sPos = [], prev = bosses.map(function (b) { return b.g.position.distanceTo(P); }), startD = prev.slice(), minSep = 1e9, minRatio = 1e9, worstPair = null, nonDec = 0, reached = 0, samples = 0;
     for (var s = 0; s < 1200; s++) {                      // 60 s of simulated time
         T.step(1, 0.05); ship.dbg.vel.set(0, 0, 0); ship.dbg.setSpeed(0); ship.shipRoot.position.copy(home);
-        for (var a = 0; a < n; a++) for (var b = a + 1; b < n; b++) minSep = Math.min(minSep, bosses[a].g.position.distanceTo(bosses[b].g.position));
+        for (var a = 0; a < n; a++) for (var b = a + 1; b < n; b++) { var dd = bosses[a].g.position.distanceTo(bosses[b].g.position); minSep = Math.min(minSep, dd); var rq = 1.5 * Math.max(bosses[a].len, bosses[b].len); if (dd / rq < minRatio) { minRatio = dd / rq; worstPair = { d_u: +dd.toFixed(1), req_u: +rq.toFixed(1) }; } }      // the game's bossSep is per pair (1.5 x the larger of the two), not 1.5 x the biggest boss in the wave
         if (s % 20 === 19) {                              // once a second: the distance to the player has to be shrinking until the boss reaches melee
             samples++;
             for (a = 0; a < n; a++) {
@@ -722,14 +722,16 @@ async function g13(T, o) {
                 sPos[a].copy(bosses[a].g.position);
                 if (shoved) { prev[a] = dnow; continue; }
                 var bb = bosses[a], stopD = Math.max(reachMin(bb) * 0.9, bb.R * 1.08 + 2 * L);
-                if (dnow >= prev[a] - 1e-9 && dnow > stopD * 1.001 + 0.05) nonDec++;
+                var mid = bb.ms === 'strike' || bb.ms === 'recover' || bb.ms === 'tele' || bb.ms === 'throw';      // mid-attack the boss holds position by design: only approach states must close
+                if (!mid && dnow >= prev[a] - 1e-9 && dnow > stopD * 1.001 + 0.05) { nonDec++; (res.nonDecAt = res.nonDecAt || []).push({ s: s, boss: a, d: +dnow.toFixed(1), prev: +prev[a].toFixed(1), stopD: +stopD.toFixed(1), ms: bb.ms }); }
                 prev[a] = dnow;
             }
         }
     }
     var end = bosses.map(function (b) { return b.g.position.distanceTo(P); });
     res.formation = { maxLen_u: +maxLen.toFixed(1), maxLen_L: +(maxLen / L).toFixed(0), required_u: +need.toFixed(1), minPairwise_u: +minSep.toFixed(1), ratio: +(minSep / maxLen).toFixed(3), startDist_u: startD.map(function (v) { return +v.toFixed(1); }), endDist_u: end.map(function (v) { return +v.toFixed(2); }), closed_u: startD.map(function (v, i) { return +(v - end[i]).toFixed(2); }), expectedClose_u: 18, nonDecreasingSamples: nonDec, seconds: 60 };
-    if (minSep < need * 0.99) { res.pass = false; res.tooClose = true; }   // Q16: 1 % slack; the game enforces 1.5x in formationStep/formationFree (ship.js:3435) but a moving planet's push-out (rev 22) can shove a boss ~0.4 % inside (913 vs 916.5 u)
+    res.formation.minPairRatio = +minRatio.toFixed(3); res.formation.worstPair = worstPair;
+    if (minRatio < 0.99) { res.pass = false; res.tooClose = true; }   // Q16: 1 % slack; the game enforces 1.5x in formationStep/formationFree (ship.js:3435) but a moving planet's push-out (rev 22) can shove a boss ~0.4 % inside (913 vs 916.5 u)
     if (nonDec > 0) { res.pass = false; res.notClosing = true; }
     res.formation.meleeReach_u = bosses.map(function (b) { return +Math.max(reachMin(b) * 0.9, b.R * 1.08 + 2 * L).toFixed(1); });
     if (!startD.every(function (v, i) { return end[i] < v - 5 || end[i] <= res.formation.meleeReach_u[i] * 1.01; })) { res.pass = false; res.slow = true; }
