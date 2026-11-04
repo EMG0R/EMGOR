@@ -544,3 +544,21 @@ DONE: added `ship.dbg.resetWorld()` (js/ship.js, first member of `dbg`): ends a 
 TESTS: node --check ok on ship.js, ship-planet-tests.js (as .mjs); node --test tests/node: 300 tests, 285 pass / 0 fail / 15 skipped.
 VERIFY ON MAC: full g1-g17 in ONE batch of 17 (runAll without `only`). If g14 still fails after g10 or g15 after g3/g13, log `ship.dbg.mobs().length`, `ship.dbg.states.length`, `ship.dbg.bossList.length`, `ship.quality` / ship-perf tier and ps.depth right before the failing test and queue the next leak.
 OPEN: pets/follower, depth stack and quality tier are not reset (add to resetWorld if the Mac run implicates them).
+
+## BENCHMARK-7 Phase 7 summary (Q34-Q39) — 2026-11-04 — (this commit)
+DONE: Q34 docs refresh, Q35 four styles (SWIFT/SPARKLET/JELLY/HAULER), Q36 touch controls, Q37 photo mode + share link, Q38 board page + relay /disc /board, Q39 harness resetWorld. Diff Q34-Q39 (3edea90~14..3edea90): 20 files, +1073/-61; ship.js +249, ship-styles.js +99, ship-touch.js +174 (new), ship-photo.js +69 (new), board.html +65, relay board.js +48 / server.js +17, ship.css +22, 4 new node test files.
+TESTS: node --test tests/node: 300 tests, 285 pass / 0 fail / 15 skipped (todo flags). All edited .js node --check ok. No browser run of anything.
+VERIFY ON MAC (in order):
+1. Full g1-g17 in ONE batch (Q39). If g14 fails after g10 or g15 after g3/g13, log mobs().length, states.length, bossList.length, quality tier, ps.depth before the failing test.
+2. Q35: `/char SWIFT|SPARKLET|JELLY|HAULER`: skins distinct, capsule fits, abilities per Q35 log; remote peers re-skin.
+3. Q36: Chrome touch emulation: game loads (phone gate removed), stick/look/pads/pinch/EXIT hold, overlay hides over menus, tier 1 default, desktop unchanged.
+4. Q37: P photo mode (HUD hidden, orbit, wheel FOV, [ ] time, S PNG + watermark + clipboard link); open link in fresh tab restores spot + time; Esc hold still exits.
+5. Q38: relay NOT redeployed with board.js/server.js changes. Redeploy on gorcave (Q33 procedure), then curl /nmg/disc and /nmg/board; open nomansgor/board.html; check counters move.
+OPEN / RISKS:
+- No consumers in ship.js for 'dash' i-frames, 'reflect', 'regen', 'grab' (HAULER throw dead until grab wired).
+- Touch: no chat/inventory/photo buttons; synthetic key events may trigger double-tap rolls; 300 ms poll runs forever on touch.
+- Photo: shared LIGHT_DIR may light all planets; orbit angle not in link; enemies keep acting.
+- Board: counters keyed by display name (spoofable); catches = species seen; FIGHT WINS slot mapping unverified.
+- Q39 root cause not reproduced; pets/depth/quality not reset.
+- Carry-overs: H_RATIO 0.2, pilot {4,3}, Q30 station gaps, ft.wild unwired, Q32 gbLocalize/gbProject frame math.
+NEXT 5 TO QUEUE: (1) relay redeploy #3 with board; (2) wire dash/reflect/regen/grab consumers; (3) touch chat/inventory/photo buttons; (4) wire ring-fight catch (ft.wild); (5) next four mashup styles from mashup-plan §1.
