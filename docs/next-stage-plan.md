@@ -1,6 +1,36 @@
 # NO MANS GOR — next stage plan (2026-10-14)
 
-Plan only. Nothing here is built. Base = main 01346b4 (docs/HANDOFF.md top section, ship-mode.md rev 33).
+Status as of 2026-11-04 (against docs/GORCAVE-LOG.md; all browser-unverified, Mac verification pending). Original text below is the plan; this table is the state.
+
+| item | status | where / what is left |
+|---|---|---|
+| A1 species generator | done | pokemans-gen.js (Q11) |
+| A2 balls + catching | partial | GOR BALL tiers, lurefries, arc, shakes, catch (Q12, Q32 frame fix); ring-wild capture entry unwired; pen/cap in party UI (Q13b) |
+| A3 party / follower / XP / heal / CVS | done | Q13, Q13b, Q14, Q14b; follower HP persists only at writeSave points |
+| A4 grafts, food tutor, bond | partial | Q23 logic + CVS GRAFT; grafts not visible on the 3D follower mesh, no elder GRAFT counter, no resource-node part drops; infusion feed/5th move partly open |
+| A5 battles on smash engine | partial | creatureFighter + trainer role + fights (Q24, Q31 rewards); wild-ring fights have no entry; PvP not built; trainer mons don't heal |
+| A6 persistence + net | done | profile.pokemans/party/pen; dex page (Q25) |
+| B1 fractal depth 1 | partial | pure module + rock API + depthStack save/HUD chip (Q17a/b1/b2); dive/climb wiring Q17b3 open (Mac) |
+| B2 infinite depth, B3 g18 | open | needs B1 wiring |
+| C MARO SM64 table | partial | maroTable part 1+2 written and node-tested (Q08/Q09), wall normal feed (Q06); NOT wired into live maro(); long jump gate (9 H) fails as specified |
+| D rig recipes | done in code | setRig + 5 recipes (Q10); distinguishability at 20 L unverified; mashup styles beyond 4 not built (Q35 queued) |
+| E1 proportions | done | H_RATIO 0.2 single definition (Q20/Q21), unverified in browser |
+| E2 fight balance | done | Q05 role tiers, idle payout 0 |
+| E3 relay redeploy | done | Q15, Q33 (two-tab test pending) |
+| E4 test hygiene | partial | g10/g13/g15 fixed by reading (Q16); g4 flake, g14 steep site not touched; g19 added (Q29) |
+| E5 HUD declutter | done | Q04 |
+| E6 landing prompt | done | Q03 + Q32 SLOW DOWN to land |
+| E7 village scale/pathing | open | huts interiors, villager/golum pathing |
+| E8 remaining styles | open | Q35 (4 more) queued; SONIK loops, STEEV placement race open |
+| E9 hub mobs netcode | done | Q28; `/smash` cabinet in station open |
+| E10 far rendering part 2 | partial | pilot clearance extracted + {4,3} set (Q22); hi-res globe perf unverified |
+| E11 touch / photo / dex UI / leaderboard | partial | dex tab done (Q25); touch (Q36), photo mode queued; leaderboard open |
+| E12 warnOnce, allocation pass, quality hold | done | Q01, Q02 |
+| E13 ship.js split + banned-name guard | partial | guard done (Q07); ship-foot.js step 1 done (Q27); step 2 open |
+| E14 Documents checkout / watch-approve hook | n/a | not a builder item |
+| E15 playtest punch lists | open | in-person |
+
+Original header: Plan only. Nothing here was built when written. Base = main 01346b4 (docs/HANDOFF.md top section, ship-mode.md rev 33).
 Order recommended: A (POKEMANS pass 1) → C+D (MARO faithfulness + distinct bodies) → B (one fractal level) → E (backlog sweep). One builder per pass, commit per item.
 
 ## A. POKEMANS — buy balls at the 7/11, catch, train, battle

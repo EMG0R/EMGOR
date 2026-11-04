@@ -1,4 +1,67 @@
-# NO MANS GOR — HANDOFF (2026-10-13)
+# NO MANS GOR — HANDOFF (current state 2026-11-04; history below)
+
+## CURRENT STATE (2026-11-04, branch `gorcave-backlog`, written from docs/GORCAVE-LOG.md)
+Nothing on this branch is merged to main or seen by eye. The gorcave builder (Sonnet, unattended, no browser) ran Q01-Q33; everything browser-side is unrun. Source of truth for "what ran": `docs/GORCAVE-LOG.md`. Work list: `docs/GORCAVE-QUEUE.md`. Specs: `docs/next-stage-plan.md` (statuses at its top).
+
+### Systems and file owners
+| system | owner file(s) | notes |
+|---|---|---|
+| engine, galaxy tree, pilot scale/clearance, floating origin | `js/galaxy3d.js` | pilot planet scale {4,3} (Q22, pure clearance test `pilot-clearance.test.mjs`); revert = `{root:6,deep:4}` |
+| game loop, flight, landing, HUD, chat cmds, save/pose, fights, CVS use, GOR BALL flight | `js/ship.js` (~10k lines) | split in progress: `ship-foot.js` done (Q27), next candidates in Q27 log |
+| on-foot controller | `js/ship-foot.js` | `createFoot(ctx)`; collision (footFloor/mFloor/objBegin/objPush), hubFootStep, style bridge still in ship.js |
+| H/L scale | `js/ship-scale.js` | `H_RATIO` 0.2 (ship ~5 H), `hOf(L)`; change the ratio only here |
+| planet terrain, sites/pads (6 slots), creatures, rocks API, weather | `js/ship-planet.js` | shader pad slots 5->6 in Q14 (3 GLSL copies) |
+| 7/11, Burger House, CVS, resources | `js/ship-world.js` | |
+| station (docking/launching, deck, station CVS, markers) | `js/ship-station.js` | |
+| villages / hub dungeon | `js/ship-village.js`, `js/ship-hub.js` | hub mobs on planet-host netcode (Q28) |
+| NPC reachability rules | `js/ship-npc-access.js` | g19, `npc-access.test.mjs` |
+| items, crafting, quests, lingo, icons | `js/ship-items.js`, `ship-craft.js`, `ship-quests.js`, `ship-lingo.js`, `ship-icons.js` | |
+| onboarding + 7-step first-five-minutes chain | `js/ship-onboard.js` | Q26 |
+| movement styles (MARO/JOSHI/STEEV/SONIK), rig recipes | `js/ship-styles.js`, `js/ship-human.js` | `maroTable()` (Q08/Q09) exists and is tested but is NOT wired into live `maro()` |
+| enemies, bosses, mobs, creature kit | `js/ship-enemies.js`, `js/ship-parts.js`, `js/ship-hull.js` | |
+| POKEMANS | `js/pokemans-gen.js` (species), `-catch.js`, `-party.js`, `-graft.js`, `-dex.js`, `-fighter.js` | catch/party/graft/dex/trainer fights built; ring-wild capture entry unwired |
+| fractal depth | `js/ship-depth.js` (pure), rock API in ship-planet.js, `depthStack` save + HUD chip | dive/climb engine wiring (Q17b3) NOT done: Mac session |
+| soundtrack | `js/ship-music.js` (+ `ship-audio.js` sfx) | pure scheduler, seeded |
+| perf/quality tiers | `js/ship-perf.js` | |
+| net | `js/ship-net.js`, `ship-net-validate.js`, `ship-keys.js`, relay `server/nmg-relay/server.js` | relay on gorcave redeployed twice (Q15, Q33) |
+| fighter | `js/smash-*.js` | in-world fights via `createFightSession`; `setReward` hook (Q31) |
+| tests | `js/ship-planet-tests.js` (g1-g19, browser), `tests/node/*.test.mjs` | |
+
+### Key map (as of HELP in ship.js ~3914)
+Z ship (land / step out / board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person) · T talk (on foot/station), T cycle target (space), hold T beside follower = 4-move radial · V scan · Q focus · X wingmen focus fire · E inventory · U POKEMANS manager · 1-9 weapon hotbar · 0 then 1-6 (or Alt+1-6) swap party · B throw GOR BALL · A/D x2 roll · S x2 flip · Ctrl drift · Shift boost/run · Space pulse/jetpack · Shift+LMB ram · hold Esc 3 s exit · Enter or / chat. Commands: /wave /peaceful /hostile /difficulty /user /color /ship /weapons /volume /quality /gorcave /help.
+
+### How to test
+- Node (pure modules, runs on gorcave): `bash tools/test-node.sh` (= `node --test tests/node/*.test.mjs`). Last run 2026-11-04: 257 tests, 242 pass / 0 fail / 15 skipped (todo markers document known bugs). Also `node --check` every edited .js (copy to .mjs if import/export trips it).
+- Pre-push guard: `tools/banned-names.sh` (see "Pre-push guard (Q07)" below); enable `git config core.hooksPath .githooks`.
+- Browser (Mac only): `const t=await import('./js/ship-planet-tests.js'); await t.runAll(EMGOR_GALAXY.engine, EMGOR_SHIP, {only:['g9','g10']})`. Batches of <=5 with a reload between (b1 g1-4, b2 g5-8, b3 g9-12, b4 g13-15, b5 g16-19). Priority after Q20-Q32: g2, g8, g9, g10, g11, g14, g16, g17, g19.
+
+### The gorcave loop
+`tools/gorcave-builder.sh` on gorcave runs one `claude -p` per queue item (first `[ ]` in GORCAVE-QUEUE.md): mark `[>]` + push, build, node-check + node tests, log entry in GORCAVE-LOG.md, mark `[x]`/`[~]`, push `gorcave-backlog`. Rules: docs/GORCAVE-BUILD-HANDOFF.md (branch only, no main, no browser, no deletes, disk >= 700 MB). Stop: `touch ~/nmg-builder/STOP`. The Mac manager pulls the branch, runs the g-tests in Chrome, merges to main (Netlify).
+
+### Open VERIFY ON MAC (BENCHMARK-1..6 condensed; per-item detail in GORCAVE-LOG.md)
+1. g1-g19 in batches (above). Expect g10 pass (Q16); g13 formation ratio ~0.99-1.0; g15 may show punch.noSpawn.
+2. Planet shader pad slots 5->6 (`uPadD[6]`, 3 GLSL copies): no blank planets, no seams at pads. Riskiest edit in the branch.
+3. Scale: H_RATIO 0.2 and pilot {4,3}: player beside ship, hut door, 7/11 + CVS + hub arch, creatures; landing approach (the 2026-10-14 failure mode). Revert = H_RATIO / `{root:6,deep:4}`.
+4. Landing: Q03 auto-damp under 3 L, `Z · LAND` while cruising, "SLOW DOWN to land" at speed >= 2; hint bar fades 10 s, returns 6 s on mode change; marker count (ship + 3 + quest); boss HUD 3 bars + pips.
+5. Fights: villager easy / elder hard; idle payout 0; result card coin/xp/part/bond/line/who (Q31); trainer fight end to end (Q24).
+6. POKEMANS loop: buy ball, weaken, hold B (8-dot arc, 12 H), 3 shakes, caught; summon, fights beside you, T radial, U manager, faint, REVIVE at planet + station CVS; grafts, food tutor, bond 10/30, DEX tab. GOR BALL on a fast-rotating planet stays on its arc (Q32 `gbLocalize/gbProject`, riskiest frame math). Full bag (400 stacks): no follower flicker, BAG FULL rows.
+7. Q26 new-profile START card + 7-step chain + respawn card; Q27 ship-foot.js walk/jump/jetpack/dive/styles/wall slide/store collision; Q28 hub mobs two tabs; Q29 NPC access (g19); Q30 station marker, Z DOCK sequence, deck markers, launch, pose resume.
+8. Q19 music: 3 biomes + night + wind + fight mute, nothing audible muted, /volume scales.
+9. Relay (Q15, Q33): two tabs, valid-origin wss, peers see `frame:'planet'` poses, reconnect leaves no ghost, `__proto__` profile survives. Only verified to the Funnel 403 origin check from the Pi; backup of old server.js in /tmp is gone on reboot.
+10. Rigs at 20 L (PILOT, MARO, JOSHI, STEEV, SONIK) distinguishable without colour; maroWall g-test. Long jump: table gives ~4.4 H, gate said 9 H (fix at switch-over, LJ_Y ~11 H/s).
+
+### Known open (not queued unless noted)
+- `maroTable()` switch-over into live `maro()` (controller must supply wallT/normal, slope, ledgeTop, dive/pound/punch edges, consume out.fx).
+- Q17b3 fractal dive/climb wiring; use rockId not slot for microSpec (slots shift across quality tiers).
+- Ring-wild capture entry (`ft.wild` never set); grafts not visible on the 3D follower mesh; no elder GRAFT counter; no resource-node part drops; trainer mons don't heal.
+- Station: no 7/11 shelves on the deck, launch 4-8 s (spec 2 s), no approach beam. E · TRADE unbound (E = inventory).
+- ship.js split step 2 (collision into ship-foot.js, hubFootStep, style bridge).
+- [guess] constants throughout (ball arc/shake, XP formula, CVS offset 60 L, music danger mapping, dock duration, beacon radius 15 L).
+
+---
+
+
+## HISTORY (2026-10-13 handoff title) 
 
 ## 2026-10-14 surface/villages/fight pass (branch `surface-vibe`, from main a31f994, NOT merged, NOT verified by Emory in person)
 Shipped in code and driven in headless Chrome (g1-g17 batches below). Nothing seen by eye.

@@ -508,3 +508,9 @@ OPEN RISKS:
 - Ring-wild capture entry (ft.wild) still unwired; quest left open on BAG FULL re-triggers only on the next quest event.
 - All Q32 changes are browser-unrun; gbLocalize/gbProject frame math is the riskiest.
 - Carry-overs from BENCHMARK-5 (H_RATIO 0.2 scale, pilot {4,3}, Q30 station gaps) still unverified.
+
+## Q34 Docs refresh — 2026-11-04T11:09Z — (this commit)
+DONE: docs/HANDOFF.md top rewritten as CURRENT STATE (systems/file-owner table, key map from HELP ship.js ~3914, node + browser test how-to, gorcave loop, BENCHMARK-1..6 VERIFY items condensed, known-open list); old content kept below under HISTORY. docs/next-stage-plan.md gained a status table (A1-E15: done/partial/open) from GORCAVE-LOG. No code touched.
+TESTS: docs only; `node --test tests/node`: 257 tests, 242 pass / 0 fail / 15 skipped.
+VERIFY ON MAC: none (read the HANDOFF top for accuracy against your merged state).
+OPEN: statuses come from the log, not from running the game; the HANDOFF "Live right now" and older sections below the new top are still the 2026-10-13 text.
