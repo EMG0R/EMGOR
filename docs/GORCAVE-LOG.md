@@ -492,3 +492,19 @@ DONE: running copy `/home/server/nmg-relay/server.js` differed from `server/nmg-
 TESTS: node --check server.js ok. Before: active, /healthz {"n":0}. After: is-active = active, journal "listening on 127.0.0.1:8797", /healthz {"n":0}; Funnel https://gorcave.taila85593.ts.net/nmg with WS upgrade (HTTP/1.1) returns 403 (origin check from curl, not 404/502), so it reaches the relay. No full wss session handshake with a valid Origin was run.
 VERIFY ON MAC: open the game in two tabs, confirm both see each other's pose (valid-origin wss connect), reconnect one tab and confirm no ghost.
 OPEN: none.
+
+## BENCHMARK-6 — 2026-11-04 — (this commit)
+SCOPE: Q32 (12 static-review fixes) + Q33 (relay redeploy #2). Q32 touched ship.js, ship-foot.js, ship-planet.js, pokemans-party.js; Q33 touched server/nmg-relay/server.js (+ running copy ~/nmg-relay).
+TESTS: `node --test tests/node`: 257 tests, 242 pass / 0 fail / 15 skipped. No browser tests run by the builder.
+VERIFY ON MAC:
+1. g-tests in batches of <=5 with reloads; priority g14/g16/g17 (pets, rocks) plus g9/g10 (foot, landing prompt).
+2. GOR BALL on a fast-rotating planet: ball stays on arc, shake stays on the creature.
+3. Full bag (400 stacks): catch keeps follower out with no 1 s flicker; TAKE BACK / tame / quest reward keep item/pet/quest and show BAG FULL.
+4. Land from flight at speed >= 2: "SLOW DOWN to land"; below 2: Z · LAND works.
+5. Landing dust visible after entering piloting twice (S.fx getter); V/crosshair rock pick still works (rockUnderCrosshair single sync).
+6. Relay: two tabs, valid-origin wss, both see each other's pose; reconnect one tab, no ghost; __proto__ profile does not crash it.
+OPEN RISKS:
+- Relay verified only to the Funnel 403 origin check, no full wss session; backup of the old server.js is in /tmp (lost on reboot).
+- Ring-wild capture entry (ft.wild) still unwired; quest left open on BAG FULL re-triggers only on the next quest event.
+- All Q32 changes are browser-unrun; gbLocalize/gbProject frame math is the riskiest.
+- Carry-overs from BENCHMARK-5 (H_RATIO 0.2 scale, pilot {4,3}, Q30 station gaps) still unverified.
