@@ -59,7 +59,7 @@ function mkFighter(i, slot, stage, stocks) {
     sh: 180, jumps: def.jumps, upUsed: false, flutterT: 0, jumpT: 99, ff: false, move: null, mf: 0, hitSet: 0, hbMove: null, hbT: 0, moveAir: false,
     bufA: 0, bufB: 0, bufG: 0, bufJ: 0, inp: 0, prev: 0, cd: {}, reflectT: 0, hold: -1, heldBy: -1, holdT: 0, ledge: -1, ledgeT: 0, ledgeLock: 0, dropT: 0,
     eggT: 0, stunT: 0, lag: 0, deadT: 0, respT: 0, dashx: 0, dashy: 0, res: def.res0 || 0, resT: 0, kos: 0, dealt: 0, taken: 0, eggShield: 1, rollDir: 1,
-    dmgMult: 1, bot: null, flash: 0, koDir: 0, hurtMul: def.hurtMul || 1,
+    dmgMult: 1, stK: '', stT: 0, bot: null, flash: 0, koDir: 0, hurtMul: def.hurtMul || 1,
     fx: 0, fy: 0, fz: 0, copy: '', copyT: 0, absorbT: 0, final: 0, meter: 0, sleepT: 0,
   };
 }
@@ -126,8 +126,9 @@ function hurtCaps(f, out) {
   let k = f.hurtMul;
   const st = f.state;
   if (st === 'crouch' || st === 'roll' || st === 'dodge' || st === 'getup') k *= 0.62; else if (st === 'land') k *= 0.85;
-  out.length = 0;
-  for (let i = 0; i < 3; i++) { const c = HURT[i]; out.push([f.x + c[0], f.y + c[1] * k, f.x + c[2], f.y + c[3] * k, c[4] * (f.def.hurtR || (f.fid === 'swift' ? 0.9 : 1))]); }
+  if (out.length !== 3) { out.length = 0; for (let i = 0; i < 3; i++) out.push([0, 0, 0, 0, 0]); }      // pooled: the 3 capsule arrays are reused, never reallocated per call
+  const hr = f.def.hurtR || (f.fid === 'swift' ? 0.9 : 1);
+  for (let i = 0; i < 3; i++) { const c = HURT[i], o = out[i]; o[0] = f.x + c[0]; o[1] = f.y + c[1] * k; o[2] = f.x + c[2]; o[3] = f.y + c[3] * k; o[4] = c[4] * hr; }
   return out;
 }
 const _hc = [];
@@ -233,6 +234,7 @@ function stepFighter(S, f) {
   f.px = f.x; f.py = f.y; f.armorNow = 0; f.hbMove = null; f.animT++;
   if (f.inv > 0) f.inv--; if (f.reflectT > 0) f.reflectT--; if (f.ledgeLock > 0) f.ledgeLock--;
   for (const k in f.cd) if (f.cd[k] > 0) f.cd[k]--;
+  if (f.stT > 0 && --f.stT === 0) f.stK = '';
   if (f.absorbT > 0) f.absorbT--; if (f.copyT > 0 && --f.copyT === 0) f.copy = '';
   if (f.state !== 'attack' && f.hurtMul !== (f.def.hurtMul || 1)) f.hurtMul = f.def.hurtMul || 1;
   if (f.def.res0 && ++f.resT >= 240) { f.resT = 0; if (f.res < 12) f.res++; }
@@ -459,7 +461,7 @@ function launchDir(f, ang, dir) {
 }
 
 function hitFighter(S, att, vic, h, dir, src) {
-  const dmgMul = att ? att.dmgMult : 1, dmg = h.dmg * dmgMul * (vic.state === 'sleep' ? 1.3 : 1);
+  const dmgMul = att ? att.dmgMult : 1, dmg = h.dmg * dmgMul * (vic.state === 'sleep' ? 1.3 : 1) * (vic.def.takeMul || 1);      // takeMul: creature hp -> how fast percent accrues
   if (vic.state === 'held' || vic.state === 'dead' || vic.state === 'respawn') return false;
   // shield
   if (vic.state === 'shield' && !h.egg && !h.unblock) {
@@ -471,6 +473,7 @@ function hitFighter(S, att, vic, h, dir, src) {
   }
   if (vic.inv > 0) return false;
   releaseHold(S, vic);
+  if (h.eff) { vic.stK = h.eff; vic.stT = 90; }      // creature move effect -> status icon over the victim (visual tag; the dmg/kb shaping lives in the move)
   vic.pct += dmg; if (att) { att.dealt += dmg; meterGain(S, att, dmg * 0.9); } vic.taken += dmg; meterGain(S, vic, dmg * 0.25);
   let lag = Math.floor(dmg / 3) + 3; if (h.flinch === false) lag = 2;
   // armor: damage only
@@ -688,8 +691,8 @@ function stepMatch(S, inputs) {
   if (S.phase === 'count') { if (--S.count <= 0) { S.phase = 'play'; S.events.push({ t: 'go' }); S.sfx('go'); } else if (S.count % 50 === 0) { S.events.push({ t: 'count', n: S.count / 50 }); S.sfx('count'); } }
   else if (S.phase === 'play') {
     if (S.frame % 1 === 0) S.time--;
-    const alive = F.filter((f) => f.stocks > 0);
-    if (alive.length <= 1 && F.length > 1 || S.time <= 0) {
+    let alive = 0; for (let i = 0; i < F.length; i++) if (F[i].stocks > 0) alive++;      // no per-frame filter array
+    if (alive <= 1 && F.length > 1 || S.time <= 0) {
       if (!S.endT) { S.endT = 1; S.events.push({ t: 'end' }); }
     }
     if (S.endT) { S.endT++; if (S.endT > 100) { S.phase = 'over'; S.result = results(S); S.events.push({ t: 'over', result: S.result }); S.sfx('victory'); } }
@@ -896,6 +899,48 @@ function animOf(f) {
 function circleStrips(R, cx, cy, rad, r, g, b, a) { for (let y = -rad; y <= rad; y += 2) { const w = Math.sqrt(Math.max(0, rad * rad - y * y)); R.rect(cx - w, cy + y, w * 2, 2, r, g, b, a); } }
 function ring(R, cx, cy, rad, r, g, b, a) { for (let k = 0; k < 20; k++) { const an = k * 18; R.rect(cx + cosD(an) * rad - 1, cy + sinD(an) * rad - 1, 2, 2, r, g, b, a); } }
 
+// ---- creature (POKEMANS) fighter overlays: silhouette parts, move-type colour, status icon. All R.rect, zero allocation. ------------------------
+// def.look = { sig:[fin|spike|shell|glow|lungs...], col:[r,g,b] } (pokemans-fighter.js creatureLook). Sprite box 32x48, feet at (ix,iy), back = -face.
+const ST_COL = { burn: [1, 0.5, 0.15], slow: [0.45, 0.7, 1], shield: [0.5, 1, 1], heal: [0.4, 1, 0.5], flinch: [1, 0.95, 0.3], launch: [1, 1, 1], drain: [0.8, 0.4, 1] };
+let _pR = null, _pX = null, _pY = null, _pz = 1;      // module scratch so the part drawers allocate no closure per frame
+function px(x, y, w, h, r, g, b, a) { _pR.rect(_pX(x), _pY(y), w * _pz, h * _pz, r, g, b, a); }
+function drawLook(R, f, ix, iy, X, Y, z, t) {
+  const L = f.def.look; if (!L || !L.sig) return;
+  const c = L.col, d = f.face, B = -d, bx = ix + B * 9, sig = L.sig;
+  _pR = R; _pX = X; _pY = Y; _pz = z;
+  for (let i = 0; i < sig.length; i++) {
+    const k = sig[i];
+    if (k === 'fin') { for (let j = 0; j < 5; j++) px(bx + B * (j === 0 ? 0 : 1) * 2 - (B < 0 ? 2 : 0), iy - 40 + j * 4, 2, 4, c[0] * 0.8 + 0.2, c[1] * 0.8 + 0.2, c[2] * 0.8 + 0.2, 0.95); px(bx + B * 3 - (B < 0 ? 3 : 0), iy - 38, 3, 3, c[0], c[1], c[2], 0.9); px(bx + B * 3 - (B < 0 ? 3 : 0), iy - 30, 2, 3, c[0], c[1], c[2], 0.9); }
+    else if (k === 'spike') { for (let j = 0; j < 4; j++) { const sx = ix - 8 + j * 5; px(sx, iy - 49 - (j & 1), 2, 4 + (j & 1), 1, 1, 0.9, 1); px(sx, iy - 46, 2, 2, c[0], c[1], c[2], 1); } }
+    else if (k === 'shell') { px(bx - 2, iy - 36, 5, 20, c[0] * 0.55, c[1] * 0.55, c[2] * 0.55, 0.95); px(bx - 1, iy - 38, 3, 3, c[0] * 0.7, c[1] * 0.7, c[2] * 0.7, 0.95); px(bx - 2, iy - 31, 5, 1, c[0], c[1], c[2], 1); px(bx - 2, iy - 25, 5, 1, c[0], c[1], c[2], 1); }
+    else if (k === 'glow') { const a = 0.55 + 0.4 * Math.sin(t * 0.18), gx = ix - d * 1, gy = iy - 56; px(gx - 3, gy - 3, 6, 6, c[0], c[1], c[2], 0.28 * a + 0.1); px(gx - 2, gy - 2, 4, 4, c[0] * 0.6 + 0.4, c[1] * 0.6 + 0.4, c[2] * 0.6 + 0.4, a); px(gx - 1, gy - 1, 2, 2, 1, 1, 1, a); }
+    else if (k === 'lungs') { const br = 0.5 + 0.5 * Math.sin(t * 0.12); for (let j = 0; j < 2; j++) { const lx = ix + d * 2 + (j ? 5 : -2) * d; px(lx - 1, iy - 27 - br, 3, 5 + br, 1, 0.55, 0.65, 0.9); } }
+  }
+}
+function drawMoveFx(R, f, ix, iy, X, Y, z) {
+  const m = f.move; if (!m || !m.mon || f.state !== 'attack') return;
+  const cl = (m.hits[0] && m.hits[0].col) || (f.def.look && f.def.look.col) || WHITE3, d = f.face;
+  const u = Math.min(1, f.mf / Math.max(1, m.dur * 0.5)), rr = (3 + 4 * u) * z;
+  ring(R, X(ix + d * 14), Y(iy - 24), rr, cl[0], cl[1], cl[2], 0.35 + 0.4 * u);      // charge ring in the move's type colour (ranged moves have no hit capsule)
+  for (let i = 0; i < m.hits.length; i++) {
+    const h = m.hits[i]; if (!(f.hbT >= h.s && f.hbT < h.e)) continue; const hc = h.col || cl;
+    for (let k = 0; k <= 4; k++) { const v = k / 4; R.rect(X(ix + d * (h.seg[0] + (h.seg[2] - h.seg[0]) * v)) - 1.5 * z, Y(iy + h.seg[1] + (h.seg[3] - h.seg[1]) * v) - 1.5 * z, 3 * z, 3 * z, hc[0], hc[1], hc[2], 0.55); }
+  }
+}
+const WHITE3 = [1, 1, 1];
+// 7x7 status glyphs as rect lists [dx,dy,w,h]; drawn above the player marker
+const ST_GLYPH = {
+  burn: [[3, 0, 1, 2], [2, 2, 3, 2], [1, 4, 5, 3]], slow: [[1, 1, 5, 1], [1, 3, 5, 1], [3, 4, 1, 3], [2, 5, 3, 1]], shield: [[1, 0, 5, 1], [1, 1, 1, 4], [5, 1, 1, 4], [2, 5, 3, 1], [3, 6, 1, 1]],
+  heal: [[3, 0, 1, 7], [0, 3, 7, 1]], flinch: [[3, 0, 1, 4], [3, 6, 1, 1]], launch: [[3, 0, 1, 7], [2, 1, 3, 1], [1, 2, 5, 1]], drain: [[1, 0, 5, 1], [2, 1, 3, 1], [3, 2, 1, 1], [3, 4, 1, 2], [2, 6, 3, 1]],
+};
+function drawStatus(R, f, ix, iy, X, Y, z) {
+  const k = f.stK; if (!k || f.stT <= 0) return; const g = ST_GLYPH[k], c = ST_COL[k]; if (!g) return;
+  if (f.stT < 20 && (f.stT >> 1) & 1) return;      // blink out
+  const ox = Math.round(X(ix)) - 3, oy = Math.round(Y(iy - 54)) - 12;
+  R.rect(ox - 1, oy - 1, 9, 9, 0, 0, 0, 0.55);
+  for (let i = 0; i < g.length; i++) { const q = g[i]; R.rect(ox + q[0], oy + q[1], q[2], q[3], c[0], c[1], c[2], 1); }
+}
+
 export function newView() { return { x: 0, y: -30, z: 1, shake: 0, flash: 0, fx: [], t: 0, debug: false }; }
 
 export function updateView(view, S) {
@@ -953,7 +998,7 @@ function drawFinalLimb(R, A, fx, f, m, X, Y, z, view) {
 export function drawScene(R, S, atlas, vis, view, alpha, debug) {
   const A = atlas.canvas, fx = atlas.fx, z = view.z;
   const sh = view.shake, shx = sh ? (((view.t * 7) % 5) - 2) * sh * 0.35 : 0, shy = sh ? (((view.t * 3) % 5) - 2) * sh * 0.35 : 0;
-  const cam = { x: view.x + shx, y: view.y + shy, zoom: z };
+  const cam = view._cam || (view._cam = { x: 0, y: 0, zoom: 1 }); cam.x = view.x + shx; cam.y = view.y + shy; cam.zoom = z;      // pooled camera
   const X = (wx) => (wx - cam.x) * z + 240, Y = (wy) => (wy - cam.y) * z + 135;
   R.setTint(1, 1, 1, 1); R.setAdd(0, 0, 0);
   if (vis) vis.drawBack(R, cam, view.t, S); if (vis) vis.drawStage(R, cam, S);
@@ -982,6 +1027,7 @@ export function drawScene(R, S, atlas, vis, view, alpha, debug) {
     if (f.state === 'attack' && f.move && f.move.dash && f.mf >= 6 && f.mf < 14) { R.setTint(1, 0.8, 1, 0.35); for (let k = 1; k <= 3; k++) R.img(A, fr[0], fr[1], 32, 48, X(ix - 16 - f.dashx * 12 * k), Y(iy - 46 - f.dashy * 12 * k), 32 * z, 48 * z, f.face < 0); R.setTint(1, 1, 1, 1); }
     R.img(A, fr[0], fr[1], 32, 48, X(ix - 16), Y(iy - 46), 32 * z, 48 * z, f.face < 0);
     R.setTint(1, 1, 1, 1); R.setAdd(0, 0, 0);
+    if (f.def.mon) { drawLook(R, f, ix, iy, X, Y, z, view.t); drawMoveFx(R, f, ix, iy, X, Y, z); drawStatus(R, f, ix, iy, X, Y, z); }
     if (f.fx > 0 && f.state === 'attack' && f.move && (f.fid === 'bounty' || f.fid === 'hauler')) { const c = Math.min(1, f.fx / (f.fid === 'bounty' ? 90 : 120)), D = (6 + 18 * c) * z; R.setTint(1, 1, 1, 0.9); R.img(A, fx.plasma.x, fx.plasma.y, 12, 12, X(ix + f.face * 14) - D / 2, Y(iy - 24) - D / 2, D, D); R.setTint(1, 1, 1, 1); }
     if (f.state === 'sleep' || (f.state === 'attack' && f.move && f.move.name === 'rest' && f.mf > 4)) { const zz = (view.t >> 3) % 3; for (let k = 0; k <= zz; k++) R.rect(X(ix + 6 + k * 4), Y(iy - 52 - k * 5), 3 * z, 1 * z, 0.8, 0.9, 1, 1); }
     if (f.move && f.move.hook && f.fz && f.state === 'attack') { const hx = ix + f.face * 8, hy = iy - 26; for (let k = 0; k <= 10; k++) { const u = k / 10; R.rect(X(hx + (f.fx - hx) * u), Y(hy + (f.fy - hy) * u), 2 * z, 2 * z, 0.85, 0.85, 0.95, 1); } }
@@ -996,7 +1042,7 @@ export function drawScene(R, S, atlas, vis, view, alpha, debug) {
   for (const p of S.projs) {
     if (p.kind === 'plasma') R.img(A, fx.plasma.x, fx.plasma.y, 12, 12, X(p.x - 6), Y(p.y - 6), 12 * z, 12 * z);
     else if (p.kind === 'egg') R.img(A, fx.egg.x, fx.egg.y, 12, 15, X(p.x - 6), Y(p.y - 7), 12 * z, 15 * z);
-    else if (p.kind === 'bolt') R.img(A, fx.bolt.x, fx.bolt.y, 12, 5, X(p.x - 6), Y(p.y - 2), 12 * z, 5 * z, p.vx < 0);
+    else if (p.kind === 'bolt') { if (p.col) R.setTint(p.col[0], p.col[1], p.col[2], 1); R.img(A, fx.bolt.x, fx.bolt.y, 12, 5, X(p.x - 6), Y(p.y - 2), 12 * z, 5 * z, p.vx < 0); if (p.col) R.setTint(1, 1, 1, 1); }
     else if (p.kind === 'charge') { const D = (p.r * 2.4) * z; R.img(A, fx.plasma.x, fx.plasma.y, 12, 12, X(p.x) - D / 2, Y(p.y) - D / 2, D, D); }
     else if (p.kind === 'bomb' || p.kind === 'mbomb') { const fl = p.fuse >= 0 && p.fuse < 14 && (p.age >> 1) & 1; if (fl) R.setAdd(0.8, 0.8, 0.8); R.img(A, fx.it_bomb.x, fx.it_bomb.y, 10, 10, X(p.x - 5), Y(p.y - 5), 10 * z, 10 * z); R.setAdd(0, 0, 0); }
     else if (p.kind === 'rang') R.img(A, fx.rang.x, fx.rang.y, 12, 12, X(p.x - 6), Y(p.y - 6), 12 * z, 12 * z, (p.age >> 1) & 1);
@@ -1092,4 +1138,4 @@ export function createGame(o) {
   };
   return g;
 }
-export { botInput };
+export { botInput, BOT_TIERS };

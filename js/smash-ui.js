@@ -59,6 +59,8 @@ const CSS = `
 .sm-rrow.w{border-color:#ffd84d;background:#3a2a10cc}
 .sm-rrow b{font-size:calc(var(--u)*11px)}
 .sm-rh{position:absolute;top:calc(var(--u)*46px);left:calc(var(--u)*50px);right:calc(var(--u)*50px);display:grid;grid-template-columns:calc(var(--u)*24px) 1fr repeat(4,calc(var(--u)*44px));font-size:calc(var(--u)*5px);color:#a890d8;padding:0 calc(var(--u)*6px)}
+.sm-rwd{position:absolute;top:calc(var(--u)*108px);left:calc(var(--u)*50px);right:calc(var(--u)*50px);display:flex;flex-wrap:wrap;justify-content:center;gap:calc(var(--u)*6px);font-size:calc(var(--u)*8px)}
+.sm-rwd span{background:#1a0b3acc;border:calc(var(--u)*1px) solid #4a2a80;padding:calc(var(--u)*3px) calc(var(--u)*7px);color:#efe6ff}.sm-rwd .coin{color:#ffd84d;border-color:#8a6a1a}.sm-rwd .xp{color:#8fe0a8}.sm-rwd .part{color:#7fd8ff}.sm-rwd .bond{color:#ff9ad0}.sm-rwd .line{flex-basis:100%;text-align:center;font-style:italic;border-color:transparent;background:none;color:#cbb8ff}
 .sm-rbtn{position:absolute;bottom:calc(var(--u)*14px);left:0;right:0;display:flex;justify-content:center;gap:calc(var(--u)*10px)}
 .sm-rbtn .sm-btn{position:static;transform:none}
 .sm-pause{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#05020a99;font-weight:900;font-size:calc(var(--u)*26px);letter-spacing:calc(var(--u)*4px);pointer-events:none}
@@ -173,6 +175,20 @@ export function createUI(root) {
   };
 
   // ---- results
+  // reward block on the result card: { coin, xp, part, bond, line, who } (smash-world.js header documents the payload). Only non-empty fields print.
+  let rwdEl = null;
+  ui.showReward = (r) => {
+    if (!res.classList.contains('on')) return;      // card not up yet: showResults reads ui.reward
+    if (!rwdEl || rwdEl.parentNode !== res) { rwdEl = el('div', 'sm-rwd'); res.appendChild(rwdEl); }
+    const esc = (v) => String(v).replace(/[&<>]/g, (c) => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'));
+    let h = ''; if (!r) { rwdEl.innerHTML = ''; return; }
+    if (r.coin) h += '<span class="coin">+' + (r.coin | 0) + ' gorCoin</span>';
+    if (r.xp) h += '<span class="xp">+' + (r.xp | 0) + ' XP</span>';
+    if (r.part) h += '<span class="part">+ ' + esc(r.part) + '</span>';
+    if (r.bond) h += '<span class="bond">BOND ' + (r.bond > 0 ? '+' : '') + (r.bond | 0) + '</span>';
+    if (r.line) h += '<span class="line">' + (r.who ? esc(r.who) + ': ' : '') + '&ldquo;' + esc(r.line) + '&rdquo;</span>';
+    rwdEl.innerHTML = h;
+  };
   function showResults(r, game) {
     const sim = game.sim; hud.classList.remove('on'); say('', 0); res.innerHTML = ''; res.classList.add('on');
     const w = r.winner >= 0 ? sim.fighters[r.winner] : null;
@@ -183,7 +199,7 @@ export function createUI(root) {
       const d = el('div', 'sm-rrow' + (k === 0 && w ? ' w' : ''), '<b style="color:' + PLAYER_COLORS[row.i] + '">' + (k + 1) + '</b><span>P' + (row.i + 1) + ' ' + (row.nm || FIGHTERS[row.fid].name) + (row.ctrl === 'cpu' ? ' (CPU)' : '') + '</span><span>' + row.stocks + '</span><span>' + sim.fighters.filter((f) => f.i !== row.i).reduce((a, f) => a + f.kos, 0) + '</span><span>' + row.dealt + '%</span><span>' + row.taken + '%</span>');
       rows.appendChild(d);
     });
-    res.appendChild(rows);
+    res.appendChild(rows); rwdEl = null; ui.showReward(ui.reward);
     const b = el('div', 'sm-rbtn'), a = el('button', 'sm-btn', 'REMATCH'), m = el('button', 'sm-btn alt', 'MENU');
     a.onclick = () => ui.onLaunch && ui.onLaunch(game.cfg); m.onclick = () => ui.showSelect(); b.append(a, m); res.appendChild(b);
   }
