@@ -1076,11 +1076,37 @@ async function g19(T, o) {         // Q29: villagers by day: >= 70 % outside, no
     return { pass: rows.length > 0 && rows.every(function (x) { return x.pass || x.night > 0.55; }), rows: rows, tries: tries };
 }
 
+async function g20(T, o) {         // Q45: station docking: gotoStation -> Z auto-dock -> lights -> F shop (stock has GOR BALL 1-3) -> buy -> Z undock
+    var ship = T.ship, out = { steps: [] }, st;
+    T.fly(); await T.pause();
+    out.steps.push('goto ' + ship.dbg.gotoStation()); T.step(5);
+    st = ship.dbg.stationState(); out.dist = +st.dist.toFixed(1); out.assist = st.dock;
+    T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+    for (var i = 0; i < 1500 && ship.gmode !== 'sfoot'; i++) T.step(1);
+    st = ship.dbg.stationState(); out.docked = st.gmode === 'sfoot' && st.sk === 'deck';
+    T.kd('KeyF'); T.ku('KeyF'); T.step(2); out.fEarly = ship.dbg.stationState().store;      // inside the light sequence: F must not open the shop
+    T.step(120); out.lightsDone = ship.dbg.stationState().lt === 0;
+    out.counter = ship.dbg.gotoCounter(); T.step(20);
+    T.kd('KeyF'); T.ku('KeyF'); T.step(3);
+    out.shopOpen = ship.dbg.stationState().store;
+    var rows = ship.dbg.shopRows(); out.stock = [1, 2, 3].map(function (t) { return rows.some(function (r) { return r.id === 'gorball-' + t; }); });
+    var pf = ship.dbg.profile && ship.dbg.profile(); if (pf) pf.gor = Math.max(pf.gor | 0, 1000);
+    out.bought = ship.dbg.shopBuy('gorball-1');
+    T.kd('KeyF'); T.ku('KeyF'); T.step(3);      // close the shop
+    out.shopClosed = !ship.dbg.stationState().store;
+    out.ship = ship.dbg.gotoShip(); T.step(20); out.near = ship.dbg.stationState().near;
+    T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+    for (i = 0; i < 1500 && ship.gmode !== 'fly'; i++) T.step(1);
+    out.undocked = ship.gmode === 'fly';
+    out.pass = !!(out.docked && !out.fEarly && out.lightsDone && out.counter && out.shopOpen && out.stock.every(Boolean) && out.bought && out.shopClosed && out.undocked);
+    return out;
+}
+
 export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
-    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19]];
+    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20]];
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         T.reset();
@@ -1092,5 +1118,5 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19 };
+export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20 };
 export { mk as makeHarness };

@@ -5019,7 +5019,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             footAct(ft);
         }
         else if (gmode === 'ifoot') { if (ixTarget().kind !== 'hatch') interiorF(); }
-        else if (gmode === 'sfoot') { if (stationInteract().kind !== 'ship') stationE(); }
+        else if (gmode === 'sfoot') { if (sk.lt > 0) return; if (stationInteract().kind !== 'ship') stationE(); }
     }
     function onKeyTalk() {         // T on foot: talk to the human in front of you (F challenges them); consistency: station NPCs use T too
         if (gmode === 'sfoot') { if (stationInteract().kind === 'npc') stationE(); return; }
@@ -8807,7 +8807,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // ─── station docking: scripted approach, deck on foot, scripted launch ────────────────────────────────────────────────────────
     // The ship and the human are stored STATION-LOCAL (L units) and ride STN().pos / quat every frame, like the planet frame.
     var SK_R = 0.022, SK_H = 0.09, SK_CAM = 0.54;   // station deck + ship interior stay at the old 0.09 human (ship-scale.js)
-    var sk = { mode: '', pad: 0, pts: [], cum: [], len: 0, t: 0, T: 6, q0: new THREE.Quaternion(), shipL: new THREE.Vector3(), hp: new THREE.Vector3(), yaw: 0, pitch: 0.3, vv: 0, air: false, moving: false, running: false, jumpHeld: false, nl: 0, cd: 0, fade: 0 };
+    var DOCK_LT = 1.2;
+    var sk = { mode: '', pad: 0, pts: [], cum: [], len: 0, t: 0, T: 6, q0: new THREE.Quaternion(), shipL: new THREE.Vector3(), hp: new THREE.Vector3(), yaw: 0, pitch: 0.3, vv: 0, air: false, moving: false, running: false, jumpHeld: false, nl: 0, cd: 0, fade: 0, lt: 0, ls: 0 };
     var skA = new THREE.Vector3(), skB = new THREE.Vector3(), skC = new THREE.Vector3(), skI = { kind: '', obj: null, label: '' };
     function skPathAt(s, out) {
         var c = sk.cum, p = sk.pts, n = p.length, i = 1;
@@ -8896,7 +8897,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         STN().toWorld(sk.shipL, skB); for (var i = 0; i < 3; i++) fx.impact(skB, 0x9ab0ff, 2);
         if (R27.dsite) { addRow('', '', 'DERELICT · loot crates glow in the far room (F) · something is awake in here', 'is-sys'); dkOnDock(R27.dsite.d); }
         else addRow('', '', sk.auto ? 'DOCKED · Z to step out · F at the counter, NPCs, shipyard, map pedestal' : 'DOCKED · F near the counter, NPCs, shipyard, map pedestal or your ship', 'is-sys');
-        sk.auto = false;
+        sk.auto = false; sk.lt = DOCK_LT; sk.ls = 0;      // Q45: landing-light sequence; F (shop) waits for it
         r28Dock();
     }
     function finishLaunch() {
@@ -9272,7 +9273,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         aPlay(c.rare ? 'levelUp' : 'harvest'); addRow('', '', 'SALVAGE · ' + got.join(', '), 'is-sys'); writeSave();
         for (i = 0; i < 3; i++) fx.impact(c.pos, c.rare ? 0xff5ce1 : 0xffb030, 2.5);
     }
-    function dkTick(dt) { try { if (space) space.update(dt, shipRoot.position); } catch (e0) { warnOnce('space.update', e0); } if (sk.mode === 'deck') r27Foot(dt); }
+    function ownedN(id) { var pf = curProfile(), n = 0; if (pf) pf.items.forEach(function (r) { if (r.id === id) n += r.n; }); return n; }
+    function dkLights(dt) {      // Q45: dock light sequence: a chase of impact flashes from the pad out to the mouth over DOCK_LT s
+        sk.lt -= dt; var p = clamp(1 - sk.lt / DOCK_LT, 0, 1), st = Math.floor(p * 6);
+        if (st > sk.ls && STN()) { sk.ls = st; STN().toWorld(sk.shipL, skB); vA.lerpVectors(skB, STN().mouth.pos, 1 - st / 6); fx.impact(vA, 0x9ab0ff, 1); }
+        if (sk.lt <= 0) { sk.lt = 0; addRow('', '', 'DOCK LIGHTS GREEN', 'is-sys'); }
+    }
+    function dkTick(dt) { try { if (space) space.update(dt, shipRoot.position); } catch (e0) { warnOnce('space.update', e0); } if (sk.mode === 'deck') { if (sk.lt > 0) dkLights(dt); r27Foot(dt); } }
     function dkCollide(p, r) {
         var st = R27.dsite, b = st.deck.bounds, w = st.deck.walls, i, q;
         p.x = clamp(p.x, b.min.x + r, b.max.x - r); p.z = clamp(p.z, b.min.z + r, b.max.z - r);
@@ -10602,7 +10609,20 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         get scale() { return { L: L, refR: refR, refR0: refR0, live: readRefR() }; },
         get ps() { return ps; },
         get lf() { return lf; },
-        dbg: { npcs: function () { return npcAudit().map(function (a) { return { id: a.id, kind: a.kind, pos: a.pos, reachable: a.reachable, distToPad: a.distToPad }; }); }, gotoNpc: npcGoto, talkNearest: function () { onKeyTalk(); return DLG.open; }, resetWorld: function () {       // Q39 harness hook: clear what one g-test leaves for the next (enemies, ground mobs, mob bolts, fight, held fire/freeze); re-seeds nothing
+        dbg: { gotoStation: function () {      // Q45: ship 40 L out in front of the dock mouth, nose at it, matching the station's drift
+            if (!station || !station.mouth || !station.group.visible || lf.on || gmode !== 'fly' || sk.mode) return false;
+            station.group.updateMatrixWorld(true);
+            vF.copy(station.mouth.dir).negate(); shipRoot.quaternion.setFromUnitVectors(NEG_Z, vF);
+            shipRoot.position.copy(station.mouth.pos).addScaledVector(station.mouth.dir, 40 * L);
+            vel.copy(station.vel || vel.set(0, 0, 0)); speed = 0; throttle = 0; sk.cd = 0; dockAssist = false; return true;
+        }, stationState: function () { return { gmode: gmode, sk: sk.mode, lt: sk.lt, store: storeOpen, near: stationInteract().kind, dock: dockAssist, dist: station && station.mouth ? shipRoot.position.distanceTo(station.mouth.pos) / L : -1 }; },
+        gotoCounter: function () {      // Q45: put the deck walker beside the 7/11 counter
+            var st0 = sk.mode === 'deck' && STN() && STN().interior.stores[0]; if (!st0) return false;
+            STN().toLocal(st0.counter.pos, skA); sk.hp.set(skA.x, 0, skA.z); return true;
+        }, gotoShip: function () { if (sk.mode !== 'deck') return false; sk.hp.set(sk.shipL.x + (sk.shipL.x > 0 ? -1.2 : 1.2), 0, sk.shipL.z + 0.3); return true; }, profile: function () { return curProfile(); },
+        shopRows: function () { return shopRows.map(function (r) { return { k: r.k, id: r.item ? r.item.id : '', name: r.name, price: r.price }; }); },
+        shopBuy: function (id) { for (var i = 0; i < shopRows.length; i++) if (shopRows[i].item && shopRows[i].item.id === id) { var n0 = ownedN(id); shopPick(i); return ownedN(id) > n0; } return false; },
+        npcs: function () { return npcAudit().map(function (a) { return { id: a.id, kind: a.kind, pos: a.pos, reachable: a.reachable, distToPad: a.distToPad }; }); }, gotoNpc: npcGoto, talkNearest: function () { onKeyTalk(); return DLG.open; }, resetWorld: function () {       // Q39 harness hook: clear what one g-test leaves for the next (enemies, ground mobs, mob bolts, fight, held fire/freeze); re-seeds nothing
             var i; try { if (FG.on) fightEnd(); } catch (e0) { warnOnce('reset.fight', e0); }
             clearFight(); styDrop();
             for (i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob) gndFree(R27.gnd[i]);
