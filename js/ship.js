@@ -10491,7 +10491,14 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         get scale() { return { L: L, refR: refR, refR0: refR0, live: readRefR() }; },
         get ps() { return ps; },
         get lf() { return lf; },
-        dbg: { setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: place the ship at an exact LOCAL position (and local attitude) inside the active frame
+        dbg: { resetWorld: function () {         // Q39 harness hook: clear what one g-test leaves for the next (enemies, ground mobs, mob bolts, fight, held fire/freeze); re-seeds nothing
+            var i; try { if (FG.on) fightEnd(); } catch (e0) { warnOnce('reset.fight', e0); }
+            clearFight();
+            for (i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob) gndFree(R27.gnd[i]);
+            MB.bolts.length = 0; MB.hitQ.length = 0; MB.evQ.length = 0; MB.freeze = false; MB.nightForce = -1;
+            firing = false; mdx = mdy = 0; cmdOpen = false; FG.ask = null; return true;
+        },
+setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: place the ship at an exact LOCAL position (and local attitude) inside the active frame
             if (!lf.on) return false;
             lf.lp.set(lx, ly, lz); lf.lv.set(0, 0, 0); lf.endV.set(0, 0, 0); vel.set(0, 0, 0);
             if (qw !== undefined) lf.lq.set(qx, qy, qz, qw);

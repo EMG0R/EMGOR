@@ -112,6 +112,7 @@ function mk(engine, ship, opts) {
             return cam.position.distanceTo(node.anchor.position) - fo.r;
         },
         clearKeys: function () { ship.dbg.setKeys(Object.create(null)); },
+        reset: function () { T.clearKeys(); try { if (ship.dbg.resetWorld) ship.dbg.resetWorld(); } catch (e) { /* older ship.js */ } },      // Q39: state g10/g13 leave behind (enemies, mobs, fight, held fire) must not leak into g14/g15
         aim: function (node) {
             var m = new THREE.Matrix4();
             ship.dbg.syncPlanet(node);
@@ -1056,9 +1057,10 @@ export async function runAll(engine, ship, opts) {
     var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g19', g19]];
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
+        T.reset();
         try { out[list[i][0]] = await list[i][1](T, opts); }
         catch (e) { out[list[i][0]] = { pass: false, error: String(e && e.stack || e) }; }
-        T.clearKeys();
+        T.reset();
     }
     out.allPass = Object.keys(out).every(function (k) { return out[k].pass; });
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
