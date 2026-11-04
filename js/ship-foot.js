@@ -8,7 +8,7 @@ export function createFoot(ctx) {
     var S = ctx, THREE = ctx.THREE;
     var FOOT_SLIDE_A = ctx.FOOT_SLIDE_A, FOOT_SLIDE_K = ctx.FOOT_SLIDE_K, G_WALK = ctx.G_WALK, JET_HOLD = ctx.JET_HOLD, JET_UP = ctx.JET_UP, MOUSE_SENS = ctx.MOUSE_SENS;
     var R27 = ctx.R27, X = ctx.X, aPlay = ctx.aPlay, clamp = ctx.clamp, damp = ctx.damp, fl = ctx.fl, flHud = ctx.flHud, footFloor = ctx.footFloor, footWind = ctx.footWind;
-    var fsC = ctx.fsC, fsC2 = ctx.fsC2, fsT = ctx.fsT, fx = ctx.fx, gA = ctx.gA, gB = ctx.gB, gC = ctx.gC, gD = ctx.gD, gE = ctx.gE, gQ = ctx.gQ, gQi = ctx.gQi;
+    var fsC = ctx.fsC, fsC2 = ctx.fsC2, fsT = ctx.fsT, gA = ctx.gA, gB = ctx.gB, gC = ctx.gC, gD = ctx.gD, gE = ctx.gE, gQ = ctx.gQ, gQi = ctx.gQi;
     var groundCam = ctx.groundCam, hum = ctx.hum, jetFx = ctx.jetFx, mFloor = ctx.mFloor, mM = ctx.mM, objBegin = ctx.objBegin, objPush = ctx.objPush;
     var styEggTick = ctx.styEggTick, styU = ctx.styU, styUpW = ctx.styUpW, styWallO = ctx.styWallO, styleFx = ctx.styleFx, styleStep = ctx.styleStep, styleSync = ctx.styleSync, vTmp = ctx.vTmp;
     var G_RUN = 44, G_GRAV = 16, G_GRAV_UP = 7.93, G_JUMP = 4.36, FOOT_CAM = 6;   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
@@ -213,7 +213,7 @@ export function createFoot(ctx) {
         if (hum.sAnim) { var ua = Object.assign(styU, hum.sAnim); ua.facing = 0; ua.jet = S.jetLvl; ua.scan = S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0; o.update(dt, ua); }
         else o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, facing: 0, jet: S.jetLvl, scan: S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0 });
         jetFx(dt, jet, H, qM, c, dir, supNow, hr);
-        if (landImp > 0.35) fx.impact(hum.w, 0xc8b89a, 0.6 + landImp);
+        if (landImp > 0.35) S.fx.impact(hum.w, 0xc8b89a, 0.6 + landImp);
         // camera: 6 human heights back, pitched, never under the floor; it follows the SMOOTHED position (hum.w), not the raw step
         gA.copy(hum.hf).negate().multiplyScalar(Math.cos(hum.pitch)).addScaledVector(up, Math.sin(hum.pitch)).applyQuaternion(qM);   // world offset dir
         camDip *= Math.exp(-9 * dt); if (camDip < 1e-6) camDip = 0;

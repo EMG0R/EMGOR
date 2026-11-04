@@ -468,3 +468,21 @@ NEXT 5 TO QUEUE:
 3. Graft visibility: pet generator consumes bodyRecipe sig parts; elder GRAFT counter; resource-node part drops.
 4. ship.js split step 2: footFloor/mFloor/objBegin/objPush collision into ship-foot.js, then hubFootStep and the style bridge.
 5. Trader `E · TRADE` rebind decision + pointer-lock audit for talk/trade/fight (Q29 b), plus slope/water checks wired into g19.
+
+## Q32 Static-review fixes — 2026-11-04 — (this commit)
+DONE (all 12 read first, then changed; ship.js unless noted):
+1. petFollowTick: bag check skipped when `PKP.monById(pf, f.key)` exists (full-bag catch no longer stows every 1 s).
+2. GOR BALL: new `GB.lo/ld/lu` planet-local origin/aim/up; `gbLocalize()` at throw and at hit, `gbProject()` every gbTick before fly/shake (world frame recomputed after syncPlanet).
+3. TAKE BACK + tame: `bagRoom` checked first, BAG FULL row, nothing consumed/deleted (tame spends the treat only after room is confirmed; a last-treat stack counts as room). questComplete: returns early with BAG FULL if any reward item has no room, quest stays open.
+4. ship-foot.js: dropped captured `fx`, landing dust uses `S.fx`; ctx gets `get fx()`.
+5. gbCatch: trimMons now runs after the mon is in party/pen (before, a full roster could evict the fresh catch).
+6. onKeyZ fly: `landOk` but speed ≥ 2 → "SLOW DOWN to land"; ehExit only when not landable.
+7. FG.caught removed (dead). Ring-wild catch is still unwired (ft.wild never set); comment marks that gbCatch's mon creation is the path when wired.
+8. pokemans-party.js awardXp: `!(amount > 0)`.
+9. petRideTick hides for docking/launching/ifoot/sfoot (was nonexistent 'dock').
+10. cvsEnsure floor catch → `warnOnce('cvs.floor')`.
+11. ship-planet.js: `rockAtNoSync` internal; `rockUnderCrosshair` syncs once per pick; public `rockAt` unchanged.
+12. pokemans inventory item no longer carries `mon` (nothing read it).
+TESTS: node --check ok on ship, ship-foot, ship-planet, pokemans-party; `bash tools/test-node.sh`: 242 pass / 0 fail / 15 skipped. New tests in pokemans-party2.test.mjs for (5) and (8). Browser tests not run.
+VERIFY ON MAC: g-tests batch incl. g14/g16/g17 (pets, rocks); throw GOR BALL while standing on a fast-rotating planet: ball stays on the arc and shake stays on the creature; catch with a full bag (400 stacks): follower stays out, no flicker; TAKE BACK / tame / quest reward with full bag keep the item/pet/quest; land-from-flight at speed 2+ shows SLOW DOWN; landing dust visible after a scale refresh (enter piloting twice); rock pick (V/crosshair) still works.
+OPEN: ring-wild capture entry (item 7) still unwired; quest left open on BAG FULL re-triggers only on the next quest event.

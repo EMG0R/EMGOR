@@ -48,3 +48,16 @@ test('trimMons drops unused mons first and never leaves a dangling party/pen id'
   trimMons(all, 2);
   assert.deepEqual(all.party, ['m1']); assert.deepEqual(all.pen, ['m2']); assert.equal(all.pokemans.length, 2);
 });
+
+test('Q32: trimMons run after the new mon is in party/pen evicts the oldest unused record, never the catch', async () => {
+  const { trimMons } = await import('../../js/pokemans-party.js');
+  const pf = { pokemans: Array.from({ length: 200 }, (_, i) => ({ id: 'm' + i })), party: ['m0'], pen: ['m1', 'm2'] };
+  pf.pokemans.push({ id: 'new' }); pf.pen.push('new');
+  trimMons(pf, 200);
+  assert.equal(pf.pokemans.length, 200); assert.ok(pf.pokemans.some((m) => m.id === 'new')); assert.ok(pf.pen.includes('new')); assert.ok(!pf.pokemans.some((m) => m.id === 'm3'));
+});
+
+test('Q32: awardXp ignores NaN / undefined / non-positive amounts', async () => {
+  const { awardXp } = await import('../../js/pokemans-party.js');
+  for (const bad of [NaN, undefined, -5, 0, 'x']) { const m = { dead: false, xp: 10, level: 1, hp: 5, sp: {}, ind: {} }; assert.equal(awardXp(m, bad), 0); assert.equal(m.xp, 10); }
+});

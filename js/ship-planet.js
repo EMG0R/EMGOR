@@ -2806,18 +2806,23 @@ export function createPlanetSurface(engine, L) {
     ps.rockCount = function () { return alloc && node ? alloc.rocks.count : 0; };
     ps.rockId = function (i) { return alloc && i >= 0 && i < alloc.rocks.count ? rockIds[i] : -1; };
     // out: Vector3 receiving the world centre; returns the bounding radius (world units), or -1 for a bad slot
-    ps.rockAt = function (i, out) {
+    function rockAtNoSync(i, out) {
         if (!alloc || !node || i < 0 || i >= alloc.rocks.count) return -1;
-        rideKey[0] = NaN; syncRide();
         var m = alloc.rocks.instanceMatrix.array, o = i * 16;
         out.set(m[o + 12], m[o + 13], m[o + 14]).applyMatrix4(alloc.ride.matrix);
         return Math.max(Math.hypot(m[o], m[o + 1], m[o + 2]), Math.hypot(m[o + 4], m[o + 5], m[o + 6]), Math.hypot(m[o + 8], m[o + 9], m[o + 10]));
+    }
+    ps.rockAt = function (i, out) {
+        if (!alloc || !node || i < 0 || i >= alloc.rocks.count) return -1;
+        rideKey[0] = NaN; syncRide();
+        return rockAtNoSync(i, out);
     };
     // origin/dir: Vector3-likes in world space (dir normalised); maxT in world units (default 12 L). Returns slot index or -1.
     ps.rockUnderCrosshair = function (origin, dir, maxT) {
         if (!pickSphere || !alloc || !node || !alloc.rocks.count) return -1;
         var lim = maxT || 12 * L;
-        return pickSphere(alloc.rocks.count, function (i, s) { s[3] = ps.rockAt(i, _rkP); s[0] = _rkP.x; s[1] = _rkP.y; s[2] = _rkP.z; }, origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, lim, _rkSph);
+        rideKey[0] = NaN; syncRide();      // once per pick, not once per rock
+        return pickSphere(alloc.rocks.count, function (i, s) { s[3] = rockAtNoSync(i, _rkP); s[0] = _rkP.x; s[1] = _rkP.y; s[2] = _rkP.z; }, origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, lim, _rkSph);
     };
 
     ps.info = function () { return { amp: amp, look: look, rocks: alloc ? alloc.rocks.count : 0, flora: alloc ? alloc.flora.count : 0, creatures: alloc ? alloc.creat.count : 0, grid: gridN, active: node ? node.id : null }; };

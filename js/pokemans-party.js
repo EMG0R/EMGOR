@@ -48,7 +48,7 @@ export function chooseMove(mon, foe, chart, cds, u) {
   return best;
 }
 export function awardXp(mon, amount) {
-  if (mon.dead || amount <= 0) return 0;
+  if (mon.dead || !(amount > 0)) return 0;      // NaN/undefined would poison mon.xp
   const before = mon.level, mh0 = maxHp(mon);
   mon.xp = (mon.xp | 0) + Math.round(amount); mon.level = Math.min(MAX_LEVEL, xpToLevel(mon.xp));
   if (mon.level > before) { const mh1 = maxHp(mon); mon.hp = Math.min(mh1, mon.hp + (mh1 - mh0)); }
