@@ -449,6 +449,15 @@ export function normRig(rc, id) {
   const hitbox = { r: +(0.2 * Math.max(ts[0], ts[2], 0.8 * hs[0], 0.9 * (tl ? 1 + 0.1 * tl.len : 1))).toFixed(3), h: +top.toFixed(3) };
   return { headShape, hs, neck, torso, ts, arm, leg, limbShape, feet, tail: tl, quills, cap: !!rc.cap, crest: !!rc.crest, eyeStyle, palette: rc.palette && typeof rc.palette === 'object' ? { theme: rc.palette.theme != null ? rc.palette.theme : null } : null, gait, extras, hipOff, headDrop, top, hitbox };
 }
+// rigParts(normRigOut) -> flat list of part tokens ('torso:stout', 'feet:big', 'tail', ...) that ship-human setRig builds from a normalised rig. Pure; used to compare recipes.
+export function rigParts(r) {
+  const p = ['head:' + r.headShape, 'headScale:' + r.hs.join('x'), 'neck:' + (r.neck ? 1 : 0), 'torso:' + r.torso, 'torsoScale:' + r.ts.join('x'), 'arm:' + r.arm, 'leg:' + r.leg, 'limb:' + r.limbShape, 'feet:' + r.feet, 'eyes:' + r.eyeStyle];
+  if (r.tail) p.push('tail:' + r.tail.len + '/' + r.tail.spikes);
+  if (r.quills) p.push('quills:' + r.quills);
+  if (r.cap) p.push('cap'); if (r.crest) p.push('crest');
+  for (let i = 0; i < r.extras.length; i++) p.push('x:' + r.extras[i]);
+  return p;
+}
 // ── registry + skins ─────────────────────────────────────────────────────────────────────────────
 const SKINS = {
   MARO:  { color: 0xB86CFF, suit: { jetpack: 0, scanner: 0, sprint: 1, storage: 0 }, role: 'miner', rig: { headShape: 'round', headScale: 1.05, torso: 'stout', limbLen: { arm: 0.75, leg: 0.9 }, limbShape: 'cyl', feet: 'big', cap: 'brim', eyeStyle: 'dots' } },                       // stout runner, round cap, violet + orange
@@ -461,7 +470,7 @@ const SKINS = {
 // Ground-only states here: idle walk run skid crouch crawl jump1 jump2 jump3 longjump backflip sideflip. Wall/dive/pound/ledge/slide/bonk/punch arrive in Q09.
 export const MARO_K = {
   G: 22.5, V1: 7.9, V2: 9.75, V3: 12.9, CHAIN: 0.17, ACC: 6.2, MAX: 6.0, SKID: 11, SKID_MIN: 3.0, SKID_COS: 0, DECEL: 9,   // SKID_COS: skid when cos(turn) < 0 (> 90 deg)
-  LJ_F: 9.0, LJ_Y: 11.3, LJ_MUL: 1.5, LJ_MIN: 1.5, BF_Y: 11.6, SF_Y: 11.6, SF_F: 1.5, CRAWL: 1.9, RUN_T: 4.0, TRIPLE_MIN: 3.75, CHAIN_MIN: 0.19, TERM: 14.06, SKID_MAXT: 0.6,
+  LJ_F: 19.2, LJ_Y: 5.6, LJ_MUL: 3.2, LJ_MIN: 1.5, BF_Y: 11.6, SF_Y: 11.6, SF_F: 1.5, CRAWL: 1.9, RUN_T: 4.0, TRIPLE_MIN: 3.75, CHAIN_MIN: 0.19, TERM: 14.06, SKID_MAXT: 0.6,
   // Q09 part 2 (all [guess] where the spec gives no number): wall kick / dive / belly slide / ground pound / ledge / steep slide / bonk / punch chain
   WK_WIN: 0.17, WK_Y: 9.75, WK_OUT: 4.5, DIVE_F: 9, BELLY_FR: 0.55, BELLY_END: 1.0, HOP_Y: 6.0, POUND_HANG: 0.33, POUND_G: 56, POUND_TERM: 40, POUND_R: 3, POUND_DMG: 12, POUND_REC: 0.3,
   LEDGE_REACH: 0.19, LEDGE_VMAX: 7.5, HANDS: 0.95, LEDGE_UP: 7.5, LEDGE_FWD: 1.5, LEDGE_CD: 0.4, STEEP: 0.62, SLIDE_MAX: 14, BONK_V: 3, BONK_T: 0.5, BONK_BACK: 2,
@@ -605,7 +614,7 @@ export function createStyle(id, env) {
   const S = STYLES[String(id || '').toUpperCase()]; if (!S) return null;
   const e = Object.assign({ walk: 22, grav: 22, jump: 8.5 }, env || {});
   const m = S.make(e), api = { id: S.id, name: S.name, portraitHint: S.portraitHint, skin: skinFor(S.id), abilities: S.abilities.slice(), hitbox: m.hitbox || Object.assign({}, S.hitbox), reset: m.reset, step: m.step, state: m.state };
-  if (S.id === 'STEEV' || S.id === 'SONIK') {      // consistency: the capsule is the visible body (normRig recipe), not a hand-typed number; SONIK keeps its rolling squash
+  if (S.id === 'STEEV' || S.id === 'SONIK' || S.id === 'MARO' || S.id === 'JOSHI') {      // consistency: the capsule is the visible body (normRig recipe), not a hand-typed number; SONIK keeps its rolling squash
     const rh = api.skin.hitbox; if (rh && rh.r > 0 && rh.h > 0) { api.hitbox.r = rh.r; if (S.id === 'SONIK') api.hitbox.hStand = rh.h; else api.hitbox.h = rh.h; }
   }
   for (const k of ['swallow', 'previewArc', 'setTool']) if (m[k]) api[k] = m[k];
