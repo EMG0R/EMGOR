@@ -575,23 +575,39 @@ var COL_FRAG = [
 // 2026-10-14: the ACTIVE planet's globe, displaced. ship-planet swaps the orbital sphere of the active body to a 192x128 sphere with this vertex
 // shader (fragment = the globe's own PLANET_FRAG, uniforms shared by reference), so from 3 R down the silhouette + terrain shading follow the same
 // height function as the patch (hfun + pad flattening, x uRel). Under the patch (uFade) the relief is flattened so the globe never pokes through it.
-var GLOBE_VERT = [
+// 2026-11-04 (Q-engine): the rim weight is now 1.0 -> 1.15 (was 0.92 -> 1.08). The patch taper reaches 0 at its rim (s = 1, u = 1 where u = s*(0.04 + 0.96|s|^3) is
+// the gnomonic rim measure this shader sees), so the old ramp left the globe at 0.5 of full relief on the patch edge (a wall up to ~0.07 R) and above the patch
+// for u in 0.92..1. Now globe weight is 0 wherever the patch has any height, and both are 0 at u = 1: heights match within 0.2 % R (tests/node/engine-seam.test.mjs).
+export var GLOBE_RIM_A = 1.0, GLOBE_RIM_B = 1.15;
+// low-octave blend (hiRel 0 -> 1): the far orbital sphere (galaxy3d PLANET_VERT_REL, ORBIT_RELIEF_GLSL, published as globalThis.EMGOR_ORBIT_RELIEF_GLSL)
+// already carries a 2-octave relief out to 8 R; at activation (3 R) the globe starts from that SAME function and eases into the full 4-octave one
+// (mix(lo, full, uRel)), so nothing pops. Relief is applied exactly once: lo*(1-uRel) + full*uRel, never summed. If the global is missing, lo = 0 (old behaviour).
+function globeVert(lo) {
+    return [
     'uniform vec3 uC; uniform vec3 uT1; uniform vec3 uT2; uniform float uTan; uniform float uFade; uniform float uRel;',
     'uniform vec3 uPadD[6]; uniform vec3 uPadP[6];',
     'varying vec3 vObjPos; varying vec3 vWorldNormal; varying vec3 vViewDir;',
     NOISE_GLSL,
     HEIGHT_GLSL,
-    'float hG(vec3 d, float w) {',
-    '    float h = hfun(d);',
+    lo || '',
+    'float padH(vec3 d, float h) {',
     '    for (int i = 0; i < 6; i++) {',
     '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
     '    }',
-    '    return max(0.0, h - uBias) * uRel * w;',
+    '    return h;',
+    '}',
+    'float hG(vec3 d, float w) {',
+    '    float full = max(0.0, padH(d, hfun(d)) - uBias) * w;',
+    lo ? [
+    '    if (uRel >= 1.0) return full;',
+    '    float hl = padH(d, hfunLo(d, uSeed, uFreq, uWarp, uSeaLevel, uSeaH, uAmp, uBias));',
+    '    return mix(max(0.0, hl - uBias) * w, full, uRel);'
+    ].join('\n') : '    return full * uRel;',
     '}',
     'void main() {',
     '    vec3 d = normalize(position);',
     '    float w = 1.0, dc = dot(d, uC);',
-    '    if (uFade > 0.0 && dc > 0.05) { vec3 v = d / dc - uC; float rim = max(abs(dot(v, uT1)), abs(dot(v, uT2))) / max(uTan, 1e-4); w = mix(1.0, smoothstep(0.92, 1.08, rim), uFade); }',
+    '    if (uFade > 0.0 && dc > 0.05) { vec3 v = d / dc - uC; float rim = max(abs(dot(v, uT1)), abs(dot(v, uT2))) / max(uTan, 1e-4); w = mix(1.0, smoothstep(' + GLOBE_RIM_A.toFixed(2) + ', ' + GLOBE_RIM_B.toFixed(2) + ', rim), uFade); }',
     '    float h = hG(d, w);',
     '    vec3 ref = abs(d.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
     '    vec3 e1 = normalize(cross(d, ref)); vec3 e2 = cross(d, e1);',
@@ -604,7 +620,11 @@ var GLOBE_VERT = [
     '    vViewDir = cameraPosition - wp.xyz;',
     '    gl_Position = projectionMatrix * viewMatrix * wp;',
     '}'
-].join('\n');
+    ].join('\n');
+}
+var _gvKey = null, _gvSrc = null;
+function globeVertFor(lo) { if (_gvSrc === null || _gvKey !== lo) { _gvKey = lo; _gvSrc = globeVert(lo); } return _gvSrc; }
+
 
 // rev 20: gas-giant spores. Soft glowing spheres, instance matrix = (centre, uniform scale), bob + drift in the vertex shader.
 var SPORE_VERT = [
@@ -913,6 +933,27 @@ export function sampleHeight(dx, dy, dz, seed, freq, warp, sea, amp, bias, seaH)
     return bias + amp * (0.10 * land + rel * (2.2 + 1.6 * rid * smoothstep(0.02, 0.14, rel)));
 }
 var _lastN = 0;
+// 2-octave mirror of hfunLo (galaxy3d ORBIT_RELIEF_GLSL): fbmLo = 0.625 v0 + 0.3125 v1 (mean-matched to the 4-octave fbm, 0.469), no fine 3.7x term. Same ridge octave.
+function fbmLo(x, y, z) {
+    var v = 0.625 * vnoise(x, y, z);
+    return v + 0.3125 * vnoise(f32(x * C_207 + f32(11.3)), f32(y * C_207 + f32(7.9)), f32(z * C_207 + f32(5.1)));
+}
+export function sampleHeightLo(dx, dy, dz, seed, freq, warp, sea, amp, bias, seaH) {
+    var fq = f32(freq), px = f32(dx * fq + seed.x), py = f32(dy * fq + seed.y), pz = f32(dz * fq + seed.z);
+    var qx = fbmLo(px + 0.0, py + 3.1, pz + 1.7), qy = fbmLo(px + 5.2, py + 1.3, pz + 2.8), qz = fbmLo(px + 1.7, py + 9.2, pz + 4.6);
+    var n = fbmLo(px + (qx - 0.5) * warp, py + (qy - 0.5) * warp, pz + (qz - 0.5) * warp);
+    var land = smoothstep(sea - 0.035, sea + 0.035, n), rel = Math.max(n - seaH, 0);
+    var k = f32(f32(freq) * f32(5.3));
+    var rid = 1 - Math.abs(2 * vnoise(f32(dx * k + f32(f32(seed.x * f32(1.7)) + f32(2.3))), f32(dy * k + f32(f32(seed.y * f32(1.7)) + f32(2.3))), f32(dz * k + f32(f32(seed.z * f32(1.7)) + f32(2.3)))) - 1);
+    return bias + amp * 0.78 * (0.10 * land + rel * (2.2 + 1.6 * rid * smoothstep(0.02, 0.14, rel)));      // 0.78: mean-matches the 4-octave relief (the 2-octave one measures 1.29x)
+}
+// seam mirrors: globe rim weight (GLOBE_VERT, uFade = 1) and patch taper (PATCH_VERT) as functions of the gnomonic rim u the globe shader measures
+export function globeRimW(u, fade) { return 1 + (smoothstep(GLOBE_RIM_A, GLOBE_RIM_B, u) - 1) * fade; }
+export function patchTaperU(u) {       // patch: u = s*(0.04 + 0.96|s|^3), taper = 1 - smoothstep(0.8, 1, s); invert u -> s by bisection
+    var lo = 0, hi = 1; if (u >= 1) return 0;
+    for (var i = 0; i < 40; i++) { var m = (lo + hi) / 2; if (m * (0.04 + 0.96 * m * m * m) < u) lo = m; else hi = m; }
+    return 1 - smoothstep(0.8, 1, (lo + hi) / 2);
+}
 export var _js = { nhash: nhash, vnoise: vnoise, fbm: fbm, terraN: terraN };
 
 // ─── geometry helpers (non-indexed, flat normals) ───────────────────────────────
@@ -1190,6 +1231,7 @@ export function createPlanetSurface(engine, L) {
             if (alloc) { var old = alloc.patch.geometry; alloc.patch.geometry = makePatchGeo(gridN); old.dispose(); }
         }
         floraSet = false; creatSet = false; rockSet = false;       // re-seed against the new caps on the next update
+        if (hiOn && globeSegs(t) !== hiGeoN) { var gn = hiOn; globeHi(null, false); globeHi(gn, true); }      // globe resolution follows the tier (once, here)
     };
 
     function build() {
@@ -1679,6 +1721,8 @@ export function createPlanetSurface(engine, L) {
     // ─── 2026-10-14: the active planet's globe at full detail (GLOBE_VERT, 192x128 / 128x88 at quality < 2). Uniforms are shared BY REFERENCE with the
     // globe's own material and the patch, so solveSea / setNodeUniforms / the per-frame patch state reach it with zero per-frame work.
     var hiGeo = null, hiGeoN = 0, hiOn = null, hiOld = null, hiMat = null, hiEps = { value: 0.012 }, hiRel = { value: 0 };      // hiRel: globe relief eases in 3.0 R -> 2.6 R (no pop at activation)
+    // perf tiers (ship-perf): 3 = 192x128 (48,768 tris), 2 = 128x85 (21,504), 1 = 96x64 (12,096), 0 = off. Rebuilt only on a tier change (setQuality), never per frame.
+    function globeSegs(t) { return t >= 3 ? 192 : t === 2 ? 128 : t === 1 ? 96 : 0; }
     function globeHi(n, on) {
         if (on && hiOn === n) return;
         if (hiOn) {
@@ -1687,11 +1731,11 @@ export function createPlanetSurface(engine, L) {
             if (hiMat) hiMat.dispose(); hiMat = null; hiOld = null; hiOn = null;
         }
         if (!on || !n || !n.mesh || !alloc || isGas) return;
-        var want = qTier >= 2 ? 192 : 128;
+        var want = globeSegs(qTier); if (!want) return;      // tier 0: no hi-res globe (the orbital sphere keeps its low-octave relief from galaxy3d)
         if (!hiGeo || hiGeoN !== want) { if (hiGeo) hiGeo.dispose(); hiGeo = new THREE.SphereGeometry(1, want, Math.round(want * 2 / 3)); hiGeoN = want; }
         var base = n.mesh.material, pu = alloc.patchU;
         var U = Object.assign({}, base.uniforms, { uAmp: pu.uAmp, uBias: pu.uBias, uEps: hiEps, uSeaH: pu.uSeaH, uC: pu.uC, uT1: pu.uT1, uT2: pu.uT2, uTan: pu.uTan, uFade: pu.uFade, uRel: hiRel, uPadD: pu.uPadD, uPadP: pu.uPadP });
-        try { hiMat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: GLOBE_VERT, fragmentShader: base.fragmentShader, toneMapped: false }); }
+        try { hiMat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: globeVertFor(typeof globalThis !== 'undefined' && typeof globalThis.EMGOR_ORBIT_RELIEF_GLSL === 'string' ? globalThis.EMGOR_ORBIT_RELIEF_GLSL : ''), fragmentShader: base.fragmentShader, toneMapped: false }); }
         catch (e) { hiMat = null; return; }
         hiOld = { mat: base, geo: n.mesh.geometry }; hiOn = n;
         n.mesh.material = hiMat; n.mesh.geometry = hiGeo;
