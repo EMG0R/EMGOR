@@ -7465,8 +7465,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function villageTarget() {
         if (!VG.v || HB.in) return null;
-        var v = VG.v.nearVillager(hum.pos, 3 * hOf(L)); if (!v) return null;
-        ftI.kind = 'villager'; ftI.obj = v; ftI.label = fightLabel(v.id, 'T · TALK'); if (v.trainer) ftI.label = ftI.label.replace('FIGHT', 'TRAINER'); return ftI;
+        var v = VG.v.nearVillager(hum.pos, 3 * hOf(L), hum.hf); if (!v) return null;      // Q29: within 3 H and 60 deg of the camera, no aim precision
+        ftI.kind = 'villager'; ftI.obj = v; ftI.label = fightLabel(v.id, v.role === 'trader' ? 'T · TALK / TRADE' : 'T · TALK'); if (v.trainer) ftI.label = ftI.label.replace('FIGHT', 'BATTLE');
+        ftI.label = String(v.name).toUpperCase() + ' · ' + String(v.role).toUpperCase() + '   ' + ftI.label; return ftI;
     }
     function villageTalk(v) { knownFor(); if (!r28Talk({ id: v.id, name: v.name, role: v.role, kind: 'village', obj: v, seed: v.seed })) return; }
     function villageTrade(v) {

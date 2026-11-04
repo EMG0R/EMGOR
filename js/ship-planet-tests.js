@@ -1028,11 +1028,30 @@ async function g17(T, o) {
     return res || { pass: false, error: 'no village planet', tries: tries };
 }
 
+async function g19(T, o) {         // Q29: villagers by day: >= 70 % outside, none clipped into a collider, each reachable by a straight walk from the well
+    var ship = T.ship, tries = [], rows = [], nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    for (var ni = 0; ni < nodes.length && ni < 6 && rows.length < 3; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) { tries.push(node.id + ': no land dir'); continue; }
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+        if (ship.gmode !== 'foot') { tries.push(node.id + ': not on foot'); continue; }
+        T.step(120); if (!ship.village.make()) { tries.push(node.id + ': no village'); T.fly(); continue; }
+        ship.village.goto(0, 11); T.step(200);
+        var v = ship.village.v; if (!v || !v.placement) { tries.push(node.id + ': no placement'); T.fly(); continue; }
+        var r = v.placement({ maxRadius: 40 * 1.75 });
+        rows.push({ planet: node.id.split('.').pop(), n: r.n, outsideFrac: +r.outsideFrac.toFixed(2), inside: r.inside.length, unreachable: r.unreachable.length, badSpawn: r.badSpawn.length, night: +v.night.toFixed(2), pass: r.pass });
+        T.fly();
+    }
+    return { pass: rows.length > 0 && rows.every(function (x) { return x.pass || x.night > 0.55; }), rows: rows, tries: tries };
+}
+
 export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
-    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17]];
+    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g19', g19]];
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         try { out[list[i][0]] = await list[i][1](T, opts); }
@@ -1043,5 +1062,5 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17 };
+export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g19: g19 };
 export { mk as makeHarness };

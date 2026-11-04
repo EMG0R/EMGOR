@@ -30,6 +30,7 @@ import { compose, makeMaterials, mergeLit, mulberry as pmul } from './ship-parts
 import { storeMenu, resourceItem, RESOURCE_BASE } from './ship-items.js';
 import * as lingo from './ship-lingo.js';
 import { isTrainer } from './pokemans-gen.js';
+import { inCone, placementReport } from './ship-npc-access.js';
 
 function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -407,7 +408,7 @@ export function createVillage(engine, u, opts) {
     const from = pts.length ? pts[pts.length - 1] : [v.x, v.z];
     if (tg.home) { const r = route(from[0], from[1], h.door.front[0], h.door.front[1]); pts = pts.concat(pts.length ? r.slice(1) : r); pts.push([h.door.c[0], h.door.c[1]], [h.cx, h.cz]); }
     else { const s = v.stops[tg.stop], r = route(from[0], from[1], s.x, s.z); pts = pts.concat(pts.length ? r.slice(1) : r); }
-    v.path = pts; v.pi = 1;
+    v.path = pts; v.pi = 1; v.thru = !!(tg.home || (pts.length && pts[0][0] === h.cx && pts[0][1] === h.cz));      // thru: doorway legs skip the wall push-out
   }
 
   // ── humans (lazy: only inside VILLAGE_ACT_L of the player) ──
@@ -475,11 +476,16 @@ export function createVillage(engine, u, opts) {
     for (let i = 0; i < walls.length; i++) { const b = walls[i]; if (vLocal.x > b.min.x - r && vLocal.x < b.max.x + r && vLocal.y > b.min.y - r && vLocal.y < b.max.y + r && vLocal.z > b.min.z - r && vLocal.z < b.max.z + r) return true; }
     return false;
   };
-  village.nearVillager = (p, r) => {
-    toLocal(p, vLocal); let bd = (r / u) * (r / u), b = null;
-    for (const v of villagers) { if (v.inside) continue; const dx = v.x - vLocal.x, dz = v.z - vLocal.z, dy = (v.y || 0) - vLocal.y, d = dx * dx + dz * dz + dy * dy * 0.1; if (d < bd) { bd = d; b = v; } }
+  village.nearVillager = (p, r, fwd) => {       // fwd (planet-local facing, optional): Q29 prompt = within r AND within 60 deg of facing (or within r/3 any angle)
+    toLocal(p, vLocal); let bd = (r / u) * (r / u), b = null, fx = 0, fz = 0;
+    if (fwd) { tA.copy(fwd).transformDirection(INV); fx = tA.x; fz = tA.z; }
+    for (const v of villagers) {
+      if (v.inside) continue; const dx = v.x - vLocal.x, dz = v.z - vLocal.z, dy = (v.y || 0) - vLocal.y, d = dx * dx + dz * dz + dy * dy * 0.1;
+      if (d < bd && (!fwd || inCone(vLocal.x, vLocal.z, fx, fz, v.x, v.z, r / u, 60, r / u / 3))) { bd = d; b = v; }
+    }
     return b;
   };
+  village.placement = (opts) => placementReport(villagers.map((v) => ({ x: v.x, z: v.z, y: v.y, inside: v.inside })), walls, [0, 0], opts);
   village.onHit = (vid, aid) => {
     const v = villagers.find((q) => q.id === vid); if (!v) return false;
     const fresh = !village.threat || village.threat.id !== String(aid);
@@ -567,11 +573,16 @@ export function createVillage(engine, u, opts) {
       const tg = targetFor(v, tm, night);
       if (!(v.inside && tg.home)) setPath(v, tg);
       let moving = false;
-      if (v.path && v.pi < v.path.length) {
+      if (haveP && !v.inside && v.panic <= 0 && Math.hypot(v.x - px, v.z - pz) < 5.25 + 0.5) { v.attend = 6; v.yaw = Math.atan2(-(px - v.x), -(pz - v.z)); }      // Q29: approached -> stops walking 6 s and turns to face you
+      if (v.attend > 0) v.attend -= dt;
+      if (v.attend > 0 && v.panic <= 0) { /* hold position */ }
+      else if (v.path && v.pi < v.path.length) {
         const q = v.path[v.pi], dx = q[0] - v.x, dz = q[1] - v.z, d = Math.hypot(dx, dz), sp = (v.panic > 0 ? WALK * 1.8 : WALK * (v.role === 'kid' ? 1.3 : v.role === 'elder' ? 0.7 : 1)) * dt;
         if (d <= sp) { v.x = q[0]; v.z = q[1]; v.pi++; } else { v.x += dx / d * sp; v.z += dz / d * sp; v.yaw = Math.atan2(-dx, -dz); moving = true; }
         if (v.pi >= v.path.length && v.tgt === 'home') { v.inside = true; v.path = null; }
       }
+      if (!v.inside && !v.thru) pushOut(v, 0.3);      // Q29: never clipped into a hut/stall/well wall
+      if (!v.path || (v.pi > 3 && v.tgt !== 'home')) v.thru = false;
       v.moving = moving; v.y = v.inside ? v.homeHut.yb : groundLive(v.x, v.z); v.pos.set(v.x, v.y, v.z);
       const hm = v.human;
       if (hm) {
