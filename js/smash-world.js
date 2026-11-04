@@ -1,5 +1,9 @@
 // GOR BRAWL world fights: a fight session you can drop over the 3D page (proximity fights).
 // createFightSession(opts) -> { start, stop, update(dt), setInput(mask), el, onResult(fn), state }
+// onResult(fn) payload (res): { winner: slot|-1, slots, stocks[], damage[], dealt[], kos[], frames, reward }
+//   reward = { coin, xp, part, bond, line, who }   coin/xp/bond ints (bond may be negative), part = item name string, line = NPC 'goodgame'/'taunt' text, who = NPC name; absent values are 0 / ''.
+//   Filled by opts.reward (object, or function(res) -> object, evaluated at fire) and/or session.setReward(partial) afterwards; setReward merges into state.result.reward and redraws the result card block.
+//   res.dealt[0] < 1 means the player landed no hit (no payout by ship rule).
 // Net model (relay sm.*): host-authoritative. Host sims 60 Hz with guest input masks (sm.in), sends sm.snap at 30 Hz.
 // Guest = full local sim restored from each snapshot, then re-simulated with its own unacked inputs (prediction);
 // remote fighters are drawn from snapshot interpolation. Same seed + same inputs => same engine.hash().
@@ -23,6 +27,10 @@ function parseCol(c) {
   if (typeof c === 'number') c = '#' + (c & 0xffffff).toString(16).padStart(6, '0');
   const m = /^#?([0-9a-f]{6})$/i.exec(String(c || '').trim()); const v = m ? parseInt(m[1], 16) : 0xffffff;
   return { hex: '#' + (m ? m[1] : 'ffffff'), rgb: [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255] };
+}
+// reward payload, one shape everywhere: coin/xp/bond ints, part/line/who strings or '' (never undefined, so the ship can read without guards)
+function normReward(r) {
+  r = r || {}; return { coin: r.coin | 0, xp: r.xp | 0, part: r.part ? String(r.part) : '', bond: r.bond | 0, line: r.line ? String(r.line) : '', who: r.who ? String(r.who) : '' };
 }
 const mkSnapNum = (v) => (typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 1e4) / 1e4 : v);
 
@@ -57,6 +65,7 @@ export function createFightSession(opts) {
   const known = S.fighters.map((f) => f.stocks);
   const state = { mode, phase: 'idle', frame: 0, kos: 0, koList: [], result: null, hashOk: 0, hashBad: 0, snaps: 0, view: [], pct: [], stocks: [], overlay: false };
   const gameLike = { get sim() { return V; }, atlas: at, cfg, stop() {}, pause() {} };
+  const poolMasks = new Array(N).fill(0), scratchMasks = new Array(N).fill(0); // per-tick input arrays, reused
   const hist = []; let gf = 0; // guest input history (index = guest tick)
   const snaps = []; let lastSnapFrame = -1;
   const disp = {}; // own fighter smoothed display offset
@@ -78,6 +87,7 @@ export function createFightSession(opts) {
       viewEvent(view, e); ui.onEvent(e, gameLike);
     }
   }
+  function safeReward(res) { try { return opts.reward(res); } catch (e) { console.error(e); return null; } }
   function resultOf(sim) {
     const idx = sim.result ? sim.result.winner : -1, rows = sim.fighters;
     return { winner: idx >= 0 ? fighters[idx].slot : -1, slots: fighters.map((f) => f.slot), stocks: rows.map((f) => f.stocks), damage: rows.map((f) => Math.floor(f.pct)),
@@ -85,6 +95,7 @@ export function createFightSession(opts) {
   }
   function fire(res) {
     if (done) return; done = true; state.result = res; state.phase = 'over';
+    res.reward = normReward(typeof opts.reward === 'function' ? safeReward(res) : opts.reward); ui.reward = res.reward;      // before the card draws (finishLocal runs ahead of ui.onEvent('over'))
     for (const fn of resultCbs) { try { fn(res); } catch (e) { console.error(e); } }
   }
   function finishLocal() {
@@ -99,7 +110,7 @@ export function createFightSession(opts) {
   function sendSnap() {
     const keys = Object.keys(S.fighters[0]).filter((k) => !SKIP.has(k)), sig = keys.join(',');
     const fs = S.fighters.map((f) => { const o = { v: keys.map((k) => f[k]), mv: moveKey(f, f.move), hm: moveKey(f, f.hbMove) }; if (f.pend) o.pd = f.pend; for (const k in f.cd) { o.cd = f.cd; break; } return o; });
-    const data = { fr: S.frame, ph: S.phase, tm: S.time, ct: S.count, et: S.endT, nid: S.nid, cn: S.cine, cw: S.cineWho, h: S.hash(), m: lastMasks, ak: ack, fs, pj: S.projs, bl: S.blocks, lo: S.ledgeOcc };
+    const data = { fr: S.frame, ph: S.phase, tm: S.time, ct: S.count, et: S.endT, nid: S.nid, cn: S.cine, cw: S.cineWho, h: S.hash(), m: lastMasks.slice(), ak: ack.slice(), fs, pj: S.projs, bl: S.blocks, lo: S.ledgeOcc };
     if (sig !== ksSig || (snapN % 60) === 0) { ksSig = sig; data.ks = keys; }
     let msg = { t: 'sm.snap', room, f: S.frame, data }, len = JSON.stringify(msg).length;
     if (len > 1900) { // tighten floats before giving up the frame
@@ -153,9 +164,9 @@ export function createFightSession(opts) {
     if (mode === 'guest' || mode === 'spec') {
       gf++; const own = ownIdx >= 0 ? localMask[0] | 0 : 0; hist[gf] = own;
       if (ownIdx >= 0 && net) net.send({ t: 'sm.in', room, f: gf, m: own });
-      const m = lastMasks.slice(); if (ownIdx >= 0) m[ownIdx] = own; S.step(m); drainEvents(S, true);
+      const m = scratchMasks; for (let k = 0; k < N; k++) m[k] = lastMasks[k] | 0; if (ownIdx >= 0) m[ownIdx] = own; S.step(m); drainEvents(S, true);      // pooled: no per-tick array
     } else {
-      const masks = S.fighters.map((f, i) => maskFor(i)); lastMasks = masks; S.step(masks);
+      const masks = poolMasks; for (let k = 0; k < N; k++) masks[k] = maskFor(k); lastMasks = masks; S.step(masks);      // pooled: S.step copies nothing it keeps; sendSnap slices for the wire
       if (opts.history) opts.history[S.frame] = S.fighters.map((f) => [f.x, f.y]);
       noteStocks(S, false); drainEvents(S, false);
       if (mode === 'host' && net && (S.frame & 1) === 0) sendSnap();
@@ -224,6 +235,8 @@ export function createFightSession(opts) {
       render(acc * 60);
     },
     setInput(mask, which) { localMask[which | 0] = mask | 0; },
+    // late reward (the ship rolls coin/part after the result fires): merges into state.result.reward and redraws the card block
+    setReward(r) { const cur = state.result ? state.result.reward : ui.reward; const nr = normReward(Object.assign({}, cur || {}, r || {})); if (state.result) state.result.reward = nr; ui.reward = nr; ui.showReward(nr); return nr; },
     onResult(fn) { resultCbs.push(fn); if (done && state.result) fn(state.result); },
     hash() { return S.hash(); },
     sim: S, _onMsg: onMsg, _billboard(c) { bb = c; bbLast = -1; drawBillboard(c); },

@@ -8,13 +8,16 @@
 import { FIGHTERS } from './smash-fighters.js';
 import { species, individual, statsAt, xpForLevel, MAX_LEVEL, isTrainer } from './pokemans-gen.js';
 import { makeMon, catchChance, catchRoll } from './pokemans-catch.js';
-import { PARTS, applyGraft } from './pokemans-graft.js';
+import { PARTS, applyGraft, bodyOf } from './pokemans-graft.js';
 
 export const PLAN_BASE = { skimmer: 'twin', crawler: 'ranger', floater: 'jelly', strider: 'racer', burrower: 'sparklet', swarmer: 'hum' };
 export const TYPE_COL = { leaf: [0.42, 0.85, 0.42], frost: [0.6, 0.9, 1], vapor: [0.8, 0.8, 0.95], stone: [0.75, 0.65, 0.5], ember: [1, 0.5, 0.2], brine: [0.3, 0.6, 1], spark: [1, 0.9, 0.3], void: [0.7, 0.35, 0.95] };
 const RANGED = { spark: 1, vapor: 1 };                  // these types throw a bolt on bN, the rest swing
 const SLOTS = ['bN', 'bF', 'bD', 'ftilt'];              // moves 0..3 -> special / side special / down special / forward tilt
 const SLOT_ANG = { bN: 40, bF: 30, bD: 75, ftilt: 35 };
+const FALLBACK_COL = [0.85, 0.85, 0.85];
+export const HIT_EFFECTS = { burn: 1, slow: 1, flinch: 1, launch: 1 };      // victim-side: the hit tags the victim (status icon over them)
+export const SELF_EFFECTS = { shield: 1, heal: 1, drain: 1 };      // user-side: the move tags the user
 export const BALL_GATE = 0.5;                           // a wild can be balled below this fraction of its percent budget
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -36,17 +39,18 @@ export function buildMove(mon, mv, slot, st) {
   else if (ef === 'flinch') bkb = Math.max(bkb, 14);
   else if (ef === 'launch') { bkb *= 1.5; gr *= 1.4; }
   dmg = Math.round(dmg * 10) / 10; bkb = Math.round(bkb * 10) / 10; gr = Math.round(gr * 10) / 10;
-  const col = TYPE_COL[mv.type] || null, ang = SLOT_ANG[slot], key = 'm' + slot;
+  const col = TYPE_COL[mv.type] || FALLBACK_COL, ang = SLOT_ANG[slot], key = 'm' + slot;
   const cd = Math.round(60 * 60 / Math.max(20, st.spd + 20) * 0.5 * (0.6 + power / 150));        // frames
   const ranged = !!RANGED[mv.type] && slot !== 'ftilt';
   const m = { name: String(mv.name).toLowerCase(), dur, pose: ranged ? 'cast' : 'swing', mon: true, type: mv.type, effect: ef || null, power, cd, hits: [] };
-  if (!ranged) m.hits = [hit(s0, s0 + len, [8, -24, 8 + reach, -22], rad, dmg, bkb, gr, ang, { col })];
+  const eff = HIT_EFFECTS[ef] ? ef : null;
+  if (!ranged) m.hits = [hit(s0, s0 + len, [8, -24, 8 + reach, -22], rad, dmg, bkb, gr, ang, eff ? { col, eff } : { col })];
   m.tick = function (sim, f, t) {
-    if (t === 0) { if (f.cd[key] > 0) return true; f.cd[key] = cd; if (ef === 'shield') f.inv = Math.max(f.inv, 18); }
+    if (t === 0) { if (f.cd[key] > 0) return true; f.cd[key] = cd; if (ef === 'shield') { f.inv = Math.max(f.inv, 18); f.stK = 'shield'; f.stT = 40; } }
     if (t === s0) {
-      if (ranged) { sim.proj(f, { kind: 'bolt', ox: 14, oy: -22, vx: 4.2, vy: 0, g: 0, life: 60, r: 4, dmg, bkb: flinch ? Math.max(bkb * 0.5, 6) : 0, gr: gr * 0.5, ang: 8, col }); sim.sfx('shot'); }
-      if (ef === 'heal') f.pct = Math.max(0, f.pct - 5);
-      else if (ef === 'drain') f.pct = Math.max(0, f.pct - dmg * 0.4);
+      if (ranged) { sim.proj(f, { kind: 'bolt', ox: 14, oy: -22, vx: 4.2, vy: 0, g: 0, life: 60, r: 4, dmg, bkb: flinch ? Math.max(bkb * 0.5, 6) : 0, gr: gr * 0.5, ang: 8, col, eff }); sim.sfx('shot'); }
+      if (ef === 'heal') { f.pct = Math.max(0, f.pct - 5); f.stK = 'heal'; f.stT = 60; }
+      else if (ef === 'drain') { f.pct = Math.max(0, f.pct - dmg * 0.4); f.stK = 'drain'; f.stT = 60; }
     }
   };
   return m;
@@ -61,9 +65,20 @@ export function creatureFighter(mon) {
     id: 'mon:' + sp.id, name: String(sp.name).toUpperCase().slice(0, 10), color, moves, mon: true,
     weight: Math.round(clamp(60 + st.hp * 0.6, 70, 130)), run: Math.round(clamp(0.9 + st.spd / 120, 0.9, 2.0) * 100) / 100,
     jump: Math.round(clamp(48 + st.spd / 8, 48, 66)), hurtR: Math.round(clamp(0.75 + rec.segs * 0.06 + (size - 1) * 0.4, 0.8, 1.35) * 100) / 100,
+    look: creatureLook(mon), takeMul: Math.round(clamp(110 / Math.max(40, st.hp * 2.2), 0.7, 1.4) * 100) / 100,
     blurb: sp.types.join(' / ').toUpperCase(), hint: { range: clamp(22 + rec.segs * 3, 24, 44), style: 'allround', ranged: !!RANGED[sp.moves[0] && sp.moves[0].type] },
   });
   return { fid: baseId, def, name: def.name, color, hpPct: Math.round(st.hp * 2.2), stocks: 1, mon };
+}
+// silhouette spec the engine draws over the base sprite: graft parts (bodyOf) + the species' own sig parts, as a plain list of fin/spike/shell/glow/lungs.
+// Pure, deterministic, allocation-free at draw time (built once per creatureFighter). col = the body hue as 0..1 rgb.
+export function creatureLook(mon) {
+  const body = bodyOf(mon), seen = {}, sig = [];
+  const src = body && body.sig ? body.sig : [];
+  for (let i = 0; i < src.length; i++) { const k = src[i]; if (PARTS.indexOf(k) >= 0 && !seen[k]) { seen[k] = 1; sig.push(k); } }
+  const h = (mon.sp.bodyRecipe.hue % 360 + 360) % 360 / 60, x = 1 - Math.abs(h % 2 - 1), c = 0.65;
+  const rgb = h < 1 ? [c, x * c, 0] : h < 2 ? [x * c, c, 0] : h < 3 ? [0, c, x * c] : h < 4 ? [0, x * c, c] : h < 5 ? [x * c, 0, c] : [c, 0, x * c];
+  return { sig, col: [rgb[0] + 0.3, rgb[1] + 0.3, rgb[2] + 0.3] };
 }
 export const hpFrac = (spec, pct) => clamp(1 - pct / Math.max(1, spec.hpPct), 0, 1);
 
