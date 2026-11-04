@@ -67,7 +67,7 @@ Legend: `[ ]` todo · `[>]` in progress · `[x]` done · `[~]` blocked (reason i
 - [x] Q37 Photo mode + share link: P toggles photo mode (HUD hidden, free orbit camera around the player/ship, time-of-day slider via keys [ ], FOV via mouse wheel), S saves a PNG via the renderer (toDataURL) with a small corner watermark "emgor.online/nomansgor", and copies a share link `?p=<planetId>&d=<dir>&t=<time>` that restores the view on load (read in enter()). No upload.
 - [x] Q38 Discoveries + leaderboard page: `nomansgor/board.html` (static, matches the site look: dark violet, pixel font already used by the HUD) reading `GET /disc` and `GET /board` from the relay (add both read-only endpoints to server/nmg-relay/server.js: discoveries list with claimant + time, and per-player counters the relay already sees: catches, fight wins, deepest depth, planets landed — add the counters to the relay from existing events, no new client frames). Link it from the game's HELP string.
 - [x] Q39 Harness order-sensitivity: g14 fails only after g10 (2 over-limit frames, worst 3.65 H, then "cannot approach metagor (embedded)"), g15 only after g3/g13. Find the state g10/g13 leave behind (pf flags, FG/MB freeze, enemies, pointer lock, quality tier) and make the harness `mk()` reset it between tests via existing debug hooks (add a `ship.dbg.resetWorld()` if one is missing: clears enemies/mobs/fights/pets/depth, re-seeds nothing). VERIFY ON MAC: full g1-g17 in one batch of 17.
-- [ ] BENCHMARK-7: log block.
+- [>] BENCHMARK-7: log block.
 
 ## Notes for the manager (not for the builder)
 Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batches; play-check each BENCHMARK list; merge; append results to GORCAVE-LOG.md.
