@@ -6722,7 +6722,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function styleSet(id, quiet) {
         var pf = ensureProfile(userName()); id = (id && id !== 'pilot' && stylesList().some(function (s) { return s.id === id; })) ? id : '';
         if (curStyle) { try { if (curStyle.reset) curStyle.reset(); } catch (e0) { /* ignore */ } }
-        curStyle = null; curStyleId = id; pf.style = id;
+        styDrop(); curStyle = null; curStyleId = id; pf.style = id;
         if (id && stylesMod && typeof stylesMod.createStyle === 'function') { try { curStyle = stylesMod.createStyle(id, styleEnv()); } catch (e1) { console.info('[ship] createStyle failed', id, e1); curStyle = null; } }
         skinRig(hum.obj, id); if (pv.h) { skinRig(pv.h, id); pv.sid = id; }
         hum.sAnim = null; jumpHeld = true;
@@ -6998,12 +6998,47 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             else if (e.type === 'pound' || e.type === 'groundpound') { aPlay('hit', { pitch: 0.3, vel: 0.8 }); shake = Math.max(shake, 0.05 * L); styStats.poundHits += mobAoe(hum.w, (e.r || 2), e.dmg || 12); }
             else if (e.type === 'homing') { styStats.homing++; aPlay('hit', { pitch: 0.9, vel: 0.5 }); if (styTg.length && e.n >= 0 && e.n < styTg.length) mobNearHurt(6, 3); }
             else if (e.type === 'zap') { mobNearHurt(e.dmg || 5, e.r || 6); aPlay('hit', { pitch: 1.4, vel: 0.4 }); }
-            else if (e.type === 'throw') { aPlay('hit', { pitch: 0.7, vel: 0.6 }); mobAoe(hum.w, e.r || 4, e.dmg || 10); }
+            else if (e.type === 'dash') { sa.iF = Math.max(sa.iF, e.v || 0.15); }
+            else if (e.type === 'reflect') { sa.rT = e.v || 0.3; sa.rR = e.r || 1.6; aPlay('ui', { vel: 0.5, pitch: 1.8 }); }
+            else if (e.type === 'regen') { if (stylesMod && regenOk()) hp = stylesMod.regenStep(hp, HP_MAX, e.v || 0, 1, true); }
+            else if (e.type === 'grab') {
+                var gb = null, gd = 2 * Hw, gc, gx; for (k = 0; k < R27.gnd.length; k++) { gc = R27.gnd[k]; if (!gc.alive || !gc.mob || gc.remote || gc.styHeld || gc.styFly) continue; gx = gc.w.distanceTo(hum.w); if (gx < gd) { gd = gx; gb = gc; } }
+                if (gb && curStyle && curStyle.grab) { sa.held = gb; gb.styHeld = true; curStyle.grab(1); aPlay('tame', { vel: 0.5, pitch: 0.7 }); }
+            }
+            else if (e.type === 'throw') {
+                aPlay('hit', { pitch: 0.7, vel: 0.6 });
+                if (sa.held && sa.held.alive) {
+                    var tm = sa.held; sa.held = null; tm.styHeld = false;
+                    gE.copy(right).multiplyScalar(e.dx).addScaledVector(up, e.dy).addScaledVector(hum.hf, -e.dz).applyQuaternion(land.node.mesh.quaternion).normalize();
+                    tm.styFly = { p0: tm.w.clone(), v: { x: gE.x * (e.v || 14) * Hw, y: gE.y * (e.v || 14) * Hw, z: gE.z * (e.v || 14) * Hw }, up: tm.up.clone(), t: 0, dmg: e.dmg || 10 };
+                } else mobAoe(hum.w, e.r || 4, e.dmg || 10);
+            }
             else if (e.type === 'spindash' || e.type === 'spinRelease') { aPlay('hit', { pitch: 0.9, vel: 0.5 }); mobAoe(hum.w, 1.6, 5); }
         }
     }
+    // Q41 style ability consumers: dash i-frames (sa.iF), reflect window (sa.rT/sa.rR), regen (event gated on calm), HAULER grab (sa.held) + throw (mob.styFly)
+    var sa = { iF: 0, rT: 0, rR: 1.6, held: null }, saV = { x: 0, y: 0, z: 0 }, saW = new THREE.Vector3(), saP0 = new THREE.Vector3(), saQ = new THREE.Quaternion(), SA_G = 22;
+    function styDrop() { if (sa.held) { sa.held.styHeld = false; sa.held = null; } for (var i = 0; i < R27.gnd.length; i++) { R27.gnd[i].styHeld = false; R27.gnd[i].styFly = null; } sa.iF = sa.rT = 0; }
+    function saLocal(e, w) {      // world point -> the mob's planet-local dir/hr
+        if (!e.node) return; saQ.copy(e.node.mesh.quaternion).invert(); saW.copy(w).sub(e.node.anchor.position).applyQuaternion(saQ);
+        var l = saW.length(); if (l > 1e-6) { e.dir.copy(saW).divideScalar(l); e.hr = l; }
+    }
+    function regenOk() { return sinceHit > 3 && !FG.on && !(styCtx.hostileNear < 8); }      // out of fight: no recent hit, no fight session, no hostile mob within 8 H
+    function styCarry(e) {      // held mob rides in front of the chest (hand height)
+        var Hw = hwU(); saW.copy(hum.w).addScaledVector(styUpW, 1.1 * Hw).addScaledVector(snD.copy(hum.hf).applyQuaternion(land.node.mesh.quaternion), 0.5 * Hw); saLocal(e, saW);
+    }
+    function styFlyTick(e, dt) {
+        var f = e.styFly, Hw = hwU(); if (!stylesMod) { e.styFly = null; return; } f.t += dt;
+        stylesMod.throwArc(saV, f.p0, f.v, f.up, SA_G * Hw, f.t); saW.set(saV.x, saV.y, saV.z); saLocal(e, saW);
+        var fl = mFloor(e.dir.x, e.dir.y, e.dir.z);
+        if (f.t > 0.12 && (e.hr <= fl + 0.02 * L || f.t > 3)) { e.hr = Math.max(e.hr, fl); e.styFly = null; mobHurt(e, f.dmg, 'me'); fx.impact(e.w, 0xe8d4ff, 1.2, 'hit'); aPlay('hit', { pitch: 0.5, vel: 0.7 }); }
+    }
+    function styAbilTick(dt) {
+        if (sa.iF > 0) sa.iF -= dt; if (sa.rT > 0) sa.rT -= dt;
+        for (var i = 0; i < R27.gnd.length; i++) { var e = R27.gnd[i]; if (e.styFly && e.alive) styFlyTick(e, dt); }
+    }
     function styEggTick(dt) {
-        var Hw = hwU(), i, g, j, d;
+        var Hw = hwU(), i, g, j, d; styAbilTick(dt);
         for (i = styEgg.length - 1; i >= 0; i--) {
             g = styEgg[i]; g.t -= dt; g.v.addScaledVector(styUpW, -7 * Hw * dt); g.m.position.addScaledVector(g.v, dt);
             for (j = 0; j < R27.gnd.length && g.t > 0; j++) {
@@ -7139,7 +7174,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function mobFire(e, tw) {
         var st = e.cr.stats.ranged, Hw = hwU(); snC.copy(e.w).addScaledVector(e.up, 0.7 * e.cr.stats.height * GM * L); snD.copy(tw).addScaledVector(styUpW, 0.5 * Hw).sub(snC).normalize();
         var sp = st.boltSpeed * Hw; fx.spawnBolt(snC, snD, 0xe8d4ff, sp, 2, { shape: 'needle', size: 1.2 }); aPlay('fire', { vel: 0.4, pitch: 1.6, dist: aDist(snC) });
-        MB.bolts.push({ p: snC.clone(), v: snD.clone().multiplyScalar(sp), t: 2, dmg: st.dmg }); MB.stats.bolts++;
+        MB.bolts.push({ p: snC.clone(), v: snD.clone().multiplyScalar(sp), t: 2, dmg: st.dmg, src: e.w.clone(), mine: false }); MB.stats.bolts++;
     }
     function mobTeleport(e, tw, minH, maxH) {
         if (e.hub) return false;
@@ -7217,7 +7252,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (var i = MB.bolts.length - 1; i >= 0; i--) {
             var b = MB.bolts[i]; b.t -= dt; mobLosP.copy(b.p); b.p.addScaledVector(b.v, dt);
             if (b.t > 0 && !hasLineOfSight(mobLosP, b.p)) { b.t = 0; fx.impact(b.p, 0xe8d4ff, 0.8, 'hit'); }
-            if (hum.obj && b.p.distanceTo(snA.copy(hum.w).addScaledVector(styUpW, 0.5 * hwU())) < 0.55 * hwU()) { footHurt(b.dmg || 4); b.t = 0; }
+            if (b.mine) {      // Q41: a reflected bolt hurts the first mob it meets
+                for (var bj = 0; bj < R27.gnd.length && b.t > 0; bj++) { var bm = R27.gnd[bj]; if (bm.alive && bm.mob && b.p.distanceTo(gndSphere(bm, snA)) < bm.cr.hitR * GM * L + 0.3 * hwU()) { mobHurt(bm, (b.dmg || 4) * 2, 'me'); fx.impact(b.p, 0xe8d4ff, 1, 'hit'); b.t = 0; } }
+            } else if (hum.obj && sa.rT > 0 && stylesMod && b.p.distanceTo(snA.copy(hum.w).addScaledVector(styUpW, 0.5 * hwU())) < sa.rR * hwU()) {
+                saW.copy(b.src).sub(b.p); stylesMod.reflectVel(saV, b.v.x, b.v.y, b.v.z, saW.x, saW.y, saW.z, 1.25); b.v.set(saV.x, saV.y, saV.z); b.mine = true; b.t = 2; aPlay('hit', { pitch: 1.8, vel: 0.5 });
+            } else if (hum.obj && b.p.distanceTo(snA.copy(hum.w).addScaledVector(styUpW, 0.5 * hwU())) < 0.55 * hwU()) { footHurt(b.dmg || 4); b.t = 0; }
             if (b.t <= 0) MB.bolts.splice(i, 1);
         }
     }
@@ -9270,7 +9309,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function gndSphere(e, out) { out.copy(e.w).addScaledVector(e.up, e.cr.stats.height * 0.5 * GM * L); return e.cr.hitR * GM * L; }
     function footHurt(dmg) {          // on-foot damage never kills: you are knocked to a sliver and the shield regrows
-        dmg = +dmg; if (!isFinite(dmg)) return; dmg = clamp(dmg, 0, 200);      // PF2: peer-sent damage could be NaN (hp became NaN)
+        dmg = +dmg; if (!isFinite(dmg)) return; if (sa.iF > 0 && curStyle) return; dmg = clamp(dmg, 0, 200);      // Q41: SWIFT dash i-frames
+              // PF2: peer-sent damage could be NaN (hp became NaN)
         hp = Math.max(6, hp - dmg); sinceHit = 0; aPlay('hit', { pitch: 0.55, vel: Math.min(1, dmg / 30) });
         shake = Math.max(shake, Math.min(0.5 * L, dmg / 20 * 0.2 * L)); fovKick = Math.max(fovKick, 1.5);
     }
@@ -9452,6 +9492,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var e = R27.gnd[i];
             if (e.mode === 'planet' && (gmode !== 'foot' || !land.node || e.node !== land.node)) { gndFree(e); continue; }
             if (e.mode === 'derelict' && !(R27.dsite && R27.dsite === e.site)) { e.g.visible = false; continue; }
+            if (e.styHeld) { e.g.visible = true; styCarry(e); gndPlace(e); continue; }      // Q41: HAULER carries it
             if (e.held) { e.g.visible = false; continue; }      // Q12: inside a GOR BALL while it shakes
             e.g.visible = true; gndPlace(e); if (e.mob) mobStep(e, dt, hw); else gndStep(e, dt, hw); if (!e.alive) continue; gndPlace(e); e.cr.update(gt + R27.t, dt);
         }
@@ -10493,7 +10534,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         get lf() { return lf; },
         dbg: { resetWorld: function () {         // Q39 harness hook: clear what one g-test leaves for the next (enemies, ground mobs, mob bolts, fight, held fire/freeze); re-seeds nothing
             var i; try { if (FG.on) fightEnd(); } catch (e0) { warnOnce('reset.fight', e0); }
-            clearFight();
+            clearFight(); styDrop();
             for (i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob) gndFree(R27.gnd[i]);
             MB.bolts.length = 0; MB.hitQ.length = 0; MB.evQ.length = 0; MB.freeze = false; MB.nightForce = -1;
             firing = false; mdx = mdy = 0; cmdOpen = false; FG.ask = null; return true;

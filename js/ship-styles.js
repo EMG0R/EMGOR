@@ -716,3 +716,21 @@ export function createStyle(id, env) {
   if ('eggs' in m) Object.defineProperty(api, 'eggs', { get() { return m.eggs; } });
   m.reset(); return api;
 }
+// Q41 ability maths for the game-side consumers (ship.js): pure, no allocation (write into `out`).
+// reflectVel: send a bolt back at its source ((sx,sy,sz) = source minus bolt position), speed x k; degenerate source -> plain reversal.
+export function reflectVel(out, vx, vy, vz, sx, sy, sz, k) {
+  const sp = Math.sqrt(vx * vx + vy * vy + vz * vz) * (k > 0 ? k : 1), sl = Math.sqrt(sx * sx + sy * sy + sz * sz);
+  if (sl > 1e-6) { out.x = sx / sl * sp; out.y = sy / sl * sp; out.z = sz / sl * sp; } else { out.x = -vx; out.y = -vy; out.z = -vz; }
+  return out;
+}
+// regenStep: hp after dt seconds at `rate` hp/s, capped at max; no regen while `calm` is false (in a fight) or hp is not finite.
+export function regenStep(hp, max, rate, dt, calm) {
+  if (!calm || !(rate > 0) || !(dt > 0) || !isFinite(hp)) return hp;
+  return Math.min(max, hp + rate * dt);
+}
+// throwArc: ballistic position at time t: p0 + v0 t - up * g t^2 / 2 (up is a unit vector, g in world units/s^2).
+export function throwArc(out, p0, v0, up, g, t) {
+  const h = 0.5 * g * t * t;
+  out.x = p0.x + v0.x * t - up.x * h; out.y = p0.y + v0.y * t - up.y * h; out.z = p0.z + v0.z * t - up.z * h;
+  return out;
+}
