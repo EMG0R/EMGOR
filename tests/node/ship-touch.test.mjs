@@ -43,3 +43,28 @@ test('pinchThrottle: sign, zero on degenerate', () => {
   assert.equal(pinchThrottle(0, 50), 0);
   assert.equal(pinchThrottle(100, 100), 0);
 });
+test('padLayout: Q43 P (photo) and CHAT (Enter) pads present', () => {
+  for (const [W, H] of [[844, 390], [667, 375]]) { const c = padLayout(W, H).map(x => x.code); assert.ok(c.includes('KeyP') && c.includes('Enter')); }
+});
+test('keyDebounce: quick re-press is a repeat, slow one is not', async () => {
+  const { keyDebounce } = await import('../../js/ship-touch.js');
+  const d = keyDebounce(250);
+  assert.equal(d.press('KeyA', 1000), false);
+  assert.equal(d.press('KeyA', 1100), true);       // jitter re-press
+  assert.equal(d.press('KeyA', 1340), true);       // still within 250 ms of the last press
+  assert.equal(d.press('KeyA', 1700), false);      // deliberate
+  assert.equal(d.press('KeyD', 1710), false);      // other code independent
+  d.reset(); assert.equal(d.press('KeyA', 1720), false);
+});
+test('pollGate: runs on touch, stops after idle, restarts on next touch', async () => {
+  const { pollGate } = await import('../../js/ship-touch.js');
+  const g = pollGate(10000);
+  assert.equal(g.tick(0), false);                  // never touched: not running
+  assert.equal(g.touch(1000), true);               // start
+  assert.equal(g.touch(2000), false);              // already running
+  assert.equal(g.tick(11999), true);
+  assert.equal(g.tick(12000), false);              // idle 10 s -> stop
+  assert.equal(g.running(), false);
+  assert.equal(g.touch(13000), true);              // restart
+  assert.equal(g.tick(14000), true);
+});

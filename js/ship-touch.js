@@ -9,6 +9,9 @@ export var STICK_R = 0.11;          // stick radius as a fraction of min(W,H)
 export var STICK_DEAD = 0.18;       // normalised dead zone
 export var LOOK_GAIN = 1.6;         // px of drag -> mouse-delta px
 export var PINCH_GAIN = 2.2;        // throttle change per unit of relative pinch spread
+export var REPEAT_MS = 250;         // a stick key re-pressed within this of its last press goes out as a key repeat (no double-tap roll/flip)
+export var IDLE_MS = 10000;         // no touch for this long -> the sync poll stops until the next touchstart
+export var POLL_MS = 300;
 
 /* stickVec: finger offset (dx,dy px) from the stick origin -> {x,y} in [-1,1] (y up), dead zone removed, length clamped to 1. */
 export function stickVec(dx, dy, radius, dead) {
@@ -36,6 +39,8 @@ export function padLayout(W, H) {
   add('KeyF', 'F', cx - g * 1.1, cy - g * 2.15, r * 0.9);
   add('KeyT', 'T', cx - g * 2.1, cy - g * 2.15, r * 0.9);
   add('KeyE', 'E', cx - g * 3.1, cy - g * 2.15, r * 0.9);
+  add('KeyP', 'P', cx - g * 4.1, cy - g * 2.15, r * 0.9);                 // photo mode
+  add('Enter', 'CHAT', cx - g * 5.1, cy - g * 2.15, r * 0.9);             // opens the chat/command line (Enter)
   add('Escape', 'EXIT', r * 1.6, r * 1.6, r * 0.85, { hold: true });     // top-left: hold 3 s (the game's own Esc timer)
   return p;
 }
@@ -49,12 +54,33 @@ export function pinchThrottle(d0, d1) {
   if (!(d0 > 8) || !(d1 > 0)) return 0;
   return (d1 - d0) / d0 * PINCH_GAIN;
 }
+/* keyDebounce: stick jitter across the 0.35 threshold re-presses A/D/S fast, which the game reads as a double-tap (roll / flip).
+   press(code, now) -> true when this press must be sent with repeat:true (the game then sets the key but skips tap detection).
+   A deliberate second press after REPEAT_MS goes through as a normal keydown. State: last press time per code. */
+export function keyDebounce(ms) {
+  var win = ms === undefined ? REPEAT_MS : ms, last = Object.create(null);
+  return {
+    press: function (code, now) { var r = code in last && now - last[code] < win; last[code] = now; return r; },
+    reset: function () { last = Object.create(null); }
+  };
+}
+/* pollGate: the slow sync poll runs only while a touch happened in the last IDLE_MS.
+   touch(now) -> true when the poll was stopped and must be (re)started; tick(now) -> true to keep polling, false to stop. */
+export function pollGate(idle) {
+  var lim = idle === undefined ? IDLE_MS : idle, last = 0, on = false;
+  return {
+    touch: function (now) { last = now; if (on) return false; on = true; return true; },
+    tick: function (now) { if (!on) return false; if (now - last >= lim) { on = false; return false; } return true; },
+    running: function () { return on; }
+  };
+}
 export function isTouchDevice() {
   try { return !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; }
 }
 
 /* createTouch(host): host = { active(): bool, surface: HTMLElement (the renderer canvas), key(code, down), mouse(button, down), look(dx, dy), throttle(d) }.
-   Returns { dispose, sync }. sync() re-reads host.active() and shows/hides the overlay (cheap; the host calls it from a slow timer). */
+   Returns { dispose, sync }. sync() re-reads host.active() and shows/hides the overlay. The module runs its own slow poll (POLL_MS) of sync,
+   stopped after IDLE_MS without a touch and restarted by the next touchstart (pollGate). */
 export function createTouch(host) {
   var cv = document.createElement('canvas'), cx = cv.getContext('2d'), W = 0, H = 0, dpr = 1, pads = [], dirty = true, raf = 0, shown = false;
   var stick = null;                       // { id, ox, oy, x, y, keys }
@@ -62,6 +88,7 @@ export function createTouch(host) {
   var padHold = {};                       // pointerId -> pad
   var pinch = null;                       // { a, b, d }
   var held = Object.create(null);         // code -> true while our synthetic key is down
+  var deb = keyDebounce(), gate = pollGate(), timer = 0;
   cv.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:40;display:none';
   document.body.appendChild(cv);
   try { host.surface.style.touchAction = 'none'; } catch (e0) { /* ignore */ }
@@ -91,12 +118,17 @@ export function createTouch(host) {
   }
   function mark() { dirty = true; want(); }
 
-  function setKey(code, down) {
+  function setKey(code, down, stickKey) {
     if (!!held[code] === down) return;
     held[code] = down;
-    host.key(code, down);
+    host.key(code, down, down && stickKey ? deb.press(code, performance.now()) : false);
   }
-  function setStickKeys(k) { setKey('KeyW', k.KeyW); setKey('KeyS', k.KeyS); setKey('KeyA', k.KeyA); setKey('KeyD', k.KeyD); }
+  function setStickKeys(k) { setKey('KeyW', k.KeyW, 1); setKey('KeyS', k.KeyS, 1); setKey('KeyA', k.KeyA, 1); setKey('KeyD', k.KeyD, 1); }
+  function pollTick() { if (!gate.tick(performance.now())) { clearInterval(timer); timer = 0; return; } api.sync(); }
+  function wake() {
+    if (gate.touch(performance.now())) { if (timer) clearInterval(timer); timer = setInterval(pollTick, POLL_MS); }
+    api.sync();
+  }
   function padDown(p) {
     if (p.mouse !== undefined) { held[p.code] = true; host.mouse(p.mouse, true); } else setKey(p.code, true);
   }
@@ -107,7 +139,7 @@ export function createTouch(host) {
     var k, i;
     for (i = 0; i < pads.length; i++) if (held[pads[i].code]) padUp(pads[i]);
     for (k in held) if (held[k]) setKey(k, false);
-    stick = null; looks = {}; padHold = {}; pinch = null; mark();
+    stick = null; looks = {}; padHold = {}; pinch = null; deb.reset(); mark();
   }
   function pinchTwo() {
     var ids = Object.keys(looks);
@@ -117,7 +149,9 @@ export function createTouch(host) {
   }
 
   function onDown(e) {
-    if (e.pointerType !== 'touch' || !shown || !host.active()) return;
+    if (e.pointerType !== 'touch') return;
+    wake();
+    if (!shown || !host.active()) return;
     if (e.target !== host.surface) return;                         // overlays (inventory, menus, chat) keep their own native taps
     var p = hitPad(pads, e.clientX, e.clientY), id = e.pointerId;
     e.preventDefault();
@@ -155,7 +189,7 @@ export function createTouch(host) {
   window.addEventListener('blur', releaseAll);
   resize();
 
-  return {
+  var api = {
     sync: function () {
       var a = !!host.active();
       if (a === shown) return;
@@ -163,7 +197,7 @@ export function createTouch(host) {
       if (!a) releaseAll(); else { dirty = true; want(); }
     },
     dispose: function () {
-      releaseAll();
+      releaseAll(); if (timer) clearInterval(timer); timer = 0;
       window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('pointerup', onUp, true); window.removeEventListener('pointercancel', onUp, true);
       window.removeEventListener('resize', resize); window.removeEventListener('blur', releaseAll);
@@ -171,4 +205,6 @@ export function createTouch(host) {
       if (cv.parentNode) cv.parentNode.removeChild(cv);
     }
   };
+  wake();
+  return api;
 }

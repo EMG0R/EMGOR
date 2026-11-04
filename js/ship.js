@@ -1065,13 +1065,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var tc = m.createTouch({
                 surface: engine.renderer.domElement,
                 active: function () { return state === 'piloting' && !cmdOpen && !menuOpen && !storeOpen && !invOpen && !boarding && !exiting; },
-                key: function (code, down) { window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code: code, key: code === 'Space' ? ' ' : code.replace(/^Key/, '').toLowerCase(), bubbles: true, cancelable: true })); },
+                key: function (code, down, rep) { window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code: code, key: code === 'Space' ? ' ' : code === 'Enter' ? 'Enter' : code.replace(/^Key/, '').toLowerCase(), repeat: !!rep, bubbles: true, cancelable: true })); },
                 mouse: function (btn, down) { document.dispatchEvent(new MouseEvent(down ? 'mousedown' : 'mouseup', { button: btn, bubbles: true, cancelable: true })); },
                 look: function (dx, dy) { if (state !== 'piloting' || cmdOpen) return; if (typeof PT !== 'undefined' && PT.rad && PT.rad.on) return; mdx += dx; mdy += dy; },
                 throttle: function (d) { if (gmode === 'fly' && !cmdOpen) throttle = clamp(throttle + d, THROTTLE_MIN, 1); }
             });
             touchMod = tc; touchOn = true;
-            setInterval(tc.sync, 300);      // slow poll: show/hide with piloting state (no per-frame work, no listeners on every state change)
+            // the overlay polls its own show/hide (300 ms) and stops after 10 s without a touch; touchstart restarts it (pollGate)
         }).catch(function (e) { console.info('[ship] touch controls unavailable', e); });
     }
 
