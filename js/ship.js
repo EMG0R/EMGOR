@@ -1561,6 +1561,51 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         out.sort(function (a, b) { return a.d - b.d; });
         return out;
     }
+    // Q44 harness: every village / crowd / clerk NPC on the active planet with its reachability. reachable = a walkable floor within 1.5 H of the anchor
+    // (ps.floorLocal under it) and, for villagers outdoors, not inside a wall collider. distToPad = H to the nearest outpost pad (villagers: to the well). Allocates; test hook only.
+    var npcPadV = new THREE.Vector3(), npcPadQ = new THREE.Quaternion();
+    function npcPadNear(p, H) {
+        var best = 1e30, i, o, d;
+        if (VG.v && VG.node === land.node) best = p.distanceTo(VG.v.anchor.pos);
+        if (ps && ps.outposts && land.node) {
+            npcPadQ.copy(land.node.mesh.quaternion).invert();
+            for (i = 0; i < ps.outposts.length; i++) {
+                o = ps.outposts[i]; if (!o.pos) continue;
+                npcPadV.copy(o.pos).sub(land.node.anchor.position).applyQuaternion(npcPadQ);
+                d = p.distanceTo(npcPadV); if (d < best) best = d;
+            }
+        }
+        return best < 1e29 ? best / H : -1;
+    }
+    function npcAudit() {
+        var out = [], H = hOf(L), i, j, st, cr, v, rep = null;
+        if (!ps || !land.node || ps.active !== land.node) return out;
+        function add(kind, o, id, p, wallBad) {
+            var dir = p.clone().normalize(), fl = ps.floorLocal(dir.x, dir.y, dir.z), dy = Math.abs(p.length() - fl) / H;
+            out.push({ id: String(id), kind: kind, pos: p.toArray(), reachable: fl > 0 && dy <= 1.5 && !wallBad, floorDy: +dy.toFixed(3), distToPad: +npcPadNear(p, H).toFixed(2), o: o });
+        }
+        if (VG.v && VG.node === land.node) {
+            rep = VG.v.placement ? VG.v.placement({ maxRadius: 1e9 }) : null;
+            for (i = 0; i < VG.v.villagers.length; i++) { v = VG.v.villagers[i]; add('villager', v, v.id, VG.v.toParent(v.pos, new THREE.Vector3()), !!(rep && !v.inside && rep.inside.indexOf(i) >= 0)); }
+        }
+        if (world && world.node === land.node && world.stores) for (i = 0; i < world.stores.length; i++) {
+            st = world.stores[i]; if (!st) continue;
+            if (st.npcSpot && st.npcSpot.pos) add('clerk', st, st.id, st.npcSpot.pos, false);
+            cr = st.crowd; if (cr && cr.npcs) for (j = 0; j < cr.npcs.length; j++) { v = cr.npcs[j]; if (v.pos) add('shopper', v, v.id, v.pos, false); }
+        }
+        return out;
+    }
+    function npcGoto(i) {
+        var a = npcAudit()[i | 0]; if (!a || gmode !== 'foot' || !hum.obj) return false;
+        var H = hOf(L), p = new THREE.Vector3().fromArray(a.pos), up = p.clone().normalize(), t = new THREE.Vector3();
+        var pad = a.kind === 'villager' && VG.v ? VG.v.anchor.pos : null;
+        if (pad) t.copy(p).sub(pad); else t.copy(hum.hf);
+        t.addScaledVector(up, -t.dot(up)); if (t.lengthSq() < 1e-12) t.copy(hum.hf);
+        t.normalize();
+        var q = p.clone().addScaledVector(t, 2 * H).normalize(), r = mFloor(q.x, q.y, q.z, 0) + 0.2 * H;
+        hum.pos.copy(q).multiplyScalar(r); hum.hr = hum.gr = hum.vh = r; hum.air = true; hum.vv = 0;
+        hum.hf.copy(t).negate(); hum.face.copy(hum.hf); hum.pitch = 0; camRelInit = false; mdx = mdy = 0; return true;
+    }
     function gdNpcs(dt, ni) {
         gdNT -= dt;
         if (gdNT <= 0) {
@@ -10557,7 +10602,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         get scale() { return { L: L, refR: refR, refR0: refR0, live: readRefR() }; },
         get ps() { return ps; },
         get lf() { return lf; },
-        dbg: { resetWorld: function () {         // Q39 harness hook: clear what one g-test leaves for the next (enemies, ground mobs, mob bolts, fight, held fire/freeze); re-seeds nothing
+        dbg: { npcs: function () { return npcAudit().map(function (a) { return { id: a.id, kind: a.kind, pos: a.pos, reachable: a.reachable, distToPad: a.distToPad }; }); }, gotoNpc: npcGoto, talkNearest: function () { onKeyTalk(); return DLG.open; }, resetWorld: function () {       // Q39 harness hook: clear what one g-test leaves for the next (enemies, ground mobs, mob bolts, fight, held fire/freeze); re-seeds nothing
             var i; try { if (FG.on) fightEnd(); } catch (e0) { warnOnce('reset.fight', e0); }
             clearFight(); styDrop();
             for (i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob) gndFree(R27.gnd[i]);
