@@ -4804,6 +4804,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var tx = v > 0 ? (ctx === 'exit' ? 'EXIT SHIP' : (ctx === 'board' ? 'LIFT OFF' : (ctx === 'summon' ? 'SUMMON SHIP' : ''))) : '';
         if (tx !== cEhT) { cEhT = tx; elEhT.textContent = tx; }
     }
+    function ehTell() {         // tap Z in flight, no landing possible: say why, never start the auto-land/step-out
+        var why = '';
+        if (ps) { try { var lr = ps.landable(shipRoot.position); if (!lr.ok) why = lr.why || ''; } catch (e) { why = ''; } }
+        if (why) announce(why === 'water' ? 'WATER · FIND LAND' : (why === 'slope' ? 'TOO STEEP · MOVE ON' : 'CANNOT LAND HERE'));
+        else if (lf.on && lf.cap) announce('SLOW DOWN TO LAND');
+    }
     function ehExit() {
         var okL = true, why = '';
         if (ps) { try { var lr = ps.landable(shipRoot.position); okL = !!lr.ok; why = lr.why || ''; } catch (e) { okL = true; } }
@@ -4926,12 +4932,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     // 2026-10-14: Z = the SHIP (land / exit / board / step out of the hatch / launch). F = everything else you interact with on foot.
     function landStill() {      // PF2: landOk is sampled at 8 Hz; re-check on the press so a ridge flown over in the last 0.12 s cannot start a landing
-        try { if (!ps || !psA || vel.length() >= 2) { landOk = false; return false; } var lr = ps.landable(shipRoot.position); if (!lr.ok) { landOk = false; return false; } } catch (e) { landOk = false; return false; }
+        try { if (!ps || !ps.active || vel.length() >= 2) { landOk = false; return false; } var lr = ps.landable(shipRoot.position); if (!lr.ok) { landOk = false; return false; } } catch (e) { landOk = false; return false; }
         return true;
     }
     var dockAssist = false;
     function onKeyZ() {
-        if (gmode === 'fly') { if (cvHail()) return; if (dockAssist && !dead) { dockAssist = false; beginDock(null, true); return; } if (landOk && landStill()) landReq = true; else if (!dead) ehExit(); }      // consistency: Z never leaves flight (HOLD ESC does); a failed land says why
+        if (gmode === 'fly') { if (cvHail()) return; if (dockAssist && !dead) { dockAssist = false; beginDock(null, true); return; } if (landOk && landStill()) landReq = true; else if (!dead) ehTell(); }      // consistency: Z never leaves flight (HOLD ESC does); a failed land says why. A tap only explains: auto-land + step-out is the HOLD (ehExit)
         else if (gmode === 'landed') exitShip();
         else if (gmode === 'foot') { if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); } }
         else if (gmode === 'ifoot') { if (ixTarget().kind === 'hatch') interiorF(); }
@@ -5668,7 +5674,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 }
             }
             dockAssist = false;       // Q30: Z · DOCK within 8 station radii of the mouth (autopilot sequence, W interrupts)
-            if (!lmsg && !dead && !lf.on && station && station.group.visible && station.mouth && sk.cd <= 0 && !sk.mode && SITE()) {
+            if (!lmsg && !dead && !lf.on && station && station.group.visible && station.mouth && sk.cd <= 0 && !sk.mode && STN()) {
                 if (P.distanceTo(station.mouth.pos) < 8 * 0.5 * station.length) { dockAssist = true; lmsg = 'Z · DOCK'; }
             }
             setPrompt(lmsg, landOk || dockAssist);
@@ -8570,7 +8576,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
     }
     // ─── station docking: scripted approach, deck on foot, scripted launch ────────────────────────────────────────────────────────
-    // The ship and the human are stored STATION-LOCAL (L units) and ride SITE().pos / quat every frame, like the planet frame.
+    // The ship and the human are stored STATION-LOCAL (L units) and ride STN().pos / quat every frame, like the planet frame.
     var SK_R = 0.022, SK_H = 0.09, SK_CAM = 0.54;   // station deck + ship interior stay at the old 0.09 human (ship-scale.js)
     var sk = { mode: '', pad: 0, pts: [], cum: [], len: 0, t: 0, T: 6, q0: new THREE.Quaternion(), shipL: new THREE.Vector3(), hp: new THREE.Vector3(), yaw: 0, pitch: 0.3, vv: 0, air: false, moving: false, running: false, jumpHeld: false, nl: 0, cd: 0, fade: 0 };
     var skA = new THREE.Vector3(), skB = new THREE.Vector3(), skC = new THREE.Vector3(), skI = { kind: '', obj: null, label: '' };
@@ -8585,7 +8591,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var i, l;
         sk.pts.length = 0; sk.cum.length = 0;
         if (first) sk.pts.push(first.clone());
-        for (i = 0; i < worldPts.length; i++) { l = SITE().toLocal(worldPts[i], new THREE.Vector3()); if (first && l.z >= first.z - 0.8) continue; sk.pts.push(l); }
+        for (i = 0; i < worldPts.length; i++) { l = STN().toLocal(worldPts[i], new THREE.Vector3()); if (first && l.z >= first.z - 0.8) continue; sk.pts.push(l); }
         if (sk.pts.length < 2) sk.pts.push(sk.pts[0].clone().add(new THREE.Vector3(0, 0, -1)));
         sk.cum.push(0);
         for (i = 1; i < sk.pts.length; i++) sk.cum.push(sk.cum[i - 1] + sk.pts[i].distanceTo(sk.pts[i - 1]));
@@ -8593,27 +8599,27 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function beginDock(dd, auto) {
         R27.dsite = dd ? dkSite(dd) : null;
-        if (!SITE() || sk.mode || gmode !== 'fly' || dead || state !== 'piloting' || boarding || exiting) return false;
+        if (!STN() || sk.mode || gmode !== 'fly' || dead || state !== 'piloting' || boarding || exiting) return false;
         var pad = 0, i;
-        for (i = 0; i < SITE().pads.length; i++) if (SITE().pads[i].free) { pad = i; break; }
-        SITE().group.updateMatrixWorld(true);
-        SITE().toLocal(shipRoot.position, skA);
-        skBuild(skA, SITE().dockPath(pad));
-        sk.q0.copy(SITE().quat).invert().multiply(shipRoot.quaternion);
+        for (i = 0; i < STN().pads.length; i++) if (STN().pads[i].free) { pad = i; break; }
+        STN().group.updateMatrixWorld(true);
+        STN().toLocal(shipRoot.position, skA);
+        skBuild(skA, STN().dockPath(pad));
+        sk.q0.copy(STN().quat).invert().multiply(shipRoot.quaternion);
         sk.pad = pad; sk.t = 0; sk.T = clamp(sk.len / 12, 4.5, 9); sk.mode = 'docking'; gmode = 'docking';
         sk.auto = !!auto && !dd; sk.wArm = false; if (sk.auto) sk.T = clamp(sk.len / 12, 6, 12) + 3;      // Q30: autopilot adds a 3 s final glide on top of the approach
         lfOff(); killBolts(); combatRoot.visible = false; firing = false; mdx = mdy = 0; keys = Object.create(null);
         vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; pulseT = 0; eh.on = false; eh.t = 0; ehShow(0, '');
         setGround(true, false); setPrompt('DOCKING', true);
-        addRow('', '', (sk.auto ? 'AUTOPILOT · ' : '') + 'DOCKING · ' + (R27.dsite ? 'DERELICT' : (SITE().interior.stores[0] ? String(SITE().interior.stores[0].name).toUpperCase() : '7/11 ORBITAL')), 'is-sys');
+        addRow('', '', (sk.auto ? 'AUTOPILOT · ' : '') + 'DOCKING · ' + (R27.dsite ? 'DERELICT' : (STN().interior.stores[0] ? String(STN().interior.stores[0].name).toUpperCase() : '7/11 ORBITAL')), 'is-sys');
         aPlay('liftoff', { vel: 0.6 }); aPlay('warp');
         return true;
     }
     function beginLaunch() {
-        if (sk.mode !== 'deck' || !SITE()) return;
+        if (sk.mode !== 'deck' || !STN()) return;
         closeStore();
-        SITE().group.updateMatrixWorld(true);
-        skBuild(null, SITE().launchPath(sk.pad));
+        STN().group.updateMatrixWorld(true);
+        skBuild(null, STN().launchPath(sk.pad));
         sk.t = 0; sk.T = clamp(sk.len / 11, 4, 8); sk.mode = 'launching'; gmode = 'launching';
         if (hum.obj) hum.obj.group.visible = false;
         jetKill(); setPrompt('', false);
@@ -8624,9 +8630,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function skAbort() {       // Esc / exit() while anywhere in the station sequence: put the ship outside the mouth and hand back to the exit cinematic
         closeStore();
         if (hum.obj) hum.obj.group.visible = false;
-        if (SITE() && sk.mode) {
-            try { SITE().group.updateMatrixWorld(true); var lp = SITE().launchPath(sk.pad); shipRoot.position.copy(lp[lp.length - 1]); } catch (e) { /* ignore */ }
-            if (SITE().pads[sk.pad]) SITE().pads[sk.pad].free = true;
+        if (STN() && sk.mode) {
+            try { STN().group.updateMatrixWorld(true); var lp = STN().launchPath(sk.pad); shipRoot.position.copy(lp[lp.length - 1]); } catch (e) { /* ignore */ }
+            if (STN().pads[sk.pad]) STN().pads[sk.pad].free = true;
         }
         sk.mode = ''; sk.cd = 3; exOff(exMe); hullY(0);
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
@@ -8636,7 +8642,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function dockCancel() {      // Q30: W during the autopilot dock: control returns where the ship is, drifting with the station
         sk.mode = ''; sk.auto = false; sk.cd = 4; gmode = 'fly';
-        vel.copy(SITE().vel); speed = 0; throttle = 0.2; pulse = 0; pulseT = 0; bank = 0; yawRate = pitRate = 0;
+        vel.copy(STN().vel); speed = 0; throttle = 0.2; pulse = 0; pulseT = 0; bank = 0; yawRate = pitRate = 0;
         combatRoot.visible = true; setGround(false, false); setPrompt('', false); hullY(0); exOff(exMe);
         mdx = mdy = 0; keys = Object.create(null); lfOff();
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
@@ -8645,7 +8651,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function skLand() {
         sk.mode = 'deck'; gmode = 'sfoot';
-        var pad = SITE().pads[sk.pad];
+        var pad = STN().pads[sk.pad];
         if (pad) pad.free = false;
         sk.shipL.copy(pad ? pad.local : skA.set(0, 0.4, 0));
         exOff(exMe); hullY(0);
@@ -8658,18 +8664,18 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         setGround(true, true); setPrompt('', false);
         net && net.setMode && net.setMode('landed'); sk.nl = 0.4;
         shake = Math.max(shake, 0.06 * L); aPlay('land', { vel: 1 });
-        SITE().toWorld(sk.shipL, skB); for (var i = 0; i < 3; i++) fx.impact(skB, 0x9ab0ff, 2);
+        STN().toWorld(sk.shipL, skB); for (var i = 0; i < 3; i++) fx.impact(skB, 0x9ab0ff, 2);
         if (R27.dsite) { addRow('', '', 'DERELICT · loot crates glow in the far room (F) · something is awake in here', 'is-sys'); dkOnDock(R27.dsite.d); }
         else addRow('', '', sk.auto ? 'DOCKED · Z to step out · F at the counter, NPCs, shipyard, map pedestal' : 'DOCKED · F near the counter, NPCs, shipyard, map pedestal or your ship', 'is-sys');
         sk.auto = false;
         r28Dock();
     }
     function finishLaunch() {
-        var pad = SITE().pads[sk.pad]; if (pad) pad.free = true;
+        var pad = STN().pads[sk.pad]; if (pad) pad.free = true;
         sk.mode = ''; sk.cd = 3; gmode = 'fly';
-        vA.copy(SITE().mouth.dir);
+        vA.copy(STN().mouth.dir);
         shipRoot.quaternion.setFromUnitVectors(NEG_Z, vA.normalize());
-        vel.copy(vA).multiplyScalar(2.5 * CRUISE).add(SITE().vel); speed = 2.5 * CRUISE; throttle = 0.6; pulse = 0; pulseT = 0; bank = 0; yawRate = pitRate = 0;
+        vel.copy(vA).multiplyScalar(2.5 * CRUISE).add(STN().vel); speed = 2.5 * CRUISE; throttle = 0.6; pulse = 0; pulseT = 0; bank = 0; yawRate = pitRate = 0;
         combatRoot.visible = true; setGround(false, false); setPrompt('', false); hullY(0); exOff(exMe);
         mdx = mdy = 0; keys = Object.create(null); lfOff();
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
@@ -8678,7 +8684,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         dkLeave();
     }
     function skCollide(p, yFoot) {
-        var b = SITE().deck.bounds, w = SITE().deck.walls, i, r = SK_R, q;
+        var b = STN().deck.bounds, w = STN().deck.walls, i, r = SK_R, q;
         p.x = clamp(p.x, b.min.x + r, b.max.x - r); p.z = clamp(p.z, b.min.z + r, b.max.z - r);
         for (i = 0; i < w.length; i++) {
             q = w[i];
@@ -8699,17 +8705,17 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function stationInteract() {
         skI.kind = ''; skI.obj = null; skI.label = '';
-        if (!SITE() || !hum.obj || sk.mode !== 'deck' || storeOpen) return skI;
-        var hw = hum.w, st0 = SITE().interior.stores[0], npcs = SITE().interior.npcs, ped = SITE().interior.mapPedestal, i;
+        if (!STN() || !hum.obj || sk.mode !== 'deck' || storeOpen) return skI;
+        var hw = hum.w, st0 = STN().interior.stores[0], npcs = STN().interior.npcs, ped = STN().interior.mapPedestal, i;
         if (st0 && hw.distanceTo(st0.counter.pos) < Math.max(st0.counter.radius * 1.8, 2 * SK_H * L)) { skI.kind = 'store'; skI.obj = st0; skI.label = 'F · SHOP'; return skI; }
-        var cv = !R27.dsite && SITE().interior.cvs;      // Q14b station POKEMANS CVS: same {kind, cvs} shape as world.nearCvs
+        var cv = !R27.dsite && STN().interior.cvs;      // Q14b station POKEMANS CVS: same {kind, cvs} shape as world.nearCvs
         if (cv && cv.radius) {
             var dR = hw.distanceTo(cv.reviveWin), dH = hw.distanceTo(cv.healWin);
             if (Math.min(dR, dH) < cv.radius) { skI.kind = 'cvs'; skI.obj = { kind: dR <= dH ? 'revive' : 'heal', cvs: cv }; skI.label = dR <= dH ? cvsLabel() : 'F · HEAL'; return skI; }
         }
         for (i = 0; i < npcs.length; i++) if (hw.distanceTo(npcs[i].pos) < 1.4 * L) { skI.kind = 'npc'; skI.obj = npcs[i]; skI.label = 'T · TALK'; return skI; }
-        var tr = SITE().interior.trade; if (tr && tr.pos && hw.distanceTo(tr.pos) < Math.max(tr.radius || 0, 1.8 * L)) { skI.kind = 'trade'; skI.obj = tr; skI.label = 'F · TRADE'; return skI; }
-        var yd = !R27.dsite && SITE().interior.shipyard; if (yd && yd.pos && yd.ships && hw.distanceTo(yd.pos) < Math.max(yd.radius || 0, 1.5 * L)) { skI.kind = 'shipyard'; skI.obj = yd; skI.label = 'F · SHIPYARD'; return skI; }
+        var tr = STN().interior.trade; if (tr && tr.pos && hw.distanceTo(tr.pos) < Math.max(tr.radius || 0, 1.8 * L)) { skI.kind = 'trade'; skI.obj = tr; skI.label = 'F · TRADE'; return skI; }
+        var yd = !R27.dsite && STN().interior.shipyard; if (yd && yd.pos && yd.ships && hw.distanceTo(yd.pos) < Math.max(yd.radius || 0, 1.5 * L)) { skI.kind = 'shipyard'; skI.obj = yd; skI.label = 'F · SHIPYARD'; return skI; }
         if (R27.dsite) { var dc = dkCrateNear(); if (dc) { skI.kind = 'loot'; skI.obj = dc; skI.label = 'F · LOOT'; return skI; } }
         if (hw.distanceTo(ped.pos) < ped.radius + 0.3 * L) { skI.kind = 'map'; skI.label = 'F · GALAXY MAP'; return skI; }
         if (hw.distanceTo(shipRoot.position) < BOARD_L * L) { skI.kind = 'ship'; skI.label = R25.mod ? 'Z · ENTER SHIP · HOLD LAUNCH' : 'Z · LAUNCH'; return skI; }
@@ -8731,9 +8737,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     var skQ = new THREE.Quaternion(), skQ2 = new THREE.Quaternion();
     function skShipPose(dt, snap, qL) {
-        SITE().toWorld(skA, skB);
+        STN().toWorld(skA, skB);
         if (snap) shipRoot.position.copy(skB); else shipRoot.position.lerp(skB, damp(16, dt));
-        shipRoot.quaternion.copy(SITE().quat).multiply(qL);
+        shipRoot.quaternion.copy(STN().quat).multiply(qL);
     }
     function skCommon(dt) {      // shake / fov / camera plane / fx / hud / net: shared by every station sub-state
         shake *= Math.exp(-6 * dt);
@@ -8747,7 +8753,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         scanUpdate(dt); musicTick(dt, null); updateBooms(dt); updateHud(0, aliveCount()); hudDmg(dt); updatePlayerMarks();
     }
     function stationStep(dt) {
-        if (!SITE()) { skAbort(); return; }
+        if (!STN()) { skAbort(); return; }
         var m = sk.mode, u, e;
         if (m === 'docking' || m === 'launching') {
             sk.t += dt; u = clamp(sk.t / sk.T, 0, 1);
@@ -8795,28 +8801,28 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var wantJump = !cmd && !!keys.Space;
         if (!sk.air && wantJump && !sk.jumpHeld) { sk.air = true; sk.vv = 8.5 * H; }
         sk.jumpHeld = wantJump;
-        var nSub = clamp(Math.ceil(spd * dt / (0.15 * H)), 1, 24), h = dt / nSub, k, p = sk.hp, ceil = SITE().deck.bounds.max.y - H;
+        var nSub = clamp(Math.ceil(spd * dt / (0.15 * H)), 1, 24), h = dt / nSub, k, p = sk.hp, ceil = STN().deck.bounds.max.y - H;
         for (k = 0; k < nSub; k++) {
             if (moving) { p.x += mx * spd * h; p.z += mz * spd * h; }
             if (sk.air) { sk.vv -= 22 * H * h; p.y += sk.vv * h; if (p.y >= ceil) { p.y = ceil; sk.vv = Math.min(0, sk.vv); } if (p.y <= 0) { p.y = 0; sk.vv = 0; sk.air = false; } }
             skCollide(p, p.y);
         }
         // the human + its world pose
-        SITE().toWorld(p, hum.w);
+        STN().toWorld(p, hum.w);
         hum.obj.group.position.copy(hum.w);
         skQ.setFromAxisAngle(Y, sk.yaw);
-        hum.obj.group.quaternion.copy(SITE().quat).multiply(skQ);
+        hum.obj.group.quaternion.copy(STN().quat).multiply(skQ);
         hum.obj.group.scale.setScalar(H * L);
         hum.obj.update(dt, { moving: moving, running: run, airborne: sk.air, speed: moving ? (run ? 1 : 0.5) : 0, facing: 0 });
         // the parked ship rides the station
         skA.copy(sk.shipL); skShipPose(dt, true, skQ2.identity());
         // camera: 6 human heights behind, never outside the hangar volume
-        var b = SITE().deck.bounds, cp = Math.cos(sk.pitch), spn = Math.sin(sk.pitch);
+        var b = STN().deck.bounds, cp = Math.cos(sk.pitch), spn = Math.sin(sk.pitch);
         skA.set(p.x, p.y + 0.8 * H, p.z);
         skB.set(skA.x + sy * cp * SK_CAM, skA.y + spn * SK_CAM, skA.z + cy * cp * SK_CAM);
         skB.x = clamp(skB.x, b.min.x + 0.08, b.max.x - 0.08); skB.y = clamp(skB.y, 0.06, b.max.y - 0.1); skB.z = clamp(skB.z, b.min.z + 0.08, b.max.z - 0.1);
-        SITE().toWorld(skA, skC); SITE().toWorld(skB, vTmp);
-        vA.copy(Y).applyQuaternion(SITE().quat);
+        STN().toWorld(skA, skC); STN().toWorld(skB, vTmp);
+        vA.copy(Y).applyQuaternion(STN().quat);
         mM.lookAt(vTmp, skC, vA); gQ.setFromRotationMatrix(mM);
         groundCam(dt, skC, vTmp, gQ, 16);
     }
@@ -8829,7 +8835,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         meteor: { node: null, until: 0, t: 0, list: [] }, claimed: {}, touchSig: '', intSig: '', follow: { key: '', pet: null, holder: null, pp: new THREE.Vector3(), lpp: new THREE.Vector3(), init: false, name: '', chk: 0 },
         rl: { name: '', key: '', loaded: false, pend: false, retry: 0, sig: '', lastSend: 0, bigWarned: false }, wxOn: false
     };
-    function SITE() { return R27.dsite || station; }
+    function STN() { return R27.dsite || station; }
     var fsC2 = new THREE.Vector3(), fsW = new THREE.Vector3(), qW = new THREE.Quaternion();
     var r27R = new THREE.Vector3(), r27U = new THREE.Vector3(), r27F = new THREE.Vector3(), r27G = new THREE.Vector3(), r27T = new THREE.Vector3(), r27D = new THREE.Vector3(), r27Qi = new THREE.Quaternion(), r27Fo = { r: 0, n: new THREE.Vector3() };
     var r27A = new THREE.Vector3(), r27B = new THREE.Vector3(), r27C = new THREE.Vector3();
@@ -10205,7 +10211,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // ── 6. station board + greeting ──
     var R28_QK = { kill: 'bounty', harvest: 'mine', deliver: 'trade', scan: 'scout', retrieve: 'mine', escort: 'trade' };
     function r28Dock() {
-        var site = SITE(); if (!site || !site.interior || R27.dsite) return;
+        var site = STN(); if (!site || !site.interior || R27.dsite) return;
         try {
             var qb = site.interior.questBoard;
             if (qb && qb.setQuests) { var offers = QST.offerSet('board|' + qDay(), questCtx('board'), 3); qb.setQuests(offers.map(function (q) { return { title: q.title, reward: (q.reward && q.reward.gor) | 0, kind: R28_QK[q.kind] || 'bounty' }; })); }
