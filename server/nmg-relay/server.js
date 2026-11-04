@@ -6,6 +6,7 @@ const { WebSocketServer } = require('ws');
 const crypto = require('crypto');
 const { handleGor } = require('./gor');
 const store = require('./store');
+const board = require('./board');
 
 const PORT = +process.env.PORT || 8796;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -151,6 +152,14 @@ const server = http.createServer(function (req, res) {
     res.end(JSON.stringify({ n: players.size }));
     return;
   }
+  if (req.method === 'GET' && (req.url === '/disc' || req.url === '/board')) {      // public read-only; no player ids, only names already shown in game
+    const body = req.url === '/disc'
+      ? Object.values(store.get('discoveries')).map(function (d) { return { kind: d.kind, id: d.id, name: d.name, by: d.by, at: d.at }; }).sort(function (a, b) { return b.at - a.at; })
+      : board.top(store.get('board'), 100);
+    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': 'https://emgor.online', 'cache-control': 'public, max-age=15' });
+    res.end(JSON.stringify(body));
+    return;
+  }
   res.writeHead(404); res.end();
 });
 
@@ -257,6 +266,10 @@ function handle(ws, c, m, now) {
         pos.frame = 'planet'; pos.pid = m.pid.replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 48);
         pos.lx = m.lx; pos.ly = m.ly; pos.lz = m.lz; pos.lqx = m.lqx; pos.lqy = m.lqy; pos.lqz = m.lqz; pos.lqw = m.lqw;
       }
+      if (pos.pid && (pos.mode === 'landed' || pos.mode === 'foot')) {      // Q38: distinct planets landed this session
+        const sp = p.seenPl || (p.seenPl = new Set());
+        if (!sp.has(pos.pid) && sp.size < 200) { sp.add(pos.pid); if (board.bump(store.get('board'), p.name, 'planets', 1, now)) store.save('board'); }
+      }
       p.pos = pos;
       broadcast(Object.assign({ t: 'pos', id: p.id }, pos), p.id);
       if (p.s !== 'piloting') { p.s = 'piloting'; broadcastRoster(); }
@@ -277,6 +290,7 @@ function handle(ws, c, m, now) {
     }
     case 'kill':
       if (typeof m.by !== 'string' || !/^[A-Za-z0-9]{6,16}$/.test(m.by)) return false;
+      if (m.by !== p.id && lim(c, 'kb', 1, now)) { const k = players.get(m.by); if (k && board.bump(store.get('board'), k.name, 'kills', 1, now)) store.save('board'); }      // Q38
       broadcast({ t: 'kill', id: p.id, by: m.by });
       return true;
     case 'chat': {                       // plain multiplayer chat, fanned out to everyone (incl. sender)
@@ -307,6 +321,7 @@ function handle(ws, c, m, now) {
       if (!rec && store.size('profiles') + txt.length > store.MAX_BYTES - 4096) { send(ws, { t: 'prof.err', why: 'full' }); return true; }
       profs[nm] = { h: h, data: m.data, at: now };
       store.save('profiles');
+      if (board.fromProfile(store.get('board'), p.name, m.data, now)) store.save('board');      // Q38
       send(ws, { t: 'prof.ok', name: nm });
       return true;
     }
@@ -388,6 +403,8 @@ function handle(ws, c, m, now) {
       if (!r || r.host !== p.id) return false;
       const res = m.result === undefined ? null : m.result;
       if (JSON.stringify(res === undefined ? null : res).length > 512) return false;
+      const wn = board.winnerName(res, [...r.fighters].map(function (id) { const q = players.get(id); return q ? q.name : ''; }));      // Q38
+      if (wn && board.bump(store.get('board'), wn, 'wins', 1, now)) store.save('board');
       endRoom(r, res);
       return true;
     }

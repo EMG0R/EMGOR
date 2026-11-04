@@ -7,7 +7,7 @@ const path = require('path');
 
 const DIR = process.env.NMG_DATA || path.join(os.homedir(), 'nmg-relay', 'data');
 const MAX_BYTES = 2 * 1024 * 1024, DEBOUNCE_MS = 2000;
-const FILES = { profiles: {}, discoveries: {}, events: {} };
+const FILES = { profiles: {}, discoveries: {}, events: {}, board: {} };
 const data = {}, timers = {};
 
 try { fs.mkdirSync(DIR, { recursive: true }); } catch (e) { console.error('store: mkdir failed', e.message); }

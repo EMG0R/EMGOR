@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NO MANS GOR · DISCOVERIES + BOARD</title>
+<style>
+:root{--bg:#05020a;--fg:#d9c8ff;--dim:#7a66a8;--hi:#a478ff;--line:#2a1a4a;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 var(--mono);letter-spacing:.04em;padding:24px;max-width:960px;margin:0 auto}
+h1{font-size:18px;letter-spacing:.2em;margin:0 0 4px;color:var(--hi)}
+h2{font-size:13px;letter-spacing:.2em;color:var(--hi);margin:28px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+a{color:var(--hi)}
+.sub{color:var(--dim);margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--dim);font-weight:normal;cursor:pointer;user-select:none}
+td.n,th.n{text-align:right}
+.empty{color:var(--dim);padding:8px 0}
+#st{color:var(--dim);margin-top:16px}
+.wrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<h1>NO MANS GOR</h1>
+<div class="sub"><a href="../">emgor.online</a> · discoveries and pilot board, read live from the relay</div>
+
+<h2>BOARD</h2>
+<div class="wrap"><table id="bd"><thead><tr><th data-k="name">PILOT</th><th class="n" data-k="catches">CATCHES</th><th class="n" data-k="wins">FIGHT WINS</th><th class="n" data-k="depth">DEEPEST</th><th class="n" data-k="planets">PLANETS</th><th class="n" data-k="kills">KILLS</th></tr></thead><tbody></tbody></table></div>
+
+<h2>DISCOVERIES</h2>
+<div class="wrap"><table id="ds"><thead><tr><th>KIND</th><th>NAME</th><th>CLAIMED BY</th><th>WHEN</th></tr></thead><tbody></tbody></table></div>
+<div id="st">loading…</div>
+<script>
+(function () {
+  var BASES = ['https://gorcave.taila85593.ts.net/nmg', 'https://gorcave.taila85593.ts.net'];
+  var rows = [], sortK = 'wins';
+  function td(tr, txt, cls) { var c = document.createElement('td'); c.textContent = txt; if (cls) c.className = cls; tr.appendChild(c); }
+  function get(path, i) {
+    i = i || 0;
+    return fetch(BASES[i] + path, { cache: 'no-cache' }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).catch(function (e) { if (i + 1 < BASES.length) return get(path, i + 1); throw e; });
+  }
+  function drawBoard() {
+    var tb = document.querySelector('#bd tbody'); tb.textContent = '';
+    var r = rows.slice().sort(function (a, b) { return sortK === 'name' ? String(a.name).localeCompare(b.name) : (b[sortK] || 0) - (a[sortK] || 0); });
+    if (!r.length) { var t = document.createElement('tr'); td(t, 'no pilots on the board yet'); t.firstChild.colSpan = 6; t.firstChild.className = 'empty'; tb.appendChild(t); return; }
+    r.forEach(function (p) { var t = document.createElement('tr'); td(t, p.name); ['catches', 'wins', 'depth', 'planets', 'kills'].forEach(function (k) { td(t, p[k] | 0, 'n'); }); tb.appendChild(t); });
+  }
+  function drawDisc(list) {
+    var tb = document.querySelector('#ds tbody'); tb.textContent = '';
+    if (!list.length) { var t = document.createElement('tr'); td(t, 'nothing claimed yet'); t.firstChild.colSpan = 4; t.firstChild.className = 'empty'; tb.appendChild(t); return; }
+    list.forEach(function (d) { var t = document.createElement('tr'); td(t, String(d.kind).toUpperCase()); td(t, d.name); td(t, d.by); td(t, new Date(d.at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'); tb.appendChild(t); });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#bd th'), function (th) { th.addEventListener('click', function () { sortK = th.getAttribute('data-k'); drawBoard(); }); });
+  Promise.all([get('/board'), get('/disc')]).then(function (a) {
+    rows = a[0]; drawBoard(); drawDisc(a[1]);
+    document.getElementById('st').textContent = rows.length + ' pilots · ' + a[1].length + ' discoveries';
+  }).catch(function () { document.getElementById('st').textContent = 'relay unreachable. try again later.'; });
+})();
+</script>
+</body>
+</html>
