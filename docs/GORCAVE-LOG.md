@@ -562,3 +562,9 @@ OPEN / RISKS:
 - Q39 root cause not reproduced; pets/depth/quality not reset.
 - Carry-overs: H_RATIO 0.2, pilot {4,3}, Q30 station gaps, ft.wild unwired, Q32 gbLocalize/gbProject frame math.
 NEXT 5 TO QUEUE: (1) relay redeploy #3 with board; (2) wire dash/reflect/regen/grab consumers; (3) touch chat/inventory/photo buttons; (4) wire ring-fight catch (ft.wild); (5) next four mashup styles from mashup-plan §1.
+
+## Q40 Relay redeploy #3 — 2026-11-04 — (this commit)
+DONE: copied server/nmg-relay/{server.js,board.js,store.js} to ~/nmg-relay (store.js added beyond the spec: live copy lacked the `board` FILES key that board.js/server.js need). Backups of old server.js/store.js in /tmp/nmgbak. `sudo systemctl restart nmg-relay`, waited 3 s: is-active = active, journal "listening on 127.0.0.1:8797".
+TESTS: node --check server.js board.js store.js ok. Local routes are /disc and /board (Funnel strips /nmg; /nmg/disc locally = 404). curl localhost:8797/disc -> [{"kind":"planet","id":"emgor.web-synth.bouba-legacy","name":"BOUBA (legacy)","by":"EMG0R",...} (discoveries list, ok). curl localhost:8797/board -> [] (empty, no board data yet). /healthz {"n":0}.
+VERIFY ON MAC: open nomansgor/board.html, confirm counters render and move; two tabs see each other.
+OPEN: none.
