@@ -281,6 +281,57 @@ import * as GL from './galaxy-layout.js';
         '}'
     ].join('\n');
 
+    // ─── 2026-11-04 far relief (pilot mode). The orbital sphere of the active + nearest 2 terra planets within 8 R displaces its vertices by a 2-octave
+    // copy of ship-planet's hfun (ORBIT_RELIEF_GLSL; JS mirror ship-planet.sampleHeightLo), amplitude uRelO = 0 at >= 8 R, 1 at <= 4 R. Same draw call, same
+    // material (uniform), only the geometry is swapped to a 64x45 sphere while relief is on. fbmLo = 0.625 v0 + 0.3125 v1 (mean-matched to the 4-octave fbm),
+    // no fine 3.7x term. ship-planet's globe (GLOBE_VERT) starts from this SAME function at 3 R and eases to the full one: relief is never summed, so no double
+    // application. The string holds functions only (no uniforms) so ship-planet can paste it into the globe shader. Published on globalThis for it.
+    var ORBIT_RELIEF_GLSL = [
+        'float fbmLo(vec3 p) {',
+        '    float v = 0.625 * vnoise(p);',
+        '    p = p * 2.07 + vec3(11.3, 7.9, 5.1);',
+        '    return v + 0.3125 * vnoise(p);',
+        '}',
+        'float hfunLo(vec3 d, vec3 seed, float freq, float warp, float sea, float seaH, float amp, float bias) {',
+        '    vec3 p = d * freq + seed;',
+        '    vec3 q = vec3(fbmLo(p + vec3(0.0, 3.1, 1.7)), fbmLo(p + vec3(5.2, 1.3, 2.8)), fbmLo(p + vec3(1.7, 9.2, 4.6)));',
+        '    float n = fbmLo(p + (q - 0.5) * warp);',
+        '    float land = smoothstep(sea - 0.035, sea + 0.035, n);',
+        '    float rel = max(n - seaH, 0.0);',
+        '    vec3 pm = vec3(d * (freq * 5.3) + (seed * 1.7 + 2.3));',
+        '    float rid = 1.0 - abs(2.0 * vnoise(pm) - 1.0);',
+        '    return bias + amp * 0.78 * (0.10 * land + rel * (2.2 + 1.6 * rid * smoothstep(0.02, 0.14, rel)));',      // 0.78: the 2-octave function's mean relief measures 1.29x the 4-octave one (tests/node/engine-relief.test.mjs)
+        '}'
+    ].join('\n');
+    try { globalThis.EMGOR_ORBIT_RELIEF_GLSL = ORBIT_RELIEF_GLSL; } catch (e) { /* ignore */ }
+    var RO_AMP = 0.09, RO_BIAS = 0.0015;        // ship-planet AMP / BIAS
+    var PLANET_VERT_REL = [
+        'uniform vec3 uSeed; uniform float uFreq; uniform float uWarp; uniform float uSeaLevel; uniform float uRelO;',
+        'varying vec3 vObjPos;',
+        'varying vec3 vWorldNormal;',
+        'varying vec3 vViewDir;',
+        PLANET_NOISE,
+        ORBIT_RELIEF_GLSL,
+        'float hO(vec3 d) { return max(0.0, hfunLo(d, uSeed, uFreq, uWarp, uSeaLevel, uSeaLevel, ' + RO_AMP.toFixed(2) + ', ' + RO_BIAS.toFixed(4) + ') - ' + RO_BIAS.toFixed(4) + ') * uRelO; }',
+        'void main() {',
+        '    vec3 d = normalize(position);',
+        '    vec3 pa = d, nl = normalize(normal);',
+        '    if (uRelO > 0.0) {',
+        '        vec3 ref = abs(d.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
+        '        vec3 e1 = normalize(cross(d, ref)); vec3 e2 = cross(d, e1);',
+        '        vec3 db = normalize(d + e1 * 0.02); vec3 dd = normalize(d + e2 * 0.02);',
+        '        pa = d * (1.0 + hO(d)); vec3 pb = db * (1.0 + hO(db)); vec3 pc = dd * (1.0 + hO(dd));',
+        '        nl = normalize(cross(pb - pa, pc - pa)); if (dot(nl, d) < 0.0) nl = -nl;',
+        '    }',
+        '    vObjPos = d;',
+        '    vec4 wp = modelMatrix * vec4(pa, 1.0);',
+        '    vWorldNormal = normalize(mat3(modelMatrix) * nl);',
+        '    vViewDir = cameraPosition - wp.xyz;',
+        '    gl_Position = projectionMatrix * viewMatrix * wp;',
+        '}'
+    ].join('\n');
+
+
     var PLANET_FRAG = [
         'uniform vec3 uSeed;',
         'uniform vec3 uColHigh;',
@@ -388,9 +439,10 @@ import * as GL from './galaxy-layout.js';
                 uBandFreq: { value: node.shBands },
                 uSeaLevel: { value: node.shSea },
                 uSpeckle: { value: node.shSpeckle },
-                uLightDir: { value: LIGHT_DIR }
+                uLightDir: { value: LIGHT_DIR },
+                uRelO: { value: 0 }
             },
-            vertexShader: PLANET_VERT,
+            vertexShader: node.biome === 'gas' ? PLANET_VERT : PLANET_VERT_REL,      // terra worlds carry the far-relief vertex stage (uRelO 0 = the plain sphere)
             fragmentShader: PLANET_FRAG,
             // tone mapping is handled once, at output time (OutputPass when
             // bloom is live, renderer otherwise) — never inside materials,
@@ -1360,6 +1412,57 @@ import * as GL from './galaxy-layout.js';
             if (n.ringMesh) n.ringMesh.material.opacity = clamp(a * 0.32, 0, 1);
             n.mesh.visible = a > 0.04;
         }
+        updateFarRelief();
+    }
+
+    // ─── far relief driver (2026-11-04). While piloting, the nearest terra planets within FAR_REL_R (x R) of the camera get uRelO = smoothstep(8, 4, ratio)
+    // and a 64x45 sphere instead of their 48/32/20-segment one (geometry swap only: material, mesh and draw-call count unchanged). How many: perf tier
+    // 3/2 = 3 planets, tier 1 = 2, tier 0 = 1 (globalThis.EMGOR_PERF_TIER, written by ship-perf). A planet whose material was swapped to the hi-res globe
+    // (ship-planet.globeHi, < 3 R) is skipped: the globe starts from the same low-octave function. Where no globe exists (tier 0) the relief fades out
+    // again over 2.8 -> 2.3 R so it never pokes through the terrain patch. Allocation-free: fixed top-3 arrays, one pass over drawOrder.
+    var FAR_REL_R = 8, FAR_REL_FULL = 4;
+    var relGeo = null, relTopN = [null, null, null], relTopD = [0, 0, 0], relTopV = [0, 0, 0];
+    function relGeom() {
+        if (!relGeo) { relGeo = new THREE.SphereGeometry(1, 64, 45); relGeo.computeBoundingSphere(); relGeo.boundingSphere.radius = 1.25; }
+        return relGeo;
+    }
+    function updateFarRelief() {
+        var pt = typeof globalThis.EMGOR_PERF_TIER === 'number' ? globalThis.EMGOR_PERF_TIER : 3;
+        var cap = pt >= 2 ? 3 : (pt === 1 ? 2 : 1), cnt = 0, i, j, n;
+        if (pilot) {
+            var cp = camera.position;
+            for (i = 0; i < drawOrder.length; i++) {
+                n = drawOrder[i];
+                if (!n.parentNode || !n.mesh || !n.anchor.visible || n.mesh.material.vertexShader !== PLANET_VERT_REL) continue;
+                var rn = n.mesh.scale.x; if (!(rn > 0)) continue;
+                var ap = n.anchor.position, dx = cp.x - ap.x, dy = cp.y - ap.y, dz = cp.z - ap.z;
+                var ratio = Math.sqrt(dx * dx + dy * dy + dz * dz) / rn;
+                if (ratio >= FAR_REL_R) continue;
+                if (cnt === cap && ratio >= relTopD[cap - 1]) continue;
+                j = cnt < cap ? cnt++ : cap - 1;
+                while (j > 0 && relTopD[j - 1] > ratio) { relTopD[j] = relTopD[j - 1]; relTopN[j] = relTopN[j - 1]; j--; }
+                relTopD[j] = ratio; relTopN[j] = n;
+            }
+            for (j = 0; j < cnt; j++) {
+                var t = clamp((FAR_REL_R - relTopD[j]) / (FAR_REL_R - FAR_REL_FULL), 0, 1), v = t * t * (3 - 2 * t);
+                var f = clamp((relTopD[j] - 2.3) / 0.5, 0, 1); v *= f * f * (3 - 2 * f);
+                relTopV[j] = v;
+            }
+        }
+        for (i = 0; i < drawOrder.length; i++) {
+            n = drawOrder[i];
+            if (!n.mesh || n.mesh.material.vertexShader !== PLANET_VERT_REL) continue;     // gas, or the globe is in charge
+            var want = -1;
+            for (j = 0; j < cnt; j++) if (relTopN[j] === n) { want = j; break; }
+            if (want >= 0) {
+                n.mesh.material.uniforms.uRelO.value = relTopV[want];
+                if (!n._relOn) { n._relOn = true; n.mesh.geometry = relGeom(); }
+                else if (n.mesh.geometry !== relGeo) n.mesh.geometry = relGeo;      // restored by globeHi to what it captured; same object, kept defensive
+            } else if (n._relOn) {
+                n._relOn = false; n.mesh.material.uniforms.uRelO.value = 0; n.mesh.geometry = sphereGeom(n.geomTier);
+            }
+        }
+        for (j = 0; j < 3; j++) relTopN[j] = null;
     }
 
     // ─── camera: orbit rig built directly from (yaw, pitch, dist) with NO
@@ -2345,6 +2448,16 @@ import * as GL from './galaxy-layout.js';
     // 2026-10-14: {4, 3} (L pinned to x6) failed browser g2 / g9 / g11 / g16 ('cannot approach ... embedded in a larger body'), reverted to {6, 4}.
     // Q22: clearance math now lives in galaxy-layout.js; tests/node/pilot-clearance.test.mjs proves no body embeds another for {6,4} and {4,3}
     // over the real galaxy.json (min centre distance 1.34 x the radius sum for {4,3}), so {4, 3} is set again. If g2/g8/g9/g11 fail on the Mac, set {6, 4}.
+    // Size / clearance contract (ONE place; values live in different files):
+    //   PILOT_PLANET_SCALE {root 4, deep 3}  rendered radius multiplier while piloting (here)
+    //   PILOT_MIN_R_PER_L 320                floor on any body's rendered radius, in ship lengths (here, engine.setShipLength); L = refR / 12000 in ship.js,
+    //                                        so L shrinks with the scale and world-u/s speeds read 1.5x faster in L terms vs {6,4}
+    //   PILOT_CLEAR0 1.65 (+0.55 spread t)   orbit clearance of a child around its parent, x the parent's RENDERED radius (galaxy-layout.js). It must exceed
+    //                                        LF_ON 1.6 (local-frame engage, ship.js) and sit outside ATM_R 1.4 (atmosphere top, ship.js) + the 1.45 R landing
+    //                                        approach, otherwise a neighbour's approach sphere overlaps the parent's. The ratio constants are all in R units,
+    //                                        so they do NOT change with the scale; only the absolute distances do. Proven for {6,4} and {4,3} by
+    //                                        tests/node/pilot-clearance.test.mjs (min centre distance 1.34 x the radius sum) and tests/node/engine-layout.test.mjs.
+    //   far relief 8 R -> 4 R, globe 3 R -> 2.6 R, patch 2.4 R -> 1.3 R   see updateFarRelief / ship-planet globeHi / REL_A.
     var PILOT_PLANET_SCALE = { root: 4, deep: 3 }, pilotBlend = 1;
     var shipLength = 0, PILOT_MIN_R_PER_L = 320;   // rev 20: min pilot rendered radius = 320 L for every body (engine.setShipLength)
     function pilotScaleOf(n) { return !n.parentNode ? 1 : (n.parentNode === root ? PILOT_PLANET_SCALE.root : PILOT_PLANET_SCALE.deep); }
