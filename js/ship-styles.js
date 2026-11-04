@@ -419,23 +419,28 @@ const VARIANTS = {
   SPARKLET: { spd: 1.4, jump: 0.9, acc: 0.2, air: 1, zap: 5, zapChain: 2, zapR: 6 },                                                        // [plan] 1.4x speed, zap arc chains 2 mobs for 5 dmg
   JELLY:    { spd: 0.85, jump: 0.775, acc: 0.35, air: 1, mini: 5, glide: 0.15, glideV: 3, sleep: true, regen: 5 },                          // [plan] 5 mini-jumps (apex 0.6), then glide; sleep regens 5 hp/s
   HAULER:   { spd: 0.7, jump: 0.8, acc: 0.45, air: 0.5, pound: true, poundDmg: 14, poundR: 3, grab: true, throwDmg: 10, throwR: 4 },        // [plan] 0.7x, quake pound, grab+throw within 4 H
+  // Q46: HOPPER (flutter hop, JOSHI minus tongue), HUM (slow-fall after the 2nd jump + sing AoE), RACER (accel ramp to 1.6x, low accel = drifts, ram), SEER (double jump + short float + reflect). glideT = max seconds of glide per airtime; ramp = top speed x after 2 s of held input; sing = sleep seconds; ram = melee dmg when fast.
+  HOPPER:   { spd: 1, jump: 1, acc: 0.2, air: 0.9, mini: 1, glide: 0.12, glideV: 1.5, glideT: 0.9 },                                         // [plan] floaty mobility: gravity x0.12 for 0.9 s
+  HUM:      { spd: 0.8, jump: 0.85, acc: 0.3, air: 1.1, mini: 2, glide: 0.2, glideV: 2, sing: 3, singR: 4 },                                  // [plan] lightest: gravity x0.2 after 2nd jump, sing sleeps mobs 3 s r 4 H
+  RACER:    { spd: 1, ramp: 1.6, jump: 0.85, acc: 0.9, air: 0.6, ram: 10 },                                                                   // [plan] accel curve to 1.6x, drift (slow turn-out of speed), ram 10 dmg at speed
+  SEER:     { spd: 1, jump: 1.05, acc: 0.25, air: 1.1, mini: 2, glide: 0.3, glideV: 4, glideT: 0.6, reflect: true },                           // [guess] not in plan (skip-list roster): double jump, brief float, reflect
 };
 function variant(env, P) {
   const W = env.walk * P.spd, g = env.grav, J = env.jump * P.jump, A = W / P.acc, DS = 3.2 * env.walk, DT0 = 0.35;
   const fx = mkFx(), out = mkOut(fx), io = mkIO(), a = out.anim; out.vulnerable = false;
-  const s = { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, ddx: 0, ddz: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 };
-  function reset() { Object.assign(s, { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 }); io.jump = io.crouch = io.L = io.R = io.F = io.fwdH = false; }
+  const s = { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, ddx: 0, ddz: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, glT: 0, run: 0, singCd: 0, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 };
+  function reset() { Object.assign(s, { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, glT: 0, run: 0, singCd: 0, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 }); io.jump = io.crouch = io.L = io.R = io.F = io.fwdH = false; }
   function jumpNow(v) { s.vy = v; out.jumpImpulse = v; s.air = true; s.jgrace = 0.06; s.jb = 0; s.n++; const e = fx.emit('jump'); e.n = s.n; e.v = v; }
   function aimDir(ctx, e) { const ax = ctx.aim; if (ax) { e.dx = ax.x; e.dy = ax.y; e.dz = ax.z; } else { e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); } }
   function step(input, ctx, dt) {
     readIn(io, input, ctx); fx.clear(); out.jumpImpulse = 0;
     if (!s.fi) { s.face = ctx.facing || 0; s.fi = true; }
     const grounded = ctx.onGround && s.jgrace <= 0; s.jgrace = Math.max(0, s.jgrace - dt);
-    s.jb -= dt; s.coyote -= dt; s.dashCd -= dt; s.tap -= dt; s.spin -= dt; s.zapCd -= dt; s.stun -= dt; s.meleeCd -= dt;
+    s.jb -= dt; s.coyote -= dt; s.dashCd -= dt; s.tap -= dt; s.spin -= dt; s.zapCd -= dt; s.stun -= dt; s.meleeCd -= dt; s.singCd -= dt;
     if (io.jumpP) s.jb = 0.12;
     let wantDash = false; if (io.fwdP) { wantDash = P.dash && s.tap > 0; s.tap = wantDash ? 0 : 0.25; }
     if (grounded && !s.was) {
-      s.air = false; s.n = 0; s.adash = false; s.gl = false; s.vy = 0;
+      s.air = false; s.n = 0; s.adash = false; s.gl = false; s.glT = 0; s.vy = 0;
       if (s.pound === 2) { const e = fx.emit('pound'); e.dmg = P.poundDmg; e.r = P.poundR; e.v = 1; s.stun = 0.35; s.vx = s.vz = 0; } else { const e = fx.emit('land'); e.v = -s.vy; }
       s.pound = 0;
     }
@@ -455,7 +460,7 @@ function variant(env, P) {
         if (s.jb > 0 && s.stun <= 0 && s.sleep <= 0) { s.n = 0; jumpNow(J); }
         else {
           if (s.stun > 0 || s.sleep > 0) brake(s, 3 * A, dt);
-          else if (io.m > 0.05) { approach(s, io.wx * W * io.m, io.wz * W * io.m, A, dt); turn(s, io, dt, 14); } else brake(s, 2 * A, dt);
+          else if (io.m > 0.05) { if (P.ramp) s.run = Math.min(2, s.run + dt); const Wr = P.ramp ? W * (1 + (P.ramp - 1) * s.run / 2) : W; approach(s, io.wx * Wr * io.m, io.wz * Wr * io.m, A, dt); turn(s, io, dt, 14); } else { s.run = Math.max(0, s.run - 2 * dt); brake(s, 2 * A, dt); }
           s.vy = 0;
           if (s.sleep > 0) { s.regenT += dt; if (s.regenT >= 1) { s.regenT -= 1; const e = fx.emit('regen'); e.v = P.regen; } } else s.regenT = 0;
         }
@@ -468,11 +473,14 @@ function variant(env, P) {
         if (s.pound === 1) { s.vx = s.vz = s.vy = 0; s.hang -= dt; if (s.hang <= 0) { s.pound = 2; s.vy = -J * 1.2; } gm = 0; }
         else if (s.pound === 2) { gm = 2.4; brake(s, 6 * W, dt); }
         else if (P.fastFall && io.crouch && s.vy <= 0) gm = P.fastFall;
-        else if (P.glide && io.jump && s.n >= P.mini && s.vy < 0) { gm = P.glide; s.gl = true; } else s.gl = false;
+        else if (P.glide && io.jump && s.n >= P.mini && s.vy < 0 && !(P.glideT && s.glT >= P.glideT)) { gm = P.glide; s.gl = true; s.glT += dt; } else s.gl = false;
         s.vy -= g * gm * dt; s.vy = Math.max(s.vy, s.gl ? -P.glideV : -40);
       }
     }
     // actions
+    const hs0 = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    if (P.sing && io.LP && s.singCd <= 0 && s.stun <= 0) { s.singCd = 1.5; const e = fx.emit('sing'); e.r = P.singR; e.v = P.sing; }
+    if (P.ram && io.LP && s.meleeCd <= 0 && s.stun <= 0 && hs0 > 1.3 * env.walk) { s.meleeCd = 0.4; const e = fx.emit('melee'); e.n = 2; e.dmg = P.ram; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); e.r = 1.6; }
     if (P.reflect && io.RP && s.spin <= 0 && s.stun <= 0) { s.spin = 0.3; const e = fx.emit('reflect'); e.r = 1.6; e.v = 0.3; }
     if (P.melee && io.LP && s.meleeCd <= 0 && s.stun <= 0 && s.dashT <= 0) { s.meleeCd = 0.25; const e = fx.emit('melee'); e.n = 1; e.dmg = P.melee; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); e.r = 1.3; }
     if (P.zap && io.LP && s.zapCd <= 0 && s.stun <= 0) { s.zapCd = 0.4; const e = fx.emit('zap'); aimDir(ctx, e); e.dmg = P.zap; e.n = P.zapChain; e.r = P.zapR; }
@@ -485,7 +493,7 @@ function variant(env, P) {
     out.vulnerable = s.sleep > 0;
     a.moving = hs > 0.5; a.running = s.dashT > 0; a.airborne = !grounded; a.speed = clamp(hs / W, 0, 1.5); a.facing = s.face; a.mode = s.pound ? 2 : s.dashT > 0 ? 3 : s.spin > 0 ? 4 : s.sleep > 0 ? 5 : s.gl ? 1 : 0;
     a.flutter = s.gl ? 1 : 0; a.sprint = s.dashT > 0 ? 1 : 0; a.crouch = (s.stun > 0 || s.sleep > 0) ? 1 : 0; a.tongue = s.held > 0 ? 1 : 0; a.charge = s.spin > 0 ? s.spin / 0.3 : 0;
-    a.stamina = P.mini ? clamp((P.mini - s.n) / P.mini, 0, 1) : 1;
+    a.stamina = P.glideT ? clamp(1 - s.glT / P.glideT, 0, 1) : P.mini ? clamp((P.mini - s.n) / P.mini, 0, 1) : 1;
     out.camHint.fov = s.dashT > 0 ? 1.12 : 1; out.camHint.dist = 1; out.camHint.shake = s.pound === 2 ? 0.2 : 0;
     return out;
   }
@@ -506,6 +514,10 @@ export const GAITS = {            // stride = step frequency x, bounce = hip bob
   SPARKLET: { stride: 1.9, bounce: 1.2, arm: 1.4, lean: 1.0 },
   JELLY: { stride: 0.7, bounce: 1.8, arm: 0.5, lean: 0.2 },
   HAULER: { stride: 0.7, bounce: 0.6, arm: 0.6, lean: 0.6 },
+  HOPPER: { stride: 1.2, bounce: 1.6, arm: 0.3, lean: 0.5 },
+  HUM: { stride: 1.0, bounce: 1.3, arm: 1.6, lean: 0.1 },
+  RACER: { stride: 1.8, bounce: 0.3, arm: 0.4, lean: 2.2 },
+  SEER: { stride: 0.8, bounce: 0.4, arm: 0.2, lean: 0.0 },
 };
 const num = (v, d, a, b) => { v = +v; return v === v ? clamp(v, a, b) : d; };
 const pick = (v, list) => list.indexOf(v) >= 0 ? v : list[0];
@@ -554,6 +566,10 @@ const SKINS = {
   SPARKLET: { color: 0x5CE1FF, suit: { jetpack: 0, scanner: 1, sprint: 2, storage: 0 }, role: null,    rig: { headShape: 'round', headScale: 1.3, neck: false, torso: 'normal', limbLen: { arm: 0.5, leg: 0.5 }, limbShape: 'cyl', feet: 'none', tail: { len: 0.6, spikes: 2 }, quills: 3, eyeStyle: 'dots' } },   // tiny big-headed spark, cyan
   JELLY:    { color: 0xC8A2FF, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 1 }, role: 'miner', rig: { headShape: 'round', headScale: { x: 1.5, y: 1.2, z: 1.5 }, neck: false, torso: 'stout', limbLen: { arm: 0.4, leg: 0.5 }, limbShape: 'cyl', feet: 'none', crest: true, eyeStyle: 'none' } },   // wide soft dome, lavender
   HAULER:   { color: 0xE0702A, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 3 }, role: 'miner', rig: { headShape: 'cube', headScale: { x: 1.2, y: 0.8, z: 1.2 }, neck: false, torso: 'box', limbLen: { arm: 1.5, leg: 0.7 }, limbShape: 'cube', feet: 'big', cap: true, eyeStyle: 'visor' } },        // broad slab, long arms, rust orange
+  HOPPER:   { color: 0xFFD84A, suit: { jetpack: 0, scanner: 0, sprint: 1, storage: 0 }, role: 'scout', rig: { headShape: 'round', headScale: { x: 1.4, y: 0.9, z: 1.1 }, neck: false, torso: 'lizard', limbLen: { arm: 0.35, leg: 1.2 }, limbShape: 'cyl', feet: 'big', quills: 2, eyeStyle: 'dots' } },     // hopper: wide head, springy legs, yellow
+  HUM:      { color: 0xF2F2FF, suit: { jetpack: 0, scanner: 1, sprint: 0, storage: 0 }, role: null,    rig: { headShape: 'round', headScale: 1.15, neck: true, torso: 'slim', limbLen: { arm: 0.6, leg: 0.45 }, limbShape: 'cyl', feet: 'none', crest: true, tail: { len: 0.9, spikes: 1 }, cap: true, eyeStyle: 'visor' } },   // light singer, pale
+  RACER:    { color: 0x3DDC5C, suit: { jetpack: 0, scanner: 0, sprint: 3, storage: 0 }, role: null,    rig: { headShape: 'snout', headScale: { x: 0.8, y: 0.8, z: 1.4 }, neck: false, torso: 'slim', limbLen: { arm: 0.8, leg: 1.1 }, limbShape: 'cube', feet: 'big', cap: 'brim', quills: 4, eyeStyle: 'visor' } },  // low fast shell, green
+  SEER:     { color: 0x7A5CFF, suit: { jetpack: 0, scanner: 2, sprint: 0, storage: 0 }, role: 'scout', rig: { headShape: 'cube', headScale: 0.85, neck: true, torso: 'normal', limbLen: { arm: 1.6, leg: 0.8 }, limbShape: 'cube', feet: 'none', tail: { len: 3, spikes: 4 }, eyeStyle: 'none' } },       // robed seer, long arms, blank face, indigo
 };
 // Q08: MARO action table part 1 — pure, allocation-free state machine in TRUE human heights (H) per docs/next-stage-plan.md §C (SM64 community constants x0.1875 speed / x5.625 accel).
 // maro() reads these constants for: chain window + min speed, pound radius/damage/recovery, punch combo window/damage/radius (CONSISTENCY-1). The rest of the table (wall kick, dive, ledge, slide, bonk) still runs the env-scaled prototype; maroTable() remains the tested reference.
@@ -697,6 +713,10 @@ export const STYLES = {
   SPARKLET: { id: 'SPARKLET', name: 'SPARKLET', portraitHint: 'tiny big-headed spark, cyan, three quills',        skin: SKINS.SPARKLET, abilities: ['fastRun', 'zapArc', 'chainZap'],                              hitbox: { r: 0.2, h: 0.7 },  make: mkVariant('SPARKLET') },
   JELLY:    { id: 'JELLY',    name: 'JELLY',    portraitHint: 'wide lavender dome, no neck, stub limbs',          skin: SKINS.JELLY,    abilities: ['miniJumps', 'glide', 'sleepRegen'],                           hitbox: { r: 0.3, h: 0.8 },  make: mkVariant('JELLY') },
   HAULER:   { id: 'HAULER',   name: 'HAULER',   portraitHint: 'broad rust slab, long arms, visor, hard cap',      skin: SKINS.HAULER,   abilities: ['quakePound', 'grab', 'throw', 'slowStrong'],                  hitbox: { r: 0.3, h: 1.0 },  make: mkVariant('HAULER') },
+  HOPPER:   { id: 'HOPPER',   name: 'HOPPER',   portraitHint: 'yellow wide-head springer, big feet',             skin: SKINS.HOPPER,   abilities: ['flutterHop', 'highAirControl', 'miniHop'],                              hitbox: { r: 0.25, h: 1.0 },  make: mkVariant('HOPPER') },
+  HUM:      { id: 'HUM',      name: 'HUM',      portraitHint: 'pale light singer, visor, small tail',            skin: SKINS.HUM,      abilities: ['featherFall', 'singSleep', 'doubleJump'],                   hitbox: { r: 0.2, h: 0.8 },   make: mkVariant('HUM') },
+  RACER:    { id: 'RACER',    name: 'RACER',    portraitHint: 'low green shell, quills, visor',                  skin: SKINS.RACER,    abilities: ['speedRamp', 'drift', 'ram'],                                 hitbox: { r: 0.22, h: 0.9 },  make: mkVariant('RACER') },
+  SEER:     { id: 'SEER',     name: 'SEER',     portraitHint: 'indigo robed seer, long arms, blank face',        skin: SKINS.SEER,     abilities: ['doubleJump', 'float', 'reflect'],                            hitbox: { r: 0.2, h: 1.0 },   make: mkVariant('SEER') },
 };
 export function skinFor(id) {
   const k = SKINS[String(id || '').toUpperCase()];

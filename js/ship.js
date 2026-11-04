@@ -6795,7 +6795,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         SWIFT: ['Double-tap W to dash (air dash once)', 'Hold C in the air to fast fall', 'Right click reflects, left click jabs'],
         SPARKLET: ['Tiny and fast', 'Left click zaps a chain arc'],
         JELLY: ['Five mini-jumps, then hold Space to glide', 'Hold right click to sleep and heal (you are hit harder)'],
-        HAULER: ['Slow and heavy', 'C in the air for a quake pound', 'Right click grabs, left click throws']
+        HAULER: ['Slow and heavy', 'C in the air for a quake pound', 'Right click grabs, left click throws'],
+        HOPPER: ['Hold Space after the apex to flutter (0.9 s)', 'High air control'],
+        HUM: ['Two jumps, then hold Space to feather-fall', 'Left click sings nearby mobs to sleep'],
+        RACER: ['Hold W to ramp up to 1.6x speed', 'Slow to turn: you drift', 'Left click rams at speed'],
+        SEER: ['Double jump, hold Space to float briefly', 'Right click reflects bolts']
     };
     function abilityLines(def) {
         var tx = STYLE_TXT[def.id]; if (tx) return tx;
@@ -7043,6 +7047,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             else if (e.type === 'pound' || e.type === 'groundpound') { aPlay('hit', { pitch: 0.3, vel: 0.8 }); shake = Math.max(shake, 0.05 * L); styStats.poundHits += mobAoe(hum.w, (e.r || 2), e.dmg || 12); }
             else if (e.type === 'homing') { styStats.homing++; aPlay('hit', { pitch: 0.9, vel: 0.5 }); if (styTg.length && e.n >= 0 && e.n < styTg.length) mobNearHurt(6, 3); }
             else if (e.type === 'zap') { mobNearHurt(e.dmg || 5, e.r || 6); aPlay('hit', { pitch: 1.4, vel: 0.4 }); }
+            else if (e.type === 'sing') { aPlay('ui', { vel: 0.5, pitch: 1.2 }); var sgR = (e.r || 4) * Hw; R27.gnd.forEach(function (sg) { if (sg.alive && sg.mob && !sg.remote && sg.w.distanceTo(hum.w) < sgR) sg.sleepT = gt + (e.v || 3); }); }
             else if (e.type === 'dash') { sa.iF = Math.max(sa.iF, e.v || 0.15); }
             else if (e.type === 'reflect') { sa.rT = e.v || 0.3; sa.rR = e.r || 1.6; aPlay('ui', { vel: 0.5, pitch: 1.8 }); }
             else if (e.type === 'regen') { if (stylesMod && regenOk()) hp = stylesMod.regenStep(hp, HP_MAX, e.v || 0, 1, true); }
@@ -9571,7 +9576,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (e.mode === 'derelict' && !(R27.dsite && R27.dsite === e.site)) { e.g.visible = false; continue; }
             if (e.styHeld) { e.g.visible = true; styCarry(e); gndPlace(e); continue; }      // Q41: HAULER carries it
             if (e.held) { e.g.visible = false; continue; }      // Q12: inside a GOR BALL while it shakes
-            e.g.visible = true; gndPlace(e); if (e.mob) mobStep(e, dt, hw); else gndStep(e, dt, hw); if (!e.alive) continue; gndPlace(e); e.cr.update(gt + R27.t, dt);
+            e.g.visible = true; gndPlace(e); if (e.mob) { if (!(e.sleepT > gt)) mobStep(e, dt, hw); } else gndStep(e, dt, hw); if (!e.alive) continue; gndPlace(e); e.cr.update(gt + R27.t, dt);
         }
     }
     function r27Foot(dt) {          // on foot on a planet, or on foot inside a derelict
