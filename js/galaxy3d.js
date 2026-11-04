@@ -2628,12 +2628,12 @@ import * as GL from './galaxy-layout.js';
         };
     }
 
-    // lazy-load the ship after first paint. Phones never load it: coarse
-    // pointer, no pointer lock, or a narrow window.
+    // lazy-load the ship after first paint. Desktop without pointer lock
+    // or a narrow window skips it; coarse-pointer devices load it with touch controls (Q36).
     function loadShip() {
         try {
             var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-            if (coarse || !document.body.requestPointerLock || window.innerWidth < 900) return;
+            if (!coarse && (!document.body.requestPointerLock || window.innerWidth < 900)) return;      // Q36: touch devices load the ship too (ship-touch.js overlay, low default quality tier)
             var go = function () {
                 try {
                     import('./ship.js').then(function (mod) {

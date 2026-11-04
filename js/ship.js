@@ -485,7 +485,7 @@ export default function mount(engine) {
     // rev 17 C: adaptive quality (js/ship-perf.js). attach() again whenever fx / ps are recreated.
     var perfQ = null, perfMod = null;
     function perfAttach() { if (perfQ) { try { perfQ.attach({ fx: fx, ps: ps }); } catch (e) { /* ignore */ } } }
-    import('./ship-perf.js').then(function (m) { perfMod = m; try { perfQ = m.createQualityManager(engine, { fx: fx, ps: ps, hold: function () { return gmode !== 'fly' || state !== 'piloting' || (lf.on && lf.alt < 10 * L); } }); if (state !== 'piloting') rsRestore('perf-attach'); } catch (e) { console.info('[ship] quality manager unavailable', e); } }).catch(function (e) { console.info('[ship] ship-perf unavailable', e); });
+    import('./ship-perf.js').then(function (m) { perfMod = m; try { perfQ = m.createQualityManager(engine, { tier: touchTier(), fx: fx, ps: ps, hold: function () { return gmode !== 'fly' || state !== 'piloting' || (lf.on && lf.alt < 10 * L); } }); if (state !== 'piloting') rsRestore('perf-attach'); } catch (e) { console.info('[ship] quality manager unavailable', e); } }).catch(function (e) { console.info('[ship] ship-perf unavailable', e); });
     function makePs() { try { ps = psMod.createPlanetSurface(engine, L); if (state === 'piloting') ps.setVisible(true); } catch (e) { planetFail(e); } perfAttach(); makeWorld(); }
     import('./ship-planet.js').then(function (m) { psMod = m; makePs(); }).catch(function (e) { console.info('[ship] planet surfaces unavailable', e); });
 
@@ -1000,7 +1000,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
 
     // ─── input ──────────────────────────────────────────────────────
-    function locked() { return document.pointerLockElement != null; }
+    var touchOn = false;      // Q36: set when ship-touch.js is attached (coarse pointer); there is no pointer lock on touch, so locked() reports true to keep the mouse-path gates open
+    function locked() { return touchOn || document.pointerLockElement != null; }
     window.addEventListener('mousemove', function (e) {
         if (state !== 'piloting' || !locked()) return;
         if (typeof PT !== 'undefined' && PT.rad && PT.rad.on) return;      // Q26: the T radial owns the mouse; the camera must not swing while you pick a move
@@ -1052,6 +1053,25 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (state === 'piloting' && !locked() && !cmdOpen && performance.now() > cmdGuardUntil && !boarding && !exiting) { if (!escLatch) { esc.on = true; esc.t = 0; } }      // rev 24: the Esc that released the lock starts the 3 s hold; a tap (keyup) cancels
         else if (locked()) escCancel();
     });
+
+    // Q36: touch controls. Auto-attached when matchMedia('(pointer: coarse)'); the overlay feeds the keyboard/mouse path with synthetic events (ship-touch.js).
+    function isCoarse() { try { return !!window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } }
+    function touchTier() { try { return (isCoarse() && !localStorage.getItem('nmg-perf')) ? 1 : undefined; } catch (e) { return undefined; } }
+    var touchMod = null;
+    if (isCoarse()) {
+        import('./ship-touch.js').then(function (m) {
+            var tc = m.createTouch({
+                surface: engine.renderer.domElement,
+                active: function () { return state === 'piloting' && !cmdOpen && !menuOpen && !storeOpen && !invOpen && !boarding && !exiting; },
+                key: function (code, down) { window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code: code, key: code === 'Space' ? ' ' : code.replace(/^Key/, '').toLowerCase(), bubbles: true, cancelable: true })); },
+                mouse: function (btn, down) { document.dispatchEvent(new MouseEvent(down ? 'mousedown' : 'mouseup', { button: btn, bubbles: true, cancelable: true })); },
+                look: function (dx, dy) { if (state !== 'piloting' || cmdOpen) return; if (typeof PT !== 'undefined' && PT.rad && PT.rad.on) return; mdx += dx; mdy += dy; },
+                throttle: function (d) { if (gmode === 'fly' && !cmdOpen) throttle = clamp(throttle + d, THROTTLE_MIN, 1); }
+            });
+            touchMod = tc; touchOn = true;
+            setInterval(tc.sync, 300);      // slow poll: show/hide with piloting state (no per-frame work, no listeners on every state change)
+        }).catch(function (e) { console.info('[ship] touch controls unavailable', e); });
+    }
 
     // clicking the (huge) hull boards just like the label does; only YOUR ship is clickable
     var rayC = new THREE.Raycaster(), ndcC = new THREE.Vector2();
