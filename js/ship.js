@@ -1590,6 +1590,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             gdItem(ni++, 'ship', 'SHIP', 'is-ship', true).copy(land.sPos).applyQuaternion(land.node.mesh.quaternion).add(land.node.anchor.position);
             ni = gdNpcs(dt, ni);
         }
+        if (okS) { var s711 = station && station.interior && station.interior.stores && station.interior.stores[0]; if (s711 && s711.counter && s711.counter.pos && ni < GD_N) { gdItem(ni++, '7/11', '7/11', '', true).copy(s711.counter.pos); gdItems[ni - 1].q = obMark === '7/11'; } }      // Q30: 7/11 sign marker on the deck (same frame as the CVS one)
         if (okS) { var scv = station && station.interior && station.interior.cvs; if (scv && scv.radius) gdItem(ni++, 'cvs', 'POKEMANS CVS', '', true).copy(scv.pos); }      // Q25: station CVS marker (deck frame = the frame stationInteract measures in)
         if (ok && gmode === 'fly') ni = gdSpace(ni, n);
         if (!ni) { if (gdShown) { for (i = 0; i < GD_N; i++) if (gdPool[i].on) { gdPool[i].on = false; gdPool[i].el.classList.remove('is-on'); } gdShown = 0; } return; }
@@ -4928,8 +4929,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         try { if (!ps || !psA || vel.length() >= 2) { landOk = false; return false; } var lr = ps.landable(shipRoot.position); if (!lr.ok) { landOk = false; return false; } } catch (e) { landOk = false; return false; }
         return true;
     }
+    var dockAssist = false;
     function onKeyZ() {
-        if (gmode === 'fly') { if (cvHail()) return; if (landOk && landStill()) landReq = true; else if (!dead) ehExit(); }      // consistency: Z never leaves flight (HOLD ESC does); a failed land says why
+        if (gmode === 'fly') { if (cvHail()) return; if (dockAssist && !dead) { dockAssist = false; beginDock(null, true); return; } if (landOk && landStill()) landReq = true; else if (!dead) ehExit(); }      // consistency: Z never leaves flight (HOLD ESC does); a failed land says why
         else if (gmode === 'landed') exitShip();
         else if (gmode === 'foot') { if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); } }
         else if (gmode === 'ifoot') { if (ixTarget().kind === 'hatch') interiorF(); }
@@ -5665,7 +5667,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                     if (false) break;
                 }
             }
-            setPrompt(lmsg, landOk);
+            dockAssist = false;       // Q30: Z · DOCK within 8 station radii of the mouth (autopilot sequence, W interrupts)
+            if (!lmsg && !dead && !lf.on && station && station.group.visible && station.mouth && sk.cd <= 0 && !sk.mode && SITE()) {
+                if (P.distanceTo(station.mouth.pos) < 8 * 0.5 * station.length) { dockAssist = true; lmsg = 'Z · DOCK'; }
+            }
+            setPrompt(lmsg, landOk || dockAssist);
         }
         // chase camera (rigid) + fov
         chaseTargets(dt);
@@ -8582,7 +8588,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 1; i < sk.pts.length; i++) sk.cum.push(sk.cum[i - 1] + sk.pts[i].distanceTo(sk.pts[i - 1]));
         sk.len = sk.cum[sk.cum.length - 1];
     }
-    function beginDock(dd) {
+    function beginDock(dd, auto) {
         R27.dsite = dd ? dkSite(dd) : null;
         if (!SITE() || sk.mode || gmode !== 'fly' || dead || state !== 'piloting' || boarding || exiting) return false;
         var pad = 0, i;
@@ -8592,10 +8598,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         skBuild(skA, SITE().dockPath(pad));
         sk.q0.copy(SITE().quat).invert().multiply(shipRoot.quaternion);
         sk.pad = pad; sk.t = 0; sk.T = clamp(sk.len / 12, 4.5, 9); sk.mode = 'docking'; gmode = 'docking';
+        sk.auto = !!auto && !dd; sk.wArm = false; if (sk.auto) sk.T = clamp(sk.len / 12, 6, 12) + 3;      // Q30: autopilot adds a 3 s final glide on top of the approach
         lfOff(); killBolts(); combatRoot.visible = false; firing = false; mdx = mdy = 0; keys = Object.create(null);
         vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; pulseT = 0; eh.on = false; eh.t = 0; ehShow(0, '');
         setGround(true, false); setPrompt('DOCKING', true);
-        addRow('', '', 'DOCKING · ' + (R27.dsite ? 'DERELICT' : (SITE().interior.stores[0] ? String(SITE().interior.stores[0].name).toUpperCase() : '7/11 ORBITAL')), 'is-sys');
+        addRow('', '', (sk.auto ? 'AUTOPILOT · ' : '') + 'DOCKING · ' + (R27.dsite ? 'DERELICT' : (SITE().interior.stores[0] ? String(SITE().interior.stores[0].name).toUpperCase() : '7/11 ORBITAL')), 'is-sys');
         aPlay('liftoff', { vel: 0.6 }); aPlay('warp');
         return true;
     }
@@ -8624,6 +8631,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         net && net.setMode && net.setMode('fly');
         dkLeave();
     }
+    function dockCancel() {      // Q30: W during the autopilot dock: control returns where the ship is, drifting with the station
+        sk.mode = ''; sk.auto = false; sk.cd = 4; gmode = 'fly';
+        vel.copy(SITE().vel); speed = 0; throttle = 0.2; pulse = 0; pulseT = 0; bank = 0; yawRate = pitRate = 0;
+        combatRoot.visible = true; setGround(false, false); setPrompt('', false); hullY(0); exOff(exMe);
+        mdx = mdy = 0; keys = Object.create(null); lfOff();
+        if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
+        net && net.setMode && net.setMode('fly');
+        addRow('', '', 'DOCKING CANCELLED · you have the ship', 'is-sys');
+    }
     function skLand() {
         sk.mode = 'deck'; gmode = 'sfoot';
         var pad = SITE().pads[sk.pad];
@@ -8641,7 +8657,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         shake = Math.max(shake, 0.06 * L); aPlay('land', { vel: 1 });
         SITE().toWorld(sk.shipL, skB); for (var i = 0; i < 3; i++) fx.impact(skB, 0x9ab0ff, 2);
         if (R27.dsite) { addRow('', '', 'DERELICT · loot crates glow in the far room (F) · something is awake in here', 'is-sys'); dkOnDock(R27.dsite.d); }
-        else addRow('', '', 'DOCKED · F near the counter, NPCs, shipyard, map pedestal or your ship', 'is-sys');
+        else addRow('', '', sk.auto ? 'DOCKED · Z to step out · F at the counter, NPCs, shipyard, map pedestal' : 'DOCKED · F near the counter, NPCs, shipyard, map pedestal or your ship', 'is-sys');
+        sk.auto = false;
         r28Dock();
     }
     function finishLaunch() {
@@ -8732,6 +8749,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (m === 'docking' || m === 'launching') {
             sk.t += dt; u = clamp(sk.t / sk.T, 0, 1);
             if (m === 'docking') {
+                if (!keys.KeyW) sk.wArm = true;
+                else if (sk.wArm && sk.auto && sk.t > 0.6 && u < 0.85) { dockCancel(); return; }      // Q30: W takes the ship back
                 e = u * u * (3 - 2 * u);
                 skPathAt(e * sk.len, skA);
                 skQ.slerpQuaternions(sk.q0, skQ2.identity(), clamp(u / 0.55, 0, 1));
