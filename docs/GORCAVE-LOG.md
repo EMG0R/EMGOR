@@ -486,3 +486,9 @@ DONE (all 12 read first, then changed; ship.js unless noted):
 TESTS: node --check ok on ship, ship-foot, ship-planet, pokemans-party; `bash tools/test-node.sh`: 242 pass / 0 fail / 15 skipped. New tests in pokemans-party2.test.mjs for (5) and (8). Browser tests not run.
 VERIFY ON MAC: g-tests batch incl. g14/g16/g17 (pets, rocks); throw GOR BALL while standing on a fast-rotating planet: ball stays on the arc and shake stays on the creature; catch with a full bag (400 stacks): follower stays out, no flicker; TAKE BACK / tame / quest reward with full bag keep the item/pet/quest; land-from-flight at speed 2+ shows SLOW DOWN; landing dust visible after a scale refresh (enter piloting twice); rock pick (V/crosshair) still works.
 OPEN: ring-wild capture entry (item 7) still unwired; quest left open on BAG FULL re-triggers only on the next quest event.
+
+## Q33 Relay redeploy #2 — 2026-11-04 — (this commit)
+DONE: running copy `/home/server/nmg-relay/server.js` differed from `server/nmg-relay/server.js` (25 diff lines; running copy had no `__proto__` guard, repo has it). Backup at /tmp/nmg-server.js.bak. Copied repo file over, `sudo systemctl restart nmg-relay.service`.
+TESTS: node --check server.js ok. Before: active, /healthz {"n":0}. After: is-active = active, journal "listening on 127.0.0.1:8797", /healthz {"n":0}; Funnel https://gorcave.taila85593.ts.net/nmg with WS upgrade (HTTP/1.1) returns 403 (origin check from curl, not 404/502), so it reaches the relay. No full wss session handshake with a valid Origin was run.
+VERIFY ON MAC: open the game in two tabs, confirm both see each other's pose (valid-origin wss connect), reconnect one tab and confirm no ghost.
+OPEN: none.
