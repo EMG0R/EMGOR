@@ -8459,8 +8459,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             addRow('', '', 'YOU WON · no hit landed · no payout', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
         } else if (info && w === 0) {
             var coin = FG_COIN[info.role] || 25; if (FG.tr) coin *= FG.tr.team.length; addUnits(coin, hum.w, true); obWon();
-            if (FG.tr) { try { var tt = 1; FG.tr.team.forEach(function (q) { tt = Math.max(tt, q.sp.tier); }); var pd = PKF.partDrop(tt, 'catch', 0, Math.random()), pit = PKF.partItem(pd.part, pd.tier); if (giveItem(pit, 1)) addRow('', '', '+ ' + pit.name, 'is-sys'); } catch (eP) { warnOnce('trainer.part', eP); } }
+            var rwPart = '', rwXp = 0, rwBond = 0;
+            if (FG.tr) { try { var tt = 1; FG.tr.team.forEach(function (q) { tt = Math.max(tt, q.sp.tier); }); var pd = PKF.partDrop(tt, 'catch', 0, Math.random()), pit = PKF.partItem(pd.part, pd.tier); if (giveItem(pit, 1)) { addRow('', '', '+ ' + pit.name, 'is-sys'); rwPart = pit.name; } } catch (eP) { warnOnce('trainer.part', eP); } }
+            try { var am = ptMon(); if (am) { rwXp = 8 + 4 * (FG.tr ? FG.tr.team.length : 1) + (FG_TIER[info.role] || 1) * 4; rwBond = PKF.BOND_PER_WIN; var lv0 = PKP.awardXp(am, rwXp); ptBond(am, rwBond); if (lv0 > 0) { addRow('', '', am.sp.name.toUpperCase() + ' → L' + am.level, 'is-sys'); aPlay('levelUp'); } ptHud(true); writeSave(); } } catch (eX) { warnOnce('fight.xp', eX); }
             var line = ''; try { line = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'goodgame'); } catch (e0) { line = 'Good game.'; }
+            try { if (FG.sess && FG.sess.setReward) FG.sess.setReward({ coin: coin, xp: rwXp, part: rwPart, bond: rwBond, line: line, who: String(info.name) }); } catch (eR) { warnOnce('fight.reward', eR); }
             addRow(String(info.name).toUpperCase(), '#8fe0a8', line); addRow('', '', 'YOU WON · +' + coin + ' gorCoin', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
         } else if (info && w === 1) {
             var tl = ''; try { tl = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'taunt'); } catch (e1) { tl = 'Not today.'; }

@@ -461,7 +461,7 @@ const SKINS = {
 // Ground-only states here: idle walk run skid crouch crawl jump1 jump2 jump3 longjump backflip sideflip. Wall/dive/pound/ledge/slide/bonk/punch arrive in Q09.
 export const MARO_K = {
   G: 22.5, V1: 7.9, V2: 9.75, V3: 12.9, CHAIN: 0.17, ACC: 6.2, MAX: 6.0, SKID: 11, SKID_MIN: 3.0, SKID_COS: 0, DECEL: 9,   // SKID_COS: skid when cos(turn) < 0 (> 90 deg)
-  LJ_F: 9.0, LJ_Y: 5.6, LJ_MUL: 1.5, LJ_MIN: 1.5, BF_Y: 11.6, SF_Y: 11.6, SF_F: 1.5, CRAWL: 1.9, RUN_T: 4.0, TRIPLE_MIN: 3.75, CHAIN_MIN: 0.19, TERM: 14.06, SKID_MAXT: 0.6,
+  LJ_F: 9.0, LJ_Y: 11.3, LJ_MUL: 1.5, LJ_MIN: 1.5, BF_Y: 11.6, SF_Y: 11.6, SF_F: 1.5, CRAWL: 1.9, RUN_T: 4.0, TRIPLE_MIN: 3.75, CHAIN_MIN: 0.19, TERM: 14.06, SKID_MAXT: 0.6,
   // Q09 part 2 (all [guess] where the spec gives no number): wall kick / dive / belly slide / ground pound / ledge / steep slide / bonk / punch chain
   WK_WIN: 0.17, WK_Y: 9.75, WK_OUT: 4.5, DIVE_F: 9, BELLY_FR: 0.55, BELLY_END: 1.0, HOP_Y: 6.0, POUND_HANG: 0.33, POUND_G: 56, POUND_TERM: 40, POUND_R: 3, POUND_DMG: 12, POUND_REC: 0.3,
   LEDGE_REACH: 0.19, LEDGE_VMAX: 7.5, HANDS: 0.95, LEDGE_UP: 7.5, LEDGE_FWD: 1.5, LEDGE_CD: 0.4, STEEP: 0.62, SLIDE_MAX: 14, BONK_V: 3, BONK_T: 0.5, BONK_BACK: 2,

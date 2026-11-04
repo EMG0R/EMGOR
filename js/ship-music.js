@@ -30,7 +30,7 @@ export function createScheduler(seed) {
     tick: function (dt, st) {
       out.length = 0; k = 0;
       var scale = MODES[modeName(st)], n = scale.length, root = 33 + ((st.seed >>> 0) % 12), v, r;
-      if (droneSeed !== st.seed) { droneSeed = st.seed; ev('drone', mtof(root - 12 + 12), 0, 0.5, 0); }   // sub drone sits on the planet's seed (a1..g#2 region)
+      var sd = Number.isFinite(st.seed) ? st.seed : 0; if (droneSeed !== sd) { droneSeed = sd; ev('drone', mtof(root - 12 + 12), 0, 0.5, 0); }   // sub drone sits on the planet's seed (a1..g#2 region)
       var danger = clamp(st.danger || 0, 0, 1), voices = st.band === 'space' || st.band === 'interior' ? 2 : (danger > 0.5 ? 4 : 3);
       var active = 0;
       for (v = 0; v < PAD_MAX; v++) { if (padLeft[v] > 0) { padLeft[v] -= dt; if (padLeft[v] > 0) active++; else padLeft[v] = 0; } }

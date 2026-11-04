@@ -279,7 +279,7 @@ test('quests spawnSpecFor / describe: retrieve+escort have specs with unit-ish p
   assert.equal(Q.spawnSpecFor(null), null);
 });
 
-test('music: a NaN seed fires the drone once, not every tick', { todo: 'js/ship-music.js:33 `droneSeed !== st.seed` is always true for NaN, so the sub drone retriggers every tick' }, () => {
+test('music: a NaN seed fires the drone once, not every tick', () => {
   const s = M.createScheduler(1); let n = 0; for (let i = 0; i < 20; i++) n += s.tick(0.1, Object.assign({}, base, { seed: NaN })).filter((e) => e.kind === 'drone').length;
   assert.equal(n, 1);
 });
