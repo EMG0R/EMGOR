@@ -1578,6 +1578,21 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         return best < 1e29 ? best / H : -1;
     }
+    // Q49: an unreachable villager (floor gap or inside a wall) is moved once to the nearest walkable, wall-free floor point within 2 H (8 angles x 4 radii around it, projected with ps.floorLocal). Allocates; runs once per villager.
+    var npcRelMod = null; import('./ship-npc-access.js').then(function (m) { npcRelMod = m; }).catch(function () { /* audit still reports */ });
+    function npcRelocate(v, H) {
+        if (v._reloc || !npcRelMod || !VG.v || !VG.v.overlaps) return; v._reloc = true;
+        var p = VG.v.toParent(v.pos, new THREE.Vector3()), dir = p.clone().normalize(), t1 = new THREE.Vector3(0, 1, 0).cross(dir), c = [], k, r, a, q, fl;
+        if (t1.lengthSq() < 1e-8) t1.set(1, 0, 0); t1.normalize(); var t2 = dir.clone().cross(t1);
+        for (r = 0.5; r <= 2.01; r += 0.5) for (k = 0; k < 8; k++) {
+            a = k * Math.PI / 4; q = p.clone().addScaledVector(t1, Math.cos(a) * r * H).addScaledVector(t2, Math.sin(a) * r * H).normalize();
+            fl = ps.floorLocal(q.x, q.y, q.z); q.multiplyScalar(fl);
+            c.push({ x: q.x, y: q.y, z: q.z, ok: fl > 0 && !VG.v.overlaps(q, 0.25 * H) });
+        }
+        var bi = npcRelMod.pickRelocation(p.x, p.z, c.map(function (e) { return { x: e.x, z: e.z, ok: e.ok }; }), 2 * H + 1e-6);   // x/z distance only; candidates are generated within 2 H
+        if (bi < 0) return;
+        q = new THREE.Vector3(c[bi].x, c[bi].y, c[bi].z); VG.v.toLocal(q, q); v.x = q.x; v.z = q.z; v.pos.copy(q);
+    }
     function npcAudit() {
         var out = [], H = hOf(L), i, j, st, cr, v, rep = null;
         if (!ps || !land.node || ps.active !== land.node) return out;
@@ -1587,7 +1602,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         if (VG.v && VG.node === land.node) {
             rep = VG.v.placement ? VG.v.placement({ maxRadius: 1e9 }) : null;
-            for (i = 0; i < VG.v.villagers.length; i++) { v = VG.v.villagers[i]; add('villager', v, v.id, VG.v.toParent(v.pos, new THREE.Vector3()), !!(rep && !v.inside && rep.inside.indexOf(i) >= 0)); }
+            for (i = 0; i < VG.v.villagers.length; i++) { v = VG.v.villagers[i]; if (!v._reloc && !v.inside) { var wb0 = !!(rep && rep.inside.indexOf(i) >= 0), p0 = VG.v.toParent(v.pos, new THREE.Vector3()).normalize(), f0 = ps.floorLocal(p0.x, p0.y, p0.z); if (wb0 || !(f0 > 0 && Math.abs(VG.v.toParent(v.pos, new THREE.Vector3()).length() - f0) / H <= 1.5)) { npcRelocate(v, H); rep = VG.v.placement ? VG.v.placement({ maxRadius: 1e9 }) : null; } } add('villager', v, v.id, VG.v.toParent(v.pos, new THREE.Vector3()), !!(rep && !v.inside && rep.inside.indexOf(i) >= 0)); }
         }
         if (world && world.node === land.node && world.stores) for (i = 0; i < world.stores.length; i++) {
             st = world.stores[i]; if (!st) continue;

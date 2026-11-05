@@ -35,3 +35,14 @@ export function placementReport(npcs, walls, centre, opts) {
   rep.pass = rep.outsideFrac >= minOut && !rep.inside.length && !rep.unreachable.length && !rep.badSpawn.length;
   return rep;
 }
+
+// Q49: nearest acceptable relocation target within maxD of (px,pz). cands: [{x,z,ok}] (ok = walkable floor, outside walls). Returns the index or -1. Ties keep the first.
+export function pickRelocation(px, pz, cands, maxD) {
+  let bi = -1, bd = maxD * maxD;
+  for (let i = 0; i < cands.length; i++) {
+    const c = cands[i]; if (!c || !c.ok) continue;
+    const dx = c.x - px, dz = c.z - pz, d = dx * dx + dz * dz;
+    if (d <= bd && (bi < 0 || d < bd)) { bd = d; bi = i; }
+  }
+  return bi;
+}

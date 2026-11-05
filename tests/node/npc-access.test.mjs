@@ -34,3 +34,14 @@ test('placement: outside >= 70 %, inside-collider and blocked walks fail', () =>
   const steep = placementReport([{ x: 3, z: 0 }], [], [0, 0], { slopeAt: () => 0.5 });
   assert.deepEqual(steep.badSpawn, [0]);
 });
+
+import { pickRelocation } from '../../js/ship-npc-access.js';
+test('Q49 pickRelocation: nearest ok within range, else -1', () => {
+  const c = [{ x: 1, z: 0, ok: false }, { x: 0, z: 2, ok: true }, { x: 3, z: 0, ok: true }, { x: 0.5, z: 0, ok: true }];
+  assert.equal(pickRelocation(0, 0, c, 4), 3);
+  assert.equal(pickRelocation(0, 0, c.slice(0, 3), 4), 1);
+  assert.equal(pickRelocation(0, 0, c.slice(0, 1), 4), -1);
+  assert.equal(pickRelocation(0, 0, [{ x: 5, z: 0, ok: true }], 4), -1);
+  assert.equal(pickRelocation(0, 0, [], 4), -1);
+  assert.equal(pickRelocation(0, 0, [{ x: 2, z: 0, ok: true }, { x: 0, z: 2, ok: true }], 2), 0);   // exactly at range counts; tie keeps first
+});
