@@ -645,3 +645,18 @@ DONE: pure `pickRelocation(px,pz,cands,maxD)` in js/ship-npc-access.js (nearest 
 TESTS: node --check ok on ship.js, ship-npc-access.js (as .mjs); node --test: 346 tests, 331 pass / 0 fail / 15 skipped. New test in tests/node/npc-access.test.mjs.
 VERIFY ON MAC: g18 (unreachable must be empty); dbg.npcs() twice, positions of previously unreachable villagers move only on the first call; villagers still walk their paths after the move.
 OPEN: relocation is lazy (first audit), so a villager that is unreachable is still unreachable until something calls npcAudit; hooking it into villageMake needs ps.active to be ready. Path waypoints are not re-anchored to the new spot.
+
+## BENCHMARK-9 Phase 9 summary (Q47-Q49) — 2026-11-05 — (this commit)
+DONE: Q47 flight vs hub structure collision (ship-pushout.js multi-pass pushBoxes, objPush re-sweep, floor-clamp re-push), Q48 world entry for wild ring fights (F within 3 H -> ft.wild), Q49 lazy relocation of unreachable villagers (pickRelocation). Diff 924e277..HEAD excl. docs: 8 files, +165/-26; ship.js +62/-?, ship-pushout.js +27 new, ship-foot.js 5, pokemans-catch.js +13, ship-npc-access.js +11, 3 node test files (+73).
+TESTS: node --test tests/node: 346 tests, 331 pass / 0 fail / 15 skipped. All edited .js node --check ok (per Q47-Q49 entries). No browser run of anything.
+VERIFY ON MAC (in order):
+1. g14 three runs in a row on generative-pieces: boxHits must be 0 (Q47). Then g9, g18, g20; walk into store corners to confirm walking unchanged.
+2. g18: unreachable must be empty; call dbg.npcs() twice, previously unreachable villagers move only on the first call and still walk their paths (Q49).
+3. Q48: land with creatures, no treat in the bag, within 3 H of one: "F · FIGHT · WILD", F twice starts the ring fight; win, B within 3 s with a GOR BALL = CAUGHT. With a treat F must still say TAME. Confirm grazers are reachable inside 3 H.
+4. Full runAll in batches of <=5 with reloads (g1-g20, g19 = villagers, g20 = station).
+OPEN / RISKS:
+- Q47 root cause never reproduced; if g14 still shows boxHits, log first hit pos vs box and check the I.walls/aisles bounds gate in objBegin.
+- Q48: caught creature is not removed from the planet (no setCreatureTamed), can be fought again; no per-creature cooldown beyond FG.cd; creature persists after a loss.
+- Q49: relocation is lazy (first npcAudit), not at village build; path waypoints not re-anchored; shoppers and clerks not relocated.
+- Carry-overs: Q41 HAULER throw (chest-height hold, no wall stop, not net-synced), Q45 light meshes/F-gate, Q46 sleep/RACER drift, Q43 overlay resync, H_RATIO 0.2, pilot {4,3}, Q30 station gaps, Q32 gbLocalize frame math, Q39 unreproduced.
+NEXT 5 TO QUEUE: (1) mark caught creatures tamed/removed from the world (setCreatureTamed in ringCatch); (2) call npcRelocate at village build once ps is ready + re-anchor waypoints; (3) HAULER wall stop + hand-bone attach + held-mob net sync; (4) station interior NPC reachability + real dock light meshes; (5) real RACER drift and remaining mashup styles (BOUNTY/RANGER/TWIN).
