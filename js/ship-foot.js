@@ -53,7 +53,10 @@ export function createFoot(ctx) {
             }
             hr = fsC.length(); dir.copy(fsC).divideScalar(hr || 1);
             sup = footFloor(dir, H);
-            if (hr <= sup) { hr = sup; touched = true; vn = v.dot(dir); if (vn < 0) v.addScaledVector(dir, -vn); }
+            if (hr <= sup) {
+                hr = sup; touched = true; vn = v.dot(dir); if (vn < 0) v.addScaledVector(dir, -vn);
+                if (opN) { fsC.copy(dir).multiplyScalar(hr); if (objPush(fsC, H)) { hr = fsC.length(); dir.copy(fsC).divideScalar(hr || 1); } }      // Q47: the floor clamp must not seat the capsule back inside a store box
+            }
         }
         hum.gr = sup; hum.hr = hr; hum.vv = v.dot(dir); hum.air = true; hum.moving = true; hum.running = true;
         hum.pos.copy(dir).multiplyScalar(hr); up.copy(dir); hum.vh = hr;

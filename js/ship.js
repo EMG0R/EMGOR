@@ -5,6 +5,7 @@
    no procedural generation, no makeBody at runtime. */
 
 import { createFoot } from './ship-foot.js';
+import { pushBoxes } from './ship-pushout.js';
 import { createFx } from './ship-fx.js';
 import { H_RATIO, GM_PER_L, hOf } from './ship-scale.js';
 import * as ITM from './ship-items.js';
@@ -5181,29 +5182,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         return true;
     }
-    function opBoxes(arr, rs) {      // push opA (store metres) out of a box list; true if it moved
-        var j, q, moved = false, cx, cy, cz, dx, dy, dz, d2, d, k, l, r, t, bb, u, dd;
-        if (!arr) return false;
-        for (j = 0; j < arr.length; j++) {
-            q = arr[j];
-            if (opA.x < q.min.x - rs || opA.x > q.max.x + rs || opA.y < q.min.y - rs || opA.y > q.max.y + rs || opA.z < q.min.z - rs || opA.z > q.max.z + rs) continue;
-            cx = clamp(opA.x, q.min.x, q.max.x); cy = clamp(opA.y, q.min.y, q.max.y); cz = clamp(opA.z, q.min.z, q.max.z);
-            dx = opA.x - cx; dy = opA.y - cy; dz = opA.z - cz; d2 = dx * dx + dy * dy + dz * dz;
-            if (d2 >= rs * rs) continue;
-            moved = true;
-            if (d2 > 1e-14) { d = Math.sqrt(d2); k = (rs - d) / d; opA.x += dx * k; opA.y += dy * k; opA.z += dz * k; }
-            else {      // centre inside the box: leave by the nearest face
-                l = opA.x - q.min.x; r = q.max.x - opA.x; t = opA.z - q.min.z; bb = q.max.z - opA.z; u = opA.y - q.min.y; dd = q.max.y - opA.y;
-                var m = Math.min(l, r, t, bb, u, dd);
-                if (m === l) opA.x = q.min.x - rs; else if (m === r) opA.x = q.max.x + rs; else if (m === t) opA.z = q.min.z - rs; else if (m === bb) opA.z = q.max.z + rs; else if (m === u) opA.y = q.min.y - rs; else opA.y = q.max.y + rs;
-            }
-        }
-        return moved;
-    }
+    function opBoxes(arr, rs) { return pushBoxes(opA, arr, rs, 3); }      // push opA (store metres) out of a box list; true if it moved (math in ship-pushout.js)
     // the capsule = two spheres (0.25 H and 0.75 H above the feet, FOOT_R H radius) against every box and the hull sphere; p (planet-local feet) is pushed out in place
     function objPush(p, H) {
-        var pushed = false, li, si, o, rs, mv, dl;
+        var pushed = false, li, si, o, rs, mv, dl, pass, again = true;
         opU.copy(p).normalize();
+        for (pass = 0; pass < 2 && again; pass++) { again = false;      // Q47: pushing the upper sphere out can seat the lower one in a neighbouring box; one more sweep settles it
         for (li = 0; li < opList.length; li++) {
             o = opList[li]; rs = FOOT_R * H / o.K;
             for (si = 0; si < 2; si++) {
@@ -5212,8 +5196,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 opB.copy(opA);
                 mv = opBoxes(o.a, rs); if (opBoxes(o.b, rs)) mv = true;
                 if (!mv) continue;
-                opC.copy(opA).applyMatrix4(o.m); opB.applyMatrix4(o.m); opC.sub(opB); p.add(opC); pushed = true;
+                opC.copy(opA).applyMatrix4(o.m); opB.applyMatrix4(o.m); opC.sub(opB); p.add(opC); pushed = true; again = true;
             }
+        }
         }
         if (land.node && land.sPos) {      // the parked hull: a sphere of 0.45 L at the ship's centre
             var hr0 = 0.45 * L;
