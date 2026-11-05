@@ -1563,7 +1563,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     // Q44 harness: every village / crowd / clerk NPC on the active planet with its reachability. reachable = a walkable floor within 1.5 H of the anchor
     // (ps.floorLocal under it) and, for villagers outdoors, not inside a wall collider. distToPad = H to the nearest outpost pad (villagers: to the well). Allocates; test hook only.
-    var npcPadV = new THREE.Vector3(), npcPadQ = new THREE.Quaternion();
+    var npcPadV = new THREE.Vector3(), npcUp = new THREE.Vector3(), npcPadQ = new THREE.Quaternion();
     function npcPadNear(p, H) {
         var best = 1e30, i, o, d;
         if (VG.v && VG.node === land.node) best = p.distanceTo(VG.v.anchor.pos);
@@ -1580,9 +1580,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function npcAudit() {
         var out = [], H = hOf(L), i, j, st, cr, v, rep = null;
         if (!ps || !land.node || ps.active !== land.node) return out;
-        function add(kind, o, id, p, wallBad) {
-            var dir = p.clone().normalize(), fl = ps.floorLocal(dir.x, dir.y, dir.z), dy = Math.abs(p.length() - fl) / H;
-            out.push({ id: String(id), kind: kind, pos: p.toArray(), reachable: fl > 0 && dy <= 1.5 && !wallBad, floorDy: +dy.toFixed(3), distToPad: +npcPadNear(p, H).toFixed(2), o: o });
+        function add(kind, o, id, p, wallBad, gapH) {      // gapH >= 0: store NPCs stand on the store's FLAT floor (not the curved terrain under them); what matters is the step from the terrain at the entrance up to that floor plane; tolerance 3 H (jump apex 1.2 H + Space-hold jetpack; the 9 L probe sits off the flattened pad, so tiny planets add curvature drop)
+            var dir = p.clone().normalize(), fl = ps.floorLocal(dir.x, dir.y, dir.z), dy = gapH >= 0 ? gapH : Math.abs(p.length() - fl) / H;
+            out.push({ id: String(id), kind: kind, pos: p.toArray(), reachable: fl > 0 && dy <= (gapH >= 0 ? 3 : 1.5) && !wallBad, floorDy: +dy.toFixed(3), distToPad: +npcPadNear(p, H).toFixed(2), o: o });
         }
         if (VG.v && VG.node === land.node) {
             rep = VG.v.placement ? VG.v.placement({ maxRadius: 1e9 }) : null;
@@ -1590,8 +1590,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         if (world && world.node === land.node && world.stores) for (i = 0; i < world.stores.length; i++) {
             st = world.stores[i]; if (!st) continue;
-            if (st.npcSpot && st.npcSpot.pos) add('clerk', st, st.id, st.npcSpot.pos, false);
-            cr = st.crowd; if (cr && cr.npcs) for (j = 0; j < cr.npcs.length; j++) { v = cr.npcs[j]; if (v.pos) add('shopper', v, v.id, v.pos, false); }
+            var ent = -1; if (st.npcSpot && st.npcSpot.pos && st.crowd && st.crowd.frame) {
+                npcPadV.copy(st.npcSpot.pos).addScaledVector(st.npcSpot.facing, 9 * L); var ef = ps.floorLocal(npcPadV.x, npcPadV.y, npcPadV.z);
+                npcPadV.normalize().multiplyScalar(ef).sub(st.npcSpot.pos);      // terrain point at the entrance, relative to the clerk
+                ent = Math.abs(npcPadV.dot(npcUp.set(0, 1, 0).transformDirection(st.crowd.frame))) / H;
+            }
+            if (st.npcSpot && st.npcSpot.pos) add('clerk', st, st.id, st.npcSpot.pos, false, ent);
+            cr = st.crowd; if (cr && cr.npcs) for (j = 0; j < cr.npcs.length; j++) { v = cr.npcs[j]; if (v.local && cr.frame) add('shopper', v, v.id, v.local.clone().applyMatrix4(cr.frame), false, ent); }      // v.pos stays (0,0,0) until the crowd has been updated; v.local is always set
         }
         return out;
     }
@@ -9016,6 +9021,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             sfootStep(dt);
         }
         if (R27.dsite) dkTick(dt);
+        else if (m === 'deck' && sk.lt > 0) dkLights(dt);      // Q45: the station deck ticks the landing lights too (dkTick is derelict-only; sk.lt never reached 0 so F at the counter stayed gated)
         skCommon(dt);
         if (m === 'deck' || sk.mode === 'deck') {
             if (sk.nl > 0) { sk.nl -= dt; if (sk.nl <= 0 && net && net.setMode) net.setMode('foot'); }
@@ -10615,7 +10621,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         get ps() { return ps; },
         get lf() { return lf; },
         dbg: { gotoStation: function () {      // Q45: ship 40 L out in front of the dock mouth, nose at it, matching the station's drift
-            if (!station || !station.mouth || !station.group.visible || lf.on || gmode !== 'fly' || sk.mode) return false;
+            if (!station || !station.mouth || !station.group.visible || gmode !== 'fly' || sk.mode) return false;
+            if (lf.on) lfOff();      // a ship left hovering in a planet's local frame (after g18/g19) would be re-anchored to the planet next frame and the teleport would not stick; same exit placeAtDock() uses
             station.group.updateMatrixWorld(true);
             vF.copy(station.mouth.dir).negate(); shipRoot.quaternion.setFromUnitVectors(NEG_Z, vF);
             shipRoot.position.copy(station.mouth.pos).addScaledVector(station.mouth.dir, 40 * L);
@@ -10627,7 +10634,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }, gotoShip: function () { if (sk.mode !== 'deck') return false; sk.hp.set(sk.shipL.x + (sk.shipL.x > 0 ? -1.2 : 1.2), 0, sk.shipL.z + 0.3); return true; }, profile: function () { return curProfile(); },
         shopRows: function () { return shopRows.map(function (r) { return { k: r.k, id: r.item ? r.item.id : '', name: r.name, price: r.price }; }); },
         shopBuy: function (id) { for (var i = 0; i < shopRows.length; i++) if (shopRows[i].item && shopRows[i].item.id === id) { var n0 = ownedN(id); shopPick(i); return ownedN(id) > n0; } return false; },
-        npcs: function () { return npcAudit().map(function (a) { return { id: a.id, kind: a.kind, pos: a.pos, reachable: a.reachable, distToPad: a.distToPad }; }); }, gotoNpc: npcGoto, talkNearest: function () { onKeyTalk(); return DLG.open; }, resetWorld: function () {       // Q39 harness hook: clear what one g-test leaves for the next (enemies, ground mobs, mob bolts, fight, held fire/freeze); re-seeds nothing
+        npcs: function () { return npcAudit().map(function (a) { return { id: a.id, kind: a.kind, pos: a.pos, reachable: a.reachable, floorDy: a.floorDy, distToPad: a.distToPad }; }); }, gotoNpc: npcGoto, talkNearest: function () { onKeyTalk(); return DLG.open; }, resetWorld: function () {       // Q39 harness hook: clear what one g-test leaves for the next (enemies, ground mobs, mob bolts, fight, held fire/freeze); re-seeds nothing
             var i; try { if (FG.on) fightEnd(); } catch (e0) { warnOnce('reset.fight', e0); }
             clearFight(); styDrop();
             for (i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob) gndFree(R27.gnd[i]);

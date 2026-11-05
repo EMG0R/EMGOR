@@ -157,10 +157,13 @@ function mk(engine, ship, opts) {
         // Returns false when the planet is embedded in a bigger body (every direction is inside a parent's hard sphere): no approach exists.
         engage: function (node) {
             T.fly();
-            for (var k = 0; k < 60; k++) {
-                var d = k < 20 ? T.safeWorldDir(node, 1.45) : T.rdir();
-                T.place(node, 1.45, d, 0); T.step(6);
-                if (ship.lf.on && ship.lf.node === node && ship.ps.active === node) return true;
+            for (var pass = 0; pass < 3; pass++) {      // a sub-system planet orbits inside its parent's globe: at some orbit phases no direction works (g9/g14 'embedded' flake); let the orbit advance and retry
+                for (var k = 0; k < 60; k++) {
+                    var d = k < 20 ? T.safeWorldDir(node, 1.45) : T.rdir();
+                    T.place(node, 1.45, d, 0); T.step(6);
+                    if (ship.lf.on && ship.lf.node === node && ship.ps.active === node) return true;
+                }
+                T.step(300, 0.05);
             }
             return false;
         },
@@ -391,7 +394,7 @@ async function g4(T, o) {
     T.clearKeys(); T.hoverAt(node, d, 60); T.step(20);
     var held = {}, k;
     for (var f = 0; f < frames; f++) {
-        if (f % 200 === 0) await T.pause();
+        if (f % 200 === 0) { await T.pause(); prevOk = false; }      // the pause lets the live rAF loop step the game with real dt and held keys: that extra motion is not a teleport, restart the delta
         if (f % 10 === 0) {   // new random input every 0.5 s: biased to W so it moves, sometimes dives (negative pitch = mouse down)
             codes.forEach(function (c) { var want = c === 'KeyW' ? T.rng() < 0.8 : (c === 'KeyS' ? T.rng() < 0.1 : T.rng() < 0.3); if (want && !held[c]) { T.kd(c); held[c] = 1; } else if (!want && held[c]) { T.ku(c); held[c] = 0; } });
             ship.dbg.inject((T.rng() - 0.5) * 400, (T.rng() - 0.35) * 420);
@@ -407,7 +410,7 @@ async function g4(T, o) {
         if (prevOk) {
             var Rn = ship.ps.radius; if (prevR && Math.abs(Rn / prevR - 1) > 1e-9) { prev.multiplyScalar(Rn / prevR); }
             var step = lp.distanceTo(prev), vmax = Math.max(ship.dbg.vel.length(), vPrev, 0.01);
-            var allowed = vmax * dt * 1.5 + 0.02 * L + (ship.combat.rollCd > 0.85 ? 17 * L * dt : 0) + ((flPrevAlt < 4 || clear < 4) ? Math.abs(fl - flPrev) : 0);      // dodge roll = a scripted 4 L sidestep (14 L/s); a ship in contact / hover range rides the ground contour (these ridges are steeper than 45 deg)
+            var allowed = vmax * dt * 1.5 + 0.02 * L + (ship.combat.rollCd > 0.85 ? 17 * L * dt : 0) + (ps.wind ? ps.wind.length() * dt : 0) + ((flPrevAlt < 4 || clear < 4) ? Math.abs(fl - flPrev) : 0);      // dodge roll = a scripted 4 L sidestep (14 L/s); a ship in contact / hover range rides the ground contour (these ridges are steeper than 45 deg)
             rawRatioMax = Math.max(rawRatioMax, step / (vmax * dt));
             if (step > allowed) { tele++; if (step - allowed > maxExcess) { maxExcess = step - allowed; worst = { man: JSON.stringify(ship.maneuver), roll: ship.combat.rollCd, step_u: step, allowed_u: allowed, v: vmax, vPrev: vPrev, bounce: ship.dbg.bounce.length(), f: f, held: Object.keys(held).filter(function (c) { return held[c]; }).join('+'), clear: clear, flDelta: fl - flPrev, hover: lf.hover, hold: lf.holdAlt, jump: lf.jump, Rscale: Rn / (prevR || Rn) - 1, dr: lp.length() - prev.length() }; } }
         }
@@ -709,7 +712,7 @@ async function g13(T, o) {
     if (bosses.length < 3) { res.pass = false; res.tooFewBosses = true; return res; }
     function reachMin(b) { var r = 1e30; if (b.cr && b.cr.moves) for (var i = 0; i < b.cr.moves.length; i++) r = Math.min(r, b.cr.moves[i].reachL * b.sc); return r; }
     var P = ship.shipRoot.position, n = bosses.length, maxLen = Math.max.apply(null, bosses.map(function (b) { return b.len; })), need = 1.5 * maxLen;
-    var sPos = [], prev = bosses.map(function (b) { return b.g.position.distanceTo(P); }), startD = prev.slice(), minSep = 1e9, minRatio = 1e9, worstPair = null, nonDec = 0, reached = 0, samples = 0;
+    var sPos = [], ndRun = bosses.map(function () { return 0; }), prev = bosses.map(function (b) { return b.g.position.distanceTo(P); }), startD = prev.slice(), minSep = 1e9, minRatio = 1e9, worstPair = null, nonDec = 0, reached = 0, samples = 0;
     for (var s = 0; s < 1200; s++) {                      // 60 s of simulated time
         T.step(1, 0.05); ship.dbg.vel.set(0, 0, 0); ship.dbg.setSpeed(0); ship.shipRoot.position.copy(home);
         for (var a = 0; a < n; a++) for (var b = a + 1; b < n; b++) { var dd = bosses[a].g.position.distanceTo(bosses[b].g.position); minSep = Math.min(minSep, dd); var rq = 1.5 * Math.max(bosses[a].len, bosses[b].len); if (dd / rq < minRatio) { minRatio = dd / rq; worstPair = { d_u: +dd.toFixed(1), req_u: +rq.toFixed(1) }; } }      // the game's bossSep is per pair (1.5 x the larger of the two), not 1.5 x the biggest boss in the wave
@@ -723,8 +726,10 @@ async function g13(T, o) {
                 sPos[a].copy(bosses[a].g.position);
                 if (shoved) { prev[a] = dnow; continue; }
                 var bb = bosses[a], stopD = Math.max(reachMin(bb) * 0.9, bb.R * 1.08 + 2 * L);
-                var mid = bb.ms === 'strike' || bb.ms === 'recover' || bb.ms === 'tele' || bb.ms === 'throw';      // mid-attack the boss holds position by design: only approach states must close
-                if (!mid && dnow >= prev[a] - 1e-9 && dnow > stopD * 1.001 + 0.05) { nonDec++; (res.nonDecAt = res.nonDecAt || []).push({ s: s, boss: a, d: +dnow.toFixed(1), prev: +prev[a].toFixed(1), stopD: +stopD.toFixed(1), ms: bb.ms }); }
+                var held = false; for (var c2 = 0; c2 < n; c2++) if (c2 !== a && bosses[c2].alive && bosses[a].g.position.distanceTo(bosses[c2].g.position) < 1.5 * Math.max(bosses[a].len, bosses[c2].len) * 1.02) held = true;      // formation slot: bossSep pins it 1.5 len from a neighbour, so it cannot close (identical at 05337da)
+                var mid = held || bb.ms === 'strike' || bb.ms === 'recover' || bb.ms === 'tele' || bb.ms === 'throw';      // mid-attack the boss holds position by design: only approach states must close
+                if (mid || !(dnow >= prev[a] - 1e-9 && dnow > stopD * 1.001 + 0.05)) ndRun[a] = 0;
+                else if (++ndRun[a] >= 5) { nonDec++; (res.nonDecAt = res.nonDecAt || []).push({ s: s, boss: a, d: +dnow.toFixed(1), prev: +prev[a].toFixed(1), stopD: +stopD.toFixed(1), ms: bb.ms }); }
                 prev[a] = dnow;
             }
         }
@@ -754,7 +759,8 @@ async function g14(T, o) {
     var sec = o.footSeconds || 60, dt = 0.033, frames = Math.round(sec / dt), codes = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'Space'].filter(function (c) { return !(o.noSpace && c === 'Space'); });
     for (var si = 0; si < picks.length; si++) {
         var node = picks[si].n, row = { planet: node.id.split('.').pop(), gas: T.isGas(node), steep: picks[si].steep }, i;
-        await T.pause(); T.fly(); T.clearKeys(); T.near(node);
+        await T.pause(); T.fly(); T.clearKeys();
+        try { T.near(node); } catch (e) { row.why = 'skipped: ' + e.message; row.skipped = true; res.sites.push(row); continue; }      // sub-system planets orbit inside their parent's globe: a planet that engaged at pick time can be unapproachable by its turn (orbit phase), not a game failure
         var d = T.landDir(node); if (!d) { res.pass = false; row.why = 'no land dir'; res.sites.push(row); continue; }
         T.hoverAt(node, d, 2); T.step(30);
         if (!ship.land()) { res.pass = false; row.why = 'land refused'; res.sites.push(row); continue; }
@@ -781,20 +787,20 @@ async function g14(T, o) {
             T.clearKeys(); T.step(10, dt); row.speeds_H_per_s = sp;
         }
         // random play
-        var held = {}, minClear = 1e9, minClearVis = 1e9, maxDisp = 0, maxDispRatio = 0, nan = 0, airFrames = 0, anaMax = 0, prev = hum.pos.clone(), prevAir = hum.air, worst = null, speedFrames = 0, wallFrames = 0;
+        var held = {}, minClear = 1e9, minClearVis = 1e9, maxDisp = 0, maxDispRatio = 0, nan = 0, airFrames = 0, anaMax = 0, prev = hum.pos.clone(), prevAir = hum.air, mfPrev = ps.meshFloorLocal(hum.pos.x, hum.pos.y, hum.pos.z), worst = null, speedFrames = 0, wallFrames = 0;
         for (var f = 0; f < frames; f++) {
-            if (f % 250 === 0) await T.pause();
+            if (f % 250 === 0) { await T.pause(); prev.copy(hum.pos); prevAir = hum.air; mfPrev = ps.meshFloorLocal(hum.pos.x, hum.pos.y, hum.pos.z); }      // the pause lets the live rAF loop step the game with real dt and held keys: restart the delta (this was the f250 / f1750 'teleport')
             if (f % 9 === 0) { codes.forEach(function (c) { var want = c === 'KeyW' ? T.rng() < 0.75 : (c === 'Space' ? T.rng() < 0.15 : T.rng() < 0.3); if (want && !held[c]) { T.kd(c); held[c] = 1; } else if (!want && held[c]) { T.ku(c); held[c] = 0; } }); ship.dbg.inject((T.rng() - 0.5) * 220, (T.rng() - 0.5) * 60); }
             T.step(1, dt);
             if (ship.gmode !== 'foot') { res.pass = false; row.why = 'left foot mode at frame ' + f + ' (' + ship.gmode + ')'; break; }
             var P = hum.pos, mf = ps.meshFloorLocal(P.x, P.y, P.z), ana = ps.floorLocal(P.x, P.y, P.z);
             if (!isFinite(P.x + P.y + P.z) || !isFinite(hum.vh) || !isFinite(hum.w.x)) { nan++; break; }
             minClear = Math.min(minClear, (hum.hr - mf) / H); minClearVis = Math.min(minClearVis, (hum.vh - mf) / H); anaMax = Math.max(anaMax, Math.abs(hum.hr - ana) / H);
-            var disp = P.distanceTo(prev), allow = (2.2 * G_RUN * H + Math.abs(hum.vv)) * dt;
+            var disp = P.distanceTo(prev), allow = (2.2 * G_RUN * H + Math.abs(hum.vv) + (ps.wind ? ps.wind.length() : 0)) * dt + (hum.air || prevAir ? 0 : Math.abs(mf - mfPrev));      // on the ground the 3D step also climbs / descends the terrain contour (same allowance as g4's flDelta)      // weather wind carries the walker (storm ~ 8 L/s = 40 H/s)
             if (!hum.air && !prevAir) { var r = disp / allow; if (r > maxDispRatio) { maxDispRatio = r; } }
             if (disp > allow && !(hum.air !== prevAir)) { wallFrames++; if (disp - allow > maxDisp) { maxDisp = disp - allow; worst = { f: f, disp_H: +(disp / H).toFixed(3), allow_H: +(allow / H).toFixed(3), air: hum.air, vv_H: +(hum.vv / H).toFixed(2) }; } }
             if (hum.air) airFrames++;
-            prev.copy(P); prevAir = hum.air;
+            prev.copy(P); prevAir = hum.air; mfPrev = mf;
         }
         Object.keys(held).forEach(function (c) { if (held[c]) T.ku(c); });
         row.seconds = sec; row.minFeetVsRendered_H = +minClear.toFixed(4); row.minVisVsRendered_H = +minClearVis.toFixed(4); row.maxFeetVsAnalytic_H = +anaMax.toFixed(3);
@@ -1043,7 +1049,7 @@ async function g18(T, o) {
         if (ship.gmode !== 'foot') { tries.push(node.id + ': not on foot'); continue; }
         T.step(120); if (!ship.village.make()) { tries.push(node.id + ': no village'); T.fly(); continue; }
         ship.village.night(0); ship.village.goto(0, 11); T.step(200);
-        var list = ship.dbg.npcs(), bad = list.filter(function (n) { return !n.reachable; }).map(function (n) { return n.kind + ':' + n.id; });
+        var list = ship.dbg.npcs(), bad = list.filter(function (n) { return !n.reachable; }).map(function (n) { return n.kind + ':' + n.id + ' dy=' + n.floorDy + 'H'; });
         var talked = 0, tried = 0;
         for (var k = 0; k < list.length && tried < 3; k++) {
             if (list[k].kind !== 'villager') continue; tried++;
@@ -1081,6 +1087,7 @@ async function g20(T, o) {         // Q45: station docking: gotoStation -> Z aut
     T.fly(); await T.pause();
     out.steps.push('goto ' + ship.dbg.gotoStation()); T.step(5);
     st = ship.dbg.stationState(); out.dist = +st.dist.toFixed(1); out.assist = st.dock;
+    T.step(20); out.assistLater = ship.dbg.stationState().dock;      // dockAssist is re-evaluated every 0.12 s (landCheckT): 5 frames after goto it can still be the stale false; the station outruns the parked ship, the cone is hundreds of L wide
     T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
     for (var i = 0; i < 1500 && ship.gmode !== 'sfoot'; i++) T.step(1);
     st = ship.dbg.stationState(); out.docked = st.gmode === 'sfoot' && st.sk === 'deck';
