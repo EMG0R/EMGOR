@@ -3986,7 +3986,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 0; i < allies.length; i++) { allies[i].alive = false; allies[i].g.visible = false; }
         wave = Math.max(0, n - 1); wavePending = true; nextWave = gt + 0.05;
     }
-    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land; step out; board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person) · T talk (on foot / station) · U POKEMANS manager (on foot) · 1-9 weapon hotbar · 0 party keys (1-6 swap) · B throw GOR BALL · E inventory · P photo mode (drag orbit, wheel FOV, [ ] time, S save + share link) · F/E/Esc close any panel · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · BOARD + DISCOVERIES: emgor.online/nomansgor/board.html · /help';
+    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land; step out; board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person or a wild creature, then B to throw a GOR BALL) · T talk (on foot / station) · U POKEMANS manager (on foot) · 1-9 weapon hotbar · 0 party keys (1-6 swap) · B throw GOR BALL · E inventory · P photo mode (drag orbit, wheel FOV, [ ] time, S save + share link) · F/E/Esc close any panel · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · BOARD + DISCOVERIES: emgor.online/nomansgor/board.html · /help';
     function applyDifficultyLive() {
         var D = DIFFS[difficulty];
         for (var i = 0; i < enemies.length; i++) {
@@ -5021,6 +5021,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function onKeyF() {
         if (gmode === 'foot') {
             var ft = footTarget();
+            if (ft.kind === 'wild') { wildFight(ft.obj); return; }
             if (ft.kind === 'villager' || ft.kind === 'shopper' || ft.kind === 'clerk' || ft.kind === 'dealer') { fightAsk(ft); return; }
             footAct(ft);
         }
@@ -8058,6 +8059,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         tcRes.id = best.id; tcRes.d = Math.sqrt(bd); tcRes.kind = crKind(best); tcRes.v = tcRes.kind === 1 ? 1 : 0; tcRes.pos.copy(best.lp);
         return tcRes;
     }
+    function wildFind() {      // Q48: nearest wild creature inside 3 H (pure predicate: PKC.wildEncounterIndex)
+        if (gmode !== 'foot' || !hum.obj || !ps || !ps.active || land.node !== ps.active) return null;
+        var list = creatList(), i = PKC.wildEncounterIndex(list, hum.pos, 3 * hOf(L));
+        return i < 0 ? null : list[i];
+    }
+    function wildFight(cr) {      // Q48: the same species/individual recipe as gbCatch's grazer path, so a ring catch lands the mon the ball would have
+        var node = land.node, pid = String(node.id), tier = 1 + (hash25(pid + ':' + cr.id) % 2), sp = ptSpeciesOf(node, CR_NAMES[crKind(cr)], tier), ind = PKG.individual(sp, hash25(pid + ':' + cr.id) + ':' + pid), lvl = Math.min(PKG.MAX_LEVEL, 2 + sp.tier * 3);
+        fightAsk({ kind: 'wild', obj: { id: 'wild:' + cr.id, name: sp.name, role: 'wild', pos: cr.lp }, wild: PKC.makeMon(sp, ind, lvl, PKG.xpForLevel(lvl), pid) });
+    }
     function tameStart(c) { if (tame.on || !c) return; tame.on = true; tame.t = 0; tame.id = c.id; aPlay('ui', { vel: 0.6 }); addRow('', '', 'taming... hold still', 'is-sys'); }
     // ── harvesting: F near a resource node = 3 s channel, chunk bursts, then the stack goes to the inventory; spent nodes persist on the profile ──
     var harv = { on: false, t: 0, id: '', pos: new THREE.Vector3(), bt: 0 };
@@ -8591,7 +8601,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         n = world.nearNpc;
         if (n) { k = n.role === 'dealer' ? 'dealer' : 'shopper'; ftI.kind = k; ftI.obj = n; ftI.label = fightLabel(n.id || n.name || k, k === 'dealer' ? 'T · DEAL' : 'T · TALK'); return ftI; }
         c = npcNear();
-        if (c) { ftI.kind = 'clerk'; ftI.obj = c; ftI.label = fightLabel(c.id || 'clerk', 'T · TALK'); }
+        if (c) { ftI.kind = 'clerk'; ftI.obj = c; ftI.label = fightLabel(c.id || 'clerk', 'T · TALK'); return ftI; }
+        c = wildFind();      // Q48: a wild creature within 3 H and nothing else to do: F = ring fight (a treat in the bag makes F tame instead, above)
+        if (c) { ftI.kind = 'wild'; ftI.obj = c; ftI.label = fightLabel('wild:' + c.id, 'WILD'); }
         return ftI;
     }
 
@@ -8678,7 +8690,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (gmode !== 'foot' || !FG.sess) { fightEnd(null); return; }
         FG.t += dt; FG.sess.setInput(fgMask(), 0); FG.sess.update(dt);
         var br = FG.sess.sim.ballReq;      // Q24: the GOR BALL slot asked for a throw; the roll lives here, the sim never rolls
-        if (br && FG.wl) { FG.sess.sim.ballReq = null; var rr = FG.px.ballRoll(FG.wl, br.frac, Math.random()); addRow('', '', rr.caught ? 'GOR BALL · click · ' + FG.wl.name : 'GOR BALL · it broke free (' + Math.round(rr.chance * 100) + ' %)', 'is-sys'); aPlay('ui', { vel: 0.7 }); if (rr.caught) { try { ringCatch(ensureProfile(userName()), FG.wl.mon); } catch (eC) { warnOnce('fight.catch', eC); } FG.ko = null; fightEnd(0); } /* ft.wild still has no ring entry point (OPEN in the log) */ }
+        if (br && FG.wl) { FG.sess.sim.ballReq = null; var rr = FG.px.ballRoll(FG.wl, br.frac, Math.random()); addRow('', '', rr.caught ? 'GOR BALL · click · ' + FG.wl.name : 'GOR BALL · it broke free (' + Math.round(rr.chance * 100) + ' %)', 'is-sys'); aPlay('ui', { vel: 0.7 }); if (rr.caught) { try { ringCatch(ensureProfile(userName()), FG.wl.mon); } catch (eC) { warnOnce('fight.catch', eC); } FG.ko = null; fightEnd(0); } }
     }
     function fightResult(res) {
         if (!FG.on || !res) return;

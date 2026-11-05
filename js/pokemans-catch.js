@@ -42,3 +42,16 @@ export function makeMon(sp, ind, level, xp, planet) {
   return { id: 'mon-' + sp.id + '-' + Math.round((ind.size || 1) * 1000) + (ind.shiny ? 's' : ''), sp, ind, level, xp, hp: stats.hp, dead: false, planet: String(planet || ''), at: 0 };
 }
 export const monLevel = (m) => xpToLevel(m && m.xp | 0);
+
+// Q48: world entry for a wild ring fight. list = [{ id, lp:{x,y,z} planet-local }], pos = the player's planet-local position, range = 3 H in the same units.
+// Returns the index of the nearest creature strictly inside range, or -1. Allocation-free.
+export function wildEncounterIndex(list, pos, range) {
+  let best = -1, bd = range * range;
+  if (!list || !pos || !(range > 0)) return -1;
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i] && list[i].lp; if (!p) continue;
+    const dx = p.x - pos.x, dy = p.y - pos.y, dz = p.z - pos.z, d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 < bd) { bd = d2; best = i; }
+  }
+  return best;
+}
