@@ -83,7 +83,7 @@ Legend: `[ ]` todo · `[>]` in progress · `[x]` done · `[~]` blocked (reason i
 - [x] Q47 Flight vs structure collision at the hub: g14 flight sub-test on generative-pieces fails intermittently with boxHits 4 (player body probes at 0.25 H / 0.75 H inside store boxes while flying/jetpacking; walking clean). Find the flight path's structure test (ship-foot.js flightStep vs the village/hub solids used by footStep) and make flight resolve against the same box solids as walking (push-out along the shallowest face, no per-frame allocs). Node test for the pure push-out math. VERIFY ON MAC: g14 three runs in a row.
 - [x] Q48 World entry point for wild ring fights: a wild creature encounter (creature within 3 H, player presses F) sets ft.wild and starts the ring fight so Q42 catch is reachable in play. HELP string mentions it. Node test for the encounter predicate.
 - [x] Q49 Relocate unreachable NPCs instead of only reporting: in npcAudit, any NPC with reachable=false gets moved to the nearest pad floor point within 2 H (ps.floorLocal), once, at spawn. Keep dbg.npcs() output. Node test for the relocation picker.
-- [ ] BENCHMARK-9: log block (same format as BENCHMARK-8).
+- [>] BENCHMARK-9: log block (same format as BENCHMARK-8).
 
 ## Notes for the manager (not for the builder)
 Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batches; play-check each BENCHMARK list; merge; append results to GORCAVE-LOG.md.
