@@ -31,10 +31,10 @@ test('revive: party first, then pen; one per use', () => {
   assert.equal(PKP.reviveAtCvs(pf).mon.id, pf.pokemans[2].id);
   assert.equal(PKP.reviveAtCvs(pf).why, 'none');
 });
-test('shader pad arrays: three GLSL copies, uniforms and NPADU agree on 6 slots (5 outposts+sites were 5)', () => {
+test('shader pad arrays: GLSL definitions (shared HFUNP_GLSL for patch + disc + haze, plus one more), uniforms and NPADU agree on 6 slots (5 outposts+sites were 5)', () => {
   const src = readFileSync(new URL('../../js/ship-planet.js', import.meta.url), 'utf8');
-  assert.equal((src.match(/uniform vec3 uPadD\[6\]; uniform vec3 uPadP\[6\];/g) || []).length, 3);
-  assert.equal((src.match(/for \(int i = 0; i < 6; i\+\+\)/g) || []).length, 3);
+  assert.equal((src.match(/uniform vec3 uPadD\[6\]; uniform vec3 uPadP\[6\];/g) || []).length, 2);
+  assert.equal((src.match(/for \(int i = 0; i < 6; i\+\+\)/g) || []).length, 2);
   assert.match(src, /var NPADU = 6;/);
   assert.match(src, /var NPAD = 3;/);
   assert.match(src, /for \(var si = 0; si < 3; si\+\+\)/);

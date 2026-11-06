@@ -1082,6 +1082,49 @@ async function g19(T, o) {         // Q29: villagers by day: >= 70 % outside, no
     return { pass: rows.length > 0 && rows.every(function (x) { return x.pass || x.night > 0.55; }), rows: rows, tries: tries };
 }
 
+// ─── 21. site ground (2026-11-05): the rendered ground inside the village / hub pads equals the analytic height wherever the player-centred lattice sits; discs follow the player ───
+async function g21(T, o) {
+    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), ps = ship.ps, hum = ship._g.hum, tries = [], nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    nodes.sort(function (a, b) { return (a.id.indexOf('metagor') >= 0 ? -1 : 0) - (b.id.indexOf('metagor') >= 0 ? -1 : 0); });
+    for (var ni = 0; ni < nodes.length && ni < 4; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) { tries.push(node.id + ': no land dir'); continue; }
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+        if (ship.gmode !== 'foot') { tries.push(node.id + ': not on foot'); continue; }
+        T.step(120); if (!ship.village.make()) { tries.push(node.id + ': no village'); T.fly(); continue; }
+        T.step(300);
+        var v = ship.village.v, HB = ship.hub.raw, hb = HB.hub, R = ps.radius;
+        var sites = [{ name: 'village', slot: 3, base: v.group.position.clone(), q: v.group.quaternion.clone(), mu: v.group.scale.x }];
+        if (hb) sites.push({ name: 'hub', slot: 4, base: HB.pos.clone(), q: HB.q.clone(), mu: HB.mu });
+        var offs = [0, 100, 300, 0], rows = [], worst = 0, c0 = new THREE.Vector3(), c1 = new THREE.Vector3(), moved = 0, discOn = [], discOff = [];
+        var bd = sites[0].base.clone().normalize(), ref = Math.abs(bd.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0), e1 = new THREE.Vector3().crossVectors(bd, ref).normalize();
+        for (var oi = 0; oi < offs.length; oi++) {
+            var ang = offs[oi] * L / R, pd = bd.clone().multiplyScalar(Math.cos(ang)).addScaledVector(e1, Math.sin(ang)).normalize();
+            var fl = ps.floorLocal(pd.x, pd.y, pd.z);
+            hum.pos.copy(pd).multiplyScalar(fl + 0.1 * L); hum.hr = hum.gr = hum.vh = fl + 0.1 * L; hum.air = true; hum.vv = 0;
+            T.step(40);
+            if (ps.patchCentre(c1)) { if (oi === 0) c0.copy(c1); else moved = Math.max(moved, c1.angleTo(c0) * R / L); }
+            for (var si = 0; si < sites.length; si++) {
+                var st = sites[si], mx = 0, p = new THREE.Vector3();
+                for (var rm = 10; rm <= 40; rm += 10) for (var k = 0; k < 8; k++) {
+                    p.set(Math.cos(k * 0.7854 + rm) * rm, 0, Math.sin(k * 0.7854 + rm) * rm).multiplyScalar(st.mu).applyQuaternion(st.q).add(st.base).normalize();
+                    mx = Math.max(mx, Math.abs(ps.floorLocal(p.x, p.y, p.z) - ps.meshFloorLocal(p.x, p.y, p.z)) / H);
+                }
+                rows.push([st.name, offs[oi], +mx.toFixed(4)]); worst = Math.max(worst, mx);
+                if (st.name !== 'village') continue;
+                var di = ps.discInfo(st.slot); if (oi === 0) discOn.push(!!(di && di.on)); else if (offs[oi] === 300) discOff.push(!(di && di.on));
+            }
+        }
+        var res = { planet: node.id.split('.').pop(), sites: sites.length, worst_H: +worst.toFixed(4), patchMoved_L: +moved.toFixed(1), discOnNear: discOn, discOffFar: discOff, rows: rows, tries: tries };
+        res.pass = worst <= 0.05 && moved > 90 && discOn.length > 0 && discOn.every(Boolean) && discOff.every(Boolean);
+        T.fly();
+        return res;
+    }
+    return { pass: false, error: 'no village planet', tries: tries };
+}
+
 async function g20(T, o) {         // Q45: station docking: gotoStation -> Z auto-dock -> lights -> F shop (stock has GOR BALL 1-3) -> buy -> Z undock
     var ship = T.ship, out = { steps: [] }, st;
     T.fly(); await T.pause();
@@ -1113,7 +1156,7 @@ export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
-    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20]];
+    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21]];
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         T.reset();
@@ -1125,5 +1168,5 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20 };
+export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21 };
 export { mk as makeHarness };

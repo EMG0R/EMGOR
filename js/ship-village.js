@@ -321,6 +321,9 @@ export function createVillage(engine, u, opts) {
   const litMat = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide }), emiMat = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, toneMapped: false });
   const litMesh = new T.Mesh(mkGeo(LP, LC), litMat), emiMesh = new T.Mesh(mkGeo(EP, EC), emiMat);
   litMesh.name = 'village-day'; emiMesh.name = 'village-glow'; litMesh.frustumCulled = false; emiMesh.frustumCulled = false; emiMesh.renderOrder = 1;
+  const syncFn = typeof opts.sync === 'function' ? opts.sync : null;      // 2026-11-05: ps.sync at render time (no one-frame spin slip of the ride group)
+  const hookRide = (root) => { if (syncFn) root.traverse((o) => { if (o.isMesh) o.onBeforeRender = syncFn; }); };
+  litMesh.onBeforeRender = emiMesh.onBeforeRender = syncFn || litMesh.onBeforeRender;
   group.add(litMesh); group.add(emiMesh);
   const tris = (LP.length + EP.length) / 9;
   let nightV = -1;
@@ -416,10 +419,10 @@ export function createVillage(engine, u, opts) {
     if (v.human || v.humanFail) return;
     try {
       const hm = createHuman(T, { color: ROLE_COL[v.role] || 0xffffff }); hm.group.traverse((q) => { q.frustumCulled = false; });
-      const s = v.role === 'kid' ? 1.15 : v.role === 'elder' ? 1.7 : 1.75; hm.group.scale.setScalar(s); hm.group.visible = false; group.add(hm.group); v.human = hm;
+      const s = v.role === 'kid' ? 1.15 : v.role === 'elder' ? 1.7 : 1.75; hm.group.scale.setScalar(s); hm.group.visible = false; hookRide(hm.group); group.add(hm.group); v.human = hm;
     } catch (e) {
       v.humanFail = true;
-      const m = new T.Mesh(new T.CapsuleGeometry(0.35, 1.1, 3, 6), new T.MeshBasicMaterial({ color: ROLE_COL[v.role] || 0xffffff })); m.position.y = 0.9; const g = new T.Group(); g.add(m); g.visible = false; group.add(g);
+      const m = new T.Mesh(new T.CapsuleGeometry(0.35, 1.1, 3, 6), new T.MeshBasicMaterial({ color: ROLE_COL[v.role] || 0xffffff })); m.position.y = 0.9; const g = new T.Group(); g.add(m); g.visible = false; hookRide(g); group.add(g);
       v.human = { group: g, update() {}, dispose() { m.geometry.dispose(); m.material.dispose(); } };
     }
   }
@@ -428,7 +431,7 @@ export function createVillage(engine, u, opts) {
   const mats = (() => { try { return makeMaterials(T, { flex: false }); } catch (e) { return null; } })();
   function golumMesh(rg, r, spec) {
     const rec = { part: spec.part, params: spec.params, offset: spec.offset, rot: spec.rot, children: spec.children, flex: false, lod: 'hi', palette: { base: 0x6C6A7A, panel: 0x4A4658, accent: 0x7A5CD0, glow: 0xB070FF, dark: 0x25212F, metal: 0x8A8798 } };
-    const res = compose(T, rec, rg); const g = mergeLit(T, res, 2.2); const m = new T.Mesh(g, mats.lit); m.frustumCulled = false; r.add(m); return m;
+    const res = compose(T, rec, rg); const g = mergeLit(T, res, 2.2); const m = new T.Mesh(g, mats.lit); m.frustumCulled = false; if (syncFn) m.onBeforeRender = syncFn; r.add(m); return m;
   }
   function buildGolum(i) {      // ~4.5 m = 2.5 human heights; forward = -Z like the human rig
     if (!mats) return null;

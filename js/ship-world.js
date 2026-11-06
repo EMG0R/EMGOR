@@ -242,9 +242,11 @@ function buildStoreGeoms(T, opts) {
   for (const [dx, dz] of [[-1.0, -1.0], [1.0, 1.0]]) B.box(0.08, 3.4, 0.08, d.lanes[2] + dx, H - 3.4, d.zS + dz, DARK);
   E.box(2.4, 2.6, 2.4, d.lanes[2], H - 6.0 + 0.2, d.zS, 0x5CE8FF, 0, 0.85); E.box(2.6, 0.4, 2.6, d.lanes[2], H - 3.4 + 0.2, d.zS, 0xF4F8FF, 0, 0.9);
   // apron + parking pads outside
-  B.box(W + 4, 0.3, 7, 0, -0.2, HD + 3.5, 0x6A6480);
+  // 2026-11-05: the apron + parking pads are rigid tangent slabs: on a sphere their far edge (47 su from the centre) sits s^2/2R above the ground (1.0 su at R = 320 L), so they carry the
+  // same 3 su foundation skirt as the main slab (top unchanged at 0.1) and no edge floats down to R ~ 110 L
+  B.box(W + 4, 3.1, 7, 0, -3.0, HD + 3.5, 0x6A6480);
   if (opts.pads !== false) for (const f of [-0.25, 0.05, 0.3625]) { const px = f * W;
-    B.box(8, 0.3, 10, px, -0.2, HD + 11, 0x5A5470);
+    B.box(8, 3.1, 10, px, -3.0, HD + 11, 0x5A5470);
     E.box(8, 0.02, 0.2, px, 0.1, HD + 6.2, 0x2FD9C8); E.box(0.2, 0.02, 10, px - 3.9, 0.1, HD + 11, 0x2FD9C8); E.box(0.2, 0.02, 10, px + 3.9, 0.1, HD + 11, 0x2FD9C8); E.box(2.4, 0.02, 0.4, px, 0.1, HD + 11, 0xFF5CE1);
   }
   B.box(1.2, 0.9, 1.2, -0.17 * W, 0.1, HD + 3.2, 0x6A5030); B.box(0.8, 1.0, 0.8, HW + 1, 0.1, HD + 2.4, 0x555064); E.box(0.82, 0.12, 0.82, HW + 1, 1.1, HD + 2.4, 0xFF8A5C);
@@ -857,6 +859,8 @@ export function createWorld(THREE, ps, L, mods) {
   let burger = null;                                        // { node, meshes[], matrix, ... }
   let sites = [], taken = new Set();
   let resMat = null, resGeos = null, resMeshes = {}; const rstate = new Map();
+  // 2026-11-05: ride objects must re-pose the ride group at render time (ps.sync) before their own matrixWorld is used, or an opaque store/NPC draws 1 frame behind the spin
+  const hookRide = (root) => { if (!ps || !ps.sync) return; root.traverse((m) => { if (m.isMesh && !Object.prototype.hasOwnProperty.call(m, 'onBeforeRender')) m.onBeforeRender = ps.sync; }); };
   const _m = new T.Matrix4(), _v = new T.Vector3(), _q = new T.Quaternion(), _q2 = new T.Quaternion(), _s = new T.Vector3(), _up = new T.Vector3(), _yAxis = new T.Vector3(0, 1, 0);
 
   function ensureShared() {
@@ -964,7 +968,7 @@ export function createWorld(THREE, ps, L, mods) {
     const node = new T.Group(); node.name = 'pokemans-cvs'; node.matrixAutoUpdate = false;
     const body = new T.Mesh(cg.body, A.matBody), emi = new T.Mesh(cg.emi, A.matEmi), sign = new T.Mesh(A.cGeo, A.cMat);
     [body, emi, sign].forEach((m) => { m.frustumCulled = false; node.add(m); });
-    group.add(node);
+    group.add(node); hookRide(node);
     cvs = { node, matrix: new T.Matrix4() };
     world.cvs = { id: world.node.id + '-cvs', name: 'POKEMANS CVS', pos: new T.Vector3(), reviveWin: new T.Vector3(), healWin: new T.Vector3(), radius: 3.0 * KS, matrix: new T.Matrix4(), unit: KS, walls: boxV(T, cg.walls), tris: cg.tris + 12 };
   }
@@ -1125,7 +1129,7 @@ export function createWorld(THREE, ps, L, mods) {
       const lines = [lingo.line(npc, 'recruit'), lingo.line(npc, 'recruit'), lingo.line(npc, 'mission')];
       let human = null; try { human = createHuman(T, { color }); human.group.traverse((q) => { q.frustumCulled = false; }); human.group.position.set(2.4, FY, 5.2); human.group.rotation.y = Math.PI; human.group.scale.setScalar(1.75 / OS); burger.humans.add(human.group); } catch (e) { human = null; }
       if (bhr._cHuman && bhr._cHuman.group.parent) { bhr._cHuman.group.parent.remove(bhr._cHuman.group); try { bhr._cHuman.dispose(); } catch (e) { /* ignore */ } }
-      bhr._cHuman = human;
+      bhr._cHuman = human; if (human) hookRide(human.group);
       return (bhr.candidate = { seed, name: npc.name, role, color, lines, human });
     };
   }
@@ -1189,6 +1193,7 @@ export function createWorld(THREE, ps, L, mods) {
       bodies.setMatrixAt(i, sites[i].M); emis.setMatrixAt(i, sites[i].M); signs.setMatrixAt(i, sites[i].M); glasses.setMatrixAt(i, sites[i].M);
     }
     bodies.instanceMatrix.needsUpdate = emis.instanceMatrix.needsUpdate = signs.instanceMatrix.needsUpdate = glasses.instanceMatrix.needsUpdate = true;
+    hookRide(group);
     group.updateMatrixWorld(true);
   }
 
