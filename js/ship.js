@@ -20,6 +20,7 @@ import * as PKP from './pokemans-party.js';
 import * as PKF from './pokemans-graft.js';
 import * as PDX from './pokemans-dex.js';
 import * as PHO from './ship-photo.js';
+import { targetFov } from './ship-fov.js';
 import { roomKey, putRecent, cooldownMax } from './ship-keys.js';
 import { generateEnemy, pickDistinctSeeds, ENEMY_ROLES, BOSS_TIERS, bossAttacksFor, bossName } from './ship-enemies.js';
 
@@ -1908,7 +1909,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         hud.classList.remove('is-on', 'is-pulsing');
         setHudOpacity(1);
         document.body.classList.remove('is-piloting');
-        camera.fov = baseFov; camera.near = baseNear; camera.updateProjectionMatrix();
+        fov = baseFov; FG.ck = 0; camera.up.set(0, 1, 0); camera.fov = baseFov; camera.near = baseNear; camera.updateProjectionMatrix();
         killBolts(); exOff(exMe); ghostEx.forEach(exOff); aEngine({ throttle: 0 });
         if (station) station.setVisible(false);
         if (space) space.group.visible = false;
@@ -5426,7 +5427,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         vel.set(0, 0, 0); speed = 0;
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { gA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake); camera.position.add(gA); }
-        fov += ((gmode === 'foot' ? 55 : baseFov) - fov) * damp(4, dt);      // on foot 55 (galaxy stays 42)
+        fov += (targetFov({ mode: gmode, base: baseFov }) - fov) * damp(4, dt);      // on foot 55 (galaxy stays 42)
         var gNear = gmode === 'foot' ? 0.01 * L : 0.02 * L;      // a human is ~0.0055 u tall: the 0.05 near plane would clip it
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== gNear) { camera.fov = fov; camera.near = gNear; camera.updateProjectionMatrix(); }
         if (gmode !== 'foot') clampCamToGround(0.5);
@@ -5446,6 +5447,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (gmode === 'foot' && hum.obj) { vTmp.copy(hum.w); shardTick(vTmp, 0.7 * L); } else if (gmode === 'landed') shardTick(P, 3 * L);
         scanUpdate(dt); musicTick(dt, null);
         if (gmode === 'foot') { fightTick(dt); mutterTick(dt); r27Foot(dt); }
+        else if (FG.on || FG.ck > 0 || FG.hid) { if (FG.on) fightEnd(null); FG.ck = 0; FG.hid = false; if (hum.obj) hum.obj.group.visible = false; }      // left the feet mid-fight / mid-blend: the ring camera never lingers
         updateBooms(dt);
         updateHud(0, aliveCount());
         hudDmg(dt);
@@ -5500,7 +5502,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!photo.on) return;
         photo.on = false; document.body.classList.remove('sh-photo'); camera.up.set(0, 1, 0);
         if (photo.sun) { photo.sun.copy(photo.base); photo.sun = null; }
-        photo.t = 0; mdx = mdy = 0;
+        photo.t = 0; mdx = mdy = 0; photo.fov = 60;
+        if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }      // the wheel zoom never outlives photo mode
     }
     function photoKey(e) {
         if (e.ctrlKey || e.metaKey || e.altKey) return false;
@@ -5994,7 +5997,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         clampCamToGround(0.5);                     // rev 19: the chase camera never sits inside the terrain (hills rise behind the ship)
         var amv = dt / ENTRY_T;                    // rev 18: fov 42 -> 50 over the entry (ENTRY_T), back down on the way out
         lf.atmK += clamp(((lf.on && lf.cap && !lf.leaving) ? 1 : 0) - lf.atmK, -amv, amv);
-        var fovT = baseFov + FOV_SHIP_ADD + (boosting ? FOV_BOOST : 0) + FOV_PULSE * pulse + (focusing ? 3 : 0) + fovKick + ATM_FOV * lf.atmK + FOV_PLANET * nearPl + (styFov - 1) * baseFov;
+        var fovT = targetFov({ mode: 'fly', base: baseFov, boost: boosting ? FOV_BOOST : 0, pulse: FOV_PULSE * pulse, focus: focusing ? 3 : 0, kick: fovKick, atm: ATM_FOV * lf.atmK, planet: FOV_PLANET * nearPl, sty: styFov });
         fov += (fovT - fov) * damp(4, dt);
         var fNear = (lf.on && lf.cap) ? 0.02 * L : baseNear;     // rev 19: near plane 0.02 L inside the atmosphere (log depth keeps it precise) so ground right under the camera is never clipped
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== fNear) { camera.fov = fov; camera.near = fNear; camera.updateProjectionMatrix(); }
@@ -9183,7 +9186,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function skCommon(dt) {      // shake / fov / camera plane / fx / hud / net: shared by every station sub-state
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { vA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake); camera.position.add(vA); }
-        fov += (baseFov - fov) * damp(4, dt);
+        fov += (targetFov({ mode: gmode, base: baseFov }) - fov) * damp(4, dt);
         var near = gmode === 'ifoot' ? Math.min(0.002, 0.02 * L) : (gmode === 'sfoot' ? (R27.dsite ? Math.min(0.003, 0.01 * L) : 0.01 * L) : 0.02 * L);      // rev 27: 0.003 inside a derelict
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== near) { camera.fov = fov; camera.near = near; camera.updateProjectionMatrix(); }
         camera.updateMatrixWorld(true);
