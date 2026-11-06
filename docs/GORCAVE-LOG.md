@@ -693,3 +693,22 @@ DONE: js/ship-human.js: mkBuilder `put` takes `o.glass` -> separate glassParts; 
 TESTS: node --check ok on ship-human.js (as .mjs), ship-village.js; node --test tests/node: 415 tests, 400 pass / 0 fail / 15 skipped. createHuman is not runnable in node (no three).
 VERIFY ON MAC: JELLY style: dome is see-through (head/face visible through it), no sorting pop against terrain/other transparent fx, tentacles intact; HUM: wings flap faster when running than idling, faster still airborne; SEER: three orbs visibly brighter with a soft halo; villagers (farmer/trader/elder/kid) still show strawhat/beret/beard/beanie; shoppers/clerks plain; g19 + g22; no console errors on setSuit/dispose (glass geometry).
 OPEN: low-LOD twin (`group.lo`) does not draw the glass layer (JELLY dome disappears at distance, tentacles remain); orb "glow" is static (no pulse); villager LOD never has glass so shared-geometry path only clones geoGlass defensively.
+
+## BENCHMARK-10 Phase 10 summary (Q50-Q54) — 2026-11-06 — (this commit)
+DONE: Q50 g10 harness polls landOk (hoverWaitFrames), Q51 g15 resets + retries engage, Q52 villager LOD + shared geometry (ship-geo-cache.js), Q53 hub arch slab flPut + station NPC audit + g22 extension, Q54 JELLY glass dome / HUM cadence wings / SEER orb glow / explicit villager role.
+DIFF (c1ade95~1..HEAD, js+tests): ship-human.js +83/-, ship-planet-tests.js +25, ship-geo-cache.js +21 (new), ship-npc-access.js +19, ship.js +10, ship-hub.js +8, ship-village.js +2; tests: geo-cache.test.mjs +26 (new), npc-access.test.mjs +11. 9 files, +169/-36.
+TESTS: node --test tests/node: 415 tests, 400 pass / 0 fail / 15 skipped. Browser g-tests not run here.
+VERIFY ON MAC (in order):
+1. g10 x3 in batch position 1 on fresh pages; read rows[].hoverWaitFrames (600 = landable failing on cold patch).
+2. ['g4','g14','g15'] batch a few times; g15 must not return why:'no planet'.
+3. Villagers: group.userData.tris <= 800; hats/glasses/beard/pigtails readable at 5-15 H; no 'villager LOD over budget' warning; VILLAGER_GEO.stats() hit rate high.
+4. g22: res.hubArch true, bad 0, stationNpcs.unreachable empty; hub arch slab flush with pad, trench mouth open.
+5. JELLY dome see-through with no sort pop; HUM wings faster running than idle, faster airborne; SEER orbs brighter with halo; villager role props intact; shoppers/clerks plain.
+6. Full runAll g1-g22 in batches of <=5 with reloads; g18/g19/g20 unchanged; no console errors on setSuit/dispose.
+OPEN / RISKS:
+- Q50/Q51 are harness-side fixes, never reproduced; failure after them means a real gate/engage-state bug.
+- Q52: only villagers have LOD; round rigs still 1.6k-2.4k tris; no distance switch; tri count is a segment-maths estimate.
+- Q53: hub slab TOP 0.15 m assumes hub origin at pad level; station deck is flat (no rects); station clerk/CVS not audited; g22 dock step can fail out of range.
+- Q54: low-LOD twin (group.lo) skips the glass layer; orb glow is static.
+- Carry-overs from BENCHMARK-9 still open (HAULER throw, Q47 unreproduced, Q49 lazy relocation, ringCatch not taming).
+NEXT 5 TO QUEUE: (1) distance LOD switch + glass in group.lo; (2) round-rig tri reduction with shared geometry; (3) setCreatureTamed in ringCatch; (4) npcRelocate at village build + waypoint re-anchor; (5) HAULER wall stop + hand-bone attach + net sync.
