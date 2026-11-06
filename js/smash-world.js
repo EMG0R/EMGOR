@@ -13,6 +13,7 @@ import { buildAtlas } from './smash-sprites.js';
 import { createTerrainVisual } from './smash-stages.js';
 import { createUI } from './smash-ui.js';
 
+const PHYS_H = 36;      // smash-phys H (character height, px)
 const STYLE_MAP = { MARO: 'pilot', JOSHI: 'hopper', STEEV: 'builder', SONIK: 'swift' };
 for (const id of FIGHTER_IDS) STYLE_MAP[id.toUpperCase()] = id; // every fighter name maps to itself: 13 distinct
 export function styleToFighter(id) {
@@ -22,7 +23,24 @@ export function styleToFighter(id) {
 
 let ATLAS = null; const atlas = () => ATLAS || (ATLAS = buildAtlas(FIGHTER_IDS));
 const SKIP = new Set(['def', 'bot', 'move', 'hbMove', 'pend', 'cd', 'i', 'fid', 'ctrl', 'level', 'tier']);
-const CSS = '.smw{position:fixed;inset:0;z-index:60;pointer-events:none}.smw .sm-root{background:transparent}.smw .sm-wrap{background:transparent}.smw .sm-rbtn{display:none}';
+const CSS = '.smw{position:fixed;inset:0;z-index:60;pointer-events:none}.smw .sm-root{background:transparent}.smw .sm-wrap{background:transparent}.smw .sm-rbtn{display:none}.smw .sm-card{background:rgba(13,2,33,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border:1px solid rgba(168,85,247,.45);border-top:2px solid #A855F7;border-radius:0}.smw .sm-cards{bottom:calc(var(--u)*10px)}.smw .sm-keys{display:none}';
+// ring look: dark violet deck, thin cyan edge line, blast zones faintly marked (replaces the terrain visual's drawStage; same def, rect-only)
+function ringStageDraw(def) {
+  return (r, cam) => {
+    const z = cam.zoom, cx = cam.x, cy = cam.y, X = (wx) => Math.round((wx - cx) * z + 240), Y = (wy) => Math.round((wy - cy) * z + 135);
+    const b = def.blast;
+    if (b) { const x0 = X(b.l), x1 = X(b.r), y0 = Y(b.t), y1 = Y(b.b); r.rect(x0, y0, 1, y1 - y0, 0.9, 0.3, 0.5, 0.22); r.rect(x1, y0, 1, y1 - y0, 0.9, 0.3, 0.5, 0.22); r.rect(x0, y0, x1 - x0, 1, 0.9, 0.3, 0.5, 0.22); r.rect(x0, y1, x1 - x0, 1, 0.9, 0.3, 0.5, 0.22); }
+    for (const s of def.solids) {
+      const x = X(s.x0), w = Math.round((s.x1 - s.x0) * z), y = Y(s.y0), h = Math.max(4, Math.round((s.y1 - s.y0) * z));
+      r.rect(x, y, w, h, 0.09, 0.03, 0.2, 1); r.rect(x, y + h * 0.5, w, h * 0.5, 0.05, 0.015, 0.12, 1);
+      r.rect(x, y, w, Math.max(1, Math.round(z)), 0, 0.94, 1, 1); r.rect(x, y + Math.max(1, Math.round(z)), w, Math.max(1, Math.round(z)), 0, 0.94, 1, 0.25);
+    }
+    for (const t of def.thin) {
+      const x = X(t.x0), w = Math.round((t.x1 - t.x0) * z), y = Y(t.y);
+      r.rect(x, y, w, Math.max(1, Math.round(z)), 0, 0.94, 1, 1); r.rect(x, y + Math.max(1, Math.round(z)), w, Math.max(2, Math.round(4 * z)), 0.18, 0.07, 0.36, 0.85);
+    }
+  };
+}
 function parseCol(c) {
   if (typeof c === 'number') c = '#' + (c & 0xffffff).toString(16).padStart(6, '0');
   const m = /^#?([0-9a-f]{6})$/i.exec(String(c || '').trim()); const v = m ? parseInt(m[1], 16) : 0xffffff;
@@ -58,13 +76,15 @@ export function createFightSession(opts) {
   const ui = createUI(el); const at = atlas();
   const R = createRenderer(ui.canvas, at, /[?&]canvas2d/.test(location.search), true);
   const vis = createTerrainVisual(stageDef, opts.skyPalette, seed, opts.skyAlpha);
-  let view = newView(); view.pcol = cols.map((c) => c.rgb); view.tcol = cols.map((c) => c.rgb.map((v) => 0.72 + 0.28 * v));
+  vis.drawStage = ringStageDraw(stageDef);
+  vis.drawBack = () => {};      // the 3D village is the backdrop: no 2D sky / ridge rects (they boxed the ring in a grey rectangle)
+  let view = newView(); view.cmin = 7 * PHYS_H; view.cmax = 16 * PHYS_H; view.pcol = cols.map((c) => c.rgb); view.tcol = cols.map((c) => c.rgb.map((v) => 0.72 + 0.28 * v));
   const savedColors = PLAYER_COLORS.slice();
 
   // ---- sim
   let S = createMatch(cfg), V = S, running = false, clock = 0, acc = 0, done = false, resultCbs = [], ksSig = '', ks = null, snapN = 0;
   const known = S.fighters.map((f) => f.stocks);
-  const state = { mode, phase: 'idle', frame: 0, kos: 0, koList: [], result: null, hashOk: 0, hashBad: 0, snaps: 0, view: [], pct: [], stocks: [], overlay: false };
+  const state = { stageXf: 0.5, stageYf: 0.7, zoom: 1, mode, phase: 'idle', frame: 0, kos: 0, koList: [], result: null, hashOk: 0, hashBad: 0, snaps: 0, view: [], pct: [], stocks: [], overlay: false };
   const gameLike = { get sim() { return V; }, atlas: at, cfg, stop() {}, pause() {} };
   const poolMasks = new Array(N).fill(0), scratchMasks = new Array(N).fill(0); // per-tick input arrays, reused
   const hist = []; let gf = 0; // guest input history (index = guest tick)
@@ -197,6 +217,7 @@ export function createFightSession(opts) {
   }
   function refreshState() {
     state.view = V.fighters.map((f, i) => ({ slot: fighters[i].slot, x: f.x, y: f.y, f: f._vf != null ? f._vf : S.frame }));
+    state.zoom = view.z; state.stageXf = (240 - view.x * view.z) / 480; state.stageYf = (135 - view.y * view.z) / 270;      // where the ring centre / ground line sits in the 480x270 frame (the 3D camera registers to it)
     state.pct = S.fighters.map((f) => Math.floor(f.pct)); state.stocks = S.fighters.map((f) => f.stocks);
   }
   let bb = null, bbLast = -1;
@@ -220,7 +241,7 @@ export function createFightSession(opts) {
       if (running) return; running = true; el.style.display = ''; state.overlay = true; state.phase = 'count';
       PLAYER_COLORS.forEach((_, i) => { if (cols[i]) PLAYER_COLORS[i] = cols[i].hex; });
       if (net) net.onMessage(onMsg);
-      updateView(view, S); view.x = S.fighters.reduce((a, f) => a + f.x, 0) / Math.max(1, N); ui.onStart(S, gameLike);
+      view.snap = true; updateView(view, S); view.snap = false; view.x = S.fighters.reduce((a, f) => a + f.x, 0) / Math.max(1, N); ui.onStart(S, gameLike);
       el.querySelectorAll('.sm-card .nm').forEach((nm, i) => { const t = [...nm.childNodes].find((n) => n.nodeType === 3); if (t && fighters[i] && fighters[i].name) t.data = ' ' + String(fighters[i].name).slice(0, 10).toUpperCase() + ' '; });
       render(1);
     },

@@ -687,6 +687,8 @@ body.is-piloting .ship-online { display: none; }
 .sh-pm button:hover { background: var(--hud-line); }
 /* Q26: START card (new profile / respawn while the first-steps chain is unfinished) */
 
+/* in-world fight: the ship HUD (prompt, hotbar, quest line, chat/NPC line, markers) is hidden; the fight's own panel + timer (.smw, outside #ship-hud) are the only chrome */
+body.sh-fight #ship-hud, body.sh-fight .ship-label { display: none !important; }
 /* Q37: photo mode. Everything sh-* except the toast and the fade is hidden; the toast is the only chrome. */
 body.sh-photo #ship-hud,
 body.sh-photo [class^="sh-"]:not(.sh-ph):not(.sh-fade),
