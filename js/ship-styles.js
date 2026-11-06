@@ -756,3 +756,23 @@ export function throwArc(out, p0, v0, up, g, t) {
   out.x = p0.x + v0.x * t - up.x * h; out.y = p0.y + v0.y * t - up.y * h; out.z = p0.z + v0.z * t - up.z * h;
   return out;
 }
+
+// ── jetpack input model (one for every style, pure + allocation-free) ───────────────────────────────
+// tap Space (released < HOLD) = the style's own jump (chain, flutter, ...); hold Space >= HOLD s continuously while airborne = jetpack (a grounded hold jumps first, then ignites in the air);
+// release = cut; Shift = dive (exponential descent). The style keeps owning the jump: the jetpack only overrides its vertical velocity (state.vy) while it burns.
+// Default (no style) dives whenever Shift is down in the air; styles use Shift as sprint, so they dive only on a Shift PRESS made in the air.
+export const JET_K = { HOLD: 0.18, RAMP: 1.2, UP: 3, DIVE_V0: 3, DIVE_TAU: 0.6, DIVE_CAP: 48, THRUST: { MARO: 1, SONIK: 1, JOSHI: 1, STEEV: 1, SWIFT: 1, SPARKLET: 1, JELLY: 1, HAULER: 1, HOPPER: 1, HUM: 1, RACER: 1, SEER: 1 } };
+export function mkJetSM() { return { t: 0, jet: false, k: 1, dive: false, diveT: 0, sh: false, shAir: false }; }
+// j: state; held = Space down; air = airborne; shift = Shift down; styled = a style owns the body. Returns j (jet, k = ramp 1..3.5, dive, diveT).
+export function jetStep(j, dt, held, air, shift, styled) {
+  if (air && held) j.t += dt; else j.t = 0;
+  if (!air) j.shAir = false; else if (shift && !j.sh) j.shAir = true;
+  if (!shift) j.shAir = false;
+  j.sh = shift;
+  j.dive = air && shift && (!styled || j.shAir);
+  if (j.dive) j.diveT += dt; else j.diveT = 0;
+  j.jet = j.t > JET_K.HOLD && !j.dive;
+  j.k = 1 + 2.5 * clamp((j.t - JET_K.HOLD) / JET_K.RAMP, 0, 1);
+  return j;
+}
+export function jetThrust(id) { const t = JET_K.THRUST[String(id || '').toUpperCase()]; return t > 0 ? t : 1; }

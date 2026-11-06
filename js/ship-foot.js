@@ -3,6 +3,7 @@
 //   ctx = ship.js state. Stable objects/functions/constants are plain properties (captured once, at first use); state ship.js reassigns is read/written
 //   through the accessor properties (S.mdx, S.keys, S.ps, ...), so there is exactly one copy of every variable.
 import { hOf } from './ship-scale.js';
+import { mkJetSM, jetStep, jetThrust } from './ship-styles.js';
 
 export function createFoot(ctx) {
     var S = ctx, THREE = ctx.THREE;
@@ -134,14 +135,13 @@ export function createFoot(ctx) {
         // jump (once per press)
         if (!sty && !hum.air && wantJump && !S.jumpHeld) { hum.air = true; hum.vv = G_JUMP * H * S.fxJump; aPlay('jump', { vel: 0.6 }); }
         S.jumpHeld = wantJump;
-        // rev 21 jetpack: hold Space in the air (after JET_HOLD s, so a tap is still a jump) = infinite, fast: climb JET_UP heights/s, forward thrust 2 x run
-        if (hum.air && wantJump && !sty) S.jetT += dt; else S.jetT = 0;
-        // 2026-10-14 (Emory: "space bar goes higher / faster, left shift pulls it back down"): the climb ramps 1x -> 3.5x over JET_RAMP s of holding Space;
-        // Shift in the air (no style) dives at JET_DIVE heights/s and cuts the jet
-        var dive = hum.air && !sty && !S.cmdOpen && !!(S.keys.ShiftLeft || S.keys.ShiftRight);
-        if (dive) { if (!(hum.diveT > 0)) hum.diveV0 = Math.max(DIVE_V0, -hum.vv / H); hum.diveT = (hum.diveT || 0) + dt; } else hum.diveT = 0;
+        // jetpack input model (ship-styles.js jetStep): tap = style jump, hold >= 0.18 s in the air = jet for EVERY style, Shift = dive
+        var jsm = S.jsm || (S.jsm = mkJetSM()), jt = jetStep(jsm, dt, wantJump, hum.air, !!(S.keys.ShiftLeft || S.keys.ShiftRight) && !S.cmdOpen, !!sty), jetMul = sty ? jetThrust(sty.id) : 1;
+        S.jetT = jt.t;
+        var dive = jt.dive;
+        if (dive) { if (!(hum.diveT > 0)) hum.diveV0 = Math.max(DIVE_V0, -hum.vv / H); hum.diveT = jt.diveT; } else hum.diveT = 0;
         var diveV = Math.min(DIVE_CAP, (hum.diveV0 || DIVE_V0) * Math.pow(2, Math.min(hum.diveT, 8) / DIVE_TAU));      // exponential in hold time, from the speed you already have
-        var jet = S.jetT > JET_HOLD && !dive, jetK = 1 + 2.5 * clamp((S.jetT - JET_HOLD) / JET_RAMP, 0, 1);
+        var jet = jt.jet, jetK = jt.k * jetMul;
         // substepped capsule motion in the local frame
         var spd = (sSpd >= 0 ? sSpd : (jet ? G_RUN * (1 + 0.12 * R27.su.jetpack) : (run ? G_RUN * (1 + 0.1 * R27.su.sprint) : G_WALK))) * H * S.fxSpeed, nSub = 1;
         if (moving) nSub = Math.max(nSub, Math.ceil(spd * dt / (FOOT_SUB * H)));
@@ -175,12 +175,13 @@ export function createFoot(ctx) {
             if (hum.air) {
                 if (jet) { hum.vv += (JET_UP * jetK * (1 + 0.2 * R27.su.jetpack) * H - hum.vv) * Math.min(1, 7 * h); if (hr > supNow + 400 * H) hum.vv = Math.min(hum.vv, 0); }
                 else if (dive) hum.vv += (-diveV * H - hum.vv) * Math.min(1, 8 * h);
-                else if (!sty) hum.vv -= (hum.vv > 0 ? G_GRAV_UP : G_GRAV) * H * h;
+                else if (!sty) hum.vv -= (hum.vv > 0 ? G_GRAV_UP : G_GRAV) * H * h;      // styles integrate their own gravity
                 hr += hum.vv * h;
                 if (hr <= supNow && !(sty && hum.vv > 0)) { hr = supNow; hum.vv = 0; hum.air = false; }
             } else if (hr - supNow > 0.6 * H) { hum.air = true; hum.vv = 0; }
             else hr = supNow;
         }
+        if (sty && sty.state && (jet || dive) && hum.air) sty.state.vy = hum.vv / H;      // the burn / dive is written back so the style resumes from it on release
         hum.wallT += dt;                                                // Q06: seconds since the last wall contact (styles read c.wallNormal inside 0.12 s)
         if (wallHit && moving) {
             hum.wallT = 0; hum.wallH = wRiseH; hum.wallX = -(gB.dot(gA)); hum.wallZ = gB.dot(hum.hf);
