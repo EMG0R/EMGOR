@@ -44,8 +44,8 @@ void main(){
 // bone name -> world-space joint position at bind pose, parent
 const JOINTS = {
   hips: [0, 0.52, 0, null], torso: [0, 0.56, 0, 'hips'], head: [0, 0.80, 0, 'torso'],
-  shL: [-0.15, 0.76, 0, 'torso'], elL: [-0.16, 0.58, 0, 'shL'],
-  shR: [0.15, 0.76, 0, 'torso'], elR: [0.16, 0.58, 0, 'shR'],
+  shL: [-0.18, 0.76, 0, 'torso'], elL: [-0.19, 0.58, 0, 'shL'],
+  shR: [0.18, 0.76, 0, 'torso'], elR: [0.19, 0.58, 0, 'shR'],
   hpL: [-0.065, 0.50, 0, 'hips'], knL: [-0.065, 0.27, 0, 'hpL'],
   hpR: [0.065, 0.50, 0, 'hips'], knR: [0.065, 0.27, 0, 'hpR'],
   pack: [0, 0.66, 0.125, 'torso'], jet: [0, 0.44, 0.15, 'pack'],
@@ -118,10 +118,10 @@ export function createHuman(THREE, opts = {}) {
     const LO = lod === 'lo', { put, putPart, box, seg, finish } = mkBuilder(LO);
     // torso (+ pelvis on hips)
     box(0.30, 0.10, 0.17, 0, 0.50, 0, DARK, 'hips');
-    box(0.31, 0.24, 0.19, 0, 0.67, 0, SUIT, 'torso');
+    box(0.38, 0.24, 0.19, 0, 0.67, 0, SUIT, 'torso');
     box(0.20, 0.13, 0.02, 0, 0.68, -0.105, theme, 'torso', { panel: true });         // chest panel
     box(0.09, 0.025, 0.012, 0, 0.72, -0.118, 0xFFFFFF, 'torso', { emis: true });       // chest strip
-    box(0.33, 0.05, 0.20, 0, 0.79, 0, DARK, 'torso');                                  // collar/shoulders
+    box(0.40, 0.05, 0.20, 0, 0.79, 0, DARK, 'torso');                                  // collar/shoulders
     // backpack: frame plate + twin air tanks + jet engine (all ship-parts)
     box(0.22, 0.30, 0.07, 0, 0.66, 0.125, DARK, 'pack');
     putPart('tank', { r: 0.042, h: 0.2 }, [-0.058, 0.55, 0.2], [0, 0, 0], 'pack');
@@ -138,17 +138,17 @@ export function createHuman(THREE, opts = {}) {
     // arms
     for (const s of ['L', 'R']) {
       const x = s === 'L' ? -1 : 1, sh = 'sh' + s, el = 'el' + s;
-      { const g = new THREE.SphereGeometry(0.06, LO ? 4 : 6, LO ? 3 : 4); g.translate(x * 0.15, 0.76, 0); put(g, theme, sh, { panel: true }); }
-      seg([x * 0.15, 0.76, 0], [x * 0.16, 0.58, 0], 0.045, 0.04, SUIT, sh);
-      seg([x * 0.16, 0.58, 0], [x * 0.16, 0.43, 0], 0.04, 0.035, SUIT, el);
-      box(0.07, 0.07, 0.08, x * 0.16, 0.40, 0, DARK, el);                                // glove
+      { const g = new THREE.SphereGeometry(0.06, LO ? 4 : 6, LO ? 3 : 4); g.translate(x * 0.18, 0.76, 0); put(g, theme, sh, { panel: true }); }
+      seg([x * 0.18, 0.76, 0], [x * 0.19, 0.58, 0], 0.0585, 0.052, SUIT, sh);
+      seg([x * 0.19, 0.58, 0], [x * 0.19, 0.43, 0], 0.052, 0.0455, SUIT, el);
+      box(0.09, 0.09, 0.10, x * 0.19, 0.40, 0, DARK, el);                                // glove
     }
     // legs
     for (const s of ['L', 'R']) {
       const x = s === 'L' ? -1 : 1, hp = 'hp' + s, kn = 'kn' + s;
-      seg([x * 0.065, 0.50, 0], [x * 0.065, 0.27, 0], 0.065, 0.05, SUIT, hp);
+      seg([x * 0.065, 0.50, 0], [x * 0.065, 0.27, 0], 0.0845, 0.065, SUIT, hp);
       box(0.07, 0.07, 0.07, x * 0.065, 0.34, -0.03, theme, hp, { panel: true });         // thigh panel
-      seg([x * 0.065, 0.27, 0], [x * 0.065, 0.07, 0], 0.05, 0.045, DARK, kn);
+      seg([x * 0.065, 0.27, 0], [x * 0.065, 0.07, 0], 0.065, 0.0585, DARK, kn);
       box(0.095, 0.07, 0.17, x * 0.065, 0.035, -0.03, GREY, kn);                         // boot
     }
     return finish();
@@ -270,7 +270,7 @@ export function createHuman(THREE, opts = {}) {
     if (EX.has('crest')) for (let i = 0; i < 4; i++) box(0.03, 0.05 - 0.007 * i, 0.04, 0, 1.03 - 0.07 * i, 0.07 + 0.04 * i, 0xFF9A3C, 'head');
     if (EX.has('bigfeet')) for (const sx of [-1, 1]) box(0.13, 0.085, 0.25, sx * 0.065, 0.043, -0.06, DARK, sx < 0 ? 'knL' : 'knR');
     if (EX.has('blocky')) for (const sx of [-1, 1]) {
-      box(0.1, 0.19, 0.1, sx * 0.16, 0.67, 0, 0x4FA8A0, 'shL'.replace('L', sx < 0 ? 'L' : 'R'));
+      box(0.1, 0.19, 0.1, sx * 0.19, 0.67, 0, 0x4FA8A0, 'shL'.replace('L', sx < 0 ? 'L' : 'R'));
       box(0.1, 0.16, 0.1, sx * 0.065, 0.4, 0, 0x3A4A9A, sx < 0 ? 'hpL' : 'hpR');
     }
     return finish();
@@ -345,7 +345,7 @@ export function createHuman(THREE, opts = {}) {
     const wantC = landT > 0 || st.crouch > 0.5;      // MARO: styles drive crouch (long-jump / backflip wind-up, slide) as well as the landing
     crouch = damp(crouch, wantC ? 1 : 0, wantC ? 30 : 9, dt);
     pit = damp(pit, st.pitch > 0.5 ? 1 : 0, 14, dt);      // dive / belly slide: body face-down
-    const freq = lerp(1.8, 2.6, run) * rg.stride;
+    const freq = lerp(1.8, 2.6, run) * rg.stride * (st.cad == null ? 1 : lerp(0.6, 1.1, Math.min(1, st.cad)));      // cadence follows ground speed when the caller passes cad
     phase += dt * freq * Math.PI * 2 * (st.moving ? 1 : 0.0);
     if (st.facing != null) group.rotation.y = st.facing;
 

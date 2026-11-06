@@ -6,12 +6,12 @@ import { hOf } from './ship-scale.js';
 
 export function createFoot(ctx) {
     var S = ctx, THREE = ctx.THREE;
-    var FOOT_SLIDE_A = ctx.FOOT_SLIDE_A, FOOT_SLIDE_K = ctx.FOOT_SLIDE_K, G_WALK = ctx.G_WALK, JET_HOLD = ctx.JET_HOLD, JET_UP = ctx.JET_UP, MOUSE_SENS = ctx.MOUSE_SENS;
+    var FOOT_SLIDE_A = ctx.FOOT_SLIDE_A, FOOT_SLIDE_K = ctx.FOOT_SLIDE_K, G_WALK = ctx.G_WALK, G_RUN = ctx.G_RUN, JET_HOLD = ctx.JET_HOLD, JET_UP = ctx.JET_UP, MOUSE_SENS = ctx.MOUSE_SENS;
     var R27 = ctx.R27, X = ctx.X, aPlay = ctx.aPlay, clamp = ctx.clamp, damp = ctx.damp, fl = ctx.fl, flHud = ctx.flHud, footFloor = ctx.footFloor, footWind = ctx.footWind;
     var fsC = ctx.fsC, fsC2 = ctx.fsC2, fsT = ctx.fsT, gA = ctx.gA, gB = ctx.gB, gC = ctx.gC, gD = ctx.gD, gE = ctx.gE, gQ = ctx.gQ, gQi = ctx.gQi;
     var groundCam = ctx.groundCam, hum = ctx.hum, jetFx = ctx.jetFx, mFloor = ctx.mFloor, mM = ctx.mM, objBegin = ctx.objBegin, objPush = ctx.objPush;
     var styEggTick = ctx.styEggTick, styU = ctx.styU, styUpW = ctx.styUpW, styWallO = ctx.styWallO, styleFx = ctx.styleFx, styleStep = ctx.styleStep, styleSync = ctx.styleSync, vTmp = ctx.vTmp;
-    var G_RUN = 44, G_GRAV = 16, G_GRAV_UP = 7.93, G_JUMP = 4.36, FOOT_CAM = 6;   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
+    var G_GRAV = 16, G_GRAV_UP = 7.93, G_JUMP = 5.34, FOOT_CAM = 4.5;   // 2026-11 scale retune: walk 6 / run 13 H/s (SM64 ~6), apex 1.8 H, camera 4.5 H back   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
     var FL_HOLD = 2, FL_V = 36;
     var JET_RAMP = 1.2, JET_DIVE = 16, DIVE_V0 = 3, DIVE_TAU = 0.6, DIVE_CAP = 48, stepPh = 0.6, camDip = 0;      // 2026-10-14 jump: apex 1.2 H in 0.55 s (v0 4.36 H/s, g_up 7.93, falling g 16); Shift dive v = v0 * 2^(t/0.6) capped at 48 H/s      // 2026-10-14: jetpack climb ramp (s to 3.5x), Shift dive speed (heights/s), footstep phase               // rev 29: hold Space this many s = jetpack FLIGHT; flight cruise speed (heights/s)
     var WALL_TAN = Math.tan(70 * Math.PI / 180);      // Q06: terrain steeper than 70 deg along the move counts as a wall
@@ -189,7 +189,7 @@ export function createFoot(ctx) {
         // 2026-10-14: ground-contact cues. Landing edge = footLand (impact from the fall speed) + a crouch above a hard drop; steps on a walk / run cadence.
         var landImp = -1;
         if (air0 && !hum.air) { landImp = clamp(-Math.min(vv0, hum.vv) / (18 * H), 0, 1); aPlay('footLand', { vel: 0.3 + 0.7 * landImp }); if (landImp > 0.35) fl.cr = Math.max(fl.cr, landImp); camDip = Math.max(camDip, (0.05 + 0.3 * landImp) * H); stepPh = 0.6; }
-        else if (!hum.air && moving) { stepPh += dt * (run ? 3.6 : 2.4); if (stepPh >= 1) { stepPh -= 1; aPlay('step', { level: run ? 1 : 0, vel: run ? 0.6 : 0.45 }); } }
+        else if (!hum.air && moving) { stepPh += dt * 2.4 * clamp(spd / (G_WALK * H), 0.5, 1.8); if (stepPh >= 1) { stepPh -= 1; aPlay('step', { level: run ? 1 : 0, vel: run ? 0.6 : 0.45 }); } }
         else if (!hum.air) stepPh = 0.6;      // the wall normal in the tangent frame (x right, z back) = against the wanted direction
         if (R27.windOn && moving && !(S.ps.inSite && S.ps.inSite(dir.x, dir.y, dir.z))) { var wd = footWind(dir, dt, hr, H, supNow); if (wd) { dir.copy(fsC2); supNow = wd; if (!hum.air) hr = supNow; } }
         hum.gr = supNow; hum.hr = hr;
@@ -214,20 +214,23 @@ export function createFoot(ctx) {
         o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr), H);
         flHud(false, 0);
         if (hum.sAnim) { var ua = Object.assign(styU, hum.sAnim); ua.facing = 0; ua.jet = S.jetLvl; ua.scan = S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0; o.update(dt, ua); }
-        else o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, facing: 0, jet: S.jetLvl, scan: S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0 });
+        else o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, cad: moving ? clamp(spd / (G_RUN * H), 0.3, 1.2) : 0, facing: 0, jet: S.jetLvl, scan: S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0 });
         jetFx(dt, jet, H, qM, c, dir, supNow, hr);
         if (landImp > 0.35) S.fx.impact(hum.w, 0xc8b89a, 0.6 + landImp);
-        // camera: 6 human heights back, pitched, never under the floor; it follows the SMOOTHED position (hum.w), not the raw step
+        // camera: 4.5 human heights back, pitched, never under the floor; it follows the SMOOTHED position (hum.w), not the raw step
         gA.copy(hum.hf).negate().multiplyScalar(Math.cos(hum.pitch)).addScaledVector(up, Math.sin(hum.pitch)).applyQuaternion(qM);   // world offset dir
         camDip *= Math.exp(-9 * dt); if (camDip < 1e-6) camDip = 0;
-        gC.copy(gB).multiplyScalar(0.8 * H - camDip).add(hum.w);       // focus (head), dips a little on landing
+        gC.copy(gB).multiplyScalar(1.0 * H - camDip).add(hum.w);       // focus (head), dips a little on landing
         gD.copy(gC).addScaledVector(gA, FOOT_CAM * H * styCam);                 // wanted camera position
+        gE.copy(hum.hf).cross(gB).applyQuaternion(qM);                           // right-shoulder offset: camera and look point both slide 0.35 H right
+        gD.addScaledVector(gE, 0.35 * H);
         vTmp.subVectors(gD, c);
         var cr = vTmp.length();
         gQi.copy(qM).invert(); fsT.copy(vTmp).applyQuaternion(gQi);
         var cfr = mFloor(fsT.x, fsT.y, fsT.z);
         if (cr < cfr + 0.04 * S.L) gD.copy(c).addScaledVector(vTmp.divideScalar(cr || 1), cfr + 0.04 * S.L);      // the rendered ground now equals the floor used here, so the clearance is just a little more than the near plane
-        mM.lookAt(gD, gC, gB); gQ.setFromRotationMatrix(mM);
+        gE.multiplyScalar(0.35 * H).add(gC);
+        mM.lookAt(gD, gE, gB); gQ.setFromRotationMatrix(mM);
         groundCam(dt, gC, gD, gQ, 16);
         return gC;
     }

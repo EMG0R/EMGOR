@@ -66,7 +66,7 @@ function dirOfVel(s, o) { const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (s
 const M_G = 0, M_AIR = 1, M_SLIDE = 3, M_DIVE = 4, M_BELLY = 5, M_HANG = 6, M_POUND = 7;
 const CHAIN_V = [1, 1.238, 1.643];                 // [doc] initial jump speeds 42/52/69 -> v ratios (apex 1/1.53/2.7)
 function maro(env) {
-  const W = env.walk, g = env.grav, J = env.jump, RUN = 1.5 * W, A = RUN / 0.35;   // [guess] run top 1.5x walk, reach top in 0.35 s; [doc] decel 2x accel
+  const W = MARO_K.MAX / 1.5, g = env.grav, J = env.jump, RUN = 1.5 * W, A = RUN / 0.35;   // 2026-11: pinned to the SM64 table (run MAX 6 H/s), not env.walk; [guess] run top 1.5x walk, reach top in 0.35 s; [doc] decel 2x accel
   const fx = mkFx(), out = mkOut(fx), io = mkIO(), a = out.anim, dd = { x: 0, z: 0 };
   const s = { vx: 0, vz: 0, vy: 0, face: 0, fi: false, mode: M_AIR, chain: 0, landAge: 9, jb: 0, coyote: 0, skidT: 0, skidHs: 0, wallT: 0, wnx: 0, wnz: 0, wdx: 0, wdz: 0, wspd: 0, hang: 0, stun: 0, combo: 0, comboT: 0, punchCd: 0, jgrace: 0, was: false, flipT: 1, flipKind: 0, ctrl: 1, kicks: 0 };
   function reset() { Object.assign(s, { vx: 0, vz: 0, vy: 0, face: 0, fi: false, mode: M_AIR, chain: 0, landAge: 9, jb: 0, coyote: 0, skidT: 0, skidHs: 0, wallT: 0, hang: 0, stun: 0, combo: 0, comboT: 0, punchCd: 0, jgrace: 0, was: false, flipT: 1, flipKind: 0, ctrl: 1, kicks: 0 }); io.jump = io.crouch = io.L = io.R = io.F = io.fwdH = false; }
@@ -503,6 +503,7 @@ const mkVariant = id => env => variant(env, VARIANTS[id]);
 
 // Q10: rig recipes (pure data + maths; ship-human.js setRig applies them to bones/extras). PILOT = today's human.
 const RIG_ENUM = { headShape: ['round', 'cube', 'snout'], torso: ['normal', 'stout', 'slim', 'lizard', 'box'], limbShape: ['cyl', 'cube'], feet: ['normal', 'big', 'none'], eyeStyle: ['helmet', 'visor', 'dots', 'none'] };
+const PILOT_HS = 1.3;      // 2026-11 scale retune: the default pilot's head reads at 1.3x
 const TORSO_S = { normal: [1, 1, 1], stout: [1.3, 0.88, 1.25], slim: [0.85, 1.05, 0.85], lizard: [0.9, 0.9, 1.35], box: [1.1, 1, 1.1] };   // [x, y, z] bone scale of the torso
 export const GAITS = {            // stride = step frequency x, bounce = hip bob x, arm = arm swing x, lean = forward torso lean x. [guess] tune by playing
   PILOT: { stride: 1, bounce: 1, arm: 1, lean: 1 },
@@ -525,7 +526,7 @@ const pick = (v, list) => list.indexOf(v) >= 0 ? v : list[0];
 //   gait:{stride,bounce,arm,lean}, extras:[names for ship-human genAtt], hipOff (hips rise so scaled legs still reach y=0), top (helmet top y), hitbox:{r,h} }
 export function normRig(rc, id) {
   rc = rc || {};
-  const hsr = rc.headScale, hs = typeof hsr === 'object' && hsr ? [num(hsr.x, 1, 0.5, 2.5), num(hsr.y, 1, 0.5, 2.5), num(hsr.z, 1, 0.5, 2.5)] : [num(hsr, 1, 0.5, 2.5), num(hsr, 1, 0.5, 2.5), num(hsr, 1, 0.5, 2.5)];
+  const hsr = rc.headScale === undefined && (!id || String(id).toUpperCase() === 'PILOT') ? PILOT_HS : rc.headScale, hs = typeof hsr === 'object' && hsr ? [num(hsr.x, 1, 0.5, 2.5), num(hsr.y, 1, 0.5, 2.5), num(hsr.z, 1, 0.5, 2.5)] : [num(hsr, 1, 0.5, 2.5), num(hsr, 1, 0.5, 2.5), num(hsr, 1, 0.5, 2.5)];
   const ll = rc.limbLen || {}, arm = num(ll.arm, 1, 0.4, 1.6), leg = num(ll.leg, 1, 0.5, 1.8);
   const headShape = pick(rc.headShape, RIG_ENUM.headShape), torso = pick(rc.torso, RIG_ENUM.torso), limbShape = pick(rc.limbShape, RIG_ENUM.limbShape), feet = pick(rc.feet, RIG_ENUM.feet), eyeStyle = pick(rc.eyeStyle, RIG_ENUM.eyeStyle);
   const ts = TORSO_S[torso].slice(), neck = rc.neck !== false;

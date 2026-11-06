@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normRig, GAITS, skinFor, STYLES, createStyle } from '../../js/ship-styles.js';
 
-test('PILOT rig = today: unit scales, no extras, gait 1, helmet-top ~1.045', () => {
+test('PILOT rig = today: unit scales, no extras, gait 1, PILOT head 1.3x, helmet-top ~1.0795', () => {
   const r = normRig(null);
-  assert.deepEqual(r.ts, [1, 1, 1]); assert.deepEqual(r.hs, [1, 1, 1]);
+  assert.deepEqual(r.ts, [1, 1, 1]); assert.deepEqual(r.hs, [1.3, 1.3, 1.3]);
   assert.equal(r.arm, 1); assert.equal(r.leg, 1); assert.equal(r.hipOff, 0); assert.deepEqual(r.extras, []);
-  assert.deepEqual(r.gait, GAITS.PILOT); assert.ok(Math.abs(r.top - 1.045) < 1e-9);
+  assert.deepEqual(r.gait, GAITS.PILOT); assert.ok(Math.abs(r.top - 1.0795) < 1e-9);
 });
 test('bad input falls back to defaults / clamps', () => {
   const r = normRig({ headShape: 'dodecahedron', torso: 7, headScale: 'x', limbLen: { arm: 99, leg: -3 }, quills: 'a', tail: { len: 50, spikes: 99 } });

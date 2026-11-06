@@ -750,7 +750,7 @@ async function g13(T, o) {
 //   no per-frame displacement > 2 x run speed x dt (a jump or a fall adds its own vertical speed), no NaN; parked 30 s: zero drift. g14 also reports the drift
 //   against the finer analytic height function (the old ground), to show why the controller uses the rendered one.
 async function g14(T, o) {
-    var ship = T.ship, THREE = T.THREE, L = T.L(), ps = ship.ps, H = ship._g.hOf(L), G_RUN = 44, res = { pass: true, sites: [] };   // rev 29: walk = 22, run = 44 heights/s
+    var ship = T.ship, THREE = T.THREE, L = T.L(), ps = ship.ps, H = ship._g.hOf(L), G_RUN = ship._g.G_RUN, res = { pass: true, sites: [] };   // rev 29: walk = 22, run = 44 heights/s
     var terra = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; }), gas = T.planets().filter(function (n) { return T.isGas(n) && T.reachable(n); });
     // rev 22: only planets the ship can actually approach (a planet embedded in a bigger body has no approach and made this test throw); metagor is the steep-site planet
     function firstEngage(list, skipId) { for (var q = 0; q < list.length; q++) { if (list[q].id === skipId) continue; try { if (T.engage(list[q])) return list[q]; } catch (e) { /* next */ } } return null; }

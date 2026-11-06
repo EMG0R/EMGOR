@@ -37,9 +37,9 @@ var MOUSE_WEIGHT = 5.5;            // rev 13: 1/s, how fast the turn rate chases
 var BANK_K = 0.4, BANK_SPRING = 4, BANK_MAX = 0.6;   // rev 9: roll leans into yaw (rad per rad/s), spring 1/s, cap rad
 var yawRate = 0, pitRate = 0, bank = 0, shake = 0;
 var ROLL_RATE = 1.6;               // rad/s from A/D
-var CAM_L = 3.2, CAM_UP = 0.3;     // chase distance / lift in ship lengths (rigid)
+var CAM_L = 2.2, CAM_UP = 0.35, FOV_SHIP_ADD = 10;     // chase distance / lift in ship lengths (rigid)
 var BOARD_DUR = 1.6;               // rev 8: boarding / leaving cinematic (s)
-var FOV_BOOST = 4, FOV_PULSE = 9, FOV_PLANET = 4, CAM_PLANET = 0.15;   // rev 20: within 4 R of a planet the chase cam backs off 15 % and the fov eases +4 (42 -> 46)     // rev 9: halved (the streaks sell speed now)
+var FOV_BOOST = 4, FOV_PULSE = 14, FOV_PLANET = 4, CAM_PLANET = 0.15;   // rev 20: within 4 R of a planet the chase cam backs off 15 % and the fov eases +4 (42 -> 46)     // rev 9: halved (the streaks sell speed now)
 var DOCK_R = 1.05, DOCK_Y = 0.45, DOCK_RATE = 0.03;   // rev 12: dock radius / height as x root.sysR: outside every orbit, high above the plane
 var HARD_F = 1.15;                 // hard collision sphere, x renderedRadius
 var PULSE_LOOK = 1.0, PULLUP_LOOK = 1.6, PULLUP_RATE = 25 * Math.PI / 180;   // rev 13: pulse drops only if the swept path hits terrain/a body within PULSE_LOOK s; auto pull-up (rad/s) looks PULLUP_LOOK s ahead
@@ -1407,14 +1407,14 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return true;
     }
 
-    // ─── pose persistence: pf.pose = { v:1, t, mode:'space'|'planet', ... } mirrors the Esc-resume snapshot (takeSnap / applyResume) in a JSON form ───
+    // ─── pose persistence (v2 = 2026-11 scale retune; a v1 on-foot pose is re-seated on the ship): pf.pose = { v:2, t, mode:'space'|'planet', ... } mirrors the Esc-resume snapshot (takeSnap / applyResume) in a JSON form ───
     var poseUsed = false, poseT = 0;
     function poseA(v) { return [v.x, v.y, v.z]; }
     function poseFromSnap(rs) {
         if (!rs) return null;
-        if (rs.f === 'world') return { v: 1, t: Date.now(), mode: 'space', pos: poseA(rs.pos), quat: rs.quat.toArray() };
+        if (rs.f === 'world') return { v: 2, t: Date.now(), mode: 'space', pos: poseA(rs.pos), quat: rs.quat.toArray() };
         if (rs.f === 'planet' && rs.node) {
-            var o = { v: 1, t: Date.now(), mode: 'planet', id: String(rs.node.id), sub: rs.mode };
+            var o = { v: 2, t: Date.now(), mode: 'planet', id: String(rs.node.id), sub: rs.mode };
             if (rs.mode === 'fly') { o.lp = poseA(rs.lp); o.lq = rs.lq.toArray(); o.R = rs.R; o.alt = rs.alt; }
             else {
                 o.sPos = poseA(rs.sPos); o.sQuat = rs.sQuat.toArray(); o.rg = rs.rg;      // planet-local direction + radius offset + facing
@@ -1422,13 +1422,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             }
             return o;
         }
-        if (rs.f === 'station' && rs.hp) return { v: 1, t: Date.now(), mode: 'station', pad: rs.pad | 0, hp: poseA(rs.hp), yaw: rs.yaw, pitch: rs.pitch };
+        if (rs.f === 'station' && rs.hp) return { v: 2, t: Date.now(), mode: 'station', pad: rs.pad | 0, hp: poseA(rs.hp), yaw: rs.yaw, pitch: rs.pitch };
         return null;      // interior / derelict: keep the previous pose
     }
     function poseToSnap(o) {
         var v3 = function (a) { if (!Array.isArray(a) || a.length < 3 || !a.every(isFinite)) throw new Error('bad vec'); return new THREE.Vector3(+a[0], +a[1], +a[2]); };
         var q4 = function (a) { if (!Array.isArray(a) || a.length < 4 || !a.every(isFinite)) throw new Error('bad quat'); return new THREE.Quaternion(+a[0], +a[1], +a[2], +a[3]).normalize(); };
-        if (!o || o.v !== 1) return null;
+        if (!o || (o.v !== 1 && o.v !== 2)) return null;
         if (o.mode === 'space') return { f: 'world', pos: v3(o.pos), quat: q4(o.quat) };
         if (o.mode === 'station') return { f: 'station', pad: o.pad | 0, hp: v3(o.hp), yaw: +o.yaw || 0, pitch: +o.pitch || 0 };
         if (o.mode === 'planet') {
@@ -1437,7 +1437,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (!node) return null;      // the planet no longer exists: dock spawn
             if (o.sub === 'fly') return { f: 'planet', node: node, mode: 'fly', lp: v3(o.lp), lq: q4(o.lq), R: +o.R || 0, alt: +o.alt || -1 };
             var rs = { f: 'planet', node: node, mode: o.sub === 'foot' ? 'foot' : 'landed', sPos: v3(o.sPos), sQuat: q4(o.sQuat), rg: +o.rg || 0 };
-            if (rs.mode === 'foot' && o.hum) rs.hum = { pos: v3(o.hum.pos), hr: +o.hum.hr, gr: +o.hum.gr, hf: v3(o.hum.hf), face: v3(o.hum.face), pitch: +o.hum.pitch || 0 };
+            if (rs.mode === 'foot' && o.hum && o.v === 2) rs.hum = { pos: v3(o.hum.pos), hr: +o.hum.hr, gr: +o.hum.gr, hf: v3(o.hum.hf), face: v3(o.hum.face), pitch: +o.hum.pitch || 0 };
             else rs.mode = 'landed';
             return rs;
         }
@@ -5089,12 +5089,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         camera.position.copy(focus).add(camRel);
         camera.quaternion.slerp(tq, damp(rate, dt));
     }
-    var G_WALK = 22;   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
+    var G_WALK = 6, G_RUN = 13;   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
     // rev 20b: the foot controller. The human lives in the planet's LOCAL frame (hum.pos), is a capsule (feet footprint FOOT_R) and walks on the ground AS RENDERED
     // (ps.meshFloorLocal: the patch's own triangles, not the finer height function that the mesh only approximates). Motion is substepped (<= FOOT_SUB heights per
     // substep) with a slope-limited step test (rise <= run + 0.05 H) and wall sliding; the position is written once per frame. hum.vh is the VISUAL height (what the
     // human mesh and camera follow): it eases toward the physical height but never sinks below the ground.
-    var FOOT_R = 0.22, FOOT_SLIDE_A = [0, 0.7, -0.7, 1.4, -1.4], FOOT_SLIDE_K = [1, 0.8, 0.8, 0.5, 0.5];
+    var FOOT_R = 0.26, FOOT_SLIDE_A = [0, 0.7, -0.7, 1.4, -1.4], FOOT_SLIDE_K = [1, 0.8, 0.8, 0.5, 0.5];
     var fsR = new THREE.Vector3(), fsF = new THREE.Vector3(), fsC = new THREE.Vector3(), fsT = new THREE.Vector3();
     function mFloor(x, y, z, ref) { if (!ps) return hum.gr; var r = ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); if (BK.n > 0 && ref > 0) { var bf = blkFloor(x, y, z, ref); if (bf > r) r = bf; } return r > 0 ? r : hum.gr; }      // mashup: ref = the feet radius, so the STEEV blocks are part of the ground (columns of 1 H cubes)
     // ground radius under the footprint: max over the centre and four points at FOOT_R human heights around it (dir = unit local direction)
@@ -5231,7 +5231,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var foot = null;
     function footStep(dt, c, qM) {
         if (!foot) foot = createFoot({
-            THREE: THREE, FOOT_SLIDE_A: FOOT_SLIDE_A, FOOT_SLIDE_K: FOOT_SLIDE_K, G_WALK: G_WALK, JET_HOLD: JET_HOLD, JET_UP: JET_UP, MOUSE_SENS: MOUSE_SENS,
+            THREE: THREE, FOOT_SLIDE_A: FOOT_SLIDE_A, FOOT_SLIDE_K: FOOT_SLIDE_K, G_WALK: G_WALK, G_RUN: G_RUN, JET_HOLD: JET_HOLD, JET_UP: JET_UP, MOUSE_SENS: MOUSE_SENS,
             R27: R27, X: X, aPlay: aPlay, clamp: clamp, damp: damp, fl: fl, flHud: flHud, footFloor: footFloor, footWind: footWind, fsC: fsC, fsC2: fsC2, fsT: fsT,
             gA: gA, gB: gB, gC: gC, gD: gD, gE: gE, gQ: gQ, gQi: gQi, groundCam: groundCam, hum: hum, jetFx: jetFx, mFloor: mFloor, mM: mM, objBegin: objBegin, objPush: objPush,
             styEggTick: styEggTick, styU: styU, styUpW: styUpW, styWallO: styWallO, styleFx: styleFx, styleStep: styleStep, styleSync: styleSync, vTmp: vTmp,
@@ -5305,7 +5305,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         vel.set(0, 0, 0); speed = 0;
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { gA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake); camera.position.add(gA); }
-        fov += (baseFov - fov) * damp(4, dt);
+        fov += ((gmode === 'foot' ? 55 : baseFov) - fov) * damp(4, dt);      // on foot 55 (galaxy stays 42)
         var gNear = gmode === 'foot' ? 0.01 * L : 0.02 * L;      // a human is ~0.0055 u tall: the 0.05 near plane would clip it
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== gNear) { camera.fov = fov; camera.near = gNear; camera.updateProjectionMatrix(); }
         if (gmode !== 'foot') clampCamToGround(0.5);
@@ -5873,7 +5873,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         clampCamToGround(0.5);                     // rev 19: the chase camera never sits inside the terrain (hills rise behind the ship)
         var amv = dt / ENTRY_T;                    // rev 18: fov 42 -> 50 over the entry (ENTRY_T), back down on the way out
         lf.atmK += clamp(((lf.on && lf.cap && !lf.leaving) ? 1 : 0) - lf.atmK, -amv, amv);
-        var fovT = baseFov + (boosting ? FOV_BOOST : 0) + FOV_PULSE * pulse + (focusing ? 3 : 0) + fovKick + ATM_FOV * lf.atmK + FOV_PLANET * nearPl + (styFov - 1) * baseFov;
+        var fovT = baseFov + FOV_SHIP_ADD + (boosting ? FOV_BOOST : 0) + FOV_PULSE * pulse + (focusing ? 3 : 0) + fovKick + ATM_FOV * lf.atmK + FOV_PLANET * nearPl + (styFov - 1) * baseFov;
         fov += (fovT - fov) * damp(4, dt);
         var fNear = (lf.on && lf.cap) ? 0.02 * L : baseNear;     // rev 19: near plane 0.02 L inside the atmosphere (log depth keeps it precise) so ground right under the camera is never clipped
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== fNear) { camera.fov = fov; camera.near = fNear; camera.updateProjectionMatrix(); }
@@ -10698,7 +10698,7 @@ setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: p
         get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
         land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyZ: onKeyZ, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
-        _g: { hOf: hOf, hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
+        _g: { G_WALK: G_WALK, G_RUN: G_RUN, hOf: hOf, hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
         get stats() { return { hp: hp, wave: shownWave(), bossPhase: (api.boss || { bphase: 0 }).bphase, boss: (api.boss || { hp: 0 }).hp, bossMax: (api.boss || { maxHp: 0 }).maxHp, allies: allies.filter(function (a) { return a.alive; }).length, kills: kills, enemies: aliveCount(), L: L, dead: dead, gt: gt }; }
     };
     window.EMGOR_SHIP = api;   // debug / test hook

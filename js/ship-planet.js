@@ -2053,7 +2053,7 @@ export function createPlanetSurface(engine, L) {
             if (pads.length && nearPad(dx, dy, dz, 3)) continue;     // keep outposts clear
             if (_lastN > sea + 0.19) { if (hash01(cd[4], cd[5], cd[6], seed + 9) < 0.7) continue; }
             var rr = hash01(cd[4], cd[5], cd[6], seed + 4), r2 = hash01(cd[4], cd[5], cd[6], seed + 5), r3 = hash01(cd[4], cd[5], cd[6], seed + 6);
-            var variant = look === 2 ? 3 : Math.floor(rr * 3) % 3, sh = (4 + r2 * 4) * L, sw = sh * (0.38 + r3 * 0.22) * (look === 2 ? 0.7 : 1);
+            var variant = look === 2 ? 3 : Math.floor(rr * 3) % 3, sh = (4 + r2 * 4) * 1.5 * L, sw = sh * (0.38 + r3 * 0.22) * (look === 2 ? 0.7 : 1);
             var rad = Rr * (1 + h) - 0.25 * L;
             // basis: right = d x ref, fwd = right x d, yaw by r3
             var ref0 = Math.abs(dy) < 0.9 ? 0 : 1;
@@ -2085,7 +2085,7 @@ export function createPlanetSurface(engine, L) {
 
     // ─── rocks: lattice-hashed on the shell like the flora (stable per place), land only, smaller cells, size 0.6-2.2 L with the odd boulder
     function seedRocks() {
-        var a = alloc, Rr = R, cell = 9 * L, E = 130 * L, m = Math.ceil(E / cell);
+        var a = alloc, Rr = R, cell = 7 * L, E = 130 * L, m = Math.ceil(E / cell);
         var cx = rockC.x * Rr, cy = rockC.y * Rr, cz = rockC.z * Rr;
         var ci = Math.floor(cx / cell), cj = Math.floor(cy / cell), ck = Math.floor(cz / cell);
         var seed = nodeSeed(node) + 4242, cands = [];
@@ -2105,7 +2105,7 @@ export function createPlanetSurface(engine, L) {
             if (isGas || _lastN < sea + 0.004) continue;                      // dry land only
             if (pads.length && nearPad(dx, dy, dz, 3)) continue;
             var r1 = hash01(cd[4], cd[5], cd[6], seed + 4), r2 = hash01(cd[4], cd[5], cd[6], seed + 5), r3 = hash01(cd[4], cd[5], cd[6], seed + 6);
-            var big = r1 > 0.93 ? 1.4 : 1, sw = (0.3 + r2 * 1.2) * L * big, sh = sw * (0.55 + r3 * 0.5);
+            var big = r1 > 0.93 ? 1.4 : 1, sw = (0.3 + r2 * 1.2) * 1.5 * L * big, sh = sw * (0.55 + r3 * 0.5);
             var rad = Rr * (1 + h) - 0.2 * sh;
             var ref0 = Math.abs(dy) < 0.9 ? 0 : 1, rx, ry, rz;
             if (ref0 === 0) { rx = dz; ry = 0; rz = -dx; } else { rx = 0; ry = -dz; rz = dy; }
