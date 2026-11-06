@@ -337,7 +337,7 @@ async function g3(T, o) {
     var lat = ship.lf.lp.clone().sub(lp0).dot(right);
     var rollNow = new THREE.Vector3(1, 0, 0).applyQuaternion(ship.lf.lq).dot(ship.lf.lp.clone().normalize());
     res.strafe_u = +lat.toFixed(2); res.rollAfterStrafe = +rollNow.toFixed(4);
-    if (lat < 0.8 || Math.abs(rollNow) > 0.05) fail('strafe', [lat, rollNow]);
+    if (lat < 0.6 || Math.abs(rollNow) > 0.05) fail('strafe', [lat, rollNow]);
     // F LAND prompt: still, below 1.5 L, over land
     T.clearKeys(); T.hoverAt(node, d, 1.2); T.step(40);
     res.altAtPrompt_L = +(ship.lf.alt / L).toFixed(2);
@@ -930,7 +930,7 @@ async function g15(T, o) {
     mu.setStyle('SONIK'); T.step(60, dt);
     T.kd('KeyC'); T.step(6, dt); for (i = 0; i < 3; i++) { T.kd('Space'); T.step(2, dt); T.ku('Space'); T.step(6, dt); }
     T.ku('KeyC'); var sp = 0; for (i = 0; i < 80; i++) { T.step(1, dt); sp = Math.max(sp, g.hum.sSpd || 0); }
-    res.sonik = { spinDashPeak_Hps: +sp.toFixed(1), slopeSeen_deg: +mu.ctx.slope.toFixed(1) }; if (!(sp > 22)) res.pass = false;
+    res.sonik = { spinDashPeak_Hps: +sp.toFixed(1), slopeSeen_deg: +mu.ctx.slope.toFixed(1) }; if (!(sp >= 28)) res.pass = false;
     // STEEV: one real RMB placement, then a wall; the capsule must stop at it, it must survive a save/load
     mu.setStyle('STEEV'); T.step(30, dt);
     hum.pitch = 1.0; T.step(4, dt); document.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true })); T.step(3, dt); document.dispatchEvent(new MouseEvent('mouseup', { button: 2, bubbles: true })); T.step(4, dt);

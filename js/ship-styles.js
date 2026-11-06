@@ -299,10 +299,11 @@ function steev(env) {
   return { reset, step, state: s, out, setTool(t) { s.tool = t; } };
 }
 
+export const SONIK_K = { TOP: 16, SPIN: 3.1 };   // H/s: cruise run; spin-dash release = (8 + charge/2) * SPIN (3 taps ~ 34 H/s, measured peak >= 28)
 // ── SONIK: momentum runner [doc S4 constants, px/frame@60 converted] ─────────────────────────────
 function sonik(env) {
-  const W = env.walk, g = env.grav, J = env.jump;
-  const TOP = 1.5 * W, SC = TOP / 6;                                                 // [guess] top 1.5x walk; SC = H/s per (px/frame) so every guide constant scales with it
+  const g = env.grav, J = env.jump, W = SONIK_K.TOP / 1.5;                            // 2026-11: pinned to absolute H/s (SONIK is the speed character), not env.walk
+  const TOP = SONIK_K.TOP, SC = TOP / 6;                                             // [guess] cruise run 16 H/s; SC = H/s per (px/frame) so every guide constant scales with it
   const ACC = 0.046875 * SC * 60, DEC = 0.5 * SC * 60, FRC = 0.046875 * SC * 60, AIRA = 0.09375 * SC * 60;     // [doc]
   const SLP = 0.125 * SC * 60, SLP_UP = 0.078125 * SC * 60, SLP_DN = 0.3125 * SC * 60;                       // [doc] slope factors (stand / roll uphill / roll downhill)
   const RFRC = 0.0234375 * SC * 60, RDEC = 0.125 * SC * 60;                                                  // [doc] roll friction / decel
@@ -342,7 +343,7 @@ function sonik(env) {
         s.charge *= Math.pow(31 / 32, dt * 60);
         if (io.jumpP) { s.charge = Math.min(8, s.charge + 2); const e = fx.emit('spinCharge'); e.v = s.charge; e.n = 1; }
         s.gsp = 0;
-        if (!io.crouch) { const rel = (8 + Math.floor(s.charge) / 2) * SC; s.gsp = rel; s.roll = true; const e = fx.emit('spinRelease'); e.v = rel; e.n = Math.floor(s.charge); s.charge = -1; s.lock = 0; }
+        if (!io.crouch) { const rel = (8 + Math.floor(s.charge) / 2) * SONIK_K.SPIN; s.gsp = rel; s.roll = true; const e = fx.emit('spinRelease'); e.v = rel; e.n = Math.floor(s.charge); s.charge = -1; s.lock = 0; }
         else if (io.m > 0.05) turn(s, io, dt, 6);
       } else if (io.crouch && io.jumpP && ag < ROLLMIN && !s.roll) {
         s.charge = 2; s.gsp = 0; const e = fx.emit('spinCharge'); e.v = 2; e.n = 0;
