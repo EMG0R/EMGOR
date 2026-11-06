@@ -5,6 +5,7 @@
 //   positioned at hub.anchor.pos (planet-local) and rotated so +y = hub.anchor.up. Caller parents hub.group into the planet ride group.
 //     planetNode (all optional): { id|name, radius|r, biome, hubSpot(seed)->unit dir, heightLocal(dirVec)->radius }.
 //   hub.anchor { dir, up, pos }           seeded land spot (planetNode.hubSpot if given, else seeded direction)
+//   hub.floors [{x0,x1,z0,z1,top}]        arch apron slabs (hub metres, drawn + foot floor via ship.js flPut); skips the trench mouth
 //   hub.entrance { pos, radius }          hub-local gate position (arch + green veil + 2 torches, visible from the air)
 //   hub.interior { rooms:[{id,kind,box:{min,max},doors,cleared}], walls:[{min,max,door?,active}], floorAt(p)->y|null, roomAt(p), spawn, exit }
 //        walls with active===false (open gates) must be ignored by collision. Gates lock while a fight is on (see update()).
@@ -184,6 +185,11 @@ export function createHub(engine, L, opts) {
   // entrance arch: two pillars + lintel + capstones
   { const A = ARCH; box(-3.5 * A, 0, -0.7 * A, -2.1 * A, 7 * A, 0.7 * A, mossLow(0), 1.4); box(2.1 * A, 0, -0.7 * A, 3.5 * A, 7 * A, 0.7 * A, mossLow(0), 1.4);
     box(-3.9 * A, 6.9 * A, -0.9 * A, 3.9 * A, 8.1 * A, 0.9 * A, () => 0.05, 1.3); box(-1.2 * A, 8.1 * A, -0.5 * A, 1.2 * A, 8.7 * A, 0.5 * A, () => 0.0, 1.2); }
+  // Q53: arch apron slab (drawn here, handed to the foot floor via hub.floors: hub metres {x0,x1,z0,z1,top}); skips the trench mouth (|x| < GW+1.2, z >= 0)
+  const floors = [];
+  { const A = ARCH, X1 = 3.9 * A, ZF = -(0.9 * A + 2), ZB = 0.9 * A, XT = GW + 1.2, TOP = 0.15;
+    floors.push({ x0: -X1, x1: X1, z0: ZF, z1: 0, top: TOP }, { x0: -X1, x1: -XT, z0: 0, z1: ZB, top: TOP }, { x0: XT, x1: X1, z0: 0, z1: ZB, top: TOP });
+    for (const f of floors) box(f.x0, -0.4, f.z0, f.x1, f.top, f.z1, () => 0.12, 2); }
   // torch brackets + bones + skulls
   const BONE = new T.Color(0.62, 0.6, 0.5), WOOD = new T.Color(0.2, 0.12, 0.07);
   function addBox(cx, cy, cz, sx, sy, sz, ry, c) {
@@ -356,7 +362,7 @@ export function createHub(engine, L, opts) {
 
   const interior = { rooms: rooms.map((r) => { delete r._rr; return r; }), walls, floorAt, roomAt, spawn: [0, -DEPTH, 27], exit: [0, 0.2, -3] };
   const hub = {
-    group, anchor, biome, entrance: { pos: [0, 0, 0], radius: 3.5 * ARCH }, interior, bossSpec, chests, lights: { torches, count: torches.length }, ambience: 'hub',
+    group, anchor, biome, floors, entrance: { pos: [0, 0, 0], radius: 3.5 * ARCH }, interior, bossSpec, chests, lights: { torches, count: torches.length }, ambience: 'hub',
     state, waves: (id) => (waveTable[id] || []).map((w) => Object.assign({}, w)), spawns: (id) => (spawnPts[id] || []).map((p) => p.slice()),
     open, setCleared, serialize, restore, update, dispose, floorAt, roomAt, stats: { tris: Math.round(tris), draws: 9 },
     toHub(v, out) { out = out || new T.Vector3(); return group.worldToLocal(out.copy(v)); }, onRoom: null,

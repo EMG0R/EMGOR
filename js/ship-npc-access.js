@@ -46,3 +46,22 @@ export function pickRelocation(px, pz, cands, maxD) {
   }
   return bi;
 }
+
+// Q53: station deck NPC audit (flat deck, floor y = 0, station-local L units). npcs: [{ x, z }]; walls: boxes {name, min, max} with min/max {x,y,z}; bounds {min,max}.
+// An NPC is unreachable when its capsule (radius r, height h) overlaps a solid wall box, or sits outside the deck bounds. Same wall filter as skCollide (the shell walls are the bounds).
+const DECK_SHELL = { wallL: 1, wallR: 1, back: 1, mouthField: 1 };
+export function deckNpcReport(npcs, walls, bounds, r, h) {
+  const rep = { n: npcs.length, unreachable: [], outside: [], pass: true };
+  for (let i = 0; i < npcs.length; i++) {
+    const v = npcs[i];
+    if (v.x < bounds.min.x + r || v.x > bounds.max.x - r || v.z < bounds.min.z + r || v.z > bounds.max.z - r) { rep.outside.push(i); continue; }
+    for (let j = 0; j < walls.length; j++) {
+      const b = walls[j]; if (DECK_SHELL[b.name] || b.field) continue;
+      if (0 >= b.max.y || h <= b.min.y) continue;
+      const dx = v.x - Math.max(b.min.x, Math.min(v.x, b.max.x)), dz = v.z - Math.max(b.min.z, Math.min(v.z, b.max.z));
+      if (dx * dx + dz * dz < r * r) { rep.unreachable.push(i); break; }
+    }
+  }
+  rep.pass = !rep.unreachable.length && !rep.outside.length;
+  return rep;
+}

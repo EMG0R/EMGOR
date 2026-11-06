@@ -1636,6 +1636,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function npcAudit() {
         var out = [], H = hOf(L), i, j, st, cr, v, rep = null;
+        if (gmode === 'sfoot' && sk.mode === 'deck' && !R27.dsite && station && station.interior && station.deck && npcRelMod && npcRelMod.deckNpcReport) {      // Q53: the station deck is flat (floor y = 0, station-local L): same report, deck walls instead of terrain
+            var sn = station.interior.npcs || [], sw = station.deck.walls, sb = station.deck.bounds, sr = npcRelMod.deckNpcReport(sn.map(function (n) { return { x: n.localPos.x, z: n.localPos.z }; }), sw, sb, SK_R, SK_H);
+            for (i = 0; i < sn.length; i++) out.push({ id: 'station-' + i, kind: 'station', pos: sn[i].pos.toArray(), reachable: sr.unreachable.indexOf(i) < 0 && sr.outside.indexOf(i) < 0, floorDy: 0, distToPad: 0, o: sn[i] });
+            return out;
+        }
         if (!ps || !land.node || ps.active !== land.node) return out;
         function add(kind, o, id, p, wallBad, gapH) {      // gapH >= 0: store NPCs stand on the store's FLAT floor (not the curved terrain under them); what matters is the step from the terrain at the entrance up to that floor plane; tolerance 3 H (jump apex 1.2 H + Space-hold jetpack; the 9 L probe sits off the flattened pad, so tiny planets add curvature drop)
             var dir = p.clone().normalize(), fl = ps.floorLocal(dir.x, dir.y, dir.z), dy = gapH >= 0 ? gapH : Math.abs(p.length() - fl) / H;
@@ -5281,6 +5286,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         if (world && world.node && bh && bh.walls && bh.matrix) { put(bh.matrix, opBhI.copy(bh.matrix).invert(), bh.unit, 6, 5, 8, bh.walls, null); flPut(bh.matrix, opBhI, bh.unit, bh.floors); }
         if (world && world.node && world.cvs && world.cvs.walls) { put(world.cvs.matrix, opCvI.copy(world.cvs.matrix).invert(), world.cvs.unit, 6, 5, 8, world.cvs.walls, null); flPut(world.cvs.matrix, opCvI, world.cvs.unit, world.cvs.floors); }
+        if (HB.hub && HB.hub.floors && HB.node === land.node && !HB.in) flPut(HB.hub.group.matrix, HB.mi, HB.mu, HB.hub.floors);      // Q53: the entrance arch apron is a drawn slab (hub metres -> planet-local), not raw terrain
         if (VG.v && VG.v.solid && world && world.node && VG.node === land.node) { var vs = VG.v.solid; put(vs.m, vs.inv, vs.K, vs.hw, vs.hd, vs.hh, vs.a, vs.b); flPut(vs.m, vs.inv, vs.K, vs.floors); }      // villages: hut walls, the well and the stall are solid + indestructible
         opList.length = n;
         return 1;     // the hull is always a solid
@@ -7492,7 +7498,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         mobSpawnTick(dt); mobBoltTick(dt); mobSnapOut(dt); mobFlush(dt);
     }
     // ═══ mob hub: one dungeon per planet (ship-hub.js). Lives in the planet-local frame under the ride group; on foot inside it a Cartesian hub-local controller replaces the spherical one ═══
-    var hubMod = null, HB = { hub: null, node: null, nid: '', L: 0, mu: 0, in: false, fail: false, t: 0, p: new THREE.Vector3(), vy: 0, air: false, up: new THREE.Vector3(0, 1, 0), upW: new THREE.Vector3(0, 1, 0), pos: new THREE.Vector3(), q: new THREE.Quaternion(), qi: new THREE.Quaternion(), fight: null, cd: 5, camD: 3 };
+    var hubMod = null, HB = { mi: new THREE.Matrix4(), hub: null, node: null, nid: '', L: 0, mu: 0, in: false, fail: false, t: 0, p: new THREE.Vector3(), vy: 0, air: false, up: new THREE.Vector3(0, 1, 0), upW: new THREE.Vector3(0, 1, 0), pos: new THREE.Vector3(), q: new THREE.Quaternion(), qi: new THREE.Quaternion(), fight: null, cd: 5, camD: 3 };
     var hbA = new THREE.Vector3(), hbB = new THREE.Vector3(), hbC = new THREE.Vector3(), hbD = new THREE.Vector3(), hbE = new THREE.Vector3();
     import('./ship-hub.js').then(function (m) { hubMod = m; }).catch(function (e) { console.info('[ship] ship-hub unavailable', e); });
     function hubToLocal(ph, out) { return out.copy(ph).multiplyScalar(HB.mu).applyQuaternion(HB.q).add(HB.pos); }       // hub metres -> planet-local
@@ -7548,7 +7554,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var pid = String(node.id), hb = hubMod.createHub(engine, GM * L, { seed: pid, planetNode: { id: pid, name: pid, radius: ps.radius, biome: ps.lookOf ? ps.lookOf(node) : 'rocky', hubSpot: function (sd) { if (SITE.hubOk && SITE.nid === pid && siteRadOk(SITE.R)) { var hl = SITE.hubPos.length() || 1; return { x: SITE.hubPos.x / hl, y: SITE.hubPos.y / hl, z: SITE.hubPos.z / hl }; } return hubSpot(sd); }, heightLocal: function (d) { return ps.floorLocal(d.x, d.y, d.z); } }, sync: ps.sync });
             rg.add(hb.group); hb.group.updateMatrixWorld(true);
             HB.hub = hb; HB.node = node; HB.nid = pid; HB.L = L; HB.mu = GM * L; HB.in = false; HB.fight = null; HB.t = 0; HB.q0 = ps.quality; HB.R = ps.radius; HB.qT = 0;
-            HB.pos.copy(hb.group.position); HB.q.copy(hb.group.quaternion); HB.qi.copy(HB.q).invert(); HB.up.copy(hb.anchor.up);
+            HB.pos.copy(hb.group.position); HB.q.copy(hb.group.quaternion); hb.group.updateMatrix(); HB.mi.copy(hb.group.matrix).invert(); HB.qi.copy(HB.q).invert(); HB.up.copy(hb.anchor.up);
             var pf = curProfile(), d = pf && pf.hubs && pf.hubs[pid]; if (d) hb.restore(d);
         } catch (e) { console.info('[ship] hub build failed', e); HB.fail = true; if (HB.hub) { try { HB.hub.dispose(); } catch (e1) { /* ignore */ } } HB.hub = null; }
     }

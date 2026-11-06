@@ -1159,6 +1159,8 @@ async function g22(T, o) {
             var hf = [v.solid.floors[hi], v.solid.floors[hi + 1]], st2 = hf[1];
             add('hut' + (hi / 2), v.solid.m, hf, [[(st2.x0 + st2.x1) / 2, (st2.z0 + st2.z1) / 2], [(st2.x0 * 3 + st2.x1) / 4, (st2.z0 * 3 + st2.z1) / 4]]);
         }
+        var hubO = ship.hub && ship.hub.raw && ship.hub.raw.hub;      // Q53: the hub arch apron (hub.floors, hub metres -> planet-local via the hub group matrix)
+        if (hubO && hubO.floors && hubO.floors.length) { add('hubArch', hubO.group.matrix, hubO.floors, [[0, -1], [0, hubO.floors[0].z0 + 0.5]]); structs[structs.length - 1].extra = [[hubO.floors[1].x0 + 0.5, 0.5], [hubO.floors[2].x1 - 0.5, 0.5]]; }
         var rows = [], worst = { err: 0, name: '', pt: '' }, bad = 0, nPts = 0, n = new THREE.Vector3(), P0 = new THREE.Vector3(), dd = new THREE.Vector3(), lp = new THREE.Vector3(), inv = new THREE.Matrix4();
         function drawnFloor(S, dir) {      // radius of the DRAWN floor of S along dir: the highest rect plane that contains the point (structure-local), recomputed from the matrix, independent of ship.js
             var e = S.M.elements, best = 0; n.set(e[4], e[5], e[6]).normalize(); inv.copy(S.M).invert();
@@ -1181,6 +1183,7 @@ async function g22(T, o) {
                 var q = S.rects[0], cx = (q.x0 + q.x1) / 2, cz = (q.z0 + q.z1) / 2, hw = (q.x1 - q.x0) / 2, hd = (q.z1 - q.z0) / 2;
                 visit(S, cx, cz, 'c', pass); visit(S, cx + 0.7 * hw, cz + 0.7 * hd, '++', pass); visit(S, cx - 0.7 * hw, cz + 0.7 * hd, '-+', pass); visit(S, cx + 0.7 * hw, cz - 0.7 * hd, '+-', pass); visit(S, cx - 0.7 * hw, cz - 0.7 * hd, '--', pass);
                 visit(S, S.thr[0][0], S.thr[0][1], 'door-in', pass); visit(S, S.thr[1][0], S.thr[1][1], 'door-out', pass);
+                if (S.extra) S.extra.forEach(function (pt, k) { visit(S, pt[0], pt[1], 'x' + k, pass); });
             });
         }
         sweep('A');
@@ -1192,7 +1195,14 @@ async function g22(T, o) {
         var hbad = [], hub = ship.hub && ship.hub.raw && ship.hub.raw.hub;
         if (hub && hub.interior) hub.interior.rooms.forEach(function (rm) { var f = hub.interior.floorAt([(rm.box.min[0] + rm.box.max[0]) / 2, 0, (rm.box.min[2] + rm.box.max[2]) / 2]); if (f === null || Math.abs(f - rm.box.min[1]) > 0.05 * 1.75) hbad.push(rm.id + ':' + f + ' vs ' + rm.box.min[1]); });
         var res = { planet: node.id.split('.').pop(), structures: structs.map(function (S) { return S.name; }), points: nPts, bad: bad, badAfterFirstSweep: aw, worst: worst, hubBad: hbad, tries: tries };
-        res.pass = structs.length >= 3 && bad === 0 && hbad.length === 0;
+        // Q53: station deck: dock, then every station NPC must be reachable (flat deck floor y = 0, outside the deck walls)
+        T.fly(); await T.pause(); ship.dbg.gotoStation(); T.step(25); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var di = 0; di < 1500 && ship.gmode !== 'sfoot'; di++) T.step(1);
+        var sn = ship.gmode === 'sfoot' ? ship.dbg.npcs().filter(function (a) { return a.kind === 'station'; }) : null;
+        res.stationNpcs = sn ? { n: sn.length, unreachable: sn.filter(function (a) { return !a.reachable; }).map(function (a) { return a.id; }) } : 'not docked';
+        res.hubArch = structs.some(function (S) { return S.name === 'hubArch'; });
+        if (ship.gmode === 'sfoot') { ship.dbg.gotoShip(); T.step(20); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3); for (di = 0; di < 1500 && ship.gmode !== 'fly'; di++) T.step(1); }
+        res.pass = structs.length >= 3 && bad === 0 && hbad.length === 0 && sn !== null && sn.length > 0 && res.stationNpcs.unreachable.length === 0;
         T.fly();
         return res;
     }
