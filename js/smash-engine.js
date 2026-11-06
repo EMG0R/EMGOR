@@ -2,14 +2,17 @@
 // with Canvas2D fallback, camera + scene drawing, and the game loop glue. The sim has no DOM / canvas access.
 // Determinism: only + - * / sqrt, own sin/cos table, seeded RNG, state snapped to 1/256 px each step.
 import { FIGHTERS, FIGHTER_IDS, AUTO } from './smash-fighters.js';
-import { STAGES, createStageVisual, hazardState } from './smash-stages.js';
+import { STAGES, createStageVisual, hazardState, terrainStage } from './smash-stages.js';
 import { buildAtlas } from './smash-sprites.js';
+import { PHYS, physOf, locoStep, groundVx, airVx, fall, knockback, hitlagOf, hitstunOf, launchSpeed, diBend, dirOf as dirOfP } from './smash-phys.js';
+import './smash-moves.js';      // upgrades FIGHTERS in place: physics contract + the full data-driven move table
+import { botInput as botInputImpl, BOT_TIERS as BOT_TIERS_IMPL } from './smash-bot.js';
 
 export const sfx = { play() {}, hook: null }; // smash.html wires sfx.hook(name) -> ship-audio (guarded)
-const play = (n) => { try { if (sfx.hook) sfx.hook(n); sfx.play(n); } catch (e) { /* audio is optional */ } };
+const play = (n, p) => { try { if (sfx.hook) sfx.hook(n, p); sfx.play(n, p); } catch (e) { /* audio is optional */ } };
 
 // ---- input bits ----------------------------------------------------------------------------------
-export const B = { L: 1, R: 2, U: 4, D: 8, A: 16, K: 32, S: 64, G: 128, J: 256 };
+export const B = { L: 1, R: 2, U: 4, D: 8, A: 16, K: 32, S: 64, G: 128, J: 256, CL: 512, CR: 1024, CU: 2048, CD: 4096 };      // C* = right stick / smash keys (bits >= 512 are new; older senders never set them)
 const FIX = 256, snap = (v) => Math.round(v * FIX) / FIX;
 const sgn = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -24,6 +27,7 @@ const SIN = new Float64Array(362);
 })();
 export function sinD(a) { a %= 360; if (a < 0) a += 360; const i = a | 0, fr = a - i; return SIN[i] + (SIN[i + 1] - SIN[i]) * fr; }
 export function cosD(a) { return sinD(a + 90); }
+export function hitPitch(d) { return d >= 20 ? 0.6 : d <= 2 ? 1.5 : 1.5 - (d - 2) * 0.05; }
 function wscale(w) { const x = 100 / w - 1; return 1 + 0.8 * x - 0.08 * x * x + 0.032 * x * x * x; } // (100/w)^0.8
 function mulberry(a) { return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
@@ -44,6 +48,17 @@ function segSeg2(p1x, p1y, q1x, q1y, p2x, p2y, q2x, q2y) {
   const cx = rx + dx1 * s - dx2 * t, cy = ry + dy1 * s - dy2 * t; return cx * cx + cy * cy;
 }
 
+// ---- the ring: terrain stage rebuilt to the stage contract (main platform 12 H, two soft platforms at 2.2 H, blast +-16 H / +14 H up / -7 H down) ----
+export function ringStage(samples, id) {
+  const base = terrainStage(samples, id), H = PHYS.H, half = 6 * H, fw = 3 * H, fx = half * 0.5, fy = -2.2 * H, k = half / 180;
+  const floats = [{ x0: -fx - fw / 2, x1: -fx + fw / 2, y: fy }, { x0: fx - fw / 2, x1: fx + fw / 2, y: fy }];
+  return Object.assign({}, base, {
+    half, solids: [{ x0: -half, x1: half, y0: 0, y1: 70 }], thin: floats, floats: floats.length,
+    blast: { l: -16 * H, r: 16 * H, t: -14 * H, b: 7 * H },
+    spawns: [-110, -40, 40, 110].map((x) => ({ x: x * k * 0.9, y: -3 * H })), start: [-90, 90, -30, 30].map((x) => ({ x: x * k * 0.9, y: 0 })),
+  });
+}
+
 // ---- the match sim -----------------------------------------------------------------------------
 const STOCKS = 3, TIME = 14400, COUNT = 150;
 // stateless hash random (same on host / guest, no stored rng state)
@@ -61,11 +76,12 @@ function mkFighter(i, slot, stage, stocks) {
     eggT: 0, stunT: 0, lag: 0, deadT: 0, respT: 0, dashx: 0, dashy: 0, res: def.res0 || 0, resT: 0, kos: 0, dealt: 0, taken: 0, eggShield: 1, rollDir: 1,
     dmgMult: 1, stK: '', stT: 0, bot: null, flash: 0, koDir: 0, hurtMul: def.hurtMul || 1,
     fx: 0, fy: 0, fz: 0, copy: '', copyT: 0, absorbT: 0, final: 0, meter: 0, sleepT: 0,
+    adUsed: 0, helpless: 0, turnTo: 0, chgT: 0, chgMul: 1, chgBit: 0, bufS: 0, bufC: 0, cBits: 0, dAgeX: 99, dAgeU: 99, dAgeD: 99, sst: 0, downT: 0, gAtk: 0, kdx: 0, kdy: 0, pumT: 0, rollT: 0, lastLag: 0,
   };
 }
 
 export function createMatch(cfg) {
-  cfg = cfg || {};
+  cfg = cfg || {};      // cfg.gravity / cfg.wind / any planet or weather force is IGNORED on purpose: the ring has its own constant gravity (smash-phys.js)
   const stage = cfg.stageDef || STAGES[cfg.stage || 'plateau']; // stageDef: runtime stage (terrain fights)
   const slots = (cfg.players || [{ fid: 'pilot', ctrl: 'p1' }, { fid: 'swift', ctrl: 'cpu' }]).filter((p) => p.ctrl !== 'off').slice(0, 4);
   const S = {
@@ -77,9 +93,9 @@ export function createMatch(cfg) {
   S.ledges = [];
   stage.solids.forEach((s, k) => { S.ledges.push({ x: s.x0, y: s.y0, side: -1 }, { x: s.x1, y: s.y0, side: 1 }); });
   S.ledgeOcc = S.ledges.map(() => -1);
-  S.fighters.forEach((f) => { if (f.ctrl === 'cpu') f.bot = { rng: mulberry(9000 + f.i * 77 + (cfg.seed | 0)), next: 0, tap: 0, hold: 0, shT: 0, lastB: 0, lvl: f.level, turn: 0, tier: f.tier || 0 }; });
+  S.fighters.forEach((f) => { if (f.ctrl === 'cpu') f.bot = { rng: mulberry(9000 + f.i * 77 + (cfg.seed | 0)), next: 0, tap: 0, hold: 0, shT: 0, lastB: 0, lvl: f.level, turn: 0, tier: f.tier || Math.max(1, Math.min(3, f.level || 2)) }; });
   // services used by the data tables
-  S.sfx = (n) => S.events.push({ t: 'sfx', n });
+  S.sfx = (n, p) => S.events.push(p == null ? { t: 'sfx', n } : { t: 'sfx', n, p });
   S.countProj = (f, kind) => S.projs.reduce((a, p) => a + (p.owner === f.i && p.kind === kind ? 1 : 0), 0);
   S.towardCenter = (f) => (f.x > 0 ? -1 : 1);
   S.rnd = (k) => rndAt(S, k);
@@ -145,7 +161,10 @@ function moveFighter(S, f) {
   for (const s of S.solids) {
     if (f.x + 7 > s.x0 && f.x - 7 < s.x1 && f.y > s.y0 + 0.5 && f.y - 34 < s.y1) {
       if (f.x < (s.x0 + s.x1) / 2) f.x = s.x0 - 7; else f.x = s.x1 + 7;
-      f.vx = 0;
+      if (f.state === 'hit' && f.tumble && Math.abs(f.vx) > 1.2) {      // wall: tech if shield was pressed in the last 12 f, else bounce off
+        if (f.bufS > 0) { f.state = 'tech'; f.st = 0; f.inv = Math.max(f.inv, 16); f.vx = 0; f.vy = 0; f.tumble = false; f.hitstun = 0; f.bufS = 0; S.sfx('tech'); }
+        else { f.vx = -f.vx * 0.5; S.events.push({ t: 'puff', x: f.x, y: f.y - 20 }); }
+      } else f.vx = 0;
     }
   }
   const py = f.y; f.y += f.vy;
@@ -164,30 +183,47 @@ function moveFighter(S, f) {
 
 // ---- fighter logic --------------------------------------------------------------------------
 const dirOf = (f) => (f.inp & 2 ? 1 : 0) - (f.inp & 1 ? 1 : 0);
-const vJump = (f, apex) => Math.sqrt(2 * f.def.grav * apex);
+const vJump = (f, apex) => Math.sqrt(2 * physOf(f.def).g * apex);
+function gravity(f, mult) { fall(f, physOf(f.def), mult); }
+function airControl(f, mult) { airVx(f, physOf(f.def), dirOf(f), mult); }
 
 function readInput(f, inp) {
   f.inp = inp; const ed = inp & ~f.prev; f.prev = inp; f.ed = ed;
-  f.bufA = ed & B.A ? 6 : f.bufA > 0 ? f.bufA - 1 : 0;
-  f.bufB = ed & B.K ? 6 : f.bufB > 0 ? f.bufB - 1 : 0;
-  f.bufG = ed & B.G ? 6 : f.bufG > 0 ? f.bufG - 1 : 0;
-  f.bufJ = ed & (B.U | B.J) ? 6 : f.bufJ > 0 ? f.bufJ - 1 : 0;
+  f.bufA = ed & B.A ? PHYS.buffer : f.bufA > 0 ? f.bufA - 1 : 0;
+  f.bufB = ed & B.K ? PHYS.buffer : f.bufB > 0 ? f.bufB - 1 : 0;
+  f.bufG = ed & B.G ? PHYS.buffer : f.bufG > 0 ? f.bufG - 1 : 0;
+  f.bufJ = ed & (B.U | B.J) ? PHYS.buffer : f.bufJ > 0 ? f.bufJ - 1 : 0;
+  f.bufS = ed & B.S ? 12 : f.bufS > 0 ? f.bufS - 1 : 0;                                          // tech window
+  const ce = ed & (B.CL | B.CR | B.CU | B.CD);
+  if (ce) { f.bufC = PHYS.buffer; f.cBits = ce >> 9; } else if (f.bufC > 0) f.bufC--;           // c-stick / smash key: bits L R U D shifted down
+  f.dAgeX = ed & (B.L | B.R) ? 0 : f.dAgeX < 99 ? f.dAgeX + 1 : 99;                             // frames since the last direction press (flick = smash)
+  f.dAgeU = ed & B.U ? 0 : f.dAgeU < 99 ? f.dAgeU + 1 : 99;
+  f.dAgeD = ed & B.D ? 0 : f.dAgeD < 99 ? f.dAgeD + 1 : 99;
 }
 
 function startMove(S, f, m) {
-  f.move = m; f.mf = 0; f.hitSet = 0; f.state = 'attack'; f.moveAir = !f.grounded; f.bufA = 0; f.bufB = 0; f.hbMove = null;
-  if (f.grounded) f.vx *= 0.5;
+  f.move = m; f.mf = 0; f.hitSet = 0; f.state = 'attack'; f.moveAir = !f.grounded; f.bufA = 0; f.bufB = 0; f.bufC = 0; f.hbMove = null; f.chgT = 0; f.chgMul = 1; f.lastLag = 0;
+  if (f.grounded && !m.dash && !m.slide) f.vx *= 0.5;
 }
-function endMove(S, f) { f.move = null; f.hbMove = null; f.state = f.grounded ? 'idle' : 'air'; f.st = 0; }
+function endMove(S, f) { f.move = null; f.hbMove = null; f.chgMul = 1; f.chgT = 0; f.state = f.grounded ? 'idle' : 'air'; f.st = 0; }
 
+// A / c-stick -> move. c-stick bits (or a direction flick within 5 frames of the A press) make a smash; a held direction is a tilt.
 function chooseA(f) {
-  const mv = f.def.moves, d = dirOf(f), up = f.inp & 4, dn = f.inp & 8;
+  const mv = f.def.moves, cs = f.bufC > 0 ? f.cBits : 0;
+  let d = dirOf(f), up = f.inp & 4, dn = f.inp & 8;
+  if (cs) { d = (cs & 2 ? 1 : 0) - (cs & 1 ? 1 : 0); up = cs & 4; dn = cs & 8; f.chgBit = cs << 9; f.bufC = 0; } else f.chgBit = B.A;
   if (!f.grounded) {
     if (up) return mv.uair; if (dn) return mv.dair;
     if (d && d === f.face) return mv.fair; if (d) return mv.bair; return mv.nair;
   }
-  if (d) { f.face = d; return mv.ftilt; }
-  if (up) return mv.utilt; if (dn) return mv.dtilt;
+  const smash = cs || (d && f.dAgeX <= 5) || (dn && f.dAgeD <= 5);      // no up-flick: U is also a jump key, so up smash = c-stick up, U+A together = up tilt
+  if (d) {
+    f.face = d;
+    if (!cs && !smash && f.state === 'run' && f.dAgeX >= 15) return mv.dashatk;      // flick (<=5 f) = smash, short hold (6..14 f) = tilt, running (15+ f) = dash attack
+    return smash ? mv.fsmash : mv.ftilt;
+  }
+  if (up) return cs ? mv.usmash : mv.utilt;
+  if (dn) return smash ? mv.dsmash : mv.dtilt;
   return mv.jab1;
 }
 function chooseB(f) {
@@ -198,37 +234,34 @@ function chooseB(f) {
   return (air && mv[key + 'Air']) || mv[key] || mv.bN;
 }
 
-function doJump(S, f, fromGround) {
-  if (fromGround) { f.vy = -vJump(f, f.def.jump); f.grounded = false; f.jumpT = 0; f.state = 'air'; f.jumps = f.def.jumps; f.ff = false; S.sfx('jump'); }
-  else {
-    if (f.def.flutter) { f.vy = -2.4; f.flutterT = 45; f.jumps--; }
-    else f.vy = -vJump(f, f.def.jump2 || f.def.jump * 0.85), f.jumps--;
-    f.jumpT = 99; f.ff = false; S.events.push({ t: 'puff', x: f.x, y: f.y }); S.sfx('jump');
-  }
-  f.bufJ = 0;
-}
-
-function airControl(f, mult) {
-  const d = dirOf(f), a = f.def.air * (mult == null ? 1 : mult), cap = f.def.run * 1.0;
-  if (d) { f.vx += d * a * 1.6; if (Math.abs(f.vx) > cap && sgn(f.vx) === d) f.vx = d * Math.max(cap, Math.abs(f.vx) - 0.04); }
-  else f.vx *= 0.985;
-}
-function gravity(f, mult) {
-  const d = f.def; let g = d.grav * (mult == null ? 1 : mult);
-  if (f.flutterT > 0 && f.inp & (B.J | B.U) && f.vy > -1.5) { g *= 0.1; f.vy = Math.max(f.vy, -1.5); }
-  if (d.glide && f.vy > 0 && !f.ff && f.inp & (B.J | B.U)) g *= 0.4;
-  f.vy += g; let cap = d.fall * (f.ff ? 1.6 : 1); if (d.glide && !f.ff && f.inp & (B.J | B.U)) cap *= 0.65;
-  if (f.vy > cap) f.vy = cap;
-}
-
-function groundMove(f) {
-  const d = dirOf(f), run = f.def.run;
-  if (f.inp & 8) { f.vx *= 0.78; return; }
-  if (d) { f.face = d; f.vx += d * 0.34; if (Math.abs(f.vx) > run) f.vx = d * run; }
-  else { f.vx = Math.abs(f.vx) < 0.3 ? 0 : f.vx - sgn(f.vx) * 0.26; }
-}
-
 function enterAir(S, f) { f.state = 'air'; f.st = 0; f.ff = false; }
+
+// ground / air movement is the pure locoStep (smash-phys.js); this serves the requests it returns
+function loco(S, f) {
+  const P = physOf(f.def), st = f.state;
+  if (st === 'idle' || st === 'run' || st === 'crouch' || st === 'turn') {
+    if (f.sh < 180) f.sh = Math.min(180, f.sh + 0.35);
+    if (f.final && f.bufB > 0 && f.inp & B.S) { startFinal(S, f); return; }
+  } else if (st === 'air') {
+    if (f.ledgeLock === 0 && f.vy >= 0 && !f.helpless && tryLedge(S, f)) return;
+    if (f.final && f.bufB > 0 && f.inp & B.S) { startFinal(S, f); return; }
+    if (f.flutterT > 0 && f.flutterT > 33) f.armorNow = 1;
+  }
+  const code = locoStep(f, P, locoEnv(S, f));
+  switch (code) {
+    case 'A': startMove(S, f, chooseA(f)); break;
+    case 'B': startMove(S, f, chooseB(f)); break;
+    case 'G': f.state = 'grab'; f.st = 0; f.bufG = 0; break;
+    case 'S': f.state = 'shield'; f.st = 0; f.eggUsed = 0; f.sst = 0; break;
+    case 'DROP': f.dropT = 12; f.grounded = false; f.y += 1; f.vy = 0.5; enterAir(S, f); break;
+    case 'JUMP': S.sfx('jump'); break;
+    case 'DJ': S.events.push({ t: 'puff', x: f.x, y: f.y }); S.sfx('jump'); break;
+    case 'AD': S.sfx('roll'); break;
+    case 'LAND': break;
+  }
+}
+const _env = { thin: false };
+function locoEnv(S, f) { _env.thin = supportAt(S, f) === 2; return _env; }
 
 function stepFighter(S, f) {
   f.px = f.x; f.py = f.y; f.armorNow = 0; f.hbMove = null; f.animT++;
@@ -242,60 +275,48 @@ function stepFighter(S, f) {
   const play_ = S.phase === 'play';
   if (!play_) { f.inp = 0; f.bufA = f.bufB = f.bufG = f.bufJ = 0; }
   switch (st) {
-    case 'idle': case 'run': case 'crouch': {
-      if (!f.grounded) { enterAir(S, f); break; }
-      f.jumps = f.def.jumps; f.upUsed = false; f.flutterT = 0;
-      if (f.sh < 180) f.sh = Math.min(180, f.sh + 0.35);
-      if (f.final && f.bufB > 0 && f.inp & B.S) { startFinal(S, f); break; }
-      if (f.bufA > 0) { startMove(S, f, chooseA(f)); break; }
-      if (f.bufB > 0) { startMove(S, f, chooseB(f)); break; }
-      if (f.bufG > 0) { f.state = 'grab'; f.st = 0; f.bufG = 0; break; }
-      if (f.inp & B.S && f.sh > 0) { f.state = 'shield'; f.st = 0; f.eggUsed = 0; break; }
-      if (f.bufJ > 0) { doJump(S, f, true); break; }
-      if (f.ed & B.D && supportAt(S, f) === 2) { f.dropT = 12; f.grounded = false; f.y += 1; f.vy = 0.5; enterAir(S, f); break; }
-      groundMove(f);
-      f.state = f.inp & 8 ? 'crouch' : Math.abs(f.vx) > 0.35 ? 'run' : 'idle';
-      break;
-    }
-    case 'land': { if (f.grounded) f.vx *= 0.8; if (--f.lag <= 0) { f.state = 'idle'; f.st = 0; } else if (f.bufJ > 0) { doJump(S, f, true); } break; }
-    case 'air': {
-      if (f.landed || f.grounded) { f.state = 'land'; f.lag = 3; f.st = 0; break; }
-      if (f.ledgeLock === 0 && f.vy >= 0 && tryLedge(S, f)) break;
-      if (f.jumpT < 6) { f.jumpT++; if (!(f.inp & (B.U | B.J)) && f.vy < 0) { const sh = f.def.shortHop; f.vy = -vJump(f, f.def.jump * sh); f.jumpT = 99; } }
-      if (f.final && f.bufB > 0 && f.inp & B.S) { startFinal(S, f); break; }
-      if (f.bufA > 0) { startMove(S, f, chooseA(f)); break; }
-      if (f.bufB > 0) { startMove(S, f, chooseB(f)); break; }
-      if (f.bufJ > 0 && f.jumps > 0) doJump(S, f, false);
-      if (f.flutterT > 0) { f.flutterT--; if (f.flutterT > 33) f.armorNow = 1; }
-      if (f.ed & B.D && f.vy >= 0 && !(f.inp & (B.L | B.R))) f.ff = true; else if (f.ed & B.D && f.vy > 0) f.ff = true;
-      airControl(f); gravity(f);
+    case 'idle': case 'run': case 'crouch': case 'turn': case 'squat': case 'land': case 'air': case 'airdodge': loco(S, f); break;
+    case 'down': updateDown(S, f); break;
+    case 'tech': {
+      if (f.grounded) f.vx *= 0.8; else gravity(f);
+      if (f.st >= 18) { f.state = f.grounded ? 'idle' : 'air'; f.st = 0; }
       break;
     }
     case 'attack': updateAttack(S, f); break;
     case 'hit': {
-      if (f.grounded) { f.vx *= 0.86; } else { f.vx *= 0.995; gravity(f); }
-      if (--f.hitstun <= 0) { f.tumble = false; f.state = f.grounded ? 'idle' : 'air'; f.st = 0; f.ff = false; }
+      if (f.grounded) { f.vx = f.vx > 0.2 ? f.vx - PHYS.traction * 1.5 : f.vx < -0.2 ? f.vx + PHYS.traction * 1.5 : 0; }
+      else {
+        if (f.vx > 0) f.vx = Math.max(0, f.vx - f.kdx); else if (f.vx < 0) f.vx = Math.min(0, f.vx + f.kdx);         // knockback speed bleeds off along the launch vector
+        if (f.vy < 0) f.vy = Math.min(0, f.vy + f.kdy);
+        gravity(f);
+      }
+      if (--f.hitstun <= 0) { f.tumble = false; f.helpless = 0; f.state = f.grounded ? 'idle' : 'air'; f.st = 0; f.ff = false; }
       break;
     }
     case 'shield': {
       if (f.final && f.bufB > 0 && f.inp & B.S) { startFinal(S, f); break; }
+      if (f.sst > 0) { f.sst--; f.vx *= 0.6; break; }                      // shieldstun: locked in the bubble
       if (!(f.inp & B.S)) { f.state = 'idle'; f.st = 0; break; }
       f.sh -= 0.55; f.vx *= 0.6;
       if (f.sh <= 0) { shieldBreak(S, f); break; }
       if (f.fid === 'hopper') { f.sh = Math.max(f.sh + 0.55, 30); if (f.st > 120) { f.state = 'idle'; f.st = 0; f.lag = 0; f.cd.egg = Math.max(f.cd.egg || 0, 40); break; } } // egg shield: never breaks, 2 s
       if (f.bufG > 0 || f.bufA > 0) { f.state = 'grab'; f.st = 0; f.bufG = f.bufA = 0; break; }
-      if (f.bufJ > 0) { doJump(S, f, true); break; }
-      if (f.ed & (B.L | B.R)) { f.rollDir = f.ed & B.R ? 1 : -1; f.state = 'roll'; f.st = 0; f.inv = 12; S.sfx('roll'); break; }
-      if (f.ed & B.D) { f.state = 'dodge'; f.st = 0; f.inv = 14; break; }
+      if (f.bufJ > 0) { f.state = 'squat'; f.st = 0; f.bufJ = 0; break; }
+      if (f.ed & (B.L | B.R)) { f.rollDir = f.ed & B.R ? 1 : -1; f.state = 'roll'; f.st = 0; S.sfx('roll'); break; }
+      if (f.ed & B.D) { f.state = 'dodge'; f.st = 0; break; }
       if (!f.grounded) enterAir(S, f);
       break;
     }
-    case 'roll': { f.vx = f.st < 20 ? f.rollDir * 2.1 : f.vx * 0.7; if (f.st >= 24) { f.state = 'idle'; f.st = 0; } if (!f.grounded) enterAir(S, f); break; }
-    case 'dodge': { f.vx *= 0.7; if (f.st >= 20) { f.state = 'idle'; f.st = 0; } break; }
+    case 'roll': { // intangible 4..19, 28 frames total
+      f.vx = f.st < 22 ? f.rollDir * 2.6 : f.vx * 0.6; if (f.st >= 4 && f.st <= 19) f.inv = Math.max(f.inv, 2);
+      if (f.st >= 28) { f.state = 'idle'; f.st = 0; } if (!f.grounded) enterAir(S, f); break; }
+    case 'dodge': { // spot dodge: intangible 2..16, 24 frames total
+      f.vx *= 0.7; if (f.st >= 2 && f.st <= 16) f.inv = Math.max(f.inv, 2);
+      if (f.st >= 24) { f.state = 'idle'; f.st = 0; } break; }
     case 'grab': {
-      f.vx *= 0.6;
-      if (f.st >= 6 && f.st <= 9) { const v = tryGrab(S, f); if (v) break; }
-      if (f.st >= 26) { f.state = 'idle'; f.st = 0; }
+      f.vx *= 0.6; const gm = f.def.moves.grab, gd = gm.grab;
+      if (f.st >= gd.s && f.st <= gd.e) { const v = tryGrab(S, f, gd.reach); if (v) break; }
+      if (f.st >= gm.dur) { f.state = 'idle'; f.st = 0; }
       break;
     }
     case 'grabHold': {
@@ -304,19 +325,20 @@ function stepFighter(S, f) {
       v.x = f.x + f.face * 14; v.y = f.y; v.vx = 0; v.vy = 0;
       f.holdT--;
       let th = null;
-      if (f.bufA > 0 && !(f.inp & 15)) { f.bufA = 0; v.pct += 2; f.dealt += 2; S.events.push({ t: 'hit', x: v.x, y: v.y - 22, dmg: 2, kb: 0, dir: f.face, who: v.i, by: f.i }); S.sfx('hit_light'); f.hitlag = 3; v.hitlag = 3; }
+      if (f.pumT > 0) f.pumT--;
+      if (f.bufA > 0 && !(f.inp & 15) && f.pumT === 0) { const pd = f.def.moves.pummel.pummel; f.bufA = 0; f.pumT = 8; v.pct += pd.dmg; f.dealt += pd.dmg; S.events.push({ t: 'hit', x: v.x, y: v.y - 22, dmg: pd.dmg, kb: 0, dir: f.face, who: v.i, by: f.i, lag: pd.lag }); S.sfx('hit_light', 0.6); f.hitlag = pd.lag; v.hitlag = pd.lag; }
       const d = dirOf(f);
       const T = f.def.throws;
-      if (f.bufA > 0 || (!f.def.carry && f.ed & (B.L | B.R | B.U | B.D))) {
-        if (T) { if (f.inp & 4) th = T.u; else if (f.inp & 8) th = T.d; else if (d && d !== f.face) th = T.b; else th = T.f; }
-        else if (f.inp & 4) th = { dmg: 8, bkb: 30, gr: 75, ang: 88 }; else if (f.inp & 8) th = { dmg: 6, bkb: 20, gr: 60, ang: 80 };
-        else if (d && d !== f.face) th = { dmg: 10, bkb: 25, gr: 80, ang: 140 }; else if (d) th = { dmg: 9, bkb: 30, gr: 70, ang: 40 };
+      if (f.ed & (B.L | B.R | B.U | B.D | B.A) && !(f.pumT > 0 && f.ed === B.A)) {
+        if (f.bufA > 0 && !(f.inp & 15)) { /* pummel handled above */ }
+        else if (f.inp & 4) th = T.u; else if (f.inp & 8) th = T.d; else if (d && d !== f.face) th = T.b; else if (d) th = T.f;
       }
       if (th) { v.state = 'idle'; v.heldBy = -1; f.hold = -1; releaseHeld(v); hitFighter(S, f, v, th, f.face); f.state = 'idle'; f.st = 0; f.lag = 0; break; }
       if (f.holdT <= 0) { v.state = 'air'; v.heldBy = -1; v.inv = 20; f.hold = -1; f.state = 'idle'; f.st = 0; }
       break;
     }
-    case 'held': { f.inv = Math.max(f.inv, 2); const hd = f.heldBy >= 0 ? S.fighters[f.heldBy] : null; if (!hd || hd.hold !== f.i) { f.state = 'air'; f.heldBy = -1; f.inv = 20; f.st = 0; } break; }      // failsafe: holder no longer holds us
+    case 'held': { f.inv = Math.max(f.inv, 2); const hd = f.heldBy >= 0 ? S.fighters[f.heldBy] : null; if (hd && f.ed & (B.L | B.R | B.U | B.D | B.A | B.K | B.J)) hd.holdT -= 3;      // struggle
+      if (!hd || hd.hold !== f.i) { f.state = 'air'; f.heldBy = -1; f.inv = 20; f.st = 0; } break; }      // failsafe: holder no longer holds us
     case 'egg': {
       f.vx = 0; if (!f.grounded) gravity(f);
       if (f.ed & (B.A | B.K | B.L | B.R | B.U | B.D)) f.eggT -= 2;
@@ -334,13 +356,21 @@ function stepFighter(S, f) {
       const L = S.ledges[f.ledge]; f.vx = 0; f.vy = 0; f.ledgeT++;
       f.x = L.x + L.side * 6; f.y = L.y + 36; f.face = -L.side; f.upUsed = false; f.jumps = f.def.jumps;
       if (f.ledgeT < 30) f.inv = Math.max(f.inv, 2);
-      const toward = dirOf(f) === -L.side, away = dirOf(f) === L.side;
-      if (f.bufJ > 0 && f.ledgeT > 6) { leaveLedge(S, f); f.vy = -vJump(f, f.def.jump * 0.9); f.vx = -L.side * 1.2; f.state = 'air'; f.jumpT = 99; f.jumps = f.def.jumps; f.ledgeLock = 20; }
-      else if ((toward || f.bufA > 0) && f.ledgeT > 6) { leaveLedge(S, f); f.state = 'getup'; f.st = 0; f.inv = 18; f.sx = f.x; f.sy = f.y; f.tx = L.x - L.side * 12; f.ty = L.y; f.bufA = 0; }
-      else if (((f.ed & B.D) || away || f.ledgeT >= 90) && f.ledgeT > 6) { leaveLedge(S, f); f.state = 'air'; f.vy = 0.5; f.ledgeLock = 40; f.ff = false; f.jumps = f.def.jumps; }
+      const toward = dirOf(f) === -L.side, away = dirOf(f) === L.side, P = physOf(f.def);
+      if (f.ledgeT > 6) {
+        if (f.bufJ > 0) { leaveLedge(S, f); f.vy = -P.vFull * 0.95; f.vx = -L.side * 1.4; f.state = 'air'; f.jumpT = 99; f.jumps = f.def.jumps; f.ledgeLock = 20; f.bufJ = 0; }      // ledge jump
+        else if (f.ed & B.S || f.bufS > 0) { leaveLedge(S, f); f.state = 'getup'; f.st = 0; f.inv = 24; f.sx = f.x; f.sy = f.y; f.tx = L.x - L.side * 44; f.ty = L.y; f.gAtk = 0; f.gLen = 26; f.bufS = 0; S.sfx('roll'); }   // ledge roll
+        else if (f.bufA > 0 || f.bufC > 0) { leaveLedge(S, f); f.state = 'getup'; f.st = 0; f.inv = 18; f.sx = f.x; f.sy = f.y; f.tx = L.x - L.side * 14; f.ty = L.y; f.gAtk = 1; f.gLen = 16; f.bufA = 0; f.bufC = 0; }  // getup attack
+        else if (toward) { leaveLedge(S, f); f.state = 'getup'; f.st = 0; f.inv = 18; f.sx = f.x; f.sy = f.y; f.tx = L.x - L.side * 12; f.ty = L.y; f.gAtk = 0; f.gLen = 14; }                // neutral getup
+        else if ((f.ed & B.D) || away || f.ledgeT >= 120) { leaveLedge(S, f); f.state = 'air'; f.vy = 0.5; f.ledgeLock = 40; f.ff = false; f.jumps = f.def.jumps; }
+      }
       break;
     }
-    case 'getup': { const t = Math.min(1, f.st / 14); f.x = f.sx + (f.tx - f.sx) * t; f.y = f.sy + (f.ty - f.sy) * (t * t); f.vx = 0; f.vy = 0; if (f.st >= 14) { f.x = f.tx; f.y = f.ty; f.grounded = true; f.state = 'idle'; f.st = 0; } break; }
+    case 'getup': {
+      const n = f.gLen || 14, t = Math.min(1, f.st / n); f.x = f.sx + (f.tx - f.sx) * t; f.y = f.sy + (f.ty - f.sy) * (t * t); f.vx = 0; f.vy = 0;
+      if (f.st >= n) { f.x = f.tx; f.y = f.ty; f.grounded = true; f.state = 'idle'; f.st = 0; if (f.gAtk) { f.gAtk = 0; startMove(S, f, f.def.moves.getupAtk); } }
+      break;
+    }
     case 'dead': { f.vx = f.vy = 0; if (--f.deadT <= 0) { if (f.stocks > 0) respawn(S, f); else f.state = 'out'; } break; }
     case 'respawn': {
       f.vx = dirOf(f) * 0.8; f.vy = 0; f.respT--; f.inv = Math.max(f.inv, 10);
@@ -357,11 +387,25 @@ function stepFighter(S, f) {
 function leaveLedge(S, f) { if (f.ledge >= 0) S.ledgeOcc[f.ledge] = -1; f.ledge = -1; f.ledgeT = 0; }
 function releaseHeld(v) { v.heldBy = -1; }
 
+function updateDown(S, f) {      // knockdown: lie 10 f, then get up (stand / roll / attack), auto-stand at 30 f
+  f.vx = f.vx > 0.2 ? f.vx - 0.2 : f.vx < -0.2 ? f.vx + 0.2 : 0; f.downT++;
+  if (!f.grounded) { f.state = 'air'; f.st = 0; return; }
+  if (f.downT >= 10) {
+    const d = dirOf(f);
+    if (f.ed & (B.L | B.R)) { f.rollDir = d || f.face; f.state = 'roll'; f.st = 0; S.sfx('roll'); return; }
+    if (f.bufA > 0 || f.bufC > 0) { f.bufA = 0; f.bufC = 0; f.inv = Math.max(f.inv, 8); startMove(S, f, f.def.moves.getupAtk); return; }
+    if (f.ed & (B.U | B.J) || f.downT >= 30) { f.state = 'idle'; f.st = 0; f.inv = Math.max(f.inv, 10); }
+  }
+}
 function postPhysics(S, f) {
   const st = f.state;
   if (f.landed) {
     if (st === 'attack' && f.move && f.moveAir) { const ll = f.move.landLag || 8; releaseHold(S, f); f.move = null; f.hbMove = null; f.state = 'land'; f.lag = ll; f.st = 0; S.sfx('land'); }
-    else if (st === 'hit' && f.hitstun > 0 && !f.tumble) { /* stays in hit */ }
+    else if (st === 'hit' && f.tumble && f.vy >= 0) {
+      // floor contact in tumble: tech (shield pressed within 12 f) or knockdown
+      if (f.bufS > 0) { const d = dirOf(f); f.state = 'tech'; f.st = 0; f.inv = Math.max(f.inv, 16); f.vx = d * 2.6; f.tumble = false; f.hitstun = 0; f.bufS = 0; S.sfx('tech'); S.events.push({ t: 'spark', x: f.x, y: f.y - 4 }); }
+      else { f.state = 'down'; f.st = 0; f.downT = 0; f.tumble = false; f.hitstun = 0; f.vx *= 0.3; S.sfx('land'); S.events.push({ t: 'puff', x: f.x, y: f.y - 4 }); }
+    }
   }
   if (!f.grounded && (st === 'idle' || st === 'run' || st === 'crouch' || st === 'land')) { f.state = 'air'; f.st = 0; }
   if (f.grounded && st === 'attack' && f.move && f.moveAir && !(f.move.noGrav)) { /* landed handled above */ }
@@ -369,7 +413,10 @@ function postPhysics(S, f) {
 
 function updateAttack(S, f) {
   const m = f.move, t = f.mf;
-  if (f.grounded) f.vx *= 0.82; else { airControl(f, 0.3); if (!(m.noGrav && t >= m.noGrav[0] && t <= m.noGrav[1])) gravity(f); }
+  if (f.grounded) f.vx = f.vx > 0.2 ? f.vx - PHYS.traction * 2 : f.vx < -0.2 ? f.vx + PHYS.traction * 2 : 0; else { airControl(f, 0.3); if (!(m.noGrav && t >= m.noGrav[0] && t <= m.noGrav[1])) gravity(f); }
+  if (m.charge != null && t === m.charge && f.chgT < PHYS.smashCharge && f.inp & f.chgBit && S.phase === 'play') {      // smash charge: hold the frame, up to 60 f -> x1.4
+    f.chgT++; f.chgMul = 1 + (PHYS.smashMul - 1) * f.chgT / PHYS.smashCharge; f.armorNow = 0; return;
+  }
   if (m.tick && m.tick(S, f, t)) { endMove(S, f); return; }
   if (m.armor && t >= m.armor[0] && t <= m.armor[1]) f.armorNow = 1;
   f.hbMove = m; f.hbT = t;
@@ -390,8 +437,8 @@ function tryLedge(S, f) {
   return false;
 }
 
-function tryGrab(S, f) {
-  const x0 = f.x + f.face * 6, x1 = f.x + f.face * 26, y = f.y - 22;
+function tryGrab(S, f, reach) {
+  const x0 = f.x + f.face * 6, x1 = f.x + f.face * (reach || 26), y = f.y - 22;
   for (const v of S.fighters) {
     if (v === f || v.inv > 0 || v.state === 'dead' || v.state === 'out' || v.state === 'respawn' || v.state === 'held' || v.state === 'ledge' || v.state === 'getup') continue;
     const caps = hurtCaps(v, _hc);
@@ -461,11 +508,11 @@ function launchDir(f, ang, dir) {
 }
 
 function hitFighter(S, att, vic, h, dir, src) {
-  const dmgMul = att ? att.dmgMult : 1, dmg = h.dmg * dmgMul * (vic.state === 'sleep' ? 1.3 : 1) * (vic.def.takeMul || 1);      // takeMul: creature hp -> how fast percent accrues
+  const dmgMul = att ? att.dmgMult : 1, chg = att && !src && att.chgMul > 1 ? att.chgMul : 1, dmg = h.dmg * dmgMul * chg * (vic.state === 'sleep' ? 1.3 : 1) * (vic.def.takeMul || 1);      // takeMul: creature hp -> how fast percent accrues
   if (vic.state === 'held' || vic.state === 'dead' || vic.state === 'respawn') return false;
   // shield
   if (vic.state === 'shield' && !h.egg && !h.unblock) {
-    vic.sh -= dmg * 1.4 + 1; const lag = Math.floor(dmg / 3) + 2;
+    vic.sh -= dmg * 1.4 + 1; const lag = hitlagOf(dmg) - 2; vic.sst = Math.floor(dmg * 0.55) + 2;      // shieldstun scales with the hit
     if (att) att.hitlag = lag; vic.hitlag = lag; vic.vx = dir * (0.5 + dmg * 0.09); if (att && att.grounded && !src) att.vx = -dir * 0.8;
     S.events.push({ t: 'shield', x: vic.x, y: vic.y - 20, who: vic.i }); S.sfx('shield');
     if (vic.sh <= 0) shieldBreak(S, vic);
@@ -475,7 +522,7 @@ function hitFighter(S, att, vic, h, dir, src) {
   releaseHold(S, vic);
   if (h.eff) { vic.stK = h.eff; vic.stT = 90; }      // creature move effect -> status icon over the victim (visual tag; the dmg/kb shaping lives in the move)
   vic.pct += dmg; if (att) { att.dealt += dmg; meterGain(S, att, dmg * 0.9); } vic.taken += dmg; meterGain(S, vic, dmg * 0.25);
-  let lag = Math.floor(dmg / 3) + 3; if (h.flinch === false) lag = 2;
+  let lag = hitlagOf(dmg); if (h.flinch === false) lag = 2;
   // armor: damage only
   if (vic.armorNow) { vic.hitlag = lag; if (att) att.hitlag = lag; S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb: 0, dir, who: vic.i, by: att ? att.i : -1, armor: 1 }); S.sfx('hit_light'); return true; }
   if (h.sleep) {
@@ -486,28 +533,27 @@ function hitFighter(S, att, vic, h, dir, src) {
     vic.state = 'egg'; vic.eggT = 45 + Math.floor(Math.min(45, vic.pct * 0.45)); vic.move = null; vic.vx = 0; vic.hitlag = 4; if (att) att.hitlag = 4;
     S.sfx('egg'); S.events.push({ t: 'puff', x: vic.x, y: vic.y - 20 }); return true;
   }
-  const kb = (h.bkb + h.gr * (vic.pct / 100)) * wscale(vic.def.weight);
+  const kb = knockback(dmg, vic.pct, vic.def.weight, h.gr, h.bkb);
   if (h.flinch === false || (h.bkb === 0 && h.gr === 0)) {
     vic.hitlag = lag; if (att) att.hitlag = lag;
     S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb: 0, dir, who: vic.i, by: att ? att.i : -1 }); S.sfx('hit_light'); return true;
   }
   vic.hitlag = lag; if (att) att.hitlag = lag;
   vic.pend = { kb, ang: h.ang, dir }; vic.move = null; vic.state = 'hit'; vic.st = 0; vic.hitstun = 999; vic.flash = 4;
-  S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb, dir, who: vic.i, by: att ? att.i : -1 });
-  S.sfx(kb > 60 ? 'hit_heavy' : 'hit_light');
+  S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb, dir, who: vic.i, by: att ? att.i : -1, lag });
+  S.sfx(kb > 60 ? 'hit_heavy' : 'hit_light', hitPitch(dmg));
   return true;
 }
 
 function applyLaunch(S, f) {
   const p = f.pend; f.pend = null; if (!p) return;
-  let [lx, ly] = launchDir(f, p.ang, p.dir);
-  // directional influence: bend up to 15 degrees by the stick component perpendicular to the launch
-  const sx = dirOf(f), sy = (f.inp & 4 ? 1 : 0) - (f.inp & 8 ? 1 : 0);
-  if (sx || sy) { const L = Math.sqrt(sx * sx + sy * sy), ux = sx / L, uy = sy / L, pp = ux * -ly + uy * lx, phi = 15 * pp, c = cosD(phi), s = sinD(phi); const nx = lx * c - ly * s, ny = lx * s + ly * c; lx = nx; ly = ny; }
-  const speed = p.kb * 0.075;
-  f.vx = lx * speed; f.vy = -ly * speed;
+  const dl = launchDir(f, p.ang, p.dir);
+  // directional influence: bend up to PHYS.di (18 deg) by the stick component perpendicular to the launch
+  const sx = dirOf(f), sy = (f.inp & 4 ? 1 : 0) - (f.inp & 8 ? 1 : 0), dv = diBend(dl[0], dl[1], sx, sy, cosD, sinD), lx = dv[0], ly = dv[1];
+  const speed = launchSpeed(p.kb);
+  f.vx = lx * speed; f.vy = -ly * speed; f.kdx = Math.abs(lx) * PHYS.kbDecay; f.kdy = Math.abs(ly) * PHYS.kbDecay;
   if (f.grounded) { if (f.vy > 0) f.vy = -f.vy * 0.4; if (f.vy > -1.4) f.vy = 0; else f.grounded = false; }
-  f.hitstun = Math.max(8, Math.floor(p.kb * 0.4)); f.tumble = p.kb >= 60; f.ff = false; f.upUsed = f.upUsed;
+  f.hitstun = Math.max(6, hitstunOf(p.kb)); f.tumble = p.kb >= 60; f.ff = false; f.helpless = 0;
   if (!f.grounded) f.y -= 0.01;
 }
 
@@ -701,8 +747,8 @@ function stepMatch(S, inputs) {
 
 // ---- input: keyboard + Gamepad API -------------------------------------------------------------
 const KEYMAP = [
-  { KeyA: B.L, KeyD: B.R, KeyW: B.U, KeyS: B.D, KeyJ: B.A, KeyK: B.K, KeyL: B.S, KeyI: B.G, Space: B.J },
-  { ArrowLeft: B.L, ArrowRight: B.R, ArrowUp: B.U, ArrowDown: B.D, Numpad1: B.A, Numpad2: B.K, Numpad3: B.S, Numpad0: B.G, Comma: B.A, Period: B.K, Slash: B.S, Semicolon: B.G, Enter: B.J },
+  { KeyA: B.L, KeyD: B.R, KeyW: B.U, KeyS: B.D, KeyJ: B.A, KeyK: B.K, KeyL: B.S, KeyI: B.G, Space: B.J, ArrowLeft: B.CL, ArrowRight: B.CR, ArrowUp: B.CU, ArrowDown: B.CD },      // P1: arrows = c-stick (smash)
+  { KeyF: B.L, KeyH: B.R, KeyT: B.U, KeyG: B.D, Numpad1: B.A, Numpad2: B.K, Numpad3: B.S, Numpad0: B.G, Comma: B.A, Period: B.K, Slash: B.S, Semicolon: B.G, Enter: B.J },       // P2
 ];
 export class Input {
   constructor() {
@@ -719,76 +765,15 @@ export class Input {
     if (g) {
       const ax = g.axes[0] || 0, ay = g.axes[1] || 0, bt = (i) => g.buttons[i] && g.buttons[i].pressed;
       if (ax < -0.25 || bt(14)) m |= B.L; if (ax > 0.25 || bt(15)) m |= B.R; if (ay < -0.25 || bt(12)) m |= B.U; if (ay > 0.25 || bt(13)) m |= B.D;
+      const cx = g.axes[2] || 0, cy = g.axes[3] || 0; if (cx < -0.5) m |= B.CL; if (cx > 0.5) m |= B.CR; if (cy < -0.5) m |= B.CU; if (cy > 0.5) m |= B.CD;      // right stick = smash
       if (bt(2)) m |= B.A; if (bt(1)) m |= B.K; if (bt(0) || bt(3)) m |= B.J; if (bt(6) || bt(7)) m |= B.S; if (bt(4) || bt(5)) m |= B.G;
     }
     return m;
   }
 }
 
-// ---- CPU bots (3 levels: reaction 12/8/4 frames; approach / space / punish; recovery) ----------
-const BOT_TIERS = [null, { lvl: 1, react: 30, atk: 0.3, edge: false }, { lvl: 2, react: 18, atk: 0.6, edge: false }, { lvl: 3, react: 9, atk: 0.9, edge: true }];
-const botAtkGate = (b, R) => !b.tier || R() < 1 - Math.pow(1 - BOT_TIERS[b.tier].atk, BOT_TIERS[b.tier].react / 60);
-const dm = (d) => (d > 0 ? B.R : d < 0 ? B.L : 0);
-function botInput(S, f) {
-  const b = f.bot; if (S.phase !== 'play') return 0;
-  if (b.tap > 0) { b.tap--; return b.hold | b.tapMask; }
-  if (b.hk > 0) { b.hk--; return B.K; }
-  // world-fight tiers (slot.tier 1 easy / 2 medium / 3 hard): reaction 0.5/0.3/0.15 s, attack chance per second 30/60/90 %; tier 0 = the classic level 1-3 behaviour
-  const tr = b.tier ? BOT_TIERS[b.tier] : null, lvl = tr ? tr.lvl : b.lvl, react = tr ? tr.react : lvl === 1 ? 12 : lvl === 2 ? 8 : 4, miss = lvl === 1 ? 0.3 : lvl === 2 ? 0.12 : 0.03;
-  if (S.frame < b.next) return b.hold;
-  b.next = S.frame + react; b.hold = 0; b.tapMask = 0;
-  let hold = 0, tap = 0; const R = b.rng, st = f.state;
-  const fin = () => { b.hold = hold; b.tapMask = tap; if (tap) b.tap = 1; return hold | tap; };
-  if (st === 'dead' || st === 'out') return fin();
-  const toC = f.x > 0 ? -1 : 1;
-  if (st === 'hit') { hold = dm(toC); return fin(); }
-  if (st === 'egg' || st === 'held' || st === 'sleep') { b.alt = !b.alt; tap = b.alt ? B.A : B.L; return fin(); }
-  if (st === 'respawn') { if (f.respT < 90 && R() < 0.5) tap = B.J; hold = dm(-f.x > 0 ? 1 : -1) * 0; return fin(); }
-  if (st === 'ledge') { const L = S.ledges[f.ledge]; if (f.ledgeT > 25) { hold = dm(-L.side); if (R() < 0.3) tap = B.J; } return fin(); }
-  let E = null, best = 1e9;
-  for (const o of S.fighters) { if (o === f || o.stocks <= 0 || o.state === 'dead' || o.state === 'out') continue; const d = Math.abs(o.x - f.x) + Math.abs(o.y - f.y) * 1.5; if (d < best) { best = d; E = o; } }
-  if (!E) return fin();
-  if (f.final && S.fighters.some((o) => o !== f && o.stocks > 0 && Math.abs(o.x - f.x) < 150 && Math.abs(o.y - f.y) < 70) && R() < 0.5) { hold = B.S; tap = B.K; return fin(); }
-  const edge = 180, dx = E.x - f.x, dy = E.y - f.y, ad = Math.abs(dx), dirT = sgn(dx) || f.face, hint = f.def.hint, range = hint.range;
-  // recover
-  if (!f.grounded && st !== 'attack' && (f.x < -edge - 2 || f.x > edge + 2 || f.y > 28)) {
-    hold = dm(toC);
-    if (lvl === 1 && R() < 0.25) return fin();
-    if (f.vy > 0.3 && f.jumps > 0 && f.y > -5) { tap = B.J; if (f.def.flutter) hold |= B.J; }
-    else if (f.def.flutter && f.flutterT > 0) hold |= B.J;
-    else if (f.vy > 0 && f.jumps === 0 && !f.upUsed && (f.y > 30 || Math.abs(f.x) > edge + 50) && f.state === 'air' && !f.def.hint.noUp) { tap = B.K; hold |= B.U | dm(toC); if (f.fid === 'swift') hold = B.U | dm(toC); }
-    return fin();
-  }
-  if (R() < miss) { if (f.grounded && R() < 0.5) hold = dm(dirT); return fin(); }
-  const eEnd = (E.state === 'attack' && E.move && E.mf > E.move.dur * 0.55) || E.state === 'land' || E.state === 'stun' || E.state === 'shield';
-  if (b.shT > 0) { b.shT -= react; hold = B.S; if (lvl >= 3 && ad < 36 && E.state !== 'attack') { tap = B.G; hold = 0; } return fin(); }
-  if (f.grounded && lvl >= 2 && E.state === 'attack' && ad < range + 40 && R() < (lvl === 2 ? 0.45 : 0.8)) { b.shT = 16; hold = B.S; return fin(); }
-  if (!f.grounded) { // air game
-    if (ad < 44 && Math.abs(dy) < 46) { tap = B.A; hold = dm(dirT); }
-    else { hold = dm(dirT); if (dy < -40 && f.jumps > 0 && f.vy > 0.5) tap = B.J; }
-    if (Math.abs(f.x) > edge - 20 && f.x * dirT > 0 && !(ad < 44)) hold = dm(toC);
-    return fin();
-  }
-  if (b.tier === 3 && !E.grounded && Math.abs(E.x) > edge - 10 && ad > range) { hold = dm(dirT); if (Math.abs(f.x) > edge - 24) hold = 0; if (ad < range + 40 && Math.abs(dy) < 60) tap = B.A; return fin(); }     // edge-guard: stand at the ledge and swat the recovering player
-  const onThin = supportAt(S, f) === 2;
-  if (dy < -40 && ad < 100) { hold = dm(dirT); tap = B.J; return fin(); }
-  if (dy > 45 && onThin && ad < 120) { tap = B.D; hold = 0; return fin(); }
-  if (f.face !== dirT && ad < range + 40 && Math.abs(dy) < 40) { hold = dm(dirT); return fin(); }
-  if (ad < range + 8 && Math.abs(dy) < 40) {
-    if (E.state === 'shield' && lvl >= 2) { tap = B.G; return fin(); }
-    if (!botAtkGate(b, R)) { hold = dm(dirT) * 0; return fin(); }
-    if (eEnd || (lvl >= 3 && R() < 0.5) || (b.tier === 3 && E.state === 'hit')) { tap = B.A; hold = dm(dirT); } else tap = B.A;     // tier 3 chains into hitstun (combo)
-    return fin();
-  }
-  if (hint.ranged && ad > 70 && ad < 220 && Math.abs(dy) < 50 && R() < lvl * 0.22 && S.frame - b.lastB > 40 && f.face === dirT) { tap = B.K; b.lastB = S.frame; return fin(); }
-  if (f.def.hint.kclose && ad < 70 && Math.abs(dy) < 40 && f.face === dirT && R() < 0.1 && S.frame - b.lastB > 50) { b.lastB = S.frame; if (f.fid === 'hauler') { b.hk = 24 + ((R() * 70) | 0); return fin(); } tap = B.K; return fin(); }
-  if (f.fid === 'bounty' && ad > 100 && ad < 230 && f.face === dirT && R() < 0.12 && S.frame - b.lastB > 90) { b.lastB = S.frame; b.hk = 20 + ((R() * 70) | 0); return fin(); }
-  if (f.fid === 'builder' && lvl >= 2 && ad < 90 && R() < 0.14) { tap = B.K; hold = f.res >= 2 && R() < 0.5 ? B.D : 0; return fin(); }
-  if (lvl >= 2 && E.state === 'attack' && !eEnd && ad < range + 35) { hold = dm(-dirT); return fin(); }
-  hold = dm(dirT); if (ad > 150 && lvl >= 2 && R() < 0.2) tap = B.J;
-  if (Math.abs(f.x) > edge - 12 && f.x * dirT > 0) hold = 0;
-  return fin();
-}
+// ---- CPU bots: smash-bot.js (utility planner). Tier 1/2/3 = reaction 20/8/3 frames ----------------------------------------------------
+const botInput = botInputImpl, BOT_TIERS = BOT_TIERS_IMPL;
 
 // ---- renderers ---------------------------------------------------------------------------------
 class GLR {
@@ -941,24 +926,28 @@ function drawStatus(R, f, ix, iy, X, Y, z) {
   for (let i = 0; i < g.length; i++) { const q = g[i]; R.rect(ox + q[0], oy + q[1], q[2], q[3], c[0], c[1], c[2], 1); }
 }
 
-export function newView() { return { x: 0, y: -30, z: 1, shake: 0, flash: 0, fx: [], t: 0, debug: false }; }
+export function newView() { return { x: 0, y: -40, z: 1, shake: 0, flash: 0, fx: [], t: 0, debug: false, hold: 0, slow: 0 }; }
 
+const CAM_MARGIN = 1.5 * PHYS.H, CAM_MINW = 7 * PHYS.H, CAM_MAXW = 20 * PHYS.H;
 export function updateView(view, S) {
   let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9, n = 0;
-  for (const f of S.fighters) { if (f.state === 'dead' || f.state === 'out') continue; n++; minx = Math.min(minx, f.x); maxx = Math.max(maxx, f.x); miny = Math.min(miny, f.y - 50); maxy = Math.max(maxy, f.y + 10); }
+  for (const f of S.fighters) { if (f.state === 'dead' || f.state === 'out') continue; n++; minx = Math.min(minx, f.x); maxx = Math.max(maxx, f.x); miny = Math.min(miny, f.y - 44); maxy = Math.max(maxy, f.y + 4); }
   if (!n) { minx = -60; maxx = 60; miny = -80; maxy = 20; }
-  const w = maxx - minx + 170, h = maxy - miny + 90, z = clamp(Math.min(480 / w, 270 / h), 0.75, 1.5);
-  const b = S.stage.blast; let cx = (minx + maxx) / 2, cy = (miny + maxy) / 2 - 8;
+  // frame both fighters with 1.5 H margin; width clamps to 7..20 H; gentle zoom
+  const w = Math.max(maxx - minx + 2 * CAM_MARGIN, (maxy - miny + CAM_MARGIN) * 480 / 270), wc = clamp(w, CAM_MINW, CAM_MAXW), z = 480 / wc;
+  const b = S.stage.blast; let cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
   cx = clamp(cx, b.l + 240 / z, b.r - 240 / z); cy = clamp(cy, b.t + 135 / z, b.b - 135 / z);
-  view.x += (cx - view.x) * 0.1; view.y += (cy - view.y) * 0.1; view.z += (z - view.z) * 0.08;
-  if (view.shake > 0) view.shake *= 0.85; if (view.shake < 0.1) view.shake = 0; if (view.flash > 0) view.flash--;
+  view.x += (cx - view.x) * 0.08; view.y += (cy - view.y) * 0.08; view.z += (z - view.z) * 0.04;
+  if (view.hold > 0) view.hold--; else { if (view.shake > 0) view.shake *= 0.85; if (view.shake < 0.1) view.shake = 0; }
+  if (view.flash > 0) view.flash--; if (view.slow > 0) view.slow--;
   view.t++; if (view.cine > 0) view.cine--;
+  if (view.hold > 0) return;      // hitstop: particles freeze with the sim
   for (let i = view.fx.length - 1; i >= 0; i--) { const p = view.fx[i]; p.x += p.vx; p.y += p.vy; p.vy += p.g; if (++p.a >= p.life) view.fx.splice(i, 1); }
 }
 export function viewEvent(view, e) {
   const burst = (x, y, n, sp, life, kind, col) => { for (let i = 0; i < n; i++) { const a = (i * 360 / n) + (i * 37 % 29), s = sp * (0.5 + ((i * 7) % 5) / 5); view.fx.push({ x, y, vx: cosD(a) * s, vy: -sinD(a) * s, g: 0.04, a: 0, life, kind, col }); } };
-  if (e.t === 'hit') { burst(e.x, e.y, 5 + Math.min(8, e.dmg | 0), 2.6, 12, 'star', e.col || null); view.shake = Math.max(view.shake, Math.min(5, 1 + e.dmg / 4)); }
-  else if (e.t === 'ko') { view.flash = 3; view.shake = 7; burst(e.x, e.y, 26, 5, 30, 'star', (view.pcol || PCOL)[e.who % 4]); }
+  if (e.t === 'hit') { burst(e.x, e.y, 5 + Math.min(8, e.dmg | 0), 2.6, 12, 'star', e.col || null); view.shake = Math.max(view.shake, Math.min(10, 1 + (e.kb || 0) * 0.05 + e.dmg / 6)); if (e.lag) view.hold = Math.max(view.hold, e.lag); }
+  else if (e.t === 'ko') { view.flash = 3; view.shake = 9; view.slow = 20; view.fx.push({ x: e.x, y: e.y, dx: e.dx || 0, dy: e.dy || 0, vx: 0, vy: 0, g: 0, a: 0, life: 16, kind: 'bz' }); burst(e.x, e.y, 26, 5, 30, 'star', (view.pcol || PCOL)[e.who % 4]); }
   else if (e.t === 'puff') burst(e.x, e.y, 6, 1.1, 14, 'puff', null);
   else if (e.t === 'boom') { view.shake = 6; burst(e.x, e.y, 22, 3.5, 22, 'puff', [1, 0.6, 0.2]); view.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, g: 0, a: 0, life: 8, kind: 'blast' }); }
   else if (e.t === 'ring') { view.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, g: 0, a: 0, life: 36, kind: 'ring' }); }
@@ -1018,6 +1007,7 @@ export function drawScene(R, S, atlas, vis, view, alpha, debug) {
     const an = animOf(f); if (!an) continue;
     let ix = f.x, iy = f.y; if (Math.abs(f.x - f.px) < 30 && Math.abs(f.y - f.py) < 30 && f.hitlag === 0) { ix = f.px + (f.x - f.px) * alpha; iy = f.py + (f.y - f.py) * alpha; }
     if (f.state === 'ledge') { ix = f.x; iy = f.y; }
+    if (f.hitlag > 0 && f.pend) ix += ((view.t & 1) ? 1 : -1) * Math.min(2.5, 0.6 + f.hitlag * 0.25);      // hitlag shake on the one being hit
     const fr = atlas.frame(f.fid, an[0], an[1]), blink = f.inv > 0 && f.state !== 'shield' && f.state !== 'ledge' && (view.t >> 2) & 1;
     if (f.move && f.move.cart && f.state === 'attack') R.img(A, fx.cart.x, fx.cart.y, 40, 22, X(ix - 20), Y(iy - 20), 40 * z, 22 * z, f.face < 0);
     { const tc = (view.tcol && view.tcol[f.i]) || [1, 1, 1]; R.setTint(tc[0], tc[1], tc[2], blink ? 0.45 : 1); }
@@ -1059,6 +1049,7 @@ export function drawScene(R, S, atlas, vis, view, alpha, debug) {
   for (const p of view.fx) {
     const u = p.a / p.life, c = p.col || [1, 1, 1];
     if (p.kind === 'ring') { for (let k = 0; k < 3; k++) { const rr = (6 + p.a * 2.6 - k * 7); if (rr > 2) ring(R, X(p.x), Y(p.y), rr * z, 1, 0.7 + k * 0.1, 0.9, (1 - u) * 0.8); } continue; }
+    if (p.kind === 'bz') { const k = (1 - u) * 0.9, L_ = 140 * z; if (p.dx) R.rect(X(p.x) - 3 * z, Y(p.y) - L_ / 2, 6 * z, L_, 1, 1, 1, k); else R.rect(X(p.x) - L_ / 2, Y(p.y) - 3 * z, L_, 6 * z, 1, 1, 1, k); continue; }
     if (p.kind === 'blast') { circleStrips(R, X(p.x), Y(p.y), (10 + p.a * 6) * z, 1, 0.9, 0.5, 0.5 * (1 - u)); continue; }
     if (p.kind === 'puff') { R.setTint(c[0] * 0.9, c[1] * 0.9, c[2] * 0.9, 0.8 * (1 - u)); R.img(A, fx.dot.x, fx.dot.y, 2, 2, X(p.x), Y(p.y), (3 - u * 2) * z, (3 - u * 2) * z); R.setTint(1, 1, 1, 1); continue; }
     R.setTint(c[0], c[1], c[2], 1 - u * 0.6); const s = (1 + (u < 0.3 ? 1 : 0)) * z; R.img(A, fx.star.x, fx.star.y, 5, 5, X(p.x) - 2.5 * s, Y(p.y) - 2.5 * s, 5 * s, 5 * s); R.setTint(1, 1, 1, 1);
@@ -1093,7 +1084,7 @@ export function createGame(o) {
   }
   function drain() {
     for (const e of g.sim.events) {
-      if (e.t === 'sfx') play(e.n); else viewEvent(g.view, e);
+      if (e.t === 'sfx') play(e.n, e.p); else viewEvent(g.view, e);
       if (ui) ui.onEvent(e, g);
     }
   }
@@ -1122,8 +1113,8 @@ export function createGame(o) {
     const dt = Math.min(100, ts - last); last = ts;
     if (!g.sim || g.paused) { if (g.sim) g.render(1); return; }
     acc += dt; let n = 0;
-    while (acc >= 1000 / 60 && n < 5) {
-      acc -= 1000 / 60; n++;
+    while (acc >= (g.view.slow > 0 ? 2000 / 60 : 1000 / 60) && n < 5) {
+      acc -= (g.view.slow > 0 ? 2000 / 60 : 1000 / 60); n++;
       if (g.sim.phase === 'over' && g._doneSent) { acc = 0; break; }
       const t0 = performance.now(); g.sim.step(masks()); g.simMs += performance.now() - t0; g.simSteps++; drain(); updateView(g.view, g.sim);
       if (g.sim.phase === 'over') g._doneSent = true;

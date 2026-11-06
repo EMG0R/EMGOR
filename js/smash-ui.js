@@ -68,8 +68,8 @@ const CSS = `
 `;
 
 const CTRL_OPTS = [
-  { ctrl: 'p1', label: 'HUMAN  WASD' }, { ctrl: 'p2', label: 'HUMAN  ARROWS' },
-  { ctrl: 'cpu', level: 1, label: 'CPU  LV1' }, { ctrl: 'cpu', level: 2, label: 'CPU  LV2' }, { ctrl: 'cpu', level: 3, label: 'CPU  LV3' }, { ctrl: 'off', label: 'OFF' },
+  { ctrl: 'p1', label: 'HUMAN  WASD' }, { ctrl: 'p2', label: 'HUMAN  FHTG' },
+  { ctrl: 'cpu', level: 1, label: 'CPU  EASY' }, { ctrl: 'cpu', level: 2, label: 'CPU  MED' }, { ctrl: 'cpu', level: 3, label: 'CPU  HARD' }, { ctrl: 'off', label: 'OFF' },
 ];
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
@@ -120,7 +120,7 @@ export function createUI(root) {
     });
     sel.append(el('div', 'sm-info', FIGHTERS[ui.slots[ui.sel].fid].name + ': ' + FIGHTERS[ui.slots[ui.sel].fid].blurb));
     sel.appendChild(row);
-    const go = el('button', 'sm-btn', 'FIGHT'); go.onclick = () => ui.launch(); sel.append(go, el('div', 'sm-keys', 'P1  WASD + J ATTACK  K SPECIAL  L SHIELD  I GRAB  SPACE JUMP     P2  ARROWS + NUM1 / NUM2 / NUM3 / NUM0     PAD SUPPORTED     P PAUSE'));
+    const go = el('button', 'sm-btn', 'FIGHT'); go.onclick = () => ui.launch(); sel.append(go, el('div', 'sm-keys', 'P1  WASD + J ATTACK  K SPECIAL  L SHIELD  I GRAB  SPACE JUMP  ARROWS = SMASH (HOLD TO CHARGE)     P2  FHTG + , . / ;     PAD: RIGHT STICK = SMASH     P PAUSE'));
     previews.forEach(([cv, fn]) => drawPreview(cv, fn(), 0));
   }
   let selTimer = 0;
@@ -140,7 +140,7 @@ export function createUI(root) {
     cards.innerHTML = ''; cardEls = []; cache = [];
     sim.fighters.forEach((f) => {
       const c = el('div', 'sm-card'), d = f.def || FIGHTERS[f.fid];
-      c.innerHTML = '<div class="nm"><i class="sw" style="background:' + PLAYER_COLORS[f.i] + '"></i>P' + (f.i + 1) + ' ' + d.name + (f.ctrl === 'cpu' ? ' <span style="color:rgba(224,170,255,.55)">CPU' + f.level + '</span>' : '') + '</div><div class="pc">0<small>%</small></div><div class="pips"></div>';
+      c.innerHTML = '<div class="nm"><i class="sw" style="background:' + PLAYER_COLORS[f.i] + '"></i>P' + (f.i + 1) + ' ' + d.name + (f.ctrl === 'cpu' ? ' <span style="color:rgba(224,170,255,.55)">CPU ' + ['', 'EASY', 'MED', 'HARD'][f.bot ? f.bot.tier : f.level] + '</span>' : '') + '</div><div class="pc">0<small>%</small></div><div class="pips"></div>';
       cards.appendChild(c); cardEls.push({ c, pc: c.querySelector('.pc'), pips: c.querySelector('.pips') }); cache.push({});
     });
     say('', 0);

@@ -19,8 +19,8 @@ async function wireAudio() {
     const m = await import('./js/ship-audio.js');
     if (m && m.createAudio) {
       audio = m.createAudio({ master: 0.5 });
-      const MAP = { hit_light: 'hit', hit_heavy: 'hit', shot: 'laser', boost: 'boost', ko: 'explosion', jump: 'jump' };
-      sfx.hook = (n) => { try { audio.play(MAP[n] || n); } catch (e) { /* unknown cue */ } };
+      const MAP = { hit_light: 'hit', hit_heavy: 'hit', shot: 'laser', boost: 'boost', ko: 'explosion', jump: 'jump', tech: 'boost' };
+      sfx.hook = (n, p) => { try { audio.play(MAP[n] || n, p ? { pitch: p } : undefined); } catch (e) { /* unknown cue */ } };      // p = hit pitch by damage
       const unlock = () => { audio.unlock(); removeEventListener('pointerdown', unlock); removeEventListener('keydown', unlock); };
       addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
     }
