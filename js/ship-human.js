@@ -357,6 +357,53 @@ export function createHuman(THREE, opts = {}) {
   const attLit = new THREE.SkinnedMesh(new THREE.BufferGeometry(), litMat), attEmi = new THREE.SkinnedMesh(new THREE.BufferGeometry(), emiMat);
   for (const m of [attLit, attEmi]) { m.frustumCulled = false; m.bind(skeleton, lit.bindMatrix); }
   group.add(attLit, attEmi);
+  // ── jet fx: per nozzle an outer (orange) + inner (pale) cone flame hanging off the pack, plus a pooled ring of puffs. Real meshes (not skinned) so the look is identical in every style.
+  const JETFX = { flames: [], puffs: [], t: 0, ph: 0 };
+  const jetFx = new THREE.Group(); jetFx.name = 'jetFx'; bones.pack.add(jetFx); jetFx.position.set(0, 0.44 - 0.66, 0.205 - 0.125);      // = the 'jet' bone origin; the pack bone vibrates, the flames ride it
+  const flameGeo = new THREE.ConeGeometry(1, 1, 7, 1, true); flameGeo.rotateX(Math.PI); flameGeo.translate(0, -0.5, 0);      // apex down, base at y=0, length 1
+  const puffGeo = new THREE.IcosahedronGeometry(1, 0);
+  const flameMatO = new THREE.MeshBasicMaterial({ color: 0xFF8A2A, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const flameMatI = new THREE.MeshBasicMaterial({ color: 0xFFF3C0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const PUFFS = 14;
+  for (let i = 0; i < PUFFS; i++) {
+    const m = new THREE.Mesh(puffGeo, new THREE.MeshBasicMaterial({ color: 0xFFB060, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    m.visible = false; m.frustumCulled = false; m.renderOrder = 5; group.add(m); JETFX.puffs.push({ m, life: 0, max: 0.4, vx: 0, vy: 0, vz: 0 });
+  }
+  function rebuildJetFx() {
+    for (const f of JETFX.flames) jetFx.remove(f.o), jetFx.remove(f.i);
+    JETFX.flames.length = 0;
+    for (const n of jetNozzles) {
+      const o = new THREE.Mesh(flameGeo, flameMatO), i = new THREE.Mesh(flameGeo, flameMatI);
+      for (const m of [o, i]) { m.position.set(n.x, 0, n.z - 0.205); m.frustumCulled = false; m.visible = false; m.renderOrder = 6; jetFx.add(m); }
+      JETFX.flames.push({ o, i, r: n.x === 0 ? 0.034 : 0.026 });
+    }
+  }
+  function updateJetFx(dt, jet, tt) {
+    const on = jet > 0.02;
+    for (let k = 0; k < JETFX.flames.length; k++) {
+      const f = JETFX.flames[k];
+      f.o.visible = f.i.visible = on; if (!on) continue;
+      const fl = (0.13 + 0.42 * jet) * (0.86 + 0.14 * Math.sin(tt * 43 + k * 1.7) + 0.06 * Math.sin(tt * 97 + k)), w = f.r * (1.1 + 0.5 * jet);
+      f.o.scale.set(w, fl, w); f.i.scale.set(w * 0.5, fl * 0.62, w * 0.5);
+    }
+    JETFX.ph += (on ? jet * 38 : 0) * dt;
+    let spawn = JETFX.ph | 0; JETFX.ph -= spawn;
+    for (const p of JETFX.puffs) {
+      if (p.life <= 0 && spawn > 0 && on && jetNozzles.length) {
+        spawn--; const n = jetNozzles[(Math.random() * jetNozzles.length) | 0], fl = 0.13 + 0.42 * jet;
+        p.m.position.set(n.x + (Math.random() - 0.5) * 0.03, n.y - fl * 0.85, n.z + (Math.random() - 0.5) * 0.03);
+        p.vx = (Math.random() - 0.5) * 0.25; p.vz = (Math.random() - 0.5) * 0.25; p.vy = -(0.5 + 0.9 * jet) - Math.random() * 0.3;
+        p.max = p.life = 0.28 + Math.random() * 0.22; p.m.visible = true;
+      }
+      if (p.life > 0) {
+        p.life -= dt; const u = 1 - Math.max(0, p.life) / p.max;
+        if (p.life <= 0) { p.m.visible = false; continue; }
+        p.m.position.x += p.vx * dt; p.m.position.y += p.vy * dt; p.m.position.z += p.vz * dt;
+        p.m.scale.setScalar(0.014 + 0.03 * u + 0.01 * jet);
+        p.m.material.color.setRGB(1, 0.62 - 0.35 * u, 0.25 - 0.15 * u).multiplyScalar(1 - u * u);
+      }
+    }
+  }
   const attSet = { cur: null, lo: null };       // lo = the low-LOD twin's mesh pair (created lazily)
   function setSuit(o) {
     applySuit(o);
@@ -365,6 +412,7 @@ export function createHuman(THREE, opts = {}) {
     attLit.geometry = S.geoLit; attEmi.geometry = S.geoEmi;
     if (attSet.lo) { attSet.lo[0].geometry = S.geoLit; attSet.lo[1].geometry = S.geoEmi; }
     attSet.cur = S; paintSet(S); applyRig();
+    rebuildJetFx();
     emiBase = 1 + 0.2 * cur.suit.scanner;
     group.userData.suit = Object.assign({}, cur.suit); group.userData.role = cur.role; group.userData.extra = cur.extra.slice();
   }
@@ -485,12 +533,13 @@ export function createHuman(THREE, opts = {}) {
     B.pack.rotation.set(jet * 0.018 * Math.sin(t * 47), 0, jet * 0.018 * Math.sin(t * 53 + 1));
     B.pack.position.set(0, 0.10 + jet * 0.003 * Math.sin(t * 71), 0.125 + jet * 0.002 * Math.sin(t * 59));
     const fl = jet > 0.02 ? (0.25 + 1.5 * jet) * (0.88 + 0.12 * Math.sin(t * 43)) : 0.0001;
-    B.jet.scale.set(0.5 + 0.6 * jet + vib * 0.1, fl, 0.5 + 0.6 * jet + vib * 0.1);
+    B.jet.scale.setScalar(0.0001);      // the baked flame boxes stay hidden; updateJetFx drives the visible jet
+    updateJetFx(dt, jet, t);
     emiMat.color.setScalar(emiBase * (1 + scan * 0.55 * (0.5 + 0.5 * Math.sin(t * 9))));
   }
 
   function dispose() {
-    geoLit.dispose(); geoEmi.dispose(); if (loGroup) loGroup.userData.geoms.forEach(g => g.dispose()); attLit.geometry.dispose(); attEmi.geometry.dispose(); if (pet) pet.dispose(); litMat.dispose(); emiMat.dispose(); skeleton.dispose();
+    geoLit.dispose(); geoEmi.dispose(); if (loGroup) loGroup.userData.geoms.forEach(g => g.dispose()); attLit.geometry.dispose(); attEmi.geometry.dispose(); if (pet) pet.dispose(); flameGeo.dispose(); puffGeo.dispose(); flameMatO.dispose(); flameMatI.dispose(); for (const p of JETFX.puffs) p.m.material.dispose(); litMat.dispose(); emiMat.dispose(); skeleton.dispose();
     if (group.parent) group.parent.remove(group);
   }
   return { group, update, setColor, setSuit, setRig, pet, dispose };
