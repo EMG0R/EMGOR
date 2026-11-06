@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normRig, GAITS, skinFor, STYLES, createStyle } from '../../js/ship-styles.js';
 
-test('PILOT rig = today: unit scales, no extras, gait 1, PILOT head 1.3x, helmet-top ~1.0795', () => {
+test('PILOT rig = today: unit scales, no extras, gait 1, PILOT head 1.3x, helmet-top ~1.112', () => {
   const r = normRig(null);
   assert.deepEqual(r.ts, [1, 1, 1]); assert.deepEqual(r.hs, [1.3, 1.3, 1.3]);
   assert.equal(r.arm, 1); assert.equal(r.leg, 1); assert.equal(r.hipOff, 0); assert.deepEqual(r.extras, []);
-  assert.deepEqual(r.gait, GAITS.PILOT); assert.ok(Math.abs(r.top - 1.0795) < 1e-9);
+  assert.deepEqual(r.gait, GAITS.PILOT); assert.ok(Math.abs(r.top - 1.112) < 1e-9);
 });
 test('bad input falls back to defaults / clamps', () => {
   const r = normRig({ headShape: 'dodecahedron', torso: 7, headScale: 'x', limbLen: { arm: 99, leg: -3 }, quills: 'a', tail: { len: 50, spikes: 99 } });
@@ -22,7 +22,7 @@ test('recipes: the five rigs are distinct', () => {
   const R = {}; for (const id of ['MARO', 'JOSHI', 'STEEV', 'SONIK']) R[id] = normRig(skinFor(id).rig, id);
   assert.equal(R.MARO.torso, 'stout'); assert.equal(R.MARO.feet, 'big'); assert.ok(R.MARO.cap); assert.ok(R.MARO.arm < 1); assert.ok(R.MARO.extras.includes('cap')); assert.ok(R.MARO.extras.includes('bigfeet'));
   assert.equal(R.JOSHI.torso, 'lizard'); assert.ok(R.JOSHI.tail.len > 1.5); assert.ok(R.JOSHI.extras.includes('snout') && R.JOSHI.extras.includes('tail') && R.JOSHI.extras.includes('crest'));
-  assert.equal(R.STEEV.headShape, 'cube'); assert.equal(R.STEEV.hs[0], 2); assert.equal(R.STEEV.neck, false); assert.ok(R.STEEV.extras.includes('blocky'));
+  assert.equal(R.STEEV.headShape, 'cube'); assert.equal(R.STEEV.hs[0], 1.2); assert.equal(R.STEEV.neck, false); assert.ok(R.STEEV.extras.includes('blocky'));
   assert.equal(R.SONIK.quills, 5); assert.ok(R.SONIK.leg > 1.3); assert.ok(R.SONIK.torso === 'slim'); assert.ok(R.SONIK.extras.includes('quills') && R.SONIK.extras.includes('visor'));
   const sigs = new Set(Object.values(R).map(r => JSON.stringify([r.ts, r.hs, r.arm, r.leg, r.gait])));
   assert.equal(sigs.size, 4);

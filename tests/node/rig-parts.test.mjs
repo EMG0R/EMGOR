@@ -27,7 +27,7 @@ test('distinguishing features: head shape, torso, limb lengths, feet, tail / qui
 });
 test('hitbox h/r match the recipe height (per style, skin + registry + createStyle)', () => {
   for (const id of IDS) {
-    const r = recipes[id], hipY = 0.52 + 0.5 * (r.leg - 1), top = hipY + (0.93 - 0.52) * r.ts[1] - (r.neck ? 0 : 0.04) + 0.115 * r.hs[1];
+    const r = recipes[id], hipY = 0.52 + 0.5 * (r.leg - 1), top = hipY + (0.93 - 0.52) * r.ts[1] - (r.neck ? 0 : 0.04) + 0.14 * r.hs[1];
     assert.ok(Math.abs(r.top - top) < 1e-9, id + ' top'); assert.ok(Math.abs(r.hitbox.h - top) < 1e-3, `${id} h ${r.hitbox.h} vs ${top}`);
     assert.ok(r.hitbox.r > 0.15 && r.hitbox.r < 0.6, id + ' r ' + r.hitbox.r);
     assert.deepEqual(skinFor(id).hitbox, r.hitbox);
