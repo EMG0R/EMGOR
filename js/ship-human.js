@@ -76,7 +76,7 @@ export function createHuman(THREE, opts = {}) {
 
   // skinned geometry for one LOD: hi = full detail, lo = fewer segments (same bones, same layout)
   function mkBuilder(LO) {
-    const parts = [], emiParts = [], rng = pmul(77);
+    const parts = [], emiParts = [], glassParts = [], rng = pmul(77);
     const SW = LO ? 5 : 8, SH = LO ? 3 : 6;
     function put(geo, hex, bone, o = {}) {
       geo = geo.index ? geo.toNonIndexed() : geo;
@@ -91,7 +91,7 @@ export function createHuman(THREE, opts = {}) {
       geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
       geo.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
       geo.userData = { code: code || (o.panel ? 1 : 0), kind: o.emis ? 'e' : 'l', tint: !!o.tint };
-      (o.emis ? emiParts : parts).push(geo);
+      (o.glass ? glassParts : o.emis ? emiParts : parts).push(geo);
     }
     // a ship-parts part, rigidly bound to one bone. pos/rot place it in the human's bind pose; keeps the part's own colours.
     function putPart(name, params, pos, rot, bone, o = {}) {
@@ -150,7 +150,7 @@ export function createHuman(THREE, opts = {}) {
       const panelMask = [], emiTint = [];
       parts.forEach(g => { for (let i = 0; i < g.attributes.position.count; i++) panelMask.push(g.userData.mask ? g.userData.mask[i] : g.userData.code); });
       emiParts.forEach(g => { for (let i = 0; i < g.attributes.position.count; i++) emiTint.push(g.userData.tint ? 1 : 0); });
-      return { geoLit, geoEmi, panelMask, emiTint };
+      return { geoLit, geoEmi, geoGlass: glassParts.length ? mergeGeometries(glassParts) : null, panelMask, emiTint };
     }
     return { put, putPart, box, ell, cap, cone, rbox, finish };
   }
@@ -186,7 +186,7 @@ export function createHuman(THREE, opts = {}) {
     }
     return finish();
   }
-  const freeSet = S => { S.geoLit.dispose(); S.geoEmi.dispose(); };
+  const freeSet = S => { S.geoLit.dispose(); S.geoEmi.dispose(); if (S.geoGlass) S.geoGlass.dispose(); };
   let hiKey = VIL ? 'b|' + theme.getHex() : null, attKey = null;
   let hi = VIL ? VILLAGER_GEO.acquire(hiKey, () => genGeo('vil')) : genGeo('hi');
   const { geoLit, geoEmi } = hi;
@@ -217,13 +217,13 @@ export function createHuman(THREE, opts = {}) {
     for (let i = 0; i < S.emiTint.length; i++) if (S.emiTint[i]) ec.setXYZ(i, theme.r * 0.6 + 0.4, theme.g * 0.6 + 0.4, theme.b * 0.6 + 0.4);
     lc.needsUpdate = ec.needsUpdate = true;
   }
-  function repaint() { derive(); paintSet(hi); loSets.forEach(paintSet); if (attSet.cur) paintSet(attSet.cur); }
+  function repaint() { derive(); glassMat.color.copy(cols[2]); paintSet(hi); loSets.forEach(paintSet); if (attSet.cur) paintSet(attSet.cur); }
   function setColor(hex) { if (VIL && new THREE.Color(hex).getHex() !== theme.getHex()) unshare(); theme.set(hex); repaint(); }
   paintSet(hi);
 
   // villager sets are shared: a recolour / palette rig first takes private copies so it cannot repaint other villagers
   function unshare() {
-    const cl = S => ({ geoLit: S.geoLit.clone(), geoEmi: S.geoEmi.clone(), panelMask: S.panelMask, emiTint: S.emiTint });
+    const cl = S => ({ geoLit: S.geoLit.clone(), geoEmi: S.geoEmi.clone(), geoGlass: S.geoGlass ? S.geoGlass.clone() : null, panelMask: S.panelMask, emiTint: S.emiTint });
     if (hiKey) { const o = hi; hi = cl(o); VILLAGER_GEO.release(hiKey, freeSet); hiKey = null; lit.geometry = hi.geoLit; emi.geometry = hi.geoEmi; }
     if (attKey) { const o = attSet.cur; attSet.cur = cl(o); VILLAGER_GEO.release(attKey, freeSet); attKey = null; attLit.geometry = attSet.cur.geoLit; attEmi.geometry = attSet.cur.geoEmi; if (attSet.lo) { attSet.lo[0].geometry = attLit.geometry; attSet.lo[1].geometry = attEmi.geometry; } }
   }
@@ -342,7 +342,7 @@ export function createHuman(THREE, opts = {}) {
     }
     if (EX.has('bigmitts')) for (const sx of [-1, 1]) ell(0.1, 0.1, 0.1, sx * 0.195, 0.4, 0, 'A', sx < 0 ? 'hdL' : 'hdR');
     if (EX.has('dome')) {          // JELLY: soft bell over the head + hanging tentacles
-      ell(0.27, 0.24, 0.27, 0, 0.88, 0, 'B', 'head', { half: true, rot: null });
+      ell(0.27, 0.24, 0.27, 0, 0.88, 0, WHITE, 'head', { half: true, rot: null, glass: true });      // Q54: translucent bell, own sorted-last mesh (attGlass)
       for (let i = 0; i < 7; i++) { const a = i / 7 * 2 * PI; cap([Math.cos(a) * 0.23, 0.88, Math.sin(a) * 0.23], [Math.cos(a) * 0.24, 0.62, Math.sin(a) * 0.24], 0.022, i % 2 ? 'A' : 'B', 'torso', { sm: true }); }
     }
     if (EX.has('wings')) for (const sx of [-1, 1]) {
@@ -355,7 +355,7 @@ export function createHuman(THREE, opts = {}) {
       const g3 = new THREE.CircleGeometry(0.2, 10); g3.rotateX(PI / 2); g3.translate(0, y0 + 0.03, 0); put(g3, 'D', 'hips');
     }
     if (EX.has('hood')) { ell(0.175, 0.17, 0.17, 0, 0.945, 0.03, 'T', 'head', { half: false }); cone([0, 1.04, 0.1], [0, 1.1, 0.27], 0.07, 'T', 'head'); }
-    if (EX.has('orbs')) for (let i = 0; i < 3; i++) { const a = i / 3 * 2 * PI; ell(0.036, 0.036, 0.036, Math.cos(a) * 0.36, 0.5 + i * 0.22, Math.sin(a) * 0.36, WHITE, 'orb', { emis: true, tint: true, sm: true }); }
+    if (EX.has('orbs')) for (let i = 0; i < 3; i++) { const a = i / 3 * 2 * PI; ell(0.042, 0.042, 0.042, Math.cos(a) * 0.36, 0.5 + i * 0.22, Math.sin(a) * 0.36, WHITE, 'orb', { emis: true, tint: true, sm: true }); ell(0.075, 0.075, 0.075, Math.cos(a) * 0.36, 0.5 + i * 0.22, Math.sin(a) * 0.36, WHITE, 'orb', { sm: true, glass: true }); }      // Q54: bright core + glass halo
     // villagers
     if (EX.has('strawhat')) { ell(0.26, 0.018, 0.26, 0, 1.0, 0, 0xE8C872, 'head', { sm: true }); ell(0.14, 0.09, 0.14, 0, 1.0, 0, 0xE8C872, 'head', { half: true }); ell(0.145, 0.02, 0.145, 0, 1.03, 0, 'A', 'head', { sm: true }); }
     if (EX.has('beret')) ell(0.19, 0.06, 0.17, 0.02, 1.05, 0, 'A', 'head', { rot: [0, 0, -0.2] });
@@ -368,9 +368,14 @@ export function createHuman(THREE, opts = {}) {
     if (EX.has('satchel')) { rbox(0.09, 0.08, 0.05, 0.02, 0.19, 0.5, -0.02, 0x8A5A3A, 'hips'); cap([-0.13, 0.78, -0.02], [0.17, 0.52, -0.02], 0.007, 0x8A5A3A, 'torso', { sm: true }); }
     return finish();
   }
+  const EMPTY_GEO = new THREE.BufferGeometry();
   const attLit = new THREE.SkinnedMesh(new THREE.BufferGeometry(), litMat), attEmi = new THREE.SkinnedMesh(new THREE.BufferGeometry(), emiMat);
   for (const m of [attLit, attEmi]) { m.frustumCulled = false; m.bind(skeleton, lit.bindMatrix); }
-  group.add(attLit, attEmi);
+  // Q54 translucent layer (JELLY dome): alpha 0.6, no depth write, drawn after everything opaque; tinted from the theme's B colour in repaint()
+  const glassMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide });
+  const attGlass = new THREE.SkinnedMesh(new THREE.BufferGeometry(), glassMat);
+  attGlass.frustumCulled = false; attGlass.renderOrder = 10; attGlass.visible = false; attGlass.bind(skeleton, lit.bindMatrix);
+  group.add(attLit, attEmi, attGlass);
   // ── jet fx: per nozzle an outer (orange) + inner (pale) cone flame hanging off the pack, plus a pooled ring of puffs. Real meshes (not skinned) so the look is identical in every style.
   const JETFX = { flames: [], puffs: [], t: 0, ph: 0 };
   const jetFx = new THREE.Group(); jetFx.name = 'jetFx'; bones.pack.add(jetFx); jetFx.position.set(0, 0.44 - 0.66, 0.205 - 0.125);      // = the 'jet' bone origin; the pack bone vibrates, the flames ride it
@@ -426,11 +431,12 @@ export function createHuman(THREE, opts = {}) {
       const k = 'a|' + theme.getHex() + '|' + cur.vill + '|' + JSON.stringify([cur.suit, cur.role, cur.rig]);
       if (attKey && attKey !== k) VILLAGER_GEO.release(attKey, freeSet), attKey = null;
       if (attKey !== k) { S = VILLAGER_GEO.acquire(k, genAtt); if (!S) return; attKey = k; } else S = attSet.cur;
-    } else { S = genAtt(); if (!S) return; for (const g of [attLit.geometry, attEmi.geometry]) g.dispose(); }
+    } else { S = genAtt(); if (!S) return; for (const g of [attLit.geometry, attEmi.geometry, attGlass.geometry]) if (g !== EMPTY_GEO) g.dispose(); }
     attLit.geometry = S.geoLit; attEmi.geometry = S.geoEmi;
+    attGlass.geometry = S.geoGlass || EMPTY_GEO; attGlass.visible = !!S.geoGlass;
     if (attSet.lo) { attSet.lo[0].geometry = S.geoLit; attSet.lo[1].geometry = S.geoEmi; }
     if (VIL && !jetNozzles.length) jetNozzles.push(new THREE.Vector3(0, 0.44, 0.205));      // cache hit skipped genAtt
-    attSet.cur = S; paintSet(S); applyRig();
+    attSet.cur = S; glassMat.color.copy(cols[2]); paintSet(S); applyRig();
     rebuildJetFx();
     emiBase = 1 + 0.2 * cur.suit.scanner;
     if (VIL) { group.userData.tris = (hi.geoLit.attributes.position.count + hi.geoEmi.attributes.position.count + S.geoLit.attributes.position.count + S.geoEmi.attributes.position.count) / 3; if (group.userData.tris > VILLAGER_TRI_BUDGET) console.warn('villager LOD over budget', group.userData.tris); }
@@ -479,7 +485,7 @@ export function createHuman(THREE, opts = {}) {
   }
   function setRig(rc) { setSuit({ rig: rc, extra: [] }); return cur.rig; }
   // ── procedural animation ──
-  let t = 0, phase = 0, mv = 0, run = 0, air = 0, crouch = 0, pit = 0, wasAir = false, landT = 0, yaw = 0;
+  let t = 0, wingPh = 0, phase = 0, mv = 0, run = 0, air = 0, crouch = 0, pit = 0, wasAir = false, landT = 0, yaw = 0;
   const lerp = (a, b, k) => a + (b - a) * k;
   const damp = (cur, tgt, rate, dt) => cur + (tgt - cur) * (1 - Math.exp(-rate * dt));
 
@@ -546,7 +552,7 @@ export function createHuman(THREE, opts = {}) {
     B.elL.rotation.x = alE; B.elR.rotation.x = arE;
     B.elL.rotation.z = B.elR.rotation.z = 0;
 
-    if (rg.wings) { const fa = 0.18 + 0.5 * air + 0.12 * mv, fl2 = Math.sin(t * (4 + 12 * air)) * fa; B.wgL.rotation.z = -fl2; B.wgR.rotation.z = fl2; }
+    if (rg.wings) { const cd = st.cad == null ? mv : Math.min(1, st.cad), fa = 0.18 + 0.5 * air + 0.12 * mv; wingPh += dt * (4 + 12 * air + 5 * cd * (1 - air)); const fl2 = Math.sin(wingPh) * fa; B.wgL.rotation.z = -fl2; B.wgR.rotation.z = fl2; }      // Q54: beat rate follows cadence on the ground; phase integrated so rate changes do not jump
     if (rg.orbs) B.orb.rotation.y = t * 0.9;
     // jetpack: backpack vibration + nozzle flame scale; scanner: visor pulse (emissive brightness)
     const jet = Math.max(0, Math.min(1, st.jet || 0)), scan = Math.max(0, Math.min(1, st.scan || 0));
@@ -560,7 +566,7 @@ export function createHuman(THREE, opts = {}) {
   }
 
   function dispose() {
-    if (hiKey) VILLAGER_GEO.release(hiKey, freeSet); else freeSet(hi); if (loGroup) loGroup.userData.geoms.forEach(g => g.dispose()); if (attKey) VILLAGER_GEO.release(attKey, freeSet); else { attLit.geometry.dispose(); attEmi.geometry.dispose(); } if (pet) pet.dispose(); flameGeo.dispose(); puffGeo.dispose(); flameMatO.dispose(); flameMatI.dispose(); for (const p of JETFX.puffs) p.m.material.dispose(); litMat.dispose(); emiMat.dispose(); skeleton.dispose();
+    if (hiKey) VILLAGER_GEO.release(hiKey, freeSet); else freeSet(hi); if (loGroup) loGroup.userData.geoms.forEach(g => g.dispose()); if (attKey) VILLAGER_GEO.release(attKey, freeSet); else { attLit.geometry.dispose(); attEmi.geometry.dispose(); if (attGlass.geometry !== EMPTY_GEO) attGlass.geometry.dispose(); } if (pet) pet.dispose(); flameGeo.dispose(); puffGeo.dispose(); glassMat.dispose(); EMPTY_GEO.dispose(); flameMatO.dispose(); flameMatI.dispose(); for (const p of JETFX.puffs) p.m.material.dispose(); litMat.dispose(); emiMat.dispose(); skeleton.dispose();
     if (group.parent) group.parent.remove(group);
   }
   return { group, update, setColor, setSuit, setRig, pet, dispose };

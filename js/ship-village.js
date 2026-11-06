@@ -425,7 +425,7 @@ export function createVillage(engine, u, opts) {
   function ensureHuman(v) {
     if (v.human || v.humanFail) return;
     try {
-      const hm = createHuman(T, { color: ROLE_COL[v.role] || 0xffffff, lod: 'villager' }); hm.group.traverse((q) => { q.frustumCulled = false; });
+      const hm = createHuman(T, { color: ROLE_COL[v.role] || 0xffffff, role: v.role, lod: 'villager' }); hm.group.traverse((q) => { q.frustumCulled = false; });
       const s = v.role === 'kid' ? 1.15 : v.role === 'elder' ? 1.7 : 1.75; hm.group.scale.setScalar(s); hm.group.visible = false; hookRide(hm.group); group.add(hm.group); v.human = hm;
     } catch (e) {
       v.humanFail = true;
