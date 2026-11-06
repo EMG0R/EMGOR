@@ -91,7 +91,7 @@ Legend: `[ ]` todo · `[>]` in progress · `[x]` done · `[~]` blocked (reason i
 - [x] Q52 Rig tri budget: round rigs are 1.6k-2.4k tris; add a villager LOD (≤ 800 tris: no face bone/blink/extras beyond 12 H) and share geometries per style (one BufferGeometry per part shape, instanced colours). Node test: part geometry cache hit rate.
 - [x] Q53 Hub surface floor + station deck floor rects via flPut like the stores (the hub arch still stands on raw terrain; station interior NPCs uncovered by npcAudit). Extend g22 to the hub arch area and the station deck.
 - [x] Q54 JELLY translucent dome (MeshPhysical transmission or alpha 0.6 with depthWrite off, sorted last), HUM wings beat with cad, SEER orbs glow (emissive). Villager role passed explicitly from ship-village.js to createHuman (replace the colour→variant mapping).
-- [ ] BENCHMARK-10: log block.
+- [>] BENCHMARK-10: log block.
 
 ## Notes for the manager (not for the builder)
 Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batches; play-check each BENCHMARK list; merge; append results to GORCAVE-LOG.md.
