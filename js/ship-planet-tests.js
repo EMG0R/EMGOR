@@ -1125,6 +1125,69 @@ async function g21(T, o) {
     return { pass: false, error: 'no village planet', tries: tries };
 }
 
+// ─── 22. structure floors are the ground (2026-11-05): on foot inside every 7/11, Burger House, CVS and village hut the feet stand ON the drawn floor (|feet - floor| <= 0.05 H):
+// centre + 4 points at 70 % of the half-extent + 2 at the door threshold, 30 frames each, then the same after the player is sent 100 L away and back (patch recentre). Hub dungeon: floorAt == drawn floor plane. ───
+async function g22(T, o) {
+    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), ps = ship.ps, hum = ship._g.hum, tries = [], nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    nodes.sort(function (a, b) { return (a.id.indexOf('metagor') >= 0 ? -1 : 0) - (b.id.indexOf('metagor') >= 0 ? -1 : 0); });
+    for (var ni = 0; ni < nodes.length && ni < 4; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) { tries.push(node.id + ': no land dir'); continue; }
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+        if (ship.gmode !== 'foot') { tries.push(node.id + ': not on foot'); continue; }
+        T.step(120); if (!ship.village.make()) { tries.push(node.id + ': no village'); T.fly(); continue; }
+        T.step(300);
+        var w = ship._g.world(), v = ship.village.v, structs = [];
+        function add(name, M, rects, thr) { if (M && rects && rects.length) structs.push({ name: name, M: M, rects: rects, thr: thr }); }
+        (w.stores || []).forEach(function (st, k) { var I = st.interior, f = I && I.floors; if (f && f.length) add('7/11#' + k, I.matrix, f, [[0, f[0].z1 - 0.3], [0, f[2].z0 + 0.5]]); });
+        if (w.burgerHouse && w.burgerHouse.floors) { var bf = w.burgerHouse.floors; add('burger', w.burgerHouse.matrix, bf, [[0, bf[0].z1 - 1.0], [0, bf[0].z1 - 0.3]]); }
+        if (w.cvs && w.cvs.floors) { var cf = w.cvs.floors; add('cvs', w.cvs.matrix, cf, [[0, cf[0].z1 - 1.0], [0, cf[0].z1 - 0.3]]); }
+        if (v && v.solid && v.solid.floors) for (var hi = 0; hi + 1 < v.solid.floors.length; hi += 2) {
+            var hf = [v.solid.floors[hi], v.solid.floors[hi + 1]], st2 = hf[1];
+            add('hut' + (hi / 2), v.solid.m, hf, [[(st2.x0 + st2.x1) / 2, (st2.z0 + st2.z1) / 2], [(st2.x0 * 3 + st2.x1) / 4, (st2.z0 * 3 + st2.z1) / 4]]);
+        }
+        var rows = [], worst = { err: 0, name: '', pt: '' }, bad = 0, nPts = 0, n = new THREE.Vector3(), P0 = new THREE.Vector3(), dd = new THREE.Vector3(), lp = new THREE.Vector3(), inv = new THREE.Matrix4();
+        function drawnFloor(S, dir) {      // radius of the DRAWN floor of S along dir: the highest rect plane that contains the point (structure-local), recomputed from the matrix, independent of ship.js
+            var e = S.M.elements, best = 0; n.set(e[4], e[5], e[6]).normalize(); inv.copy(S.M).invert();
+            for (var r = 0; r < S.rects.length; r++) {
+                var q = S.rects[r]; P0.set(0, q.top, 0).applyMatrix4(S.M); var nd = n.dot(dir); if (nd < 0.5) continue; var rr = n.dot(P0) / nd;
+                lp.copy(dir).multiplyScalar(rr).applyMatrix4(inv);
+                if (lp.x >= q.x0 - 1e-4 && lp.x <= q.x1 + 1e-4 && lp.z >= q.z0 - 1e-4 && lp.z <= q.z1 + 1e-4 && rr > best) best = rr;
+            }
+            return best;
+        }
+        function visit(S, lx, lz, tag, pass) {
+            var q = S.rects[0], top = q.top; P0.set(lx, top, lz).applyMatrix4(S.M); var l = P0.length(); dd.copy(P0).multiplyScalar(1 / l);
+            hum.pos.copy(dd).multiplyScalar(l + 0.5 * H); hum.hr = hum.gr = hum.vh = hum.pos.length(); hum.air = true; hum.vv = 0; T.step(30);
+            dd.copy(hum.pos).normalize(); var fl = drawnFloor(S, dd), err = fl > 0 ? (hum.hr - fl) / H : NaN, ok = fl > 0 && Math.abs(err) <= 0.05 && !hum.air;
+            nPts++; if (!ok) { bad++; } if (!(Math.abs(err) <= worst.err) || isNaN(err)) { if (isNaN(err) || Math.abs(err) > worst.err) worst = { err: isNaN(err) ? 99 : Math.abs(err), name: S.name, pt: tag + '/' + pass, errSigned: +err.toFixed(3), air: hum.air }; }
+            return ok;
+        }
+        function sweep(pass) {
+            structs.forEach(function (S) {
+                var q = S.rects[0], cx = (q.x0 + q.x1) / 2, cz = (q.z0 + q.z1) / 2, hw = (q.x1 - q.x0) / 2, hd = (q.z1 - q.z0) / 2;
+                visit(S, cx, cz, 'c', pass); visit(S, cx + 0.7 * hw, cz + 0.7 * hd, '++', pass); visit(S, cx - 0.7 * hw, cz + 0.7 * hd, '-+', pass); visit(S, cx + 0.7 * hw, cz - 0.7 * hd, '+-', pass); visit(S, cx - 0.7 * hw, cz - 0.7 * hd, '--', pass);
+                visit(S, S.thr[0][0], S.thr[0][1], 'door-in', pass); visit(S, S.thr[1][0], S.thr[1][1], 'door-out', pass);
+            });
+        }
+        sweep('A');
+        var aw = bad, bd = hum.pos.clone().normalize(), ref = Math.abs(bd.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0), e1 = new THREE.Vector3().crossVectors(bd, ref).normalize(), ang = 100 * L / ps.radius;
+        var far = bd.clone().multiplyScalar(Math.cos(ang)).addScaledVector(e1, Math.sin(ang)).normalize(), ffl = ps.floorLocal(far.x, far.y, far.z);
+        hum.pos.copy(far).multiplyScalar(ffl + 0.1 * L); hum.hr = hum.gr = hum.vh = hum.pos.length(); hum.air = true; hum.vv = 0; T.step(60);
+        sweep('B');
+        // hub dungeon: the walkable floor function equals the drawn floor plane (room box bottom)
+        var hbad = [], hub = ship.hub && ship.hub.raw && ship.hub.raw.hub;
+        if (hub && hub.interior) hub.interior.rooms.forEach(function (rm) { var f = hub.interior.floorAt([(rm.box.min[0] + rm.box.max[0]) / 2, 0, (rm.box.min[2] + rm.box.max[2]) / 2]); if (f === null || Math.abs(f - rm.box.min[1]) > 0.05 * 1.75) hbad.push(rm.id + ':' + f + ' vs ' + rm.box.min[1]); });
+        var res = { planet: node.id.split('.').pop(), structures: structs.map(function (S) { return S.name; }), points: nPts, bad: bad, badAfterFirstSweep: aw, worst: worst, hubBad: hbad, tries: tries };
+        res.pass = structs.length >= 3 && bad === 0 && hbad.length === 0;
+        T.fly();
+        return res;
+    }
+    return { pass: false, error: 'no village planet', tries: tries };
+}
+
 async function g20(T, o) {         // Q45: station docking: gotoStation -> Z auto-dock -> lights -> F shop (stock has GOR BALL 1-3) -> buy -> Z undock
     var ship = T.ship, out = { steps: [] }, st;
     T.fly(); await T.pause();
@@ -1156,7 +1219,7 @@ export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
-    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21]];
+    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21], ['g22', g22]];
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         T.reset();
@@ -1168,5 +1231,5 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21 };
+export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21, g22: g22 };
 export { mk as makeHarness };

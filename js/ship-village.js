@@ -13,7 +13,7 @@
 //   village.anchor { dir, up, pos }      village.radius  (m, outer fence)       village.name
 //   village.huts [{ id, tmpl, center:[x,z], box:{min,max}, door:{pos:[x,y,z], front:[x,z], side}, walls:[box] }]
 //   box = { name, min:Vector3, max:Vector3, solid:true, indestructible:true }  in VILLAGE metres. village.walls = every solid box (hut walls + roof slabs + well ring).
-//   village.solid { m, inv, K, hw, hd, hh, a, b }   exactly the entry ship.js' objBegin() hands to objPush (m = village metres -> planet-local).
+//   village.solid { m, inv, K, hw, hd, hh, a, b, floors:[{x0,x1,z0,z1,top}] }  (floors = the drawn hut floors + doorsteps, village metres; the foot collision floor)   exactly the entry ship.js' objBegin() hands to objPush (m = village metres -> planet-local).
 //   village.well { pos:[x,y,z], box:[...] }   village.bell { pos:[x,y,z] }   village.overlaps(planetLocalPos, worldRadius) -> bool (wall within r: STEEV placement refuses)
 //   village.villagers [{ id, name, role: farmer|trader|elder|kid, seed, home (hut index), lines[3], trades?, pos (live, village m), human, inside }]
 //   village.golums [{ id, hp, hpMax, pos (live), target (attacker / mob id string | null), say }]   village.threat { id, t } | null
@@ -152,7 +152,7 @@ export function createVillage(engine, u, opts) {
   }
   const mkBox = (name, x0, y0, z0, x1, y1, z1) => ({ name, min: vec(x0, y0, z0), max: vec(x1, y1, z1), solid: true, indestructible: true });
   const tint = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
-  const walls = [];
+  const walls = [], floorRects = [];
 
   // ── layout ──
   const wellY = Math.max(groundAt(-1.5 * BIG, -1.5 * BIG), groundAt(1.5 * BIG, -1.5 * BIG), groundAt(-1.5 * BIG, 1.5 * BIG), groundAt(1.5 * BIG, 1.5 * BIG), groundAt(0, 0));
@@ -249,6 +249,13 @@ export function createVillage(engine, u, opts) {
     // door torches (a post + flame each side of the door front)
     const pdx = -dr.d[1], pdz = dr.d[0];
     for (const s of [-1, 1]) torches.push({ x: dr.front[0] + pdx * 1.5 * VS * s + dr.d[0] * 0.2, z: dr.front[1] + pdz * 1.5 * VS * s + dr.d[1] * 0.2 });
+    // 2026-11-05: the hut FLOOR is a drawn slab (top = yb) AND the foot collision surface (village.solid.floors -> ship.js mFloor): inside the walls plus a doorstep out to door.front,
+    // so the visible floor and the walkable floor are the same numbers and the sill is flush (yb = the highest ground under the hut, the terrain never pokes through).
+    { const fx0 = cx - hx + TW, fx1 = cx + hx - TW, fz0 = cz - hz + TW, fz1 = cz + hz - TW, fy = yb - 0.3, pc = tint(PATH, 1.05);
+      boxG(LP, LC, fx0, fy, fz0, fx1, yb, fz1, pc); floorRects.push({ x0: fx0, x1: fx1, z0: fz0, z1: fz1, top: yb });
+      const dx0 = Math.min(dr.c[0], dr.front[0]), dx1 = Math.max(dr.c[0], dr.front[0]), dz0 = Math.min(dr.c[1], dr.front[1]), dz1 = Math.max(dr.c[1], dr.front[1]), sw = DOOR_W / 2 + 0.1;
+      const sx0 = dr.d[0] !== 0 ? dx0 - TW : dx0 - sw, sx1 = dr.d[0] !== 0 ? dx1 + TW : dx1 + sw, sz0 = dr.d[1] !== 0 ? dz0 - TW : dz0 - sw, sz1 = dr.d[1] !== 0 ? dz1 + TW : dz1 + sw;
+      boxG(LP, LC, sx0, fy, sz0, sx1, yb, sz1, pc); floorRects.push({ x0: sx0, x1: sx1, z0: sz0, z1: sz1, top: yb }); }
     h.walls = hw;
     h.boxOut = { min: [cx - hx, y0, cz - hz], max: [cx + hx, y1 + 0.35, cz + hz] };
   }
@@ -470,7 +477,7 @@ export function createVillage(engine, u, opts) {
     solid: null, poi: null,
   };
   village.huts = huts.map((h) => ({ id: pid + ':h' + h.idx, tmpl: h.tm.id, center: [h.cx, h.cz], box: h.boxOut, door: { pos: [h.door.c[0], h.yb, h.door.c[1]], front: h.door.front, side: h.side }, walls: h.walls }));
-  village.solid = { m: MAT, inv: INV, K: u, hw: 62 * BIG, hd: 62 * BIG, hh: 14 * BIG, a: walls, b: null };
+  village.solid = { m: MAT, inv: INV, K: u, hw: 62 * BIG, hd: 62 * BIG, hh: 14 * BIG, a: walls, b: null, floors: floorRects };
   village.poi = { kind: 'village', name: vname, pos: anchor.pos.clone() };
   village.drain = () => events.splice(0, events.length);
   village.scanTargets = () => [{ type: 'village', id: pid, kind: 'village', name: 'VILLAGE ' + vname, pos: anchor.pos.clone(), color: village.scanColor }];

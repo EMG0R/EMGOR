@@ -243,14 +243,19 @@ function buildStoreGeoms(T, opts) {
   E.box(2.4, 2.6, 2.4, d.lanes[2], H - 6.0 + 0.2, d.zS, 0x5CE8FF, 0, 0.85); E.box(2.6, 0.4, 2.6, d.lanes[2], H - 3.4 + 0.2, d.zS, 0xF4F8FF, 0, 0.9);
   // apron + parking pads outside
   // 2026-11-05: the apron + parking pads are rigid tangent slabs: on a sphere their far edge (47 su from the centre) sits s^2/2R above the ground (1.0 su at R = 320 L), so they carry the
-  // same 3 su foundation skirt as the main slab (top unchanged at 0.1) and no edge floats down to R ~ 110 L
-  B.box(W + 4, 3.1, 7, 0, -3.0, HD + 3.5, 0x6A6480);
+  // same 3 su foundation skirt as the main slab (top 0.2 = the slab: no sill step) and no edge floats down to R ~ 110 L
+  B.box(W + 4, 3.1, 7, 0, -2.9, HD + 3.5, 0x6A6480);
   if (opts.pads !== false) for (const f of [-0.25, 0.05, 0.3625]) { const px = f * W;
-    B.box(8, 3.1, 10, px, -3.0, HD + 11, 0x5A5470);
-    E.box(8, 0.02, 0.2, px, 0.1, HD + 6.2, 0x2FD9C8); E.box(0.2, 0.02, 10, px - 3.9, 0.1, HD + 11, 0x2FD9C8); E.box(0.2, 0.02, 10, px + 3.9, 0.1, HD + 11, 0x2FD9C8); E.box(2.4, 0.02, 0.4, px, 0.1, HD + 11, 0xFF5CE1);
+    B.box(8, 3.1, 10, px, -2.9, HD + 11, 0x5A5470);
+    E.box(8, 0.02, 0.2, px, 0.2, HD + 6.2, 0x2FD9C8); E.box(0.2, 0.02, 10, px - 3.9, 0.2, HD + 11, 0x2FD9C8); E.box(0.2, 0.02, 10, px + 3.9, 0.2, HD + 11, 0x2FD9C8); E.box(2.4, 0.02, 0.4, px, 0.2, HD + 11, 0xFF5CE1);
   }
-  B.box(1.2, 0.9, 1.2, -0.17 * W, 0.1, HD + 3.2, 0x6A5030); B.box(0.8, 1.0, 0.8, HW + 1, 0.1, HD + 2.4, 0x555064); E.box(0.82, 0.12, 0.82, HW + 1, 1.1, HD + 2.4, 0xFF8A5C);
-  return { body: B.geometry(), emi: E.geometry(), tris: B.tris() + E.tris(), walls, aisles };
+  B.box(1.2, 0.9, 1.2, -0.17 * W, 0.2, HD + 3.2, 0x6A5030); B.box(0.8, 1.0, 0.8, HW + 1, 0.2, HD + 2.4, 0x555064); E.box(0.82, 0.12, 0.82, HW + 1, 1.2, HD + 2.4, 0xFF8A5C);
+  // 2026-11-05: the WALKABLE floor, store-local metres, one source for the visible tops above and the foot collision (ship.js objBegin/mFloor): main tile floor top 0.22,
+  // apron + parking pads top 0.2 (0.02 su under the tile: no sill step), all in the same tangent plane.
+  const floors = [{ x0: -(W - 1) / 2, x1: (W - 1) / 2, z0: -(D - 1) / 2, z1: (D - 1) / 2, top: 0.22 }, { x0: -(W + 1.6) / 2, x1: (W + 1.6) / 2, z0: -(D + 1.6) / 2, z1: (D + 1.6) / 2, top: 0.2 },
+    { x0: -(W + 4) / 2, x1: (W + 4) / 2, z0: HD, z1: HD + 7, top: 0.2 }];
+  if (opts.pads !== false) for (const f of [-0.25, 0.05, 0.3625]) floors.push({ x0: f * W - 4, x1: f * W + 4, z0: HD + 6, z1: HD + 16, top: 0.2 });
+  return { body: B.geometry(), emi: E.geometry(), tris: B.tris() + E.tris(), walls, aisles, floors };
 }
 
 // glass front (two translucent planes either side of the door) + sign planes: facade sign (top strip of the canvas) and the tower board (front and back, lower-left of the canvas)
@@ -331,7 +336,7 @@ function buildBurgerGeoms(T) {
     B.box(1.7, 0.1, 1.1, tx, 0.95, tz, WH); B.box(1.72, 0.04, 1.12, tx, 0.93, tz, RED); B.box(0.16, 0.75, 0.16, tx, 0.2, tz, CHROME);
     for (const s of [-1, 1]) { B.box(0.45, 0.1, 0.45, tx + s * 0.55, 0.55, tz + 0.9, RED); B.box(0.1, 0.35, 0.1, tx + s * 0.55, 0.2, tz + 0.9, CHROME); B.box(0.45, 0.1, 0.45, tx + s * 0.55, 0.55, tz - 0.9, RED); B.box(0.1, 0.35, 0.1, tx + s * 0.55, 0.2, tz - 0.9, CHROME); }
   }
-  return { body: B.geometry(), emi: E.geometry(), tris: B.tris() + E.tris(), walls };
+  return { body: B.geometry(), emi: E.geometry(), tris: B.tris() + E.tris(), walls, floors: [{ x0: -8, x1: 8, z0: -4.4, z1: 9.6, top: 0.2 }] };
 }
 function burgerSignTexture(T) {
   const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
@@ -391,7 +396,7 @@ function buildCvsGeoms(T) {
   B.box(0.3, 6.2, 0.3, 7.2, 0.2, 5.5, RED); B.box(2.0, 2.0, 0.3, 7.2, 5.9, 5.5, DARK);
   E.box(1.5, 0.45, 0.1, 7.2, 6.9, 5.68, 0xFF3A4A); E.box(0.45, 1.5, 0.1, 7.2, 6.4, 5.68, 0xFF3A4A);          // lit red cross on the pylon (vertical + horizontal arm)
   for (const [tx, tz] of [[-5.5, 7.6], [4.6, 8.2]]) { B.box(1.1, 0.1, 1.1, tx, 0.55, tz, WH); B.box(0.16, 0.35, 0.16, tx, 0.2, tz, CHROME); }   // two waiting benches' tops
-  return { body: B.geometry(), emi: E.geometry(), tris: B.tris() + E.tris(), walls };
+  return { body: B.geometry(), emi: E.geometry(), tris: B.tris() + E.tris(), walls, floors: [{ x0: -8, x1: 8, z0: -4.4, z1: 9.6, top: 0.2 }] };
 }
 function cvsSignTexture(T) {
   const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
@@ -611,7 +616,7 @@ function makeInterior(T, geoms, dm) {
   dm = dm || PD; const W = dm.W, D = dm.D, H = dm.H, HW = dm.HW, HD = dm.HD;
   const inv = new T.Matrix4(), tmp = new T.Vector3();
   const it = {
-    floorY: FY, walls: boxV(T, geoms.walls), aisles: boxV(T, geoms.aisles), size: { w: W, d: D, h: H }, unit: 1, matrix: new T.Matrix4(), inverse: inv,
+    floorY: FY, floors: geoms.floors || [], walls: boxV(T, geoms.walls), aisles: boxV(T, geoms.aisles), size: { w: W, d: D, h: H }, unit: 1, matrix: new T.Matrix4(), inverse: inv,
     setMatrix(m, unit) { it.matrix.copy(m); inv.copy(m).invert(); if (unit) it.unit = unit; },
     toParent(v, out) { return (out || new T.Vector3()).copy(v).applyMatrix4(it.matrix); },
     toStore(v, out) { return (out || new T.Vector3()).copy(v).applyMatrix4(inv); },
@@ -914,8 +919,32 @@ export function createWorld(THREE, ps, L, mods) {
     return out;
   }
 
+  // 2026-11-05: SEAT a rigid structure on the ground. The structure's walkable floor (store-local rects, y = top) is a flat tangent plane on a sphere; it is lifted/lowered along
+  // its own up axis until every sampled floor point (rect corners + centre) is at or above the analytic ground under it (+ eps). The plane then touches the ground at its highest
+  // point and floats at most s^2/2R above it elsewhere (hidden by the 3 su foundation skirt), instead of being fixed 0.05 L above the pad. ship.js mFloor uses the same rects.
+  const _sn = new T.Vector3(), _sw = new T.Vector3(), _sg = new T.Vector3();
+  function seatFloors(M, floors, eps) {
+    if (!floors || !floors.length || !ps || !ps.floorLocal) return 0;
+    const e = M.elements; _sn.set(e[4], e[5], e[6]).normalize();
+    let s = -Infinity;
+    for (const f of floors) {
+      const xs = [f.x0, f.x1, f.x0, f.x1, (f.x0 + f.x1) / 2], zs = [f.z0, f.z0, f.z1, f.z1, (f.z0 + f.z1) / 2];
+      for (let k = 0; k < 5; k++) {
+        _sw.set(xs[k], f.top, zs[k]).applyMatrix4(M); const l = _sw.length(); if (!(l > 0)) continue;
+        const fl = ps.floorLocal(_sw.x / l, _sw.y / l, _sw.z / l); if (!(fl > 0)) continue;
+        _sg.copy(_sw).multiplyScalar(fl / l);
+        s = Math.max(s, _sn.dot(_sg) - _sn.dot(_sw));
+      }
+    }
+    if (!isFinite(s)) return 0;
+    s += eps;
+    e[12] += _sn.x * s; e[13] += _sn.y * s; e[14] += _sn.z * s;
+    return s;
+  }
+
   function layoutStore(site) {
     storeMatrix(site.pad, site.M);
+    seatFloors(site.M, site.store.interior.floors, 0.015 * KS);
     const M = site.M, st = site.store;
     st.pos.set(0, 0, 0).applyMatrix4(M);
     const toW = (x, y, z, o) => o.set(x, y, z).applyMatrix4(M);
@@ -954,6 +983,7 @@ export function createWorld(THREE, ps, L, mods) {
     const fwd = padPos.clone().sub(ground); fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.lengthSq() < 1e-12) fwd.set(1, 0, 0).addScaledVector(up, -up.x); fwd.normalize();
     const xA = new T.Vector3().crossVectors(up, fwd).normalize();
     burger.matrix.makeBasis(xA, up, fwd).setPosition(ground); burger.matrix.multiply(_sc.makeScale(KS, KS, KS));
+    seatFloors(burger.matrix, world.burgerHouse && world.burgerHouse.floors, 0.015 * KS);
     burger.node.matrix.copy(burger.matrix); burger.node.matrixWorldNeedsUpdate = true;
     const bh = world.burgerHouse;
     bh.pos.set(0, 0, 0).applyMatrix4(burger.matrix); bh.windowPos.set(0, FY, 5.4).applyMatrix4(burger.matrix); bh.radius = 5.0 * KS;
@@ -970,7 +1000,7 @@ export function createWorld(THREE, ps, L, mods) {
     [body, emi, sign].forEach((m) => { m.frustumCulled = false; node.add(m); });
     group.add(node); hookRide(node);
     cvs = { node, matrix: new T.Matrix4() };
-    world.cvs = { id: world.node.id + '-cvs', name: 'POKEMANS CVS', pos: new T.Vector3(), reviveWin: new T.Vector3(), healWin: new T.Vector3(), radius: 3.0 * KS, matrix: new T.Matrix4(), unit: KS, walls: boxV(T, cg.walls), tris: cg.tris + 12 };
+    world.cvs = { id: world.node.id + '-cvs', name: 'POKEMANS CVS', pos: new T.Vector3(), reviveWin: new T.Vector3(), healWin: new T.Vector3(), radius: 3.0 * KS, matrix: new T.Matrix4(), unit: KS, floors: cg.floors, walls: boxV(T, cg.walls), tris: cg.tris + 12 };
   }
   function layoutCvs() {
     if (!cvs || !cvsSite) return;
@@ -980,6 +1010,7 @@ export function createWorld(THREE, ps, L, mods) {
     const fwd = target.sub(ground); fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.lengthSq() < 1e-12) fwd.set(1, 0, 0).addScaledVector(up, -up.x); fwd.normalize();
     const xA = new T.Vector3().crossVectors(up, fwd).normalize();
     cvs.matrix.makeBasis(xA, up, fwd).setPosition(ground); cvs.matrix.multiply(_sc.makeScale(KS, KS, KS));
+    seatFloors(cvs.matrix, world.cvs && world.cvs.floors, 0.015 * KS);
     cvs.node.matrix.copy(cvs.matrix); cvs.node.matrixWorldNeedsUpdate = true;
     const w = world.cvs;
     w.pos.set(0, 0, 0).applyMatrix4(cvs.matrix); w.reviveWin.set(-CVS_WX, FY, 5.4).applyMatrix4(cvs.matrix); w.healWin.set(CVS_WX, FY, 5.4).applyMatrix4(cvs.matrix);
@@ -1117,7 +1148,7 @@ export function createWorld(THREE, ps, L, mods) {
     world.burgerHouse = {
       id: (world.node ? world.node.id : 'p') + '-burger', name: 'BURGER HOUSE', pos: new T.Vector3(), windowPos: new T.Vector3(), radius: 5.0 * KS, matrix: new T.Matrix4(), unit: K,
       clerk: { name: clerk.name, seed: lex, role: 'fries', known: world.known, human: clerk.human, npc: clerk, say: clerk.say, lines: [clerk.say('fries'), clerk.say('greeting'), clerk.say('fries')] },
-      menu: [FRIES], walls: boxV(T, bg.walls), lex, candidate: null,
+      menu: [FRIES], floors: bg.floors, walls: boxV(T, bg.walls), lex, candidate: null,
     };
     const bhr = world.burgerHouse;
     // every 3rd visit a seeded crew candidate stands by the window; returns it (also bhr.candidate) or null
