@@ -103,17 +103,17 @@ export function createTouch(host) {
     raf = 0; if (!dirty || !shown) return; dirty = false;
     var i, p, on, held2 = false;
     cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, W, H);
-    cx.font = 'bold ' + Math.round(Math.min(W, H) * 0.03) + 'px monospace'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.font = Math.round(Math.min(W, H) * 0.03) + "px Monocraft, ui-monospace, monospace"; cx.textAlign = 'center'; cx.textBaseline = 'middle';
     for (i = 0; i < pads.length; i++) {
       p = pads[i]; on = !!(held[p.code]);
-      circle(p.x, p.y, p.r, on ? 'rgba(170,110,255,0.55)' : 'rgba(40,20,70,0.38)', 'rgba(190,150,255,0.7)');
-      cx.fillStyle = 'rgba(235,225,255,0.9)'; cx.fillText(p.label, p.x, p.y);
+      circle(p.x, p.y, p.r, on ? 'rgba(168,85,247,0.35)' : 'rgba(13,2,33,0.72)', on ? '#A855F7' : 'rgba(168,85,247,0.45)');
+      cx.fillStyle = '#E0AAFF'; cx.fillText(p.label, p.x, p.y);
     }
     if (stick) {
       var R = Math.min(W, H) * STICK_R, kx = stick.x - stick.ox, ky = stick.y - stick.oy, l = Math.sqrt(kx * kx + ky * ky);
       if (l > R) { kx *= R / l; ky *= R / l; }
-      circle(stick.ox, stick.oy, R, 'rgba(40,20,70,0.25)', 'rgba(190,150,255,0.55)');
-      circle(stick.ox + kx, stick.oy + ky, R * 0.42, 'rgba(170,110,255,0.6)', 'rgba(220,200,255,0.8)');
+      circle(stick.ox, stick.oy, R, 'rgba(13,2,33,0.55)', 'rgba(168,85,247,0.45)');
+      circle(stick.ox + kx, stick.oy + ky, R * 0.42, 'rgba(13,2,33,0.72)', '#A855F7');
     }
   }
   function mark() { dirty = true; want(); }
