@@ -495,7 +495,11 @@ export function createVillage(engine, u, opts) {
     }
     return b;
   };
-  village.placement = (opts) => placementReport(villagers.map((v) => ({ x: v.x, z: v.z, y: v.y, inside: v.inside })), walls, [0, 0], opts);
+  // reachability is a straight walk from the well centre: the well ring itself is the start, not an obstacle (it surrounds [0,0], so every straight line crossed it and flagged every villager unreachable); inside/badSpawn keep the full wall set
+  village.placement = (opts) => {
+    const npcs = villagers.map((v) => ({ x: v.x, z: v.z, y: v.y, inside: v.inside })), rep = placementReport(npcs, walls, [0, 0], opts), wl = walls.filter((b) => !/^well-/.test(b.name)), r2 = placementReport(npcs, wl, [0, 0], opts);
+    rep.unreachable = r2.unreachable.filter((i) => rep.inside.indexOf(i) < 0); rep.pass = rep.outsideFrac >= (opts && opts.minOutside != null ? opts.minOutside : 0.7) && !rep.inside.length && !rep.unreachable.length && !rep.badSpawn.length; return rep;
+  };
   village.onHit = (vid, aid) => {
     const v = villagers.find((q) => q.id === vid); if (!v) return false;
     const fresh = !village.threat || village.threat.id !== String(aid);

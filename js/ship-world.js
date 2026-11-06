@@ -928,9 +928,8 @@ export function createWorld(THREE, ps, L, mods) {
     const e = M.elements; _sn.set(e[4], e[5], e[6]).normalize();
     let s = -Infinity;
     for (const f of floors) {
-      const xs = [f.x0, f.x1, f.x0, f.x1, (f.x0 + f.x1) / 2], zs = [f.z0, f.z0, f.z1, f.z1, (f.z0 + f.z1) / 2];
-      for (let k = 0; k < 5; k++) {
-        _sw.set(xs[k], f.top, zs[k]).applyMatrix4(M); const l = _sw.length(); if (!(l > 0)) continue;
+      for (let a = 0; a <= 6; a++) for (let b = 0; b <= 6; b++) {      // 7x7 lattice over the rect (was 5 points: terrain between the corners and the centre rose above the plane at the CVS -+ corner)
+        _sw.set(f.x0 + (f.x1 - f.x0) * a / 6, f.top, f.z0 + (f.z1 - f.z0) * b / 6).applyMatrix4(M); const l = _sw.length(); if (!(l > 0)) continue;
         const fl = ps.floorLocal(_sw.x / l, _sw.y / l, _sw.z / l); if (!(fl > 0)) continue;
         _sg.copy(_sw).multiplyScalar(fl / l);
         s = Math.max(s, _sn.dot(_sg) - _sn.dot(_sw));
