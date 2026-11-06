@@ -781,18 +781,19 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         '<div class="sh-graze"><span>GRAZE</span><b><u></u></b></div><div class="sh-focus"><span>FOCUS</span><b><u></u></b></div>' +
         '<div class="sh-atmo"><span>ATMOSPHERE</span><b><u></u></b></div><div class="sh-ram"></div>' +
         '<div class="sh-incoming"><i></i><span>PLANET INCOMING</span></div>' +
-        '<div class="sh-entry">ENTRY</div><div class="sh-land"></div><div class="sh-alt"></div>' +
+        '<div class="sh-entry">ENTRY</div><div class="gor-prompt sh-land"><div class="gp-r"></div><div class="gp-sub"></div><s class="gp-raw"></s></div><div class="sh-alt"></div>' +
         '<div class="sh-stats"><div class="sh-st-wave"></div><div class="sh-st-en"></div><div class="sh-st-al"></div><div class="sh-st-kills"></div><div class="sh-st-u"></div></div>' +
-        '<div class="sh-speed"></div>' +
+        '<div class="sh-ribbon"><div class="rb-t"></div><div class="rb-n"></div></div>' +
+        '<div class="gor-reveal"><b></b><u></u><i></i></div><div class="gor-toasts"></div>' +
         '<div class="sh-bars">' +
         '<div class="sh-bar sh-thr"><span>THR</span><b><u></u></b></div>' +
         '<div class="sh-bar sh-pul"><span>PULSE</span><b><u></u></b></div></div>' +
         '<div id="ship-chat"><div class="sc-log"></div></div>' +
         '<input id="ship-cmd" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="420" aria-label="Chat or command">' +
-        '<div class="sh-hint"></div>';
+        '';
     document.body.appendChild(hud);
     var elAtmo = hud.querySelector('.sh-atmo'), elAtmoU = elAtmo.querySelector('u'), elRam = hud.querySelector('.sh-ram');
-    var elTarget = hud.querySelector('.sh-target'), elSpeed = hud.querySelector('.sh-speed');
+    var elTarget = hud.querySelector('.sh-target'), elSpeed = hud.querySelector('.sh-ribbon .rb-n'), elRibbon = hud.querySelector('.sh-ribbon'), elStatsBox = hud.querySelector('.sh-stats');
     var elHm = hud.querySelector('.sh-hm'), elDmg = hud.querySelector('.sh-dmg'), elEh = hud.querySelector('.sh-eh:not(.sh-esc)'), elEhT = elEh.querySelector('span');
     var elEdge = hud.querySelector('.sh-edge'), elWave = hud.querySelector('.sh-wave');
     var elHpU = hud.querySelector('.sh-hp u'), elHpN = hud.querySelector('.sh-hp em'), elHp = hud.querySelector('.sh-hp');
@@ -832,35 +833,73 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             elArrows.appendChild(a); arrows.push({ el: a, on: false, x: -1e9, y: -1e9, r: -999 });
         }
     })();
-    var cTarget = '', cSpeed = '', cThr = -1, cPul = -1, cRev = false, cPulsing = false;
+    var cCombat = false, cTarget = '', cSpeed = '', cThr = -1, cPul = -1, cRev = false, cPulsing = false;
     var cTargetEnemy = '', cHp = -1, cWave = '', cEn = '', cKills = '', cEdge = false, cLow = false, cWaveMsg = '', cWaveShow = false, cDead = false;
 
-    // Q04: the hint bar shows 10 s after entering the game and 6 s after any mode change (fly / landed / foot / interior / dock), then fades
-    var elHintBar = hud.querySelector('.sh-hint'), hintMode = '', hintUntil = 0, hintOn = true;
-    // consistency: one hint line per mode, each listing only keys that work there (HELP's key list stays in sync by hand: see HELP)
-    var HINT_BY_MODE = {
-        fly: 'HOLD ESC exit · W throttle · LMB fire · SPACE pulse · SHIFT boost · SHIFT+LMB ram · V scan · T target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X focus fire · Z land (under 3 L) · E inventory · ENTER chat',
-        landed: 'Z step out · HOLD Z or W lift off · E inventory · V scan · ENTER chat · HOLD ESC exit',
-        foot: 'WASD walk · SHIFT run · SPACE jump (hold: jetpack) · LMB attack · F interact / shop / fight · T talk (hold: party) · Z board (hold: lift off, away: summon) · U POKEMANS · 1-9 hotbar · 0 party keys · B throw · E inventory · V scan',
-        ifoot: 'WASD walk · F interact · Z hatch · E inventory · HOLD ESC exit',
-        sfoot: 'WASD walk · F or T interact / talk · Z ship (board, launch) · E inventory · HOLD ESC exit'
-    };
-    function hintTick() {
-        var m = gmode === 'landing' ? 'landed' : gmode, now = performance.now();
-        if (m !== hintMode) { hintUntil = now + (hintMode ? 6000 : 10000); hintMode = m; var ht = HINT_BY_MODE[m] || HINT_BY_MODE.fly; if (elHintBar.textContent !== ht) elHintBar.textContent = ht; }
-        var on = now < hintUntil;
-        if (on !== hintOn) { hintOn = on; elHintBar.classList.toggle('is-faded', !on); }
+    // HUD system: the always-on hint bar is gone. Keys live behind H / /help (gor-help); the onboarding chain gives one short hint on first encounter.
+
+    // ── HUD system: toast queue (one at a time, 4 s each), planet / station name reveal, help panel ──
+    var elToasts = hud.querySelector('.gor-toasts'), toastQ = [], toastCur = null, toastLast = '';
+    function toast(t, ms) {
+        t = String(t || ''); if (!t) return;
+        if (toastQ.length ? toastQ[toastQ.length - 1].t === t : (toastCur && toastLast === t)) return;
+        if (toastQ.length > 5) toastQ.shift();
+        toastQ.push({ t: t, ms: ms || 4000 }); if (!toastCur) toastNext();
     }
+    function toastNext() {
+        var n = toastQ.shift(); if (!n) { toastCur = null; return; }
+        var el = document.createElement('div'); el.className = 'gor-toast'; el.textContent = n.t; elToasts.appendChild(el);
+        toastCur = el; toastLast = n.t;
+        void el.offsetWidth; el.classList.add('is-on');
+        setTimeout(function () {
+            el.classList.add('is-out'); el.classList.remove('is-on'); toastCur = null;
+            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 320);
+            toastNext();
+        }, n.ms);
+    }
+    var elRev = hud.querySelector('.gor-reveal'), revSeen = {}, revTm = 0;
+    function nameReveal(name, sub) {
+        elRev.firstChild.textContent = name; elRev.lastChild.textContent = sub || '';
+        elRev.classList.add('is-on'); clearTimeout(revTm);
+        revTm = setTimeout(function () { elRev.classList.remove('is-on'); }, 3600);
+    }
+    function revealTick() {      // a planet inside ~2.5 R gets its name once; leaving past 4 R re-arms it
+        if (gmode !== 'fly' || dead || photo.on) return;
+        var d = scratchBodies, i, b, id, fired = false;
+        for (i = 0; i < d.length; i++) {
+            b = d[i]; if (!b.R || !b.node || b.node.isSun || b.node.id == null) continue;
+            id = String(b.node.id);
+            if (b.dist < 2.5 * b.R) { if (!revSeen[id] && !fired) { revSeen[id] = 1; fired = true; nameReveal(planetLabel(b.node), fmtDist(b.dist) + ' u'); } }
+            else if (b.dist > 4 * b.R && revSeen[id]) delete revSeen[id];
+        }
+    }
+    var elHelp = document.createElement('div'); elHelp.className = 'gor-panel gor-help';
+    elHelp.innerHTML = '<h4>KEYS<span>H closes</span></h4><div class="gh-g">' + [
+        ['W / mouse', 'throttle / steer'], ['LMB', 'fire'], ['SPACE', 'pulse (hold)'], ['SHIFT', 'boost · +LMB ram'], ['A/D x2 · S x2', 'roll · flip'], ['CTRL', 'drift'],
+        ['Q · X', 'focus · wingmen fire'], ['T', 'target / talk'], ['V', 'scan'], ['Z', 'land · dock · board'], ['HOLD Z / W', 'lift off'], ['F', 'interact · shop · fight'],
+        ['WASD · SHIFT', 'walk · run'], ['SPACE', 'jump · hold jetpack'], ['1-9 · 0', 'hotbar · party keys'], ['U', 'POKEMANS'], ['B', 'throw ball'], ['E', 'inventory'],
+        ['ENTER · /', 'chat'], ['P', 'photo mode'], ['HOLD ESC', 'exit']
+    ].map(function (r) { return '<div class="gh-r"><b>' + qEsc(r[0]) + '</b><span>' + qEsc(r[1]) + '</span></div>'; }).join('') + '</div><div class="gh-f">/wave N · /peaceful · /hostile · /difficulty 1-3 · /quality 0-3 · /volume 0-10 · /weapons · /ship · /help</div>';
+    hud.appendChild(elHelp);
+    function helpToggle(on) { elHelp.classList.toggle('is-on', on === undefined ? !elHelp.classList.contains('is-on') : !!on); }
+    window.addEventListener('keydown', function (e) {
+        if (e.code !== 'KeyH' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || state !== 'piloting' || cmdOpen || storeOpen || invOpen) return;
+        helpToggle();
+    });
     function updateHud(speedNow, enemiesAlive) {
-        hintTick();
+        revealTick();
         var s = (speedNow < 10 ? speedNow.toFixed(1) : String(Math.round(speedNow))) + ' u/s';
-        if (s !== cSpeed) { cSpeed = s; elSpeed.textContent = s; }
+        if (s !== cSpeed) {      // ribbon: number at the right end, ticks offset + fill follow velocity; touched only when the readout changes
+            cSpeed = s; elSpeed.textContent = s;
+            elRibbon.style.setProperty('--rf', (speedNow <= BOOST ? 0.6 * speedNow / BOOST : Math.min(1, 0.6 + 0.4 * Math.log(speedNow / BOOST) / PULSE_LN)).toFixed(3));
+            elRibbon.style.setProperty('--ro', '-' + ((speedNow * 0.5) % 12).toFixed(1) + 'px');
+        }
         var t = Math.round(Math.abs(throttle) * 100);
-        if (t !== cThr) { cThr = t; elThrU.style.transform = 'scaleX(' + (t / 100) + ')'; }
+        if (t !== cThr) { cThr = t; elThrU.style.transform = 'scaleX(' + (t / 100) + ')'; elThr.classList.toggle('is-on', t > 0); }
         var rev = throttle < -0.001;
         if (rev !== cRev) { cRev = rev; elThr.classList.toggle('is-rev', rev); }
         var p = Math.round(pulse * 100);
-        if (p !== cPul) { cPul = p; elPulU.style.transform = 'scaleX(' + (p / 100) + ')'; }
+        if (p !== cPul) { cPul = p; elPulU.style.transform = 'scaleX(' + (p / 100) + ')'; elPulU.parentNode.parentNode.classList.toggle('is-on', p > 0); }
         var pulsing = pulse > 0.5;
         if (pulsing !== cPulsing) { cPulsing = pulsing; hud.classList.toggle('is-pulsing', pulsing); }
         var ts = '';
@@ -876,6 +915,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         var ws = peaceful ? 'PEACEFUL' : 'WAVE ' + shownWave();
         if (ws !== cWave) { cWave = ws; elStWave.textContent = ws; }
+        var cmb = enemiesAlive > 0 && !peaceful;
+        if (cmb !== cCombat) { cCombat = cmb; elStatsBox.classList.toggle('is-combat', cmb); }
         var es = 'ENEMIES ' + enemiesAlive;
         if (es !== cEn) { cEn = es; elStEn.textContent = es; }
         var na = 0; for (var ai = 0; ai < allies.length; ai++) if (allies[ai].alive) na++;
@@ -1318,7 +1359,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         shipRoot.visible = !dead;
         combatRoot.visible = true; fx.bolts.visible = true;
         document.body.classList.add('is-piloting');
-        hud.classList.add('is-on'); hintMode = '';
+        hud.classList.add('is-on');
         label.style.display = 'none'; labelShown = false;
         if (engine.setPilotBlend) engine.setPilotBlend(inFrame ? 1 : 0);
         duck(false);
@@ -4106,7 +4147,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             return ok('HOSTILE');
         }
         if (c === 'ship' || c === 'ships') return r28ShipCmd(parts.slice(1).join(' '));
-        if (c === 'help') return ok(HELP);
+        if (c === 'help') { helpToggle(true); return ok('KEYS · H toggles the key panel'); }
         return bad('UNKNOWN COMMAND · /help');
     }
 
@@ -4204,11 +4245,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var cs = chainN >= 2 ? 'x' + chainN + (chainN >= 3 ? ' · x2 ORBS' : '') : '';
         if (cs !== cChain) { cChain = cs; elChain.textContent = cs; }
         v = od > 0 ? Math.round(od / OD_T * 100) : Math.round(graze / GRAZE_FULL * 100);
-        if (v !== cGraze) { cGraze = v; elGrazeU.style.transform = 'scaleX(' + (v / 100) + ')'; }
+        if (v !== cGraze) { cGraze = v; elGrazeU.style.transform = 'scaleX(' + (v / 100) + ')'; elGraze.classList.toggle('is-on', v > 0); }
         var hot = od > 0;
         if (hot !== cOd) { cOd = hot; elGraze.classList.toggle('is-od', hot); elRet.classList.toggle('is-hot', hot); elGraze.firstChild.textContent = hot ? 'OVERDRIVE' : 'GRAZE'; }
         v = Math.round(focusE / FOCUS_MAX * 50);
-        if (v !== cFocus) { cFocus = v; elFocusU.style.transform = 'scaleX(' + (v / 50) + ')'; }
+        if (v !== cFocus) { cFocus = v; elFocusU.style.transform = 'scaleX(' + (v / 50) + ')'; elFocus.classList.toggle('is-on', v < 50); }
         if (focusing !== cFocusOn) { cFocusOn = focusing; hud.classList.toggle('is-focus', focusing); }
         var tk = Math.round((1 + Math.min(comboN, 12) * 0.06 + tickPunch * 0.45) * 20) / 20;       // reticle tick grows + brightens with combo
         if (tk !== cTickK) { cTickK = tk; elRet.style.setProperty('--tk', tk); }
@@ -4406,7 +4447,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // Inside 1.4 R above BOOST speed: a copy of the hull (shared geometry, scale 1.08) with an additive fresnel fire shader wraps the ship,
     // orange -> white with speed; heat streaks ride fx.setMotion; the planet's rim rumble and a HUD "ENTRY" ride along.
     var entryHeat = 0, sheath = null, sheathHull = null, sheathMat = null;
-    var elEntry = hud.querySelector('.sh-entry'), elLand = hud.querySelector('.sh-land'), elAlt = hud.querySelector('.sh-alt'), cEntry = false, cLandTxt = '', cAltTxt = '';
+    var elEntry = hud.querySelector('.sh-entry'), elLand = hud.querySelector('.gor-prompt'), elAlt = hud.querySelector('.sh-alt'), cEntry = false, cLandTxt = '', cAltTxt = '';
     function ensureSheath() {
         if (sheath && sheathHull === hullObj) return sheath;
         if (sheath) shipRoot.remove(sheath);
@@ -5076,11 +5117,49 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var minR = fo.r + clearL * L;
         if (r < minR) cp.copy(c).addScaledVector(ccV, minR / r);
     }
-    var cLandBig = false;
-    function setPrompt(t, big) {        // rev 19: big = the huge centred E · LAND / E · BOARD call to action
-        big = !!big && !!t;
-        if (t !== cLandTxt) { if (t) aPlay('ui', { vel: 0.5 }); cLandTxt = t; elLand.textContent = t; elLand.classList.toggle('is-on', !!t); }
-        if (big !== cLandBig) { cLandBig = big; elLand.classList.toggle('is-big', big); }
+    // ── HUD system: the one prompt component (.gor-prompt, lower centre). setPrompt(text, ready): `text` is the legacy 'Z · LAND' / 'F · FIGHT · T · TALK' string,
+    // parsed into keycap + verb + dim noun (+ a dim NPC line when the string leads with 'NAME · ROLE   '); `ready` = the action is possible right now. The old
+    // `big` flag arrives as `ready` and no longer changes size. `.sh-land` / `.is-big` stay on the element as the stable hooks the planet tests read.
+    var cLandReady = false, elLandR = elLand.querySelector('.gp-r'), elLandSub = elLand.querySelector('.gp-sub'), elLandRaw = elLand.querySelector('.gp-raw'), gpRingOn = false;
+    function gpCase(x) { x = String(x || '').toLowerCase().trim(); return x.charAt(0).toUpperCase() + x.slice(1); }
+    function gpParse(t) {
+        var out = { sub: '', acts: [], ask: 0 }, k, m, a, re, rest = t;
+        k = rest.indexOf('   ');
+        if (k > 0) { var nm = rest.slice(0, k).split(' · '); out.sub = gpCase(nm[0]) + (nm[1] ? ' · ' + nm[1].toLowerCase() : ''); rest = rest.slice(k).trim(); }
+        m = /FIGHT\? F AGAIN\s*\S*\s*(\d+)/.exec(rest);
+        if (m) { out.ask = +m[1]; rest = rest.replace(/FIGHT\? F AGAIN\s*\S*\s*\d+\s*·?\s*/, 'F · FIGHT · '); }
+        re = /(?:^|\s)([A-Z])\s*·\s*(.+?)(?=\s*·\s*[A-Z]\s*·\s|$)/g;
+        while ((a = re.exec(rest))) {
+            var body = a[2].trim(), parts = body.split(' · '), head = parts[0], noun = parts.slice(1).join(' · '), v, n2 = '';
+            if (/^(STEP OUT|ENTER SHIP|GALAXY MAP)/.test(head)) { v = head; }
+            else { var sp = head.indexOf(' '); v = sp > 0 ? head.slice(0, sp) : head; n2 = sp > 0 ? head.slice(sp + 1) : ''; }
+            out.acts.push({ k: a[1], v: gpCase(v), n: (n2 + (n2 && noun ? ' · ' : '') + noun).toLowerCase() });
+        }
+        if (!out.acts.length && rest) out.acts.push({ k: '', v: gpCase(rest), n: '' });
+        return out;
+    }
+    function setPrompt(t, ready) {
+        t = t || ''; ready = !!ready && !!t;
+        if (t !== cLandTxt) {
+            if (t && !cLandTxt) aPlay('ui', { vel: 0.5 });
+            cLandTxt = t; elLandRaw.textContent = t; elLand.classList.toggle('is-on', !!t);
+            if (!t) { elLandR.textContent = ''; elLandSub.textContent = ''; gpRingOn = false; }
+            else {
+                var p = gpParse(t), h = '', i, a;
+                for (i = 0; i < p.acts.length; i++) {
+                    a = p.acts[i];
+                    h += '<span class="gp-a">' + (a.k ? '<b class="gp-k">' + a.k + (i === 0 && p.ask ? '<svg class="gp-ring" viewBox="0 0 34 34"><circle cx="17" cy="17" r="15.9" pathLength="100"></circle></svg>' : '') + '</b>' : '') + '<span class="gp-v">' + qEsc(a.v) + '</span>' + (a.n ? '<i class="gp-n">' + qEsc(a.n) + '</i>' : '') + '</span>';
+                }
+                if (!(p.ask && gpRingOn)) elLandR.innerHTML = h;
+                elLandSub.textContent = p.sub;
+                var ring = elLandR.querySelector('.gp-ring circle');
+                if (ring && p.ask && !gpRingOn) { gpRingOn = true; ring.style.transitionDuration = p.ask + 's'; void ring.getBoundingClientRect(); ring.classList.add('is-run'); }
+                if (!p.ask) gpRingOn = false;
+                var kb = elLandR.querySelector('.gp-k');
+                if (kb && kb.animate && !ring) { try { kb.animate([{ boxShadow: '0 0 0 0 rgba(0,240,255,0.7)' }, { boxShadow: '0 0 0 6px rgba(0,240,255,0)' }], { duration: 600, easing: 'ease-out' }); } catch (e0) { /* ignore */ } }
+            }
+        }
+        if (ready !== cLandReady) { cLandReady = ready; elLand.classList.toggle('is-ready', ready); elLand.classList.toggle('is-big', ready); }
     }
     // first-person-ish third-person orbit camera helper: camera follows `focus` with its offset smoothed in the focus frame (the world moves under us)
     function groundCam(dt, focus, tp, tq, rate) {
@@ -5850,7 +5929,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 try {
                     var lr = ps.landable(P); landGnd = !!lr.ok;
                     landOk = landGnd && vel.length() < 2;
-                    lmsg = landOk ? 'Z · LAND' : '';      // rev 20b: water / too steep / moonlet say nothing, the prompt just does not appear
+                    lmsg = landGnd ? 'Z · LAND' : '';      // rev 20b: water / too steep / moonlet say nothing; HUD system: over land but moving it rests dim, ready once still
                 } catch (e) { landOk = false; landGnd = false; }
             }
             if (!lmsg && !dead) {       // MOONLET: within 3 R of a body too small to land on
@@ -7807,7 +7886,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     hud.appendChild(elQ);
     var elQWho = elQ.querySelector('.sq-who'), elQList = elQ.querySelector('.sq-list'), elQMsg = elQ.querySelector('.sq-msg');
     var elQT = document.createElement('div'); elQT.className = 'sh-qt'; hud.appendChild(elQT);
-    var elOnb = document.createElement('div'); elOnb.className = 'sh-onb'; hud.appendChild(elOnb);
     function qDay() { var d = new Date(); return d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1) + '-' + d.getUTCDate(); }      // UTC, same basis as station / village stock
     function planetLabel(n) { return n ? String(n.name || n.title || n.id || 'Planet') : ''; }
     function curPlanetId() { var n = (land && land.node) || (world && world.node); return n && n.id != null ? String(n.id) : ''; }
@@ -7991,7 +8069,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var pf = curProfile(); if (!pf) { if (qTrkC) { qTrkC = ''; elQT.textContent = ''; elQT.classList.remove('is-on'); } return; }
         questExpire(); qObjTick(0.5);
         var t = state === 'piloting' ? trackerText() : '';
-        if (t !== qTrkC) { qTrkC = t; elQT.textContent = ''; var parts = t ? t.split('\n\n') : []; for (var i = 0; i < parts.length; i++) { var l = parts[i].split('\n'), d = document.createElement('div'); d.innerHTML = '<b>' + qEsc(l[0]) + '</b><span>' + qEsc(l[1] || '') + '</span>'; elQT.appendChild(d); } elQT.classList.toggle('is-on', !!t); }
+        if (t !== qTrkC) {      // HUD system: one dim line, the first quest, "+N" for the rest
+            qTrkC = t; elQT.textContent = ''; var parts = t ? t.split('\n\n') : [];
+            if (parts.length) { var l = parts[0].split('\n'); elQT.innerHTML = '<b>' + qEsc(l[0]) + '</b><span>' + qEsc(l[1] || '') + (parts.length > 1 ? ' · +' + (parts.length - 1) : '') + '</span>'; }
+            elQT.classList.toggle('is-on', !!t);
+        }
     }
     function questScan() {          // V on the target planet: every highlighted resource / creature in range counts
         var a = activeQuests().filter(function (q) { var s = q.steps.filter(function (x) { return !x.done; })[0]; return s && s.type === 'scan'; });
@@ -8025,9 +8107,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     // ── onboarding (Q26): js/ship-onboard.js chain on profile.onb.c, shown as a tracker entry + HUD marker + a top line for 8 s per new step; plus a START card ──
     var onb = { t: 0, shown: '', hintT: 0, hint: '', line: '', lineT: 0, snapT: 0, card: false, cardT: 0 };
-    var elStart = document.createElement('div'); elStart.className = 'sh-start';
-    elStart.innerHTML = '<b>NO MANS GOR</b>' + OB.START_CARD.map(function (l) { return '<span>' + qEsc(l) + '</span>'; }).join('') + '<i>W TO BEGIN</i>'; hud.appendChild(elStart);
-    function onbSet(t) { if (t !== onb.shown) { onb.shown = t; elOnb.textContent = t; elOnb.classList.toggle('is-on', !!t); } }
+    var elStart = document.createElement('div'); elStart.className = 'gor-toast is-card';
+    elStart.innerHTML = '<b>NO MANS GOR</b>' + OB.START_CARD.map(function (l) { return '<span>' + qEsc(l) + '</span>'; }).join('') + '<i>W to begin</i>'; elToasts.insertBefore(elStart, elToasts.firstChild);
+    function onbSet(t) { if (t !== onb.shown) { onb.shown = t; if (t && t !== onb.tl) { onb.tl = t; toast(t); } } }
     function obChain() { var pf = curProfile(); return pf && pf.onb && pf.onb.c && !OB.finished(pf.onb.c) ? pf.onb.c : null; }
     function obCardShow() { if (!obChain()) return; onb.card = true; onb.cardT = 0; elStart.classList.add('is-on'); }
     function obWon() { var c = obChain(); if (c) { c.won = true; obSync(true); } }
@@ -8063,10 +8145,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (c && !onb.card && !storeOpen && !invOpen && !cmdOpen && !menuOpen && !PT.pm && onb.lineT > 0) { onb.lineT -= dt; txt = onb.line; }
         if (!txt && !storeOpen && !invOpen) {      // first-time hints (one line, 6 s)
             if (onb.hintT > 0) { onb.hintT -= dt; txt = onb.hint; }
-            else if (!o.res && gmode === 'foot' && resFind()) { o.res = true; onb.hint = 'RESOURCE NODE · F TO HARVEST · SELL IT OR CRAFT AT A 7/11'; onb.hintT = 6; writeSave(); }
-            else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear() || (VG.v && VG.v.nearVillager && VG.v.nearVillager(hum.pos, 3 * hOf(L))))) { o.npc = true; onb.hint = 'T TO TALK (THEY MAY HAVE WORK) · F TO FIGHT'; onb.hintT = 6; writeSave(); }
-            else if (!o.roll && gmode === 'fly' && (o.done || o.c.i >= 2)) { o.roll = true; onb.hint = 'A/D TWICE · ROLL · S TWICE · FLIP · CTRL · DRIFT TURN'; onb.hintT = 6; writeSave(); }
-            else if (!o.inv && gmode === 'foot' && (o.done || o.c.i >= 3)) { o.inv = true; onb.hint = 'E INVENTORY · HOLD Z SUMMONS THE SHIP · F FIGHT · T TALK'; onb.hintT = 6; writeSave(); }
+            else if (!o.res && gmode === 'foot' && resFind()) { o.res = true; onb.hint = 'F harvest · sell or craft at 7/11'; onb.hintT = 6; writeSave(); }
+            else if (!o.npc && gmode === 'foot' && world && (world.nearNpc || npcNear() || (VG.v && VG.v.nearVillager && VG.v.nearVillager(hum.pos, 3 * hOf(L))))) { o.npc = true; onb.hint = 'T talk (may have work) · F fight'; onb.hintT = 6; writeSave(); }
+            else if (!o.roll && gmode === 'fly' && (o.done || o.c.i >= 2)) { o.roll = true; onb.hint = 'A/D twice: roll · S twice: flip'; onb.hintT = 6; writeSave(); }
+            else if (!o.inv && gmode === 'foot' && (o.done || o.c.i >= 3)) { o.inv = true; onb.hint = 'E inventory · hold Z: summon ship'; onb.hintT = 6; writeSave(); }
         }
         onbSet(txt);
     }
@@ -9131,9 +9213,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
 
     // ── HUD bits ──
     var elWx = document.createElement('div'); elWx.className = 'sh-wx'; hud.appendChild(elWx);
-    var elEvt = document.createElement('div'); elEvt.className = 'sh-evt'; hud.appendChild(elEvt);
-    var evtHide = 0;
-    function evtBanner(t) { elEvt.textContent = t; elEvt.classList.add('is-on'); clearTimeout(evtHide); evtHide = setTimeout(function () { elEvt.classList.remove('is-on'); }, 9000); }
+    function evtBanner(t) { toast(t); }      // HUD system: events share the one toast queue
 
     // ── 4. suit: tiers from the profile (7/11 GEAR tab rows + crafted kits) ──
     function suitOf(pf) {
