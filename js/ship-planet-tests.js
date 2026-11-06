@@ -588,6 +588,9 @@ async function g10(T, o) {
         await T.pause(); T.fly(); T.near(node);
         var d = T.landDir(node); if (!d) { fails.push({ site: si, why: 'no land dir' }); continue; }
         T.hoverAt(node, d, 2); T.step(40);
+        // Q50: the hover prompt waits on the 8 Hz landable sample, the patch build and the Q03 auto-damp (vel < 2); poll landOk instead of trusting a fixed 40 frames (first run in a batch builds patches/swaps quality tier)
+        var wf = 0; while (wf < 600 && !(ship.ground.landOk && big())) { T.step(1); wf++; }
+        row.hoverWaitFrames = wf;
         row.hoverPrompt = T.text('.sh-land'); row.hoverBig = big();
         T.kd('KeyZ'); T.ku('KeyZ'); T.step(3); row.afterE = ship.gmode;
         var t0 = 0; for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) { T.step(1); t0++; }
