@@ -7,10 +7,10 @@
 // Net model (relay sm.*): host-authoritative. Host sims 60 Hz with guest input masks (sm.in), sends sm.snap at 30 Hz.
 // Guest = full local sim restored from each snapshot, then re-simulated with its own unacked inputs (prediction);
 // remote fighters are drawn from snapshot interpolation. Same seed + same inputs => same engine.hash().
-import { createMatch, botInput, drawScene, newView, updateView, viewEvent, createRenderer, PLAYER_COLORS } from './smash-engine.js';
+import { createMatch, botInput, drawScene, newView, updateView, viewEvent, createRenderer, PLAYER_COLORS, ringStage } from './smash-engine.js';
 import { FIGHTER_IDS, FIGHTERS } from './smash-fighters.js';
 import { buildAtlas } from './smash-sprites.js';
-import { terrainStage, createTerrainVisual } from './smash-stages.js';
+import { createTerrainVisual } from './smash-stages.js';
 import { createUI } from './smash-ui.js';
 
 const STYLE_MAP = { MARO: 'pilot', JOSHI: 'hopper', STEEV: 'builder', SONIK: 'swift' };
@@ -40,7 +40,8 @@ export function createFightSession(opts) {
   const seed = (opts.seed | 0) || 1234, N = fighters.length;
   const samples = opts.stageSamples || new Float32Array(128);
   // world fights ALWAYS use the terrain stage built from the samples; any opts.stage id is ignored
-  const stageDef = terrainStage(samples, 'terrain_' + (seed >>> 0).toString(16));
+  // the ring has its own 2D frame and ONE constant gravity (smash-phys.js): opts.gravity / opts.wind / planet forces are not read. In-world wind only moves 3D particles.
+  const stageDef = ringStage(samples, 'terrain_' + (seed >>> 0).toString(16));
   const cols = fighters.map((f, i) => parseCol((opts.playerColors && opts.playerColors[i]) || f.color || PLAYER_COLORS[i % 4]));
   const cfg = {
     players: fighters.map((f) => ({ fid: f.fid || styleToFighter(f.styleId), def: f.def || null, stocks: f.stocks || 0, ctrl: f.isBot ? 'cpu' : 'net', level: f.level || 2, tier: f.tier || 0 })),
@@ -81,7 +82,7 @@ export function createFightSession(opts) {
   }
   function drainEvents(sim, skipKo) {
     for (const e of sim.events) {
-      if (e.t === 'sfx') { if (opts.onSfx) opts.onSfx(e.n); continue; }
+      if (e.t === 'sfx') { if (opts.onSfx) opts.onSfx(e.n, e.p); continue; }
       if (e.t === 'ko' && skipKo) continue;
       if (e.t === 'over') { if (mode !== 'guest') finishLocal(); }
       viewEvent(view, e); ui.onEvent(e, gameLike);
@@ -230,7 +231,8 @@ export function createFightSession(opts) {
     },
     update(dt) {
       if (!running) return; dt = Math.min(0.1, dt || 0); clock += dt; acc += dt; let n = 0;
-      while (acc >= 1 / 60 && n < 5) { acc -= 1 / 60; n++; if (!(S.phase === 'over' && (mode === 'host' || mode === 'local' ? done : false))) tick(); }
+      while (acc >= (mode === 'local' && view.slow > 0 ? 2 / 60 : 1 / 60) && n < 5) { acc -= (mode === 'local' && view.slow > 0 ? 2 / 60 : 1 / 60); n++;      // KO slow-mo (local fights only: a relayed match must keep 60 Hz lockstep)
+        if (!(S.phase === 'over' && (mode === 'host' || mode === 'local' ? done : false))) tick(); }
       if (n === 5) acc = 0;
       render(acc * 60);
     },

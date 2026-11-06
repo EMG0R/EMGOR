@@ -42,9 +42,11 @@ test('hp -> takeMul (bulky takes less percent), spd -> run/jump', () => {
 test('sim: a creature hit sets the victim status icon and takeMul scales percent', () => {
   const m = mon0('a'), spec = PX.creatureFighter(m), mv = PX.buildMove(m, { name: 'zap', type: 'spark', power: 120, effect: 'burn' }, 'ftilt', { atk: 55, spd: 55, hp: 55 });
   const def = Object.assign({}, spec.def, { moves: Object.assign({}, spec.def.moves, { ftilt: mv }), takeMul: 1 });
-  const S = createMatch({ players: [{ fid: 'pilot', ctrl: 'net' }, { fid: spec.fid, def, ctrl: 'cpu', tier: 3 }], stageDef: terrainStage(new Float32Array(128), 'c'), seed: 9, stocks: 1 });
-  let tagged = false;
-  for (let i = 0; i < 1800 && !tagged; i++) { S.step(S.fighters.map((f) => (f.bot ? botInput(S, f) : 0))); if (S.fighters[0].stK === 'burn') tagged = true; }
+  const S = createMatch({ players: [{ fid: 'pilot', ctrl: 'net' }, { fid: spec.fid, def, ctrl: 'net' }], stageDef: terrainStage(new Float32Array(128), 'c'), seed: 9, stocks: 1 });
+  while (S.phase !== 'play') S.step([0, 0]);
+  S.fighters[0].x = 0; S.fighters[1].x = 44; S.fighters[1].face = -1;
+  let tagged = false;      // scripted: hold toward 8 frames (tilt window 6..14), then A with the direction still held = f-tilt
+  for (let i = 0; i < 120 && !tagged; i++) { S.step([0, i < 8 ? 1 : i < 12 ? 1 | 16 : 0]); if (S.fighters[0].stK === 'burn') tagged = true; }
   assert.ok(tagged, 'burn tag landed'); assert.ok(S.fighters[0].pct > 0);
   for (let i = 0; i < 100; i++) S.step([0, 0]); assert.equal(S.fighters[0].stK, '');      // clears after 90 f
 });
