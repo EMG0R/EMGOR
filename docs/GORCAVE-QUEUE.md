@@ -89,7 +89,7 @@ Legend: `[ ]` todo · `[>]` in progress · `[x]` done · `[~]` blocked (reason i
 - [x] Q50 g10 flake: site 1 (metagor) sometimes never enters landing (hoverBig false, afterE fly, landed false) on the first run in a batch; passes solo. Find the state (quality tier swap, patch rebuild, landOk gating on landStill()/speed, descent governor) that delays the hover prompt and make the harness wait on landOk rather than a fixed frame count, or fix the gate. VERIFY ON MAC: g10 ×3 in batch 1 position.
 - [x] Q51 g15 "no planet" after g4/g14 in the same page: T.reset()/resetWorld does not restore the engaged planet; make the harness re-engage (T.engage retry) at the start of g15, or fix resetWorld. VERIFY ON MAC: ['g4','g14','g15'] batch.
 - [x] Q52 Rig tri budget: round rigs are 1.6k-2.4k tris; add a villager LOD (≤ 800 tris: no face bone/blink/extras beyond 12 H) and share geometries per style (one BufferGeometry per part shape, instanced colours). Node test: part geometry cache hit rate.
-- [ ] Q53 Hub surface floor + station deck floor rects via flPut like the stores (the hub arch still stands on raw terrain; station interior NPCs uncovered by npcAudit). Extend g22 to the hub arch area and the station deck.
+- [>] Q53 Hub surface floor + station deck floor rects via flPut like the stores (the hub arch still stands on raw terrain; station interior NPCs uncovered by npcAudit). Extend g22 to the hub arch area and the station deck.
 - [ ] Q54 JELLY translucent dome (MeshPhysical transmission or alpha 0.6 with depthWrite off, sorted last), HUM wings beat with cad, SEER orbs glow (emissive). Villager role passed explicitly from ship-village.js to createHuman (replace the colour→variant mapping).
 - [ ] BENCHMARK-10: log block.
 
