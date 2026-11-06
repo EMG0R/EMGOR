@@ -966,7 +966,9 @@ async function g15(T, o) {
     mu.night(0); var zb = mu.spawn('zomby', 15, 1); var zh0 = zb && zb.hp; T.step(120, dt); res.zomby = { dayBurn_hp: zb ? +(zh0 - zb.hp).toFixed(2) : -1 }; if (!(zb && zb.hp < zh0 - 0.5)) res.pass = false;
     mu.mobs().forEach(function (m) { m.alive = false; }); mu.night(1);
     var sk = mu.spawn('skelly', 10, 0); T.step(260, dt); res.skelly = { bolts: mu.MB.stats.bolts }; if (!(mu.MB.stats.bolts >= 1)) res.pass = false;
-    var tz = mu.spawn('zomby', 2, 0), tzh = tz && tz.hp; if (!tz) { res.pass = false; res.punch = { dmg: -1, noSpawn: true }; } else hum.hf.copy(tz.w).sub(hum.w);   // Q16: spawn can return null (cap / no ground) depending on earlier mobs in this run T.step(2, dt); mu.punch(); res.punch = { dmg: tz ? +(tzh - tz.hp).toFixed(1) : -1 }; if (!(tz && tzh - tz.hp >= 5.5)) res.pass = false;
+    var tz = mu.spawn('zomby', 2, 0), tzh = tz && tz.hp; if (!tz) { res.pass = false; res.punch = { dmg: -1, noSpawn: true }; } else hum.hf.copy(tz.w).sub(hum.w);
+    // Q16: spawn can return null (cap / no ground) depending on earlier mobs in this run
+    T.step(2, dt); mu.punch(); res.punch = { dmg: tz ? +(tzh - tz.hp).toFixed(1) : -1 }; if (!(tz && tzh - tz.hp >= 5.5)) res.pass = false;
     mu.mobs().forEach(function (m) { m.alive = false; }); mu.night(-1); mu.peaceful(true); ship.rev27.windOff(false);
     ship.mashup.mobs().length = 0; T.clearKeys(); T.fly();
     return res;
