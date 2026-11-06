@@ -361,6 +361,7 @@ export function createHub(engine, L, opts) {
     open, setCleared, serialize, restore, update, dispose, floorAt, roomAt, stats: { tris: Math.round(tris), draws: 9 },
     toHub(v, out) { out = out || new T.Vector3(); return group.worldToLocal(out.copy(v)); }, onRoom: null,
   };
+  if (typeof opts.sync === 'function') group.traverse((o) => { if (o.isMesh) o.onBeforeRender = opts.sync; });      // 2026-11-05: re-pose the ride group at render time (ps.sync): no one-frame spin slip
   return hub;
 }
 

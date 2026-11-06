@@ -123,13 +123,8 @@ export var HEIGHT_GLSL = [
     '}'
 ].join('\n');
 
-var PATCH_VERT = [
-    'uniform float uR; uniform vec3 uC; uniform vec3 uT1; uniform vec3 uT2; uniform float uTan; uniform float uRel; uniform float uTime;',
-    'varying vec3 vDir; varying vec3 vN; varying vec3 vView; varying float vRim; varying float vH; varying vec3 vUp;',
-    '#include <common>',
-    '#include <logdepthbuf_pars_vertex>',
-    NOISE_GLSL,
-    HEIGHT_GLSL,
+// pad-flattened height (shared by the patch and the site-anchored pad discs, so the two are bit-identical wherever a pad is): needs HEIGHT_GLSL + uRel
+var HFUNP_GLSL = [
     'uniform vec3 uPadD[6]; uniform vec3 uPadP[6];',       // outpost pads: local dir, (flat chord, blend chord, height frac)
     'float hfunP(vec3 d) {',
     '    float h = hfun(d);',
@@ -137,7 +132,71 @@ var PATCH_VERT = [
     '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
     '    }',
     '    return uBias + (h - uBias) * uRel;',
+    '}'
+].join('\n');
+
+// 2026-11-05: site-anchored ground disc. Polar grid at a pad centre (never recentres): s = position.xy in the unit disc (z = 1 on the skirt ring),
+// d = normalize(site dir + tangent * s * span). Same hfunP / wave / normal code as PATCH_VERT, + uLift (above the patch) and a skirt that drops under it.
+var DISC_VERT = [
+    'uniform float uR; uniform float uTan; uniform float uRel; uniform float uTime;',
+    'uniform vec3 uSiteD; uniform vec3 uSiteE1; uniform vec3 uSiteE2; uniform float uSpan; uniform float uLift; uniform float uSkirt; uniform float uCell;',
+    'varying vec3 vDir; varying vec3 vN; varying vec3 vView; varying float vRim; varying float vH; varying vec3 vUp;',
+    '#include <common>',
+    '#include <logdepthbuf_pars_vertex>',
+    NOISE_GLSL,
+    HEIGHT_GLSL,
+    HFUNP_GLSL,
+    'float hDisc(vec3 d, float sk) {',
+    '    float h = hfunP(d);',
+    '    float seaV = 1.0 - smoothstep(0.3, 0.55, (h - uBias) / (uAmp * 0.1 + 1e-5));',
+    '    float wv = 0.5 + 0.25 * sin(dot(d, vec3(0.9, 0.2, 0.4)) * 190.0 + uTime * 0.6) + 0.25 * sin(dot(d, vec3(-0.3, 0.8, 0.5)) * 330.0 - uTime * 0.85);',
+    '    h -= 0.002 * (1.0 - wv) * seaV * uRel;',
+    '    return h + uLift - sk * uSkirt;',
     '}',
+    'void main() {',
+    '    vec2 s = position.xy;',
+    '    vec3 d = normalize(uSiteD + (uSiteE1 * s.x + uSiteE2 * s.y) * uSpan);',
+    '    float h = hDisc(d, position.z);',
+    '    vH = h;',
+    '    vec3 ref = abs(d.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);',
+    '    vec3 e1 = normalize(cross(d, ref)); vec3 e2 = cross(d, e1);',
+    '    float eps = max(uEps, uCell * 1.3);',
+    '    vec3 db = normalize(d + e1 * eps); vec3 dc = normalize(d + e2 * eps);',
+    '    vec3 pa = d * (1.0 + h); vec3 pb = db * (1.0 + hDisc(db, 0.0)); vec3 pc = dc * (1.0 + hDisc(dc, 0.0));',
+    '    vec3 nl = normalize(cross(pb - pa, pc - pa));',
+    '    if (dot(nl, d) < 0.0) nl = -nl;',
+    '    vDir = d; vRim = 0.0; vUp = normalize(mat3(modelMatrix) * d);',
+    '    vN = normalize(mat3(modelMatrix) * nl);',
+    '    vec4 wp = modelMatrix * vec4(d * (uR * (1.0 + h)), 1.0);',
+    '    vView = cameraPosition - wp.xyz;',
+    '    gl_Position = projectionMatrix * viewMatrix * wp;',
+    '    #include <logdepthbuf_vertex>',
+    '}'
+].join('\n');
+
+// pure lattice of the disc: nRing rings x nSeg segments (+ one skirt ring at r = SKIRT_R, z = 1). pos = (x, y, skirt flag), idx = triangles. Ring 0 is the centre (nSeg+1 copies).
+export var DISC_SKIRT_R = 1.04;
+export function discLattice(nRing, nSeg) {
+    var rings = nRing + 2, per = nSeg + 1, pos = new Float32Array(rings * per * 3), idx = new Uint16Array((rings - 1) * nSeg * 6), i, j, k = 0;
+    for (j = 0; j < rings; j++) {
+        var r = j <= nRing ? j / nRing : DISC_SKIRT_R, sk = j > nRing ? 1 : 0;
+        for (i = 0; i < per; i++) { var a = (i % nSeg) / nSeg * 6.283185307179586, o = (j * per + i) * 3; pos[o] = Math.cos(a) * r; pos[o + 1] = Math.sin(a) * r; pos[o + 2] = sk; }
+    }
+    for (j = 0; j < rings - 1; j++) for (i = 0; i < nSeg; i++) {
+        var v00 = j * per + i, v10 = v00 + 1, v01 = v00 + per, v11 = v01 + 1;
+        idx[k++] = v00; idx[k++] = v01; idx[k++] = v10; idx[k++] = v10; idx[k++] = v01; idx[k++] = v11;
+    }
+    return { pos: pos, idx: idx, rings: rings, per: per };
+}
+
+var PATCH_VERT = [
+    'uniform float uR; uniform vec3 uC; uniform vec3 uT1; uniform vec3 uT2; uniform float uTan; uniform float uRel; uniform float uTime;',
+    'varying vec3 vDir; varying vec3 vN; varying vec3 vView; varying float vRim; varying float vH; varying vec3 vUp;',
+    '#include <common>',
+    '#include <logdepthbuf_pars_vertex>',
+    NOISE_GLSL,
+    HEIGHT_GLSL,
+    HFUNP_GLSL,
     'vec3 dirAt(vec2 s) {',
     '    vec2 u = s * (0.04 + 0.96 * abs(s * s * s));',     // rev 20: very dense under the ship (cell ~1.5 L at 0.8 L altitude), coarse at the rim
     '    return normalize(uC + (uT1 * u.x + uT2 * u.y) * uTan);',
@@ -837,14 +896,7 @@ var HAZE_VERT = [
     '#include <logdepthbuf_pars_vertex>',
     NOISE_GLSL,
     HEIGHT_GLSL,
-    'uniform vec3 uPadD[6]; uniform vec3 uPadP[6];',
-    'float hfunP(vec3 d) {',
-    '    float h = hfun(d);',
-    '    for (int i = 0; i < 6; i++) {',
-    '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
-    '    }',
-    '    return uBias + (h - uBias) * uRel;',
-    '}',
+    HFUNP_GLSL,
     'void main() {',
     '    float rf = position.x; float an = position.y; float rho = rf * rf;',
     '    vec3 d = normalize(uHC + (uHT1 * cos(an) + uHT2 * sin(an)) * tan(rho * uHAng));',
@@ -1218,6 +1270,60 @@ export function createPlanetSurface(engine, L) {
         pg.setIndex(new THREE.BufferAttribute(idx, 1));
         return pg;
     }
+
+    // ─── 2026-11-05: site-anchored ground discs. The patch lattice is player-centred (cell 28-51 m away from the centre) and cannot resolve a 6-30 m pad; one polar mesh
+    // per active pad slot (0-2 outposts, 3-5 village / hub / CVS) is anchored at the pad centre, uses the patch's own hfunP + pad uniforms (bit-identical inside the pad),
+    // rides 0.02 H above the patch and ends in a skirt ring that drops under it. It never recentres. Shown only while the player is within DISC_VIS x blend of the pad.
+    var DISC_RING = 28, DISC_SEG = 72, DISC_VIS = 3, discGeo = null, discs = [];
+    function discBind(dd) {
+        var pu = alloc.patchU, u = dd.u;
+        for (var k in pu) u[k] = pu[k];
+        dd.mat.uniforms = u; dd.mat.uniformsNeedUpdate = true;
+    }
+    function discMake(i) {
+        if (!discGeo) {
+            var lat = discLattice(DISC_RING, DISC_SEG);
+            discGeo = new THREE.BufferGeometry();
+            discGeo.setAttribute('position', new THREE.BufferAttribute(lat.pos, 3)); discGeo.setIndex(new THREE.BufferAttribute(lat.idx, 1));
+        }
+        var dd = { u: { uSiteD: { value: new THREE.Vector3() }, uSiteE1: { value: new THREE.Vector3() }, uSiteE2: { value: new THREE.Vector3() }, uSpan: { value: 0 }, uLift: { value: 0 }, uSkirt: { value: 0 }, uCell: { value: 0 } },
+            on: false, kx: NaN, ky: 0, kz: 0, kb: 0, kR: 0, kL: 0 };
+        dd.mat = new THREE.ShaderMaterial({
+            uniforms: dd.u, vertexShader: DISC_VERT, fragmentShader: PATCH_FRAG, transparent: true, depthWrite: true, toneMapped: false, side: THREE.DoubleSide,
+            polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4
+        });
+        dd.mesh = new THREE.Mesh(discGeo, dd.mat);
+        dd.mesh.frustumCulled = false; dd.mesh.renderOrder = -0.5; dd.mesh.visible = false; dd.mesh.name = 'ps-disc' + i;
+        dd.mesh.onBeforeRender = syncRide; alloc.ride.add(dd.mesh);
+        discBind(dd); discs[i] = dd; return dd;
+    }
+    function discsTick() {
+        var a = alloc, near = !isGas && a.patchU.uFade.value > 0.98, i;
+        for (i = 0; i < NPADU; i++) {
+            var pp = a.patchU.uPadP.value[i], pd = a.patchU.uPadD.value[i], dd = discs[i], on = false;
+            if (near && pp.y > 0) {
+                var cx = dirObj.x - pd.x, cy = dirObj.y - pd.y, cz = dirObj.z - pd.z;
+                on = Math.sqrt(cx * cx + cy * cy + cz * cz) < DISC_VIS * pp.y;
+            }
+            if (!on) { if (dd) dd.on = false; continue; }
+            if (!dd) dd = discMake(i);
+            dd.on = true;
+            if (dd.kx !== pd.x || dd.ky !== pd.y || dd.kz !== pd.z || dd.kb !== pp.y || dd.kR !== R || dd.kL !== L) {        // pad moved / re-laid / planet rescaled: re-anchor (no allocation)
+                dd.kx = pd.x; dd.ky = pd.y; dd.kz = pd.z; dd.kb = pp.y; dd.kR = R; dd.kL = L;
+                var u = dd.u, D = u.uSiteD.value, e1 = u.uSiteE1.value, e2 = u.uSiteE2.value;
+                D.copy(pd).normalize();
+                if (Math.abs(D.y) < 0.9) e1.set(D.z, 0, -D.x); else e1.set(0, -D.z, D.y);
+                e1.normalize(); e2.crossVectors(D, e1).normalize();
+                u.uSpan.value = Math.tan(2 * Math.asin(Math.min(1, pp.y * 0.5)));
+                u.uCell.value = pp.y / DISC_RING;
+                u.uLift.value = 0.004 * L / R;           // 0.02 H (H = 0.2 L)
+                u.uSkirt.value = 0.1 * L / R;            // 0.5 H under the patch
+            }
+            dd.mat.depthWrite = a.patchMat.depthWrite;
+        }
+    }
+    ps.patchCentre = function (out) { return patchSet ? out.copy(C) : null; };      // object-space unit dir the lattice is centred on (tests: prove a recentre happened)
+    ps.discInfo = function (i) { var dd = discs[i]; return dd ? { on: dd.on, visible: dd.mesh.visible, span: dd.u.uSpan.value } : null; };
 
     ps.footMode = false;      // rev 20b: ship.js sets this while the human is out (smaller, denser patch)
     ps.quality = qTier;
@@ -1917,6 +2023,7 @@ export function createPlanetSurface(engine, L) {
         look = lookFromPalette(col3(u.uColLow.value), col3(u.uColHigh.value)); pu.uLook.value = look;
         var A = col3(u.uAtmo.value);
         alloc.domeU.uAtmo.value.setRGB(A[0], A[1], A[2]);
+        for (var dbi = 0; dbi < discs.length; dbi++) if (discs[dbi]) discBind(discs[dbi]);
         floraSet = false; rockSet = false; sporeSet = false; ffSet = false;
     }
 
@@ -1952,6 +2059,7 @@ export function createPlanetSurface(engine, L) {
 
     function showObjs(on) {
         if (!alloc) return;
+        for (var di = 0; di < discs.length; di++) if (discs[di]) discs[di].mesh.visible = on && discs[di].on;
         alloc.patch.visible = on; alloc.dome.visible = on; alloc.streaks.visible = on && (rimI > 0.002 || wxStreakA > 0.02);
         alloc.rain.visible = on && rainN > 0; alloc.aurora.visible = on && wxAurA > 0.01;
         for (var si = 0; si < NSCAR; si++) alloc.scars[si].mesh.visible = on && alloc.scars[si].ttl > 0;
@@ -2654,6 +2762,7 @@ export function createPlanetSurface(engine, L) {
             pu2.uClear.value = hazeClear; pu2.uHazeA.value = 0.3 * (1 - smoothstep(25 * L, 105 * L, altG)) * (1 - 0.5 * ps.weather.storm);
             hazeVis = pu2.uHazeA.value > 0.01;
         } else hazeVis = false;
+        discsTick();
         showObjs(ps.visible);
     };
 
@@ -2674,6 +2783,7 @@ export function createPlanetSurface(engine, L) {
     };
 
     // 2026-10-14: ship.js runs ps.update BEFORE it moves the camera on the ground (audit A4); this re-centres the camera-attached sky dome afterwards
+    ps.sync = syncRide;      // onBeforeRender hook for ground objects outside this module (village, hub, world, station): re-pose the ride group at render time
     ps.syncDome = function () { if (alloc && node) { alloc.dome.position.copy(camera.position); alloc.dome.updateMatrixWorld(); } };
     ps.setVisible = function (v) {
         ps.visible = !!v;
@@ -2748,6 +2858,10 @@ export function createPlanetSurface(engine, L) {
     ps.meshFloorLocal = function (x, y, z) {
         if (!node || !alloc || !patchSet) return ps.floorLocal(x, y, z);
         var l = Math.sqrt(x * x + y * y + z * z) || 1, dx = x / l, dy = y / l, dz = z / l;
+        for (var pi = 0; pi < pads.length; pi++) {       // inside a pad (flat + blend) the ground IS the analytic height: the site disc renders it, the player-centred lattice could not
+            var pq = pads[pi], pcx = dx - pq.d.x, pcy = dy - pq.d.y, pcz = dz - pq.d.z;
+            if (pcx * pcx + pcy * pcy + pcz * pcz < pq.blend * pq.blend) return R * (1 + hFrac(dx, dy, dz));
+        }
         var dc = dx * C.x + dy * C.y + dz * C.z;
         if (dc < 0.2) return R * (1 + hFrac(dx, dy, dz));
         var tn = a_tan(), vx = dx / dc - C.x, vy = dy / dc - C.y, vz = dz / dc - C.z;

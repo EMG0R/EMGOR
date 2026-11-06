@@ -1723,18 +1723,19 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     // ─── 2026-10-14: structure sites of the active planet, known from 3 R (before the village / hub are built): sky beacon columns + HUD markers ───
     var SITE = { cache: {}, nid: '', R: 0, vill: null, villPos: new THREE.Vector3(), hubPos: new THREE.Vector3(), hubOk: false, prefer: new THREE.Vector3(), cvsOk: false, cvsTried: false, cvsDir: new THREE.Vector3(), cvsPos: new THREE.Vector3() };
+    function siteRadOk(r) { var pr = ps.radius; return r > 0 && pr > 0 && Math.abs(r / pr - 1) < 0.004; }      // 2026-11-05: same 0.4 % tolerance ship-planet uses for a rescaled planet (strict equality re-ran the search on float noise)
     function fnv(s0) { var h = 2166136261, s = String(s0); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }      // = ship-hub hashStr (its seed for hubSpot)
     function villagePn(node) {             // the planetNode both villageSite (prediction) and createVillage (build) see: identical inputs -> identical site
         var pid = String(node.id), avoid = [], i;
         if (ps.outposts) for (i = 0; i < ps.outposts.length; i++) if (ps.outposts[i].dir) avoid.push(ps.outposts[i].dir.clone().normalize());
         return { id: pid, name: pid, radius: ps.radius, biome: ps.lookOf ? ps.lookOf(node) : 'rocky', avoid: avoid, prefer: ps.siteDir ? SITE.prefer.copy(ps.siteDir).clone() : null, preferCap: ps.siteCap || 0.15,
-            site: (SITE.vill && SITE.nid === pid && SITE.R === ps.radius) ? SITE.vill : null,
+            site: (SITE.vill && SITE.nid === pid && siteRadOk(SITE.R)) ? SITE.vill : null,
             floor: function (x, y, z) { return ps.floorLocal(x, y, z); }, live: function (x, y, z) { return ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); }, land: function (x, y, z) { return ps.landLocal(x, y, z); } };
     }
     function sitesTick() {
         if (!ps || !ps.active || !villMod) return;
         var node = ps.active, nid = String(node.id);
-        if (SITE.nid === nid && SITE.R === ps.radius) { if ((SITE.vill && !ps.sitePadOf(0)) || (SITE.hubOk && !ps.sitePadOf(1)) || (SITE.cvsOk && !ps.sitePadOf(2))) sitePads(); cvsEnsure(node); return; }
+        if (SITE.nid === nid && siteRadOk(SITE.R)) { if ((SITE.vill && !ps.sitePadOf(0)) || (SITE.hubOk && !ps.sitePadOf(1)) || (SITE.cvsOk && !ps.sitePadOf(2))) sitePads(); cvsEnsure(node); return; }
         SITE.nid = nid; SITE.R = ps.radius; SITE.vill = null; SITE.hubOk = false; SITE.cvsOk = false; SITE.cvsTried = false;
         var cols = [], ck = nid + '@' + ps.radius, cc = SITE.cache[ck];
         if (cc) {                                  // the village search is ~10^4 height samples: once per planet (and radius) per session
@@ -7388,23 +7389,51 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return true;
     }
     function hubCeil(x, y, z) { var rm = HB.hub.interior.roomAt([x, y + 0.3, z]); return rm ? rm.box.max[1] : 1e9; }
+    // 2026-11-05: 64 seeded land samples; the hub needs what an outpost needs (whole 1.4 x blend ring on land, ring slope < 0.35 like padCand) and must clear the village + outpost pads
+    // (centre-to-centre > both blends). First sample that passes wins; else the flattest cleared one; else the first land one; else the first sample.
+    function hubClear(d, bc) {
+        var R = ps.radius, vb = 90 * GM * L / R, i, o, c;
+        if (SITE.vill && SITE.vill.d && Math.hypot(d.x - SITE.vill.d.x, d.y - SITE.vill.d.y, d.z - SITE.vill.d.z) < bc + vb) return false;
+        if (ps.outposts) for (i = 0; i < ps.outposts.length; i++) { o = ps.outposts[i]; if (!o.dir) continue; c = o.dir.length() || 1; if (Math.hypot(d.x - o.dir.x / c, d.y - o.dir.y / c, d.z - o.dir.z / c) < bc + 22 * (ps.outScale || 2.5) * L / R) return false; }
+        return true;
+    }
+    function hubFlat(d, bc) {            // ring slope score (max |dh| / ring chord), or -1 when any ring point is water
+        var h0 = ps.heightLocal(d.x, d.y, d.z), e1x, e1y, e1z, k, maxd = 0, ang, cx, cy, px, py, pz, pl;
+        if (Math.abs(d.y) < 0.9) { e1x = d.z; e1y = 0; e1z = -d.x; } else { e1x = 0; e1y = -d.z; e1z = d.y; }
+        var el = Math.hypot(e1x, e1y, e1z); e1x /= el; e1y /= el; e1z /= el;
+        var e2x = e1y * d.z - e1z * d.y, e2y = e1z * d.x - e1x * d.z, e2z = e1x * d.y - e1y * d.x;
+        for (k = 0; k < 6; k++) {
+            ang = k / 6 * 6.2832; cx = Math.cos(ang) * bc * 1.4; cy = Math.sin(ang) * bc * 1.4;
+            px = d.x + e1x * cx + e2x * cy; py = d.y + e1y * cx + e2y * cy; pz = d.z + e1z * cx + e2z * cy; pl = Math.hypot(px, py, pz); px /= pl; py /= pl; pz /= pl;
+            if (!ps.landLocal(px, py, pz)) return -1;
+            maxd = Math.max(maxd, Math.abs(ps.heightLocal(px, py, pz) - h0));
+        }
+        return maxd / (bc * 1.4);
+    }
     function hubSpot(seed) {             // deterministic land direction (every client finds the same one)
-        var s = seed >>> 0, first = null, i, a, y, d;
+        var s = seed >>> 0, first = null, landFirst = null, best = null, bestS = 9, i, a, y, d, bc = 50 * GM * L / ps.radius, sc;
         for (i = 0; i < 64; i++) {
             s = (Math.imul(s ^ (s >>> 15), 2246822519) + 0x9E3779B9) >>> 0; a = s / 4294967296 * 6.2832;
             s = (Math.imul(s ^ (s >>> 13), 3266489917) + 0x7F4A7C15) >>> 0; y = (s / 4294967296) * 1.4 - 0.7;
             d = { x: Math.cos(a) * Math.sqrt(1 - y * y), y: y, z: Math.sin(a) * Math.sqrt(1 - y * y) }; if (!first) first = d;
-            try { if (ps.landLocal(d.x, d.y, d.z)) return d; } catch (e0) { /* ignore */ }
+            try {
+                if (!ps.landLocal(d.x, d.y, d.z)) continue;
+                if (!landFirst) landFirst = d;
+                if (!hubClear(d, bc)) continue;
+                sc = hubFlat(d, bc); if (sc < 0) continue;
+                if (sc < 0.35) return d;
+                if (sc < bestS) { bestS = sc; best = d; }
+            } catch (e0) { /* ignore */ }
         }
-        return first;
+        return best || landFirst || first;
     }
     function hubMake() {
         var node = land.node, rg = world && world.group && world.group.parent;
         if (!hubMod || !rg || !node) return;
         try {
-            var pid = String(node.id), hb = hubMod.createHub(engine, GM * L, { seed: pid, planetNode: { id: pid, name: pid, radius: ps.radius, biome: ps.lookOf ? ps.lookOf(node) : 'rocky', hubSpot: hubSpot, heightLocal: function (d) { return ps.floorLocal(d.x, d.y, d.z); } } });
+            var pid = String(node.id), hb = hubMod.createHub(engine, GM * L, { seed: pid, planetNode: { id: pid, name: pid, radius: ps.radius, biome: ps.lookOf ? ps.lookOf(node) : 'rocky', hubSpot: function (sd) { if (SITE.hubOk && SITE.nid === pid && siteRadOk(SITE.R)) { var hl = SITE.hubPos.length() || 1; return { x: SITE.hubPos.x / hl, y: SITE.hubPos.y / hl, z: SITE.hubPos.z / hl }; } return hubSpot(sd); }, heightLocal: function (d) { return ps.floorLocal(d.x, d.y, d.z); } }, sync: ps.sync });
             rg.add(hb.group); hb.group.updateMatrixWorld(true);
-            HB.hub = hb; HB.node = node; HB.nid = pid; HB.L = L; HB.mu = GM * L; HB.in = false; HB.fight = null; HB.t = 0;
+            HB.hub = hb; HB.node = node; HB.nid = pid; HB.L = L; HB.mu = GM * L; HB.in = false; HB.fight = null; HB.t = 0; HB.q0 = ps.quality; HB.R = ps.radius; HB.qT = 0;
             HB.pos.copy(hb.group.position); HB.q.copy(hb.group.quaternion); HB.qi.copy(HB.q).invert(); HB.up.copy(hb.anchor.up);
             var pf = curProfile(), d = pf && pf.hubs && pf.hubs[pid]; if (d) hb.restore(d);
         } catch (e) { console.info('[ship] hub build failed', e); HB.fail = true; if (HB.hub) { try { HB.hub.dispose(); } catch (e1) { /* ignore */ } } HB.hub = null; }
@@ -7418,7 +7447,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var lazyBuilt = false;
     function hubLife(dt) {
         var want = !!(land.node && (gmode === 'landed' || gmode === 'foot') && ps && ps.active === land.node && hubMod && world && world.group && world.group.parent);
-        if (HB.hub && (!want || HB.rebuild || HB.node !== land.node || HB.L !== L)) hubDispose();
+        if (HB.hub && !HB.in && ps.quality !== HB.q0) HB.qT += dt; else HB.qT = 0;      // 2026-11-05: re-settle on a tier change (held 2 s: the governor can flap) or a rescaled planet, never while inside
+        if (HB.hub && (!want || HB.rebuild || HB.node !== land.node || HB.L !== L || (!HB.in && (HB.qT > 2 || !siteRadOk(HB.R))))) { if (want && !HB.in && HB.node === land.node) { try { hubSave(); } catch (es) { /* ignore */ } } hubDispose(); }
         if (!want) HB.fail = false;
         if (!HB.hub && want && !HB.fail && !lazyBuilt && (VG.v || VG.fail || !villMod)) { lazyBuilt = true; hubMake(); }      // one heavy build per frame, hub after village, never during 'landing'
         if (HB.hub) hubTick(dt);
@@ -7678,8 +7708,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!villMod || !rg || !node) return;
         try {
             var pid = String(node.id);
-            var vg = villMod.createVillage(engine, GM * L, { L: L, planetNode: villagePn(node) });      // 2026-10-14: same planetNode as the site prediction (sitesTick): prefer = approach dir, cached site
-            VG.node = node; VG.nid = pid; VG.L = L;
+            var vg = villMod.createVillage(engine, GM * L, { L: L, planetNode: villagePn(node), sync: ps.sync });      // 2026-10-14: same planetNode as the site prediction (sitesTick): prefer = approach dir, cached site
+            VG.node = node; VG.nid = pid; VG.L = L; VG.q0 = ps.quality; VG.R = ps.radius; VG.qT = 0;
             if (!vg) { VG.fail = true; return; }
             rg.add(vg.group); vg.group.updateMatrixWorld(true); VG.v = vg;
             var pf = curProfile(), d = pf && pf.vill && pf.vill[pid]; if (d) vg.restore(d);
@@ -7695,7 +7725,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var vgMobPool = [];      // pooled nearby-mob records (id, ref, pos): no object + Vector3 per mob per frame
     function villageLife(dt) {
         var want = !!(land.node && (gmode === 'landed' || gmode === 'foot') && ps && ps.active === land.node && villMod && world && world.group && world.group.parent);
-        if (VG.v && (!want || VG.node !== land.node || VG.L !== L)) villageDispose();
+        if (VG.v && ps.quality !== VG.q0) VG.qT += dt; else VG.qT = 0;      // 2026-11-05: re-settle on a tier change (held 2 s) or a rescaled planet
+        if (VG.v && (!want || VG.node !== land.node || VG.L !== L || VG.qT > 2 || !siteRadOk(VG.R))) { if (want && VG.node === land.node) { try { villageSave(); } catch (es) { /* ignore */ } } villageDispose(); }
         if (!want) VG.fail = false;
         if (!VG.v && want && !VG.fail && !lazyBuilt) { lazyBuilt = true; villageMake(); }
         if (!VG.v) return;
