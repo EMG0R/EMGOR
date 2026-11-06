@@ -10,6 +10,7 @@
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PARTS, mulberry as pmul } from './ship-parts.js';
 import { normRig } from './ship-styles.js';
+import { VILLAGER_GEO, VILLAGER_TRI_BUDGET } from './ship-geo-cache.js';
 
 const VERT = /* glsl */`
 varying vec3 vC; varying vec3 vV;
@@ -55,6 +56,7 @@ const JOINTS = {
 const BONES = Object.keys(JOINTS);
 
 export function createHuman(THREE, opts = {}) {
+  const VIL = opts.lod === 'villager';      // Q52 villager LOD: <= VILLAGER_TRI_BUDGET tris, no pack / belly / ears / blinking face, hats only; geometry shared per colour+role via VILLAGER_GEO
   const theme = new THREE.Color(opts.color != null ? opts.color : 0xB86CFF);
   const DARK = 0x1B1620, GREY = 0x8A8691, WHITE = 0xFFFFFF;
   const bi = n => BONES.indexOf(n);
@@ -153,19 +155,21 @@ export function createHuman(THREE, opts = {}) {
     return { put, putPart, box, ell, cap, cone, rbox, finish };
   }
   function genGeo(lod) {
-    const LO = lod === 'lo', { putPart, ell, cap, rbox, finish } = mkBuilder(LO);
+    const V = lod === 'vil', LO = lod === 'lo' || V, { putPart, ell, cap, rbox, finish } = mkBuilder(LO);
     // pelvis + egg torso + belly patch + glow button (the eyes / face live in genAtt, they depend on the style)
     ell(0.17, 0.105, 0.135, 0, 0.52, 0, 'D', 'hips');
     ell(0.19, 0.19, 0.16, 0, 0.665, 0, 'T', 'torso');
-    ell(0.095, 0.1, 0.05, 0, 0.645, -0.118, 'A', 'torso', { sm: true });
+    if (!V) ell(0.095, 0.1, 0.05, 0, 0.645, -0.118, 'A', 'torso', { sm: true });
     ell(0.02, 0.02, 0.012, 0, 0.76, -0.138, WHITE, 'torso', { emis: true, sm: true });
     // backpack: soft slab + twin tanks + engine (jet flames hang off the 'jet' bone)
-    rbox(0.2, 0.26, 0.08, 0.035, 0, 0.66, 0.185, 'D', 'pack');
-    for (const sx of [-1, 1]) cap([sx * 0.065, 0.735, 0.235], [sx * 0.065, 0.585, 0.235], 0.036, 'B', 'pack');
-    putPart('engine', { r: 0.034, len: 0.08 }, [0, 0.52, 0.205], [Math.PI, 0, 0], 'pack');
+    if (!V) {
+      rbox(0.2, 0.26, 0.08, 0.035, 0, 0.66, 0.185, 'D', 'pack');
+      for (const sx of [-1, 1]) cap([sx * 0.065, 0.735, 0.235], [sx * 0.065, 0.585, 0.235], 0.036, 'B', 'pack');
+      putPart('engine', { r: 0.034, len: 0.08 }, [0, 0.52, 0.205], [Math.PI, 0, 0], 'pack');
+    }
     // head: one big soft ellipsoid + ear nubs
     ell(0.145, 0.14, 0.14, 0, 0.93, 0, 'B', 'head', { seg: LO ? [6, 4] : [10, 7] });
-    for (const sx of [-1, 1]) ell(0.028, 0.04, 0.03, sx * 0.14, 0.925, 0.0, 'B', 'head', { seg: [5, 3] });
+    if (!V) for (const sx of [-1, 1]) ell(0.028, 0.04, 0.03, sx * 0.14, 0.925, 0.0, 'B', 'head', { seg: [5, 3] });
     // arms: stubby capsules + round mitts
     for (const s of ['L', 'R']) {
       const x = s === 'L' ? -1 : 1, sh = 'sh' + s, el = 'el' + s, hd = 'hd' + s;
@@ -182,8 +186,10 @@ export function createHuman(THREE, opts = {}) {
     }
     return finish();
   }
-  const hi = genGeo('hi');
-  const { geoLit, geoEmi, panelMask, emiTint } = hi;
+  const freeSet = S => { S.geoLit.dispose(); S.geoEmi.dispose(); };
+  let hiKey = VIL ? 'b|' + theme.getHex() : null, attKey = null;
+  let hi = VIL ? VILLAGER_GEO.acquire(hiKey, () => genGeo('vil')) : genGeo('hi');
+  const { geoLit, geoEmi } = hi;
 
   // skeleton
   const bones = {}, list = [];
@@ -212,9 +218,15 @@ export function createHuman(THREE, opts = {}) {
     lc.needsUpdate = ec.needsUpdate = true;
   }
   function repaint() { derive(); paintSet(hi); loSets.forEach(paintSet); if (attSet.cur) paintSet(attSet.cur); }
-  function setColor(hex) { theme.set(hex); repaint(); }
+  function setColor(hex) { if (VIL && new THREE.Color(hex).getHex() !== theme.getHex()) unshare(); theme.set(hex); repaint(); }
   paintSet(hi);
 
+  // villager sets are shared: a recolour / palette rig first takes private copies so it cannot repaint other villagers
+  function unshare() {
+    const cl = S => ({ geoLit: S.geoLit.clone(), geoEmi: S.geoEmi.clone(), panelMask: S.panelMask, emiTint: S.emiTint });
+    if (hiKey) { const o = hi; hi = cl(o); VILLAGER_GEO.release(hiKey, freeSet); hiKey = null; lit.geometry = hi.geoLit; emi.geometry = hi.geoEmi; }
+    if (attKey) { const o = attSet.cur; attSet.cur = cl(o); VILLAGER_GEO.release(attKey, freeSet); attKey = null; attLit.geometry = attSet.cur.geoLit; attEmi.geometry = attSet.cur.geoEmi; if (attSet.lo) { attSet.lo[0].geometry = attLit.geometry; attSet.lo[1].geometry = attEmi.geometry; } }
+  }
   // ── suit attachments: own skinned mesh pair on the same skeleton; setSuit rebuilds only these ──
   const ROLES = {
     pilot: { c: 0x4DA8FF, g: ['..#..', '..#..', '#####', '..#..', '.###.'] },
@@ -241,8 +253,8 @@ export function createHuman(THREE, opts = {}) {
   if (opts.role == null && opts.rig == null && VILL_COLOR[opts.color]) cur.vill = VILL_COLOR[opts.color];
   const jetNozzles = [];
   function genAtt() {
-    const su = cur.suit, role = cur.role, { put, putPart, box, ell, cap, cone, rbox, finish } = mkBuilder(false);
-    const J = su.jetpack, S = su.scanner, P = su.sprint, K = su.storage, RG = cur.rig, EX = new Set(cur.extra.concat(RG.extras, cur.vill ? VILL[cur.vill] : []));
+    const su = cur.suit, role = cur.role, { put, putPart, box, ell, cap, cone, rbox, finish } = mkBuilder(VIL);
+    const J = su.jetpack, S = su.scanner, P = su.sprint, K = su.storage, RG = cur.rig, EX = new Set(VIL ? (cur.vill ? VILL[cur.vill] : []) : cur.extra.concat(RG.extras, cur.vill ? VILL[cur.vill] : []));
     const PI = Math.PI, EYE = DARK;
     jetNozzles.length = 0;
     ell(0.002, 0.002, 0.002, 0, 0.5, 0, DARK, 'hips');      // keeps the lit set non-empty at tier 0
@@ -259,8 +271,10 @@ export function createHuman(THREE, opts = {}) {
     if (J >= 1) for (const sx of [-1, 1]) cap([sx * (0.105 + 0.006 * J), 0.54 + 0.07 + 0.015 * J, 0.255], [sx * (0.105 + 0.006 * J), 0.54 - 0.04 - 0.015 * J, 0.255], 0.026 + 0.005 * J, 'B', 'pack');
     if (J >= 2) rbox(0.24, 0.04, 0.05, 0.018, 0, 0.77, 0.235, J >= 3 ? WHITE : 'A', 'pack', { emis: J >= 3 });
     // face: big round eyes (helmet), beady dots, or a blank mask; 'visor' is its own extra. The eyes ride the 'fc' bone so they can blink.
-    const ES = RG.eyeStyle, cubeH = RG.headShape === 'cube';
-    if (ES === 'helmet') {
+    const ES = VIL ? 'vdots' : RG.eyeStyle, cubeH = !VIL && RG.headShape === 'cube';      // villager eyes ride the head bone (no blink)
+    if (ES === 'vdots') {
+      for (const sx of [-1, 1]) ell(0.018, 0.028, 0.014, sx * 0.05, 0.955, -0.124, EYE, 'head', { sm: true });
+    } else if (ES === 'helmet') {
       for (const sx of [-1, 1]) {
         if (cubeH) { rbox(0.075, 0.08, 0.02, 0.01, sx * 0.07, 0.945, -0.147, WHITE, 'fc', { emis: true }); rbox(0.04, 0.05, 0.012, 0.006, sx * 0.062, 0.943, -0.158, EYE, 'fc'); }
         else {
@@ -347,9 +361,9 @@ export function createHuman(THREE, opts = {}) {
     if (EX.has('beret')) ell(0.19, 0.06, 0.17, 0.02, 1.05, 0, 'A', 'head', { rot: [0, 0, -0.2] });
     if (EX.has('beanie')) { ell(0.155, 0.12, 0.15, 0, 0.97, 0, 'A', 'head', { half: true }); ell(0.04, 0.04, 0.04, 0, 1.1, 0, WHITE, 'head', { sm: true }); }
     if (EX.has('pigtails')) for (const sx of [-1, 1]) { cap([sx * 0.15, 0.99, 0.03], [sx * 0.2, 0.86, 0.04], 0.03, 'A', 'head', { sm: true }); ell(0.04, 0.04, 0.04, sx * 0.205, 0.83, 0.04, 'D', 'head', { sm: true }); }
-    if (EX.has('glasses')) for (const sx of [-1, 1]) { const g = new THREE.TorusGeometry(0.044, 0.007, 4, 10); g.translate(sx * 0.054, 0.945, -0.13); put(g, EYE, 'fc'); }
+    if (EX.has('glasses')) for (const sx of [-1, 1]) { const g = new THREE.TorusGeometry(0.044, 0.007, VIL ? 3 : 4, VIL ? 8 : 10); g.translate(sx * 0.054, 0.945, -0.13); put(g, EYE, 'fc'); }
     if (EX.has('beard')) { ell(0.1, 0.11, 0.07, 0, 0.85, -0.085, 0xEEEEF2, 'head'); ell(0.07, 0.025, 0.04, 0, 0.9, -0.14, 0xEEEEF2, 'head', { sm: true }); }
-    if (EX.has('scarf')) { const g = new THREE.TorusGeometry(0.115, 0.034, 5, 12); g.rotateX(PI / 2); g.translate(0, 0.8, 0); put(g, 'A', 'torso'); cap([0.06, 0.8, -0.1], [0.08, 0.64, -0.14], 0.03, 'A', 'torso', { sm: true }); }
+    if (EX.has('scarf')) { const g = new THREE.TorusGeometry(0.115, 0.034, VIL ? 4 : 5, VIL ? 8 : 12); g.rotateX(PI / 2); g.translate(0, 0.8, 0); put(g, 'A', 'torso'); cap([0.06, 0.8, -0.1], [0.08, 0.64, -0.14], 0.03, 'A', 'torso', { sm: true }); }
     if (EX.has('apron')) { rbox(0.22, 0.2, 0.03, 0.012, 0, 0.59, -0.15, 0xF2E6D0, 'torso'); cap([-0.07, 0.69, -0.135], [-0.12, 0.8, -0.04], 0.008, 0xF2E6D0, 'torso', { sm: true }); cap([0.07, 0.69, -0.135], [0.12, 0.8, -0.04], 0.008, 0xF2E6D0, 'torso', { sm: true }); }
     if (EX.has('satchel')) { rbox(0.09, 0.08, 0.05, 0.02, 0.19, 0.5, -0.02, 0x8A5A3A, 'hips'); cap([-0.13, 0.78, -0.02], [0.17, 0.52, -0.02], 0.007, 0x8A5A3A, 'torso', { sm: true }); }
     return finish();
@@ -407,13 +421,19 @@ export function createHuman(THREE, opts = {}) {
   const attSet = { cur: null, lo: null };       // lo = the low-LOD twin's mesh pair (created lazily)
   function setSuit(o) {
     applySuit(o);
-    const S = genAtt(); if (!S) return;
-    for (const g of [attLit.geometry, attEmi.geometry]) g.dispose();
+    let S;
+    if (VIL) {
+      const k = 'a|' + theme.getHex() + '|' + cur.vill + '|' + JSON.stringify([cur.suit, cur.role, cur.rig]);
+      if (attKey && attKey !== k) VILLAGER_GEO.release(attKey, freeSet), attKey = null;
+      if (attKey !== k) { S = VILLAGER_GEO.acquire(k, genAtt); if (!S) return; attKey = k; } else S = attSet.cur;
+    } else { S = genAtt(); if (!S) return; for (const g of [attLit.geometry, attEmi.geometry]) g.dispose(); }
     attLit.geometry = S.geoLit; attEmi.geometry = S.geoEmi;
     if (attSet.lo) { attSet.lo[0].geometry = S.geoLit; attSet.lo[1].geometry = S.geoEmi; }
+    if (VIL && !jetNozzles.length) jetNozzles.push(new THREE.Vector3(0, 0.44, 0.205));      // cache hit skipped genAtt
     attSet.cur = S; paintSet(S); applyRig();
     rebuildJetFx();
     emiBase = 1 + 0.2 * cur.suit.scanner;
+    if (VIL) { group.userData.tris = (hi.geoLit.attributes.position.count + hi.geoEmi.attributes.position.count + S.geoLit.attributes.position.count + S.geoEmi.attributes.position.count) / 3; if (group.userData.tris > VILLAGER_TRI_BUDGET) console.warn('villager LOD over budget', group.userData.tris); }
     group.userData.suit = Object.assign({}, cur.suit); group.userData.role = cur.role; group.userData.extra = cur.extra.slice();
   }
   group.userData.jetNozzles = jetNozzles; group.userData.jetBone = bones.jet;
@@ -454,6 +474,7 @@ export function createHuman(THREE, opts = {}) {
     }
     B.pack.scale.set(1 / ts[0], 1 / ts[1], 1 / ts[2]);
     group.userData.rig = r; group.userData.eyeHeight = r.hipOff + HIP_Y + 0.41 * ts[1] - r.headDrop; group.userData.headPos.set(0, group.userData.eyeHeight, 0);
+    if (VIL && r.palette) unshare();
     palette = r.palette; if (r.palette && r.palette.theme != null) setColor(r.palette.theme); else repaint();
   }
   function setRig(rc) { setSuit({ rig: rc, extra: [] }); return cur.rig; }
@@ -539,7 +560,7 @@ export function createHuman(THREE, opts = {}) {
   }
 
   function dispose() {
-    geoLit.dispose(); geoEmi.dispose(); if (loGroup) loGroup.userData.geoms.forEach(g => g.dispose()); attLit.geometry.dispose(); attEmi.geometry.dispose(); if (pet) pet.dispose(); flameGeo.dispose(); puffGeo.dispose(); flameMatO.dispose(); flameMatI.dispose(); for (const p of JETFX.puffs) p.m.material.dispose(); litMat.dispose(); emiMat.dispose(); skeleton.dispose();
+    if (hiKey) VILLAGER_GEO.release(hiKey, freeSet); else freeSet(hi); if (loGroup) loGroup.userData.geoms.forEach(g => g.dispose()); if (attKey) VILLAGER_GEO.release(attKey, freeSet); else { attLit.geometry.dispose(); attEmi.geometry.dispose(); } if (pet) pet.dispose(); flameGeo.dispose(); puffGeo.dispose(); flameMatO.dispose(); flameMatI.dispose(); for (const p of JETFX.puffs) p.m.material.dispose(); litMat.dispose(); emiMat.dispose(); skeleton.dispose();
     if (group.parent) group.parent.remove(group);
   }
   return { group, update, setColor, setSuit, setRig, pet, dispose };
