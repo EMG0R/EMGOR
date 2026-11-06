@@ -934,10 +934,10 @@ export function updateView(view, S) {
   for (const f of S.fighters) { if (f.state === 'dead' || f.state === 'out') continue; n++; minx = Math.min(minx, f.x); maxx = Math.max(maxx, f.x); miny = Math.min(miny, f.y - 44); maxy = Math.max(maxy, f.y + 4); }
   if (!n) { minx = -60; maxx = 60; miny = -80; maxy = 20; }
   // frame both fighters with 1.5 H margin; width clamps to 7..20 H; gentle zoom
-  const w = Math.max(maxx - minx + 2 * CAM_MARGIN, (maxy - miny + CAM_MARGIN) * 480 / 270), wc = clamp(w, CAM_MINW, CAM_MAXW), z = 480 / wc;
+  const w = Math.max(maxx - minx + 2 * CAM_MARGIN, (maxy - miny + CAM_MARGIN) * 480 / 270), wc = clamp(w, view.cmin || CAM_MINW, view.cmax || CAM_MAXW), z = 480 / wc;      // view.cmin/cmax: the in-world ring tightens the width clamp
   const b = S.stage.blast; let cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
   cx = clamp(cx, b.l + 240 / z, b.r - 240 / z); cy = clamp(cy, b.t + 135 / z, b.b - 135 / z);
-  view.x += (cx - view.x) * 0.08; view.y += (cy - view.y) * 0.08; view.z += (z - view.z) * 0.04;
+  if (view.snap) { view.x = cx; view.y = cy; view.z = z; } else { view.x += (cx - view.x) * 0.08; view.y += (cy - view.y) * 0.08; view.z += (z - view.z) * 0.04; }
   if (view.hold > 0) view.hold--; else { if (view.shake > 0) view.shake *= 0.85; if (view.shake < 0.1) view.shake = 0; }
   if (view.flash > 0) view.flash--; if (view.slow > 0) view.slow--;
   view.t++; if (view.cine > 0) view.cine--;

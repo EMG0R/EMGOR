@@ -8777,7 +8777,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
 
     // ═══ 2026-10-14: in-world FIGHT. F on a human NPC -> "FIGHT? F AGAIN" -> a GOR BRAWL session (js/smash-world.js, local mode vs a CPU bot with the NPC's style) over the 3D
     // page. The stage is terrain sampled around you and them; 2 stocks. Win = gorCoin by role + a "good game" line, 60 s rematch cooldown. Esc forfeits. No relay needed.
-    var FG = { ask: null, on: false, sess: null, mod: null, loading: false, cd: {}, npc: null, keys: Object.create(null), mouse: 0, tmpA: new THREE.Vector3(), tmpB: new THREE.Vector3(), tmpM: new THREE.Vector3(), tmpT: new THREE.Vector3(), tmpD: new THREE.Vector3(), t: 0 };
+    var FG = { ask: null, on: false, sess: null, mod: null, loading: false, cd: {}, npc: null, keys: Object.create(null), mouse: 0, tmpA: new THREE.Vector3(), tmpB: new THREE.Vector3(), tmpM: new THREE.Vector3(), tmpT: new THREE.Vector3(), tmpD: new THREE.Vector3(), t: 0,
+        ck: 0, cL: new THREE.Vector3(), uL: new THREE.Vector3(), tL: new THREE.Vector3(), cW: new THREE.Vector3(), uW: new THREE.Vector3(), tW: new THREE.Vector3(), nW: new THREE.Vector3(), eW: new THREE.Vector3(), lW: new THREE.Vector3(), cM: new THREE.Matrix4(), cQ: new THREE.Quaternion(), hid: false };      // ck: 0..1 side-on camera blend (0.4 s tween); the rest are pooled temps for it
     var FG_STYLE = { farmer: 'builder', trader: 'hauler', elder: 'seer', kid: 'sparklet', guard: 'bounty', golum: 'bounty', clerk: 'twin', cashier: 'twin', dealer: 'racer' };
     var FG_TIER = { villager: 1, shopper: 1, clerk: 1, cashier: 1, farmer: 1, kid: 1, trader: 2, dealer: 2, guard: 2, elder: 3, golum: 3 };      // bot difficulty: 1 easy, 2 medium, 3 hard (smash-engine BOT_TIERS)
     var FG_ASK_T = 4;
@@ -8824,7 +8825,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         FG.tr = tr; FG.wl = wl;
         try {
             FG.sess = M.createFightSession({
-                mode: 'local', seed: seed || 1, stageSamples: samples, stocks: 2, skyAlpha: 0.35,
+                mode: 'local', seed: seed || 1, stageSamples: samples, stocks: 2, skyAlpha: 0,
                 skyPalette: night > 0.5 ? { top: '#07051a', horizon: '#2a1a5a' } : { top: '#2a4a9a', horizon: '#9ac0ff' },
                 fighters: [
                     Object.assign({ slot: 0, styleId: curStyleId || 'PILOT', name: userName(), color: effColor(), isLocal: true, isBot: false, id: 'me' }, meF || {}),
@@ -8833,6 +8834,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             });
         } catch (e) { console.info('[ship] fight session failed', e); FG.sess = null; return; }
         FG.npc = info; FG.on = true; FG.keys = Object.create(null); FG.mouse = 0; FG.t = 0;
+        // presentation frame: ring centre (planet-local, on the ground between you), its up and its long axis (= the sample line, engine +x), cached; the side-on camera is built from them each frame
+        FG.tL.copy(FG.tmpT); FG.uL.copy(FG.tmpM); FG.cL.copy(FG.tmpM).multiplyScalar((hum.pos.length() + info.pos.length()) * 0.5);
+        document.body.classList.add('sh-fight');      // CSS hides the whole ship HUD (prompt, hotbar, quest, chat line, markers); the fight's own HUD lives outside #ship-hud
+        if (locked()) { try { document.exitPointerLock(); } catch (eP) { /* ignore */ } }      // no mouse-look in the ring
         document.body.appendChild(FG.sess.el); FG.sess.onResult(fightResult); FG.sess.start();
         cmdOpen = true; mdx = mdy = 0; firing = false;      // cmdOpen = the foot controller + ship keys ignore input (the fight reads its own)
         window.addEventListener('keydown', fgKey, true); window.addEventListener('keyup', fgKey, true);
@@ -8848,13 +8853,34 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function fgMouse(e) { if (!FG.on) return; var b = e.button === 0 ? 16 : (e.button === 2 ? 32 : 0); if (e.type === 'mousedown') FG.mouse |= b; else FG.mouse &= ~b; }
     function fgMask() {
         var k = FG.keys, m = FG.mouse;
-        if (k.KeyA || k.ArrowLeft) m |= 1; if (k.KeyD || k.ArrowRight) m |= 2; if (k.KeyW || k.ArrowUp) m |= 4; if (k.KeyS || k.ArrowDown) m |= 8;
-        if (k.KeyJ) m |= 16; if (k.KeyK) m |= 32; if (k.KeyL) m |= 64; if (k.KeyI) m |= 128; if (k.Space) m |= 256;
+        if (k.KeyA) m |= 1; if (k.KeyD) m |= 2; if (k.KeyW) m |= 4; if (k.KeyS) m |= 8;
+        if (k.KeyJ) m |= 16; if (k.KeyK) m |= 32; if (k.KeyL || k.ShiftLeft || k.ShiftRight) m |= 64; if (k.KeyI) m |= 128; if (k.Space) m |= 256;
+        if (k.ArrowLeft) m |= 512; if (k.ArrowRight) m |= 1024; if (k.ArrowUp) m |= 2048; if (k.ArrowDown) m |= 4096;      // c-stick bits: arrows = smash attacks (hold to charge); WASD moves
         return m;
+    }
+    // side-on fixed camera: registered to the 2D ring so the 3D village is a true backdrop. Scale: one human height (hwU) projects to the engine's H (36 px) x zoom x canvas scale;
+    // the ring's ground line / centre project to where the 2D stage is drawn (sess.state.stageXf/Yf). Eased in/out by FG.ck over 0.4 s on top of the normal third-person pose.
+    function fgCamTick(dt) {
+        var want = FG.on ? 1 : 0, st = FG.sess ? FG.sess.state : FG.st;
+        if (FG.ck === want && !want) return;
+        FG.ck = want ? Math.min(1, FG.ck + dt / 0.4) : Math.max(0, FG.ck - dt / 0.4);
+        if (FG.ck <= 0 || !st || !world || !world.node || !world.node.mesh) { if (!FG.on && FG.hid) { FG.hid = false; if (hum.obj) hum.obj.group.visible = true; } return; }
+        var q = world.node.mesh.quaternion, iw = window.innerWidth, ih = window.innerHeight, u = Math.min(iw / 480, ih / 270); if (u >= 1) u = Math.floor(u);
+        var tanH = Math.tan(camera.fov * Math.PI / 360), z = st.zoom || 1, Hw = hwU(), dist = clamp(Hw * ih / (72 * z * u * tanH), 3 * Hw, 80 * Hw);
+        var yv = 0.5 + (st.stageYf - 0.5) * (270 * u / ih), xv = 0.5 + (st.stageXf - 0.5) * (480 * u / iw);      // where the ring's centre sits in the viewport
+        locToWorld(FG.cL, FG.cW); FG.uW.copy(FG.uL).applyQuaternion(q); FG.tW.copy(FG.tL).applyQuaternion(q);
+        FG.nW.crossVectors(FG.tW, FG.uW).normalize();      // camera sits on this side: screen-right = engine +x = ring long axis (perpendicular to the view)
+        FG.lW.copy(FG.cW).addScaledVector(FG.uW, (yv - 0.5) * 2 * tanH * dist).addScaledVector(FG.tW, -(xv - 0.5) * 2 * tanH * camera.aspect * dist);
+        FG.eW.copy(FG.lW).addScaledVector(FG.nW, dist).addScaledVector(FG.uW, 0.1 * dist);      // slight downward tilt
+        FG.cM.lookAt(FG.eW, FG.lW, FG.uW); FG.cQ.setFromRotationMatrix(FG.cM);
+        var k = easeInOut(FG.ck); camera.position.lerp(FG.eW, k); camera.quaternion.slerp(FG.cQ, k); camera.updateMatrixWorld(true);
+        if (FG.on && hum.obj && !FG.hid) { FG.hid = true; hum.obj.group.visible = false; }      // the 2D fighter is you now
     }
     function fightTick(dt) {
         if (FG.ask) { FG.ask.t -= dt; if (FG.ask.t <= 0) FG.ask = null; }
+        fgCamTick(dt);
         if (!FG.on) return;
+        if (FG.hid && hum.obj) hum.obj.group.visible = false;
         if (gmode !== 'foot' || !FG.sess) { fightEnd(null); return; }
         FG.t += dt; FG.sess.setInput(fgMask(), 0); FG.sess.update(dt);
         var br = FG.sess.sim.ballReq;      // Q24: the GOR BALL slot asked for a throw; the roll lives here, the sim never rolls
@@ -8882,7 +8908,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function fightEnd(w) {
         if (!FG.on) return;
-        FG.on = false; var sess = FG.sess; FG.sess = null;
+        FG.on = false; var sess = FG.sess; FG.sess = null; document.body.classList.remove('sh-fight');
+        if (sess) FG.st = sess.state;
+        if (FG.hid) { FG.hid = false; if (hum.obj) hum.obj.group.visible = true; }
         window.removeEventListener('keydown', fgKey, true); window.removeEventListener('keyup', fgKey, true);
         document.removeEventListener('mousedown', fgMouse, true); document.removeEventListener('mouseup', fgMouse, true);
         try { if (sess) sess.stop(); } catch (e) { /* ignore */ }
