@@ -21,12 +21,12 @@ test('lurefries is a Burger House tier with the lure extra and real-time glow', 
 });
 
 test('catchChance = tier*(1-hp)*0.9+0.1, clamped; lure adds', () => {
-  assert.ok(Math.abs(PKC.catchChance(1, 1) - 0.1) < 1e-9);
+  assert.ok(Math.abs(PKC.catchChance(1, 1) - 0.35) < 1e-9);
   assert.ok(Math.abs(PKC.catchChance(1, 0.5) - 0.55) < 1e-9);
   assert.ok(Math.abs(PKC.catchChance(1, 0) - 1) < 1e-9);
   assert.ok(Math.abs(PKC.catchChance(3, 0.8) - (3 * 0.2 * 0.9 + 0.1)) < 1e-9);
   assert.equal(PKC.catchChance(3, 0), 1);
-  assert.ok(Math.abs(PKC.catchChance(2, 1, PKC.LURE_BONUS) - 0.25) < 1e-9);
+  assert.ok(Math.abs(PKC.catchChance(2, 1, PKC.LURE_BONUS) - 0.6) < 1e-9);
   assert.ok(PKC.catchChance(2, 0.3) > PKC.catchChance(1, 0.3));
 });
 

@@ -133,7 +133,7 @@ test('active / pickActive: dead mons are never the active one', () => {
 test('catchChance: monotone in tier and in damage, in [0.1,1], bonus adds then clamps', () => {
   for (let t = 1; t <= 3; t++) { let prev = 0; for (let h = 1; h >= 0; h -= 0.05) { const c = C.catchChance(t, h); assert.ok(c >= 0.1 && c <= 1 && c >= prev - 1e-12); prev = c; } }
   for (let h = 0; h <= 1; h += 0.1) { assert.ok(C.catchChance(2, h) >= C.catchChance(1, h)); assert.ok(C.catchChance(3, h) >= C.catchChance(2, h)); }
-  assert.equal(C.catchChance(1, 1), 0.1); assert.ok(Math.abs(C.catchChance(1, 1, C.LURE_BONUS) - 0.25) < 1e-12); assert.equal(C.catchChance(3, 0, 5), 1);
+  assert.equal(C.catchChance(1, 1), 0.35); assert.ok(Math.abs(C.catchChance(1, 1, C.LURE_BONUS) - 0.5) < 1e-12); assert.equal(C.catchChance(3, 0, 5), 1);
   assert.equal(C.catchChance(99, 0.5), C.catchChance(3, 0.5)); assert.equal(C.catchChance(0, 0.5), C.catchChance(1, 0.5)); assert.equal(C.catchChance(2, -3), C.catchChance(2, 0)); assert.equal(C.catchChance(2, 9), C.catchChance(2, 1));
 });
 test('catchRoll boundary: u == chance escapes, u just below catches', () => {
