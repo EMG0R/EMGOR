@@ -669,3 +669,9 @@ DONE: root cause by code-read (browser-only, not reproduced): the LAND prompt/`i
 TESTS: node --check ok on ship-planet-tests.js (as .mjs); node --test tests/node: 409 tests, 394 pass / 0 fail / 15 skipped.
 VERIFY ON MAC: g10 x3 in batch position 1 on fresh pages; read rows[].hoverWaitFrames (large values = slow patch build; if 600 is hit, landable itself is failing there and the gate needs a look).
 OPEN: if it still fails with hoverWaitFrames=600, the cause is ps.landable returning not-ok at the metagor site on a cold patch (terrain patch not yet built under the hover point).
+
+## Q51 g15 "no planet" after g4/g14 — 2026-11-06T09:00:00Z — (this commit)
+DONE: js/ship-planet-tests.js g15 picked one planet and gave up if T.engage failed ("no planet"). Now it calls T.reset() (resetWorld), tries every candidate planet with T.engage, and after a 120-step settle (dt 0.05, lets the orbit advance) repeats once. Harness-only; resetWorld itself unchanged. Not reproduced here (browser-only).
+TESTS: node --check ok on ship-planet-tests.js (as .mjs); node --test tests/node: 409 tests, 394 pass / 0 fail / 15 skipped.
+VERIFY ON MAC: ['g4','g14','g15'] batch, a few times; g15 must not return why:'no planet'.
+OPEN: if it still fails, every candidate failed engage twice, so resetWorld is not the cause and the engaged-planet state (ps.active / lf.node) needs a look.

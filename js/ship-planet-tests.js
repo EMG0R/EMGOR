@@ -891,8 +891,14 @@ async function flightSub(T, ship, node, o) {
 //   blocks destroyed), ender stare, zomby day burn, skelly bolts, punch. Two-window relay (host handoff) is exercised by hand (ship.mashup.netMsg).
 async function g15(T, o) {
     var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), res = { pass: true }, dt = 0.016, i, mu = ship.mashup, g = ship._g, hum = g.hum;
-    var node = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; })[0];
-    try { if (!T.engage(node)) throw new Error('engage'); } catch (e) { return { pass: false, why: 'no planet' }; }
+    var cands = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; }), node = null;
+    // Q51: after g4/g14 in one page the first candidate may not re-engage (orbit phase / leftover state); reset, then try every candidate, one more time after a settle
+    for (var pass = 0; pass < 2 && !node; pass++) {
+        T.reset();
+        for (i = 0; i < cands.length && !node; i++) { try { if (T.engage(cands[i])) node = cands[i]; } catch (e) { /* next */ } }
+        if (!node) T.step(120, 0.05);
+    }
+    if (!node) return { pass: false, why: 'no planet' };
     await T.pause(); T.fly(); T.clearKeys(); T.near(node);
     var d = T.landDir(node); T.hoverAt(node, d, 2); T.step(30);
     if (!ship.land()) return { pass: false, why: 'land refused' };
