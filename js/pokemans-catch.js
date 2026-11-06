@@ -5,13 +5,47 @@
 //   makeMon(sp, ind, level, xp)          -> the full-data record stored on pokemans[] / inventory stack (kind 'pokemans')
 import { statsAt, xpToLevel } from './pokemans-gen.js';
 
-export const BALL = { speed: 15, lift: 0.28, g: 12, reach: 12, dots: 8, tMax: 2.2, radius: 0.35 };     // H, H/s, H/s²: reach = max straight distance from the hand
+export const BALL = { speed: 15, lift: 0.28, g: 12, reach: 20, dots: 8, tMax: 2.2, radius: 0.35 };     // H, H/s, H/s²: reach = max straight distance from the hand
 export const PARTY_MAX = 6;
 export const LURE_BONUS = 0.15;
 
 export function catchChance(tier, hpFrac, bonus) {
   const t = Math.max(1, Math.min(3, tier | 0 || 1)), h = hpFrac === hpFrac ? Math.max(0, Math.min(1, hpFrac)) : 1;
-  return Math.max(0.1, Math.min(1, t * (1 - h) * 0.9 + 0.1 + (bonus || 0)));
+  return Math.max(0.1, Math.min(1, Math.max(t * (1 - h) * 0.9 + 0.1, FLOOR[t - 1]) + (bonus || 0)));
+}
+export const FLOOR = [0.35, 0.45, 0.55];      // full-hp floor per ball tier (grazers always roll at hp 1); lower hp still raises it
+export const AIM_CONE = 20 * Math.PI / 180, AIM_REACH = 20, HINT_RANGE = 25;
+export const CALM_SECS = 2, BODY_K = 0.5, GRAZER_K = 1.5;      // body hit radius = BODY_K x render size (x GRAZER_K for grazers)
+export const CATCHABLE = { grazer: 1, jelly: 1, predator: 1 };
+// pure encounter predicate: dist in H, kind 'grazer'|'jelly'|'predator' (villagers/npcs never), st = {tamed, held, dead}
+export function encounterOk(dist, kind, st, range) {
+  if (!CATCHABLE[kind] || !(dist >= 0)) return false;
+  if (st && (st.tamed || st.held || st.dead)) return false;
+  return dist < (range > 0 ? range : 3);
+}
+// ball-hit: segment a->b (cur - prev) vs sphere (c, r); all scalars, allocation-free
+export function segSphere(ax, ay, az, bx, by, bz, cx, cy, cz, r) {
+  const dx = bx - ax, dy = by - ay, dz = bz - az, l2 = dx * dx + dy * dy + dz * dz;
+  let t = l2 > 1e-12 ? ((cx - ax) * dx + (cy - ay) * dy + (cz - az) * dz) / l2 : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const px = ax + dx * t - cx, py = ay + dy * t - cy, pz = az + dz * t - cz;
+  return px * px + py * py + pz * pz < r * r;
+}
+// Aim solve: offset T (H, hand -> target body) and unit up; returns flight time t (s) so arcPoint(...,t) == T and writes the unit aim into out, or -1 (unreachable: out = straight at T).
+export function solveAim(Tx, Ty, Tz, up, out) {
+  const S = BALL.speed, Lf = BALL.lift, G = BALL.g, tEnd = Math.min(BALL.tMax, BALL.reach / (S * Math.sqrt(1 + Lf * Lf)) * 1.15);
+  const f = (t) => {
+    const k = 0.5 * G * t;
+    const ax = (Tx / t + up.x * k) / S - Lf * up.x, ay = (Ty / t + up.y * k) / S - Lf * up.y, az = (Tz / t + up.z * k) / S - Lf * up.z;
+    return Math.sqrt(ax * ax + ay * ay + az * az) - 1;
+  };
+  let t0 = 0.05, f0 = f(t0), t1 = -1;
+  for (let t = 0.07; t <= tEnd; t += 0.02) { const f1 = f(t); if (f0 > 0 && f1 <= 0) { t1 = t; break; } t0 = t; f0 = f1; }
+  if (t1 < 0) { const l = Math.sqrt(Tx * Tx + Ty * Ty + Tz * Tz) || 1; out.x = Tx / l; out.y = Ty / l; out.z = Tz / l; return -1; }
+  let lo = t0, hi = t1; for (let i = 0; i < 24; i++) { const m = 0.5 * (lo + hi); if (f(m) > 0) lo = m; else hi = m; }
+  const t = 0.5 * (lo + hi), k = 0.5 * G * t;
+  let ax = (Tx / t + up.x * k) / S - Lf * up.x, ay = (Ty / t + up.y * k) / S - Lf * up.y, az = (Tz / t + up.z * k) / S - Lf * up.z;
+  const l = Math.sqrt(ax * ax + ay * ay + az * az) || 1; out.x = ax / l; out.y = ay / l; out.z = az / l;
+  return t;
 }
 export function catchRoll(chance, u) { return { shakes: 3, caught: u < chance }; }
 

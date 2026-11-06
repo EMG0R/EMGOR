@@ -1337,7 +1337,7 @@ export function createPlanetSurface(engine, L) {
         a.creat.onBeforeRender = syncRide; a.ride.add(a.creat);
         a.creatData = []; a.creatAlt = [];
         function mkCd() { return { id: '', key: '', kind: '', beh: 0, v: 0, p: new THREE.Vector3(), h: new THREE.Vector3(1, 0, 0), pp: new THREE.Vector3(), want: new THREE.Vector3(), folP: new THREE.Vector3(), folPrev: new THREE.Vector3(), col: [0, 0, 0],
-            r: 1, hover: 0, sz: 1, spd: 0, vmax: 1, flee: 0, fleeT: 0, tm: 0, paused: false, leader: -1, ox: 0, oz: 0, px: 0, glowT: 0, mov: 0, tamed: false, folT: -9 }; }
+            r: 1, hover: 0, sz: 1, spd: 0, vmax: 1, flee: 0, fleeT: 0, tm: 0, paused: false, leader: -1, ox: 0, oz: 0, px: 0, glowT: 0, mov: 0, tamed: false, folT: -9, calmT: 0, shrink: 1 }; }
         for (var q = 0; q < CREAT_MAX; q++) { a.creatData.push(mkCd()); a.creatAlt.push(mkCd()); }
         a.creatRR = 0;
 
@@ -2169,7 +2169,7 @@ export function createPlanetSurface(engine, L) {
             for (var mi = 0; mi < members; mi++) {
                 var cr = nw[cnt], hm = hash01(A, B, C2, seed + 30 + mi);
                 cr.id = mi ? key + '#' + mi : key; cr.key = key; cr.beh = beh; cr.v = bodyV; cr.kind = KIND[bodyV];
-                cr.tamed = !!tamedMap[node.id + '|' + cr.id]; cr.leader = mi ? lead : -1; cr.glowT = 0; cr.spd = 0; cr.mov = 0; cr.fleeT = 0; cr.folT = -9; cr.want.set(0, 0, 0);
+                cr.tamed = !!tamedMap[node.id + '|' + cr.id]; cr.leader = mi ? lead : -1; cr.glowT = 0; cr.spd = 0; cr.mov = 0; cr.fleeT = 0; cr.calmT = 0; cr.shrink = 1; cr.folT = -9; cr.want.set(0, 0, 0);
                 cr.p.set(cd[1], cd[2], cd[3]); tangentFrame(cr.p, tmpA, tmpB);
                 cr.h.copy(tmpA).multiplyScalar(Math.cos(head)).addScaledVector(tmpB, Math.sin(head));
                 if (mi) {          // herd member: fixed offset in the leader's frame
@@ -2260,7 +2260,7 @@ export function createPlanetSurface(engine, L) {
         }
         for (i = 0; i < N; i++) {
             cd = pool[i];
-            var fol = cd.tamed && (t - cd.folT) < 0.35, rad, s = cd.sz;
+            var fol = cd.tamed && (t - cd.folT) < 0.35, rad, s = cd.sz * cd.shrink;
             if (cd.tamed && !fol) { s = 0; rad = cd.r; }
             else if (fol) {
                 _pv.copy(cd.folP); var fl = _pv.length() || 1; _pv.multiplyScalar(1 / fl);
@@ -2271,7 +2271,8 @@ export function createPlanetSurface(engine, L) {
                 cd.spd = mv / Math.max(dt, 1e-3); cd.mov = Math.min(1, cd.spd / (3 * L)); rad = fl;
             } else {
                 var D = 1e9, sp = 0, hd = cd.h, rate = 1.5, gd;
-                if (plOk) { D = _tv.copy(cd.p).multiplyScalar(cd.r + cd.hover).sub(plObj).length(); }
+                if (cd.calmT > 0) { cd.calmT -= dt; cd.fleeT = 0; }      // GOR BALL aim: a targeted creature stops fleeing for CALM_SECS
+                if (plOk && !(cd.calmT > 0)) { D = _tv.copy(cd.p).multiplyScalar(cd.r + cd.hover).sub(plObj).length(); }
                 var beh = cd.beh, ld = cd.leader >= 0 ? pool[cd.leader] : null;
                 if (ld && ld.tamed) { ld = null; cd.leader = -1; }
                 if (beh === 1) {                                                   // skitterer: darts, flees fast
@@ -2316,6 +2317,7 @@ export function createPlanetSurface(engine, L) {
                         sp = cd.paused ? 0 : cd.vmax; rotH(cd, Math.sin(t * 0.2 + cd.px) * 0.25 * dt);
                     }
                 }
+                if (cd.shrink < 0.999 || cd.calmT > 0) sp = 0;      // inside a GOR BALL or fixated by an aimed throw: stands still
                 cd.spd += (sp - cd.spd) * Math.min(1, dt * (beh === 1 ? 9 : 3));
                 steer(cd, hd, rate, dt);
                 var phi = cd.spd * dt / Rr;
@@ -2353,6 +2355,14 @@ export function createPlanetSurface(engine, L) {
         }
         return out;
     };
+    // GOR BALL: live body centre (world) of creature `id` into out; returns the body hit radius (0.5 x render size, world units) or -1. Also calm + shrink hooks.
+    ps.creatBody = function (id, out) {
+        var cd = findCd(id); if (!cd || cd.tamed || !alloc || !node) return -1; syncRide();
+        var r = alloc.ride, rad = cd.r + cd.hover + (cd.v === 1 ? Math.sin(t * 1.3 + cd.px) * 1.6 * L : 0) + 0.5 * cd.sz * cd.shrink;
+        out.copy(cd.p).multiplyScalar(rad).applyQuaternion(r.quaternion).add(r.position); return 0.5 * cd.sz;
+    };
+    ps.calmCreature = function (id, secs) { var cd = findCd(id); if (cd) cd.calmT = secs || 2; return !!cd; };
+    ps.shrinkCreature = function (id, k) { var cd = findCd(id); if (cd) cd.shrink = Math.max(0.001, Math.min(1, k)); return !!cd; };
     ps.setCreatureTamed = function (id, on, planetId) {
         var pid = planetId || (node && node.id); if (!pid) return false;
         if (on) tamedMap[pid + '|' + id] = true; else delete tamedMap[pid + '|' + id];

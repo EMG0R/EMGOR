@@ -4001,7 +4001,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 0; i < allies.length; i++) { allies[i].alive = false; allies[i].g.visible = false; }
         wave = Math.max(0, n - 1); wavePending = true; nextWave = gt + 0.05;
     }
-    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land; step out; board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person or a wild creature, then B to throw a GOR BALL) · T talk (on foot / station) · U POKEMANS manager (on foot) · 1-9 weapon hotbar · 0 party keys (1-6 swap) · B throw GOR BALL · E inventory · P photo mode (drag orbit, wheel FOV, [ ] time, S save + share link) · F/E/Esc close any panel · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · BOARD + DISCOVERIES: emgor.online/nomansgor/board.html · /help';
+    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land; step out; board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person or a wild creature, then B to throw a GOR BALL) · T talk (on foot / station) · U POKEMANS manager (on foot) · 1-9 weapon hotbar · 0 party keys (1-6 swap) · B throw ball · F fight wild · E inventory · P photo mode (drag orbit, wheel FOV, [ ] time, S save + share link) · F/E/Esc close any panel · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · BOARD + DISCOVERIES: emgor.online/nomansgor/board.html · /help';
     function applyDifficultyLive() {
         var D = DIFFS[difficulty];
         for (var i = 0; i < enemies.length; i++) {
@@ -5319,7 +5319,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         else if (gmode === 'landed') setPrompt('Z · STEP OUT · HOLD LIFT OFF', true);
         else if (gmode === 'foot' && !storeOpen && !invOpen && footTarget().kind) setPrompt(ftI.label, true);
         else if (nearShip()) setPrompt(R25.mod ? 'Z · ENTER SHIP · HOLD LIFT OFF' : 'Z · BOARD', true);
-        else setPrompt('', false);
+        else setPrompt(gbHintText, false);      // GOR BALL region: 'B · THROW GOR BALL xn' / 'NO GOR BALLS · 7/11' when a catchable is within 25 H
         if (net) { net.sendPos(); net.update(dt, dockA); ghostFx(); }
         aEngine({ throttle: 0, inAtmo: true });
         if (gmode === 'foot' && hum.obj) { vTmp.copy(hum.w); shardTick(vTmp, 0.7 * L); } else if (gmode === 'landed') shardTick(P, 3 * L);
@@ -8076,8 +8076,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function wildFind() {      // Q48: nearest wild creature inside 3 H (pure predicate: PKC.wildEncounterIndex)
         if (gmode !== 'foot' || !hum.obj || !ps || !ps.active || land.node !== ps.active) return null;
-        var list = creatList(), i = PKC.wildEncounterIndex(list, hum.pos, 3 * hOf(L));
-        return i < 0 ? null : list[i];
+        var list = creatList(), H = hOf(L), i = PKC.wildEncounterIndex(list, hum.pos, 3 * H);
+        return i < 0 || !PKC.encounterOk(list[i].lp.distanceTo(hum.pos) / H, gbKindOf(list[i]), null, 3) ? null : list[i];
     }
     function wildFight(cr) {      // Q48: the same species/individual recipe as gbCatch's grazer path, so a ring catch lands the mon the ball would have
         var node = land.node, pid = String(node.id), tier = 1 + (hash25(pid + ':' + cr.id) % 2), sp = ptSpeciesOf(node, CR_NAMES[crKind(cr)], tier), ind = PKG.individual(sp, hash25(pid + ':' + cr.id) + ':' + pid), lvl = Math.min(PKG.MAX_LEVEL, 2 + sp.tier * 3);
@@ -8412,6 +8412,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function itemSub(it) {
         var p = it.effect && it.effect.params ? Object.keys(it.effect.params) : [], d = it.effect ? it.effect.duration : 0;
+        if (it.kind === 'ball') return 'GOR BALL T' + it.tier + ' · B to throw · ' + Math.round(PKC.catchChance(it.tier, 1, 0) * 100) + '% calm catch';
         if (it.kind === 'fries') return 'LIGHT BLUE GLOW · ' + ((it.effect && it.effect.glow && it.effect.glow.minutes) || 45) + ' MIN' + (it.effect && it.effect.extras && it.effect.extras.speed ? ' · FASTER' : '');
         return (d >= 120 ? Math.round(d / 6) / 10 + ' MIN' : d + ' S') + ' · ' + (p.slice(0, 4).join(' ') || 'chill');
     }
@@ -8429,6 +8430,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             for (i = 0; i < menu.length; i++) {
                 var it = menu[i], have = 0; pf.items.forEach(function (r) { if (r.id === CRF.stackKeyOf(it) && !!r.d === !!it.dealer) have = r.n; });
                 shopRows.push({ k: 'i', item: it, name: it.name, sub: itemSub(it), price: ctx.mode === 'burger' ? salePrice(it.price) : it.price, own: have > 0, have: have, was: it.special ? it.originalPrice : null, special: !!it.special });
+            }
+            if (ctx.mode === 'store') {      // GOR BALL rows pinned to the top (stable)
+                var bR = shopRows.filter(function (q) { return q.item && q.item.kind === 'ball'; }), oR = shopRows.filter(function (q) { return !(q.item && q.item.kind === 'ball'); });
+                shopRows.length = 0; bR.forEach(function (q) { shopRows.push(q); }); oR.forEach(function (q) { shopRows.push(q); });
             }
         } else if (tab === 1 && inv) {
             for (i = 0; i < inv.weapons.length; i++) { var w = inv.weapons[i]; shopRows.push({ k: 'w', i: i, tag: String(w.cls || 'C'), name: w.name, sub: wpnMod && wpnMod.weaponLine ? wpnMod.weaponLine(w).replace(/^[A-Z] /, '').replace(w.name, '').trim() : '', price: shopPrice(w), own: pf.weapons.some(function (x) { return x.id === w.id; }) }); }
@@ -9400,8 +9405,40 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         gndFree(e); writeSave();
     }
     // ─── Q12 GOR BALL: hold B = 8-dot arc preview, release = throw (pooled fx bolt steered by fx.setBolt). Hit a wild creature: it hides inside, 3 shakes, then click (caught) or burst. ───
-    var GB = { aim: false, on: false, id: -1, t: 0, tier: 1, phase: '', ph: 0, e: null, gr: null, shakeT: 0, shakeN: 0, chance: 0, dots: [], o: new THREE.Vector3(), d: new THREE.Vector3(), up: new THREE.Vector3(), p: new THREE.Vector3(), q: new THREE.Vector3(), lp: new THREE.Vector3(), best: false, lo: new THREE.Vector3(), ld: new THREE.Vector3(), lu: new THREE.Vector3() };      // lo/ld/lu: origin, aim, up in the planet's LOCAL frame (the planet moves; same bug class as dd4db2a)
+    var GB = { aim: false, aimT: 0, on: false, id: -1, t: 0, tier: 1, phase: '', ph: 0, e: null, gr: null, shakeT: 0, shakeN: 0, chance: 0, dots: [], o: new THREE.Vector3(), d: new THREE.Vector3(), up: new THREE.Vector3(), p: new THREE.Vector3(), q: new THREE.Vector3(), lp: new THREE.Vector3(), best: false, lo: new THREE.Vector3(), ld: new THREE.Vector3(), lu: new THREE.Vector3(),      // lo/ld/lu: origin, aim, up in the planet's LOCAL frame (the planet moves; same bug class as dd4db2a)
+        pp: new THREE.Vector3(), cw: new THREE.Vector3(), cl: new THREE.Vector3(), nn: new THREE.Vector3(), lv: new THREE.Vector3(), rw: new THREE.Vector3(), Y: new THREE.Vector3(0, 1, 0),
+        tgtId: '', tgtE: null, tgtR: 0, tAim: -1, tEnd: 1.3, missD: 1e9, miss: false, pt: 0, spin: 0, hitR: 0, hitId: '', hintT: 0, m: null, mTop: null, mFlash: null, dm: [], mats: null };
+    var gbHintText = '';
     for (var gbi = 0; gbi < PKC.BALL.dots; gbi++) GB.dots.push({ x: 0, y: 0, z: 0 });
+    function gbKindOf(c) { return crKind(c) === 1 ? 'jelly' : 'grazer'; }
+    function gbMesh() {      // the one pooled physical GOR BALL: dark-violet top, pale bottom, dark band + button; 1 unit = diameter (scaled to 0.25 H per use); 8 preview pips
+        if (GB.m) return GB.m;
+        var g = new THREE.Group(), geo = new THREE.SphereGeometry(0.5, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), geoB = new THREE.SphereGeometry(0.5, 14, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+        var mT = new THREE.MeshBasicMaterial({ color: 0x3a1a78 }), mB = new THREE.MeshBasicMaterial({ color: 0xEDE6FF }), mBand = new THREE.MeshBasicMaterial({ color: 0x120a28 }), mBtn = new THREE.MeshBasicMaterial({ color: 0xFF5C7A });
+        GB.mats = { top: mT, btn: mBtn };
+        var top = new THREE.Group(); top.add(new THREE.Mesh(geo, mT)); g.add(top); g.add(new THREE.Mesh(geoB, mB));
+        var band = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.04, 6, 20), mBand); band.rotation.x = Math.PI / 2; g.add(band);
+        var btn = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mBtn); btn.position.set(0, 0, 0.5); g.add(btn);
+        var fl = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+        g.visible = false; fl.visible = false; scene.add(g); scene.add(fl);
+        g.traverse(function (o) { o.frustumCulled = false; }); fl.frustumCulled = false;
+        var pg = new THREE.SphereGeometry(0.5, 6, 5), pm = new THREE.MeshBasicMaterial({ color: 0xD9C8FF, transparent: true, opacity: 0.7, depthWrite: false });
+        for (var i = 0; i < PKC.BALL.dots; i++) { var pip = new THREE.Mesh(pg, pm); pip.visible = false; pip.frustumCulled = false; scene.add(pip); GB.dm.push(pip); }
+        GB.mTop = top; GB.mFlash = fl; GB.m = g; return g;
+    }
+    function gbFlash(col, u, H) {      // u 0..1 across the flash; out of range hides it
+        var f = GB.mFlash; if (!f) return;
+        if (u <= 0 || u >= 1) { f.visible = false; return; }
+        f.visible = true; f.position.copy(GB.o); f.scale.setScalar(0.25 * H * (1.2 + 3 * u)); f.material.color.setHex(col); f.material.opacity = 0.9 * (1 - u);
+    }
+    function gbPips(on, H) {
+        var i, dd, p;
+        for (i = 0; i < GB.dm.length; i++) {
+            p = GB.dm[i];
+            if (!on) { p.visible = false; continue; }
+            dd = GB.dots[i]; p.visible = true; p.position.set(GB.o.x + dd.x * H, GB.o.y + dd.y * H, GB.o.z + dd.z * H); p.scale.setScalar(0.07 * H * (1 + i * 0.04));
+        }
+    }
     function gbOwned(pf, hi) {      // tier of the lowest (or highest) GOR BALL stack in the bag, 0 if none
         var t = 0, i, r, n;
         for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; n = /^gorball-([123])$/.exec(r.id); if (n && r.n > 0) { n = +n[1]; if (!t || (hi ? n > t : n < t)) t = n; } }
@@ -9415,34 +9452,78 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         GB.d.copy(r27A);
     }
     function gbOk() { return gmode === 'foot' && hum.obj && !dead && !cmdOpen && !storeOpen && !invOpen && land.node && ps && ps.active === land.node; }
-    function gbPreview() {
-        if (!GB.aim || GB.on || !gbOk()) return;
-        gbAim(); var H = hOf(L), n = PKC.previewDots({ x: 0, y: 0, z: 0 }, GB.d, GB.up, GB.dots), i, dd;
-        for (i = 0; i < n; i++) { dd = GB.dots[i]; GB.p.set(GB.o.x + dd.x * H, GB.o.y + dd.y * H, GB.o.z + dd.z * H); fx.spawnBolt(GB.p, GB.d, 0xFFFFFF, 0, 0.05, { shape: 'orb', size: 0.35, trail: false }); }
+    function gbToLocal(w, out) { var nd = land.node; qW.copy(nd.mesh.quaternion).invert(); return out.copy(w).sub(nd.anchor.position).applyQuaternion(qW); }
+    function gbBody(c, out) {      // live body centre (world, into out) + hit radius (0.5 x render size, grazers +50 %) of a creature record; -1 if gone
+        var r = ps.creatBody(c.id, out); if (r < 0) return -1;
+        return r * (c.beh === 'grazer' ? PKC.GRAZER_K : 1);
+    }
+    function gbPickAim() {      // aim assist: nearest catchable in a 20 deg cone of the camera ray within 20 H of the hand; solves the lob onto its body centre. GB.d must hold the camera ray.
+        var H = hOf(L), cl = creatList(), i, e, r, d2, best = 1e18, cosC = Math.cos(PKC.AIM_CONE), reach = PKC.AIM_REACH * H, bid = '', bE = null, bR = 0;
+        GB.tgtId = ''; GB.tgtE = null; GB.tAim = -1;
+        if (!ps || !ps.creatBody) return;
+        for (i = 0; i < cl.length; i++) {
+            r = gbBody(cl[i], GB.cw); if (r < 0) continue;
+            d2 = GB.cw.distanceToSquared(GB.o); if (d2 > reach * reach || d2 >= best) continue;
+            GB.rw.copy(GB.cw).sub(camera.position); if (GB.rw.dot(GB.d) < cosC * GB.rw.length()) continue;
+            best = d2; bid = cl[i].id; bE = null; bR = r; GB.nn.copy(GB.cw);
+        }
+        for (i = 0; i < R27.gnd.length; i++) {
+            e = R27.gnd[i]; if (!e.alive || e.mob || e.held || e.mode !== 'planet' || e.node !== land.node) continue;
+            r = gndSphere(e, GB.cw); d2 = GB.cw.distanceToSquared(GB.o); if (d2 > reach * reach || d2 >= best) continue;
+            GB.rw.copy(GB.cw).sub(camera.position); if (GB.rw.dot(GB.d) < cosC * GB.rw.length()) continue;
+            best = d2; bid = ''; bE = e; bR = r; GB.nn.copy(GB.cw);
+        }
+        if (!bid && !bE) return;
+        GB.tgtId = bid; GB.tgtE = bE; GB.tgtR = bR;
+        GB.rw.copy(GB.nn).sub(GB.o).multiplyScalar(1 / H);
+        GB.tAim = PKC.solveAim(GB.rw.x, GB.rw.y, GB.rw.z, GB.up, GB.q);
+        if (GB.tAim > 0) GB.d.copy(GB.q);
+    }
+    function gbPreview(dt) {
+        gbMesh();
+        if (!GB.aim || GB.on || !gbOk()) { GB.m.visible = false; gbPips(false, 1); GB.aimT = 0; return; }
+        gbAim(); gbPickAim(); GB.aimT = Math.min(1, GB.aimT + dt / 0.25);      // wind-up: the ball draws back and up over 0.25 s
+        var H = hOf(L), w = GB.aimT * GB.aimT * (3 - 2 * GB.aimT);
+        PKC.previewDots({ x: 0, y: 0, z: 0 }, GB.d, GB.up, GB.dots);
+        gbPips(true, H);      // pips start at the hand, the held ball sits drawn back
+        GB.o.addScaledVector(GB.d, -0.28 * H * w).addScaledVector(GB.up, 0.12 * H * w);
+        GB.m.visible = true; GB.m.position.copy(GB.o); GB.m.scale.setScalar(0.25 * H); GB.m.rotation.set(0, GB.m.rotation.y + dt * 2.5, 0); GB.mTop.rotation.x = 0;
+        GB.mats.btn.color.setHex(ITM.GORBALL_TIERS[Math.max(0, gbOwned(ensureProfile(userName()), GB.best) - 1)].color);
     }
     function gbThrow() {
         var pf = ensureProfile(userName()), tier = gbOwned(pf, GB.best);
-        if (GB.on || !gbOk()) return;
-        if (!tier) { addRow('', '', 'no GOR BALLS · 7/11', 'is-sys'); return; }
+        if (GB.on) return;
+        if (!gbOk()) { addRow('', '', invOpen || storeOpen ? 'CLOSE INVENTORY' : (gmode !== 'foot' ? 'ON FOOT ONLY' : 'NO PLANET UNDER YOU'), 'is-sys'); return; }
+        if (!tier) { addRow('', '', 'NO GOR BALLS · 7/11', 'is-sys'); return; }
         if (FG.ko && FG.ko.node === land.node && PKC.koOpen(FG.ko.t, Date.now() / 1000)) { koThrow(pf, tier); return; }
         for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + tier) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; }
-        gbAim(); GB.id = fx.spawnBolt(GB.o, GB.d, ITM.GORBALL_TIERS[tier - 1].color, 0, PKC.BALL.tMax + 6, { shape: 'orb', size: 0.9, trail: true });
-        if (GB.id < 0) { giveItem(ITM.GORBALL_TIERS[tier - 1], 1); return; }
-        gbLocalize(); GB.on = true; GB.t = 0; GB.tier = tier; GB.phase = 'fly'; GB.e = null; GB.gr = null; aPlay('fire', { vel: 0.4, pitch: 0.8 }); writeSave(); invFill();
+        gbMesh(); gbAim(); gbPickAim();
+        if (GB.tgtId) { try { ps.calmCreature(GB.tgtId, PKC.CALM_SECS); } catch (e0) { /* ignore */ } }      // an aimed-at creature stops fleeing for 2 s
+        gbLocalize(); GB.pp.copy(GB.lo); GB.mats.btn.color.setHex(ITM.GORBALL_TIERS[tier - 1].color);
+        GB.id = 1; GB.on = true; GB.t = 0; GB.tier = tier; GB.phase = 'fly'; GB.e = null; GB.gr = null; GB.miss = false; GB.missD = 1e9; GB.spin = 16; GB.pt = 0; GB.hitId = '';
+        GB.tEnd = Math.max(PKC.throwTime(), GB.tAim > 0 ? GB.tAim + 0.35 : 0); GB.aimT = 0; gbPips(false, 1);
+        aPlay('fire', { vel: 0.4, pitch: 0.8 }); writeSave(); invFill();
     }
     function gbLocalize() { var nd = land.node; qW.copy(nd.mesh.quaternion).invert(); GB.lo.copy(GB.o).sub(nd.anchor.position).applyQuaternion(qW); GB.ld.copy(GB.d).applyQuaternion(qW); GB.lu.copy(GB.up).applyQuaternion(qW); }
     function gbProject() { var nd = land.node, m = nd.mesh.quaternion; GB.o.copy(GB.lo).applyQuaternion(m).add(nd.anchor.position); GB.d.copy(GB.ld).applyQuaternion(m); GB.up.copy(GB.lu).applyQuaternion(m); }
-    function gbEnd() { if (GB.id >= 0) fx.killBolt(GB.id); GB.id = -1; GB.on = false; GB.phase = ''; GB.e = null; GB.gr = null; }
-    function gbHitTest(H) {      // wild gnd creature (hp) or grazer (no hp, counts as full) near the ball; returns true on a hit
-        var i, e, r, cl, lpv;
+    function gbEnd() {
+        if (GB.gr && ps && ps.shrinkCreature) { try { ps.shrinkCreature(GB.gr.id, 1); } catch (e0) { /* ignore */ } }
+        if (GB.m) { GB.m.visible = false; GB.mFlash.visible = false; }
+        GB.id = -1; GB.on = false; GB.phase = ''; GB.e = null; GB.gr = null; GB.hitId = '';
+    }
+    function gbHitTest(H) {      // swept ball segment (GB.pp -> GB.lp, planet-local) vs the creature's real body sphere (live, not the 250 ms cache); true on a hit, sets GB.e / GB.gr / GB.cl / GB.hitR
+        var i, e, r, cl, rb = PKC.BALL.radius * H;
         if (!hasLineOfSight(GB.o, GB.p)) return false;      // PF2: hand -> ball must be clear of structure walls (the ball used to catch through them)
         for (i = 0; i < R27.gnd.length; i++) {
             e = R27.gnd[i]; if (!e.alive || e.mob || e.held || e.mode !== 'planet' || e.node !== land.node) continue;
-            r = gndSphere(e, r27B) + PKC.BALL.radius * H;
-            if (GB.p.distanceToSquared(r27B) < r * r) { GB.e = e; e.held = true; return true; }
+            r = gndSphere(e, GB.cw) + rb; gbToLocal(GB.cw, GB.cl);
+            if (PKC.segSphere(GB.pp.x, GB.pp.y, GB.pp.z, GB.lp.x, GB.lp.y, GB.lp.z, GB.cl.x, GB.cl.y, GB.cl.z, r)) { GB.e = e; GB.hitR = r; GB.hitId = ''; return true; }
         }
-        cl = creatList(); lpv = GB.lp.copy(GB.p).sub(land.node.anchor.position).applyQuaternion(qW.copy(land.node.mesh.quaternion).invert());
-        for (i = 0; i < cl.length; i++) { if (cl[i].lp.distanceToSquared(lpv) < (1.3 * H) * (1.3 * H)) { GB.gr = cl[i]; return true; } }
+        cl = creatList();
+        for (i = 0; i < cl.length; i++) {
+            r = gbBody(cl[i], GB.cw); if (r < 0) continue; r += rb; gbToLocal(GB.cw, GB.cl);
+            if (PKC.segSphere(GB.pp.x, GB.pp.y, GB.pp.z, GB.lp.x, GB.lp.y, GB.lp.z, GB.cl.x, GB.cl.y, GB.cl.z, r)) { GB.gr = cl[i]; GB.hitR = r; GB.hitId = cl[i].id; return true; }
+        }
         return false;
     }
     function ptSpeciesOf(node, kind, tier) {      // the one species recipe for a wild creature (catch + dex sighting both use it)
@@ -9497,34 +9578,109 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         else { aPlay('explosion', { pitch: 1.6, vel: 0.4 }); addRow('', '', 'it broke free (' + Math.round(ch * 100) + ' %)', 'is-sys'); }
         writeSave(); invFill();
     }
+    function gbFloor(v) { return ps.meshFloorLocal ? ps.meshFloorLocal(v.x, v.y, v.z) : ps.floorLocal(v.x, v.y, v.z); }
+    function gbHint(dt) {      // 'B · THROW GOR BALL xn' / 'NO GOR BALLS · 7/11' while a catchable is within 25 H (read by the prompt line in the frame loop)
+        GB.hintT -= dt; if (GB.hintT > 0) return; GB.hintT = 0.2; gbHintText = '';
+        if (!gbOk() || GB.on || GB.aim) return;
+        var H = hOf(L), cl = creatList(), i, e, near = false, n = 0, pf, r;
+        for (i = 0; i < cl.length && !near; i++) near = PKC.encounterOk(cl[i].lp.distanceTo(hum.pos) / H, gbKindOf(cl[i]), null, PKC.HINT_RANGE);
+        for (i = 0; i < R27.gnd.length && !near; i++) { e = R27.gnd[i]; if (e.alive && !e.mob && !e.held && e.mode === 'planet' && e.node === land.node) near = PKC.encounterOk(e.w.distanceTo(hum.w) / H, 'predator', null, PKC.HINT_RANGE); }
+        if (!near) return;
+        pf = curProfile(); if (pf) for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; if (/^gorball-[123]$/.test(r.id) && r.n > 0) n += r.n; }
+        gbHintText = n > 0 ? 'B · THROW GOR BALL ×' + n : 'NO GOR BALLS · 7/11';
+    }
     function gbTick(dt) {
-        if (!GB.on) { if (GB.aim) gbPreview(); return; }
-        var H = hOf(L), pf = ensureProfile(userName());
+        var H = hOf(L), pf, pop = 1, rb = PKC.BALL.radius * H, u, k, vr;
+        gbHint(dt);
+        if (!GB.on) { gbPreview(dt); return; }
+        pf = ensureProfile(userName());
         if (!gbOk()) { if (GB.e) GB.e.held = false; gbEnd(); return; }
         gbProject();      // re-project the planet-local origin/aim after this frame's syncPlanet
+        gbMesh(); GB.mFlash.visible = false;
         if (GB.phase === 'fly') {
             GB.t += dt; PKC.arcPoint({ x: 0, y: 0, z: 0 }, GB.d, GB.up, GB.t, GB.q);
-            GB.p.set(GB.o.x + GB.q.x * H, GB.o.y + GB.q.y * H, GB.o.z + GB.q.z * H); fx.setBolt(GB.id, GB.p.x, GB.p.y, GB.p.z);
+            GB.p.set(GB.o.x + GB.q.x * H, GB.o.y + GB.q.y * H, GB.o.z + GB.q.z * H);
+            GB.m.visible = true; GB.m.position.copy(GB.p); GB.m.scale.setScalar(0.25 * H); GB.m.rotation.x += GB.spin * dt; GB.m.rotation.z += GB.spin * 0.3 * dt; GB.mTop.rotation.x = 0;
+            gbToLocal(GB.p, GB.lp);
+            if (GB.tgtId) { k = ps.creatBody(GB.tgtId, GB.cw); if (k >= 0) GB.missD = Math.min(GB.missD, GB.p.distanceTo(GB.cw) / H - k / H); }
+            else if (GB.tgtE && GB.tgtE.alive) { k = gndSphere(GB.tgtE, GB.cw); GB.missD = Math.min(GB.missD, GB.p.distanceTo(GB.cw) / H - k / H); }
             if (gbHitTest(H)) {
                 var hf = GB.e ? Math.max(0, Math.min(1, GB.e.hp / (GB.e.hpMax || 1))) : 1, bonus = (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0;
-                GB.chance = PKC.catchChance(GB.tier, hf, bonus); GB.phase = 'shake'; GB.shakeN = 0; GB.shakeT = 0; GB.ph = Math.random();
-                GB.o.copy(GB.p); gbLocalize(); fx.impact(GB.p, 0xFFFFFF, 2, 'hit'); aPlay('hit', { dist: aDist(GB.p), vel: 0.5 });
-            } else if (GB.t >= PKC.throwTime()) { gbEnd(); addRow('', '', 'missed', 'is-sys'); }
+                GB.chance = PKC.catchChance(GB.tier, hf, bonus); GB.shakeN = 0; GB.shakeT = 0; GB.ph = Math.random();
+                GB.nn.copy(GB.lp).sub(GB.cl); if (GB.nn.lengthSq() < 1e-9) GB.nn.copy(GB.lu); GB.nn.normalize();
+                GB.lo.copy(GB.lp); GB.lv.copy(GB.nn).multiplyScalar(3 * H).addScaledVector(GB.lu, 4 * H); GB.phase = 'bounce'; GB.pt = 0; GB.spin = -26;
+                if (GB.hitId) { try { ps.calmCreature(GB.hitId, 6); } catch (e1) { /* ignore */ } }
+                if (GB.e) GB.e.hitF = 1;
+                fx.impact(GB.p, 0xFFFFFF, 2, 'hit'); aPlay('hit', { dist: aDist(GB.p), vel: 0.5 }); addRow('', '', 'HIT', 'is-sys');
+            } else if (GB.t >= GB.tEnd || GB.lp.length() < gbFloor(GB.lp) + rb) {      // flew out of reach or into the ground: it lands, rolls a moment and is lost
+                GB.miss = true; GB.lv.copy(GB.lp).sub(GB.pp).multiplyScalar(1 / Math.max(dt, 1e-3)); GB.lo.copy(GB.lp); GB.phase = 'drop'; GB.pt = 0; GB.shakeN = 0;
+                addRow('', '', GB.missD < 1e8 ? 'MISSED · ' + Math.max(0, GB.missD).toFixed(1) + ' H' : 'MISSED', 'is-sys');
+            }
+            GB.pp.copy(GB.lp);
             return;
         }
-        if (GB.e && !GB.e.alive) { gbEnd(); return; }      // killed mid-shake: no second reward
-        GB.shakeT += dt;      // shake: 0.7 s each, a wobble on the ball and a rising tick
-        fx.setBolt(GB.id, GB.o.x + Math.sin(GB.shakeT * 18) * 0.12 * H * (GB.shakeT < 0.5 ? 1 : 0), GB.o.y, GB.o.z);
-        if (GB.shakeT < 0.7) return;
-        GB.shakeT = 0; GB.shakeN++;
-        if (GB.shakeN < 3) { aPlay('ui', { vel: 0.5, pitch: 0.8 + GB.shakeN * 0.15 }); return; }
-        var res = PKC.catchRoll(GB.chance, GB.ph);
-        if (res.caught) { fx.impact(GB.o, 0x7CFF8A, 3, 'explode'); aPlay('tame'); gbCatch(pf); }
-        else { fx.impact(GB.o, 0xFF8A5C, 3, 'explode'); aPlay('explosion', { dist: aDist(GB.o), pitch: 1.6, vel: 0.4 }); if (GB.e) { GB.e.held = false; GB.e.ph = 'idle'; GB.e.cd = 0.4; } addRow('', '', 'it broke free', 'is-sys'); }
-        gbEnd();
+        if (GB.hitId === '' && GB.e && !GB.e.alive) { gbEnd(); return; }      // killed mid-shake: no second reward
+        GB.pt += dt;
+        if (GB.phase === 'bounce') {      // one bounce off the body
+            GB.lv.addScaledVector(GB.lu, -12 * H * dt); GB.lo.addScaledVector(GB.lv, dt);
+            if (GB.pt >= 0.28) { GB.phase = 'open'; GB.pt = 0; GB.lv.set(0, 0, 0); GB.spin = 0; aPlay('ui', { vel: 0.6, pitch: 1.4 }); }
+        } else if (GB.phase === 'open') {      // the ball opens (scale pop + flash) and the creature is sucked in over 0.32 s
+            u = Math.min(1, GB.pt / 0.32); pop = 1 + 0.5 * Math.sin(Math.PI * u);
+            GB.mTop.rotation.x = -1.1 * Math.min(1, u * 4);
+            if (GB.hitId) ps.shrinkCreature(GB.hitId, Math.max(0.001, 1 - u));
+            gbFlash(0xFFFFFF, u, H);
+            if (GB.pt >= 0.32) { GB.mTop.rotation.x = 0; if (GB.e) GB.e.held = true; GB.phase = 'drop'; GB.pt = 0; GB.shakeN = 0; }
+        } else if (GB.phase === 'drop' || GB.phase === 'roll') {
+            GB.nn.copy(GB.lo).normalize();
+            if (GB.phase === 'drop') {
+                GB.lv.addScaledVector(GB.nn, -12 * H * dt); GB.lo.addScaledVector(GB.lv, dt);
+                k = gbFloor(GB.lo) + rb;
+                if (GB.lo.length() <= k) {
+                    GB.nn.copy(GB.lo).normalize(); GB.lo.copy(GB.nn).multiplyScalar(k); vr = GB.lv.dot(GB.nn);
+                    if (GB.shakeN < 1 && vr < -2 * H) { GB.shakeN++; GB.lv.addScaledVector(GB.nn, -vr * 1.3); aPlay('hit', { vel: 0.25, pitch: 1.2 }); }
+                    else if (GB.miss) { GB.lv.addScaledVector(GB.nn, -vr); GB.phase = 'roll'; GB.pt = 0; GB.spin = 0; }
+                    else { GB.phase = 'shake'; GB.shakeT = 0; GB.shakeN = 0; GB.lv.set(0, 0, 0); aPlay('hit', { vel: 0.3, pitch: 0.7 }); }
+                }
+            } else {
+                GB.lo.addScaledVector(GB.lv, dt); GB.lv.multiplyScalar(Math.max(0, 1 - 4 * dt)); GB.lo.copy(GB.nn.copy(GB.lo).normalize()).multiplyScalar(gbFloor(GB.lo) + rb);
+                GB.m.rotation.x += GB.lv.length() / Math.max(rb, 1e-6) * dt;
+                if (GB.pt >= 0.7) { gbEnd(); return; }
+            }
+        } else if (GB.phase === 'shake') {      // 0.7 s per shake: visible rocking for the first 0.5 s, a tick, a log row
+            GB.shakeT += dt;
+            if (GB.shakeT < 0.5) GB.m.rotation.z = Math.sin(GB.shakeT / 0.5 * Math.PI * 3) * 0.6 * (1 - GB.shakeT); else GB.m.rotation.z = 0;
+            if (GB.shakeT >= 0.7) {
+                GB.shakeT = 0; GB.shakeN++;
+                if (GB.shakeN < 3) { aPlay('ui', { vel: 0.5, pitch: 0.8 + GB.shakeN * 0.15 }); addRow('', '', 'shake ' + GB.shakeN + '/3', 'is-sys'); }
+                else {
+                    addRow('', '', 'shake 3/3', 'is-sys');
+                    if (PKC.catchRoll(GB.chance, GB.ph).caught) { fx.impact(GB.o, 0x7CFF8A, 3, 'explode'); aPlay('tame'); gbCatch(pf); GB.phase = 'done'; GB.pt = 0; GB.m.rotation.z = 0; }
+                    else {
+                        fx.impact(GB.o, 0xFF8A5C, 3, 'explode'); aPlay('explosion', { dist: aDist(GB.o), pitch: 1.6, vel: 0.4 });
+                        if (GB.e) { GB.e.held = false; GB.e.ph = 'idle'; GB.e.cd = 0.4; }
+                        addRow('', '', 'BROKE FREE', 'is-sys'); GB.phase = 'free'; GB.pt = 0; GB.m.rotation.z = 0;
+                    }
+                }
+            }
+        } else if (GB.phase === 'done') {      // click: green flash, the ball settles and fades out
+            u = Math.min(1, GB.pt / 0.8); pop = 1 - 0.4 * u; gbFlash(0x7CFF8A, Math.min(0.999, GB.pt / 0.35), H);
+            if (GB.pt >= 0.8) { gbEnd(); return; }
+        } else if (GB.phase === 'free') {      // pops open, the creature re-expands
+            u = Math.min(1, GB.pt / 0.32); GB.mTop.rotation.x = -1.1 * Math.min(1, u * 4); pop = 1 + 0.3 * Math.sin(Math.PI * u);
+            if (GB.hitId) ps.shrinkCreature(GB.hitId, Math.max(0.001, u));
+            gbFlash(0xFF8A5C, Math.min(0.999, GB.pt / 0.35), H);
+            if (GB.pt >= 0.45) { gbEnd(); return; }
+        }
+        gbProject();
+        GB.m.visible = true; GB.m.position.copy(GB.o); GB.m.scale.setScalar(0.25 * H * pop);
+        if (GB.phase === 'shake' || GB.phase === 'done' || GB.phase === 'free') {      // resting: stand on the surface, rock about the tangent
+            GB.rw.copy(GB.lo).normalize().applyQuaternion(land.node.mesh.quaternion); k = GB.m.rotation.z; GB.m.quaternion.setFromUnitVectors(GB.Y, GB.rw); GB.m.rotateZ(k);
+        } else if (GB.phase !== 'roll') GB.m.rotation.x += GB.spin * dt;
     }
     window.addEventListener('keydown', function (e) {
-        if (e.code !== 'KeyB' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || state !== 'piloting' || cmdOpen || invOpen || storeOpen || gmode !== 'foot') return;
+        if (e.code !== 'KeyB' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || state !== 'piloting' || cmdOpen) return;
+        if (invOpen || storeOpen) { addRow('', '', 'CLOSE INVENTORY', 'is-sys'); return; }
+        if (gmode !== 'foot') { addRow('', '', 'ON FOOT ONLY', 'is-sys'); return; }
         GB.aim = true; GB.best = !!e.shiftKey;
     }, true);
     window.addEventListener('keyup', function (e) { if (e.code !== 'KeyB' || !GB.aim) return; GB.aim = false; if (state === 'piloting') gbThrow(); }, true);
@@ -9603,7 +9759,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!onP && !onD) { R27.fire = false; return; }
         sinceHit += dt; if (sinceHit > 5 && hp < HP_MAX) hp = Math.min(HP_MAX, hp + 5 * dt);
         footFireTick(dt);
-        if (onP) gbTick(dt); else if (GB.on) { if (GB.e) GB.e.held = false; gbEnd(); }
+        if (onP) gbTick(dt); else { gbHintText = ''; if (GB.on) { if (GB.e) GB.e.held = false; gbEnd(); } else if (GB.m) GB.m.visible = false; }
         if (onP) { nestTick(dt); petFollowTick(dt); ptTick(dt); meteorTick(dt); }
         if (R27.gnd.length) gndTick(dt, hum.w);
     }
@@ -10698,6 +10854,7 @@ setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: p
         get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
         land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyZ: onKeyZ, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
+        _gb: { GB: GB, throwBall: gbThrow, get hint() { return gbHintText; }, calm: function () { return ps; } },
         _g: { hOf: hOf, hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
         get stats() { return { hp: hp, wave: shownWave(), bossPhase: (api.boss || { bphase: 0 }).bphase, boss: (api.boss || { hp: 0 }).hp, bossMax: (api.boss || { maxHp: 0 }).maxHp, allies: allies.filter(function (a) { return a.alive; }).length, kills: kills, enemies: aliveCount(), L: L, dead: dead, gt: gt }; }
     };
