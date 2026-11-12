@@ -1,0 +1,17 @@
+[Unit]
+Description=HAT watchdog: reopen the DAC8x in PipeWire when its DMA stalls (csound untouched)
+After=demiurge.service
+
+[Service]
+Type=simple
+User=gorpi7v5
+Environment=HOME=/home/gorpi7v5 XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/usr/bin/python3 /home/gorpi7v5/PRIME_RECOVERY/hat-watchdog.py
+Restart=always
+RestartSec=2
+# never compete with the engine on core 3
+CPUAffinity=0-2
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

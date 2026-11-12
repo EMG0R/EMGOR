@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# demiurge-notify <im_done|attention>
+# COD's unified voice hook. One script, Pi and Mac.
+#   Linux (Demiurge Pi): pw-play to PipeWire's DEFAULT sink (no --target, so the
+#                        session manager routes it; never pins a device).
+#   macOS:               afplay to the Mac's default output.
+# Never forces/holds an output device, never takes RT priority (nice 19,
+# SCHED_OTHER, high latency hint), never blocks the caller (detached).
+# Env:
+#   DEMIURGE_NOTIFY_DIR     dir holding im_done.wav / attention.wav
+#   DEMIURGE_NOTIFY_WAV     explicit wav file (overrides name lookup)
+#   DEMIURGE_NOTIFY_TARGET  optional PipeWire node name for Linux (opt-in only)
+#   DRY_RUN=1               print the exact command, play nothing
+set -euo pipefail
+
+usage() { echo "usage: demiurge-notify <im_done|attention>" >&2; exit 2; }
+[ $# -eq 1 ] || usage
+case "$1" in
+  im_done|attention) name="$1" ;;
+  *) usage ;;
+esac
+
+# --- resolve wav -----------------------------------------------------------
+wav=""
+if [ -n "${DEMIURGE_NOTIFY_WAV:-}" ]; then
+  wav="$DEMIURGE_NOTIFY_WAV"
+else
+  candidates=()
+  [ -n "${DEMIURGE_NOTIFY_DIR:-}" ] && candidates+=("$DEMIURGE_NOTIFY_DIR/$name.wav")
+  candidates+=(
+    "$HOME/demiurge/sounds/$name.wav"
+    "/opt/demiurge/sounds/$name.wav"
+    "$HOME/Documents/_EMGOR_SYNTH/______2026NEW/$name.wav"
+    "$HOME/EMGOR_SKILLS/sounds/$name.wav"
+  )
+  for c in "${candidates[@]}"; do
+    if [ -f "$c" ]; then wav="$c"; break; fi
+  done
+fi
+if [ -z "$wav" ] || [ ! -f "$wav" ]; then
+  echo "demiurge-notify: wav for '$name' not found (set DEMIURGE_NOTIFY_DIR)" >&2
+  # a missing sound must never break the hook
+  exit 0
+fi
+
+# --- build play command ----------------------------------------------------
+case "$(uname -s)" in
+  Darwin)
+    cmd=(afplay "$wav")
+    ;;
+  Linux)
+    cmd=(nice -n 19 pw-play --media-role Notification --latency 200ms)
+    if [ -n "${DEMIURGE_NOTIFY_TARGET:-}" ]; then
+      cmd+=(--target "$DEMIURGE_NOTIFY_TARGET")
+    fi
+    cmd+=("$wav")
+    ;;
+  *)
+    echo "demiurge-notify: unsupported platform $(uname -s)" >&2
+    exit 0
+    ;;
+esac
+
+if [ "${DRY_RUN:-0}" = "1" ]; then
+  printf 'DRY_RUN:'; printf ' %q' "${cmd[@]}"; printf '\n'
+  exit 0
+fi
+
+# Detached: Claude Code kills the hook's process group on exit, so setsid +
+# disown (same lesson as the existing afplay hooks) keeps the sound alive.
+if command -v setsid >/dev/null 2>&1; then
+  setsid "${cmd[@]}" >/dev/null 2>&1 </dev/null &
+else
+  "${cmd[@]}" >/dev/null 2>&1 </dev/null &
+fi
+disown $! 2>/dev/null || true
+exit 0

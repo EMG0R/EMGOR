@@ -1,0 +1,18 @@
+{
+  "os_list": [
+    {
+      "name": "DEMIURGE OS",
+      "description": "Audio-first Raspberry Pi OS: PipeWire, a multi-language audio chain, one live.conf, and a self-updater.",
+      "icon": "https://raw.githubusercontent.com/EMG0R/demiurge/main/imager/icon.png",
+      "url": "PENDING_RELEASE_ASSET_URL",
+      "website": "https://github.com/EMG0R/demiurge",
+      "release_date": "PENDING",
+      "extract_size": 0,
+      "extract_sha256": "PENDING",
+      "image_download_size": 0,
+      "image_download_sha256": "PENDING",
+      "init_format": "systemd",
+      "devices": ["pi4-64bit", "pi5-64bit"]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "name": "ofp_common",
+  "title": "OP FREAK fixed-point DSP layer",
+  "version": "0.1",
+  "status": "experimental",
+  "status_note": "library: PRNG, tables, ADSR, LFO, GEN. Host-tested and Blackfin-simulator tested",
+  "firmware": {
+    "R246": "c5315218f825f143b415ca554516541898abee843d3a236df0b54c04e1fb13a9"
+  },
+  "sdk": 1,
+  "prefix": ["op_"],
+  "summary": "Library feature: shared integer DSP helpers for the OP FREAK engines (op_common.c).",
+  "license": "MIT",
+  "authors": ["Emory Smith (EMGOR)"],
+  "docs": "../../docs/ENGINES.md",
+  "sources": ["op_common.c"],
+  "libs": [],
+  "cflags": ["-O2", "-fno-tree-loop-distribute-patterns"],
+  "shared": [],
+  "hooks": {},
+  "controls": ["none"],
+  "tests": [],
+  "depends": [],
+  "conflicts": [],
+  "claims": []
+}

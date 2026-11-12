@@ -1,0 +1,39 @@
+// ~/demiurge/examples/hello_world/hello.strudel
+//
+// DEMIURGE Strudel hello_world — generative pattern.
+//
+// Runs headless via ~/demiurge/strudel/strudel-runner.mjs.
+//
+// DEFAULT (audio) — the runner hosts an AudioContext on
+// node-web-audio-api (cpal -> PipeWire-JACK) and plays each hap through
+// its own internal saw+AR voice. Strudel is the sound source; no
+// external synth is required. This is what Strudel is for.
+//
+//   LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/pipewire-0.3/jack \
+//     node ~/demiurge/strudel/strudel-runner.mjs hello.strudel
+//
+// MIDI mode (`--midi`) — the runner emits MIDI notes to "Midi Through"
+// instead, so any other language on the shared bus (ChucK, Csound, Pd,
+// SC, Faust, C++) can pick the notes up and do the sound design. Useful
+// when you want Strudel as a pure pattern driver.
+//
+//   LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/pipewire-0.3/jack \
+//     node ~/demiurge/strudel/strudel-runner.mjs --midi hello.strudel
+//
+// Either way the runner listens on ch16 CC119 for master BPM from
+// demiurge-clock and translates to scheduler.setCps internally, so the
+// pattern glides with the global clock.
+//
+// The pattern below is a slow modal noodle that evolves itself.
+
+stack(
+  // Root line — slow quarter notes walking a pentatonic
+  note("<c3 eb3 f3 g3 bb3 c4>(3,8)").slow(2),
+
+  // Upper voice — occasional sparkle notes, tight euclidean
+  note("<g4 bb4 c5 eb5 f5>(5,16)").sometimesBy(0.4, fast(2)).gain(0.7),
+
+  // Bass ghost — very slow
+  note("<c2 g1 f2 eb2>").slow(4).gain(0.85)
+)
+.fast(0.8)

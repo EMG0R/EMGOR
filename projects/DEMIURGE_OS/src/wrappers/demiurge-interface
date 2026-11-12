@@ -1,0 +1,171 @@
+#!/bin/bash
+# demiurge-interface [<name>|--list]
+# View and choose the audio interface DEMIURGE runs on.
+#
+# Usage:
+#   demiurge-interface              human-readable list of attached interfaces
+#   demiurge-interface --list       machine lines: name|card_id|flags|display
+#                                   flags (comma-joined): active  = resolver's pick
+#                                                         chosen  = global remembered choice
+#                                                         inuse   = a PCM stream is open now
+#                                   display = prettified name for UIs (4th field,
+#                                   appended so 3-field parsers keep working)
+#   demiurge-interface Volt 2       set the global choice by product NAME and
+#                                   restart demiurge so the engine reopens on it
+#
+# Identity is by ALSA product name ("Volt 2", "Scarlett Solo USB") — stable
+# across reboots/ports, unlike hw:N. Matching is case-insensitive substring
+# with '_' and ' ' treated as equal; the prettified DISPLAY name also matches
+# (so `demiurge-interface hdmi 0` or `... hifiberry` work), but the RAW
+# product name is what gets written — matching state stays name-based.
+#
+# Selection state (see docs/superpowers/specs/2026-07-26-interface-selection-design.md
+# and .../2026-08-05-hifiberry-hdmi-interface-design.md):
+#   1. live.conf `interface = <name>`  — per-set explicit, wins when attached
+#   2. ~/demiurge/interface.conf       — global remembered pick (THIS tool writes it)
+#   3. live.conf `audio_interface`     — legacy CARD= id
+#   4. first attached real interface   — never loopback / MIDI-only; HDMI
+#      skipped unless live.conf `hdmi_default = on` (then HDMI after non-HDMI)
+# Rules 1-3 CAN land on HDMI (explicit intent wins). The launcher applies the
+# same order at startup; this tool only predicts it for display and writes
+# layer 2.
+
+LIVE="${HOME}/demiurge/live.conf"
+GLOBAL="${HOME}/demiurge/interface.conf"
+
+norm() { tr '[:upper:]_' '[:lower:] ' <<<"$1" | sed 's/^ *//; s/ *$//'; }
+
+name_matches() {  # name_matches <candidate> <want>
+    local c w; c="$(norm "$1")"; w="$(norm "$2")"
+    [[ -n "$w" && ( "$c" == *"$w"* || "$w" == *"$c"* ) ]]
+}
+
+# Prettified display name for UIs. Matching still uses the raw product name;
+# this is presentation only. snd_rpi_ prefix dropped, known patterns
+# title-cased, vc4-hdmi-N → "HDMI N", generic fallback capitalizes words.
+display_name() {  # display_name <raw product name>
+    local n="${1#snd_rpi_}" ln
+    ln="$(tr '[:upper:]' '[:lower:]' <<<"$n")"
+    case "$ln" in
+        *hifiberry*dacplusadcpro*) echo "HiFiBerry DAC+ADC Pro"; return ;;
+        *hifiberry*dacplusadc*)    echo "HiFiBerry DAC+ADC";     return ;;
+        *hifiberry*dacplushd*)     echo "HiFiBerry DAC+ HD";     return ;;
+        *hifiberry*dacplus*)       echo "HiFiBerry DAC+";        return ;;
+        *hifiberry*digi*)          echo "HiFiBerry Digi";        return ;;
+        *hifiberry*amp*)           echo "HiFiBerry Amp";         return ;;
+    esac
+    if [[ "$ln" =~ ^vc4[-_]?hdmi[-_]?([0-9]*)$ ]]; then
+        echo "HDMI ${BASH_REMATCH[1]:-0}"; return
+    fi
+    awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2); print}' <<<"${n//_/ }"
+}
+
+# Attached playback-capable cards, excluding the aloop fallback. HDMI cards
+# (vc4hdmi*) ARE listed — flagged in HDMIS so the rule-4 fallback can skip
+# them while explicit selection still works.
+# Arrays: IDS[i], NAMES[i], DISPS[i], HDMIS[i] (0/1).
+IDS=(); NAMES=(); DISPS=(); HDMIS=()
+while IFS= read -r line; do
+    [[ "$line" == card\ * ]] || continue
+    rest="${line#*: }"                       # "V2 [Volt 2], device 0: ..."
+    id="${rest%% *}"
+    [[ "$id" == DemiurgeLoop || "$id" == Loopback ]] && continue
+    name="${rest#*\[}"; name="${name%%\]*}"
+    [[ -z "$name" ]] && name="$id"
+    seen=0; for x in "${IDS[@]}"; do [[ "$x" == "$id" ]] && seen=1; done
+    [[ $seen == 1 ]] && continue
+    ishdmi=0; [[ "$id" == vc4hdmi* ]] && ishdmi=1
+    IDS+=("$id"); NAMES+=("$name"); DISPS+=("$(display_name "$name")"); HDMIS+=("$ishdmi")
+done < <(aplay -l 2>/dev/null)
+
+set_iface="$(grep -m1 -E '^[[:space:]]*interface[[:space:]]*=' "$LIVE" 2>/dev/null | sed 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*$//; s/#.*//')"
+legacy="$(grep -m1 -E '^[[:space:]]*audio_interface[[:space:]]*=' "$LIVE" 2>/dev/null | sed -n 's/.*CARD=\([^,]*\).*/\1/p')"
+chosen="$(grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$GLOBAL" 2>/dev/null | head -1 | sed 's/^[[:space:]]*interface[[:space:]]*=[[:space:]]*//; s/[[:space:]]*$//')"
+hdmi_default="$(grep -m1 -E '^[[:space:]]*hdmi_default[[:space:]]*=' "$LIVE" 2>/dev/null | sed 's/^[^=]*=[[:space:]]*//; s/#.*//; s/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]')"
+
+iface_matches() {  # iface_matches <idx> <want> — raw product name OR display name
+    name_matches "${NAMES[$1]}" "$2" || name_matches "${DISPS[$1]}" "$2"
+}
+
+# Predict the resolver's pick (index into IDS, or -1). Rules 1-3 (explicit)
+# may land on HDMI; the rule-4 fallback skips HDMI unless hdmi_default=on
+# (then HDMI is eligible after every non-HDMI card) — mirrors the launcher.
+active=-1
+if [[ -n "$set_iface" ]]; then
+    for i in "${!IDS[@]}"; do iface_matches "$i" "$set_iface" && { active=$i; break; }; done
+fi
+if [[ $active -lt 0 && -n "$chosen" ]]; then
+    for i in "${!IDS[@]}"; do iface_matches "$i" "$chosen" && { active=$i; break; }; done
+fi
+if [[ $active -lt 0 && -n "$legacy" ]]; then
+    for i in "${!IDS[@]}"; do [[ "${IDS[$i]}" == "$legacy" ]] && { active=$i; break; }; done
+fi
+if [[ $active -lt 0 ]]; then
+    for i in "${!IDS[@]}"; do [[ "${HDMIS[$i]}" == 0 ]] && { active=$i; break; }; done
+fi
+if [[ $active -lt 0 && "$hdmi_default" =~ ^(on|true|yes|1)$ ]]; then
+    for i in "${!IDS[@]}"; do [[ "${HDMIS[$i]}" == 1 ]] && { active=$i; break; }; done
+fi
+
+pcm_open() {  # card id → 0 if any pcm stream open
+    local id="$1" f
+    for f in /proc/asound/"$id"/pcm*/sub*/hw_params; do
+        [[ -r "$f" ]] && [[ "$(head -c6 "$f" 2>/dev/null)" != closed ]] && return 0
+    done
+    return 1
+}
+
+if [[ "$1" == "--list" ]]; then
+    for i in "${!IDS[@]}"; do
+        flags=()
+        [[ $i == "$active" ]] && flags+=(active)
+        [[ -n "$chosen" ]] && iface_matches "$i" "$chosen" && flags+=(chosen)
+        pcm_open "${IDS[$i]}" && flags+=(inuse)
+        printf '%s|%s|%s|%s\n' "${NAMES[$i]}" "${IDS[$i]}" "$(IFS=,; echo "${flags[*]}")" "${DISPS[$i]}"
+    done
+    exit 0
+fi
+
+if [[ -z "$1" ]]; then
+    if [[ ${#IDS[@]} -eq 0 ]]; then
+        echo "No audio interface attached."
+    else
+        echo "Attached interfaces:"
+        for i in "${!IDS[@]}"; do
+            mark=" "
+            [[ $i == "$active" ]] && mark="*"
+            extra=""
+            [[ -n "$chosen" ]] && iface_matches "$i" "$chosen" && extra=" (chosen)"
+            pcm_open "${IDS[$i]}" && extra+=" [in use]"
+            printf '  %s %s%s\n' "$mark" "${DISPS[$i]}" "$extra"
+        done
+        echo ""
+        echo "* = where DEMIURGE will run"
+    fi
+    [[ -n "$set_iface" ]] && echo "Set override (live.conf): $set_iface"
+    [[ -n "$chosen"    ]] && echo "Global choice: $chosen"
+    exit 0
+fi
+
+# Set the global choice. Accept multi-word names unquoted; the raw product
+# name OR the display name matches, but the RAW name is what gets written.
+WANT="$*"
+match=""
+for i in "${!IDS[@]}"; do
+    iface_matches "$i" "$WANT" && { match="${NAMES[$i]}"; break; }
+done
+if [[ -z "$match" ]]; then
+    echo "demiurge-interface: '$WANT' is not attached right now — saving anyway" >&2
+    match="$WANT"
+fi
+
+mkdir -p "$(dirname "$GLOBAL")"
+{
+    echo "# DEMIURGE global interface choice — written by demiurge-interface."
+    echo "# Used when the active set has no \`interface =\` line or its pick is absent."
+    echo "interface = $match"
+} > "$GLOBAL"
+
+echo "demiurge-interface: '$match' → restarting demiurge..."
+sudo systemctl restart demiurge
+echo "demiurge-interface: done"

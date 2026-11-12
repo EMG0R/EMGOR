@@ -1,0 +1,64 @@
+[Unit]
+Description=DEMIURGE polling touchscreen driver (dead-PENIRQ workaround, SPI -> uinput)
+# The panel's ADS7846 has a dead PENIRQ output — permanently low, so the
+# edge-triggered kernel ads7846 driver is never woken (0 interrupts since
+# boot). The chip itself measures fine, so this daemon polls it over SPI and
+# republishes it through uinput. See src/wrappers/demiurge-touch-poll.
+#
+# Ordering: this MUST be fully up before anything that autodetects an input
+# device, or those consumers scan /proc/bus/input/devices before our uinput
+# node exists and come up with no touch until they are restarted by hand.
+# ExecStartPost below is what makes Before= actually mean something for a
+# Type=simple unit (the job is not "started" until ExecStartPost returns).
+Before=neptr-ui.service demiurge-touch.service
+# Deliberately NOT PartOf/BoundBy the audio stack: touch input must keep
+# working across audio restarts (same reasoning as demiurge-touch.service).
+After=systemd-udev-settle.service
+
+[Service]
+Type=simple
+User=gorpi7v5
+Group=gorpi7v5
+# input -> /dev/uinput (root:input 0660); spi -> /dev/spidev0.1 (root:spi 0660).
+# With the boot-config change (no ads7846 overlay) no root is needed at all;
+# the daemon's self-healing takeover path uses `sudo -n` only if it finds the
+# SPI device still squatted on, exactly like demiurge-touch-test's hwdb staging.
+SupplementaryGroups=input spi
+Environment=HOME=/home/gorpi7v5
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 /opt/demiurge/bin/demiurge-touch-poll --daemon
+# Wait for the uinput node to actually exist before declaring the unit up, so
+# Before= above genuinely orders the consumers. Matched on Phys (unique to us)
+# rather than Name (deliberately identical to the old kernel device). Always
+# exits 0 — a failed unit here would poison `systemctl --failed` system-wide,
+# and a missing panel must never be treated as a boot failure.
+ExecStartPost=/bin/sh -c 'i=0; while [ $i -lt 50 ]; do grep -q "demiurge-touch-poll/spi0.1" /proc/bus/input/devices && exit 0; i=$((i+1)); sleep 0.1; done; exit 0'
+# Restarting this daemon destroys and recreates the uinput node, which leaves
+# every already-running consumer holding a file descriptor to a device that no
+# longer exists — reads then error out and their reader threads die SILENTLY.
+# The panel looks dead while the event stream is in fact perfect; it cost real
+# debugging time once already. Consumers cannot detect this themselves without
+# code changes, and the whole point of this daemon is that they need none, so
+# the restart is propagated here instead.
+# `try-restart` acts only on units that are ALREADY running, so at boot this is
+# a no-op (Before= guarantees they have not started yet) and it only fires on a
+# genuine mid-session restart, which is exactly when it is needed.
+# --no-block is REQUIRED, not a nicety: without it this deadlocks. The restart
+# job cannot run until our own start job completes (Before= orders it after
+# us), while our start job cannot complete until ExecStartPost returns — so
+# systemd waits on itself until the unit times out and neptr-ui is left DOWN.
+# Queue the job and let the ordering resolve it once we have finished starting.
+ExecStartPost=-/usr/bin/sudo -n /usr/bin/systemctl try-restart --no-block neptr-ui.service demiurge-touch.service
+# KEEP OFF CPU 3. The audio engine is pinned there (isolcpus=3, FIFO 74) and
+# tonight's dropouts came from non-audio work interfering with audio. Normal
+# scheduling priority, never realtime — this is a 100 Hz timer, not a
+# deadline-critical task, and it must never be able to preempt the engine.
+CPUAffinity=0-2
+Nice=0
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

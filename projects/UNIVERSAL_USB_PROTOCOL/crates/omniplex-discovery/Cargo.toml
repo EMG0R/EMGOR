@@ -1,0 +1,15 @@
+[package]
+name = "omniplex-discovery"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+mdns-sd = { workspace = true }
+if-addrs = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true }

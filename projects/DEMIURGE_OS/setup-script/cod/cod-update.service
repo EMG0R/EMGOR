@@ -1,0 +1,20 @@
+[Unit]
+Description=COD updater: fetch newest EMG0R/cod, swap the checkout, refresh installed files (never restarts anything)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Same stage/swap scripts as the Demiurge updater, parameterized by DEMIURGE_ROOT.
+# Config (remote/branch/verify files) lives in %h/.local/share/cod-update/local/updater.conf.
+Environment=DEMIURGE_ROOT=%h/.local/share/cod-update
+Environment=DEMIURGE_FIRST_INSTALL=1
+ExecStart=%h/.local/lib/demiurge-cod/demiurge-update-stage
+ExecStart=%h/.local/lib/demiurge-cod/demiurge-update-swap
+# Re-copy cod's files from the (possibly new) checkout. Unit files and scripts are
+# replaced on disk only: no daemon-reload restarts, no service start/stop/restart.
+ExecStart=%h/.local/lib/demiurge-cod/install-cod.sh --refresh
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=25%
+MemoryHigh=256M

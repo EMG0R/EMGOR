@@ -1,0 +1,7 @@
+board_manager:
+  additional_urls:
+    - https://www.pjrc.com/teensy/package_teensy_index.json
+directories:
+  data: /home/gorpi7v5/MCU/arduino15
+  downloads: /home/gorpi7v5/MCU/arduino15/staging
+  user: /home/gorpi7v5/MCU/arduino-libs

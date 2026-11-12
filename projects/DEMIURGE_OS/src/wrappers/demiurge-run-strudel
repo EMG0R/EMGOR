@@ -1,0 +1,25 @@
+#!/bin/bash
+# demiurge-run-strudel <file.mjs|file.strudel>
+# Runs a Strudel pattern through the headless Node runner at
+# ~/demiurge/strudel/strudel-runner.mjs. The runner emits MIDI on the
+# shared ALSA seq bus and (optionally) audio via cpal. The runner's
+# JACK client name is `cpal_client_out` once audio init completes.
+set -e
+source /opt/demiurge/lib/demiurge-env.sh 2>/dev/null || source "$(dirname "$0")/../lib/demiurge-env.sh"
+
+if [[ -z "$1" ]]; then
+    echo "usage: demiurge-run-strudel <file.mjs|file.strudel>" >&2
+    exit 1
+fi
+
+STRUDEL_HOME="${STRUDEL_HOME:-$HOME/demiurge/strudel}"
+RUNNER="$STRUDEL_HOME/strudel-runner.mjs"
+
+if [[ ! -f "$RUNNER" ]]; then
+    echo "demiurge-run-strudel: runner not found at $RUNNER" >&2
+    exit 2
+fi
+
+FILE="$1"; shift
+export NODE_PATH="$STRUDEL_HOME/node_modules${NODE_PATH:+:$NODE_PATH}"
+exec node "$RUNNER" "$FILE" "$@"

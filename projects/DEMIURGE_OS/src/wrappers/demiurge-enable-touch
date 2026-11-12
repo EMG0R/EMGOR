@@ -1,0 +1,50 @@
+#!/bin/bash
+# demiurge-enable-touch — enable the MPI3508 (and similar XPT2046/ADS7846 SPI
+# resistive) touchscreen on a Pi by adding the ads7846 overlay to config.txt.
+#
+# The MPI3508 sends video over HDMI but its touch panel is a resistive XPT2046
+# controller wired to the GPIO SPI0 pins (penirq=GPIO25, cs=CE1). Linux needs
+# the ads7846 overlay loaded to create the touch input device; until then the
+# panel shows an image but produces zero touch events.
+#
+# Run with sudo. Does NOT reboot — the overlay only loads at boot, so reboot
+# yourself when ready, then test with:  python3 ~/demiurge-stream-touch
+#
+# Params are the goodtft MPI3508-show values. If after reboot the axes are
+# swapped/inverted, re-run won't help — edit the dtoverlay line and flip
+# swapxy / add invx=1 / invy=1, or adjust xmin/xmax/ymin/ymax for calibration.
+
+set -euo pipefail
+
+CFG=/boot/firmware/config.txt
+[[ -f "$CFG" ]] || CFG=/boot/config.txt
+[[ -f "$CFG" ]] || { echo "config.txt not found" >&2; exit 1; }
+
+if [[ $EUID -ne 0 ]]; then
+  echo "Run with sudo:  sudo $0" >&2
+  exit 1
+fi
+
+if grep -q "dtoverlay=ads7846" "$CFG"; then
+  echo "ads7846 overlay already present in $CFG — no change."
+  echo "If touch still doesn't work, reboot and run: python3 ~/demiurge-stream-touch"
+  exit 0
+fi
+
+BAK="$CFG.bak.$(date +%s)"
+cp "$CFG" "$BAK"
+echo "Backed up $CFG -> $BAK"
+
+cat >> "$CFG" <<'EOF'
+
+# MPI3508 resistive touch (XPT2046/ADS7846 on SPI0) — penirq=GPIO25, cs=CE1
+dtparam=spi=on
+dtoverlay=ads7846,cs=1,penirq=25,penirq_pull=2,speed=50000,keep_vref_on=0,swapxy=0,pmax=255,xohms=150,xmin=200,xmax=3900,ymin=200,ymax=3900
+EOF
+
+echo "Added touch overlay to $CFG."
+echo
+echo "Next (when you're ready — this needs a reboot to take effect):"
+echo "  sudo reboot"
+echo "Then verify touch:"
+echo "  python3 ~/demiurge-stream-touch"

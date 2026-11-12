@@ -1,0 +1,28 @@
+// node tests/test_join.js -- pmor_join.js pure functions: joinIndex (16th index of the join) and isJump (relocate detector)
+const fs = require("fs"), path = require("path"), vm = require("vm");
+const src = fs.readFileSync(path.join(__dirname, "..", "max", "devices", "pmor_join.js"), "utf8");
+const ctx = { module: { exports: {} }, inlets: 0, outlets: 0 }; vm.createContext(ctx); vm.runInContext(src, ctx);
+const { joinIndex, isJump, joinStep } = ctx.module.exports;
+let pass = 0, fail = 0;
+const eq = (n, g, w) => { if (g === w) pass++; else { fail++; console.log("FAIL", n, g, "!=", w); } };
+eq("beat 0 mid -> 16th 1", joinIndex(0.1, false), 1);
+eq("beat 0 exact -> next = 1", joinIndex(0.0, false), 1);
+eq("beat 1.0 exact, next 16th = 5", joinIndex(1.0, false), 5);
+eq("beat 1.1 mid -> 5", joinIndex(1.1, false), 5);
+eq("beat 1.24 mid -> 5", joinIndex(1.24, false), 5);
+eq("beat 1.26 -> 6", joinIndex(1.26, false), 6);
+eq("at boundary tick 1.25 -> 5", joinIndex(1.25, true), 5);
+eq("at boundary tick with jitter 1.2498 -> 5", joinIndex(1.2498, true), 5);
+eq("at boundary tick with jitter 1.2503 -> 5", joinIndex(1.2503, true), 5);
+eq("bar 33 (beat 128) -> 512", joinIndex(128, true), 512);
+eq("negative clamps to 0", joinIndex(-2, true), 0);
+eq("NaN clamps to 0", joinIndex(NaN, true), 0);
+eq("jump back", isJump(10, 2), true);
+eq("jump forward", isJump(2, 10), true);
+eq("normal step", isJump(2.00, 2.02), false);
+eq("exactly one beat is not a jump", isJump(2, 3), false);
+eq("first sample is not a jump", isJump(null, 5), false);
+eq("step 0 = joinprep", JSON.stringify(joinStep(0, 8.0)), JSON.stringify({ msg: "joinprep", next: 1 }));
+eq("step 1 = join of this boundary", JSON.stringify(joinStep(1, 8.25)), JSON.stringify({ msg: "join", n: 33, next: 2 }));
+eq("step 2 = nothing", joinStep(2, 9).msg, null);
+console.log("test_join: " + pass + " passed, " + fail + " failed"); process.exit(fail ? 1 : 0);

@@ -1,0 +1,29 @@
+seconds 3.0
+bpm 120
+smp_fill 0 48000
+set g.fsr 0.7
+set g.lidar 0.4
+set g.accel_x 0.2
+set seq.0.mode 1
+set seq.1.mode 1
+set seq.2.mode 1
+seq_step 0 0 0x1000
+seq_step 0 4 0x1000
+seq_step 0 8 0x1000
+seq_step 0 12 0x1000
+seq_step 0 4 0x4000
+seq_step 0 12 0x4000
+seq_step 0 0 0x4
+seq_step 0 2 0x4
+seq_step 0 4 0x4
+seq_step 0 6 0x4
+seq_step 0 8 0x4
+seq_step 0 10 0x4
+seq_step 0 12 0x4
+seq_step 0 14 0x4
+seq_step 1 0 0x11
+seq_step 1 8 0x42
+seq_step 2 2 0x1
+seq_step 2 10 0x1
+at 0.5 fx_press 95
+at 2.0 fx_release 95

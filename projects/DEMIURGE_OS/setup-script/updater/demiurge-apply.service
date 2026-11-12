@@ -1,0 +1,16 @@
+[Unit]
+Description=Demiurge: apply per-release user-level installers (COD etc.), after an update
+After=network-online.target user@1000.service demiurge-update-swap.service
+Wants=network-online.target
+ConditionPathExists=/demiurge/local/apply-pending
+
+[Service]
+Type=oneshot
+ExecStart=/opt/demiurge/bin/demiurge-apply
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=900
+# Deliberately no Before=/Requires= on demiurge.service or any audio unit; never restarts them.
+
+[Install]
+WantedBy=multi-user.target

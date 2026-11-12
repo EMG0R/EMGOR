@@ -1,0 +1,469 @@
+"""Natural language -> scene JSON, via the `claude` CLI (non-interactive).
+
+Pipeline: build a prompt embedding the DSL spec + 2 example scenes, run
+`claude -p ... --output-format json`, extract + validate the JSON, retry once
+feeding back the validation error, and on total failure fall back to the
+closest example scene by keyword overlap. A bad LLM response can never crash
+the engine — this module always returns *some* valid scene.
+"""
+from __future__ import annotations
+
+import json
+import random
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+from .scene import SceneValidationError, validate_scene
+
+SCENES_DIR = Path(__file__).resolve().parent.parent / "scenes"
+TASTE_DIR = SCENES_DIR / "taste"
+CLAUDE_TIMEOUT = 120
+
+DIVERSITY_DIRECTIVE = """
+DIVERSITY (important): vary your technique between requests. Do NOT default
+to falling particles / rain. The examples below are a RANDOM SPANNING SAMPLE,
+never a template to copy -- pick whatever layer types best fit THIS vibe:
+plasma fields, scrolling fBm noise, aurora gradients, orbiting wrap-particles,
+interfering waves, or a combination. Reach across the full DSL. Two scenes
+generated for the same words should be able to look meaningfully different --
+different palettes, different motion, different layer types. Surprise me while
+still nailing the requested vibe.
+"""
+
+DSL_SPEC_TEMPLATE = """\
+You generate scenes for a 1-D LED render engine: @WORLD@
+Units: positions px, velocity px/s, acceleration px/s^2. Colors are "#rrggbb".
+
+A scene is a JSON object:
+{
+  "name": str,
+  "master": {                      // all optional
+    "brightness": 0..4 (default 1),
+    "blur": 0..50 gaussian sigma px (default 0),
+    "tone_map": "clip"|"reinhard",
+    "strobe": {"mode":"none"|"pulse"|"strobe","rate_hz":0..30,"depth":0..1,"duty":0.01..1}
+  },
+  "layers": [Layer, ...]           // rendered bottom-up into an HDR buffer
+}
+
+Every Layer has: "type", "blend":"add"|"max"|"alpha"|"boost" (default add;
+boost = relative brightening lens: dst *= 1 + rgb*opacity, keeps local hue),
+"opacity":0..2 (default 1), "decay":0..0.999 (per-frame trail persistence;
+0 = no trails, 0.85-0.95 = long glowing trails), or the richer
+"trail":{"decay":0..0.999,"blur":0..50} (blur = soft smear of just the
+trail, wraps ring seams correctly). Palette layers (wave/noise/plasma/
+gradient/particles) also take "palette_speed":float (palette cycles/sec,
+rotates the hue mix over time -- great for generative ambience).
+
+Layer types:
+1. "particles": physically simulated points splatted with gaussian/hard falloff.
+   "physics": {
+     "gravity": {"mode":"direction","accel":px/s2}   // negative accel pulls toward pixel 0
+              | {"mode":"point","point":px,"accel":px/s2},
+     "damping": 1/s (velocity friction, 0=none),
+     "bounce": {"enabled":bool,"restitution":0..1},   // elastic bounce off both strip ends
+     "collisions": bool,                              // particle-particle elastic collisions
+     "wind": {"accel":px/s2,"vary_hz":float,"vary_amount":0..1},
+     "turbulence": {"accel":px/s2,"scale":px,"speed":float},  // noise-driven jitter/random walk
+     "attractors": [{"pos":px,"strength":px/s2 (neg = repel),"falloff":"constant"|"linear"|"inverse_square","radius":px}],
+     "wrap": bool (ring worlds: positions wrap modulo N, no walls, splats cross the seam),
+     "drive": {"top_speed":px/s,"min_speed":px/s,"reverses_per_min":float,"smooth_s":s}
+              // organic traveller: layer velocity wanders min..top and smoothly
+              // reverses direction ~reverses_per_min times/minute
+   },
+   "emitters": [{"pos":px or [min,max],"rate":particles/s,"vel":px/s,"vel_jitter":px/s,
+                 "lifetime":s,"lifetime_jitter":s,"colors":["#hex",...],"size":px sigma,
+                 "size_jitter":px,"mass":float,"burst":int spawned at t=0,
+                 "color_mode":"static"|"velocity"|"age"|"index","hue_drift":cycles/s}],
+   "particles": [{"pos":px,"vel":px/s,"color":"#hex","size":px,"mass":float,"lifetime":s|null}],
+   "springs": [{"a":particle_index,"anchor":px,"k":stiffness,"damping":float,"rest":px}
+             | {"a":i,"b":j,"k":...,"damping":...,"rest":px}],
+   "render": {"falloff":"gaussian"|"hard","fade_out":bool},
+   "palette":["#hex",...],"palette_speed":float
+     // optional layer-wide palette. Emitters default to "static" (their
+     // own colors, unchanged); set "color_mode":"index" for a spread of
+     // hues across particles, "velocity"/"age" to drive hue from motion.
+2. "wave": {"waves":[{"wavelength":px,"speed":px/s,"amplitude":0..1,"phase":rad}],
+            "palette":["#hex",...] or "color":"#hex", "bias":float}
+3. "noise": scrolling fBm field: {"scale":px,"speed":float,"drift":px/s,"octaves":1..6,
+            "contrast":0..10,"threshold":0..1,"palette":[...],"brightness":0..4}
+4. "plasma": {"scale":px,"speed":float,"palette":[...],"brightness":0..4}
+5. "gradient": {"palette":[...],"scroll_speed":px/s,"scale":px per palette cycle,"brightness":0..4}
+6. "solid": {"color":"#hex"}
+7. "paint": explicit per-pixel map: {"pixels":{"0":"#ff0000",...},"background":"#000000"|null}
+
+Design taste: use decay for trails, palettes over single colors, 2-3 layers max,
+keep total brightness sane (this is a room light). Aim rates <= 15/s and sizes 0.8-3.
+@EXTRA@@PROJECTOR@@ZONES@"""
+
+PROJECTOR_SPEC = """
+WALL PROGRAM (projector): the room includes a projected wall, part of the
+scene. Unless the vibe is explicitly ring-only, add top-level "projector":
+{"style":"particles"|"aurora"|"flowfield"|"wash"|"react"|"bleed",
+"params":{"density":0-2,"speed":0-2,"turbulence":0-2,"hue_drift":0-1,
+"fade":0-2}, "energy":float, "palette":["#hex",...], "brightness":float,
+"glsl":"<fragment body>"} (all optional). Simple/ambient vibes: use
+style+params. Distinctive/characterful vibes: author "glsl" instead (it
+OVERRIDES style) -- a fragment body defining `vec3 wall(vec2 uv, float t)`
+(uv 0..1 across the wall, y down). Available: ringAt(u)->vec3 (calibrated
+LED colors), uEnergy (0-1.5 smoothed room energy), uPalA/uPalB (vec3
+dominant colors), uComets[8] vec4(u,age_s,vel,strength) + uCometCount
+(ground-truth moving objects), rhash/rnoise/rfbm noise helpers. Broken glsl
+never blanks the wall (hot-compiled, last-good fallback) -- be bold but
+syntactically correct.
+CORE MECHANIC -- "a pin dropped in water": treat a moving object crossing
+the LED window as striking the wall like a surface. Its event/ripple/wake
+EXPANDS outward from that u position, propagating ALL THE WAY to the
+screen edges (full-screen reach every time -- never a strip-hugging band).
+COLOR TRUTH: sample ringAt(u) at the event's/source's position and let
+THAT exact color flow outward from u (spatial continuity -- whatever
+leaves the strip at u continues down/across the wall from u, not a
+re-picked or averaged color).
+DOCTRINE (center of gravity, not a formula): bias to particle systems,
+aurora-like fields, and ripple/wake propagation; ring data is INFLUENCE,
+not image -- energy drives spawn rate/tempo, ringAt(u) drives color at
+the point of contact, comets are EVENTS (ripples/gusts/blooms/showers at
+their u, expanding full-screen). NEVER a mirrored strip. YOU (the scene
+author) decide what actually goes on the wall each scene -- vary style,
+palette use, and motion between scenes; full creative latitude, full
+vibes, never a rote template.
+
+Two glsl examples (compact, match the interface exactly):
+// aurora field, colored by palette + energy
+vec3 wall(vec2 uv, float t) {
+  float n = rfbm(vec2(uv.x * 2.0, t * 0.08));
+  vec3 col = mix(uPalA, uPalB, smoothstep(0.2, 0.8, n + uv.y * 0.3));
+  return col * (0.4 + uEnergy * 0.8) * smoothstep(1.0, 0.3, uv.y);
+}
+// comet ripple: pin-in-water rings expanding full-screen from ringAt(u)
+vec3 wall(vec2 uv, float t) {
+  vec3 col = vec3(0.0);
+  for (int i = 0; i < 8; i++) {
+    if (i >= uCometCount) break;
+    vec4 c = uComets[i];
+    float d = distance(uv, vec2(c.x, 0.5));
+    float radius = c.y * 0.6;
+    float ring = exp(-pow(d - radius, 2.0) * 60.0) * exp(-c.y * 0.3);
+    col += ringAt(c.x) * ring * c.w * (0.5 + uEnergy);
+  }
+  return col;
+}
+"""
+
+ZONES_NOTE = ("\nROOM ZONES: live calibration ring points may follow below "
+              "(front/right/back/left, wrapping; projL/projR = projector "
+              "wall) -- use their index ranges for spatial requests "
+              "(\"light the front\", \"sweep back to front\").")
+
+STRIP_WORLD = ("an {n}-pixel WS2812B strip,\n"
+               "world coordinates 0..{hi} (pixel 0 = bottom/left end, "
+               "{hi} = top/right end).")
+
+RING_WORLD = ("a CLOSED RING of {n} pixels wrapping the whole room,\n"
+              "world coordinates 0..{hi}, where pixel {hi} is physically "
+              "adjacent to pixel 0 (360 degrees).")
+
+RING_EXTRA = """\
+RING RULES (this world is a closed loop, not a strip):
+- Prefer wrap-seamless effects: for "particles" set "physics": {"wrap": true}
+  (positions wrap modulo N, no walls, splats cross the 0/N seam) instead of
+  bounce; for "wave" use wavelengths that divide N exactly; for "gradient"
+  use "scale" = N (or N/2, N/4...) so the palette tiles the loop.
+- Travelling things should orbit (constant velocity + wrap), not bounce.
+- There is no "top" or "bottom", only positions around the loop.
+"""
+
+
+def dsl_spec(num_pixels: int = 800, ring: bool = False) -> str:
+    """The DSL spec text, parameterized for world size + ring topology."""
+    world = (RING_WORLD if ring else STRIP_WORLD).format(
+        n=num_pixels, hi=num_pixels - 1)
+    return (DSL_SPEC_TEMPLATE.replace("@WORLD@", world)
+            .replace("@EXTRA@", RING_EXTRA if ring else "")
+            .replace("@PROJECTOR@", PROJECTOR_SPEC)
+            .replace("@ZONES@", ZONES_NOTE))
+
+
+def _zones_block(calibration_points: dict | None) -> str:
+    """Format live calibration points as a compact context block, or ''
+    if none were supplied (nl.py never hardcodes zone indices itself --
+    callers fetch/pass current values, e.g. from GET /calibration)."""
+    if not calibration_points:
+        return ""
+    pts = ", ".join(f"{k}={v}" for k, v in calibration_points.items())
+    return f"\nLive calibration points: {{{pts}}}\n"
+
+
+# Backward-compatible constant (original 800px strip spec).
+DSL_SPEC = dsl_spec(800, ring=False)
+
+RETRY_SUFFIX = """
+Your previous attempt was rejected by the validator with this error:
+{error}
+Fix it and output the corrected scene. Output ONLY the JSON object.
+"""
+
+
+def _scene_files() -> list[Path]:
+    """All scene JSONs: scenes/ holds the live set (currently just the
+    default), scenes/archive/ keeps the example library (never deleted)."""
+    return sorted(SCENES_DIR.glob("*.json")) + sorted(
+        (SCENES_DIR / "archive").glob("*.json"))
+
+
+def _example_scenes(k: int = 2) -> list[dict]:
+    out = []
+    for name in ("rain.json", "comet.json"):
+        for p in (SCENES_DIR / name, SCENES_DIR / "archive" / name):
+            if p.exists():
+                out.append(json.loads(p.read_text()))
+                break
+        if len(out) >= k:
+            break
+    return out
+
+
+def _load_scene(p: Path) -> dict | None:
+    try:
+        return json.loads(p.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _dominant_technique(scene: dict) -> str:
+    """The most 'characterful' layer type in a scene, for bucketing so we can
+    sample examples that span DIFFERENT techniques."""
+    layers = scene.get("layers") or []
+    for lt in ("plasma", "noise", "particles", "wave", "gradient", "paint", "solid"):
+        if any(isinstance(l, dict) and l.get("type") == lt for l in layers):
+            return lt
+    return "other"
+
+
+def _taste_scene_files() -> list[Path]:
+    if not TASTE_DIR.is_dir():
+        return []
+    return sorted(TASTE_DIR.glob("*.json"))
+
+
+# utility / test scenes that are bad aesthetic references for the model.
+_EXAMPLE_EXCLUDE = ("calibration", "paint", "pre-calibration", "backup",
+                    "test", "default", "rgb")
+
+
+def _is_good_example(p: Path) -> bool:
+    stem = p.stem.lower()
+    return not any(bad in stem for bad in _EXAMPLE_EXCLUDE)
+
+
+def _diverse_examples(k: int = 3) -> list[dict]:
+    """Pick k example scenes spanning DIFFERENT techniques, randomized per
+    call, so generations stop collapsing toward one look. A favorite from
+    scenes/taste/ (if any) always takes one slot, biasing toward the user's
+    aesthetic. Robust: always returns >=1 valid scene, never raises."""
+    pool = [p for p in _scene_files() if _is_good_example(p)]  # scenes/ + archive/
+    buckets: dict[str, list[Path]] = {}
+    for p in pool:
+        sc = _load_scene(p)
+        if sc:
+            buckets.setdefault(_dominant_technique(sc), []).append(p)
+    chosen: list[dict] = []
+    used: set[Path] = set()
+
+    fav = _taste_scene_files()
+    if fav:
+        p = random.choice(fav)
+        sc = _load_scene(p)
+        if sc:
+            chosen.append(sc)
+            used.add(p)
+
+    techniques = list(buckets.keys())
+    random.shuffle(techniques)
+    for tech in techniques:
+        if len(chosen) >= k:
+            break
+        cands = [p for p in buckets[tech] if p not in used]
+        if not cands:
+            continue
+        p = random.choice(cands)
+        sc = _load_scene(p)
+        if sc:
+            chosen.append(sc)
+            used.add(p)
+
+    if len(chosen) < 2:  # guarantee a couple of examples
+        for p in pool:
+            if p in used:
+                continue
+            sc = _load_scene(p)
+            if sc:
+                chosen.append(sc)
+                used.add(p)
+            if len(chosen) >= 2:
+                break
+    if not chosen:  # last-ditch: fall back to the original static pair
+        chosen = _example_scenes()
+    return chosen[:k]
+
+
+def _taste_block() -> str:
+    """Soft taste bias injected into the prompt: the user's written taste
+    notes (scenes/taste/taste.md). The requested vibe still leads; this only
+    tilts palette / motion / energy toward what the user tends to like."""
+    notes = TASTE_DIR / "taste.md"
+    if notes.is_file():
+        try:
+            txt = notes.read_text().strip()
+        except OSError:
+            txt = ""
+        if txt:
+            return ("\nEMORY'S TASTE (bias toward this aesthetic; the requested "
+                    "vibe still leads):\n" + txt + "\n")
+    return ""
+
+
+def build_prompt(vibe: str, error: str | None = None,
+                 num_pixels: int = 800, ring: bool = False,
+                 calibration_points: dict | None = None) -> str:
+    examples = _diverse_examples(3)
+    parts = [dsl_spec(num_pixels, ring), _zones_block(calibration_points),
+             _taste_block(), DIVERSITY_DIRECTIVE,
+             f"\n{len(examples)} example scenes (a random spanning sample -- "
+             "reference for the DSL, NOT a template to copy):\n"]
+    for ex in examples:
+        parts.append(json.dumps(ex, indent=1))
+        parts.append("\n")
+    parts.append(
+        f'\nNow create a scene for this description: "{vibe}"\n'
+        "HARD RULES: Output ONLY a single JSON object, no prose, no markdown "
+        "fences, no comments. It must validate against the spec above.\n"
+    )
+    if error:
+        parts.append(RETRY_SUFFIX.format(error=error))
+    return "".join(parts)
+
+
+def find_claude() -> str | None:
+    return shutil.which("claude")
+
+
+def _extract_json(text: str) -> dict:
+    """Pull the first top-level JSON object out of possibly-noisy text."""
+    text = text.strip()
+    # strip markdown fences if present
+    fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
+    if fence:
+        text = fence.group(1)
+    start = text.find("{")
+    if start < 0:
+        raise ValueError("no JSON object in response")
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return json.loads(text[start:i + 1])
+    raise ValueError("unbalanced JSON object in response")
+
+
+def _run_claude(prompt: str, claude_bin: str) -> str:
+    proc = subprocess.run(
+        [claude_bin, "-p", prompt, "--output-format", "json"],
+        capture_output=True, text=True, timeout=CLAUDE_TIMEOUT,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"claude CLI exit {proc.returncode}: {proc.stderr[:400]}")
+    # --output-format json wraps the answer: {"result": "...", ...}
+    try:
+        outer = json.loads(proc.stdout)
+        if isinstance(outer, dict) and "result" in outer:
+            return str(outer["result"])
+    except json.JSONDecodeError:
+        pass
+    return proc.stdout
+
+
+def _fallback_scene(vibe: str) -> dict:
+    """Fuzzy-match the closest example scene by keyword overlap."""
+    words = set(re.findall(r"[a-z]+", vibe.lower()))
+    best, best_score = None, -1.0
+    for p in _scene_files():
+        try:
+            scene = json.loads(p.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        blob = (p.stem + " " + json.dumps(scene)).lower()
+        blob_words = set(re.findall(r"[a-z]+", blob))
+        score = len(words & blob_words)
+        if p.stem in words:
+            score += 10
+        if score > best_score:
+            best, best_score = scene, score
+    if best is None:
+        best = {"name": "fallback", "layers": [{"type": "gradient",
+                "palette": ["#200040", "#8020ff", "#200040"], "scroll_speed": 20}]}
+    best = dict(best)
+    best["name"] = f"{best.get('name', 'scene')} (fallback for: {vibe[:40]})"
+    return best
+
+
+def generate_scene(vibe: str, claude_bin: str | None = None,
+                   num_pixels: int = 800, ring: bool = False,
+                   calibration_points: dict | None = None) -> tuple[dict, str]:
+    """Returns (scene, source) where source is 'llm', 'llm-retry' or 'fallback'.
+    Never raises on LLM misbehavior. num_pixels/ring parameterize the world
+    the LLM writes for (ring mode: closed loop, wrap-aware effects).
+    calibration_points: optional live {name: index} from GET /calibration,
+    forwarded into the prompt so spatial requests ("light the front") can
+    resolve to real ring ranges -- this module never hardcodes them."""
+    claude_bin = claude_bin or find_claude()
+    if claude_bin:
+        error = None
+        for attempt, source in ((0, "llm"), (1, "llm-retry")):
+            try:
+                raw = _run_claude(build_prompt(vibe, error, num_pixels=num_pixels,
+                                               ring=ring,
+                                               calibration_points=calibration_points),
+                                  claude_bin)
+                scene = _extract_json(raw)
+                validate_scene(scene)
+                scene.setdefault("name", vibe[:48])
+                return scene, source
+            except (SceneValidationError, ValueError, RuntimeError,
+                    subprocess.TimeoutExpired, OSError) as e:
+                error = str(e)
+    return _fallback_scene(vibe), "fallback"
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = argv if argv is not None else sys.argv[1:]
+    if not args:
+        print("usage: python -m lightserver.nl \"vibe prompt\"", file=sys.stderr)
+        return 2
+    vibe = " ".join(args)
+    scene, source = generate_scene(vibe)
+    print(json.dumps(scene, indent=2))
+    print(f"[source: {source}]", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

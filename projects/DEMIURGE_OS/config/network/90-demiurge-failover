@@ -1,0 +1,57 @@
+#!/bin/bash
+#
+# DEMIURGE — NetworkManager dispatcher hook: instant wired/wireless failover
+# Install to: /etc/NetworkManager/dispatcher.d/90-demiurge-failover
+#             (root:root, mode 0755 — NM REFUSES to run scripts that are
+#              group/world writable or not owned by root)
+#
+# NM calls dispatcher scripts as: <script> <interface> <action>
+#
+# The netguard timer already enforces "ethernet primary, wifi fallback" every
+# 20 seconds. That is fine as a safety net but a 20-second hole in
+# reachability every time the cable moves is not. This hook closes it: the
+# instant NM reports the wired link coming up or going down, it re-runs the
+# guard, so the switchover happens in about a second.
+#
+# Only WIRED events are acted on. Reacting to wlan0 events too would be a
+# feedback loop — the guard itself connects and disconnects wlan0, and each of
+# those would re-trigger this script.
+#
+# The guard is started as its SYSTEMD UNIT (`systemctl start --no-block`)
+# rather than executed directly. Three reasons: NM serialises dispatcher
+# scripts and kills slow ones, while the guard can legitimately spend several
+# seconds associating; --no-block returns instantly so NM is never held up;
+# and running under the unit means the output lands in
+# `journalctl -u demiurge-netguard` alongside the timer's runs, instead of
+# vanishing. A dispatcher-triggered recovery you cannot see in the log is a
+# recovery you cannot debug.
+#
+set -u
+
+iface="${1:-}"
+action="${2:-}"
+
+# The wired device. Kept in the same config file the guard reads so there is
+# one place to change it.
+ETH_IF="eth0"
+WIFI_IF="wlan0"
+# shellcheck source=/dev/null
+[ -r /etc/demiurge/network.conf ] && . /etc/demiurge/network.conf
+
+[ "$iface" = "$ETH_IF" ] || exit 0
+
+case "$action" in
+    up|down|dhcp4-change|connectivity-change)
+        # ANTI-STRANDING. The guard parks wifi with `nmcli dev disconnect`,
+        # which also clears the DEVICE's autoconnect flag — NM will then never
+        # bring wifi back by itself. So the moment the wired link goes away,
+        # re-arm it here, before anything else. If every other mechanism fails
+        # (guard missing, script broken, timer masked) NM's own autoconnect
+        # still recovers the box, and with connection.autoconnect-retries=0 it
+        # retries forever rather than giving up.
+        [ "$action" = "down" ] && nmcli dev set "$WIFI_IF" autoconnect yes >/dev/null 2>&1
+        systemctl start --no-block demiurge-netguard.service >/dev/null 2>&1
+        ;;
+esac
+
+exit 0

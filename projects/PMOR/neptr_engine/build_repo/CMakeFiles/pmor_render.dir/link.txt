@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/pmor_render.dir/link.d CMakeFiles/pmor_render.dir/tests/render_main.cpp.o CMakeFiles/pmor_render.dir/tests/scenario.cpp.o -o pmor_render  libpmor_core.a

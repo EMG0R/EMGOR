@@ -1,0 +1,3 @@
+Interface A|IfaceA|active,chosen,inuse
+Interface B|IfaceB|
+snd_rpi_hifiberry_dacplusadcpro|sndrpihifiberry||HiFiBerry DAC+ADC Pro

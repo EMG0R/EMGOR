@@ -1,0 +1,261 @@
+:root {
+  --bg: #0c0e12;
+  --panel: #15181f;
+  --border: #262b35;
+  --fg: #e6e8ec;
+  --dim: #8890a0;
+  --accent: #ffb454;
+  --accent2: #6fd6ff;
+  --danger: #ff5c5c;
+  --ok: #6fdc8c;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: 12px 12px 90px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+h1 { font-size: 1.3rem; margin: 0; letter-spacing: 0.04em; }
+h2 { font-size: 1rem; margin: 0 0 8px; color: var(--accent2); }
+h3 { font-size: 0.85rem; color: var(--dim); margin: 10px 0 4px; }
+.status { font-size: 0.8rem; color: var(--dim); }
+.status.live { color: var(--ok); }
+
+.pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  background: var(--panel);
+}
+.pill.reachable { color: var(--bg); background: var(--ok); border-color: var(--ok); }
+.pill.unreachable { color: var(--bg); background: var(--danger); border-color: var(--danger); }
+
+.brightness-ctl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--dim);
+}
+.brightness-ctl input[type="range"] { width: 60px; }
+.brightness-ctl span { min-width: 1.8em; text-align: right; color: var(--fg); }
+
+.mode-buttons { display: flex; gap: 8px; margin-bottom: 14px; }
+.mode-btn {
+  flex: 1;
+  padding: 14px 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.mode-btn.active { background: var(--accent); color: #1a1200; border-color: var(--accent); }
+
+.grid-wrap { display: flex; justify-content: center; margin-bottom: 14px; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  width: 100%;
+  max-width: 380px;
+  aspect-ratio: 1;
+}
+.pad {
+  border-radius: 4px;
+  background: #1c2027;
+  border: 1px solid #232833;
+}
+
+/* Orientation compass: which HARDWARE edge (N/S/E/W) is currently the
+   logical top, per App.orientation.top_edge / GET /api/state
+   .orientation.top_edge. The grid mirror itself always shows the LOGICAL
+   frame (data.grid) -- this is the only thing on the UI that reveals the
+   physical rotation. */
+.grid-stack { position: relative; width: 100%; max-width: 380px; }
+.orient-compass {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px 6px;
+  font-size: 0.65rem;
+  color: var(--dim);
+  line-height: 1;
+  pointer-events: none;
+}
+.orient-arrow {
+  color: var(--accent2);
+  font-size: 1.05rem;
+  transition: transform 0.15s ease;
+}
+.orient-label { font-weight: 700; letter-spacing: 0.05em; color: var(--fg); }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.panel label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; margin-right: 10px; }
+.panel[hidden] { display: none; }
+
+.presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.presets button, .transport button, .pattern-slots button {
+  padding: 8px 12px;
+  background: #1c2027;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.presets button.active { border-color: var(--accent2); color: var(--accent2); }
+.presets button:disabled { opacity: 0.35; }
+
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+
+.seq-grid { display: flex; flex-direction: column; gap: 3px; }
+.seq-row { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.seq-step {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: #1c2027;
+  border: 1px solid var(--border);
+}
+.seq-step.level-1 { background: #4a3a1c; }
+.seq-step.level-2 { background: #8a6a20; }
+.seq-step.level-3 { background: var(--accent); }
+.seq-step.playhead { outline: 2px solid var(--accent2); }
+
+.pattern-slots { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+#trackAssign select, #fsrAssign select { width: 100%; margin-bottom: 6px; background: #1c2027; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px; }
+
+/* Direct Lab: FULL / SPLIT layout toggle */
+.layout-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 0.85rem; }
+.layout-label { color: var(--dim); }
+.layout-btn {
+  padding: 8px 16px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: #1c2027;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.layout-btn.active { background: var(--accent); color: #1a1200; border-color: var(--accent); }
+.layout-hint { color: var(--dim); font-size: 0.78rem; }
+
+/* instrument colour legend + swatches (mirror the LED colours) */
+.instrument-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; font-size: 0.8rem; color: var(--dim); }
+.legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid #000; flex: none; }
+
+/* per-row segment editor */
+.row-config { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; font-size: 0.85rem; padding: 6px; border: 1px solid var(--border); border-radius: 8px; }
+.row-config.row-seq { opacity: 0.45; }
+.row-config.row-draft { border-color: var(--danger); }
+.row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.row-label { color: var(--dim); min-width: 60px; }
+.row-validation { color: var(--danger); font-size: 0.78rem; }
+.segments { display: flex; gap: 4px; }
+.segment { display: flex; flex-direction: column; gap: 4px; flex: 1 1 0; min-width: 0; background: #1c2027; border: 1px solid var(--border); border-radius: 6px; padding: 4px; }
+.segment-top, .segment-bottom { display: flex; align-items: center; gap: 4px; }
+.segment-bottom { justify-content: space-between; }
+.page-label { font-size: 0.75rem; color: var(--dim); white-space: nowrap; }
+.row-config select { flex: 1; min-width: 0; background: #12151b; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px; }
+.row-config input[type="number"] { width: 46px; flex: none; }
+.row-config button { padding: 4px 10px; background: #12151b; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; }
+.row-config button:disabled { opacity: 0.4; }
+/* MODULETTES layout: rows/segments below are the saved FULL layout, not
+   what's currently on the grid -- every row already renders with the
+   dimmed .row-seq look (see app.js isSeq), this just dims the container
+   note/label a touch further so it doesn't read as live. */
+.row-config-disabled { opacity: 0.9; }
+
+.fsr-meters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.fsr-lane { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
+.fsr-lane > div:first-child { width: 40px; color: var(--dim); }
+.fsr-bar { flex: 1; height: 14px; background: #1c2027; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.fsr-fill { height: 100%; width: 0%; background: var(--accent2); transition: width 60ms linear; }
+
+#midiFsrNotes { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0; }
+#midiPortSelect { background: #1c2027; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px; flex: 1; }
+
+.panic {
+  position: fixed;
+  left: 12px; right: 12px; bottom: 12px;
+  max-width: 696px;
+  margin: 0 auto;
+  display: block;
+  width: calc(100% - 24px);
+  padding: 16px;
+  background: var(--danger);
+  color: #200;
+  font-weight: 700;
+  font-size: 1.05rem;
+  border: none;
+  border-radius: 12px;
+}
+
+.last-sent { font-size: 0.8rem; color: var(--dim); margin-top: 6px; word-break: break-all; }
+
+/* SENSORS: collapsible raw-hardware panel (softpots / FSRs / lidars / link) */
+.sensors-panel > summary {
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent2);
+  list-style: none;
+}
+.sensors-panel > summary::-webkit-details-marker { display: none; }
+.sensors-panel > summary::before { content: "▸ "; }
+.sensors-panel[open] > summary::before { content: "▾ "; }
+.sensors-body { margin-top: 8px; }
+
+.sensor-lanes { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.sensor-lane { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
+.sensor-lane-name { width: 40px; color: var(--dim); flex: none; }
+.sensor-bar { flex: 1; height: 12px; background: #1c2027; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.sensor-fill { height: 100%; width: 0%; background: var(--accent2); transition: width 60ms linear; }
+.sensor-fill.invalid { background: var(--border); }
+.sensor-val { width: 52px; text-align: right; color: var(--fg); font-variant-numeric: tabular-nums; flex: none; }
+.sensor-badge {
+  flex: none;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  background: #1c2027;
+  white-space: nowrap;
+}
+.sensor-badge.on { color: var(--bg); background: var(--ok); border-color: var(--ok); }
+.sensor-badge.off { color: var(--danger); background: transparent; border-color: var(--danger); }
+.sensor-age { width: 44px; text-align: right; color: var(--dim); font-size: 0.72rem; flex: none; }
+.sensor-note { font-size: 0.72rem; color: var(--dim); margin: 4px 0 10px; }
+.sensor-link { font-size: 0.78rem; color: var(--dim); }
+
+input[type="range"] { vertical-align: middle; }
+input[type="number"] { width: 60px; background: #1c2027; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px; }

@@ -1,0 +1,294 @@
+{
+  "source_sha256_16": "cab1cec05ee1fcfe",
+  "targets": [
+    {
+      "id": 30,
+      "label": "",
+      "writes": [
+        "gkMasterVol"
+      ],
+      "body": "        gkMasterVol = kNorm\n      ; GLITCH v2 (2026-07-15): per-effect instant-trigger targets \u2014 expression\n      ; pedal = instant trigger (stutter.orc INTEGRATION NOTES item F). No\n      ; branch reads gkGLITCH_chance any more (globals.orc keeps the decl;\n      ; the CHASE BLISS clock still writes gkGLITCH_bpm)."
+    },
+    {
+      "id": 20,
+      "label": "",
+      "writes": [
+        "gkBBcut_expr"
+      ],
+      "body": "        gkBBcut_expr = kNorm"
+    },
+    {
+      "id": 23,
+      "label": "",
+      "writes": [
+        "gkRPT_expr"
+      ],
+      "body": "        gkRPT_expr = kNorm"
+    },
+    {
+      "id": 24,
+      "label": "",
+      "writes": [
+        "gkCHP_expr"
+      ],
+      "body": "        gkCHP_expr = kNorm"
+    },
+    {
+      "id": 25,
+      "label": "",
+      "writes": [
+        "gkRVS_expr"
+      ],
+      "body": "        gkRVS_expr = kNorm"
+    },
+    {
+      "id": 48,
+      "label": "",
+      "writes": [
+        "gkIMP_expr"
+      ],
+      "body": "        gkIMP_expr = kNorm"
+    },
+    {
+      "id": 1,
+      "label": "",
+      "writes": [
+        "gkVOLpedal"
+      ],
+      "body": "        gkVOLpedal = kNorm"
+    },
+    {
+      "id": 21,
+      "label": "TAPE transport: heel = play, toe = stop (spin-up on release)",
+      "writes": [
+        "gkTapeExpr"
+      ],
+      "body": "        ; TAPE transport: heel = play, toe = stop (spin-up on release)\n        gkTapeExpr = kNorm"
+    },
+    {
+      "id": 3,
+      "label": "",
+      "writes": [
+        "gkSemi"
+      ],
+      "body": "        gkSemi = kNorm * 24 - 12"
+    },
+    {
+      "id": 4,
+      "label": "",
+      "writes": [
+        "gkGPSsemis"
+      ],
+      "body": "        gkGPSsemis = kNorm * 24 - 12"
+    },
+    {
+      "id": 5,
+      "label": "",
+      "writes": [
+        "gkFormantShift"
+      ],
+      "body": "        gkFormantShift = kNorm * 24 - 12"
+    },
+    {
+      "id": 28,
+      "label": "",
+      "writes": [
+        "gkFormsShift"
+      ],
+      "body": "        gkFormsShift = kNorm * 24 - 12"
+    },
+    {
+      "id": 38,
+      "label": "BIN REDUCTION contrast: heel (0) = extreme crush, toe (1) = transparent/emphasis",
+      "writes": [
+        "gkBinPedal"
+      ],
+      "body": "        ; BIN REDUCTION contrast: heel (0) = extreme crush, toe (1) = transparent/emphasis\n        gkBinPedal = kNorm"
+    },
+    {
+      "id": 44,
+      "label": "BINCRUSHER coarsening: heel (0) = transparent, toe (1) = max coarsening",
+      "writes": [
+        "gkBcPedal"
+      ],
+      "body": "        ; BINCRUSHER coarsening: heel (0) = transparent, toe (1) = max coarsening\n        gkBcPedal = kNorm"
+    },
+    {
+      "id": 26,
+      "label": "H90 expression sweep. Bass mode = up-only wammy (unison..+octave); surf/PITCH = full +/-12 (unchanged).",
+      "writes": [
+        "gkSemiH90"
+      ],
+      "body": "        ; H90 expression sweep. Bass mode = up-only wammy (unison..+octave);\n        ; surf/PITCH = full +/-12 (unchanged).\n        if (gkPresetBank == 1) then\n          gkSemiH90 = kNorm * 12\n        else\n          gkSemiH90 = kNorm * 24 - 12\n        endif"
+    },
+    {
+      "id": 27,
+      "label": "",
+      "writes": [
+        "gkSemiPF"
+      ],
+      "body": "        gkSemiPF = kNorm * 24 - 12"
+    },
+    {
+      "id": 10,
+      "label": "Leslie speed",
+      "writes": [
+        "gkLeslieSpeedAcc",
+        "gkLeslieSpeed"
+      ],
+      "body": "        ; Leslie speed\n        gkLeslieSpeedAcc = kNorm\n        gkLeslieSpeed = 0.1 + gkLeslieSpeedAcc * 9.9"
+    },
+    {
+      "id": 11,
+      "label": "",
+      "writes": [
+        "gkARModFreq"
+      ],
+      "body": "        gkARModFreq = 0.05 * pow(200, kNorm) * 25"
+    },
+    {
+      "id": 31,
+      "label": "OVERDRIVE drive (amount of distortion)",
+      "writes": [
+        "gkOD_drive"
+      ],
+      "body": "        ; OVERDRIVE drive (amount of distortion)\n        gkOD_drive = kNorm"
+    },
+    {
+      "id": 32,
+      "label": "MARSHALL drive",
+      "writes": [
+        "gkMAR_drive"
+      ],
+      "body": "        ; MARSHALL drive\n        gkMAR_drive = kNorm"
+    },
+    {
+      "id": 33,
+      "label": "DUAL HIGH-GAIN drive",
+      "writes": [
+        "gkDHG_drive"
+      ],
+      "body": "        ; DUAL HIGH-GAIN drive\n        gkDHG_drive = kNorm"
+    },
+    {
+      "id": 34,
+      "label": "RAT \u00d7 MZ drive",
+      "writes": [
+        "gkRMZ_drive"
+      ],
+      "body": "        ; RAT \u00d7 MZ drive\n        gkRMZ_drive = kNorm"
+    },
+    {
+      "id": 35,
+      "label": "BIG MUFF drive (sustain)",
+      "writes": [
+        "gkMUF_drive"
+      ],
+      "body": "        ; BIG MUFF drive (sustain)\n        gkMUF_drive = kNorm"
+    },
+    {
+      "id": 17,
+      "label": "MOOD pitch/clock",
+      "writes": [
+        "gkMOOD_Clock"
+      ],
+      "body": "        ; MOOD pitch/clock\n        gkMOOD_Clock = 1 - kNorm"
+    },
+    {
+      "id": 22,
+      "label": "WAH pedal position",
+      "writes": [
+        "gkWAH_freq"
+      ],
+      "body": "        ; WAH pedal position\n        gkWAH_freq = kNorm"
+    },
+    {
+      "id": 15,
+      "label": "Delay time (manual toggle, not preset)",
+      "writes": [
+        "gkDelayMS"
+      ],
+      "body": "        ; Delay time (manual toggle, not preset)\n        gkDelayMS = kNorm * 700000"
+    },
+    {
+      "id": 36,
+      "label": "HABIT scan (auto-scan amount: how often + how deep into the memory)",
+      "writes": [
+        "gkHabitScan"
+      ],
+      "body": "        ; HABIT scan (auto-scan amount: how often + how deep into the memory)\n        gkHabitScan = kNorm"
+    },
+    {
+      "id": 45,
+      "label": "ONWARD FOLLOW \u2014 heel (0) = raw/unpitched replay, toe (1) = fully harmonic-locked to the live note. FOLLOW is the harmonic-rebuild's headline expression gesture; unlike MIX, the heel position can never mute the effect.",
+      "writes": [
+        "gkONW_follow"
+      ],
+      "body": "        ; ONWARD FOLLOW \u2014 heel (0) = raw/unpitched replay, toe (1) = fully\n        ; harmonic-locked to the live note. FOLLOW is the harmonic-rebuild's\n        ; headline expression gesture; unlike MIX, the heel position can\n        ; never mute the effect.\n        gkONW_follow = kNorm"
+    },
+    {
+      "id": 66,
+      "label": "MOOD II CLOCK scrub \u2014 the manual's headline move: play a note and sweep the clock while it decays. toe = 1.0 top of the tonal ladder (3 octaves up), heel = 0.0 bottom (3 octaves down), 0.5 = home/root (same toe/heel polarity as the rig's other CC29 claims).",
+      "writes": [
+        "gkMD2_Clock"
+      ],
+      "body": "        ; MOOD II CLOCK scrub \u2014 the manual's headline move: play a note and\n        ; sweep the clock while it decays. toe = 1.0 top of the tonal ladder\n        ; (3 octaves up), heel = 0.0 bottom (3 octaves down), 0.5 = home/root\n        ; (same toe/heel polarity as the rig's other CC29 claims).\n        gkMD2_Clock = kNorm"
+    },
+    {
+      "id": 61,
+      "label": "TRACK SYNTH filter cutoff",
+      "writes": [
+        "gkTSY_cut"
+      ],
+      "body": "        ; TRACK SYNTH filter cutoff\n        gkTSY_cut = kNorm"
+    },
+    {
+      "id": 63,
+      "label": "FEEDBACKER intensity push (more level + faster bloom)",
+      "writes": [
+        "gkFBK_expr"
+      ],
+      "body": "        ; FEEDBACKER intensity push (more level + faster bloom)\n        gkFBK_expr = kNorm"
+    },
+    {
+      "id": 56,
+      "label": "BLOOPER: manual override of event probability + pitch, centred at rest (0.5 = pure generative, matching id 66's toe/heel polarity). Below rest scales density/pitch down from whatever the generative engine (gkBLP_Scat + motion) is producing; above rest scales it up, up to full every-tick coverage at 100%. See effects/blooper.orc PEDAL DESIGN (2026-08-23) for the full formula.",
+      "writes": [
+        "gkBLP_expr"
+      ],
+      "body": "        ; BLOOPER: manual override of event probability + pitch, centred at\n        ; rest (0.5 = pure generative, matching id 66's toe/heel polarity).\n        ; Below rest scales density/pitch down from whatever the generative\n        ; engine (gkBLP_Scat + motion) is producing; above rest scales it up,\n        ; up to full every-tick coverage at 100%. See effects/blooper.orc\n        ; PEDAL DESIGN (2026-08-23) for the full formula.\n        gkBLP_expr = kNorm"
+    },
+    {
+      "id": 69,
+      "label": "POLY DLY \u2014 expr pulls the per-repeat pitch shift toward unison (depth = 1 - expr; movedelay.orc reads gkMvdExpr directly, 0 = heel/neutral).",
+      "writes": [
+        "gkMvdExpr"
+      ],
+      "body": "        ; POLY DLY \u2014 expr pulls the per-repeat pitch shift toward unison\n        ; (depth = 1 - expr; movedelay.orc reads gkMvdExpr directly, 0 = heel/neutral).\n        gkMvdExpr = kNorm"
+    },
+    {
+      "id": 70,
+      "label": "NEBULA \u2014 WARP (Supermassive-style): heel = neutral, toe stretches all FDN line lengths 1.0x -> 2.0x (tape-speed-style pitch smear).",
+      "writes": [
+        "gkNebWarp"
+      ],
+      "body": "        ; NEBULA \u2014 WARP (Supermassive-style): heel = neutral, toe stretches\n        ; all FDN line lengths 1.0x -> 2.0x (tape-speed-style pitch smear).\n        gkNebWarp = kNorm"
+    },
+    {
+      "id": 72,
+      "label": "FREEZE \u2014 LISTEN: toe (>0.6) opens the send into the frozen loop (stacks new playing into the bed), heel (<0.4) closes it without clearing. Hysteresis + portk live inside freezeverb.orc.",
+      "writes": [
+        "gkFrzExpr"
+      ],
+      "body": "        ; FREEZE \u2014 LISTEN: toe (>0.6) opens the send into the frozen loop\n        ; (stacks new playing into the bed), heel (<0.4) closes it without\n        ; clearing. Hysteresis + portk live inside freezeverb.orc.\n        gkFrzExpr = kNorm"
+    },
+    {
+      "id": 74,
+      "label": "HYPERGUITAR PITCH \u2014 the guitar's pitch shifter at 100% wet, with the pedal driving the interval directly. Heel/toe span the lane's range (default +/-12 semitones); the value is relayed to the Bela as /hg/pedal by instr 98, which is the ONLY consumer.  This exists so the pedal CLAIMS on engage like every other effect. Before it, the engine forwarded the pedal to the guitar unconditionally, so the treadle drove the guitar AND whatever else owned it (menu-0 presets point it at target 30, gkMasterVol) at the same time -- reported as \"the exp pedal is still on volume, it needs to come off volume like normal functionality\".",
+      "writes": [
+        "gkHgPedal"
+      ],
+      "body": "        ; HYPERGUITAR PITCH \u2014 the guitar's pitch shifter at 100% wet, with the\n        ; pedal driving the interval directly. Heel/toe span the lane's range\n        ; (default +/-12 semitones); the value is relayed to the Bela as\n        ; /hg/pedal by instr 98, which is the ONLY consumer.\n        ;\n        ; This exists so the pedal CLAIMS on engage like every other effect.\n        ; Before it, the engine forwarded the pedal to the guitar\n        ; unconditionally, so the treadle drove the guitar AND whatever else\n        ; owned it (menu-0 presets point it at target 30, gkMasterVol) at the\n        ; same time -- reported as \"the exp pedal is still on volume, it needs\n        ; to come off volume like normal functionality\".\n        gkHgPedal = kNorm"
+    }
+  ]
+}

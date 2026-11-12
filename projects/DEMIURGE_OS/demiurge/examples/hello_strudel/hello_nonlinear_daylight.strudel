@@ -1,0 +1,49 @@
+// hello_strudel: hello nonlinear daylight
+//
+// Slow, sparse, generative, C Lydian. One layer. Three 0-1 params, same
+// names as every other language:
+//   nld/density  event rate        nld/tone  brightness (lpf)
+//   nld/length   note length
+//
+// Params come through the pool hook (resources/params/strudel/dparams.mjs):
+//   /nld-strudel/density  /nld-strudel/tone  /nld-strudel/length  (0..1)
+// The pool writes `/p <path> <val>` to DEMIURGE_PARAM_PORT (manifest
+// params/nld-strudel.json, port 9000); this file answers with /pout on change.
+// UI: web/examples/nonlinear_daylight.html?stage=strudel
+
+const _res = process.env.DEMIURGE_RESOURCES || '/opt/demiurge/resources'
+const dp = await import('file://' + _res + '/params/strudel/dparams.mjs')
+// Port: the launcher sets DEMIURGE_PARAM_PORT. Without it fall back to the
+// osc.md convention BASE + the NUMERIC stage index (DEMIURGE_STAGE is the stage NAME).
+dp.init({ stage: 'nld-strudel',
+          port: +process.env.DEMIURGE_PARAM_PORT
+                || ((+process.env.DEMIURGE_OSC_BASE || 9000) + (+process.env.DEMIURGE_STAGE_INDEX || 0)) })
+dp.add('/nld-strudel/density', 0.35)
+dp.add('/nld-strudel/tone', 0.5)
+dp.add('/nld-strudel/length', 0.5)
+
+// Echo changes to the pool from a 50 ms poll, independent of which haps happen to be
+// queried (degradeBy would otherwise hide tone/length changes). Armed once per process.
+const _last = (globalThis.__nldLast ??= {})
+if (!globalThis.__nldEcho) {
+  globalThis.__nldEcho = setInterval(() => {
+    for (const k of ['density', 'tone', 'length']) {
+      const v = dp.get('/nld-strudel/' + k)
+      if (!(Math.abs(v - (_last[k] ?? -1)) <= 0.001)) { _last[k] = v; dp.out('/nld-strudel/' + k, v) }
+    }
+  }, 50)
+}
+
+// Live readers. signal() is sampled when each hap is queried.
+const density = signal(() => dp.get('/nld-strudel/density'))
+const tone    = signal(() => dp.get('/nld-strudel/tone'))
+const length  = signal(() => dp.get('/nld-strudel/length'))
+
+// C Lydian (C D E F# G A B), three octaves, plain varargs choose()
+// (the form proven in this build; see hello_patching/strudel_drive.strudel).
+n(choose(48, 55, 60, 62, 64, 66, 67, 69, 71, 72, 74, 76, 78, 79))
+  .segment(8)                                   // 8 candidate steps per cycle
+  .degradeBy(density.range(0.97, 0.05))         // density 0 -> ~silent, 1 -> ~all steps
+  .legato(length.range(0.5, 12))                // note length in steps
+  .lpf(tone.range(300, 5000))                   // brightness
+  .gain(0.6)

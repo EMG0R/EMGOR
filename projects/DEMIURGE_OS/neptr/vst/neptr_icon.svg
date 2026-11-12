@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="body" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#7a55ea"/>
+      <stop offset="55%" stop-color="#5b3fd4"/>
+      <stop offset="100%" stop-color="#432a9e"/>
+    </radialGradient>
+    <radialGradient id="gold" cx="38%" cy="32%" r="80%">
+      <stop offset="0%" stop-color="#f3dc96"/>
+      <stop offset="45%" stop-color="#d9b45e"/>
+      <stop offset="100%" stop-color="#8a6a2c"/>
+    </radialGradient>
+    <radialGradient id="ball" cx="35%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#6a6a72"/>
+      <stop offset="35%" stop-color="#26262c"/>
+      <stop offset="100%" stop-color="#0a0a0e"/>
+    </radialGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#141433"/>
+      <stop offset="100%" stop-color="#0a0a22"/>
+    </linearGradient>
+  </defs>
+
+  <!-- drop shadow -->
+  <ellipse cx="512" cy="930" rx="380" ry="42" fill="#000000" opacity="0.22"/>
+
+  <!-- pinched-waist body -->
+  <path d="M 262 92
+           L 762 92
+           Q 928 92 922 240
+           Q 917 372 872 512
+           Q 917 652 922 784
+           Q 928 932 762 932
+           L 262 932
+           Q 96 932 102 784
+           Q 107 652 152 512
+           Q 107 372 102 240
+           Q 96 92 262 92 Z"
+        fill="url(#body)" stroke="#241056" stroke-width="26" stroke-linejoin="round"/>
+  <!-- LED rim glow -->
+  <path d="M 262 122
+           L 762 122
+           Q 898 122 892 244
+           Q 887 374 843 512
+           Q 887 650 892 780
+           Q 898 902 762 902
+           L 262 902
+           Q 126 902 132 780
+           Q 137 650 181 512
+           Q 137 374 132 244
+           Q 126 122 262 122 Z"
+        fill="none" stroke="#8f78ff" stroke-width="10" opacity="0.55"/>
+
+  <!-- corner knobs (gold) -->
+  <circle cx="268" cy="220" r="58" fill="url(#gold)" stroke="#241056" stroke-width="14"/>
+  <circle cx="756" cy="220" r="58" fill="url(#gold)" stroke="#241056" stroke-width="14"/>
+
+  <!-- black dome (left) + joystick ball (right) -->
+  <circle cx="286" cy="374" r="46" fill="url(#ball)" stroke="#241056" stroke-width="12"/>
+  <circle cx="742" cy="374" r="52" fill="url(#ball)" stroke="#241056" stroke-width="12"/>
+  <ellipse cx="726" cy="356" rx="16" ry="10" fill="#ffffff" opacity="0.35"/>
+
+  <!-- screen -->
+  <rect x="398" y="318" width="228" height="316" rx="26" fill="#241056"/>
+  <rect x="412" y="332" width="200" height="288" rx="18" fill="url(#screen)"/>
+  <!-- the face: > <  with diamond mouth -->
+  <g stroke="#9fe8ff" stroke-width="14" stroke-linecap="round" fill="none">
+    <path d="M 448 398 L 492 424 L 448 450"/>
+    <path d="M 576 398 L 532 424 L 576 450"/>
+    <path d="M 512 496 L 540 522 L 512 548 L 484 522 Z"/>
+  </g>
+
+  <!-- small silver button clusters -->
+  <g fill="#c9c9d2" stroke="#241056" stroke-width="9">
+    <circle cx="290" cy="520" r="19"/>
+    <circle cx="334" cy="552" r="19"/>
+    <circle cx="290" cy="584" r="19"/>
+    <circle cx="734" cy="520" r="19"/>
+    <circle cx="690" cy="552" r="19"/>
+    <circle cx="734" cy="584" r="19"/>
+  </g>
+
+  <!-- bottom row: 5 gold knobs -->
+  <g>
+    <circle cx="252" cy="806" r="50" fill="url(#gold)" stroke="#241056" stroke-width="13"/>
+    <circle cx="382" cy="822" r="50" fill="url(#gold)" stroke="#241056" stroke-width="13"/>
+    <circle cx="512" cy="828" r="50" fill="url(#gold)" stroke="#241056" stroke-width="13"/>
+    <circle cx="642" cy="822" r="50" fill="url(#gold)" stroke="#241056" stroke-width="13"/>
+    <circle cx="772" cy="806" r="50" fill="url(#gold)" stroke="#241056" stroke-width="13"/>
+  </g>
+</svg>

@@ -1,0 +1,13 @@
+[Unit]
+Description=DEMIURGE IRQ isolation (mask CPU 3 from userspace interrupts)
+Before=demiurge.service
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/demiurge-irq-isolate.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

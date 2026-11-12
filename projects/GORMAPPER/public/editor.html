@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GORMAPPER editor</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  #glslError {
+    position: fixed; right: 320px; bottom: 16px; z-index: 10;
+    max-width: 480px; max-height: 40vh; overflow: auto;
+    background: #1a0e10; border: 1px solid #7e2a3a; border-radius: 8px;
+    padding: 10px 12px; color: #f5a0a0; font-size: 12px;
+    white-space: pre-wrap; display: none;
+  }
+  #glslError .title { color: #f5427e; font-weight: bold; margin-bottom: 6px; }
+  #glslError button { float: right; margin-left: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <span class="logo">GORMAPPER</span>
+    <input id="sceneName" type="text" value="default" title="scene name">
+    <select id="sceneSelect" title="load scene"></select>
+    <button id="btnSave" class="primary" title="save scene (S)">Save</button>
+    <button id="btnActivate" title="make this the active scene for the output">Activate</button>
+    <span class="spacer"></span>
+    <button id="btnNewZone" title="new polygon zone (N)">+ Zone</button>
+    <button id="btnNewMask" title="new mask (M)">+ Mask</button>
+    <button id="btnNewScreen" title="add a screen-capture object">+ Screen</button>
+    <button id="btnEdit" title="toggle edit overlays here and in output (E)">Edit: on</button>
+    <span class="hotkeys">N zone · M mask · S save · E edit · ⌘Z undo · ⇧⌘Z redo · Esc cancel · ⌥click del pt</span>
+  </div>
+
+  <div id="viewportWrap">
+    <div id="viewport">
+      <canvas id="glCanvas"></canvas>
+      <canvas id="editCanvas"></canvas>
+      <div id="drawHint">click to place points — Enter or double-click to close, Esc to cancel</div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <section>
+      <h3>Layers</h3>
+      <div id="layerList"></div>
+    </section>
+    <section id="paramsSection">
+      <h3>Selected layer</h3>
+      <div id="params"><em style="color:#56637a">nothing selected</em></div>
+    </section>
+    <div id="status">ready</div>
+  </div>
+</div>
+
+<div id="glslError">
+  <button id="glslErrorClose">dismiss</button>
+  <div class="title"></div>
+  <div class="log"></div>
+</div>
+
+<script type="module">
+import { createRenderer } from '/renderer.js';
+import { normalizeScene, makeDefaultScene, makeScreenObject } from '/scene.js';
+import { createEditing } from '/editing.js';
+import { createSync, subscribeEvents, createLivePush } from '/sync.js';
+
+// ---- state ------------------------------------------------------------------
+
+let scene = makeDefaultScene();
+let sceneName = 'default';
+let editMode = true;
+
+const $ = (id) => document.getElementById(id);
+const glCanvas = $('glCanvas');
+const editCanvas = $('editCanvas');
+const ectx = editCanvas.getContext('2d');
+
+const renderer = createRenderer(glCanvas, {
+  onPatternError: (id, log) => showGlslError(id, log),
+  onPatternList: () => { rebuildParams(); },
+  onPatternUpdate: (id) => { hideGlslErrorIf(id); },
+});
+
+let scale = 1;
+
+const sync = createSync({
+  onHello: () => broadcastScene(),   // output window just opened — feed it
+});
+
+const livePush = createLivePush();   // → /api/live → SSE → Electron overlay
+
+function broadcastScene() {
+  sync.sendScene(sceneName, scene, editMode, editing.selectedId);
+  livePush({ name: sceneName, scene, editMode, selectedId: editing.selectedId });
+}
+
+// ---- never-lose-work autosave -----------------------------------------------
+// Every mutation: localStorage immediately + debounced (2s) draft POST to the
+// server. Explicit Save writes the real scene file and clears both.
+
+let dirty = false;
+let draftTimer = null;
+
+function draftKey() { return 'gormapper.draft.' + sceneName; }
+
+function draftBody() { return JSON.stringify({ ts: Date.now(), scene }); }
+
+function markDirty() {
+  dirty = true;
+  try { localStorage.setItem(draftKey(), draftBody()); } catch (e) { /* quota/private mode */ }
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(postDraft, 2000);
+  broadcastScene();
+}
+
+async function postDraft() {
+  draftTimer = null;
+  try {
+    await fetch('/api/draft/' + encodeURIComponent(sceneName), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: draftBody(),
+    });
+  } catch (e) { /* server down — localStorage still has it */ }
+}
+
+function clearDraft() {
+  clearTimeout(draftTimer);
+  draftTimer = null;
+  try { localStorage.removeItem(draftKey()); } catch (e) { /* ignore */ }
+  fetch('/api/draft/' + encodeURIComponent(sceneName), { method: 'DELETE' }).catch(() => {});
+}
+
+// On load (and scene switch): restore the newest draft — localStorage or
+// server — when it is newer than the saved scene file.
+async function maybeRestoreDraft() {
+  let best = null;
+  try {
+    const l = JSON.parse(localStorage.getItem(draftKey()));
+    if (l && l.ts && l.scene) best = l;
+  } catch (e) { /* none/corrupt */ }
+  let sceneMtime = null;
+  try {
+    const r = await fetch('/api/draft/' + encodeURIComponent(sceneName));
+    if (r.ok) {
+      const d = await r.json();
+      sceneMtime = d.sceneMtime;
+      if (d.draft && d.draft.ts && d.draft.scene && (!best || d.draft.ts > best.ts)) best = d.draft;
+    }
+  } catch (e) { /* server down */ }
+  if (best && (sceneMtime == null || best.ts > sceneMtime)) {
+    scene = normalizeScene(best.scene);
+    dirty = true;
+    setStatus('restored unsaved work from ' + new Date(best.ts).toLocaleTimeString()
+      + ' — Save to keep', 'ok');
+    return true;
+  }
+  return false;
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if (draftTimer) {   // a debounced draft is pending — flush it on the way out
+    clearTimeout(draftTimer);
+    draftTimer = null;
+    try {
+      navigator.sendBeacon('/api/draft/' + encodeURIComponent(sceneName),
+        new Blob([draftBody()], { type: 'application/json' }));
+    } catch (err) { /* localStorage still has it */ }
+  }
+  if (dirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// ---- undo / redo ------------------------------------------------------------
+// history holds JSON snapshots of completed states; hIndex points at "now".
+// Drags commit once on pointerup; rapid slider/typing changes coalesce (300ms).
+
+const HISTORY_MAX = 200;
+let history = [];
+let hIndex = -1;
+let commitTimer = null;
+
+function resetHistory() {
+  clearTimeout(commitTimer);
+  commitTimer = null;
+  history = [JSON.stringify(scene)];
+  hIndex = 0;
+}
+
+function commitNow() {
+  clearTimeout(commitTimer);
+  commitTimer = null;
+  const snap = JSON.stringify(scene);
+  if (snap === history[hIndex]) return;      // no-op (e.g. click-select)
+  history.length = hIndex + 1;               // drop any redo branch
+  history.push(snap);
+  if (history.length > HISTORY_MAX) history.shift();
+  hIndex = history.length - 1;
+}
+
+function commitSoon() {
+  clearTimeout(commitTimer);
+  commitTimer = setTimeout(commitNow, 300);
+}
+
+// every scene mutation funnels through here
+function mutated(when) {
+  markDirty();
+  if (when === 'soon') commitSoon();
+  else commitNow();
+}
+
+function applyHistory(i) {
+  hIndex = i;
+  scene = normalizeScene(JSON.parse(history[i]));
+  if (!scene.layers.find((l) => l.id === editing.selectedId)) editing.select(null);
+  rebuildLayerList();
+  rebuildParams();
+  markDirty();                               // autosave + live-sync like any edit
+}
+
+function undo() {
+  commitNow();                               // flush a pending coalesced commit
+  if (hIndex > 0) applyHistory(hIndex - 1);
+  else setStatus('nothing to undo');
+}
+
+function redo() {
+  if (commitTimer) commitNow();
+  if (hIndex < history.length - 1) applyHistory(hIndex + 1);
+  else setStatus('nothing to redo');
+}
+
+const editing = createEditing({
+  canvas: editCanvas,
+  getScene: () => scene,
+  getScale: () => scale,
+  onChange: (final) => {
+    markDirty();                    // localStorage now, server draft in 2s
+    if (final) {
+      commitNow();                  // one undo step per completed gesture
+      rebuildLayerList();
+    }
+    $('drawHint').style.display = editing.isDrawing() ? 'block' : 'none';
+  },
+  onSelect: (id) => {
+    rebuildLayerList();
+    rebuildParams();
+    sync.sendEdit(editMode, id);
+    broadcastScene();
+  },
+});
+
+// ---- hot-reload events (SSE) ------------------------------------------------
+
+subscribeEvents(async (msg) => {
+  if (msg.type === 'pattern') {
+    if (msg.exists) await renderer.patterns.reload(msg.id);
+    await renderer.patterns.refreshList();
+    rebuildParams();                       // dropdown picks up new/renamed patterns
+    setStatus('pattern ' + msg.id + (msg.exists ? ' reloaded' : ' removed'), 'ok');
+  }
+});
+
+// ---- GLSL error overlay -----------------------------------------------------
+
+let glslErrorPattern = null;
+function showGlslError(id, log) {
+  glslErrorPattern = id;
+  const box = $('glslError');
+  box.querySelector('.title').textContent = 'pattern "' + id + '" failed to compile — keeping last working version';
+  box.querySelector('.log').textContent = log;
+  box.style.display = 'block';
+}
+function hideGlslErrorIf(id) {
+  if (glslErrorPattern === id) {
+    $('glslError').style.display = 'none';
+    glslErrorPattern = null;
+  }
+}
+$('glslErrorClose').addEventListener('click', () => {
+  $('glslError').style.display = 'none';
+});
+
+// ---- layout -----------------------------------------------------------------
+
+let lastFit = { w: 0, h: 0 };
+function fitViewport() {
+  const wrap = $('viewportWrap');
+  const vw = wrap.clientWidth - 20, vh = wrap.clientHeight - 20;
+  scale = Math.min(vw / scene.width, vh / scene.height);
+  const w = Math.round(scene.width * scale), h = Math.round(scene.height * scale);
+  if (w !== lastFit.w || h !== lastFit.h) {
+    const vp = $('viewport');
+    vp.style.width = w + 'px';
+    vp.style.height = h + 'px';
+    glCanvas.style.width = w + 'px';
+    glCanvas.style.height = h + 'px';
+    editCanvas.style.width = w + 'px';
+    editCanvas.style.height = h + 'px';
+    editCanvas.width = w;
+    editCanvas.height = h;
+    lastFit = { w, h };
+  }
+}
+window.addEventListener('resize', fitViewport);
+
+// ---- render loop ------------------------------------------------------------
+
+const t0 = performance.now();
+function frame() {
+  fitViewport();
+  renderer.render(scene, (performance.now() - t0) / 1000);
+  if (editMode) editing.draw(ectx);
+  else ectx.clearRect(0, 0, editCanvas.width, editCanvas.height);
+  requestAnimationFrame(frame);
+}
+
+// ---- scene load / save ------------------------------------------------------
+
+function setStatus(msg, cls) {
+  $('status').innerHTML = cls ? `<span class="${cls}">${msg}</span>` : msg;
+}
+
+async function refreshSceneList() {
+  try {
+    const names = await (await fetch('/api/scenes')).json();
+    const sel = $('sceneSelect');
+    sel.innerHTML = '';
+    for (const n of names) {
+      const o = document.createElement('option');
+      o.value = n;
+      o.textContent = n;
+      if (n === sceneName) o.selected = true;
+      sel.appendChild(o);
+    }
+  } catch (e) { setStatus('scene list failed', 'err'); }
+}
+
+async function loadScene(name) {
+  try {
+    const r = await fetch('/api/scene/' + encodeURIComponent(name));
+    if (!r.ok) throw new Error(r.status);
+    scene = normalizeScene(await r.json());
+    sceneName = name;
+    $('sceneName').value = name;
+    editing.select(null);
+    lastFit = { w: 0, h: 0 };
+    dirty = false;
+    const restored = await maybeRestoreDraft();   // unsaved work for this scene?
+    resetHistory();
+    rebuildLayerList();
+    rebuildParams();
+    broadcastScene();
+    if (!restored) setStatus('loaded "' + name + '"', 'ok');
+  } catch (e) {
+    setStatus('load failed: ' + e.message, 'err');
+  }
+}
+
+async function saveScene() {
+  const prevName = sceneName;
+  sceneName = ($('sceneName').value.trim() || 'default').replace(/[^a-zA-Z0-9._ -]/g, '_');
+  $('sceneName').value = sceneName;
+  if (prevName !== sceneName) {    // saved under a new name — drop the old draft
+    try { localStorage.removeItem('gormapper.draft.' + prevName); } catch (e) { /* ignore */ }
+    fetch('/api/draft/' + encodeURIComponent(prevName), { method: 'DELETE' }).catch(() => {});
+  }
+  try {
+    const r = await fetch('/api/scene/' + encodeURIComponent(sceneName), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(scene),
+    });
+    if (!r.ok) throw new Error(r.status);
+    dirty = false;
+    clearDraft();                  // the real file now holds this state
+    setStatus('saved "' + sceneName + '"', 'ok');
+    refreshSceneList();
+  } catch (e) {
+    setStatus('save failed: ' + e.message, 'err');
+  }
+}
+
+async function activateScene() {
+  await saveScene();
+  try {
+    const r = await fetch('/api/scene/' + encodeURIComponent(sceneName) + '/activate');
+    if (!r.ok) throw new Error(r.status);
+    sync.sendActivate(sceneName);
+    setStatus('"' + sceneName + '" is now active', 'ok');
+  } catch (e) {
+    setStatus('activate failed: ' + e.message, 'err');
+  }
+}
+
+// ---- layer list -------------------------------------------------------------
+
+function layerColor(layer) {
+  const kind = (layer.content || {}).kind;
+  return kind === 'mask' ? '#f5427e' : kind === 'screen' ? '#42d7f5' : '#7ef542';
+}
+
+function rebuildLayerList() {
+  const list = $('layerList');
+  list.innerHTML = '';
+  // topmost layer first in the list
+  for (let i = scene.layers.length - 1; i >= 0; i--) {
+    const layer = scene.layers[i];
+    const row = document.createElement('div');
+    row.className = 'layerRow' + (layer.id === editing.selectedId ? ' selected' : '');
+    row.innerHTML = `<span class="swatch" style="background:${layerColor(layer)}"></span>
+      <span class="lname">${layer.name || 'object'}</span>
+      <button class="vis" title="toggle visible">${layer.visible ? '●' : '○'}</button>`;
+    row.addEventListener('click', () => { editing.select(layer.id); });
+    row.querySelector('.vis').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      layer.visible = !layer.visible;
+      rebuildLayerList();
+      mutated('now');
+    });
+    list.appendChild(row);
+  }
+}
+
+// ---- params panel -----------------------------------------------------------
+
+function paramSlider(label, value, min, max, step, oninput) {
+  const row = document.createElement('div');
+  row.className = 'paramRow';
+  row.innerHTML = `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${value}"><span class="val">${(+value).toFixed(2)}</span>`;
+  const input = row.querySelector('input');
+  const val = row.querySelector('.val');
+  input.addEventListener('input', () => {
+    val.textContent = (+input.value).toFixed(2);
+    oninput(parseFloat(input.value));
+    mutated('soon');                // coalesce rapid slider moves into one undo step
+  });
+  return row;
+}
+
+function paramColor(label, value, oninput) {
+  const row = document.createElement('div');
+  row.className = 'paramRow';
+  row.innerHTML = `<label>${label}</label><input type="color" value="${value}">`;
+  row.querySelector('input').addEventListener('input', (ev) => {
+    oninput(ev.target.value);
+    mutated('soon');
+  });
+  return row;
+}
+
+function rebuildParams() {
+  const box = $('params');
+  box.innerHTML = '';
+  const layer = scene.layers.find((l) => l.id === editing.selectedId);
+  if (!layer) {
+    box.innerHTML = '<em style="color:#56637a">nothing selected</em>';
+    return;
+  }
+  const content = layer.content;
+  const prm = layer.params;
+
+  // name
+  const nameRow = document.createElement('div');
+  nameRow.className = 'paramRow';
+  nameRow.innerHTML = `<label>name</label><input type="text" style="flex:1" value="${layer.name || ''}">`;
+  nameRow.querySelector('input').addEventListener('input', (ev) => {
+    layer.name = ev.target.value;
+    mutated('soon');                // coalesce keystrokes into one undo step
+  });
+  nameRow.querySelector('input').addEventListener('change', rebuildLayerList);
+  box.appendChild(nameRow);
+
+  // content dropdown: patterns (live from /api/patterns) + screen/media/mask
+  const contentRow = document.createElement('div');
+  contentRow.className = 'paramRow';
+  contentRow.innerHTML = '<label>content</label>';
+  const sel = document.createElement('select');
+  for (const p of renderer.patterns.list()) {
+    const o = document.createElement('option');
+    o.value = 'pattern:' + p.id;
+    o.textContent = p.name;
+    sel.appendChild(o);
+  }
+  for (const [v, t] of [['screen', 'Screen capture'], ['media', 'Image / video…'], ['ring', 'LED ring (room strip)'], ['mask', 'Mask (black)']]) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = t;
+    sel.appendChild(o);
+  }
+  sel.value = content.kind === 'pattern' ? 'pattern:' + content.pattern : content.kind;
+  if (sel.selectedIndex < 0) sel.value = 'pattern:solid';
+  sel.addEventListener('change', () => {
+    if (sel.value.startsWith('pattern:')) {
+      content.kind = 'pattern';
+      content.pattern = sel.value.slice(8);
+    } else {
+      content.kind = sel.value;
+    }
+    mutated('now');
+    rebuildLayerList();
+    rebuildParams();
+  });
+  contentRow.appendChild(sel);
+  box.appendChild(contentRow);
+
+  if (content.kind === 'media') {
+    const up = document.createElement('div');
+    up.className = 'paramRow';
+    up.innerHTML = '<label>file</label>';
+    const btn = document.createElement('button');
+    btn.textContent = content.url ? content.url.split('/').pop() : 'Upload…';
+    btn.style.flex = '1';
+    btn.style.overflow = 'hidden';
+    btn.addEventListener('click', () => {
+      const fi = document.createElement('input');
+      fi.type = 'file';
+      fi.accept = 'image/*,video/*';
+      fi.addEventListener('change', async () => {
+        const file = fi.files[0];
+        if (!file) return;
+        setStatus('uploading ' + file.name + '…');
+        try {
+          const r = await fetch('/api/upload?name=' + encodeURIComponent(file.name), {
+            method: 'POST', body: file,
+          });
+          if (!r.ok) throw new Error(r.status);
+          const data = await r.json();
+          content.url = data.url;
+          setStatus('uploaded ' + file.name, 'ok');
+          mutated('now');
+          rebuildParams();
+        } catch (e) {
+          setStatus('upload failed: ' + e.message, 'err');
+        }
+      });
+      fi.click();
+    });
+    up.appendChild(btn);
+    box.appendChild(up);
+  }
+
+  if (content.kind === 'ring') {
+    // calibration: which stretch of the 1920px room ring runs above this zone
+    const cal = document.createElement('div');
+    cal.className = 'paramRow';
+    cal.innerHTML = '<label>ring window</label>'
+      + `<input type="number" min="0" max="1919" step="1" value="${content.offset ?? 800}" style="width:70px" title="ring start index">`
+      + `<input type="number" min="1" max="1920" step="1" value="${content.count ?? 480}" style="width:70px" title="pixel count">`
+      + `<label style="margin-left:6px"><input type="checkbox" ${content.flip ? 'checked' : ''}> flip</label>`;
+    const [offIn, cntIn] = cal.querySelectorAll('input[type=number]');
+    const flipIn = cal.querySelector('input[type=checkbox]');
+    // manual edits opt the zone out of live calibration; "use calibrated" opts back in
+    offIn.addEventListener('change', () => { content.offset = Math.max(0, Math.min(1919, +offIn.value || 0)); content.calibrated = false; mutated('now'); });
+    cntIn.addEventListener('change', () => { content.count = Math.max(1, Math.min(1920, +cntIn.value || 480)); content.calibrated = false; mutated('now'); });
+    flipIn.addEventListener('change', () => { content.flip = flipIn.checked; mutated('now'); });
+    box.appendChild(cal);
+
+    // rendering style — the scene's "projector" block from the Pi overrides this
+    const styleRow = document.createElement('div');
+    styleRow.className = 'paramRow';
+    styleRow.innerHTML = '<label>style</label>';
+    const styleSel = document.createElement('select');
+    for (const [v, t] of [['react', 'Reactive (generative)'], ['aurora', 'Aurora curtains'], ['particles', 'Particle field'], ['bleed', 'Bleed (literal strip)']]) {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = t;
+      styleSel.appendChild(o);
+    }
+    styleSel.value = content.style || 'react';
+    styleSel.addEventListener('change', () => { content.style = styleSel.value; mutated('now'); });
+    styleRow.appendChild(styleSel);
+    const calBtn = document.createElement('button');
+    calBtn.textContent = 'use calibrated';
+    calBtn.title = 'read projL/projR from the lightserver room calibration';
+    calBtn.addEventListener('click', async () => {
+      try {
+        const r = await fetch('/api/calibration');
+        if (!r.ok) throw new Error('not available');
+        let calib = await r.json();
+        calib = calib.points || calib;
+        if (calib.projL == null || calib.projR == null) throw new Error('projL/projR not set');
+        const L = Math.round(calib.projL), R = Math.round(calib.projR);
+        content.offset = L;
+        content.count = ((R - L) % 1920 + 1920) % 1920 || 1920;   // seam-wrap aware
+        content.calibrated = true;   // window now follows live calibration
+        offIn.value = content.offset;
+        cntIn.value = content.count;
+        setStatus(`ring window locked to calibration: ${L} → ${R}`, 'ok');
+        mutated('now');
+      } catch (e) {
+        setStatus('calibration: ' + e.message + ' (run it at gorcave.local:8800/calibrate)', 'err');
+      }
+    });
+    styleRow.appendChild(calBtn);
+    box.appendChild(styleRow);
+
+    // wall/strip sync fine-tune (global, persisted server-side): defaulted to
+    // the measured pipeline latency; nudge by eye against the sync-pulse scene
+    const syncRow = document.createElement('div');
+    syncRow.className = 'paramRow';
+    syncRow.innerHTML = '<label>sync trim</label>'
+      + '<input type="range" min="-250" max="250" step="5" value="0" style="flex:1">'
+      + '<span class="val">…</span>';
+    const trimIn = syncRow.querySelector('input');
+    const trimVal = syncRow.querySelector('.val');
+    fetch('/api/latency').then((r) => r.json()).then((j) => {
+      trimIn.value = j.trim_ms || 0;
+      trimVal.textContent = `${j.trim_ms || 0}ms (lag ${Math.round(j.latency_ms)}ms)`;
+    }).catch(() => { trimVal.textContent = 'n/a'; });
+    trimIn.addEventListener('input', () => {
+      trimVal.textContent = trimIn.value + 'ms';
+      fetch('/api/latency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trim_ms: +trimIn.value }),
+      }).catch(() => {});
+    });
+    box.appendChild(syncRow);
+  }
+
+  // params — for patterns, honor the //! params metadata; other kinds get
+  // the subset that means something
+  let shown;
+  if (content.kind === 'pattern') {
+    const meta = renderer.patterns.list().find((p) => p.id === content.pattern);
+    shown = meta && meta.params.length ? meta.params : ['speed', 'color1', 'color2', 'brightness', 'opacity'];
+  } else if (content.kind === 'mask') {
+    shown = ['opacity'];
+  } else {
+    shown = ['brightness', 'opacity'];
+  }
+  if (shown.includes('speed')) box.appendChild(paramSlider('speed', prm.speed, 0, 4, 0.05, (v) => { prm.speed = v; }));
+  if (shown.includes('color1')) box.appendChild(paramColor('primary', prm.color1, (v) => { prm.color1 = v; }));
+  if (shown.includes('color2')) box.appendChild(paramColor('secondary', prm.color2, (v) => { prm.color2 = v; }));
+  if (shown.includes('brightness')) box.appendChild(paramSlider('brightness', prm.brightness, 0, 2, 0.01, (v) => { prm.brightness = v; }));
+  if (shown.includes('opacity')) box.appendChild(paramSlider('opacity', prm.opacity, 0, 1, 0.01, (v) => { prm.opacity = v; }));
+
+  box.appendChild(makeLayerButtons(layer));
+}
+
+function makeLayerButtons(layer) {
+  const rb = document.createElement('div');
+  rb.className = 'rowButtons';
+  const up = document.createElement('button');
+  up.textContent = '▲ raise';
+  up.addEventListener('click', () => moveLayer(layer, +1));
+  const down = document.createElement('button');
+  down.textContent = '▼ lower';
+  down.addEventListener('click', () => moveLayer(layer, -1));
+  const del = document.createElement('button');
+  del.className = 'danger';
+  del.textContent = 'Delete';
+  del.addEventListener('click', () => { editing.select(layer.id); editing.deleteSelected(); rebuildParams(); });
+  rb.append(up, down, del);
+  return rb;
+}
+
+function moveLayer(layer, dir) {
+  const i = scene.layers.indexOf(layer);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= scene.layers.length) return;
+  scene.layers.splice(i, 1);
+  scene.layers.splice(j, 0, layer);
+  rebuildLayerList();
+  mutated('now');
+}
+
+// ---- edit mode --------------------------------------------------------------
+
+function setEditMode(on) {
+  editMode = on;
+  $('btnEdit').textContent = 'Edit: ' + (on ? 'on' : 'off');
+  sync.sendEdit(editMode, editing.selectedId);
+  broadcastScene();
+}
+
+// ---- toolbar / hotkeys ------------------------------------------------------
+
+$('btnSave').addEventListener('click', saveScene);
+$('btnActivate').addEventListener('click', activateScene);
+$('btnNewZone').addEventListener('click', () => { editing.startDraw('zone'); $('drawHint').style.display = 'block'; });
+$('btnNewMask').addEventListener('click', () => { editing.startDraw('mask'); $('drawHint').style.display = 'block'; });
+$('btnNewScreen').addEventListener('click', () => {
+  const l = makeScreenObject(scene.width, scene.height);
+  l.name = 'Screen ' + (scene.layers.filter((x) => (x.content || {}).kind === 'screen').length + 1);
+  scene.layers.push(l);
+  editing.select(l.id);
+  rebuildLayerList();
+  mutated('now');
+});
+$('btnEdit').addEventListener('click', () => setEditMode(!editMode));
+$('sceneSelect').addEventListener('change', (ev) => loadScene(ev.target.value));
+
+window.addEventListener('keydown', (e) => {
+  const el = document.activeElement || {};
+  const tag = el.tagName;
+  const inField = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+  // typing = a text-like input, where the browser's own undo should win;
+  // range/color/checkbox inputs keep focus after use but aren't "typing"
+  const typing = tag === 'TEXTAREA'
+    || (tag === 'INPUT' && !/^(range|color|checkbox|button|file)$/.test(el.type));
+  const k = e.key.toLowerCase();
+
+  if (e.metaKey || e.ctrlKey) {
+    if (typing) return;                       // native undo in text fields
+    if (k === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+    else if (k === 'y') { e.preventDefault(); redo(); }
+    else if (k === 's') { e.preventDefault(); saveScene(); }
+    return;                                   // never fall through to N/M/E
+  }
+
+  if (inField) return;                        // no single-key shortcuts while in a field
+  if (k === 'n') editing.startDraw('zone');
+  else if (k === 'm') editing.startDraw('mask');
+  else if (k === 's') { e.preventDefault(); saveScene(); }
+  else if (k === 'e') setEditMode(!editMode);
+  else if (k === 'enter' && editing.isDrawing()) editing.finishDraw();
+  else if (k === 'escape') { editing.isDrawing() ? editing.cancelDraw() : editing.select(null); }
+  else if (k === 'delete' || k === 'backspace') { editing.deleteSelected(); rebuildParams(); }
+  else return;
+  $('drawHint').style.display = editing.isDrawing() ? 'block' : 'none';
+});
+
+// ---- boot -------------------------------------------------------------------
+
+(async () => {
+  await renderer.patterns.init();
+  try {
+    const r = await fetch('/api/scene/active');
+    if (r.ok) {
+      const data = await r.json();
+      scene = normalizeScene(data.scene);
+      sceneName = data.name;
+      $('sceneName').value = sceneName;
+    }
+  } catch (e) { /* fall back to default in-memory scene */ }
+  await maybeRestoreDraft();       // newest unsaved work wins over the file
+  resetHistory();
+  await refreshSceneList();
+  rebuildLayerList();
+  rebuildParams();
+  broadcastScene();
+  frame();
+})();
+</script>
+</body>
+</html>

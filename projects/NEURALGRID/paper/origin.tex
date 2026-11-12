@@ -1,0 +1,58 @@
+% origin.tex — "Origin: Playing a Robot Orchestra as One Instrument",
+% \input from septagraph.tex. ~half a page. Honest narrative: grid for
+% robots -> what did not work -> the protocol. Draft for emgor to re-voice.
+% ACTION(emgor): confirm authorship/acknowledgment with Kapur and Colton
+%   before submission (the ensemble, its server lineage and its current
+%   maintainer are described here; no individuals are named as authors).
+
+Septagraph did not start as a protocol. It started as a grid.
+
+The neuralGrid was designed in mid-2026 as a Monome-style controller
+with a second job: a small local model would watch how the player
+played and rewrite the grid's own layout, every change quantized to a
+shared clock so the model's latency would land on a downbeat and never
+be felt. Its first target was the Machine Lab. The ensemble is driven
+from a Mac mini running a ChucK server whose lineage runs through
+several generations of the lab's students and faculty; composers send
+OSC to one port, one address per robot, and the server turns each
+message into MIDI or serial commands for that machine. The obvious
+first build was a direct script: grid cells hand-mapped to robots, a
+pad press becoming an OSC message to the lab server. That script still
+exists and is still the gig tool; it is also the end-to-end proof that
+the hardware works.
+
+Several things about the first design did not survive contact with the
+room. The four ribbon sensors on the grid's edges were originally
+menus --- touch one to select a mode, then scroll it --- and the
+player's last-touched ribbon decided what the grid meant. In practice a
+menu on a performance surface meant looking at the instrument instead
+of playing it, and ``touched last'' turned sensor noise into mode
+changes. The ribbons were demoted to pure modulators, one axis each,
+and menus moved to a web page. Beat-quantized reconfiguration went the
+same way: the robots share no clock, and the compositions written for
+them assume none, so reconfiguring on a beat meant importing a
+metronome nobody in the room was listening to. Reconfiguration now
+lands at detected gesture boundaries --- moments of stillness in the
+input stream --- which need no clock and are, in practice, the moments
+when a change of mapping is least disruptive.
+
+The robots also forced the shape of the renderer manifest. A
+synthesizer can be told to reach any point in a continuous region; a
+robot cannot. Each beater on each machine is one fixed sound at one
+fixed place in the room, so the ensemble's reachable set is a finite
+catalog of measured positions, not a bound. A catalog of positions is
+still not enough: a composer who sends the same beater too many hits
+per second gets softer strikes and, on GanaPati, a thermal shutdown.
+So every catalog point carries its mechanical constraints --- maximum
+re-strike rate and a force range --- and a controller that respects
+them will never ask a robot for a roll it cannot play. This is the
+part of the protocol we would not have designed for synthesizers
+alone, and it is what makes a physical instrument a first-class
+renderer rather than a special case.
+
+Once the grid's output had become ``a position in a perceptual space,
+with a tolerance'' rather than ``robot $n$, beater $m$'', the
+separation described in the introduction was already in place: the
+same stream that drives the robots drives a browser synthesizer, and
+the instrument on the table no longer knows or cares which one is
+listening. The rest of this paper describes that stream.

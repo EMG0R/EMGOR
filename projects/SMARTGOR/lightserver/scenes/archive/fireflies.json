@@ -1,0 +1,38 @@
+{
+  "name": "fireflies",
+  "master": {"brightness": 1.0, "tone_map": "clip"},
+  "layers": [
+    {
+      "type": "gradient",
+      "blend": "add",
+      "opacity": 0.12,
+      "palette": ["#001500", "#000800", "#001200"],
+      "scale": 800
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "decay": 0.6,
+      "physics": {
+        "turbulence": {"accel": 90, "scale": 90, "speed": 0.35},
+        "damping": 1.6,
+        "bounce": {"enabled": true, "restitution": 0.9}
+      },
+      "emitters": [
+        {
+          "pos": [0, 799],
+          "rate": 6,
+          "vel": 0,
+          "vel_jitter": 15,
+          "lifetime": 3.2,
+          "lifetime_jitter": 1.6,
+          "colors": ["#c8ff40", "#ffe860", "#a0ff70"],
+          "size": 1.1,
+          "size_jitter": 0.3,
+          "burst": 14
+        }
+      ],
+      "render": {"falloff": "gaussian", "fade_out": true}
+    }
+  ]
+}

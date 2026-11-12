@@ -1,0 +1,17 @@
+[Unit]
+Description=Demiurge first-boot identity regen (ssh host keys, machine-id, hostname, device.md)
+# Run AFTER cloud-init's local/network/config stages so Imager's user/wifi/ssh/hostname customisation lands first
+# (cloud-init is what Raspberry Pi OS Trixie uses; with the legacy firstrun.sh route it runs before us too).
+# Deliberately NOT After=cloud-final: that unit orders late and risks a cycle. The script also waits on cloud-init.
+After=cloud-init-local.service cloud-init-network.service cloud-init.service cloud-config.service network.target local-fs.target
+ConditionPathExists=!/var/lib/demiurge-firstboot/done
+ConditionPathExists=/usr/local/sbin/demiurge-firstboot-regen.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/demiurge-firstboot-regen.sh
+RemainAfterExit=no
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

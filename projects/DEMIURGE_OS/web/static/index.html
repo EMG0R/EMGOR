@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14001a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>DEMIURGE</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- The shell is the whole page. Screens are pushed into <main> by the
+     router; the bar carries the way back and the one fact you always want
+     to see (is the engine running). -->
+<div id="bar">
+  <button id="back" hidden aria-label="Back">&#8249;</button>
+  <div id="title">DEMIURGE</div>
+  <div id="barnote"></div>
+</div>
+
+<div id="banner" class="hidden">DISCONNECTED &mdash; RETRYING</div>
+
+<main id="view"></main>
+
+<div id="sheet" class="sheet hidden">
+  <div class="sheet-box">
+    <p id="sheet-msg"></p>
+    <div class="btnrow">
+      <button id="sheet-cancel" class="btn">Cancel</button>
+      <button id="sheet-ok" class="btn danger">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="pwsheet" class="sheet hidden">
+  <div class="sheet-box">
+    <p id="pw-msg"></p>
+    <input id="pw-input" type="password" autocomplete="off" autocapitalize="off"
+           autocorrect="off" spellcheck="false" placeholder="Network password">
+    <label class="pw-show"><input id="pw-reveal" type="checkbox"> Show password</label>
+    <p class="small">Sent over plain HTTP on your own network &mdash; this page
+       has no TLS. It is never written to a log or a config file in the clear.</p>
+    <div class="btnrow">
+      <button id="pw-cancel" class="btn">Cancel</button>
+      <button id="pw-ok" class="btn">Join</button>
+    </div>
+  </div>
+</div>
+
+<div id="picksheet" class="sheet hidden">
+  <div class="sheet-box">
+    <p id="pick-msg"></p>
+    <div id="pick-list" class="picklist"></div>
+    <div class="btnrow">
+      <button id="pick-cancel" class="btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="app.js"></script>
+<!-- VIDEO. Self-registers its /video/* routes into app.js's router on
+     load; must come AFTER app.js, which is where its helpers live. -->
+<script src="video.js"></script>
+</body>
+</html>

@@ -1,0 +1,344 @@
+#!/bin/bash
+# demiurge-run-csound <file.csd> [extra csound args...]
+# Reads DEMIURGE_RATE and DEMIURGE_QUANTUM (set by the demiurge-launcher from
+# live.conf `rate =` / `quantum =`; defaults 48000 / 128). -b (software period)
+# MUST equal pipewire clock.force-quantum or pipewire-jack registers the client
+# but produces -inf dB silently. -B is the rtjack ringbuffer between csound's
+# engine thread and the JACK callback — see the measured table at the HW= line
+# below; it is NOT floored at 1024 any more, and that claim was never true.
+# -r pins the sample rate to match the graph; without this csound negotiates at
+# its own default (44100) and pipewire-jack resamples silently.
+#
+# RT scheduling on the ENGINE thread — not just the JACK callback:
+#   pipewire-jack auto-elevates its OWN callback thread to SCHED_FIFO 83, but
+#   csound's engine (the thread that actually computes DSP) stays on
+#   SCHED_OTHER unless we explicitly pin it. If the engine gets preempted
+#   mid-block, the JACK callback reads half-filled / stale samples from the
+#   ring buffer — NOT an xrun (jack met its deadline), but audibly garbled
+#   output. `chrt --fifo 74` starts csound under SCHED_FIFO prio 74 (below
+#   pipewire's 83, above all userspace) so the engine never yields to
+#   normal tasks. Avoids csound's own `--sched` flag which has known-bad
+#   interactions on this Pi (see gotchas Q7b).
+#
+# MIDI: -M 14:0 opens the shared `Midi Through` ALSA-seq bus for INPUT
+#   (demiurge clock CC119 -> csound). -Q 14:0 (added 2026-07-15) opens the
+#   SAME bus for OUTPUT so NEPTR's chase_bliss_clock.orc can steer the
+#   demiurge clock daemon with ch16 CC118 (loop-derived tempo). Verify on
+#   the rig with: aseqdump -p "Midi Through" | grep "controller 118".
+set -e
+source /opt/demiurge/lib/demiurge-env.sh 2>/dev/null || source "$(dirname "$0")/../lib/demiurge-env.sh"
+
+if [[ -z "$1" ]]; then
+    echo "usage: demiurge-run-csound <file.csd> [extra args...]" >&2
+    exit 1
+fi
+
+R="${DEMIURGE_RATE:-48000}"
+Q="${DEMIURGE_QUANTUM:-128}"
+
+# -B, the rtjack ring between csound's ENGINE THREAD and the JACK callback.
+#
+# This was floored at 1024 for a long time, with a comment claiming csound
+# refuses anything lower on this Pi. MEASURED 2026-08-10 with a physical
+# loopback cable (testing/latency/rtdelay + passthrough.csd), that claim is
+# false, and the cost of believing it was enormous. csound's OWN added
+# round-trip latency, isolated from DSP, at quantum 64:
+#
+#   -B 1024   +23.6 ms   sd 79.3 fr     <- what shipped
+#   -B  512   +11.0 ms   sd 11.0 fr
+#   -B  256   + 5.5 ms   sd  6.3 fr
+#   -B  128   + 2.8 ms   sd  0.9 fr
+#
+# -B 64 genuinely fails, but not because of a ring floor: csound derives -b
+# from -B and lands on -b 32, and -b must be an integer multiple of ksmps.
+#
+# Lower is both faster AND more stable here — the 1024 ring was the single
+# largest source of latency jitter on the rig, larger than the converters and
+# larger than every ALSA ring setting combined.
+#
+# The floor is now 2*Q rather than 1024. Ring depth is the slack the engine
+# thread has to be late in, so a patch heavy enough to miss blocks wants more
+# of it: DEMIURGE_CSOUND_B overrides for exactly that case, and
+# docs/latency-measurements.md records what the NEPTR patch was verified at.
+HW="${DEMIURGE_CSOUND_B:-$(( Q * 2 ))}"
+
+FILE="$1"; shift
+
+# USS instruments (stage program id `uss-<name>`, uss/README.md): a GUEST next to the
+# live NEPTR csound, never a competitor. Differences from the NEPTR engine, all on
+# purpose: housekeeping cores (never DEMIURGE_RT_PIN's isolated core, so it cannot
+# touch csound's), SCHED_FIFO 40 (csound is 74), its own JACK client name (so the
+# launcher does not mistake it for NEPTR's `csound6`), no MIDI bus, no csound_extra
+# (PRESET_BANK etc. belong to NEPTR). The pool env/macros arrive in "$@" from the launcher.
+case "$(basename "$FILE")" in
+    uss-*)
+        PW_JACK_PATH=/usr/lib/aarch64-linux-gnu/pipewire-0.3/jack
+        export LD_LIBRARY_PATH="${PW_JACK_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        cd "$(dirname "$FILE")" 2>/dev/null || true
+        exec taskset -c "${DEMIURGE_USS_CPUS:-0-2}" chrt --fifo "${DEMIURGE_USS_RTPRIO:-40}" \
+            csound -d -+ignore_csopts=1 -+rtaudio=jack -odac -f \
+            "-+jack_client=$(basename "${FILE%.csd}")" \
+            -r $R -B $(( Q * 4 )) -b $Q --realtime "$FILE" "$@"
+        ;;
+esac
+
+# Csound `#include` resolves relative paths against the current working
+# directory. Multi-file csds only build if cwd is the csd's own directory.
+# cd there first; the full path still works as the main-file argument.
+cd "$(dirname "$FILE")" 2>/dev/null || true
+
+# Read csound_extra from live.conf — single-token args (e.g. --omacro:KEY=VAL).
+# Used by NEPTR sets to pass --omacro:PRESET_BANK=0/1 without a separate CSD.
+# (This block existed on the deployed Pi wrapper but had drifted out of this
+# repo source; folded back in 2026-07-15 so a redeploy can't regress it.)
+LIVE="${HOME}/demiurge/live.conf"
+read -ra CSOUND_EXTRA <<< "$(grep -m1 '^csound_extra[[:space:]]*=' "$LIVE" 2>/dev/null | sed 's/^csound_extra[[:space:]]*=[[:space:]]*//')"
+
+# ---- PATH MACROS (added 2026-10-02) --------------------------------------
+# The .orc files declare STATE_DIR/PRESET_DIR/NAM_DIR/IR_DIR/DRUMLOOP_DIR as
+# `#ifndef`-guarded literals that still read /home/gorpi7/..., because csound
+# opens those paths with its own file API -- no shell, so a $HOME inside the
+# string would never expand. neptr/scripts/launch_phase4.sh already passed
+# these as --omacro, but THIS wrapper (the one demiurge.service actually uses)
+# did not, so a rig whose user is not literally "gorpi7" silently looked for
+# its impulse responses in another user's home. Found on the 2026-10-02
+# rebuild as gorpi7v2: csound aborted with
+#   soundin cannot open /home/gorpi7/demiurge/ir/11_spring_short_flat.wav
+# Derived from $HOME so it is correct for ANY username -- see pi-rig.conf for
+# the rest of the rename story. Placed BEFORE "${CSOUND_EXTRA[@]}" so a
+# csound_extra line in live.conf can still override any of them.
+#
+# STATE_DIR is RAM-AWARE (2026-10-02). state_persist.orc's instr 97 calls ftsavek
+# on the AUDIO THREAD every 2 s whenever a knob has moved; to the SD card that is
+# 2.3-8 ms per write against a 1.33 ms period -- a periodic glitch with no xrun
+# counter attached (see the header of demiurge-state-ram). demiurge-state-ram
+# (ExecStartPre of demiurge.service, via 20-state-ram.conf) creates and seeds
+# /dev/shm/neptr-state and mirrors it back to SD from outside the audio process.
+# So: if that directory exists, csound writes THERE; otherwise (drop-in not
+# installed, or run by hand) fall back to the SD dir so state still persists.
+# One mechanism: the directory's existence IS the switch, nothing to configure.
+if [[ -d /dev/shm/neptr-state ]]; then
+    STATE_DIR_PATH=/dev/shm/neptr-state
+else
+    STATE_DIR_PATH="$HOME/demiurge/state"
+fi
+CSOUND_PATHS=(
+    "--omacro:STATE_DIR=$STATE_DIR_PATH"
+    "--omacro:PRESET_DIR=$HOME/demiurge/presets"
+    "--omacro:NAM_DIR=$HOME/demiurge/profiles/nam"
+    "--omacro:IR_DIR=$HOME/demiurge/ir"
+    "--omacro:DRUMLOOP_DIR=$HOME/demiurge/samples/drumloops"
+)
+
+# ---- NODE CHANNEL MODE (neptr/csound/globals.orc NEPTR_NCHNLS) -------------
+# ~/.config/neptr/mode = stereo | 8ch, one line, per node, OUTSIDE the instrument
+# tree so one codebase serves every rig. Absent / stereo / anything else = nothing
+# added = nchnls 2 exactly as before. 8ch = 8 in / 8 out; NEPTR's own pair stays
+# on outs 1-2 and outs 3-8 are silent until the mixer (--omacro:MIXER=1 via
+# live.conf csound_extra, see docs/MIXER.md) routes something there.
+NEPTR_MODE="$(head -n1 "${NEPTR_MODE_FILE:-$HOME/.config/neptr/mode}" 2>/dev/null | tr -d '[:space:]')"
+if [[ "$NEPTR_MODE" == "8ch" ]]; then
+    CSOUND_PATHS+=("--omacro:NEPTR_NCHNLS=8" "--omacro:NEPTR_NCHNLS_I=8")
+fi
+
+# ---- PER-DEVICE ROUTING MAP (~/.config/neptr/routing) ------------------------
+# Node-local like the mode file, so a sync never overwrites it. Lines, 1-based
+# channel numbers, any count, '#' comments; a bus may list SEVERAL channels:
+#   main_l 1 5        NEPTR main L goes to outs 1 and 5
+#   main_r 2 6
+#   rack_l 1          physical input(s) feeding the rack's L / R input
+#   rack_r 2
+#   direct 3 7 8      input 3 straight to outs 7 and 8 (repeatable)
+# Absent file or no lines = nothing added = today's behaviour (main on 1-2).
+# A present file turns the mixer on (MIXER=1). Channels above the card's count
+# are ignored by the patch. Live changes after boot: the /mixer/... pool params.
+ROUTING_FILE="${NEPTR_ROUTING_FILE:-$HOME/.config/neptr/routing}"
+if [[ -r "$ROUTING_FILE" ]]; then
+    MX_ML=""; MX_MR=""; MX_RL=""; MX_RR=""; MX_D=""
+    while read -r _bus _chs; do
+        [[ -z "$_bus" || "$_bus" == \#* ]] && continue
+        _chs="${_chs%%#*}"
+        read -ra _a <<< "$_chs"
+        _ok=1; for _n in "${_a[@]}"; do [[ "$_n" =~ ^[0-9]+$ ]] || _ok=0; done
+        (( ${#_a[@]} > 0 && _ok )) || { echo "demiurge-run-csound: bad routing line '$_bus $_chs' ignored" >&2; continue; }
+        _l="$(IFS=,; echo "${_a[*]}")"
+        case "$_bus" in
+            main_l) MX_ML="${MX_ML:+$MX_ML,}$_l" ;;
+            main_r) MX_MR="${MX_MR:+$MX_MR,}$_l" ;;
+            rack_l) MX_RL="${MX_RL:+$MX_RL,}$_l" ;;
+            rack_r) MX_RR="${MX_RR:+$MX_RR,}$_l" ;;
+            direct) for _o in "${_a[@]:1}"; do MX_D="${MX_D:+$MX_D,}${_a[0]},$_o"; done ;;
+            *) echo "demiurge-run-csound: unknown routing bus '$_bus' ignored" >&2 ;;
+        esac
+    done < "$ROUTING_FILE"
+    MX_ANY="$MX_ML$MX_MR$MX_RL$MX_RR$MX_D"
+    if [[ -n "$MX_ANY" ]]; then
+        CSOUND_PATHS+=("--omacro:MIXER=1")
+        [[ -n "$MX_ML" ]] && CSOUND_PATHS+=("--omacro:MIXER_MAIN_L=$MX_ML")
+        [[ -n "$MX_MR" ]] && CSOUND_PATHS+=("--omacro:MIXER_MAIN_R=$MX_MR")
+        [[ -n "$MX_RL" ]] && CSOUND_PATHS+=("--omacro:MIXER_RACK_L=$MX_RL")
+        [[ -n "$MX_RR" ]] && CSOUND_PATHS+=("--omacro:MIXER_RACK_R=$MX_RR")
+        [[ -n "$MX_D" ]]  && CSOUND_PATHS+=("--omacro:MIXER_DIRECT=$MX_D")
+    fi
+fi
+# The mixer (--omacro:MIXER=1) #includes params/csound/demiurge_params.udo.
+if [[ " ${CSOUND_EXTRA[*]} ${CSOUND_PATHS[*]} " == *" --omacro:MIXER=1 "* ]]; then
+    CSOUND_PATHS+=("--env:INCDIR+=${DEMIURGE_RESOURCES:-/opt/demiurge/resources}")
+fi
+
+# csound_host = standalone | embedded  (live.conf; default standalone)
+#
+#   standalone  the csound binary with -+rtaudio=jack. csound computes on its
+#               OWN thread and hands blocks to the JACK callback across the -B
+#               ring, so -B frames of latency sit in the signal path.
+#   embedded    demiurge-csound-host: an ordinary JACK client that calls
+#               csoundPerformKsmps() from inside the process callback. No
+#               engine thread, no ring, no -B. Registers as the same JACK
+#               client (`csound6`, ports input1/2 + output1/2) so the
+#               launcher's direct-link paths and every patcher UI are unchanged.
+#
+# REQUIRES ksmps to divide the graph quantum — one callback is a whole number
+# of control periods or it is nothing. The host refuses to start otherwise,
+# with the arithmetic printed, rather than glitching. NEPTR's ksmps follows
+# live.conf via --omacro:KSMPS, so quantum 64/ksmps 64 and quantum 32/ksmps 32
+# are both exact; a quantum the ksmps does not divide is a config error the
+# host will name for you.
+#
+# Default is standalone ON PURPOSE. The embedded path is newer, and a rig that
+# has to be playable tonight should not change engine because a file landed.
+CSOUND_HOST="$(grep -m1 '^csound_host[[:space:]]*=' "$LIVE" 2>/dev/null \
+    | sed 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*$//; s/#.*//')"
+CSOUND_HOST="${DEMIURGE_CSOUND_HOST:-${CSOUND_HOST:-standalone}}"
+
+# Two backends, chosen by DEMIURGE_DIRECT (set by demiurge-mode-select when the
+# user-facing live.conf has `sync_layer = off`):
+#   unset/0 → JACK: run as a PipeWire/JACK stage feeding the sync layer.
+#   1       → ALSA: own the audio interface (DEMIURGE_AUDIO_IF) directly, no
+#             sync layer, lowest latency. plughw lets ALSA convert FLOAT->S32.
+if [[ "${DEMIURGE_DIRECT:-0}" == "1" ]]; then
+    IF="${DEMIURGE_AUDIO_IF:-hw:CARD=USB,DEV=0}"
+    DEV="${IF/#hw:/plughw:}"
+    # Playback-only cards (HDMI, output-only USB DACs): the launcher exports
+    # DEMIURGE_AUDIO_CAPTURE=none when the resolved card has no capture PCM
+    # (no /proc/asound/<id>/pcm*c). Point -iadc at the ALSA `null` plugin —
+    # csound's capture buffer is calloc'd and null never writes it, so
+    # input opcodes (ins/inch) read silence forever. Merely OMITTING -iadc
+    # does not work: csound 6.18 still honours a bare `-iadc` inside the
+    # CSD's <CsOptions> even under -+ignore_csopts=1, then restart-loops on
+    # the unopenable 'default' capture device. An explicit command-line
+    # -iadc:null deterministically overrides the CSD either way.
+    ADC=(-iadc:"$DEV")
+    [[ "${DEMIURGE_AUDIO_CAPTURE:-auto}" == "none" ]] && ADC=(-iadc:null)
+    # -l = 32-bit int. Without a depth flag csound's ALSA backend negotiates
+    # S16_LE and plughw silently accepts it — measured 2026-08-10 on a 24-bit
+    # DAC+ADC Pro, the bottom 8 bits were being thrown away (raised noise
+    # floor, no latency cost). NOTE: -3 (24-bit) is FILE-ONLY; csound's
+    # realtime ALSA accepts 16/32-bit int and 32-bit float only, and errors
+    # with "Unknown sample format" on -3. The card's S24_3LE is reached via
+    # plughw from S32_LE at no cost.
+    case "${DEMIURGE_BITS:-32}" in
+        16)    FMT=(-s) ;;
+        float) FMT=(-f) ;;
+        *)     FMT=(-l) ;;
+    esac
+    exec $DEMIURGE_RT_PIN chrt --fifo 74 csound -d -+ignore_csopts=1 -+rtaudio=alsa \
+        -odac:"$DEV" "${ADC[@]}" "${FMT[@]}" \
+        -r $R \
+        -B $(( Q * 8 )) -b $Q \
+        -+rtmidi=alsaseq -M 14:0 -Q 14:0 --realtime "${CSOUND_PATHS[@]}" "${CSOUND_EXTRA[@]}" "$FILE" "$@"
+fi
+
+# libjack.so.0 on this Pi resolves to the real jackd library (0.1.0), not
+# PipeWire. csound would silently fail to connect to a jackd that isn't running.
+# Prepend PipeWire's JACK shim so csound routes through PipeWire instead.
+PW_JACK_PATH=/usr/lib/aarch64-linux-gnu/pipewire-0.3/jack
+export LD_LIBRARY_PATH="${PW_JACK_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Remove stale csound PipeWire nodes left by crashed/killed sessions.
+# Without this, a ghost 'csound6' node forces the new instance to register
+# as 'csound6-NNNNN', which the launcher's resolve_client can't find.
+#
+# ONLY WHEN NO OTHER CSOUND IS ALIVE. This block matches nodes by NAME, and a
+# name cannot tell a ghost from a healthy engine. With stage respawn now able to
+# start an engine while another is still shutting down, an unguarded destroy
+# deletes the node of a LIVE instance — and Csound does not die when its node is
+# destroyed, it keeps running with no ports and no audio. That is exactly the
+# "alive but silent" state seen three times on 2026-08-10, including once where
+# a respawned engine sat portless for six minutes with the rig silent.
+#
+# So: if any csound process is already running, its node is presumed legitimate
+# and nothing is destroyed. This runs before exec, so pgrep here cannot match
+# ourselves — a hit means a genuinely different instance.
+if pgrep -x csound >/dev/null 2>&1; then
+    echo "demiurge-run-csound: another csound is running — leaving its PipeWire node alone" >&2
+else
+    for _id in $(pw-cli list-objects 2>/dev/null | awk '
+        /^id [0-9]+/ { id=$2 }
+        /node\.name = "csound/ { print id }
+    '); do
+        pw-cli destroy "$_id" 2>/dev/null || true
+    done
+    unset _id
+fi
+
+# Embedded host: same options, same MIDI, same macros, same JACK identity — the
+# only thing that changes is WHERE csoundPerformKsmps is called from. -B/-b are
+# absent because there is no ring and no software period to size; the graph
+# quantum is the period. If the host cannot honour the quantum it says so and
+# exits non-zero, and systemd's restart policy plus this wrapper's standalone
+# branch are one live.conf edit away — it never degrades silently.
+if [[ "$CSOUND_HOST" == "embedded" ]]; then
+    exec $DEMIURGE_RT_PIN chrt --fifo 74 /opt/demiurge/bin/demiurge-csound-host \
+        -d -+ignore_csopts=1 \
+        -r $R \
+        -+rtmidi=alsaseq -M 14:0 -Q 14:0 --realtime "${CSOUND_PATHS[@]}" "${CSOUND_EXTRA[@]}" "$FILE" "$@"
+fi
+
+# BIT DEPTH ON THE JACK PATH (fixed 2026-10-02). Without an explicit depth flag
+# csound negotiates S16_LE here exactly as it does on ALSA -- the bug the
+# ALSA branch above already guards against with "${FMT[@]}". This branch did
+# NOT pass it, so `sync_layer = on` ran the whole instrument at 16-bit into a
+# 24-bit DAC and sounded audibly BITCRUSHED, while bypass (ALSA, which does
+# pass FMT) sounded clean. That asymmetry is why it looked like a sync-layer
+# problem rather than a format one.
+# JACK is float-native end to end, so 32-bit FLOAT is the correct choice here
+# (-l/32-bit int is right for ALSA; for JACK float avoids a needless convert).
+case "${DEMIURGE_BITS:-32}" in
+    16)    JFMT=(-s) ;;   # only if someone deliberately asks for it
+    *)     JFMT=(-f) ;;   # 32-bit float: JACK's native word
+esac
+
+# ---- COLD-START XRUN STORM (found 2026-10-03) -------------------------------
+# A csound started AT BOOT logged ~17 `rtjack: xrun` per second FOREVER (3481 in
+# four minutes) at 36% of an isolated 2.8 GHz core with clean power, while the
+# very same command respawned a minute later ran with ZERO. Identical -b/-B,
+# identical graph quantum, identical node.latency. The difference is the cold
+# start: ~25 impulse responses and the NAM model are read off the SD card while
+# the JACK callback is already running (--realtime defers init to a thread), the
+# engine misses a few blocks, and rtjack's ring between engine and callback
+# never regains phase — it keeps reporting xruns until the process is replaced.
+# Heard as a permanent "bitcrush" that a UI restart "mysteriously" cures.
+#
+# One defence, cheap, generic to any patch:
+#   1. PREWARM the page cache with everything the patch will read during init,
+#      so init does not stall on SD while audio runs. Bounded, never fatal.
+#   2. (a stderr-filtering storm guard was tried and REMOVED — see below)
+for d in "$HOME/demiurge/ir" "$HOME/demiurge/profiles/nam" "$HOME/demiurge/samples/drumloops"; do
+    # `|| true` is load-bearing: this file runs under `set -e`, and an EMPTY
+    # directory makes `cat dir/*` fail — which exited the wrapper before csound
+    # ever started and left the rig silent on 2026-10-03. Prewarm must never
+    # be able to stop the engine.
+    [[ -d "$d" ]] && { timeout 8 cat "$d"/* >/dev/null 2>&1 || true; }
+done
+
+# The xrun-storm GUARD that briefly lived here (2026-10-03) is GONE: its awk
+# stderr filter died on the rig's mawk, csound then took SIGPIPE on its first
+# stderr write and exited within seconds, and the launcher's five respawns all
+# did the same — the instrument was dead for the duration. A wrapper must never
+# sit between csound and its own stderr. The cold-start storm is detected from
+# the stage log instead (see demiurge-audit-audio) and cleared with a restart.
+exec $DEMIURGE_RT_PIN chrt --fifo 74 csound -d -+ignore_csopts=1 -+rtaudio=jack -odac -iadc \
+    "${JFMT[@]}" \
+    -r $R \
+    -B $HW -b $Q \
+    -+rtmidi=alsaseq -M 14:0 -Q 14:0 --realtime "${CSOUND_PATHS[@]}" "${CSOUND_EXTRA[@]}" "$FILE" "$@"

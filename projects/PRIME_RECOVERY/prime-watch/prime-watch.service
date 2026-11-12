@@ -1,0 +1,18 @@
+[Unit]
+Description=PRIME watcher: revive demiurge/neptr-ui when down or hung (stands down for games)
+# no After= on demiurge/neptr-ui: that formed an ordering cycle with multi-user.target
+# (2026-11-02, job deleted at boot). The script has its own grace; order is not needed.
+
+[Service]
+Type=simple
+ExecStart=/home/gorpi7v5/PRIME_RECOVERY/prime-watch/prime-watch.sh
+Restart=always
+RestartSec=5
+CPUAffinity=0
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target

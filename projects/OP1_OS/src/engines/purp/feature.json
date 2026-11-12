@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "name": "ofp_purp",
+  "title": "THE PURP synth engine (OP FREAK)",
+  "version": "0.1",
+  "status": "experimental",
+  "status_note": "host-tested and Blackfin-simulator tested; never run on a device",
+  "firmware": {
+    "R246": "c5315218f825f143b415ca554516541898abee843d3a236df0b54c04e1fb13a9"
+  },
+  "sdk": 1,
+  "prefix": ["pp_", "pu_"],
+  "summary": "Pick PURP in the synth engine list (or the 'purp' preset): 2 FM-coupled analog-style oscillators with stereo detune, Moog-style ladder, 2 LFOs, mod matrix, per-parameter GEN (DRIFT/STEP/LFO1/LFO2), 8 factory presets. Mono through the engine host, up to 5 voices at 44.1 kHz core rate. TE's envelope, FX, LFO apply.",
+  "license": "MIT",
+  "authors": ["Emory Smith (EMGOR)"],
+  "docs": "../../../docs/ENGINES.md",
+  "sources": ["ofp_purp.c", "purp.c"],
+  "libs": ["gfx"],
+  "cflags": ["-O2", "-fno-tree-loop-distribute-patterns"],
+  "init": "pp_init",
+  "shared": [
+    {"point": "on_key", "fn": "pp_key", "mode": "filter"},
+    {"point": "on_knob", "fn": "pp_knob", "mode": "filter"},
+    {"point": "frame", "fn": "pp_frame"},
+    {"point": "engine_name", "fn": "pp_engine_name"}
+  ],
+  "hooks": {},
+  "controls": [
+    "engine list: PURP; preset browser: folder purp (one preset 'purp')",
+    "PURP engine screen (SYNTH key, T1): turn = value, shift+turn = GEN depth, push = cycle GEN mode; shift+blue push next page, shift+green push previous page, shift+white push RESEED, shift+orange push FM snap / MATRIX slot; last page = preset scroller (blue turn)",
+    "T1-T4 keep TE's meaning: T2 = TE amp envelope (PURP uses it), T3 = FX, T4 = LFO"
+  ],
+  "tests": [],
+  "depends": ["enginehost", "ofp_common"],
+  "conflicts": [],
+  "claims": [
+    {"input": "blue_push", "shift": "any", "screen": "synth", "modal": true},
+    {"input": "green_push", "shift": "any", "screen": "synth", "modal": true},
+    {"input": "white_push", "shift": "any", "screen": "synth", "modal": true},
+    {"input": "orange_push", "shift": "any", "screen": "synth", "modal": true},
+    {"input": "blue_turn", "shift": "any", "screen": "synth", "modal": true},
+    {"input": "green_turn", "shift": "any", "screen": "synth", "modal": true},
+    {"input": "white_turn", "shift": "any", "screen": "synth", "modal": true},
+    {"input": "orange_turn", "shift": "any", "screen": "synth", "modal": true}
+  ],
+  "content_sql": [
+    {
+      "file": "content/op1_factory.db",
+      "sql": [
+        "INSERT INTO synth_types (id, type, default_params) SELECT MAX(id) + 1, 'purp', '[8192, 8192, 8192, 8192, 4096, 4096, 4096, 4096]' FROM synth_types",
+        "INSERT INTO synth_presets (patch, folder) VALUES ('{\"adsr\":[64,8128,24575,6000,4000,64,4000,4000],\"fx_active\":false,\"fx_params\":[8000,14368,9438,20044,0,0,0,0],\"fx_type\":\"delay\",\"knobs\":[8192,8192,8192,8192,4096,4096,4096,4096],\"lfo_active\":false,\"lfo_params\":[24172,3068,0,16000,0,0,0,0],\"lfo_type\":\"tremolo\",\"name\":\"purp\",\"octave\":0,\"synth_version\":1,\"type\":\"drwave\"}', 'purp')"
+      ]
+    }
+  ]
+}

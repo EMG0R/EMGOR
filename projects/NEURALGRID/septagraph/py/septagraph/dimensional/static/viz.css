@@ -1,0 +1,149 @@
+/* The encoder, watched rather than read.
+   Words appear in exactly one place -- the monitor -- where they are the point. */
+:root{
+  --void:#06080c;
+  --ink:#8fa3b8;
+  --ink-dim:#3f4d5e;
+  --rule:#141b25;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--void);
+  display:grid;
+  grid-template-rows:1fr auto auto minmax(140px, 24vh);
+  overflow:hidden;
+}
+
+/* Raw sensors, under the interpolated view: what the instrument actually
+   sent, before any fusion. The derived point above is only trustworthy if
+   you can see what it was derived from. */
+#raws{
+  display:flex; gap:2px; padding:8px 14px 9px;
+  border-top:1px solid var(--rule);
+  background:#05070b;
+  overflow-x:auto;
+  font:400 10px/1 "IBM Plex Mono", ui-monospace, monospace;
+}
+.rawcol{
+  flex:1 1 0; min-width:44px; display:flex; flex-direction:column; gap:3px;
+}
+.rawcol .k{color:var(--ink-dim); letter-spacing:.06em; white-space:nowrap}
+.rawcol .n{color:var(--ink); font-size:12px; font-variant-numeric:tabular-nums}
+.rawcol .m{height:2px; background:#0d131b; border-radius:99px; overflow:hidden}
+.rawcol .m i{display:block; height:100%; background:currentColor}
+.rawcol.pos{color:#5ce1ff}
+.rawcol.rib{color:#a77bff}
+.rawcol.frc{color:#ffab3d}
+.rawcol.dst{color:#ff3d78}
+.rawcol.off .n{color:var(--ink-dim)}
+.rawcol.off .m i{background:var(--ink-dim)}
+@media (max-width:640px){ #raws{padding:6px 10px} .rawcol{min-width:38px} }
+
+#field{
+  display:block;
+  width:100%;
+  height:100%;
+  /* the field is emissive; let it sit on true void with nothing around it */
+  background:var(--void);
+}
+
+#monitor{
+  margin:0;
+  padding:12px 16px;
+  border-top:1px solid var(--rule);
+  background:#04060a;
+  color:var(--ink);
+  font:400 12px/1.65 "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  overflow:hidden;
+  white-space:pre;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:var(--rule) transparent;
+}
+#monitor::-webkit-scrollbar{width:8px;height:8px}
+#monitor::-webkit-scrollbar-thumb{background:var(--rule);border-radius:99px}
+#monitor::-webkit-scrollbar-track{background:transparent}
+
+/* The most recent line is the live one; everything above it is history. */
+#monitor b{color:#d7e6f5;font-weight:500}
+#monitor i{color:var(--ink-dim);font-style:normal}
+
+@media (max-width:640px){
+  body{grid-template-rows:1fr minmax(150px, 38vh)}
+  #monitor{font-size:11px;padding:10px 12px}
+}
+@media (prefers-reduced-motion:reduce){
+  /* the field's motion IS the data; only the idle drift is decorative */
+  #field{--idle-drift:0}
+}
+
+/* Orientation and ribbon naming. Which way the grid is mounted and which edge
+   each ribbon is were both guessed wrong repeatedly; they are settings. */
+#setup{
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:8px 14px; border-top:1px solid var(--rule); background:#05070b;
+  font:400 11px/1 "IBM Plex Mono", ui-monospace, monospace;
+}
+#setup button{
+  font:inherit; padding:6px 10px; border-radius:6px; cursor:pointer;
+  background:#0d131b; color:var(--ink); border:1px solid var(--rule);
+}
+#setup button:hover{border-color:#5ce1ff; color:#d7e6f5}
+#setup button[data-ribbon]{border-color:#2a2440; color:#a77bff}
+#setup button[data-ribbon]:hover{border-color:#a77bff}
+#setup button[data-ribbon][disabled]{opacity:.32; cursor:default; border-color:var(--rule)}
+#setup .sep{flex:1}
+#setup .hint{color:var(--ink-dim)}
+#setup .hint.live{color:#a77bff}
+
+#setup button[data-invert]{min-width:38px; color:var(--ink-dim)}
+#setup button[data-invert].on{color:#a77bff; border-color:#a77bff; background:#160f24}
+
+/* Raw traces: every sensor, as it actually reads, over the last few seconds.
+   Below the fold on purpose -- this is for when something looks wrong, not
+   for playing. */
+#rawviz{padding:18px 16px 40px; border-top:1px solid var(--rule); background:#04060a}
+#rawviz-grid{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr));
+  gap:12px; max-width:1100px; margin:0 auto;
+}
+.trace{
+  background:var(--panel); border:1px solid var(--line); border-radius:9px;
+  padding:9px 11px 7px;
+}
+.trace .hd{display:flex; justify-content:space-between; align-items:baseline; gap:8px}
+.trace .nm{
+  font:400 10px/1 "IBM Plex Mono", ui-monospace, monospace;
+  color:var(--ink-dim); letter-spacing:.07em; text-transform:uppercase;
+}
+.trace .vl{
+  font:500 14px/1 "IBM Plex Mono", ui-monospace, monospace;
+  font-variant-numeric:tabular-nums; color:var(--ink);
+}
+.trace.off .vl{color:var(--ink-dim)}
+.trace svg{width:100%; height:46px; display:block; margin-top:7px; overflow:visible}
+.trace svg path{fill:none; stroke-width:1.5; vector-effect:non-scaling-stroke}
+.trace svg line{stroke:var(--rule); stroke-width:1; stroke-dasharray:2 3}
+
+
+/* The readout: one row per dimension, fixed in place. Nothing here moves
+   except the numbers and the bars -- a readout you have to chase is not a
+   readout. */
+.rdrow{
+  display:grid;
+  grid-template-columns:8.5em 1fr 4.5em 3.5em;
+  align-items:center; gap:10px;
+  line-height:1.9;
+}
+.rdname{color:var(--ink-dim); letter-spacing:.04em}
+.rdval{color:#d7e6f5; text-align:right; font-variant-numeric:tabular-nums}
+.rdsig{color:var(--ink-dim); text-align:right; font-variant-numeric:tabular-nums}
+.rdbar{display:block; height:3px; background:#0d131b; border-radius:99px; overflow:hidden}
+.rdbar i{
+  display:block; height:100%; width:0; background:#5ce1ff;
+  transition:width .06s linear;
+}
+.rdrow.off .rdval{color:var(--ink-dim)}
+.rdrow.off .rdbar i{background:var(--ink-dim)}

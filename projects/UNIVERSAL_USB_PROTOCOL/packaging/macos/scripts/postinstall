@@ -1,0 +1,13 @@
+#!/bin/bash
+# Runs after every install/reinstall.
+set -euo pipefail
+
+chmod 755 /usr/local/bin/omniplex
+
+echo "omniplex installed to /usr/local/bin/omniplex" >&2
+echo "First run: macOS will ask for Microphone access (for --audio)." >&2
+echo "That prompt is tied to this binary's ad-hoc code signature, which" >&2
+echo "stays stable across reinstalls of this same package, so you should" >&2
+echo "only be asked once even as you rebuild/reinstall during testing." >&2
+
+exit 0

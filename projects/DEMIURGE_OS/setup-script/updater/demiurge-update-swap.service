@@ -1,0 +1,13 @@
+[Unit]
+Description=Demiurge updater: boot-time atomic swap (SHIPPED DISABLED)
+DefaultDependencies=no
+After=local-fs.target
+Before=demiurge.service
+ConditionPathExists=/demiurge/next
+
+[Service]
+Type=oneshot
+ExecStart=/opt/demiurge/bin/demiurge-update-swap
+
+[Install]
+WantedBy=multi-user.target

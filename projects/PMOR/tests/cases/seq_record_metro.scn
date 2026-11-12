@@ -1,0 +1,5 @@
+seconds 4.0
+bpm 100
+set seq.0.rec_on 1
+set seq.0.mode 1
+seq_step 0 0 0x1000

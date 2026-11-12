@@ -1,0 +1,13 @@
+# DEMIURGE supplemental Pico (RP2040 / RP2350) udev rule
+#
+# Same problem as the Teensy rule (99-demiurge-teensy.rules): picotool talks to
+# the BOOTSEL device over libusb, but access is normally granted via logind
+# seat membership. SSH sessions are not "logged in" to a seat, so flashing a
+# Pico over SSH fails with a USB permissions error unless run as root.
+#
+# This rule grants plugdev group access to every Raspberry Pi RP2 USB device
+# (VID 2e8a) — both running firmware that presents a serial port AND the
+# BOOTSEL / UF2 bootloader (2e8a:0003 RP2040, 2e8a:000f RP2350). Any plugdev
+# user can then run `demiurge-flash-pico <uf2>` over SSH without sudo.
+
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="2e8a", GROUP="plugdev", MODE="0660"

@@ -1,0 +1,119 @@
+[
+ {
+  "step": "button UP",
+  "events": {
+   "Teensy MIDI | control_change ch1 #64": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #66": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "button DOWN",
+  "events": {
+   "Teensy MIDI | control_change ch1 #62": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #68": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "button LEFT",
+  "events": {
+   "Teensy MIDI | control_change ch1 #63": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #67": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "button RIGHT",
+  "events": {
+   "Teensy MIDI | control_change ch1 #64": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #66": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "button A",
+  "events": {
+   "Teensy MIDI | control_change ch1 #65": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #61": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "button B",
+  "events": {
+   "Teensy MIDI | control_change ch1 #66": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #64": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "button X",
+  "events": {
+   "Teensy MIDI | control_change ch1 #67": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #63": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "button Y",
+  "events": {
+   "Teensy MIDI | control_change ch1 #68": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #62": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "ARCADE button",
+  "events": {
+   "Teensy MIDI | control_change ch1 #60": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #60": [
+    127,
+    0
+   ]
+  }
+ }
+]

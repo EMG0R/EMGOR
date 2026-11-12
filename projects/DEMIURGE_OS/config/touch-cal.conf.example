@@ -1,0 +1,18 @@
+# DEMIURGE touchscreen calibration — written by demiurge-touch-test
+# on a completed + confirmed calibration run. Delete this file to
+# fall back to the raw kernel-advertised range. Format: see
+# demiurge/docs/config-reference.md (the touch section).
+#
+# raw_*_min/max = RAW evdev value at that screen edge; min > max
+# means the axis is inverted. swap_xy = 1 means panel X drives
+# screen Y (rotated mount).
+version   = 1
+swap_xy   = 0
+raw_x_min = 142.0
+raw_x_max = 3830.0
+raw_y_min = 93.0
+raw_y_max = 3850.1
+width     = 480
+height    = 800
+device    = ADS7846 Touchscreen
+date      = 2026-10-02 12:37:59

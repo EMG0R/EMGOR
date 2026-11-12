@@ -1,0 +1,136 @@
+SEPTAGRAPH SYSTEM — OFFICIAL PLAN v1 (2026-08-29)
+Everything before this doc = legacy foundation. This is the spine.
+[NAME] pending final lock — working name: Septagraph.
+
+====================================================================
+FULL SYSTEM OVERVIEW (frozen so far)
+====================================================================
+
+THE ONE THESIS
+Total separation of predicting-the-human from rendering-the-sound.
+The two sides meet only in a shared perceptual coordinate space.
+
+THE SPACE (7 axes, v1, versioned)
+1 frequency   2 loudness   3 harmonicity (tone<->noise)
+4 rate (temporal modulation)   5 scale (spectral modulation)
+6 space (azimuth/spread/distance)   7 time (trajectory parameter)
+- Sounds are not points: a sound = a SEPTAGRAPH, a trajectory of
+  distributions u(t), s(t) over axes 1-6 through 7.
+- Axes claim independent STEERABILITY, not orthogonality.
+- Space is schema-versioned; new axes = version bump.
+
+THE PROTOCOL (3 message types, broadcast one-to-many)
+- /manifest : session plane. Renderer joins and declares reachable
+  region (Machine Lab: measured catalog of every physical note;
+  synth: continuous bounds). Re-announce allowed on change. The ONLY
+  renderer->controller channel. Input side mirrors this: an INPUT
+  MANIFEST file declares each device's channels by geometry
+  (4x 1D softpot, 1x 2D 8x8 grid +RGB display, 4x 1D lidar, trackpad
+  = 1x 2D continuous...). Manifests on both ends, generic brain
+  between.
+- /shape : slow plane. Septagraphs + window configs. Swapped only at
+  DETECTED BOUNDARIES (gesture ends, stillness) — boundary-quantized,
+  clockless. Mapping NEVER changes mid-gesture. Shared clock is an
+  optional feature, not architecture.
+- /hit : fast plane. Raw excitation events, sub-10ms, no model ever
+  in this path.
+
+THE WINDOW (how NxD input becomes 7D)
+- The model never maps gestures. A deterministic affine projection
+  maps device space -> the current WINDOW in 7D (grid-x -> freq
+  within window, etc., per config).
+- The model only MOVES the window between boundaries.
+- Live layer merges all renderer manifests into one density field;
+  window cells SNAP to catalog points first (physical notes claim
+  pads exactly), continuous renderers fill between; optional gravity
+  pulls window placement toward catalog-dense regions.
+
+THE CONTROLLER MODEL (one model, deaf, manifest-blind)
+- Tiny causal sequence model (GRU/TCN, ~100k-1M params) over the
+  channel feature stream, MDN output head emitting the next staged
+  CONFIG (window u,s + axis assignments + looper ops).
+- Trained: self-supervised next-action prediction + behavior cloning
+  of the user's manual config choices. sigma = mixture entropy (real
+  uncertainty, not decoration).
+- Never hears audio. Never reads manifests. Understands only the
+  human's habits in the space.
+- Looping = deterministic live-layer capture/replay of protocol
+  data; loop effects (stutter/reverse/smear) = geometric transforms
+  on septagraphs (chop time axis, translate freq, widen sigma). The
+  model operates the looper via config; it doesn't implement it.
+
+RENDERERS (differ only in palette density)
+- Csound: continuous, deterministic reference renderer. No model.
+- DDSP: neural reference renderer — perceptual coords condition
+  interpretable synthesis; harmonic/noise split = harmonicity axis.
+  (RAVE-class = Colton's deeper implementation.)
+- Machine Lab: measured sparse catalog. Every note of every robot
+  analyzed through the perceptual front-end -> a measured point/
+  mini-septagraph. Rendering = nearest-neighbor (k-d tree). One
+  renderer for the whole lab (one manifest, points tagged by
+  instrument+position); per-instrument renderers allowed later.
+- RESIDUAL TRICK: synth renderer reads the Machine Lab manifest and
+  renders the difference between requested coords and nearest
+  physical note — synthesis as the continuous completion of the
+  robot orchestra. Tonal alignment via shared freq axis + shared
+  tuning render tables.
+- Capture front-end (not a model): modulation filterbank + curve
+  fit -> septagraphs from real audio. Capture -> mutate -> re-render.
+
+INSTRUMENTS, MODES, REMOTE UI
+- "Instrument" = a saved config (window + assignments + snapping +
+  renderer weights).
+- Stable instrument = window speed 0 (e.g. frozen on the Machine Lab
+  catalog; same frozen window on DDSP = the mimic).
+- Speed slider = cap on window velocity per boundary = the model's
+  authority, 0..fluid. Lives in the WEB UI (session plane) along
+  with preset save/recall, renderer weights, mode select. Physical
+  interface = performance plane only.
+- Feedback: any display-capable channel gets the inverse projection
+  (catalog points in window lit on grid, prediction ghosts, loop
+  playhead). System-level, per channel geometry.
+
+====================================================================
+MILESTONE (locked, per emgor): DIRECT MACHINE LAB SCRIPT
+====================================================================
+A separate, simple script on the controller that just plays the
+Machine Lab's 6-7 instruments directly. No model, no window — grid
+cells mapped straight to robot notes (via the measured catalog or a
+hand map v0), hits -> OSC/MIDI to the lab server. This is the gig
+tool and the first end-to-end hardware proof. Schedule it early; it
+also produces the catalog-measurement workflow the real renderer
+needs. (Machine Lab access: mini at 192.168.0.124, existing OSC->
+MIDI/ChucK path — keep the lab's own setup exactly as-is.)
+
+====================================================================
+WHAT'S LEFT TO FIGURE OUT (open items, ranked)
+====================================================================
+1. NAME LOCK — Septagraph vs alternatives; then find/replace draft.
+2. SPACE VALIDATION — confirm the 7-axis modulation space is the
+   right coordinate system before building renderers around it
+   (round-trip capture->resynthesize on a few sound families; even
+   informal).
+3. WINDOW MATH — exact parameterization: position + size per axis +
+   orientation? full affine? how sigma shapes the projection.
+   (Must be written down before any code.)
+4. BOUNDARY DETECTOR — precise definition of "safe to swap"
+   (no touches + low energy + hold time?). Simple, but it's the
+   trust-critical component.
+5. SEPTAGRAPH FORMAT — breakpoint count, encoding, versioning;
+   the /shape wire format in bytes.
+6. MANIFEST FORMAT — catalog point encoding, continuous-bounds
+   encoding, re-announce semantics.
+7. CATALOG MEASUREMENT WORKFLOW — how to record + analyze every
+   Machine Lab note (mics, takes, front-end settings).
+8. TRAINING DATA PLAN — logging format for manual play; how much
+   manual-mode play before the model has enough to clone.
+9. FEEDBACK LANGUAGE — the standardized inverse-projection display
+   spec per channel type (what LED = catalog point vs continuum vs
+   ghost prediction).
+10. RESIDUAL RENDERING — exact rule (who computes it, when it's on,
+    crossfade behavior at catalog points).
+11. WEB UI SCOPE — minimal v1 (presets + speed + weights).
+12. NAME/ROLE OF AUDIO PI + collaborator interface contract with
+    Colton (what he consumes: /shape + /hit + manifest spec).
+13. PAPER LOGISTICS — NIME deadline, page limit, demo video plan,
+    interchangeability matrix shot list.

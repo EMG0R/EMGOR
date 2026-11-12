@@ -1,0 +1,30 @@
+# DEMIURGE M8 — Pi 5 OVERCLOCK block for /boot/firmware/config.txt
+#
+# OPT-IN ONLY. Setup asks before applying this. The always-on settings
+# (usb_max_current_enable, fast boot) moved to config.txt.base.snippet so they
+# no longer ride along with an overclock decision. EMGOR, 2026-10-21.
+#
+# Append to the [all] section. REQUIRES:
+#   - Official 5V / 5A USB-C PSU (not a 3A phone charger)
+#   - Active cooling (official Pi 5 Active Cooler or equivalent)
+#   - Thermal watchdog installed (see demiurge-thermal-watchdog.*)
+#
+# Stay under thermal throttle: vcgencmd measure_temp should stay < 80C at load.
+# If temps climb toward 85C drop arm_freq 100 MHz at a time.
+
+[all]
+# --- Safe edge overclock ---
+# Stock Pi 5 = 2400 MHz. 2800 MHz is the commonly-validated safe ceiling with
+# active cooling + good PSU. Do not exceed 2900 without instrumentation.
+arm_freq=2800
+over_voltage_delta=50000
+
+# Governor stays in control so thermal protection still works
+force_turbo=0
+
+# GPU/core held modest — audio doesn't need it, and lower core_freq frees
+# thermal headroom for arm_freq
+gpu_freq=500
+
+# Prefer performance ondemand transition thresholds
+arm_boost=1

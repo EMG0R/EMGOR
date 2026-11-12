@@ -1,0 +1,69 @@
+#!/bin/bash
+# demiurge-run-nam <file.nam | profiles-dir> [extra args...]
+# Runs a NAM profile as a DEMIURGE audio stage via CSound + NAMProcess opcode.
+#
+# Argument forms:
+#   ~/profiles/jcm800.nam   — specific profile; loads its sibling directory,
+#                             starts at that profile's alphabetic position
+#   ~/profiles/             — whole directory; starts at index 0
+#
+# Prerequisites (run once via setup/deploy-nam.sh):
+#   csound-nam.so → /usr/local/lib/csound/plugins64/
+#   nam_stage.csd → /opt/demiurge/lib/
+#
+# OSC control (port DEMIURGE_OSC_BASE, default 9000):
+#   /nam/idx     i   — 0-based profile index (hot-swap without interruption)
+#   /nam/bypass  i   — 1 = passthrough, 0 = NAM active
+#
+# live.conf usage:
+#   chain =
+#     in1 ->
+#     ~/profiles/jcm800.nam
+#     ~/fx/reverb.csd
+set -e
+source /opt/demiurge/lib/demiurge-env.sh 2>/dev/null || \
+    source "$(dirname "$0")/../lib/demiurge-env.sh"
+
+if [[ -z "$1" ]]; then
+    echo "usage: demiurge-run-nam <file.nam | profiles-dir> [extra args...]" >&2
+    exit 1
+fi
+
+ARG="$1"; shift
+
+# Resolve profile directory and starting index from the argument.
+if [[ -f "$ARG" && "${ARG##*.}" == "nam" ]]; then
+    NAM_DIR="$(cd "$(dirname "$ARG")" && pwd)"
+    NAM_FILE="$(basename "$ARG")"
+    # 0-based alphabetic position of the named file in the directory
+    IDX=0; I=0
+    while IFS= read -r f; do
+        [[ "$(basename "$f")" == "$NAM_FILE" ]] && IDX=$I
+        I=$((I + 1))
+    done < <(find "$NAM_DIR" -maxdepth 1 -name '*.nam' | sort)
+    export NAM_PROFILE_DIR="$NAM_DIR"
+    export NAM_PROFILE_IDX="$IDX"
+elif [[ -d "$ARG" ]]; then
+    export NAM_PROFILE_DIR="$(cd "$ARG" && pwd)"
+    export NAM_PROFILE_IDX="0"
+else
+    echo "demiurge-run-nam: '$ARG' must be a .nam file or directory" >&2
+    exit 1
+fi
+
+NAM_TEMPLATE="${NAM_TEMPLATE:-/opt/demiurge/lib/nam_stage.csd}"
+if [[ ! -f "$NAM_TEMPLATE" ]]; then
+    echo "demiurge-run-nam: template not found: $NAM_TEMPLATE" >&2
+    echo "  Run: ~/demiurge/setup/deploy-nam.sh" >&2
+    exit 1
+fi
+
+# CSound 6.18 has no getenv opcode — inject values as CSound macros via
+# --omacro:. nam_stage.csd uses #ifndef guards so standalone csound invocations
+# (without --omacro:) still use the hardcoded defaults.
+OSC_PORT="${DEMIURGE_OSC_BASE:-9000}"
+exec "$(dirname "$0")/demiurge-run-csound" "$NAM_TEMPLATE" \
+    "--omacro:NAM_PROFILE_DIR=${NAM_PROFILE_DIR}" \
+    "--omacro:NAM_PROFILE_IDX=${NAM_PROFILE_IDX}" \
+    "--omacro:DEMIURGE_OSC_BASE=${OSC_PORT}" \
+    "$@"

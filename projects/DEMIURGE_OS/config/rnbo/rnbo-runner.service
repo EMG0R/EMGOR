@@ -1,0 +1,42 @@
+[Unit]
+Description=RNBO OSCQuery runner (DEMIURGE — compile-enabled, pipewire-jack client)
+# Needs the user's PipeWire session up so the pipewire-jack shim has a server.
+After=sound.target user@1000.service
+Wants=user@1000.service
+
+[Service]
+Type=simple
+# Placeholders below (gorpi7 / UID 1000) are rendered at install time by
+# Phase 10 of setup-script/setup-demiurge.sh — the same templating pattern
+# already used for demiurge.service (Phase 6) and demiurge-web.service
+# (Phase 9): User/Group -> $USER/$(id -gn), HOME -> $HOME, every literal
+# 1000 (here and in [Unit] After=/Wants= above) -> $(id -u). If installing
+# this file by hand instead, replace every gorpi7 and 1000 to match your
+# actual Pi user.
+User=gorpi7
+Group=gorpi7
+Environment=HOME=/home/gorpi7
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+# Force the pipewire-jack libjack shim so the runner connects to PipeWire,
+# never spawns its own jackd (see INSTRUCTIONS.md libjack collision).
+Environment=LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/pipewire-0.3/jack
+Environment=PIPEWIRE_PROPS=node.autoconnect=false node.dont-reconnect=true
+Environment=JACK_NO_AUDIO_RESERVATION=1
+LimitMEMLOCK=infinity
+LimitRTPRIO=95
+# GATE: only come up when RNBO is actually wanted (rnbo = on in live.conf, OR a
+# *.rnbo token is in the chain). ExecCondition exit 1 => unit skipped cleanly
+# ("condition failed", not "failed"), so the runner no longer burns CPU/power on
+# every boot when no patch is in use. Re-read with: systemctl restart rnbo-runner
+ExecCondition=/usr/local/bin/demiurge-rnbo-gate.sh
+# -d: come up empty; DEMIURGE loads patchers explicitly via OSC. When gated on,
+# the runner stays up so Max can push patches any time.
+ExecStart=/opt/rnbo/bin/rnbooscquery -c /home/gorpi7/.config/rnbo/demiurge.json -d
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+#!/bin/bash
+# demiurge-power-restore — re-apply the active patch's power mode on boot.
+#
+#   INSTALL ON THE PI:  sudo install -m0755 demiurge-power-restore /usr/local/bin/demiurge-power-restore
+#                       (paired with demiurge-power-restore.service)
+#
+# cpufreq power changes (demiurge-power) are runtime-only — a reboot drops back
+# to the config.txt default. The active patch records its intended power as a
+# `# power:` line in live.conf (it persists). This reads that line at boot and
+# re-applies it, so the full mode (patch + its power) is restored across reboots.
+set -u
+for LIVE in /home/*/demiurge/live.conf /root/demiurge/live.conf; do
+  [ -f "$LIVE" ] || continue
+  pw=$(sed -n 's/^#[[:space:]]*power:[[:space:]]*//p' "$LIVE" | head -1 | tr -d '[:space:]')
+  case "$pw" in med|MED|Med) pw=medium ;; esac
+  case "$pw" in
+    low|medium|high)
+      /usr/local/bin/demiurge-power "$pw"
+      echo "[demiurge-power-restore] applied power=$pw from $LIVE"
+      exit 0 ;;
+  esac
+done
+echo "[demiurge-power-restore] no '# power:' in live.conf — leaving cpufreq at default"

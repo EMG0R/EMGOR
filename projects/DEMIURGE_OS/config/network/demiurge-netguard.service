@@ -1,0 +1,13 @@
+[Unit]
+Description=DEMIURGE network guard (oneshot, fired by .timer)
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/demiurge-netguard.sh
+StandardOutput=journal
+StandardError=journal
+# The script already exits 0 on every path; this is belt-and-braces so a
+# missing nmcli or a transient failure can never poison `systemctl --failed`.
+SuccessExitStatus=0 1

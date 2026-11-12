@@ -1,0 +1,42 @@
+# NEPTR Phase 4 — audio engine systemd USER unit.
+#
+# Installs to: ~/.config/systemd/user/neptr-phase4.service
+# Enable:     systemctl --user enable --now neptr-phase4.service
+# Disable:    systemctl --user disable --now neptr-phase4.service
+# Logs:       journalctl --user -u neptr-phase4 -f
+#
+# Runs as the user-level pipewire/wireplumber are. The launcher itself
+# already gates on demiurge-sink:playback_FL appearing (60 s budget),
+# so it can be enabled without WantedBy/After ordering against
+# pipewire — the wait absorbs cold-boot startup ordering races.
+
+[Unit]
+Description=NEPTR Phase 4 audio engine (csound + chuck through DEMIURGE hub)
+# pipewire is a user service; ordering hint, but the launcher's own
+# wait loop is the actual gate.
+After=pipewire.service wireplumber.service
+
+[Service]
+Type=simple
+ExecStart=%h/NEPTR_phase4/scripts/launch_phase4.sh
+# No Restart= — the launcher is built to be robust through hot-plug
+# without dying. If it does exit, that's an actual fault we want to
+# see in the journal, not silently retry around.
+
+# Real-time priority needs match what the audio chain actually wants;
+# pipewire-jack will request these from the kernel.
+LimitMEMLOCK=infinity
+LimitRTPRIO=99
+LimitNICE=-20
+
+# Forward SIGTERM to the whole cgroup so cleanup() in launch_phase4.sh
+# tears down children (csound, chuck, watcher) cleanly.
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,10 @@
+seconds 6.0
+bpm 90
+set seq.0.mode 2
+set seq.0.density 0.7
+set seq.0.probability 0.8
+set seq.1.mode 2
+set seq.1.density 0.4
+set seq.1.probability 0.7
+set seq.1.oct_amount 3
+set seq.1.oct_prob 0.6

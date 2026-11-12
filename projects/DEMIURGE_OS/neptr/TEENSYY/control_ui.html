@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NEPTR control input</title>
+<style>
+  :root {
+    --bg: #0e0a14;
+    --panel: #19131f;
+    --line: #2c2238;
+    --fg: #e8e2f0;
+    --dim: #8a7fa0;
+    --accent: #b584ff;
+    --accent2: #58e0c0;
+    --warn: #ff6a6a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 13px;
+    padding: 16px;
+  }
+  h1 { font-size: 15px; margin: 0 0 4px; font-weight: 600; letter-spacing: 0.02em; }
+  #status { color: var(--dim); margin-bottom: 14px; }
+  #status.live { color: var(--accent2); }
+  #status.err { color: var(--warn); }
+  button {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .panel h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    margin: 0 0 10px;
+  }
+  .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .label { width: 40px; color: var(--dim); flex-shrink: 0; }
+  .bar-track {
+    flex: 1;
+    height: 8px;
+    background: #000;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .bar-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.05s linear; }
+  .val { width: 50px; text-align: right; color: var(--fg); }
+  .led {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #2a2235; border: 1px solid var(--line);
+    display: inline-block;
+  }
+  .led.on { background: var(--accent2); border-color: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .btn-chip {
+    width: 34px; height: 24px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--dim);
+    background: #0e0a14; border: 1px solid var(--line);
+  }
+  .btn-chip.on { background: var(--accent2); color: #0e0a14; border-color: var(--accent2); font-weight: 600; }
+  .stick-wrap { display: flex; justify-content: center; padding: 8px 0; }
+  #stick {
+    width: 140px; height: 140px;
+    border-radius: 10px;
+    background: #0b0710;
+    border: 1px solid var(--line);
+    position: relative;
+  }
+  #stick-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .mono-small { color: var(--dim); font-size: 11px; }
+</style>
+</head>
+<body>
+
+<h1>NEPTR — control input</h1>
+<div id="status">disconnected</div>
+<button id="connectBtn">connect teensy</button>
+<span class="mono-small" id="rate" style="margin-left:10px;"></span>
+
+<div class="grid">
+
+  <div class="panel">
+    <h2>encoders (delta/frame)</h2>
+    <div id="encoders"></div>
+  </div>
+
+  <div class="panel">
+    <h2>buttons</h2>
+    <div class="btns" id="buttons"></div>
+    <h2 style="margin-top:12px;">encoder buttons</h2>
+    <div class="btns" id="encButtons"></div>
+  </div>
+
+  <div class="panel">
+    <h2>joystick</h2>
+    <div class="stick-wrap"><div id="stick"><div id="stick-dot"></div></div></div>
+    <div class="row"><span class="label">jb</span><span class="led" id="jb"></span></div>
+    <div class="row"><span class="label">jx</span><span class="val" id="jx-v">0</span></div>
+    <div class="row"><span class="label">jy</span><span class="val" id="jy-v">0</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>pressure / expression</h2>
+    <div id="analogBars"></div>
+  </div>
+
+  <div class="panel">
+    <h2>distance (tof)</h2>
+    <div id="tofBars"></div>
+  </div>
+
+  <div class="panel">
+    <h2>accel (mpu)</h2>
+    <div id="accelBars"></div>
+  </div>
+
+  <div class="panel">
+    <h2>mic envelope</h2>
+    <div id="micBars"></div>
+  </div>
+
+  <div class="panel">
+    <h2>raw frame</h2>
+    <div class="mono-small" id="raw" style="word-break: break-all;"></div>
+  </div>
+
+</div>
+
+<script>
+const ENC_COUNT = 7;
+const BTN_COUNT = 9;
+const EBTN_COUNT = 7;
+
+const encodersEl = document.getElementById('encoders');
+const buttonsEl = document.getElementById('buttons');
+const encButtonsEl = document.getElementById('encButtons');
+
+for (let i = 1; i <= ENC_COUNT; i++) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<span class="label">e${i}</span>
+    <div class="bar-track"><div class="bar-fill" id="e${i}-bar" style="background:var(--accent2)"></div></div>
+    <span class="val" id="e${i}-v">0</span>`;
+  encodersEl.appendChild(row);
+}
+for (let i = 1; i <= BTN_COUNT; i++) {
+  const chip = document.createElement('div');
+  chip.className = 'btn-chip';
+  chip.id = `b${i}`;
+  chip.textContent = i;
+  buttonsEl.appendChild(chip);
+}
+for (let i = 1; i <= EBTN_COUNT; i++) {
+  const chip = document.createElement('div');
+  chip.className = 'btn-chip';
+  chip.id = `eb${i}`;
+  chip.textContent = i;
+  encButtonsEl.appendChild(chip);
+}
+
+function makeBar(containerId, key, label, max) {
+  const el = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<span class="label">${label}</span>
+    <div class="bar-track"><div class="bar-fill" id="${key}-bar"></div></div>
+    <span class="val" id="${key}-v">0</span>`;
+  el.appendChild(row);
+  return max;
+}
+
+const maxVals = {};
+maxVals.exp = makeBar('analogBars', 'exp', 'exp', 4095);
+maxVals.fsr1 = makeBar('analogBars', 'fsr1', 'fsr1', 4095);
+maxVals.fsr2 = makeBar('analogBars', 'fsr2', 'fsr2', 4095);
+
+maxVals.tof1 = makeBar('tofBars', 'tof1', 'tof1', 2000);
+maxVals.tof2 = makeBar('tofBars', 'tof2', 'tof2', 2000);
+
+maxVals.ax = makeBar('accelBars', 'ax', 'ax', 16384);
+maxVals.ay = makeBar('accelBars', 'ay', 'ay', 16384);
+maxVals.az = makeBar('accelBars', 'az', 'az', 16384);
+
+maxVals.ml = makeBar('micBars', 'ml', 'ml', 4095);
+maxVals.mr = makeBar('micBars', 'mr', 'mr', 4095);
+
+function setBar(key, value, max, signed) {
+  const bar = document.getElementById(`${key}-bar`);
+  const val = document.getElementById(`${key}-v`);
+  if (!bar || !val) return;
+  val.textContent = value;
+  let pct;
+  if (signed) {
+    pct = Math.min(100, Math.abs(value) / max * 100);
+  } else {
+    pct = Math.max(0, Math.min(100, value / max * 100));
+  }
+  bar.style.width = pct + '%';
+}
+
+const statusEl = document.getElementById('status');
+const rawEl = document.getElementById('raw');
+const rateEl = document.getElementById('rate');
+const stickDot = document.getElementById('stick-dot');
+
+let lastFrameTime = 0;
+let frameCount = 0;
+let rateTimer = setInterval(() => {
+  rateEl.textContent = frameCount + ' Hz';
+  frameCount = 0;
+}, 1000);
+
+function parseFrame(line) {
+  if (!line.startsWith('NEPTR2')) return;
+  const parts = line.trim().split(/\s+/).slice(1);
+  const data = {};
+  for (const p of parts) {
+    const eq = p.indexOf('=');
+    if (eq === -1) continue;
+    data[p.slice(0, eq)] = p.slice(eq + 1);
+  }
+
+  for (let i = 1; i <= ENC_COUNT; i++) {
+    const v = parseInt(data[`e${i}`] || '0', 10);
+    setBar(`e${i}`, v, 20, true);
+  }
+  for (let i = 1; i <= BTN_COUNT; i++) {
+    const on = data[`b${i}`] === '1';
+    document.getElementById(`b${i}`).classList.toggle('on', on);
+  }
+  for (let i = 1; i <= EBTN_COUNT; i++) {
+    const on = data[`eb${i}`] === '1';
+    document.getElementById(`eb${i}`).classList.toggle('on', on);
+  }
+
+  document.getElementById('jb').classList.toggle('on', data['jb'] === '1');
+  const jx = parseInt(data['jx'] || '2048', 10);
+  const jy = parseInt(data['jy'] || '2048', 10);
+  document.getElementById('jx-v').textContent = jx;
+  document.getElementById('jy-v').textContent = jy;
+  const nx = (jx - 2048) / 2048;
+  const ny = (jy - 2048) / 2048;
+  stickDot.style.left = (50 + nx * 45) + '%';
+  stickDot.style.top = (50 + ny * 45) + '%';
+
+  for (const key of ['exp', 'fsr1', 'fsr2']) {
+    setBar(key, parseInt(data[key] || '0', 10), maxVals[key], false);
+  }
+  for (const key of ['tof1', 'tof2']) {
+    setBar(key, parseInt(data[key] || '-1', 10), maxVals[key], false);
+  }
+  for (const key of ['ax', 'ay', 'az']) {
+    setBar(key, parseInt(data[key] || '0', 10), maxVals[key], true);
+  }
+  for (const key of ['ml', 'mr']) {
+    setBar(key, parseInt(data[key] || '0', 10), maxVals[key], false);
+  }
+
+  rawEl.textContent = line.trim();
+  frameCount++;
+}
+
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (!('serial' in navigator)) {
+    statusEl.textContent = 'Web Serial not supported — use Chrome or Edge';
+    statusEl.className = 'err';
+    return;
+  }
+  try {
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    statusEl.textContent = 'connected — waiting for frames...';
+    statusEl.className = 'live';
+    document.getElementById('connectBtn').disabled = true;
+
+    const decoder = new TextDecoderStream();
+    const readableClosed = port.readable.pipeTo(decoder.writable);
+    const reader = decoder.readable.getReader();
+
+    let buf = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, idx);
+        buf = buf.slice(idx + 1);
+        if (line.trim()) {
+          parseFrame(line);
+          statusEl.textContent = 'live';
+          statusEl.className = 'live';
+        }
+      }
+    }
+  } catch (err) {
+    statusEl.textContent = 'error: ' + err.message;
+    statusEl.className = 'err';
+    document.getElementById('connectBtn').disabled = false;
+  }
+});
+</script>
+</body>
+</html>

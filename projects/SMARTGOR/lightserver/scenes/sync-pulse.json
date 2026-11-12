@@ -1,0 +1,27 @@
+{
+  "name": "sync-pulse",
+  "_comment": [
+    "Latency-calibration metronome for an external projection consumer.",
+    "The entire ring flashes bright white at exactly 1.000Hz with a hard",
+    "on/off edge (no fade/easing) so the eye can judge sync purely by the",
+    "flash onset. A full-opacity white 'solid' field (uniform, no spatial",
+    "phase -- every pixel identical) is gated by master.strobe in",
+    "'strobe' mode: duty=0.12 -> ~120ms bright, ~880ms black each 1s",
+    "period; depth=1.0 -> off phase is exactly 0, not just dim.",
+    "Do NOT post this to the live ring by default -- it is installed in",
+    "scenes/ so it can be activated later by name via POST /scene or the",
+    "/scenes mechanism."
+  ],
+  "master": {
+    "brightness": 1.0,
+    "tone_map": "clip",
+    "strobe": {"mode": "strobe", "rate_hz": 1.0, "depth": 1.0, "duty": 0.12}
+  },
+  "layers": [
+    {
+      "type": "solid",
+      "blend": "add",
+      "color": "#ffffff"
+    }
+  ]
+}

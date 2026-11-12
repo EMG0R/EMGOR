@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "patch": "neptr_default",
+  "_comment": [
+    "NEPTR default map (docs/NEPTR_POOL_BENCH.md, docs/pool-presence-maps.md).",
+    "2026-11-01 EMGOR: the expression pedal is ALWAYS the NEPTR body port, never the DUODECIMUS treadle (both `when`s name a device that never exists, so body is always on, treadle always off). EXPRESSION PEDAL = presence-conditional source selection. The engine has ONE expression input",
+    "(ch1 CC29 as OSC /cc from the pool, soft takeover + gkLastToggle29 destination stay in expr_cc29.orc);",
+    "WHICH pedal feeds it is decided here by each profile's `when`, re-evaluated continuously (hotplug):",
+    "  DUODECIMUS plugged in  -> its treadle (wire ch7 CC14 Jack-A / CC15 Jack-B)",
+    "  DUODECIMUS not present -> the NEPTR body pedal (wire ch1 CC29, via the NEPTR Serial Bridge)",
+    "The engine ignores a ch1 CC29 that arrives on the MIDI wire; only the pool's /cc counts.",
+    "Arcade button b1 -> tempo TAP is a Teensy-serial source: inert unless demiurge-io owns the body's serial port",
+    "(on this rig neptr-bridge does, and sends the tap itself).",
+    "Install: NEPTR_phase4/pool/install_map.py merges these into ~/demiurge/sensors.json (rig-level maps, no patch header needed)."
+  ],
+  "maps": [
+    {
+      "id": "neptr-arcade-tap",
+      "source": "/hw/teensy/b1",
+      "target": {"param": "/global/tap"},
+      "mode": "trigger",
+      "arcade": "tap"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "expression: DUODECIMUS treadle",
+      "when": {"present": "NO_SUCH_DEVICE_treadle_disabled"},
+      "maps": [
+        {"id": "expr-duodecimus-jack-a", "source": "/hw/midi/7/14",
+         "target": {"param": "/csound/neptr/expr"}, "mode": "continuous"},
+        {"id": "expr-duodecimus-jack-b", "source": "/hw/midi/7/15",
+         "target": {"param": "/csound/neptr/expr"}, "mode": "continuous"}
+      ]
+    },
+    {
+      "name": "expression: NEPTR body pedal",
+      "when": {"absent": "NO_SUCH_DEVICE_treadle_disabled"},
+      "maps": [
+        {"id": "expr-body-pedal", "source": "/hw/midi/1/29",
+         "target": {"param": "/csound/neptr/expr"}, "mode": "continuous"}
+      ]
+    }
+  ],
+  "values": {}
+}

@@ -1,0 +1,113 @@
+{
+  "_README": "PROPOSED, INACTIVE (every map has enabled:false). NOT read by demiurge-io from here. Merge the `maps` array into ~/demiurge/sensors.json only if the pool route is chosen INSTEAD of cardinal-ctl's analog mirror (set CARDINAL_MIRROR_ANALOG=0). Sink writes ch9 to Midi Through (14:0), so Cardinal's MIDI modules must be set to channel 9 and Midi-Bridge:'Midi Through Port-0 (capture)' linked to Cardinal:events-in. Activation: demiurge-io hot-reloads sensors.json by mtime, but whether a NEW mapped source CC joins the --midi-mapped-only subscription without a restart is UNVERIFIED; if not, activation = restart demiurge-io (expression pedal dead ~2 s) which needs Emory's go. ch1 CC29 is never mapped (DUODECIMUS pedal; the midi sink also blocks it). Encoder accumulation, the 8 slot buttons, arcade gating and tap tempo are NOT here: the pool has no relative-encoder accumulation or slot switching, and its midi sink blocks ch16 104-119 (tap CC112/113). Pool maps have no per-source smoothing configured here; add `sources` entries (smooth_ms, deadzone, in_lo/in_hi) to match slots.json shaping if this route is chosen.",
+  "maps": [
+    {
+      "id": "vcv-ch1cc31-to-ch9cc32",
+      "_note": "accel X -> Tone",
+      "enabled": false,
+      "source": "/hw/midi/1/31",
+      "target": {
+        "sink": "midi",
+        "ch": 9,
+        "cc": 32
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "vcv-ch1cc32-to-ch9cc33",
+      "_note": "accel Y -> Filter cutoff",
+      "enabled": false,
+      "source": "/hw/midi/1/32",
+      "target": {
+        "sink": "midi",
+        "ch": 9,
+        "cc": 33
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "vcv-ch1cc30-to-ch9cc34",
+      "_note": "TOF1 -> secondary tone",
+      "enabled": false,
+      "source": "/hw/midi/1/30",
+      "target": {
+        "sink": "midi",
+        "ch": 9,
+        "cc": 34
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "vcv-ch1cc36-to-ch9cc35",
+      "_note": "TOF2 -> send/amount",
+      "enabled": false,
+      "source": "/hw/midi/1/36",
+      "target": {
+        "sink": "midi",
+        "ch": 9,
+        "cc": 35
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "vcv-ch1cc34-to-ch9cc36",
+      "_note": "FSR0 spare",
+      "enabled": false,
+      "source": "/hw/midi/1/34",
+      "target": {
+        "sink": "midi",
+        "ch": 9,
+        "cc": 36
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "vcv-ch1cc35-to-ch9cc37",
+      "_note": "FSR1 spare",
+      "enabled": false,
+      "source": "/hw/midi/1/35",
+      "target": {
+        "sink": "midi",
+        "ch": 9,
+        "cc": 37
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "vcv-ch1cc27-to-ch9cc38",
+      "_note": "joystick X spare",
+      "enabled": false,
+      "source": "/hw/midi/1/27",
+      "target": {
+        "sink": "midi",
+        "ch": 9,
+        "cc": 38
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "vcv-ch1cc28-to-ch9cc39",
+      "_note": "joystick Y spare",
+      "enabled": false,
+      "source": "/hw/midi/1/28",
+      "target": {
+        "sink": "midi",
+        "ch": 9,
+        "cc": 39
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "vcv-ch1cc33-to-ch9cc53",
+      "_note": "accel Z spare",
+      "enabled": false,
+      "source": "/hw/midi/1/33",
+      "target": {
+        "sink": "midi",
+        "ch": 9,
+        "cc": 53
+      },
+      "mode": "continuous"
+    }
+  ]
+}

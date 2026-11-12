@@ -1,0 +1,41 @@
+[Unit]
+Description=Demiurge Arcade supervisor (joystick + arcade-button monitor; console toggle)
+# Start after the audio stack + user sessions are up so the serial port, uinput,
+# and the user's PipeWire (for RetroArch) are available.
+# Also order AFTER neptr-ui.service so the UI loader comes up and owns the panel
+# FIRST, then the supervisor. Ordering only (no Requires/Wants): the supervisor
+# must still start even if the UI is slow or disabled (ui=off in live.conf).
+After=multi-user.target systemd-user-sessions.service demiurge.service neptr-ui.service
+# Deliberately NOT PartOf=demiurge.service: the supervisor must keep watching the
+# combo across demiurge restarts / patch switches. It owns the Teensy serial port
+# (replaces serial_bridge.py), so don't run both.
+ConditionPathExists=/dev/serial/by-id/usb-Teensyduino_Teensy_MIDI_19910760-if00
+
+[Service]
+Type=simple
+# gorpi7 = (insert your name here) — documented placeholder, not a
+# requirement; games-install.sh does not install this unit automatically yet
+# (see its "install a user service later" note). Hand-installing: edit every
+# gorpi7/1000 below to your Pi user/UID, or render with the same sed pattern
+# setup-demiurge.sh uses for demiurge.service.
+User=gorpi7
+Group=gorpi7
+# dialout = serial, input = /dev/uinput (virtual gamepad), video/render = the
+# RetroArch KMS child needs the DRM device.
+SupplementaryGroups=dialout input video render
+
+Environment=HOME=/home/gorpi7
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+
+WorkingDirectory=/home/gorpi7/demiurge/games
+ExecStart=/usr/bin/python3 /home/gorpi7/demiurge/games/arcade_supervisor.py
+
+# Tear down the RetroArch child with the supervisor.
+KillMode=control-group
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

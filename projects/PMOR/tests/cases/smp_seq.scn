@@ -1,0 +1,8 @@
+seconds 4.0
+smp_fill 1 48000
+smp_fill 2 30000
+set seq.2.mode 1
+seq_step 2 0 0x2
+seq_step 2 3 0x4
+seq_step 2 8 0x2
+seq_step 2 11 0x4

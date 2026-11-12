@@ -1,0 +1,18 @@
+[Unit]
+Description=DEMIURGE boot face (NEPTR X_X splash drawn to the framebuffer)
+# Same early-boot slot as demiurge-irq-isolate / demiurge-power: runs
+# as soon as the root filesystem is up, in parallel with the rest of early
+# boot, well before getty / the UI. Cosmetic only -- nothing may depend on it.
+DefaultDependencies=no
+After=local-fs.target
+Before=getty@tty1.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/demiurge-boot-face.sh
+RemainAfterExit=yes
+# Never let a cosmetic unit's failure register as a boot problem.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target

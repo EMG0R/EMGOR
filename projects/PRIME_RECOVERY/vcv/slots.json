@@ -1,0 +1,58 @@
+{
+  "_note": "slot -> .vcv (relative to patch_dir or absolute). null = empty slot, a press does nothing. Button CCs per body_control_map.md; if tools/map_controls.py shows UP is really CC64, swap the two cc values here. backend: restart | osc | multi.",
+  "backend": "restart",
+  "patch_dir": "/home/gorpi7v5/demiurge_vcv/instruments",
+  "default_slot": 5,
+  "debounce_s": 0.15,
+  "min_gap_s": 3.0,
+  "slots": [
+    {
+      "slot": 1,
+      "button": "A",
+      "cc": 65,
+      "patch": "01_instrument-A.vcv"
+    },
+    {
+      "slot": 2,
+      "button": "B",
+      "cc": 66,
+      "patch": "02_instrument-B.vcv"
+    },
+    {
+      "slot": 3,
+      "button": "X",
+      "cc": 67,
+      "patch": "03_instrument-C.vcv"
+    },
+    {
+      "slot": 4,
+      "button": "Y",
+      "cc": 68,
+      "patch": "04_instrument-D.vcv"
+    },
+    {
+      "slot": 5,
+      "button": "UP",
+      "cc": 61,
+      "patch": "05_flsamp.vcv"
+    },
+    {
+      "slot": 6,
+      "button": "DOWN",
+      "cc": 62,
+      "patch": null
+    },
+    {
+      "slot": 7,
+      "button": "LEFT",
+      "cc": 63,
+      "patch": null
+    },
+    {
+      "slot": 8,
+      "button": "RIGHT",
+      "cc": 64,
+      "patch": null
+    }
+  ]
+}

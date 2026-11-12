@@ -1,0 +1,28 @@
+[package]
+name = "omniplex-clock"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+# The `proto` feature carries everything that needs sibling crates
+# (omniplex-wire, omniplex-transport). The discipline filter (`filter.rs`) is pure
+# math and builds/tests standalone with `--no-default-features`.
+default = ["proto"]
+proto = [
+    "dep:omniplex-wire",
+    "dep:omniplex-transport",
+    "dep:tokio",
+    "dep:arc-swap",
+    "dep:postcard",
+]
+
+[dependencies]
+omniplex-wire = { workspace = true, optional = true }
+omniplex-transport = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+arc-swap = { workspace = true, optional = true }
+postcard = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

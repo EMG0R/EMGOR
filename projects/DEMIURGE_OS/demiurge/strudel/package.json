@@ -1,0 +1,19 @@
+{
+  "name": "demiurge-strudel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DEMIURGE headless Strudel runner — feeds the shared ALSA seq MIDI bus.",
+  "main": "strudel-runner.mjs",
+  "scripts": {
+    "start": "node strudel-runner.mjs"
+  },
+  "dependencies": {
+    "@strudel/core": "1.2.0",
+    "@strudel/mini": "1.2.0",
+    "@strudel/tonal": "1.2.0",
+    "@strudel/transpiler": "1.2.0",
+    "easymidi": "^3.1.0",
+    "node-web-audio-api": "^0.21.0"
+  }
+}

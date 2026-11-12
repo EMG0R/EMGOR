@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/f32stat.dir/link.d CMakeFiles/f32stat.dir/tests/f32stat.cpp.o -o f32stat

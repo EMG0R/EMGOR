@@ -1,0 +1,121 @@
+{
+  "stage": "uss-supersaw",
+  "port": 9021,
+  "version": 1,
+  "params": [
+    {
+      "path": "/uss-supersaw/density",
+      "label": "Density",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-supersaw/tone",
+      "label": "Tone",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-supersaw/length",
+      "label": "Length",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-supersaw/space",
+      "label": "Space",
+      "default": 0.0,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-supersaw/intensity",
+      "label": "Intensity",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-supersaw/pitch",
+      "label": "Pitch",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-supersaw/trig",
+      "label": "Trigger",
+      "default": 0.0,
+      "map": "hard",
+      "proto": "p"
+    }
+  ],
+  "hard_maps": [
+    {
+      "id": "uss-saw-trig",
+      "source": "/hw/teensy/b1",
+      "target": {
+        "param": "/uss-supersaw/trig"
+      },
+      "mode": "gate",
+      "arcade": "trig"
+    },
+    {
+      "id": "uss-saw-pitch",
+      "source": "/hw/teensy/jx",
+      "target": {
+        "param": "/uss-supersaw/pitch"
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "uss-saw-tone",
+      "source": "/hw/teensy/jy",
+      "target": {
+        "param": "/uss-supersaw/tone"
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "uss-saw-space",
+      "source": "/hw/teensy/tof1",
+      "target": {
+        "param": "/uss-supersaw/space"
+      },
+      "mode": "continuous",
+      "outside": "hold"
+    },
+    {
+      "id": "uss-saw-length",
+      "source": "/hw/teensy/tof2",
+      "target": {
+        "param": "/uss-supersaw/length"
+      },
+      "mode": "continuous",
+      "outside": "hold"
+    },
+    {
+      "id": "uss-saw-density",
+      "source": "/hw/teensy/fsr1",
+      "target": {
+        "param": "/uss-supersaw/density"
+      },
+      "mode": "continuous",
+      "out_lo": 0.5,
+      "out_hi": 1.0
+    },
+    {
+      "id": "uss-saw-intensity",
+      "source": "/hw/midi/1/29",
+      "target": {
+        "param": "/uss-supersaw/intensity"
+      },
+      "mode": "continuous",
+      "out_lo": 0.3,
+      "out_hi": 1.0
+    }
+  ]
+}

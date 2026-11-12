@@ -1,0 +1,547 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1500" width="1400" height="1500" style="font-family: -apple-system, 'Helvetica Neue', sans-serif;">
+  <rect width="1400" height="1500" fill="#0c0c0c"/>
+
+  <defs>
+    <!-- ============ BODY MATERIALS ============ -->
+    <radialGradient id="bodyEpoxy" cx="40%" cy="35%" r="80%">
+      <stop offset="0%"  stop-color="#1c1612"/>
+      <stop offset="60%" stop-color="#0e0907"/>
+      <stop offset="100%" stop-color="#050302"/>
+    </radialGradient>
+
+    <radialGradient id="burlA" cx="50%" cy="40%" r="70%">
+      <stop offset="0%"  stop-color="#e8b270"/>
+      <stop offset="40%" stop-color="#b88040"/>
+      <stop offset="80%" stop-color="#6e4520"/>
+      <stop offset="100%" stop-color="#2a180a" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="burlB" cx="40%" cy="40%" r="60%">
+      <stop offset="0%"  stop-color="#d4a060"/>
+      <stop offset="50%" stop-color="#9a6830"/>
+      <stop offset="100%" stop-color="#3a2010" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="burlC" cx="55%" cy="50%" r="65%">
+      <stop offset="0%"  stop-color="#c89058"/>
+      <stop offset="55%" stop-color="#7e542a"/>
+      <stop offset="100%" stop-color="#2a1808" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="goldFleck" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#fde680"/>
+      <stop offset="50%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#8a6e1c"/>
+    </radialGradient>
+
+    <linearGradient id="bodyGloss" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#fff" stop-opacity="0.10"/>
+      <stop offset="35%" stop-color="#fff" stop-opacity="0.02"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="mahogany" cx="50%" cy="45%" r="70%">
+      <stop offset="0%"  stop-color="#7c4a2a"/>
+      <stop offset="60%" stop-color="#5a3418"/>
+      <stop offset="100%" stop-color="#341e0c"/>
+    </radialGradient>
+
+    <!-- ============ NECK MATERIALS ============ -->
+    <linearGradient id="ebony" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#2a2522"/>
+      <stop offset="50%" stop-color="#161312"/>
+      <stop offset="100%" stop-color="#080605"/>
+    </linearGradient>
+
+    <linearGradient id="wengeStrip" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"  stop-color="#3a2415"/>
+      <stop offset="50%" stop-color="#4a2c1c"/>
+      <stop offset="100%" stop-color="#2d1810"/>
+    </linearGradient>
+
+    <linearGradient id="maple" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#f0d4a0"/>
+      <stop offset="100%" stop-color="#c8a868"/>
+    </linearGradient>
+
+    <radialGradient id="abalone" cx="35%" cy="35%" r="65%">
+      <stop offset="0%"  stop-color="#a8e0e8"/>
+      <stop offset="30%" stop-color="#5a9bb8"/>
+      <stop offset="60%" stop-color="#7b569a"/>
+      <stop offset="100%" stop-color="#2a1838"/>
+    </radialGradient>
+
+    <linearGradient id="metal" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#e8e8ee"/>
+      <stop offset="50%" stop-color="#8a8a92"/>
+      <stop offset="100%" stop-color="#3e3e46"/>
+    </linearGradient>
+
+    <linearGradient id="metalSide" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"  stop-color="#6a6a72"/>
+      <stop offset="50%" stop-color="#d0d0d8"/>
+      <stop offset="100%" stop-color="#5a5a62"/>
+    </linearGradient>
+
+    <linearGradient id="pickupCover" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#2c2c30"/>
+      <stop offset="50%" stop-color="#1a1a1c"/>
+      <stop offset="100%" stop-color="#0a0a0c"/>
+    </linearGradient>
+
+    <!-- Reusable: asymmetric headless Strandberg-vibe body silhouette (treble = left, lower bout extends right)
+         Origin: top center where neck pocket joins body. Body extends to the right (away from neck). -->
+    <symbol id="bodySilhouette" overflow="visible">
+      <path d="M 0,-32
+               C -20,-50 -50,-65 -10,-90
+               C 30,-100 80,-95 130,-80
+               C 180,-65 220,-40 250,0
+               C 280,40 290,90 280,140
+               C 270,200 220,250 130,240
+               C 60,235 -10,210 -50,150
+               C -80,100 -65,30 0,32 Z"/>
+    </symbol>
+
+    <!-- Burl patches reusable (placed by transform) -->
+  </defs>
+
+  <!-- ============ TITLE ============ -->
+  <text x="700" y="42" font-size="22" font-weight="700" fill="#e8d4a8" text-anchor="middle">hyperGuitar — Fully Assembled Reference</text>
+  <text x="700" y="64" font-size="11" fill="#888" text-anchor="middle">Pango HBE-033 burl/epoxy/gold body · Halo Custom 7-piece wenge/maple neck · Ebony · Abalone dots · Stainless · Headless single-scale 25.5" · B standard</text>
+
+  <!-- ====================================================================== -->
+  <!-- ============ ① FRONT VIEW ============ -->
+  <!-- ====================================================================== -->
+  <text x="80" y="108" font-size="14" font-weight="700" fill="#aaa">① FRONT — assembled guitar</text>
+  <text x="80" y="124" font-size="10" fill="#666">burl wood + black epoxy + gold leaf flake top · 2 humbuckers + SubSix middle · headless bridge · attached neck with fretboard up</text>
+
+  <!-- The full guitar is laid horizontally: headless clamp on far LEFT, body on the RIGHT -->
+  <g transform="translate(80, 280)">
+
+    <!-- ─── BODY (right side of the layout) ─── -->
+    <!-- Body extends from x=400 (where neck-pocket joins) to x=1180 (bottom of body) -->
+    <g transform="translate(680, 0)">
+      <!-- Body silhouette path (asymmetric headless, drawn horizontally) -->
+      <!-- Coordinates: heel at (0,0), body extends to the right -->
+      <path id="bodyFront" d="
+        M 0,-32
+        C -20,-50 -10,-80 30,-95
+        C 80,-110 140,-105 200,-90
+        C 280,-70 350,-40 410,10
+        C 460,55 490,110 480,170
+        C 470,225 420,255 350,250
+        C 280,245 200,225 130,195
+        C 70,170 20,140 -10,90
+        C -35,50 -40,0 0,32 Z"
+        fill="url(#bodyEpoxy)" stroke="#000" stroke-width="0.6"/>
+
+      <!-- Burl wood regions (organic blob shapes scattered across the front) -->
+      <g opacity="0.92">
+        <ellipse cx="80" cy="-30" rx="55" ry="35" fill="url(#burlA)"/>
+        <ellipse cx="200" cy="-60" rx="60" ry="40" fill="url(#burlB)" transform="rotate(-15 200 -60)"/>
+        <ellipse cx="340" cy="-30" rx="70" ry="45" fill="url(#burlA)" transform="rotate(20 340 -30)"/>
+        <ellipse cx="420" cy="60" rx="55" ry="40" fill="url(#burlC)"/>
+        <ellipse cx="380" cy="160" rx="65" ry="45" fill="url(#burlB)" transform="rotate(-10 380 160)"/>
+        <ellipse cx="240" cy="200" rx="80" ry="50" fill="url(#burlA)" transform="rotate(10 240 200)"/>
+        <ellipse cx="100" cy="170" rx="60" ry="40" fill="url(#burlC)" transform="rotate(-20 100 170)"/>
+        <ellipse cx="50" cy="70" rx="45" ry="35" fill="url(#burlB)"/>
+        <ellipse cx="200" cy="70" rx="50" ry="35" fill="url(#burlC)" transform="rotate(15 200 70)"/>
+      </g>
+
+      <!-- Gold leaf flakes (small ellipses scattered) -->
+      <g fill="url(#goldFleck)">
+        <ellipse cx="30" cy="-50" rx="2.5" ry="1.5"/>
+        <ellipse cx="60" cy="-10" rx="3" ry="2" transform="rotate(30 60 -10)"/>
+        <ellipse cx="120" cy="-70" rx="2" ry="1.3"/>
+        <ellipse cx="160" cy="-30" rx="3.5" ry="2"/>
+        <ellipse cx="220" cy="-20" rx="2.5" ry="1.5" transform="rotate(60 220 -20)"/>
+        <ellipse cx="280" cy="-50" rx="3" ry="2"/>
+        <ellipse cx="340" cy="20" rx="4" ry="2.5" transform="rotate(45 340 20)"/>
+        <ellipse cx="400" cy="-10" rx="2.5" ry="1.8"/>
+        <ellipse cx="440" cy="40" rx="3" ry="2"/>
+        <ellipse cx="460" cy="120" rx="3.5" ry="2"/>
+        <ellipse cx="420" cy="200" rx="2.5" ry="1.5" transform="rotate(-30 420 200)"/>
+        <ellipse cx="340" cy="220" rx="3" ry="2"/>
+        <ellipse cx="280" cy="170" rx="2" ry="1.3"/>
+        <ellipse cx="190" cy="220" rx="3.5" ry="2.2"/>
+        <ellipse cx="120" cy="200" rx="2.5" ry="1.5" transform="rotate(45 120 200)"/>
+        <ellipse cx="60" cy="140" rx="3" ry="2"/>
+        <ellipse cx="20" cy="40" rx="2.5" ry="1.5"/>
+        <ellipse cx="100" cy="90" rx="2" ry="1.3" transform="rotate(15 100 90)"/>
+        <ellipse cx="200" cy="120" rx="3" ry="1.8"/>
+        <ellipse cx="280" cy="80" rx="2.5" ry="1.5"/>
+        <ellipse cx="160" cy="50" rx="3.5" ry="2" transform="rotate(60 160 50)"/>
+        <ellipse cx="320" cy="120" rx="2" ry="1.3"/>
+        <ellipse cx="380" cy="100" rx="3" ry="2" transform="rotate(30 380 100)"/>
+        <ellipse cx="240" cy="-40" rx="2.5" ry="1.5"/>
+        <ellipse cx="400" cy="180" rx="2" ry="1.3"/>
+      </g>
+
+      <!-- Subtle glossy highlight on top half -->
+      <path d="M 0,-32 C -20,-50 -10,-80 30,-95 C 80,-110 140,-105 200,-90 C 280,-70 350,-40 410,10 C 280,-20 150,-30 30,-15 C 10,-15 0,0 0,-32 Z"
+            fill="url(#bodyGloss)"/>
+
+      <!-- HARDWARE -->
+      <!-- Neck humbucker (at neck position, just past where the neck heel ends) -->
+      <rect x="40" y="-22" width="36" height="80" rx="3" fill="url(#pickupCover)" stroke="#000" stroke-width="0.5"/>
+      <text x="58" y="75" font-size="8" fill="#888" text-anchor="middle">Neck HB</text>
+
+      <!-- SubSix in the middle position - thin sliding pickup spanning all 6 strings -->
+      <rect x="135" y="-22" width="14" height="80" rx="1.5" fill="url(#metal)" stroke="#000" stroke-width="0.5"/>
+      <g fill="#5a5a62">
+        <circle cx="142" cy="-15" r="1.2"/>
+        <circle cx="142" cy="-2" r="1.2"/>
+        <circle cx="142" cy="11" r="1.2"/>
+        <circle cx="142" cy="24" r="1.2"/>
+        <circle cx="142" cy="37" r="1.2"/>
+        <circle cx="142" cy="50" r="1.2"/>
+      </g>
+      <text x="142" y="75" font-size="8" fill="#888" text-anchor="middle">SubSix (hex)</text>
+
+      <!-- Bridge humbucker -->
+      <rect x="200" y="-22" width="36" height="80" rx="3" fill="url(#pickupCover)" stroke="#000" stroke-width="0.5"/>
+      <text x="218" y="75" font-size="8" fill="#888" text-anchor="middle">Bridge HB</text>
+
+      <!-- Headless bridge (6 individual single-string saddles) -->
+      <g transform="translate(270, -22)">
+        <rect x="0" y="0" width="14" height="80" fill="#1a1a1e" stroke="#000" stroke-width="0.4"/>
+        <g fill="url(#metal)" stroke="#000" stroke-width="0.3">
+          <rect x="2" y="3" width="10" height="11"/>
+          <rect x="2" y="16" width="10" height="11"/>
+          <rect x="2" y="29" width="10" height="11"/>
+          <rect x="2" y="42" width="10" height="11"/>
+          <rect x="2" y="55" width="10" height="11"/>
+          <rect x="2" y="68" width="10" height="11"/>
+        </g>
+        <text x="7" y="98" font-size="8" fill="#888" text-anchor="middle">Headless bridge</text>
+      </g>
+
+      <!-- Controls area: NeoTrellis + pots + encoders + switches on the lower bout -->
+      <g transform="translate(320, 110)">
+        <rect x="0" y="0" width="80" height="80" rx="3" fill="#1a1a1e" stroke="#3a3a40" stroke-width="0.5" opacity="0.9"/>
+        <g fill="#444">
+          <circle cx="12"  cy="12" r="3.5"/>
+          <circle cx="30"  cy="12" r="3.5"/>
+          <circle cx="48"  cy="12" r="3.5"/>
+          <circle cx="66"  cy="12" r="3.5"/>
+          <circle cx="12"  cy="30" r="3.5"/>
+          <circle cx="30"  cy="30" r="3.5"/>
+          <circle cx="48"  cy="30" r="3.5"/>
+          <circle cx="66"  cy="30" r="3.5"/>
+          <circle cx="12"  cy="48" r="3.5"/>
+          <circle cx="30"  cy="48" r="3.5"/>
+          <circle cx="48"  cy="48" r="3.5"/>
+          <circle cx="66"  cy="48" r="3.5"/>
+          <circle cx="12"  cy="66" r="3.5"/>
+          <circle cx="30"  cy="66" r="3.5"/>
+          <circle cx="48"  cy="66" r="3.5"/>
+          <circle cx="66"  cy="66" r="3.5"/>
+        </g>
+        <text x="40" y="98" font-size="8" fill="#888" text-anchor="middle">NeoTrellis 4×4</text>
+      </g>
+
+      <!-- Pots + encoders + switches -->
+      <g transform="translate(260, 120)">
+        <circle cx="0"  cy="0" r="8" fill="url(#metal)" stroke="#000" stroke-width="0.4"/>
+        <circle cx="0"  cy="0" r="2" fill="#1a1a1e"/>
+        <circle cx="22" cy="0" r="6" fill="url(#metal)" stroke="#000" stroke-width="0.4"/>
+        <circle cx="22" cy="0" r="1.5" fill="#1a1a1e"/>
+        <circle cx="0"  cy="22" r="8" fill="url(#metal)" stroke="#000" stroke-width="0.4"/>
+        <circle cx="0"  cy="22" r="2" fill="#1a1a1e"/>
+        <circle cx="22" cy="22" r="6" fill="url(#metal)" stroke="#000" stroke-width="0.4"/>
+        <circle cx="22" cy="22" r="1.5" fill="#1a1a1e"/>
+        <text x="11" y="40" font-size="7" fill="#888" text-anchor="middle">pots + encoders</text>
+      </g>
+
+      <!-- 5-way blade switch -->
+      <rect x="280" y="170" width="32" height="6" rx="2" fill="url(#metal)" stroke="#000" stroke-width="0.4"/>
+      <text x="296" y="186" font-size="7" fill="#888" text-anchor="middle">5-way</text>
+
+      <!-- LiDAR window -->
+      <circle cx="200" cy="-60" r="4" fill="#0a0a0f" stroke="#2a2a32" stroke-width="0.5"/>
+      <circle cx="200" cy="-60" r="2" fill="#3a3a4a"/>
+      <text x="200" y="-72" font-size="7" fill="#888" text-anchor="middle">LiDAR</text>
+
+      <!-- TRS jack on the lower edge -->
+      <circle cx="470" cy="160" r="5" fill="#1a1a1e" stroke="#3a3a40" stroke-width="0.5"/>
+      <circle cx="470" cy="160" r="2.5" fill="#000"/>
+      <text x="480" y="163" font-size="7" fill="#888">TRS</text>
+
+      <!-- NeoPixel ring (perimeter LED strip indicated as a thin glowing line just inside the body edge) -->
+      <path d="M 0,-32
+               C -20,-50 -10,-80 30,-95
+               C 80,-110 140,-105 200,-90
+               C 280,-70 350,-40 410,10
+               C 460,55 490,110 480,170
+               C 470,225 420,255 350,250
+               C 280,245 200,225 130,195
+               C 70,170 20,140 -10,90
+               C -35,50 -40,0 0,32"
+            fill="none" stroke="#3a4a6a" stroke-width="1.2" opacity="0.6" stroke-dasharray="1,4"/>
+
+      <!-- Body annotation -->
+      <text x="240" y="-110" font-size="9" fill="#d4af37" text-anchor="middle">Pango HBE-033 · burl + epoxy + gold leaf</text>
+    </g>
+
+    <!-- ─── NECK (left side of the layout) ─── -->
+    <!-- Neck heel sits at x=680 (where it joins the body), extends to the left -->
+    <g>
+      <!-- Locking nut clamp at far left -->
+      <rect x="0" y="-22" width="40" height="44" fill="url(#metal)" stroke="#000" stroke-width="0.5"/>
+      <rect x="6" y="-15" width="28" height="3" fill="#1a1a22"/>
+      <rect x="6" y="12" width="28" height="3" fill="#1a1a22"/>
+      <text x="20" y="38" font-size="8" fill="#888" text-anchor="middle">Locking nut</text>
+
+      <!-- Fretboard (ebony) from clamp to body junction -->
+      <path d="M 40,-22 L 680,-26 L 680,26 L 40,22 Z" fill="url(#ebony)" stroke="#000" stroke-width="0.5"/>
+
+      <!-- 24 frets at calculated positions across the fretboard (length = 640) -->
+      <g stroke="url(#metal)" stroke-width="1.2">
+        <line x1="76"  y1="-22" x2="76"  y2="22"/>
+        <line x1="110" y1="-22" x2="110" y2="22"/>
+        <line x1="142" y1="-22" x2="142" y2="22"/>
+        <line x1="172" y1="-22" x2="172" y2="22"/>
+        <line x1="201" y1="-22" x2="201" y2="22"/>
+        <line x1="228" y1="-22" x2="228" y2="22"/>
+        <line x1="253" y1="-22" x2="253" y2="22"/>
+        <line x1="277" y1="-22" x2="277" y2="22"/>
+        <line x1="300" y1="-22" x2="300" y2="22"/>
+        <line x1="321" y1="-22" x2="321" y2="22"/>
+        <line x1="342" y1="-22" x2="342" y2="22"/>
+        <line x1="361" y1="-22" x2="361" y2="22"/>
+        <line x1="379" y1="-22" x2="379" y2="22"/>
+        <line x1="396" y1="-22" x2="396" y2="22"/>
+        <line x1="412" y1="-22" x2="412" y2="22"/>
+        <line x1="428" y1="-22" x2="428" y2="22"/>
+        <line x1="442" y1="-22" x2="442" y2="22"/>
+        <line x1="456" y1="-22" x2="456" y2="22"/>
+        <line x1="469" y1="-22" x2="469" y2="22"/>
+        <line x1="481" y1="-22" x2="481" y2="22"/>
+        <line x1="492" y1="-22" x2="492" y2="22"/>
+        <line x1="503" y1="-22" x2="503" y2="22"/>
+        <line x1="513" y1="-22" x2="513" y2="22"/>
+        <line x1="523" y1="-22" x2="523" y2="22"/>
+      </g>
+
+      <!-- Abalone dots at 3,5,7,9,12(×2),15,17,19,21 -->
+      <g stroke="#0a0808" stroke-width="0.3">
+        <circle cx="126" cy="0" r="4" fill="url(#abalone)"/>
+        <circle cx="187" cy="0" r="4" fill="url(#abalone)"/>
+        <circle cx="241" cy="0" r="4" fill="url(#abalone)"/>
+        <circle cx="289" cy="0" r="4" fill="url(#abalone)"/>
+        <circle cx="352" cy="-10" r="4" fill="url(#abalone)"/>
+        <circle cx="352" cy="10"  r="4" fill="url(#abalone)"/>
+        <circle cx="404" cy="0" r="4" fill="url(#abalone)"/>
+        <circle cx="435" cy="0" r="4" fill="url(#abalone)"/>
+        <circle cx="463" cy="0" r="4" fill="url(#abalone)"/>
+        <circle cx="487" cy="0" r="4" fill="url(#abalone)"/>
+      </g>
+
+      <text x="352" y="-32" font-size="8" fill="#888" text-anchor="middle">24 stainless frets · abalone dots</text>
+    </g>
+  </g>
+
+  <!-- ====================================================================== -->
+  <!-- ============ ② BACK VIEW ============ -->
+  <!-- ====================================================================== -->
+  <text x="80" y="600" font-size="14" font-weight="700" fill="#aaa">② BACK — showing 7-piece neck lamination + electronics access panel</text>
+  <text x="80" y="616" font-size="10" fill="#666">mahogany underbody · large rear-routed cavity with 3D-printed tinted acrylic panel · neck back showing wenge/maple stripes · heel + 4 bolts</text>
+
+  <g transform="translate(80, 770)">
+    <!-- BODY back (mirrored — heel on right of body, neck extends LEFT, but back-view shows the back face) -->
+    <g transform="translate(680, 0)">
+      <!-- Body silhouette in mahogany -->
+      <path d="M 0,-32
+               C -20,-50 -10,-80 30,-95
+               C 80,-110 140,-105 200,-90
+               C 280,-70 350,-40 410,10
+               C 460,55 490,110 480,170
+               C 470,225 420,255 350,250
+               C 280,245 200,225 130,195
+               C 70,170 20,140 -10,90
+               C -35,50 -40,0 0,32 Z"
+            fill="url(#mahogany)" stroke="#000" stroke-width="0.6"/>
+
+      <!-- Large rear-routed electronics cavity (3D-printed back panel mounted here) -->
+      <path d="M 60,-50 L 350,-40 L 380,180 L 90,200 Z"
+            fill="#0a0a14" stroke="#3a3a4a" stroke-width="1" opacity="0.92"/>
+      <!-- Mounting screws around the panel perimeter -->
+      <g fill="#a8a8b0">
+        <circle cx="72"  cy="-45" r="2"/>
+        <circle cx="140" cy="-46" r="2"/>
+        <circle cx="220" cy="-44" r="2"/>
+        <circle cx="300" cy="-42" r="2"/>
+        <circle cx="365" cy="-30" r="2"/>
+        <circle cx="375" cy="40"  r="2"/>
+        <circle cx="380" cy="120" r="2"/>
+        <circle cx="370" cy="175" r="2"/>
+        <circle cx="320" cy="190" r="2"/>
+        <circle cx="240" cy="195" r="2"/>
+        <circle cx="160" cy="198" r="2"/>
+        <circle cx="100" cy="190" r="2"/>
+        <circle cx="80"  cy="120" r="2"/>
+        <circle cx="70"  cy="40"  r="2"/>
+      </g>
+      <text x="220" y="80" font-size="9" fill="#a8b8c8" text-anchor="middle">3D-printed back panel</text>
+      <text x="220" y="92" font-size="8" fill="#5a6a7a" text-anchor="middle">(tinted acrylic / PETG-CF, LED ring spills through perimeter)</text>
+
+      <!-- Strap buttons -->
+      <circle cx="20" cy="100" r="4" fill="url(#metal)" stroke="#000" stroke-width="0.3"/>
+      <circle cx="450" cy="140" r="4" fill="url(#metal)" stroke="#000" stroke-width="0.3"/>
+      <text x="20"  y="118" font-size="7" fill="#888" text-anchor="middle">strap btn</text>
+      <text x="450" y="158" font-size="7" fill="#888" text-anchor="middle">strap btn</text>
+
+      <!-- USB-C jack on side edge -->
+      <rect x="465" y="100" width="12" height="6" fill="#1a1a1e" stroke="#3a3a40" stroke-width="0.4"/>
+      <text x="492" y="105" font-size="7" fill="#888">USB-C</text>
+
+      <text x="240" y="-100" font-size="9" fill="#c8a878" text-anchor="middle">Mahogany underbody · separate from front epoxy treatment</text>
+    </g>
+
+    <!-- NECK BACK with 7-piece lamination (heel on right, locking nut on left) -->
+    <g>
+      <!-- Locking nut clamp side -->
+      <rect x="0" y="-22" width="40" height="44" fill="url(#metal)" stroke="#000" stroke-width="0.5"/>
+
+      <!-- 7-piece lamination stripes running lengthwise (wenge | maple | wenge | maple | wenge | maple | wenge) -->
+      <rect x="40" y="-22" width="640" height="10" fill="url(#wengeStrip)"/>
+      <rect x="40" y="-12" width="640" height="2"  fill="url(#maple)"/>
+      <rect x="40" y="-10" width="640" height="8"  fill="url(#wengeStrip)"/>
+      <rect x="40" y="-2"  width="640" height="2"  fill="url(#maple)"/>
+      <rect x="40" y="0"   width="640" height="8"  fill="url(#wengeStrip)"/>
+      <rect x="40" y="8"   width="640" height="2"  fill="url(#maple)"/>
+      <rect x="40" y="10"  width="640" height="12" fill="url(#wengeStrip)"/>
+      <path d="M 40,-22 L 680,-22 L 680,22 L 40,22 Z" fill="none" stroke="#000" stroke-width="0.4"/>
+
+      <!-- Annotation -->
+      <line x1="600" y1="-3" x2="640" y2="-50" stroke="#888" stroke-width="0.5"/>
+      <line x1="600" y1="3"  x2="655" y2="-50" stroke="#888" stroke-width="0.5"/>
+      <text x="665" y="-55" font-size="8" fill="#888">maple stripes</text>
+
+      <line x1="400" y1="22" x2="400" y2="50" stroke="#888" stroke-width="0.5"/>
+      <text x="400" y="62" font-size="8" fill="#888" text-anchor="middle">4 wenge pieces — bare wood, tru-oil at assembly</text>
+    </g>
+  </g>
+
+  <!-- ====================================================================== -->
+  <!-- ============ ③ SIDE PROFILE VIEW ============ -->
+  <!-- ====================================================================== -->
+  <text x="80" y="1080" font-size="14" font-weight="700" fill="#aaa">③ SIDE — profile (whole instrument silhouette)</text>
+  <text x="80" y="1096" font-size="10" fill="#666">body thickness ~40 mm · neck Thin C ~20 mm · headless clamp at left · headless bridge + saddles at right · removable back panel at base</text>
+
+  <g transform="translate(80, 1200)">
+    <!-- Locking nut clamp -->
+    <rect x="0" y="-12" width="38" height="22" fill="url(#metalSide)" stroke="#000" stroke-width="0.4"/>
+
+    <!-- Fretboard side profile (ebony strip on top of neck) -->
+    <path d="M 38,-12 L 680,-15 L 680,-2 L 38,0 Z" fill="url(#ebony)" stroke="#000" stroke-width="0.4"/>
+
+    <!-- Frets sticking up (sample) -->
+    <g stroke="url(#metal)" stroke-width="1.2">
+      <line x1="76"  y1="-15" x2="76"  y2="-19"/>
+      <line x1="201" y1="-15" x2="201" y2="-19"/>
+      <line x1="289" y1="-15" x2="289" y2="-19"/>
+      <line x1="352" y1="-15" x2="352" y2="-19"/>
+      <line x1="404" y1="-15" x2="404" y2="-19"/>
+      <line x1="463" y1="-15" x2="463" y2="-19"/>
+      <line x1="513" y1="-15" x2="513" y2="-19"/>
+    </g>
+
+    <!-- Neck back (wenge curve - Thin C profile) -->
+    <path d="M 38,0 L 680,-2 L 680,12 Q 360,32 38,12 Z" fill="url(#wengeStrip)" stroke="#000" stroke-width="0.4"/>
+
+    <!-- Body side profile (heel block then full body slab) -->
+    <!-- Heel block extends from x=680 -->
+    <rect x="680" y="-18" width="60" height="50" fill="url(#mahogany)" stroke="#000" stroke-width="0.4"/>
+    <!-- Body slab from x=740 onward, thicker -->
+    <path d="M 740,-25 L 1180,-22 L 1200,-10 L 1200,30 L 1180,42 L 740,40 Z" fill="url(#mahogany)" stroke="#000" stroke-width="0.4"/>
+
+    <!-- Front face of body has the epoxy/burl finish (top edge of side view) -->
+    <path d="M 740,-25 L 1180,-22 L 1200,-10 L 740,-10 Z" fill="url(#bodyEpoxy)" stroke="#000" stroke-width="0.3"/>
+    <g fill="url(#goldFleck)">
+      <ellipse cx="800" cy="-17" rx="2"   ry="1.2"/>
+      <ellipse cx="870" cy="-15" rx="2.5" ry="1.5"/>
+      <ellipse cx="950" cy="-18" rx="2"   ry="1.2"/>
+      <ellipse cx="1020" cy="-15" rx="2.5" ry="1.5"/>
+      <ellipse cx="1100" cy="-17" rx="2"  ry="1.2"/>
+      <ellipse cx="1160" cy="-13" rx="2.5" ry="1.5"/>
+    </g>
+
+    <!-- Bridge saddles (sticking up off the front face) -->
+    <g transform="translate(1110, -30)">
+      <rect x="0" y="0" width="50" height="5" fill="#1a1a1e" stroke="#000" stroke-width="0.3"/>
+      <rect x="2" y="-5" width="46" height="5" fill="url(#metal)" stroke="#000" stroke-width="0.3"/>
+    </g>
+
+    <!-- Back panel (slightly recessed on the back/lower face of the body) -->
+    <rect x="780" y="35" width="380" height="7" fill="#1a1a22" stroke="#3a3a4a" stroke-width="0.4"/>
+    <text x="970" y="58" font-size="8" fill="#a8b8c8" text-anchor="middle">3D-printed removable back panel</text>
+
+    <!-- Annotations -->
+    <text x="19"  y="35" font-size="8" fill="#888" text-anchor="middle">Locking nut</text>
+    <text x="350" y="-30" font-size="8" fill="#888" text-anchor="middle">Ebony + stainless frets</text>
+    <text x="350" y="48" font-size="8" fill="#888" text-anchor="middle">Wenge/maple neck back · Thin C</text>
+    <text x="710" y="42" font-size="8" fill="#888" text-anchor="middle">Heel block</text>
+    <text x="970" y="-32" font-size="8" fill="#d4af37" text-anchor="middle">Burl/epoxy/gold top · body ~40 mm thick</text>
+    <text x="1135" y="-40" font-size="8" fill="#888" text-anchor="middle">Headless bridge</text>
+
+    <!-- Headless callout -->
+    <line x1="0" y1="-18" x2="0" y2="22" stroke="#a8b8c8" stroke-width="0.5" stroke-dasharray="3,2"/>
+    <text x="0" y="80" font-size="9" fill="#a8b8c8" text-anchor="middle" font-weight="700">↑ Headless (clean) termination</text>
+  </g>
+
+  <!-- ====================================================================== -->
+  <!-- ============ LEGEND / SPECS ============ -->
+  <!-- ====================================================================== -->
+  <text x="80" y="1340" font-size="13" font-weight="700" fill="#aaa">MATERIALS &amp; KEY SPECS</text>
+
+  <g transform="translate(80, 1355)" font-size="10" fill="#ccc">
+    <!-- Material swatches -->
+    <rect x="0" y="0" width="22" height="14" fill="url(#bodyEpoxy)" stroke="#000" stroke-width="0.3"/>
+    <text x="30" y="11">Black epoxy</text>
+
+    <rect x="130" y="0" width="22" height="14" fill="url(#burlA)" stroke="#000" stroke-width="0.3"/>
+    <text x="160" y="11">Burl wood</text>
+
+    <rect x="260" y="0" width="22" height="14" fill="url(#goldFleck)" stroke="#000" stroke-width="0.3"/>
+    <text x="290" y="11">Gold leaf flake</text>
+
+    <rect x="395" y="0" width="22" height="14" fill="url(#mahogany)" stroke="#000" stroke-width="0.3"/>
+    <text x="425" y="11">Mahogany underbody</text>
+
+    <rect x="565" y="0" width="22" height="14" fill="url(#wengeStrip)" stroke="#000" stroke-width="0.3"/>
+    <text x="595" y="11">Wenge</text>
+
+    <rect x="655" y="0" width="22" height="14" fill="url(#maple)" stroke="#000" stroke-width="0.3"/>
+    <text x="685" y="11">Maple stripes</text>
+
+    <rect x="780" y="0" width="22" height="14" fill="url(#ebony)" stroke="#000" stroke-width="0.3"/>
+    <text x="810" y="11">Ebony fretboard</text>
+
+    <rect x="900" y="0" width="22" height="14" fill="url(#abalone)" stroke="#000" stroke-width="0.3"/>
+    <text x="930" y="11">Abalone dots</text>
+
+    <rect x="1020" y="0" width="22" height="14" fill="url(#metal)" stroke="#000" stroke-width="0.3"/>
+    <text x="1050" y="11">Stainless</text>
+  </g>
+
+  <g transform="translate(80, 1400)" font-size="10" fill="#aaa">
+    <text x="0" y="0" font-weight="700" fill="#e8d4a8">BODY</text>
+    <text x="0" y="18">Pango HBE-033 · headless · burl + epoxy + gold front · mahogany back</text>
+    <text x="0" y="34">Rear-routed cavity for Bela Gem Multi + battery + buffer + power</text>
+    <text x="0" y="50">3D-printed tinted acrylic back panel · perimeter LED ring</text>
+
+    <text x="500" y="0" font-weight="700" fill="#e8d4a8">NECK</text>
+    <text x="500" y="18">Halo Custom · Headless single-scale 25.5"</text>
+    <text x="500" y="34">7-piece wenge/maple · Ebony · Abalone dots · Stainless jumbo</text>
+    <text x="500" y="50">Thin C profile · 14" radius · 4-bolt Strat heel · B standard · .012–.060</text>
+
+    <text x="1020" y="0" font-weight="700" fill="#e8d4a8">PRICE</text>
+    <text x="1020" y="18">Body: ~$150</text>
+    <text x="1020" y="34">Neck: $559</text>
+    <text x="1020" y="50" font-weight="700" fill="#d4af37">+ electronics build</text>
+  </g>
+
+  <text x="700" y="1490" font-size="9" fill="#555" text-anchor="middle">Reference visualization · proportions approximate · body silhouette stylized · fret positions calculated to 25.5" scale (12-TET)</text>
+</svg>

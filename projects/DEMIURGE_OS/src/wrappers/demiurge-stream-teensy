@@ -1,0 +1,62 @@
+#!/bin/bash
+# demiurge-stream-teensy [/dev/ttyACMx]
+#
+# Streams the Teensy's USB-serial telemetry to stdout — meant to be run over
+# SSH so you can watch the controller's serial print on a laptop while the
+# board stays plugged into the Pi:
+#
+#   ssh demiurge.local demiurge-stream-teensy
+#
+# How it works: the Teensy prints structured frames (one line per ~10 ms) on its
+# USB-serial endpoint. We put the tty into raw mode at 115200 and cat it. No
+# decoding, no dependencies — just the raw lines the firmware emits.
+#
+# Auto-detects the Teensy serial port (first /dev/ttyACM* with USB vendor 16c0).
+# Override by passing a port explicitly.
+#
+# Requires the plugdev udev rule installed by setup-demiurge.sh (same one that
+# enables over-SSH flashing), so this runs without sudo.
+#
+# Port contention: this is a shared read of the tty — if the MIDI bridge
+# (serial_bridge.py) is also reading the port, the kernel splits the byte stream
+# and BOTH readers see garbage. Stream only when the bridge is stopped. Check:
+#   lsof /dev/ttyACM0
+
+set -e
+
+PORT="${1:-}"
+
+# Auto-detect: first ttyACM whose USB idVendor is 16c0 (PJRC / Teensy).
+if [[ -z "$PORT" ]]; then
+    for tty in /dev/ttyACM*; do
+        [[ -e "$tty" ]] || continue
+        dev_link="/sys/class/tty/$(basename "$tty")/device"
+        [[ -L "$dev_link" ]] || continue
+        vid=""
+        for up in .. ../.. ../../..; do
+            if [[ -r "$dev_link/$up/idVendor" ]]; then
+                vid=$(cat "$dev_link/$up/idVendor")
+                break
+            fi
+        done
+        if [[ "$vid" == "16c0" ]]; then
+            PORT="$tty"
+            break
+        fi
+    done
+fi
+
+if [[ -z "$PORT" || ! -e "$PORT" ]]; then
+    echo "demiurge-stream-teensy: no Teensy serial port found" >&2
+    echo "  Board may be unplugged or in a USB mode without Serial." >&2
+    exit 1
+fi
+
+# Warn (don't block) if another process already holds the port.
+if command -v lsof >/dev/null && lsof -t "$PORT" >/dev/null 2>&1; then
+    echo "demiurge-stream-teensy: WARNING — $PORT is open by another process" >&2
+    echo "  (likely the MIDI bridge). Output will be split/garbled. Stop the bridge." >&2
+fi
+
+stty -F "$PORT" raw 115200 -echo
+exec cat "$PORT"

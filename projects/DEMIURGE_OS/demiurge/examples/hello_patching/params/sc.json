@@ -1,0 +1,20 @@
+{
+  "stage": "sc",
+  "port": 9003,
+  "version": 1,
+  "params": [
+    {
+      "path": "/sc/density",
+      "label": "Grain density",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p",
+      "native": {
+        "min": 6,
+        "max": 90,
+        "curve": "lin",
+        "unit": "grains/s"
+      }
+    }
+  ]
+}

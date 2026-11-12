@@ -1,0 +1,68 @@
+# PROPOSED -- NOT INSTALLED. Install target: /etc/systemd/system/cardinal.service (needs Emory's go).
+# Cardinal (VCV) always-on beside the NEPTR Csound engine. Design + rollback: ALWAYS_ON_PLAN.md
+#
+# Dependency direction is ONE WAY on purpose:
+#   cardinal -> follows demiurge (After + PartOf). demiurge knows nothing about cardinal:
+#   no Wants/Requires/BindsTo on the demiurge side, no drop-in on demiurge.service.
+#   So a Cardinal crash, restart, stop or disable can never restart or touch demiurge/csound.
+#   `systemctl restart demiurge` propagates a restart to cardinal (PartOf), and the ExecStartPre
+#   gate holds Cardinal back until csound6 is up AND linked to the HAT.
+[Unit]
+Description=Cardinal (VCV Rack) beside NEPTR -- async, core 1, RT<=60, never ahead of csound
+After=demiurge.service user@1000.service sound.target
+PartOf=demiurge.service
+# Do not run if the engine's own units are mid-start storm: systemd start-rate limiting
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=gorpi7v5
+Group=gorpi7v5
+Environment=HOME=/home/gorpi7v5
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=CARDINAL_DEFAULT_PATCH=05_flsamp
+Environment=CARDINAL_SWITCH_MODE=restart
+# Gate: wait (max 120 s) for csound6 ports AND csound6:output1 -> HAT playback_AUX0 to exist.
+# Exit 0 = go. A timeout fails the start (Restart= retries with backoff), it never touches the engine.
+ExecStartPre=/home/gorpi7v5/PRIME_RECOVERY/vcv/cardinal-wait-engine.sh
+ExecStart=/home/gorpi7v5/kivy-venv/bin/python -I /home/gorpi7v5/PRIME_RECOVERY/vcv/cardinal-ctl.py
+
+# --- CPU: core 1 only. Core 2 = HAT DMA IRQ + PipeWire data-loop, core 3 = csound (isolcpus).
+CPUAffinity=1
+Nice=5
+# Hard ceiling on Cardinal's total CPU, so a runaway patch cannot even saturate core 1.
+CPUQuota=85%
+CPUWeight=20
+IOSchedulingClass=idle
+# --- RT: kernel-enforced cap. Anything Cardinal (or its PipeWire client) tries above 60 fails.
+# (csound 74, PipeWire data-loop 83, HAT IRQ thread 85). Soft target is 50 via pw/jack.conf.
+LimitRTPRIO=60
+LimitNICE=0
+LimitMEMLOCK=infinity
+# --- Memory: bounded so a bad patch cannot start swapping / evicting the engine.
+# single-process backends: ~1.5-2G. For backend=multi raise to ~1G per used slot (measure RSS first).
+MemoryHigh=1500M
+MemoryMax=2G
+TasksMax=256
+OOMScoreAdjust=500
+# --- Restart with backoff (systemd 257). cardinal-ctl also backs off its own child (2..30 s).
+Restart=always
+RestartSec=5
+RestartSteps=5
+RestartMaxDelaySec=60
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=8
+StandardOutput=journal
+StandardError=journal
+# Hardening that cannot affect audio: no new privileges, private tmp (Xvfb sockets live there).
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+# Deliberately NOT WantedBy=demiurge.service. Boot start comes from multi-user.target only.
+WantedBy=multi-user.target

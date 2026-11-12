@@ -1,0 +1,101 @@
+#!/bin/bash
+# demiurge-flash-pico <uf2-file>
+#
+# Flashes a Raspberry Pi Pico / Pico 2 (RP2040 / RP2350) plugged into the Pi
+# over SSH — no physical access to the BOOTSEL button required. The Pico
+# analogue of demiurge-flash-teensy.
+#
+# How it works (the same "remote reset" trick Arduino-Pico / PlatformIO use):
+#   1. If the Pico is running firmware that presents a USB serial (CDC) port
+#      — Arduino-Pico core, PlatformIO, MicroPython, CircuitPython all do —
+#      opening that port at baud 1200 is a magic value the RP2 USB stack
+#      handles by rebooting into the BOOTSEL / UF2 bootloader.
+#   2. The Pico re-enumerates as the BOOTSEL device (VID:PID 2e8a:0003 for
+#      RP2040, 2e8a:000f for RP2350) and mounts as the RPI-RP2 drive.
+#   3. picotool claims the BOOTSEL device and loads the .uf2 (or .elf/.bin).
+#   4. `-x` makes the Pico reboot into the new firmware when the load finishes.
+#
+# If the Pico is already in BOOTSEL (you held the button while plugging it in,
+# or it has no firmware yet), step 1 is skipped.
+#
+# Requires: picotool (apt), and the supplemental udev rule installed by
+# setup-demiurge.sh that grants plugdev access to the 2e8a endpoints.
+# Without that rule, run via sudo.
+
+set -e
+
+UF2="${1:-}"
+
+if [[ -z "$UF2" || "$UF2" == "-h" || "$UF2" == "--help" ]]; then
+    cat >&2 <<USAGE
+usage: demiurge-flash-pico <uf2-file>
+
+  Flashes a Raspberry Pi Pico / Pico 2 on the Pi remotely. Triggers a reboot
+  into the BOOTSEL bootloader by touching the USB serial port at baud 1200,
+  then loads the firmware with picotool.
+
+  Accepts .uf2 (normal), or .elf / .bin that picotool understands.
+USAGE
+    exit 1
+fi
+
+if [[ ! -f "$UF2" ]]; then
+    echo "demiurge-flash-pico: $UF2 not found" >&2
+    exit 1
+fi
+
+if ! command -v picotool >/dev/null; then
+    echo "demiurge-flash-pico: picotool not installed" >&2
+    echo "  apt install picotool" >&2
+    exit 1
+fi
+
+# BOOTSEL VID:PIDs — RP2040 (0003) and RP2350 (000f).
+in_bootsel() { lsusb | grep -qE '2e8a:(0003|000f)'; }
+
+# Step 1: locate a running Pico serial endpoint (idVendor 2e8a, CDC on ttyACM*).
+PORT=""
+for tty in /dev/ttyACM*; do
+    [[ -e "$tty" ]] || continue
+    dev_link="/sys/class/tty/$(basename "$tty")/device"
+    [[ -L "$dev_link" ]] || continue
+    # The idVendor file lives one or two levels up depending on driver layout.
+    vid=""
+    for up in .. ../.. ../../..; do
+        if [[ -r "$dev_link/$up/idVendor" ]]; then
+            vid=$(cat "$dev_link/$up/idVendor")
+            break
+        fi
+    done
+    if [[ "$vid" == "2e8a" ]]; then
+        PORT="$tty"
+        break
+    fi
+done
+
+# Step 2: trigger reboot into BOOTSEL if firmware is running. Skip if already there.
+if in_bootsel; then
+    echo "demiurge-flash-pico: BOOTSEL already present, skipping reset"
+elif [[ -n "$PORT" ]]; then
+    echo "demiurge-flash-pico: rebooting $PORT into BOOTSEL (baud 1200)"
+    stty -F "$PORT" 1200 2>/dev/null || true
+    # BOOTSEL typically enumerates in <1 s. Poll up to 5 s.
+    for _ in $(seq 1 50); do
+        if in_bootsel; then
+            break
+        fi
+        sleep 0.1
+    done
+    if ! in_bootsel; then
+        echo "demiurge-flash-pico: BOOTSEL did not appear after reset" >&2
+        echo "  Fallback: hold BOOTSEL on the Pico and re-plug it, then re-run." >&2
+    fi
+else
+    echo "demiurge-flash-pico: no Pico USB serial port found"
+    echo "  The board may be unplugged, or running firmware without USB serial."
+    echo "  Hold the BOOTSEL button while plugging the Pico in, then re-run."
+fi
+
+# Step 3: load + execute. picotool auto-detects the BOOTSEL device.
+echo "demiurge-flash-pico: loading $UF2"
+exec picotool load -x "$UF2"

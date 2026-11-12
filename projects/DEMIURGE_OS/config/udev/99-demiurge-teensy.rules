@@ -1,0 +1,14 @@
+# DEMIURGE supplemental Teensy udev rule
+#
+# The PJRC udev rule (49-teensy.rules, installed by the teensy-loader-cli apt
+# package) grants access via `TAG+="uaccess"`, which only works for users
+# logged in to a graphical seat through systemd-logind. SSH sessions are not
+# considered "logged in" by logind, so a user editing firmware over SSH ends
+# up with no access to the Teensy USB device node and `teensy_loader_cli`
+# fails with "Unable to claim interface, check USB permissions".
+#
+# This rule grants plugdev group access to every Teensy USB mode, including
+# the HalfKay bootloader (PID 0478). It is a supplement to 49-teensy.rules,
+# not a replacement — the higher number ensures it runs last and wins.
+
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="16c0", ATTRS{idProduct}=="04[789ABCD]?", GROUP="plugdev", MODE="0660"

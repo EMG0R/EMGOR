@@ -1,0 +1,8 @@
+[Unit]
+Description=Mirror csound RAM state to SD every 10 s
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=10
+AccuracySec=2
+[Install]
+WantedBy=timers.target

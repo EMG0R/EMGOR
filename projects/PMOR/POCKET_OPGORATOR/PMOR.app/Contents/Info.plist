@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>PMOR</string>
+  <key>CFBundleDisplayName</key>
+  <string>PMOR</string>
+  <key>CFBundleIdentifier</key>
+  <string>synth.emgor.pmor</string>
+  <key>CFBundleVersion</key>
+  <string>1.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleSignature</key>
+  <string>????</string>
+  <key>CFBundleExecutable</key>
+  <string>PMOR</string>
+  <key>CFBundleIconFile</key>
+  <string>PMOR</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>LSMinimumSystemVersion</key>
+  <string>11.0</string>
+
+  <!-- LSUIElement must be FALSE (absent) or the app gets no Dock tile and no
+       menu bar, which is exactly the "it just says Python / no real app"
+       symptom. Being a normal foreground app is the point of this bundle. -->
+
+  <!-- Recording from the Pocket OpGorator counts as microphone input on
+       macOS; without this key the app is killed on first stream open. -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>PMOR streams audio from the Pocket OpGorator over USB so you can monitor it through this Mac.</string>
+</dict>
+</plist>

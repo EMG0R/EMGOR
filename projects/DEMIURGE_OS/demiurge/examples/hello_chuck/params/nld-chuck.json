@@ -1,0 +1,28 @@
+{
+  "stage": "nld-chuck",
+  "port": 9000,
+  "version": 1,
+  "params": [
+    {
+      "path": "/nld-chuck/density",
+      "label": "Density",
+      "default": 0.35,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-chuck/tone",
+      "label": "Tone",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-chuck/length",
+      "label": "Length",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    }
+  ]
+}

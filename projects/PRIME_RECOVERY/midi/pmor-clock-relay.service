@@ -1,0 +1,13 @@
+[Unit]
+Description=PMOR clock relay: Midi Through -> PMOR, clock + ch16 sync CCs only
+After=sound.target
+
+[Service]
+User=gorpi7v5
+ExecStart=/home/gorpi7v5/kivy-venv/bin/python /home/gorpi7v5/PRIME_RECOVERY/midi/pmor-clock-relay.py
+Restart=always
+RestartSec=1
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=NEPTR web preset editor (stdlib HTTP, port 8091)
+# deliberately NO After=/Wants= on demiurge.service or neptr-ui.service:
+# that created an ordering cycle before.
+
+[Service]
+Type=simple
+User=gorpi7v5
+WorkingDirectory=/home/gorpi7v5/NEPTR_phase4/tools/neptr_web
+ExecStart=/usr/bin/python3 /home/gorpi7v5/NEPTR_phase4/tools/neptr_web/server.py --port 8091
+Restart=always
+RestartSec=2
+Nice=10
+CPUAffinity=0-2
+
+[Install]
+WantedBy=multi-user.target

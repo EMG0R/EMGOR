@@ -1,0 +1,23 @@
+[Unit]
+Description=hyperGuitar USB audio bridge (non-realtime, feeds UAC2 gadget)
+After=sound.target
+# NO Wants=/PartOf=bela_startup.service any more: the instrument runs
+# under /root/hyperGuitar-supervisor.sh, not bela_startup, and those
+# bindings made `systemctl start` here drag bela_startup up, fail on the
+# busy audio device, and propagate its stop back into this unit (start-
+# limit loop, 2026-09-01). The stale-shm-mapping problem PartOf solved
+# (hyperGuitar recreates its ring per start, the bridge maps it once) is
+# now handled by the supervisor: it try-restarts this unit on every
+# instrument (re)launch.
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/usbaudio-bridge
+Restart=always
+RestartSec=2
+# Ordinary scheduling on purpose - this must NEVER compete with or block
+# the real-time audio thread in hyperGuitar6chPan.
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

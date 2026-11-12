@@ -1,0 +1,11 @@
+[Unit]
+Description=COD updater: periodic check of EMG0R/cod
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=6h
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

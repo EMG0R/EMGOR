@@ -1,0 +1,3 @@
+   3V7_WL_SW_A current(0)=0.11631000A
+     EXT5V_V volt(24)=5.10105000V
+     BATT_V volt(25)=0.00135655V

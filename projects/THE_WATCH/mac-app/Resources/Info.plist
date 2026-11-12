@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>The Watch Mac</string>
+    <key>CFBundleDisplayName</key>
+    <string>The Watch</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.emgor.thewatch.mac</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>TheWatchMac</string>
+
+    <!-- Menu-bar-only app: no Dock icon, no main window. -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+
+    <!-- TCC usage strings. macOS shows these when the app first touches each API. -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>The Watch connects to your ESP32 smartwatch over Bluetooth Low Energy to stream battery, media, and approval prompts.</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>The Watch connects to your ESP32 smartwatch over Bluetooth Low Energy.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>The Watch runs a local approval bridge on 127.0.0.1 so local tools can request approval on your watch.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>The Watch reads and controls Music and Spotify playback to mirror now-playing on your watch.</string>
+</dict>
+</plist>

@@ -1,0 +1,21 @@
+[Unit]
+Description=neuralGrid Pi app (direct lab / septagraph / midi modes + sequencer + web UI)
+After=network-online.target
+Wants=network-online.target
+# This app and neuralgrid-monitor.service both open the ESP32 serial port
+# directly (LidarGridLink); they CANNOT run at the same time. See
+# septagraph/pi/README.md "Running alongside the monitor" for the manual
+# stop/start dance used during development.
+Conflicts=neuralgrid-monitor.service
+
+[Service]
+Type=simple
+User=demiurge
+WorkingDirectory=/home/demiurge/neuralGrid/septagraph/py
+# Live Machine Lab target (GOR server / ChucK front door on the MTIID mini).
+ExecStart=/usr/bin/python3 -m septagraph.pi.app --http-port 8767 --lab 192.168.0.103:8001 --map /home/demiurge/neuralGrid/septagraph/py/renderers/lab_map.json
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/test_storage_layout.dir/link.d CMakeFiles/test_storage_layout.dir/tests/test_storage_layout.cpp.o CMakeFiles/test_storage_layout.dir/store/sdlayout.cpp.o -o test_storage_layout  libpmor_core.a

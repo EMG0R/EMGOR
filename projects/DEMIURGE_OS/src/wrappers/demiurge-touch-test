@@ -1,0 +1,947 @@
+#!/usr/bin/env python3
+# demiurge-touch-test — fullscreen touch mirror + smartboard-style calibrator.
+#
+# Two modes, same polished visual language (dark, glow, 800x480 KMSDRM):
+#
+#   mirror mode (default when a calibration exists)
+#     Up to 4 simultaneous touches (SDL FINGERDOWN/MOTION/UP) with glowing
+#     circles, trails, ripples and a live readout. If a calibration exists it
+#     is APPLIED to the mirrored position, so "finger != crosshair" errors are
+#     visibly fixed. Hold the top-left corner 5 s (or ESC/Q) to exit; hold the
+#     top-right "CAL" corner 1.5 s to enter calibration.
+#
+#   calibration mode (auto when no calibration exists, or --calibrate,
+#   or the CAL corner)
+#     Five targets (4 corners inset 40 px + center). Tap and hold each one
+#     briefly; RAW evdev coordinates are read straight from the touch device
+#     (bypassing SDL and any existing calibration) and averaged. A point is
+#     accepted only from a stable press (jitter-checked); wild outliers are
+#     re-asked. From the 5 points an affine raw→screen mapping is fitted per
+#     axis — including axis-swap and inversion detection from the corner
+#     geometry, so the mapping survives future rotation changes. A verify
+#     screen then shows a crosshair tracking the finger WITH the calibration
+#     applied: tap ✓ to save, ✗ to redo.
+#
+#     Cancel at any time: ESC/Q, or press-and-hold anywhere ≥4 s (a red arc
+#     appears after 2 s). Cancelling NEVER touches an existing calibration
+#     file — the file is written only on a completed run confirmed with ✓.
+#
+# Persistence + consumers (see demiurge/docs/config-reference.md):
+#   ~/demiurge/touch-cal.conf        key=value, written atomically on ✓ only
+#   demiurge-touch daemon            reloads it automatically (mtime / SIGHUP)
+#   this program's mirror mode       applies it live
+#   SDL apps (NEPTR UI)              get it via a udev hwdb EVDEV_ABS entry
+#     (/etc/udev/hwdb.d/61-demiurge-touch-cal.hwdb) that the calibrator stages
+#     with sudo -n on save: it rewrites the kernel-advertised axis ranges,
+#     which is what SDL's evdev layer scales by. Applied immediately (udevadm
+#     trigger) for newly-opened devices and persistent across reboots. The
+#     ads7846 overlay xmin/xmax/... params in config.txt are IGNORED by the
+#     current kernel (verified: kernel advertises 0-4095 regardless), so the
+#     equivalent overlay line is only printed/staged for reference.
+#
+# Runs on the Pi console via SDL KMSDRM (same stack as the NEPTR UI):
+#   sudo systemctl stop neptr-ui
+#   SDL_VIDEODRIVER=kmsdrm demiurge-touch-test [--calibrate|--mirror]
+#   sudo systemctl start neptr-ui        # normal UI back
+
+import fcntl
+import glob
+import math
+import os
+import re
+import struct
+import subprocess
+import sys
+import time
+
+# Prefer KMSDRM on a bare console (no X/Wayland), like the NEPTR UI.
+if "SDL_VIDEODRIVER" not in os.environ and not os.environ.get("DISPLAY") \
+        and not os.environ.get("WAYLAND_DISPLAY") and sys.platform.startswith("linux"):
+    os.environ["SDL_VIDEODRIVER"] = "kmsdrm"
+os.environ.setdefault("SDL_NOMOUSE", "0")
+
+import pygame  # noqa: E402
+
+BG = (11, 14, 18)
+GRID = (26, 32, 40)
+TEXT = (150, 163, 178)
+TEXT_DIM = (94, 105, 118)
+ACCENT = (64, 205, 255)
+GOOD = (110, 231, 148)
+BAD = (255, 110, 110)
+SLOT_COLORS = [
+    (64, 205, 255),    # slot 0 cyan
+    (255, 96, 170),    # slot 1 magenta
+    (255, 184, 76),    # slot 2 amber
+    (110, 231, 148),   # slot 3 green
+]
+TRAIL_LIFE = 0.9       # seconds
+RIPPLE_LIFE = 0.6
+HOLD_EXIT_S = 5.0
+HOLD_CAL_S = 1.5
+CORNER_PX = 90
+
+TARGET_INSET = 40
+SETTLE_SAMPLES = 6      # first samples of a press are discarded (edge wobble)
+MIN_SAMPLES = 14        # stable samples needed before release accepts a point
+MAX_SPREAD_RAW = 60.0   # stddev ceiling (raw units) for a press to count
+CANCEL_HOLD_S = 4.0     # press-and-hold this long during calibration = cancel
+MAX_RESIDUAL_PX = 40.0  # fit residual above this re-asks that point
+
+CAL_VERSION = 1
+HWDB_PATH = "/etc/udev/hwdb.d/61-demiurge-touch-cal.hwdb"
+
+# ---------------------------------------------------------------- evdev bits
+EV_FMT = "qqHHi"
+EV_SIZE = struct.calcsize(EV_FMT)
+EV_KEY, EV_ABS = 0x01, 0x03
+BTN_TOUCH = 0x14A
+ABS_X, ABS_Y, ABS_PRESSURE = 0x00, 0x01, 0x18
+ABS_MT_POSITION_X, ABS_MT_POSITION_Y = 0x35, 0x36
+
+
+def find_touch_device():
+    """(/dev/input/eventN, name) for the first touch-panel-looking device —
+    same detection as the demiurge-touch daemon."""
+    candidates = []
+    try:
+        with open("/proc/bus/input/devices") as f:
+            text = f.read()
+    except OSError:
+        return None
+    for chunk in text.strip().split("\n\n"):
+        name, handlers, ev, absbits = "", "", 0, 0
+        for line in chunk.splitlines():
+            if line.startswith("N:"):
+                m = re.search(r'Name="(.*)"', line)
+                name = m.group(1) if m else ""
+            elif line.startswith("H:"):
+                handlers = line
+            elif line.startswith("B: EV="):
+                ev = int(line.split("=", 1)[1], 16)
+            elif line.startswith("B: ABS="):
+                for w in line.split("=", 1)[1].split():
+                    absbits = (absbits << 64) | int(w, 16)
+        m = re.search(r"(event\d+)", handlers)
+        if not m:
+            continue
+        evdev = "/dev/input/" + m.group(1)
+        has_abs = bool(ev & (1 << EV_ABS))
+        has_xy = bool(absbits & (1 << ABS_X)) or bool(absbits & (1 << ABS_MT_POSITION_X))
+        if has_abs and has_xy:
+            score = 2 if re.search(r"touch", name, re.I) else 1
+            candidates.append((score, evdev, name))
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1], candidates[0][2]
+
+
+def read_absinfo(fd, code):
+    buf = bytearray(24)
+    req = (2 << 30) | (24 << 16) | (0x45 << 8) | (0x40 + code)
+    try:
+        fcntl.ioctl(fd, req, buf)
+    except OSError:
+        return None
+    _v, mn, mx, _f, _fl, _r = struct.unpack("iiiiii", buf)
+    if mx <= mn:
+        return None
+    return mn, mx
+
+
+class RawReader:
+    """Direct evdev reader — RAW panel coordinates, bypassing SDL and any
+    calibration. Single-touch view (slot 0 / plain ABS_X/Y), which is what the
+    resistive panel is. Non-blocking; poll() drains pending events."""
+
+    def __init__(self):
+        self.dev = self.name = None
+        self.fd = None
+        self.ranges = {}         # ABS code -> (min, max) as the kernel advertises
+        self.down = False
+        self.rx = self.ry = self.rp = -1
+        found = find_touch_device()
+        if found:
+            self.dev, self.name = found
+            try:
+                self.fd = open(self.dev, "rb", buffering=0)
+                os.set_blocking(self.fd.fileno(), False)
+                for code in (ABS_X, ABS_Y, ABS_PRESSURE):
+                    r = read_absinfo(self.fd, code)
+                    if r:
+                        self.ranges[code] = r
+            except OSError:
+                self.fd = None
+
+    def poll(self):
+        if not self.fd:
+            return
+        while True:
+            try:
+                data = self.fd.read(EV_SIZE)
+            except OSError:
+                return
+            if not data or len(data) < EV_SIZE:
+                return
+            _s, _u, etype, code, value = struct.unpack(EV_FMT, data)
+            if etype == EV_ABS:
+                if code in (ABS_X, ABS_MT_POSITION_X):
+                    self.rx = value
+                elif code in (ABS_Y, ABS_MT_POSITION_Y):
+                    self.ry = value
+                elif code == ABS_PRESSURE:
+                    self.rp = value
+            elif etype == EV_KEY and code == BTN_TOUCH:
+                self.down = bool(value)
+
+
+# ---------------------------------------------------------------- calibration
+class TouchCal:
+    """Affine raw→screen mapping: optional axis swap, then per-axis linear map
+    given by the RAW values at the two screen edges (inversion = min > max)."""
+
+    def __init__(self, swap_xy, rx0, rx1, ry0, ry1, width, height):
+        self.swap_xy = bool(swap_xy)
+        self.rx0, self.rx1 = float(rx0), float(rx1)   # raw at screen x=0 / x=W
+        self.ry0, self.ry1 = float(ry0), float(ry1)   # raw at screen y=0 / y=H
+        self.width, self.height = int(width), int(height)
+
+    def apply_norm(self, rawx, rawy):
+        """(rawx, rawy) -> (nx, ny) in 0..1, clamped."""
+        if self.swap_xy:
+            rawx, rawy = rawy, rawx
+        nx = (rawx - self.rx0) / (self.rx1 - self.rx0)
+        ny = (rawy - self.ry0) / (self.ry1 - self.ry0)
+        return max(0.0, min(1.0, nx)), max(0.0, min(1.0, ny))
+
+    def apply_px(self, rawx, rawy, w, h):
+        nx, ny = self.apply_norm(rawx, rawy)
+        return nx * (w - 1), ny * (h - 1)
+
+    @property
+    def inverted(self):
+        return self.rx0 > self.rx1 or self.ry0 > self.ry1
+
+    @classmethod
+    def default_path(cls):
+        home = os.environ.get("HOME", "")
+        for p in ([os.path.join(home, "demiurge/touch-cal.conf")] if home else []) + \
+                sorted(glob.glob("/home/*/demiurge/touch-cal.conf")):
+            if os.path.isfile(p):
+                return p
+        # nothing exists yet -> where a save should go
+        if home and os.path.isdir(os.path.join(home, "demiurge")):
+            return os.path.join(home, "demiurge/touch-cal.conf")
+        d = sorted(glob.glob("/home/*/demiurge"))
+        return os.path.join(d[0], "touch-cal.conf") if d else "touch-cal.conf"
+
+    @classmethod
+    def load(cls, path):
+        try:
+            with open(path) as f:
+                text = f.read()
+        except OSError:
+            return None
+        kv = {}
+        for line in text.splitlines():
+            m = re.match(r"^\s*([a-z_]+)\s*=\s*([^#]*)", line)
+            if m:
+                kv[m.group(1)] = m.group(2).strip()
+        try:
+            return cls(int(kv.get("swap_xy", 0)),
+                       float(kv["raw_x_min"]), float(kv["raw_x_max"]),
+                       float(kv["raw_y_min"]), float(kv["raw_y_max"]),
+                       int(kv.get("width", 800)), int(kv.get("height", 480)))
+        except (KeyError, ValueError):
+            return None
+
+    def save(self, path, device_name=""):
+        """Atomic write (tmp + rename) — called ONLY on a confirmed run."""
+        text = (
+            "# DEMIURGE touchscreen calibration — written by demiurge-touch-test\n"
+            "# on a completed + confirmed calibration run. Delete this file to\n"
+            "# fall back to the raw kernel-advertised range. Format: see\n"
+            "# demiurge/docs/config-reference.md (the touch section).\n"
+            "#\n"
+            "# raw_*_min/max = RAW evdev value at that screen edge; min > max\n"
+            "# means the axis is inverted. swap_xy = 1 means panel X drives\n"
+            "# screen Y (rotated mount).\n"
+            "version   = %d\n"
+            "swap_xy   = %d\n"
+            "raw_x_min = %.1f\n"
+            "raw_x_max = %.1f\n"
+            "raw_y_min = %.1f\n"
+            "raw_y_max = %.1f\n"
+            "width     = %d\n"
+            "height    = %d\n"
+            "device    = %s\n"
+            "date      = %s\n"
+        ) % (CAL_VERSION, 1 if self.swap_xy else 0,
+             self.rx0, self.rx1, self.ry0, self.ry1,
+             self.width, self.height, device_name,
+             time.strftime("%Y-%m-%d %H:%M:%S"))
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(text)
+        os.replace(tmp, path)
+
+    # ---- derived system-layer artifacts --------------------------------
+    def hwdb_lines(self, device_name):
+        """EVDEV_ABS udev hwdb entry (SDL/NEPTR-UI layer). Only expressible
+        when there is no swap and no inversion (EVDEV_ABS is min:max only)."""
+        if self.swap_xy or self.inverted:
+            return None
+        return ("evdev:name:%s:*\n"
+                " EVDEV_ABS_00=%d:%d\n"
+                " EVDEV_ABS_01=%d:%d\n"
+                % (device_name, round(self.rx0), round(self.rx1),
+                   round(self.ry0), round(self.ry1)))
+
+    def overlay_params(self):
+        """Equivalent ads7846 overlay params (reference only — the current
+        kernel ignores them; the hwdb entry is the effective layer)."""
+        xs = sorted((round(self.rx0), round(self.rx1)))
+        ys = sorted((round(self.ry0), round(self.ry1)))
+        note = ""
+        if self.inverted:
+            note = "  # NB axis inversion not expressible in overlay params"
+        return ("swapxy=%d,xmin=%d,xmax=%d,ymin=%d,ymax=%d%s"
+                % (1 if self.swap_xy else 0, xs[0], xs[1], ys[0], ys[1], note))
+
+
+def fit_axis(pairs):
+    """Least-squares screen = a*raw + b over (raw, screen) pairs -> (a, b)."""
+    n = len(pairs)
+    sx = sum(p[0] for p in pairs)
+    sy = sum(p[1] for p in pairs)
+    sxx = sum(p[0] * p[0] for p in pairs)
+    sxy = sum(p[0] * p[1] for p in pairs)
+    den = n * sxx - sx * sx
+    if abs(den) < 1e-9:
+        return None
+    a = (n * sxy - sx * sy) / den
+    if abs(a) < 1e-9:
+        return None
+    b = (sy - a * sx) / n
+    return a, b
+
+
+def compute_cal(targets, raws, w, h):
+    """5 screen targets + averaged raw readings -> (TouchCal, residuals[px]).
+    Detects axis swap from the corner geometry, then fits each axis."""
+    # swap detection: across the horizontal corner pairs (TL-TR, BL-BR), does
+    # raw X or raw Y move more?
+    dxx = abs(raws[1][0] - raws[0][0]) + abs(raws[3][0] - raws[2][0])
+    dxy = abs(raws[1][1] - raws[0][1]) + abs(raws[3][1] - raws[2][1])
+    swap = dxy > dxx
+    rr = [(r[1], r[0]) if swap else (r[0], r[1]) for r in raws]
+    fx = fit_axis([(rr[i][0], targets[i][0]) for i in range(len(targets))])
+    fy = fit_axis([(rr[i][1], targets[i][1]) for i in range(len(targets))])
+    if not fx or not fy:
+        return None, None
+    ax, bx = fx
+    ay, by = fy
+    cal = TouchCal(swap, (0 - bx) / ax, (w - bx) / ax,
+                   (0 - by) / ay, (h - by) / ay, w, h)
+    residuals = []
+    for i, (tx, ty) in enumerate(targets):
+        px, py = cal.apply_px(raws[i][0], raws[i][1], w, h)
+        residuals.append(math.hypot(px - tx, py - ty))
+    return cal, residuals
+
+
+def stage_system_layers(cal, reader, cal_path):
+    """After a confirmed save: stage the derived layers for SDL consumers.
+    Non-fatal on any failure — the cal file itself is already saved."""
+    name = reader.name or "ADS7846 Touchscreen"
+    # reference file: overlay params + hwdb text
+    ref = os.path.join(os.path.dirname(cal_path) or ".", "touch-cal-overlay.txt")
+    hwdb = cal.hwdb_lines(name)
+    try:
+        with open(ref, "w") as f:
+            f.write("# Derived from %s — reference copy.\n" % cal_path)
+            f.write("# ads7846 overlay params (IGNORED by the current kernel,"
+                    " kept for reference):\n#   %s\n" % cal.overlay_params())
+            f.write("# udev hwdb entry (the effective SDL/NEPTR-UI layer, "
+                    "staged to %s):\n%s" % (HWDB_PATH, hwdb or "#   (not "
+                    "expressible: axis swap/inversion — cal file only)\n"))
+    except OSError as e:
+        print("[cal] could not write %s: %s" % (ref, e), flush=True)
+    print("[cal] equivalent overlay params: %s" % cal.overlay_params(), flush=True)
+    if not hwdb:
+        print("[cal] swap/inversion present -> no hwdb entry (cal-file "
+              "consumers only)", flush=True)
+        return
+    sysname = os.path.basename(reader.dev or "")
+    try:
+        p = subprocess.run(["sudo", "-n", "tee", HWDB_PATH],
+                           input=hwdb.encode(), capture_output=True)
+        if p.returncode != 0:
+            raise RuntimeError(p.stderr.decode().strip() or "tee failed")
+        for cmd in (["sudo", "-n", "systemd-hwdb", "update"],
+                    ["sudo", "-n", "udevadm", "trigger",
+                     "--sysname-match=%s" % sysname] if sysname else None):
+            if cmd:
+                p = subprocess.run(cmd, capture_output=True)
+                if p.returncode != 0:
+                    raise RuntimeError(" ".join(cmd) + ": "
+                                       + p.stderr.decode().strip())
+        print("[cal] hwdb staged + applied (%s) — SDL apps pick it up on "
+              "next device open (e.g. neptr-ui restart)" % HWDB_PATH, flush=True)
+    except (OSError, RuntimeError) as e:
+        print("[cal] hwdb staging failed (%s) — cal file saved; to apply the "
+              "SDL layer manually:\n  sudo tee %s <<'EOF'\n%sEOF\n  sudo "
+              "systemd-hwdb update && sudo udevadm trigger" %
+              (e, HWDB_PATH, hwdb), flush=True)
+
+
+# ---------------------------------------------------------------- drawing
+def glow_surface(radius, color):
+    size = radius * 2
+    surf = pygame.Surface((size, size), pygame.SRCALPHA)
+    r, g, b = color
+    for i in range(radius, 0, -1):
+        a = int(90 * (1 - i / radius) ** 2)
+        pygame.draw.circle(surf, (r, g, b, a), (radius, radius), i)
+    return surf
+
+
+def crosshair(screen, x, y, size=10, color=GRID):
+    pygame.draw.line(screen, color, (x - size, y), (x + size, y))
+    pygame.draw.line(screen, color, (x, y - size), (x, y + size))
+    pygame.draw.circle(screen, color, (int(x), int(y)), size // 2, 1)
+
+
+def draw_target(screen, x, y, t, active):
+    """Animated calibration target: pulsing rings + crosshair."""
+    col = ACCENT if active else (58, 70, 84)
+    if active:
+        k = (math.sin(t * 4.0) + 1) / 2
+        r = int(16 + 10 * k)
+        s = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(s, col + (110,), (r + 2, r + 2), r, 2)
+        screen.blit(s, (x - r - 2, y - r - 2))
+        # outward fading ring
+        k2 = (t * 0.8) % 1.0
+        r2 = int(18 + 34 * k2)
+        a2 = int(120 * (1 - k2))
+        s2 = pygame.Surface((r2 * 2 + 4, r2 * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(s2, col + (a2,), (r2 + 2, r2 + 2), r2, 1)
+        screen.blit(s2, (x - r2 - 2, y - r2 - 2))
+    pygame.draw.line(screen, col, (x - 14, y), (x + 14, y))
+    pygame.draw.line(screen, col, (x, y - 14), (x, y + 14))
+    pygame.draw.circle(screen, col, (x, y), 4, 0 if active else 1)
+
+
+def draw_accept_pulse(screen, x, y, age):
+    """Satisfying green pulse + checkmark after a point is accepted."""
+    k = min(1.0, age / 0.45)
+    r = int(14 + 46 * k)
+    a = int(200 * (1 - k))
+    s = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+    pygame.draw.circle(s, GOOD + (a,), (r + 2, r + 2), r, 3)
+    screen.blit(s, (x - r - 2, y - r - 2))
+    pygame.draw.lines(screen, GOOD, False,
+                      [(x - 9, y), (x - 3, y + 7), (x + 10, y - 8)], 3)
+
+
+def mean_std(vals):
+    n = len(vals)
+    m = sum(vals) / n
+    var = sum((v - m) ** 2 for v in vals) / n
+    return m, math.sqrt(var)
+
+
+# ---------------------------------------------------------------- calibration UI
+class Cancelled(Exception):
+    pass
+
+
+def pump_cancel_keys():
+    """Drain SDL events during calibration; ESC/Q/QUIT cancel."""
+    for e in pygame.event.get():
+        if e.type == pygame.QUIT or \
+                (e.type == pygame.KEYDOWN and e.key in (pygame.K_ESCAPE, pygame.K_q)):
+            raise Cancelled()
+
+
+def run_calibration(screen, reader, fonts):
+    """Full calibration flow. Returns a confirmed TouchCal, or None if the
+    user cancelled / chose redo-abort. NEVER writes any file itself."""
+    W, H = screen.get_size()
+    font, font_small, font_big = fonts
+    clock = pygame.time.Clock()
+    m = TARGET_INSET
+    targets = [(m, m), (W - m, m), (m, H - m), (W - m, H - m), (W // 2, H // 2)]
+    labels = ["top-left", "top-right", "bottom-left", "bottom-right", "center"]
+
+    if not reader.fd:
+        # no raw device — show a message briefly, then bail to mirror
+        for _ in range(150):
+            pump_cancel_keys()
+            screen.fill(BG)
+            msg = font_big.render("no touch device for calibration", True, BAD)
+            screen.blit(msg, ((W - msg.get_width()) // 2, H // 2 - 20))
+            pygame.display.flip()
+            clock.tick(60)
+        return None
+
+    def collect_point(idx, message=None):
+        """One target: wait for a stable press, return (rawx, rawy).
+        Raises Cancelled on ESC / long-hold-anywhere."""
+        tx, ty = targets[idx]
+        t0 = time.monotonic()
+        samples = []
+        press_t0 = None
+        state = "wait"          # wait -> press -> (accept | retry)
+        note = message
+        note_t0 = time.monotonic() if message else None
+        while True:
+            now = time.monotonic()
+            pump_cancel_keys()
+            reader.poll()
+            pressed = reader.down or reader.rp > 0
+            if state == "wait":
+                if pressed and reader.rx >= 0 and reader.ry >= 0:
+                    state = "press"
+                    press_t0 = now
+                    samples = []
+            if state == "press":
+                if pressed:
+                    if reader.rx >= 0 and reader.ry >= 0:
+                        samples.append((reader.rx, reader.ry))
+                    if now - press_t0 >= CANCEL_HOLD_S:
+                        raise Cancelled()
+                else:
+                    body = samples[SETTLE_SAMPLES:]
+                    if len(body) >= MIN_SAMPLES:
+                        _mx, sx = mean_std([s[0] for s in body])
+                        _my, sy = mean_std([s[1] for s in body])
+                        if sx <= MAX_SPREAD_RAW and sy <= MAX_SPREAD_RAW:
+                            mx = sum(s[0] for s in body) / len(body)
+                            my = sum(s[1] for s in body) / len(body)
+                            return mx, my
+                    state = "wait"
+                    note = "unsteady — tap and hold the target again"
+                    note_t0 = now
+
+            # ---------------- draw ----------------
+            screen.fill(BG)
+            pygame.draw.line(screen, GRID, (W // 2, 0), (W // 2, H))
+            pygame.draw.line(screen, GRID, (0, H // 2), (W, H // 2))
+            for j, (cx, cy) in enumerate(targets):
+                if j != idx:
+                    crosshair(screen, cx, cy, 8, GRID)
+            draw_target(screen, tx, ty, now - t0, True)
+
+            title = font_big.render("touch calibration", True, TEXT)
+            screen.blit(title, ((W - title.get_width()) // 2, H // 2 - 74))
+            sub = font.render("tap and hold the glowing target  (%s)"
+                              % labels[idx], True, TEXT_DIM)
+            screen.blit(sub, ((W - sub.get_width()) // 2, H // 2 - 44))
+            # progress dots
+            for j in range(len(targets)):
+                col = GOOD if j < idx else (ACCENT if j == idx else GRID)
+                pygame.draw.circle(screen, col, (W // 2 - 36 + j * 18,
+                                                 H // 2 + 40), 5,
+                                   0 if j <= idx else 1)
+            prog = font_small.render("point %d / %d" % (idx + 1, len(targets)),
+                                     True, TEXT_DIM)
+            screen.blit(prog, ((W - prog.get_width()) // 2, H // 2 + 54))
+            if note and note_t0 and now - note_t0 < 2.5:
+                warn = font.render(note, True, (255, 184, 76))
+                screen.blit(warn, ((W - warn.get_width()) // 2, H // 2 + 78))
+            # press feedback: fill arc while holding
+            if state == "press" and press_t0 is not None:
+                k = min(1.0, len(samples) / float(SETTLE_SAMPLES + MIN_SAMPLES))
+                pygame.draw.arc(screen, ACCENT,
+                                pygame.Rect(tx - 24, ty - 24, 48, 48),
+                                math.pi / 2, math.pi / 2 + k * 2 * math.pi, 3)
+                held = now - press_t0
+                if held >= CANCEL_HOLD_S * 0.5:
+                    ck = min(1.0, (held - CANCEL_HOLD_S * 0.5)
+                             / (CANCEL_HOLD_S * 0.5))
+                    pygame.draw.arc(screen, BAD,
+                                    pygame.Rect(tx - 32, ty - 32, 64, 64),
+                                    math.pi / 2, math.pi / 2 + ck * 2 * math.pi, 2)
+                    ct = font_small.render("keep holding to cancel", True, BAD)
+                    screen.blit(ct, ((W - ct.get_width()) // 2, H - 40))
+            hint = font_small.render("ESC or hold 4 s to cancel — existing "
+                                     "calibration is kept", True, TEXT_DIM)
+            screen.blit(hint, ((W - hint.get_width()) // 2, H - 22))
+            pygame.display.flip()
+            clock.tick(60)
+
+    def accept_anim(idx):
+        tx, ty = targets[idx]
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 0.45:
+            pump_cancel_keys()
+            reader.poll()
+            screen.fill(BG)
+            for j, (cx, cy) in enumerate(targets):
+                if j != idx:
+                    crosshair(screen, cx, cy, 8, GRID)
+            draw_accept_pulse(screen, tx, ty, time.monotonic() - t0)
+            pygame.display.flip()
+            clock.tick(60)
+
+    def verify(cal, residuals):
+        """Crosshair follows the finger WITH cal applied; ✓ save / ✗ redo.
+        Returns True (save), False (redo) — Cancelled propagates."""
+        btn_h, btn_w = 92, 150
+        no_rect = pygame.Rect(16, H - btn_h - 16, btn_w, btn_h)
+        yes_rect = pygame.Rect(W - btn_w - 16, H - btn_h - 16, btn_w, btn_h)
+        was_down = False
+        press_t0 = None
+        while True:
+            now = time.monotonic()
+            pump_cancel_keys()
+            reader.poll()
+            pressed = reader.down or reader.rp > 0
+            px = py = None
+            if reader.rx >= 0 and reader.ry >= 0:
+                px, py = cal.apply_px(reader.rx, reader.ry, W, H)
+            if pressed and not was_down:
+                press_t0 = now
+            if pressed and press_t0 and now - press_t0 >= CANCEL_HOLD_S:
+                raise Cancelled()
+            if was_down and not pressed and px is not None:
+                if yes_rect.collidepoint(px, py):
+                    return True
+                if no_rect.collidepoint(px, py):
+                    return False
+            was_down = pressed
+
+            screen.fill(BG)
+            pygame.draw.line(screen, GRID, (W // 2, 0), (W // 2, H))
+            pygame.draw.line(screen, GRID, (0, H // 2), (W, H // 2))
+            for cx, cy in targets:
+                crosshair(screen, cx, cy, 8, GRID)
+            title = font_big.render("verify — the crosshair should sit "
+                                    "under your finger", True, TEXT)
+            screen.blit(title, ((W - title.get_width()) // 2, 34))
+            info = font_small.render(
+                "fit residual max %.1f px   swap=%d   x %.0f→%.0f   y %.0f→%.0f"
+                % (max(residuals), 1 if cal.swap_xy else 0,
+                   cal.rx0, cal.rx1, cal.ry0, cal.ry1), True, TEXT_DIM)
+            screen.blit(info, ((W - info.get_width()) // 2, 62))
+            # buttons
+            pygame.draw.rect(screen, (20, 34, 26), yes_rect, border_radius=10)
+            pygame.draw.rect(screen, GOOD, yes_rect, 2, border_radius=10)
+            pygame.draw.lines(screen, GOOD, False,
+                              [(yes_rect.centerx - 16, yes_rect.centery),
+                               (yes_rect.centerx - 5, yes_rect.centery + 12),
+                               (yes_rect.centerx + 18, yes_rect.centery - 12)], 4)
+            yt = font_small.render("save", True, GOOD)
+            screen.blit(yt, (yes_rect.centerx - yt.get_width() // 2,
+                             yes_rect.bottom - 24))
+            pygame.draw.rect(screen, (34, 20, 22), no_rect, border_radius=10)
+            pygame.draw.rect(screen, BAD, no_rect, 2, border_radius=10)
+            c = no_rect.center
+            pygame.draw.line(screen, BAD, (c[0] - 12, c[1] - 12),
+                             (c[0] + 12, c[1] + 12), 4)
+            pygame.draw.line(screen, BAD, (c[0] - 12, c[1] + 12),
+                             (c[0] + 12, c[1] - 12), 4)
+            nt = font_small.render("redo", True, BAD)
+            screen.blit(nt, (no_rect.centerx - nt.get_width() // 2,
+                             no_rect.bottom - 24))
+            # tracked crosshair
+            if pressed and px is not None:
+                crosshair(screen, px, py, 22, ACCENT)
+                pygame.draw.circle(screen, ACCENT, (int(px), int(py)), 3)
+            pygame.display.flip()
+            clock.tick(60)
+
+    # ---- flow: collect 5 points, re-ask wild outliers, verify -----------
+    try:
+        while True:                          # redo loop
+            raws = [None] * len(targets)
+            note = None
+            for i in range(len(targets)):
+                raws[i] = collect_point(i, note)
+                note = None
+                accept_anim(i)
+            reasks = 0
+            while True:
+                cal, residuals = compute_cal(targets, raws, W, H)
+                if cal is None:
+                    note = "degenerate readings — starting over"
+                    break
+                worst = max(range(len(residuals)), key=lambda i: residuals[i])
+                if residuals[worst] <= MAX_RESIDUAL_PX or reasks >= 3:
+                    break
+                reasks += 1
+                raws[worst] = collect_point(
+                    worst, "point was off — tap %s again" % labels[worst])
+                accept_anim(worst)
+            if cal is None:
+                continue
+            if residuals and max(residuals) > MAX_RESIDUAL_PX:
+                note = "fit is poor — repeating calibration"
+                continue
+            if verify(cal, residuals):
+                return cal
+            # ✗ redo -> loop
+    except Cancelled:
+        return None
+
+
+# ---------------------------------------------------------------- mirror mode
+class Touch:
+    def __init__(self, slot, x, y, p):
+        self.slot = slot
+        self.x, self.y, self.p = x, y, p
+        self.trail = [(x, y, time.monotonic())]
+
+    def move(self, x, y, p):
+        self.x, self.y, self.p = x, y, p
+        now = time.monotonic()
+        self.trail.append((x, y, now))
+        cutoff = now - TRAIL_LIFE
+        while self.trail and self.trail[0][2] < cutoff:
+            self.trail.pop(0)
+
+
+def run_mirror(screen, reader, cal, fonts):
+    """The visual touch mirror. Returns 'exit' or 'calibrate'."""
+    W, H = screen.get_size()
+    font, font_small, font_big = fonts
+    clock = pygame.time.Clock()
+    glows = [glow_surface(56, c) for c in SLOT_COLORS]
+    dots = [glow_surface(16, c) for c in SLOT_COLORS]
+    driver = pygame.display.get_driver()
+
+    # SDL normalizes finger coords by the kernel-advertised range; to apply
+    # our calibration we invert that back to RAW, then map raw->screen.
+    kx = reader.ranges.get(ABS_X, (0, 4095))
+    ky = reader.ranges.get(ABS_Y, (0, 4095))
+
+    def finger_px(e):
+        if cal:
+            rawx = kx[0] + e.x * (kx[1] - kx[0])
+            rawy = ky[0] + e.y * (ky[1] - ky[0])
+            return cal.apply_px(rawx, rawy, W, H)
+        return e.x * W, e.y * H
+
+    touches = {}
+    slot_of = {}
+    ripples = []
+    events_seen = downs_seen = max_simul = 0
+    finger_native = False
+    corner_hold_t0 = None       # top-left: exit
+    cal_hold_t0 = None          # top-right: calibrate
+    result = "exit"
+    running = True
+
+    def next_slot():
+        used = set(slot_of.values())
+        for i in range(4):
+            if i not in used:
+                return i
+        return 3
+
+    def down(tid, x, y, p):
+        nonlocal max_simul, downs_seen
+        slot = next_slot()
+        slot_of[tid] = slot
+        touches[tid] = Touch(slot, x, y, p)
+        ripples.append((x, y, time.monotonic(), slot))
+        downs_seen += 1
+        max_simul = max(max_simul, len(touches))
+
+    def up(tid):
+        touches.pop(tid, None)
+        slot_of.pop(tid, None)
+
+    while running:
+        now = time.monotonic()
+        reader.poll()           # keep raw state fresh for a CAL transition
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                running = False
+            elif e.type == pygame.KEYDOWN and e.key in (pygame.K_ESCAPE, pygame.K_q):
+                running = False
+            elif e.type == pygame.KEYDOWN and e.key == pygame.K_c:
+                return "calibrate"
+            elif e.type == pygame.FINGERDOWN:
+                finger_native = True
+                events_seen += 1
+                fx, fy = finger_px(e)
+                down(e.finger_id, fx, fy, getattr(e, "pressure", 0.0))
+            elif e.type == pygame.FINGERMOTION:
+                events_seen += 1
+                fx, fy = finger_px(e)
+                t = touches.get(e.finger_id)
+                if t:
+                    t.move(fx, fy, getattr(e, "pressure", 0.0))
+                else:
+                    down(e.finger_id, fx, fy, getattr(e, "pressure", 0.0))
+            elif e.type == pygame.FINGERUP:
+                events_seen += 1
+                up(e.finger_id)
+            elif e.type == pygame.MOUSEBUTTONDOWN and not finger_native:
+                events_seen += 1
+                down("mouse", e.pos[0], e.pos[1], 0.0)
+            elif e.type == pygame.MOUSEMOTION and not finger_native:
+                if "mouse" in touches:
+                    events_seen += 1
+                    touches["mouse"].move(e.pos[0], e.pos[1], 0.0)
+            elif e.type == pygame.MOUSEBUTTONUP and not finger_native:
+                events_seen += 1
+                up("mouse")
+
+        # 5 s top-left corner hold exits
+        holding = any(t.x < CORNER_PX and t.y < CORNER_PX for t in touches.values())
+        if holding:
+            if corner_hold_t0 is None:
+                corner_hold_t0 = now
+            elif now - corner_hold_t0 >= HOLD_EXIT_S:
+                running = False
+        else:
+            corner_hold_t0 = None
+        # 1.5 s top-right corner hold enters calibration
+        cal_holding = any(t.x > W - CORNER_PX and t.y < CORNER_PX
+                          for t in touches.values())
+        if cal_holding:
+            if cal_hold_t0 is None:
+                cal_hold_t0 = now
+            elif now - cal_hold_t0 >= HOLD_CAL_S:
+                return "calibrate"
+        else:
+            cal_hold_t0 = None
+
+        # ---------------- draw ----------------
+        screen.fill(BG)
+        pygame.draw.line(screen, GRID, (W // 2, 0), (W // 2, H))
+        pygame.draw.line(screen, GRID, (0, H // 2), (W, H // 2))
+        m = 24
+        for cx, cy in ((m, m), (W - m, m), (m, H - m), (W - m, H - m),
+                       (W // 2, H // 2)):
+            crosshair(screen, cx, cy, 10, (58, 70, 84))
+
+        # CAL corner button (top-right)
+        cal_col = ACCENT if cal_hold_t0 else TEXT_DIM
+        ct = font_small.render("CAL", True, cal_col)
+        screen.blit(ct, (W - ct.get_width() - 14, 12))
+        pygame.draw.circle(screen, cal_col, (W - 24, 40), 16, 1)
+        if cal_hold_t0 is not None:
+            k = min(1.0, (now - cal_hold_t0) / HOLD_CAL_S)
+            pygame.draw.arc(screen, ACCENT, pygame.Rect(W - 44, 20, 40, 40),
+                            math.pi / 2, math.pi / 2 + k * 2 * math.pi, 3)
+
+        alive = []
+        for x, y, t0, slot in ripples:
+            age = now - t0
+            if age < RIPPLE_LIFE:
+                k = age / RIPPLE_LIFE
+                r = int(18 + 70 * k)
+                a = int(160 * (1 - k))
+                s = pygame.Surface((r * 2 + 2, r * 2 + 2), pygame.SRCALPHA)
+                pygame.draw.circle(s, SLOT_COLORS[slot] + (a,), (r + 1, r + 1), r, 2)
+                screen.blit(s, (x - r - 1, y - r - 1))
+                alive.append((x, y, t0, slot))
+        ripples = alive
+
+        for t in touches.values():
+            col = SLOT_COLORS[t.slot]
+            for tx, ty, tt in t.trail:
+                k = 1 - (now - tt) / TRAIL_LIFE
+                if k <= 0:
+                    continue
+                screen.blit(dots[t.slot], (tx - 16, ty - 16),
+                            special_flags=pygame.BLEND_ADD)
+            screen.blit(glows[t.slot], (t.x - 56, t.y - 56),
+                        special_flags=pygame.BLEND_ADD)
+            pygame.draw.circle(screen, col, (int(t.x), int(t.y)), 7)
+            pygame.draw.circle(screen, BG, (int(t.x), int(t.y)), 3)
+            p_txt = ("  p=%.2f" % t.p) if t.p else ""
+            label = font.render("s%d  %d,%d%s" % (t.slot, t.x, t.y, p_txt), True, col)
+            lx = min(max(8, t.x + 18), W - label.get_width() - 8)
+            ly = min(max(8, t.y - 34), H - label.get_height() - 30)
+            screen.blit(label, (lx, ly))
+
+        if corner_hold_t0 is not None:
+            k = min(1.0, (now - corner_hold_t0) / HOLD_EXIT_S)
+            pygame.draw.arc(screen, (255, 120, 120),
+                            pygame.Rect(16, 16, 56, 56),
+                            math.pi / 2, math.pi / 2 + k * 2 * math.pi, 3)
+            screen.blit(font_small.render("hold to exit", True, (255, 120, 120)),
+                        (14, 78))
+
+        if not touches:
+            hint = font_big.render("touch the screen", True, TEXT_DIM)
+            screen.blit(hint, ((W - hint.get_width()) // 2, H // 2 - 60))
+
+        bar = pygame.Rect(0, H - 26, W, 26)
+        pygame.draw.rect(screen, (16, 20, 26), bar)
+        pygame.draw.line(screen, GRID, (0, H - 26), (W, H - 26))
+        status = ("DEMIURGE touch test   %s %dx%d   cal %s   events %d   "
+                  "taps %d   active %d   max simul %d   hold TL 5s exit / "
+                  "TR 1.5s CAL"
+                  % (driver, W, H, "on" if cal else "off", events_seen,
+                     downs_seen, len(touches), max_simul))
+        screen.blit(font_small.render(status, True, TEXT), (10, H - 21))
+
+        pygame.display.flip()
+        clock.tick(60)
+
+    return result
+
+
+# ---------------------------------------------------------------- main
+def main():
+    args = sys.argv[1:]
+    force_cal = "--calibrate" in args
+    force_mirror = "--mirror" in args
+    if any(a not in ("--calibrate", "--mirror") for a in args):
+        print("usage: demiurge-touch-test [--calibrate|--mirror]",
+              file=sys.stderr)
+        return 2
+
+    pygame.init()
+    flags = pygame.FULLSCREEN
+    try:
+        screen = pygame.display.set_mode((0, 0), flags, vsync=1)
+    except TypeError:
+        screen = pygame.display.set_mode((0, 0), flags)
+    except pygame.error:
+        screen = pygame.display.set_mode((800, 480))
+    pygame.display.set_caption("DEMIURGE touch test")
+    pygame.mouse.set_visible(False)
+    fonts = (pygame.font.Font(None, 22), pygame.font.Font(None, 18),
+             pygame.font.Font(None, 30))
+
+    reader = RawReader()
+    cal_path = TouchCal.default_path()
+    cal = TouchCal.load(cal_path)
+    print("[touch-test] device=%s cal=%s (%s)"
+          % (reader.dev or "none", "loaded" if cal else "none", cal_path),
+          flush=True)
+
+    want_cal = force_cal or (cal is None and not force_mirror)
+    while True:
+        if want_cal:
+            new = run_calibration(screen, reader, fonts)
+            if new is not None:
+                new.save(cal_path, reader.name or "")
+                print("[cal] saved %s" % cal_path, flush=True)
+                stage_system_layers(new, reader, cal_path)
+                cal = new
+            else:
+                print("[cal] cancelled — existing calibration untouched",
+                      flush=True)
+            want_cal = False
+        result = run_mirror(screen, reader, cal, fonts)
+        if result == "calibrate":
+            want_cal = True
+            continue
+        break
+
+    pygame.quit()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

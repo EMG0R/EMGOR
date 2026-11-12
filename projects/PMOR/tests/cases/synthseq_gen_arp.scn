@@ -1,0 +1,7 @@
+seconds 4.0
+set syn.algo 1
+set seq.1.mode 2
+set seq.1.density 0.6
+set seq.1.probability 0.9
+set seq.1.arp_on 1
+at 0 pads_held 0x11

@@ -1,0 +1,25 @@
+# /boot/firmware/demiurge.conf
+#
+# DEMIURGE boot config — a pointer to the file you actually edit.
+# Mount the SD card's boot partition on any computer to change this,
+# then reboot the Pi. For everything else, edit ~/demiurge/live.conf
+# over SSH while the Pi is running (the launcher hot-reloads it).
+#
+# `launch =` resolves in this order:
+#   1. whatever absolute path is set below, if any
+#   2. otherwise ~/demiurge/live.conf
+#
+# Only one user-facing config format exists: live.conf. The simple
+# `chain =` interface compiles down to the internal Rust session graph
+# at runtime — most users never need to touch the launcher source.
+# If you want to point at an alternate live.conf (e.g. a different
+# show file), set its absolute path below.
+
+# By default DEMIURGE loads ~/demiurge/live.conf for whoever the launcher
+# runs as — no username needed here. Only set an absolute path below if you
+# want to point at a DIFFERENT live.conf (e.g. an alternate show file):
+# launch = /home/youruser/demiurge/live.conf
+
+# Note: link / bpm / chain / midi all live in ~/demiurge/live.conf,
+# not here — they need to be hot-toggleable on save, which only the
+# live.conf watcher provides.

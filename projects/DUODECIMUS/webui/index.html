@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DUODECIMUS Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="rail">
+  <div class="brand">
+    <span class="brand-mark">DUODECIMUS</span><span class="brand-ver">XII</span>
+    <span class="brand-sub">bench monitor</span>
+  </div>
+
+  <div class="rail-group">
+    <label class="lab" for="midiIn">MIDI input</label>
+    <select id="midiIn" class="ctl"><option value="">All inputs</option></select>
+    <button id="rescan" class="btn" title="Re-enumerate MIDI ports">Rescan</button>
+  </div>
+
+  <div class="rail-group">
+    <span class="lab">Link</span>
+    <span id="linkChip" class="chip chip-off"><i class="dot"></i><span id="linkText">no device</span></span>
+  </div>
+
+  <div class="rail-group">
+    <span class="lab" title="Every inbound MIDI message, counted before any decoding">RX</span>
+    <div class="rx-read">
+      <span id="rxCount">0</span>
+      <span class="rx-sub"><span id="rxMapped">0</span> decoded</span>
+    </div>
+    <span id="rxNote" class="rx-note">no messages yet</span>
+    <button id="rxReset" class="btn btn-ghost" title="Zero the counters">Zero</button>
+  </div>
+
+  <div class="rail-group">
+    <span class="lab" title="Press and hold a knob: 5 s sends CC 116, 8 s sends CC 117, value is the encoder number">Last hold</span>
+    <span id="holdRead" class="hold-read">none yet</span>
+  </div>
+
+  <div class="rail-group">
+    <span class="lab">Map</span>
+    <div class="map-read">
+      <span class="map-ch">ch 7</span>
+      <span class="map-cc">cc20-31 turn · cc102-113 press<br>cc116 capture · cc117 delete<br>cc14/15 exp · cc114/115 butt</span>
+    </div>
+  </div>
+
+  <div class="rail-group">
+    <span class="lab">Rotation mode</span>
+    <select id="modeSel" class="ctl">
+      <option value="auto">Auto-detect</option>
+      <option value="relative">Relative</option>
+      <option value="accumulator">Accumulator</option>
+    </select>
+    <span id="modeChip" class="chip">relative</span>
+  </div>
+
+  <div class="rail-group">
+    <span class="lab">Button polarity</span>
+    <select id="polSel" class="ctl">
+      <option value="normal">Normal — 127 = on</option>
+      <option value="inverted">Inverted — 0 = on</option>
+    </select>
+  </div>
+
+  <div class="rail-group rail-right">
+    <button id="simToggle" class="btn btn-sim">Simulate</button>
+  </div>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<main class="stage">
+
+ <div class="col-left">
+  <section class="panel rack-panel">
+    <div class="panel-head">
+      <h2>Encoder rack</h2>
+      <div class="head-tools">
+        <label class="switch"><input type="checkbox" id="physView"><span>Arrange by physical layout</span></label>
+        <span class="hint" id="rackHint">tiles ordered by firmware index</span>
+      </div>
+    </div>
+    <div id="rack" class="rack"></div>
+  </section>
+
+  <section class="panel pedal-panel">
+    <div class="panel-head">
+      <h2>Pedals</h2>
+      <span class="hint">Each jack sends its own CCs, so the two are told apart. A jack acting as a footswitch is a <b>Butt</b>.</span>
+    </div>
+    <div class="pedals" id="pedals"></div>
+  </section>
+ </div>
+
+  <aside class="panel map-panel">
+    <div class="panel-head">
+      <h2>Physical layout</h2>
+      <select id="gridSel" class="ctl">
+        <option value="4x3">4 rows × 3 cols</option>
+        <option value="6x2">6 rows × 2 cols</option>
+        <option value="3x4">3 rows × 4 cols</option>
+        <option value="2x6">2 rows × 6 cols</option>
+      </select>
+    </div>
+
+    <div class="assign-bar">
+      <button id="assignToggle" class="btn btn-assign">Assign mode</button>
+      <label class="switch"><input type="checkbox" id="autoAdvance" checked><span>Auto-advance</span></label>
+      <button id="clearAll" class="btn btn-ghost">Clear all</button>
+    </div>
+    <p class="assign-help" id="assignHelp">Encoder numbering is aligned in firmware, so encoder 1 really is the top-left knob. Use this to arrange the tiles to match your panel: turn on assign mode, click a cell, then turn the encoder you want there.</p>
+
+    <div id="grid" class="grid"></div>
+
+    <div class="led-note">
+      <strong>NeoPixel indices are typed by hand.</strong> The twelve pixels are outputs — nothing about them appears in the MIDI stream. Count them along the data chain from pin&nbsp;13 and enter each cell's pixel number in its <span class="led-swatch">LED</span> box.
+    </div>
+
+    <div class="panel-head panel-head-sub"><h2>Export</h2></div>
+    <div class="assign-bar">
+      <label class="switch"><input type="checkbox" id="zeroBased" checked><span>0-based (firmware) values</span></label>
+    </div>
+    <pre id="exportOut" class="export"></pre>
+    <div class="assign-bar">
+      <button id="copyC" class="btn">Copy C arrays</button>
+      <button id="saveJson" class="btn btn-ghost">Save JSON</button>
+      <button id="loadJson" class="btn btn-ghost">Load JSON</button>
+      <input type="file" id="jsonFile" accept="application/json,.json" hidden>
+    </div>
+    <div id="exportMsg" class="export-msg"></div>
+  </aside>
+
+  <section class="panel log-panel">
+    <div class="panel-head">
+      <h2>Raw MIDI</h2>
+      <div class="head-tools">
+        <input id="logFilter" class="ctl ctl-text" type="text" placeholder="filter — try cc20, cc102, capture, delete, butt">
+        <button id="logPause" class="btn">Pause</button>
+        <button id="logClear" class="btn btn-ghost">Clear</button>
+        <span class="hint"><span id="logCount">0</span> held</span>
+      </div>
+    </div>
+    <div class="log-head"><span>time</span><span>ch</span><span>cc</span><span>val</span><span>meaning</span></div>
+    <div id="log" class="log"></div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

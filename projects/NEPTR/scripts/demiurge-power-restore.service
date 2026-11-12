@@ -1,0 +1,21 @@
+# Re-apply the active patch's runtime power mode on boot, so the full mode
+# (patch + its power) survives reboots. cpufreq changes are otherwise runtime
+# only and revert to the config.txt default after a reboot.
+#
+#   INSTALL ON THE PI:
+#     sudo install -m0644 demiurge-power-restore.service /etc/systemd/system/demiurge-power-restore.service
+#     sudo systemctl daemon-reload && sudo systemctl enable demiurge-power-restore.service
+#
+# Power mechanism is user-owned (see [[feedback-pi-power-throttle-ownership]]);
+# this oneshot only re-applies the level recorded in live.conf via demiurge-power.
+[Unit]
+Description=DEMIURGE — restore patch power mode on boot
+After=multi-user.target demiurge.service
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/demiurge-power-restore
+
+[Install]
+WantedBy=multi-user.target

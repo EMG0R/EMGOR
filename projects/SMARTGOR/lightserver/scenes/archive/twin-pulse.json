@@ -1,0 +1,49 @@
+{
+  "name": "twin-pulse",
+  "master": {"brightness": 0.9, "blur": 2.5, "tone_map": "reinhard",
+             "strobe": {"mode": "pulse", "rate_hz": 0.06, "depth": 0.3}},
+  "layers": [
+    {
+      "type": "wave",
+      "blend": "add",
+      "opacity": 0.55,
+      "waves": [
+        {"wavelength": 610, "speed": 42, "amplitude": 0.7},
+        {"wavelength": 250, "speed": -28, "amplitude": 0.35},
+        {"wavelength": 120, "speed": 18, "amplitude": 0.15}
+      ],
+      "palette": ["#04001a", "#12063e", "#2a0e6e", "#4a1fa8", "#6a3bd8"],
+      "bias": 0.08
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "opacity": 1.0,
+      "decay": 0.93,
+      "physics": {
+        "damping": 0.12,
+        "bounce": {"enabled": true, "restitution": 0.85},
+        "turbulence": {"accel": 80.0, "scale": 240.0, "speed": 0.25}
+      },
+      "emitters": [
+        {"pos": [0, 50], "rate": 0.45, "vel": 148.0, "vel_jitter": 40.0,
+         "lifetime": 14.0, "lifetime_jitter": 4.0, "size": 5.5, "size_jitter": 1.5,
+         "colors": ["#7f5af0", "#9a6bff", "#5a2bd0"]},
+        {"pos": [750, 799], "rate": 0.45, "vel": -148.0, "vel_jitter": 40.0,
+         "lifetime": 14.0, "lifetime_jitter": 4.0, "size": 5.5, "size_jitter": 1.5,
+         "colors": ["#3a6bff", "#2b9fe8", "#4a48e0"]}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": true}
+    },
+    {
+      "type": "noise",
+      "blend": "add",
+      "opacity": 0.35,
+      "scale": 190,
+      "speed": 0.08,
+      "octaves": 2,
+      "palette": ["#000012", "#0a0630", "#241458"],
+      "brightness": 0.7
+    }
+  ]
+}

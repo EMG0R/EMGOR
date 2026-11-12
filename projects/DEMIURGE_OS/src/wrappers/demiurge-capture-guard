@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# demiurge-capture-guard — notice a dead capture DMA and bring it back.
+#
+# WHY THIS EXISTS. When the capture ring starves, the DMA does not report an
+# error anyone can see: ALSA keeps saying `state: RUNNING`, PipeWire keeps the
+# node, the graph keeps its links, `systemctl is-active` stays green — and the
+# capture hw_ptr simply stops moving. The engine goes on reading its input
+# block every cycle, so the last fragment of guitar loops at the block rate.
+# That is heard as a steady oscillating tone, and it never clears on its own:
+# only a codec rebind brings the converter back.
+#
+# So the one true health signal for capture is whether hw_ptr MOVES. Every
+# other indicator lies. This polls that number, and only that number.
+#
+# The starvation itself is fixed (demiurge-quantum-limits now gives capture the
+# same period as playback, so the ring meets the 4-x-quantum floor). This guard
+# is the backstop for whatever else can stall a converter — a hot-unplug, a
+# clock glitch, a driver wedge — because the failure is silent and the symptom
+# is indistinguishable from a broken patch.
+#
+# STATUS 2026-10-02: INSTALLED BUT DISABLED. The theory above was later disproved
+# (memory: adc-capture-dma-stall — hw_ptr DOES move through the failures that
+# prompted this), and the recovery is brutal: on a false positive it stops the
+# engine, stops PipeWire, and rebinds the codec mid-performance. The installer
+# keeps the unit file so it can be enabled deliberately, and leaves it off.
+set -u
+
+# The Pi user, derived rather than hardcoded: this runs as root (systemd system
+# unit), so the first real user is UID 1000 on Pi OS (the same assumption
+# demiurge-qrestore makes) unless SUDO_USER / DEMIURGE_USER says otherwise.
+DEMIURGE_USER="${DEMIURGE_USER:-${SUDO_USER:-$(getent passwd 1000 2>/dev/null | cut -d: -f1)}}"
+
+CARD="${DEMIURGE_CARD:-sndrpihifiberry}"
+STATUS="/proc/asound/$CARD/pcm0c/sub0/status"
+POLL="${DEMIURGE_GUARD_POLL:-2}"      # seconds between samples
+STALL_LIMIT="${DEMIURGE_GUARD_STALL:-4}"   # consecutive frozen samples -> recover
+ADC_I2C="${DEMIURGE_ADC_I2C:-1-004a}"
+ADC_DRV="${DEMIURGE_ADC_DRIVER:-pcm186x}"
+
+log() { echo "[capture-guard] $*"; }
+
+hw_ptr() { awk '/^hw_ptr/ {print $3}' "$STATUS" 2>/dev/null; }
+pcm_state() { awk '/^state/ {print $2}' "$STATUS" 2>/dev/null; }
+
+recover() {
+    log "RECOVERING: capture hw_ptr frozen — rebinding $ADC_DRV/$ADC_I2C"
+    # The codec will not reset while anything holds the PCM, so the whole audio
+    # stack comes down in dependency order and goes back up the same way. This
+    # is deliberately heavy: it is the difference between a few seconds of
+    # silence and an input that stays dead until someone notices.
+    systemctl stop demiurge 2>/dev/null
+    local U=/run/user/$(id -u "$DEMIURGE_USER" 2>/dev/null || echo 1000)
+    su - "$DEMIURGE_USER" -c \
+        "XDG_RUNTIME_DIR=$U systemctl --user stop pipewire.service pipewire-pulse.service wireplumber.service pipewire.socket pipewire-pulse.socket" 2>/dev/null
+    sleep 2
+    echo "$ADC_I2C" > "/sys/bus/i2c/drivers/$ADC_DRV/unbind" 2>/dev/null || log "unbind failed"
+    sleep 1
+    echo "$ADC_I2C" > "/sys/bus/i2c/drivers/$ADC_DRV/bind" 2>/dev/null || log "bind failed"
+    sleep 2
+    su - "$DEMIURGE_USER" -c \
+        "XDG_RUNTIME_DIR=$U systemctl --user start pipewire.socket pipewire-pulse.socket pipewire.service wireplumber.service pipewire-pulse.service" 2>/dev/null
+    sleep 4
+    systemctl start demiurge 2>/dev/null
+    log "recovery complete"
+}
+
+[ -r "$STATUS" ] || { log "no capture status at $STATUS — is the card present?"; exit 1; }
+log "watching $STATUS (poll ${POLL}s, stall limit $STALL_LIMIT)"
+
+last=""; stalls=0
+while true; do
+    sleep "$POLL"
+    # Only judge capture while the engine is meant to be running; with the
+    # engine stopped a frozen pointer is correct, not a fault.
+    systemctl is-active --quiet demiurge || { last=""; stalls=0; continue; }
+    [ "$(pcm_state)" = "RUNNING" ] || { last=""; stalls=0; continue; }
+    cur="$(hw_ptr)"
+    [ -z "$cur" ] && continue
+    if [ "$cur" = "$last" ]; then
+        stalls=$((stalls + 1))
+        log "capture frozen at hw_ptr=$cur ($stalls/$STALL_LIMIT)"
+        if [ "$stalls" -ge "$STALL_LIMIT" ]; then
+            recover
+            last=""; stalls=0
+            sleep 10          # let the graph settle before judging it again
+        fi
+    else
+        stalls=0
+    fi
+    last="$cur"
+done
