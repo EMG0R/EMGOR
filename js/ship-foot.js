@@ -3,7 +3,7 @@
 //   ctx = ship.js state. Stable objects/functions/constants are plain properties (captured once, at first use); state ship.js reassigns is read/written
 //   through the accessor properties (S.mdx, S.keys, S.ps, ...), so there is exactly one copy of every variable.
 import { hOf } from './ship-scale.js';
-import { mkJetSM, jetStep, jetThrust } from './ship-styles.js';
+import { mkJetSM, jetStep, jetThrust, LOCO } from './ship-styles.js';
 
 export function createFoot(ctx) {
     var S = ctx, THREE = ctx.THREE;
@@ -17,7 +17,19 @@ export function createFoot(ctx) {
     var JET_RAMP = 1.2, JET_DIVE = 16, DIVE_V0 = 3, DIVE_TAU = 0.6, DIVE_CAP = 48, stepPh = 0.6, camDip = 0;      // 2026-10-14 jump: apex 1.2 H in 0.55 s (v0 4.36 H/s, g_up 7.93, falling g 16); Shift dive v = v0 * 2^(t/0.6) capped at 48 H/s      // 2026-10-14: jetpack climb ramp (s to 3.5x), Shift dive speed (heights/s), footstep phase               // rev 29: hold Space this many s = jetpack FLIGHT; flight cruise speed (heights/s)
     var WALL_TAN = Math.tan(70 * Math.PI / 180);      // Q06: terrain steeper than 70 deg along the move counts as a wall
     var FOOT_SUB = 0.12, fsD = new THREE.Vector3();
+    // unstyled (PILOT) ground model: speed ramps with the same LOCO constants the styles use; direction is instant, a reversal brakes to 0 in TURN_T first
+    var gv = 0, gdir = new THREE.Vector3(), JET_A = 60, DIVE_A = 90;      // JET_A / DIVE_A: vertical H/s^2 toward the burn / dive target (linear, same family as LOCO)
+    function pilotRamp(dt, up, moving, wish, top, topRef) {
+        var lim = 0.02 * topRef;
+        gdir.addScaledVector(up, -gdir.dot(up)); if (gdir.lengthSq() < 1e-8) gdir.copy(wish); gdir.normalize();
+        if (moving) {
+            if (gv > lim && gdir.dot(wish) < 0) { gv = Math.max(0, gv - 2 * topRef / LOCO.TURN_T * dt); if (gv <= lim) { gv = 0; gdir.copy(wish); } }
+            else { gdir.copy(wish); gv = gv > top ? Math.max(top, gv - topRef / LOCO.FRIC_T * dt) : Math.min(top, gv + top / LOCO.ACC_T * dt); }
+        } else gv = Math.max(0, gv - topRef / LOCO.FRIC_T * dt);
+        return gv;
+    }
     var styCam = 1, flF = new THREE.Vector3(), flA = new THREE.Vector3();
+    function vTo(tgt, step) { var d = tgt - hum.vv; hum.vv += d > step ? step : d < -step ? -step : d; }
     function flightStep(dt, c, qM) {
         var H = hOf(S.L), o = hum.obj, up = hum.up, k, v = fl.v;
         if (S.cmdOpen) { S.mdx = S.mdy = 0; }
@@ -144,6 +156,11 @@ export function createFoot(ctx) {
         var jet = jt.jet, jetK = jt.k * jetMul;
         // substepped capsule motion in the local frame
         var spd = (sSpd >= 0 ? sSpd : (jet ? G_RUN * (1 + 0.12 * R27.su.jetpack) : (run ? G_RUN * (1 + 0.1 * R27.su.sprint) : G_WALK))) * H * S.fxSpeed, nSub = 1;
+        if (sSpd < 0) {          // PILOT: explicit accel / friction / turnaround, then keep walking in the old direction while the speed coasts down
+            spd = pilotRamp(dt, up, moving, gB, spd, G_WALK * H * S.fxSpeed);
+            if (spd > 0.02 * G_WALK * H * S.fxSpeed) { if (!moving || gdir.dot(gB) < 0.999) gB.copy(gdir); moving = true; } else { moving = false; spd = 0; }
+            hum.moving = moving;
+        }
         if (moving) nSub = Math.max(nSub, Math.ceil(spd * dt / (FOOT_SUB * H)));
         if (hum.air) nSub = Math.max(nSub, Math.ceil(Math.abs(hum.vv) * dt / (0.25 * H)));
         nSub = Math.min(16, nSub);
@@ -173,8 +190,8 @@ export function createFoot(ctx) {
                 }
             }
             if (hum.air) {
-                if (jet) { hum.vv += (JET_UP * jetK * (1 + 0.2 * R27.su.jetpack) * H - hum.vv) * Math.min(1, 7 * h); if (hr > supNow + 400 * H) hum.vv = Math.min(hum.vv, 0); }
-                else if (dive) hum.vv += (-diveV * H - hum.vv) * Math.min(1, 8 * h);
+                if (jet) { vTo(JET_UP * jetK * (1 + 0.2 * R27.su.jetpack) * H, JET_A * H * h); if (hr > supNow + 400 * H) hum.vv = Math.min(hum.vv, 0); }
+                else if (dive) vTo(-diveV * H, DIVE_A * H * h);
                 else if (!sty) hum.vv -= (hum.vv > 0 ? G_GRAV_UP : G_GRAV) * H * h;      // styles integrate their own gravity
                 hr += hum.vv * h;
                 if (hr <= supNow && !(sty && hum.vv > 0)) { hr = supNow; hum.vv = 0; hum.air = false; }

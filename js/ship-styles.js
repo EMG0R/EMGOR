@@ -53,6 +53,15 @@ function approach(s, dx, dz, rate, dt) {
   if (d <= st || d < 1e-9) { s.vx = dx; s.vz = dz; } else { s.vx += ex / d * st; s.vz += ez / d * st; }
 }
 function brake(s, rate, dt) { const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz), d = rate * dt; if (sp <= d) { s.vx = s.vz = 0; } else { const k = (sp - d) / sp; s.vx *= k; s.vz *= k; } }
+// ONE ground-locomotion model for every style (feel plan step 2, 60 Hz frames): accel to top in ACC_T (4 f), friction stop in FRIC_T (4.5 f, linear), a wish that opposes the
+// velocity reverses in TURN_T (2 f). k scales all three (style weight, 0.8..1.25). Explicit rates, no lerp: speed after n frames is exact and testable.
+export const LOCO = { ACC_T: 4 / 60, FRIC_T: 4.5 / 60, TURN_T: 2 / 60 };
+function loco(s, tx, tz, top, dt, k) {
+  const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz), tt = Math.sqrt(tx * tx + tz * tz), kk = k || 1;
+  const rate = (hs > 0.05 && s.vx * tx + s.vz * tz < 0) ? 2 * top / (LOCO.TURN_T * kk) : (tt < hs ? top / (LOCO.FRIC_T * kk) : top / (LOCO.ACC_T * kk));
+  approach(s, tx, tz, rate, dt);
+}
+function locoStop(s, top, dt, k) { brake(s, top / (LOCO.FRIC_T * (k || 1)), dt); }
 function turn(s, io, dt, rate) { if (io.m > 0.05) { const t = Math.atan2(-io.wx, -io.wz), d = wrapA(t - s.face), st = rate * dt; s.face = wrapA(s.face + clamp(d, -st, st)); } }
 function airSteer(s, io, dt, acc, cap) { // accelerate toward wish but never beyond max(current speed, cap)
   if (io.m < 0.05) return;
@@ -110,9 +119,9 @@ function maro(env) {
         if (s.stun > 0) brake(s, 3 * A, dt);
         else if (io.m > 0.05) {
           if (s.skidT <= 0 && hs > 0.6 * top && s.vx * io.wx + s.vz * io.wz < -0.866 * hs * io.m) { s.skidT = 0.25; s.skidHs = hs; }   // [doc] skid on ~150 deg turn above 60% speed
-          if (s.skidT > 0) brake(s, 3 * A, dt);
-          else { const tx = io.wx * top * io.m, tz = io.wz * top * io.m; approach(s, tx, tz, (tx * tx + tz * tz < hs * hs) ? 2 * A : A, dt); turn(s, io, dt, 16); }
-        } else brake(s, 2 * A, dt);
+          if (s.skidT > 0 && hs > 0.05) brake(s, RUN / LOCO.TURN_T, dt);      // skid = the 2 f reversal; s.skidT (side-flip window) keeps running, control returns the frame the speed hits 0
+          else { const tx = io.wx * top * io.m, tz = io.wz * top * io.m; loco(s, tx, tz, top, dt); turn(s, io, dt, 16); }
+        } else locoStop(s, Math.max(hs, W), dt);
         if (io.LP && s.punchCd <= 0 && s.stun <= 0) {                // jab-jab-kick 6/6/10 [plan]
           s.combo = s.comboT > 0 ? (s.combo % 3) + 1 : 1; s.comboT = MARO_K.PUNCH_WIN; s.punchCd = 0.12;
           const e = fx.emit('melee'); e.n = s.combo; e.dmg = MARO_K.PUNCH_DMG[s.combo - 1]; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); e.r = MARO_K.PUNCH_R;
@@ -197,7 +206,7 @@ function joshi(env) {
       if (s.jb > 0 && s.stun <= 0) { s.vy = J; out.jumpImpulse = J; s.air = true; s.jgrace = 0.06; s.jb = 0; const e = fx.emit('jump'); e.n = 1; e.v = J; }
       else {
         if (s.stun > 0) brake(s, 3 * A, dt);
-        else if (io.m > 0.05) { approach(s, io.wx * W * io.m, io.wz * W * io.m, A, dt); turn(s, io, dt, 14); } else brake(s, 2 * A, dt);
+        else if (io.m > 0.05) { loco(s, io.wx * W * io.m, io.wz * W * io.m, W, dt); turn(s, io, dt, 14); } else locoStop(s, W, dt);
         s.vy = 0;
       }
     } else {
@@ -269,7 +278,7 @@ function steev(env) {
         s.vy = JS; out.jumpImpulse = JS; s.jgrace = 0.06; s.sprintJump = s.sprint; if (s.sprint) { dirOfVel(s, dd); const t = 1.65 * W; s.vx = (io.m > 0.05 ? io.wx : dd.x) * t; s.vz = (io.m > 0.05 ? io.wz : dd.z) * t; }
         const e = fx.emit('jump'); e.n = s.sprint ? 2 : 1; e.v = JS;
       } else {
-        if (io.m > 0.05) { approach(s, io.wx * top * io.m, io.wz * top * io.m, A, dt); turn(s, io, dt, 20); } else brake(s, 2.5 * A, dt);
+        if (io.m > 0.05) { loco(s, io.wx * top * io.m, io.wz * top * io.m, top, dt); turn(s, io, dt, 20); } else locoStop(s, Math.max(Math.sqrt(s.vx * s.vx + s.vz * s.vz), W), dt);
         s.vy = 0;
       }
     } else {
@@ -304,7 +313,7 @@ export const SONIK_K = { TOP: 16, SPIN: 3.1 };   // H/s: cruise run; spin-dash r
 function sonik(env) {
   const g = env.grav, J = env.jump, W = SONIK_K.TOP / 1.5;                            // 2026-11: pinned to absolute H/s (SONIK is the speed character), not env.walk
   const TOP = SONIK_K.TOP, SC = TOP / 6;                                             // [guess] cruise run 16 H/s; SC = H/s per (px/frame) so every guide constant scales with it
-  const ACC = 0.046875 * SC * 60, DEC = 0.5 * SC * 60, FRC = 0.046875 * SC * 60, AIRA = 0.09375 * SC * 60;     // [doc]
+  const ACC = TOP / 0.25, DEC = TOP / LOCO.TURN_T, FRC = 0.046875 * SC * 60, AIRA = 0.09375 * SC * 60;     // [doc]
   const SLP = 0.125 * SC * 60, SLP_UP = 0.078125 * SC * 60, SLP_DN = 0.3125 * SC * 60;                       // [doc] slope factors (stand / roll uphill / roll downhill)
   const RFRC = 0.0234375 * SC * 60, RDEC = 0.125 * SC * 60;                                                  // [doc] roll friction / decel
   const FALL = 2.5 * SC, ROLLMIN = 1.03 * SC, UNROLL = 0.5 * SC, VMAX = 2.6 * TOP;                          // [doc] fall-off 2.5, roll start 1.03, unroll 0.5; max [guess]
@@ -371,7 +380,7 @@ function sonik(env) {
               if (s.gsp < TOP * io.m) s.gsp = Math.min(TOP * io.m, s.gsp + ACC * dt * Math.max(0, al + 0.3));
               else if (s.gsp > TOP * io.m && s.gsp <= TOP) s.gsp = Math.max(TOP * io.m, s.gsp - FRC * dt);
             }
-          } else { const d = FRC * dt; s.gsp = Math.abs(s.gsp) <= d ? 0 : s.gsp - Math.sign(s.gsp) * d; }
+          } else { const d = (TOP / LOCO.FRIC_T) * dt; s.gsp = Math.abs(s.gsp) <= d ? 0 : s.gsp - Math.sign(s.gsp) * d; }      // release: same stop model as every style (SONIK keeps ACC slower: momentum is its ability)
         }
         if (Math.abs(s.gsp) < FALL && slope >= 45) { s.lock = 0.5; if (slope >= 60) { s.vx = s.tx * s.gsp; s.vy = s.ty * s.gsp; s.vz = s.tz * s.gsp; s.jgrace = 0.2; s.air = true; } }   // [doc] fall-off + 0.5 s control lock
         s.gsp = clamp(s.gsp, -VMAX, VMAX);
@@ -427,7 +436,7 @@ const VARIANTS = {
   SEER:     { spd: 1, jump: 1.05, acc: 0.25, air: 1.1, mini: 2, glide: 0.3, glideV: 4, glideT: 0.6, reflect: true },                           // [guess] not in plan (skip-list roster): double jump, brief float, reflect
 };
 function variant(env, P) {
-  const W = env.walk * P.spd, g = env.grav, J = env.jump * P.jump, A = W / P.acc, DS = 3.2 * env.walk, DT0 = 0.35;
+  const W = env.walk * P.spd, g = env.grav, J = env.jump * P.jump, A = W / P.acc, DS = 3.2 * env.walk, DT0 = 0.35, LK = clamp(P.acc / 0.25, 0.8, 1.25);
   const fx = mkFx(), out = mkOut(fx), io = mkIO(), a = out.anim; out.vulnerable = false;
   const s = { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, ddx: 0, ddz: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, glT: 0, run: 0, singCd: 0, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 };
   function reset() { Object.assign(s, { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, glT: 0, run: 0, singCd: 0, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 }); io.jump = io.crouch = io.L = io.R = io.F = io.fwdH = false; }
@@ -461,7 +470,7 @@ function variant(env, P) {
         if (s.jb > 0 && s.stun <= 0 && s.sleep <= 0) { s.n = 0; jumpNow(J); }
         else {
           if (s.stun > 0 || s.sleep > 0) brake(s, 3 * A, dt);
-          else if (io.m > 0.05) { if (P.ramp) s.run = Math.min(2, s.run + dt); const Wr = P.ramp ? W * (1 + (P.ramp - 1) * s.run / 2) : W; approach(s, io.wx * Wr * io.m, io.wz * Wr * io.m, A, dt); turn(s, io, dt, 14); } else { s.run = Math.max(0, s.run - 2 * dt); brake(s, 2 * A, dt); }
+          else if (io.m > 0.05) { if (P.ramp) s.run = Math.min(2, s.run + dt); const Wr = P.ramp ? W * (1 + (P.ramp - 1) * s.run / 2) : W; loco(s, io.wx * Wr * io.m, io.wz * Wr * io.m, Wr, dt, LK); turn(s, io, dt, 14); } else { s.run = Math.max(0, s.run - 2 * dt); locoStop(s, Math.max(Math.sqrt(s.vx * s.vx + s.vz * s.vz), W), dt, LK); }
           s.vy = 0;
           if (s.sleep > 0) { s.regenT += dt; if (s.regenT >= 1) { s.regenT -= 1; const e = fx.emit('regen'); e.v = P.regen; } } else s.regenT = 0;
         }

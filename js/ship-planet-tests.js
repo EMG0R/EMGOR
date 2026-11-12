@@ -1275,6 +1275,7 @@ export async function runAll(engine, ship, opts) {
     await T.setup();
     var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21], ['g22', g22]];
     list.push(['g24', g24]);
+    Object.keys(tests).forEach(function (k) { if (!list.some(function (l) { return l[0] === k; })) list.push([k, tests[k]]); });      // tests appended after the export (gF*) register themselves on `tests`
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         T.reset();
@@ -1288,3 +1289,62 @@ export async function runAll(engine, ship, opts) {
 }
 export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21, g22: g22, g24: g24 };
 export { mk as makeHarness };
+
+// ─── gF1 / gF2 / gF3 — feel plan step 2 (self-contained): input latency + motion curves on foot, synthetic key events, frame counts at 60 Hz ───────────────────────────
+//   F1 keydown -> >= 0.005 H displacement (~1 px at foot camera) <= 2 f · F2 key release -> < 5 % of peak speed <= 6 f · F3 Space keydown -> airborne <= 1 f · turnaround (hold the opposite key) -> velocity along the old heading <= 0 in <= 3 f
+//   Styles: PILOT (no style) + MARO JOSHI STEEV SWIFT SONIK. gF1/gF2/gF3 each run the whole table (one landing per run) and assert their own column; opts.feelStyles overrides the list.
+var gFeelCache = null;
+async function gFeelRun(T, o) {
+    if (gFeelCache && performance.now() - gFeelCache.at < 90000 && !(o && o.feelFresh)) return gFeelCache.res;      // gF1/gF2/gF3 share one run inside a runAll
+    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), g = ship._g, hum = g.hum, mu = ship.mashup, dt = 1 / 60, i, rows = {}, styles = (o && o.feelStyles) || ['', 'MARO', 'JOSHI', 'STEEV', 'SWIFT', 'SONIK'];
+    var cands = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; }), node = null;
+    for (var pass = 0; pass < 2 && !node; pass++) { T.reset(); for (i = 0; i < cands.length && !node; i++) { try { if (T.engage(cands[i])) node = cands[i]; } catch (e) { /* next */ } } if (!node) T.step(120, 0.05); }
+    if (!node) return { pass: false, why: 'no planet' };
+    await T.pause(); T.fly(); T.clearKeys(); T.near(node);
+    var d = T.landDir(node); T.hoverAt(node, d, 2); T.step(30);
+    if (!ship.land()) return { pass: false, why: 'land refused' };
+    for (i = 0; i < 900 && ship.gmode !== 'landed'; i++) T.step(1);
+    T.step(80); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+    if (ship.gmode !== 'foot') return { pass: false, why: 'did not step out' };
+    ship.rev27.windOff(true); mu.peaceful(true);
+    var p0 = new THREE.Vector3(), h0 = new THREE.Vector3(), vel = new THREE.Vector3();
+    function grounded() { for (var k = 0; k < 200 && hum.air; k++) T.step(1, dt); T.step(10, dt); }
+    function relevel() { var up = hum.pos.clone().normalize(); hum.hf.addScaledVector(up, -hum.hf.dot(up)).normalize(); }
+    styles.forEach(function (sid) {
+        var r = { F1: -1, F2: -1, F3: -1, turn: -1, peakHs: 0 }, f, v, pk = 0;
+        mu.setStyle(sid); T.clearKeys(); T.step(40, dt); grounded();
+        // F1: from standing still, W down
+        relevel(); p0.copy(hum.pos); h0.copy(hum.hf); T.kd('KeyW');
+        for (f = 1; f <= 12; f++) { T.step(1, dt); if (r.F1 < 0 && hum.pos.distanceTo(p0) / H >= 0.005) r.F1 = f; }
+        // reach top speed, remember the peak per-frame speed
+        var last = hum.pos.clone();
+        for (f = 0; f < 60; f++) { T.step(1, dt); v = hum.pos.distanceTo(last) / (H * dt); last.copy(hum.pos); if (v > pk) pk = v; }
+        r.peakHs = +pk.toFixed(2);
+        // F2: release
+        T.ku('KeyW'); last.copy(hum.pos);
+        for (f = 1; f <= 30; f++) { T.step(1, dt); v = hum.pos.distanceTo(last) / (H * dt); last.copy(hum.pos); if (v < 0.05 * pk) { r.F2 = f; break; } }
+        T.step(20, dt); grounded();
+        // turnaround: run along W, then swap to S
+        relevel(); T.kd('KeyW'); T.step(40, dt); h0.copy(hum.hf); last.copy(hum.pos); T.ku('KeyW'); T.kd('KeyS');
+        for (f = 1; f <= 30; f++) { T.step(1, dt); vel.subVectors(hum.pos, last); last.copy(hum.pos); if (vel.dot(h0) <= 0) { r.turn = f; break; } }
+        T.ku('KeyS'); T.step(30, dt); grounded();
+        // F3: Space down -> airborne
+        T.kd('Space');
+        for (f = 1; f <= 6; f++) { T.step(1, dt); if (hum.air) { r.F3 = f; break; } }
+        T.ku('Space'); T.step(5, dt); grounded();
+        rows[sid || 'PILOT'] = r;
+    });
+    T.clearKeys(); mu.setStyle('');
+    var res = { pass: true, rows: rows }; gFeelCache = { at: performance.now(), res: res };
+    return res;
+}
+function gFeelAssert(col, max) {
+    return async function (T, o) {
+        var r = await gFeelRun(T, o); if (!r.rows) return r;
+        var out = { pass: true }, k;
+        for (k in r.rows) { var v = r.rows[k][col]; out[k] = v; if (!(v >= 0 && v <= max)) out.pass = false; }
+        out.rows = r.rows; return out;
+    };
+}
+var gF1 = gFeelAssert('F1', 2), gF2 = gFeelAssert('F2', 6), gF3 = gFeelAssert('F3', 1);
+tests.gF1 = gF1; tests.gF2 = gF2; tests.gF3 = gF3;
