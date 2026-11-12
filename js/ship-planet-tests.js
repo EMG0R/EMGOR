@@ -1209,6 +1209,104 @@ async function g22(T, o) {
     return { pass: false, error: 'no village planet', tries: tries };
 }
 
+// ─── 23. GROUND TRUTH walk (2026-11-11): scripted paths across apron edge -> apron -> doorstep -> interior -> back out for every 7/11, the Burger House, the CVS, every hut, the hub
+// arch, plus every pad disc edge. At every step |feet - visible surface| <= 0.03 H (visible = max(drawn slab plane, rendered mesh terrain), recomputed independently of ship.js),
+// no step between slab and terrain taller than 0.35 H, every rect + 1 H is on pad ground, and a walker pushed through a wall box by objPush is stopped. ───
+async function g23(T, o) {
+    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), ps = ship.ps, hum = ship._g.hum, tries = [], nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    nodes.sort(function (a, b) { return (a.id.indexOf('metagor') >= 0 ? -1 : 0) - (b.id.indexOf('metagor') >= 0 ? -1 : 0); });
+    for (var ni = 0; ni < nodes.length && ni < 4; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) { tries.push(node.id + ': no land dir'); continue; }
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+        if (ship.gmode !== 'foot') { tries.push(node.id + ': not on foot'); continue; }
+        T.step(120); if (!ship.village.make()) { tries.push(node.id + ': no village'); T.fly(); continue; }
+        T.step(300);
+        var w = ship._g.world(), v = ship.village.v, S = [], hubO = ship.hub && ship.hub.raw && ship.hub.raw.hub, HBr = ship.hub && ship.hub.raw;
+        function add(name, M, K, rects, walls, path) { if (M && rects && rects.length) S.push({ name: name, M: M, K: K || 1, rects: rects, walls: walls, path: path }); }
+        function doorPath(f, zFar) { var x = 0, z0 = f[0].z0, z1 = f[0].z1; return [[x, zFar], [x, z1], [x, (z1 + z0) / 2], [x, z0 + 1], [x, (z1 + z0) / 2], [x, z1], [x, zFar]]; }
+        (w.stores || []).forEach(function (st, k) { var I = st.interior, f = I && I.floors; if (f && f.length) { var zf = f.reduce(function (m, q) { return Math.max(m, q.z1); }, -1e9); add('7/11#' + k, I.matrix, I.unit, f, I.walls, doorPath(f, zf + 3 * H / I.unit)); } });
+        if (w.burgerHouse && w.burgerHouse.floors) { var bf = w.burgerHouse.floors, bz = bf.reduce(function (m, q) { return Math.max(m, q.z1); }, -1e9); add('burger', w.burgerHouse.matrix, w.burgerHouse.unit, bf, w.burgerHouse.walls, doorPath(bf, bz + 3 * H / w.burgerHouse.unit)); }
+        if (w.cvs && w.cvs.floors) { var cf = w.cvs.floors, cz = cf.reduce(function (m, q) { return Math.max(m, q.z1); }, -1e9); add('cvs', w.cvs.matrix, w.cvs.unit, cf, w.cvs.walls, doorPath(cf, cz + 3 * H / w.cvs.unit)); }
+        if (v && v.solid && v.solid.floors) for (var hi = 0; hi + 1 < v.solid.floors.length; hi += 2) {
+            var rm = v.solid.floors[hi], ds = v.solid.floors[hi + 1], cx = (rm.x0 + rm.x1) / 2, cz2 = (rm.z0 + rm.z1) / 2, dx = (ds.x0 + ds.x1) / 2 - cx, dz = (ds.z0 + ds.z1) / 2 - cz2, dl = Math.hypot(dx, dz) || 1, ux = dx / dl, uz = dz / dl, far = dl + 3 * H / v.solid.K;
+            add('hut' + (hi / 2), v.solid.m, v.solid.K, [rm, ds], v.solid.a, [[cx + ux * far, cz2 + uz * far], [cx + ux * dl, cz2 + uz * dl], [cx, cz2], [cx + ux * dl, cz2 + uz * dl], [cx + ux * far, cz2 + uz * far]]);
+        }
+        if (hubO && hubO.floors && hubO.floors.length) { var hf = hubO.floors; add('hubArch', hubO.group.matrix, HBr.mu, hf, null, [[0, hf[0].z0 - 3 * H / HBr.mu], [0, hf[0].z0], [0, (hf[0].z0 + hf[0].z1) / 2], [0, hf[0].z1], [0, hf[0].z1 + 3 * H / HBr.mu]]); }
+        var P0 = new THREE.Vector3(), P1 = new THREE.Vector3(), dir = new THREE.Vector3(), lp = new THREE.Vector3(), inv = new THREE.Matrix4(), nn = new THREE.Vector3();
+        function drawn(St, dr) { var e = St.M.elements, best = 0; nn.set(e[4], e[5], e[6]).normalize(); inv.copy(St.M).invert(); var nd = nn.dot(dr); if (nd < 0.5) return 0;
+            for (var r = 0; r < St.rects.length; r++) { var q = St.rects[r]; P0.set(0, q.top, 0).applyMatrix4(St.M); var rr = nn.dot(P0) / nd; lp.copy(dr).multiplyScalar(rr).applyMatrix4(inv);
+                if (lp.x >= q.x0 && lp.x <= q.x1 && lp.z >= q.z0 && lp.z <= q.z1 && rr > best) best = rr; }
+            return best; }
+        var fsA = new THREE.Vector3(), fsB = new THREE.Vector3();
+        function visFoot(St, dr) {      // what the feet stand on: the highest VISIBLE surface under the 0.26 H footprint (centre + 4 points), same sampling the foot controller uses
+            var a = 0.26 * H / ps.radius, best = 0, t1 = fsA.crossVectors(dr, Math.abs(dr.y) < 0.9 ? nn.set(0, 1, 0) : nn.set(1, 0, 0)).normalize().clone(), t2 = new THREE.Vector3().crossVectors(dr, t1).normalize();
+            for (var q = 0; q < 5; q++) { fsB.copy(dr); if (q) fsB.addScaledVector(q < 3 ? t1 : t2, (q % 2 ? 1 : -1) * a).normalize(); var v = ps.meshFloorLocal(fsB.x, fsB.y, fsB.z); for (var si2 = 0; si2 < S.length; si2++) { var dv = drawn(S[si2], fsB); if (dv > v) v = dv; } if (v > best) best = v; }
+            return best;
+        }
+        function seat(dr, vis) { hum.pos.copy(dr).multiplyScalar(vis + 0.04 * H); hum.hr = hum.gr = hum.vh = hum.pos.length(); hum.air = true; hum.vv = 0; T.step(4); window.__g23n = (window.__g23n | 0) + 1; }
+        var rows = [], nPts = 0, bad = [], worst = 0, worstAt = '';
+        var solidSkip = 0, chkP = new THREE.Vector3(); ship._g.objBegin();
+        function check(name, dr, vis, tag) {
+            chkP.copy(dr).multiplyScalar(vis); if (ship._g.objPush(chkP, H)) { solidSkip++; return; }      // a shelf / wall solid overlaps the capsule at this spot: that push, not the ground, owns the feet here
+            seat(dr, vis); dir.copy(hum.pos).normalize(); var e = Math.abs(hum.hr - vis) / H; nPts++;
+            if (e > worst) { worst = e; worstAt = name + '@' + tag; } if (!(e <= (/^pad/.test(name) ? 0.04 : 0.03)) && bad.length < 12) bad.push(name + '@' + tag + ' ' + ((hum.hr - vis) / H).toFixed(3) + ' H air=' + hum.air);
+        }
+        S.forEach(function (St) {
+            var stepL = 0.6 * H / St.K, pts = St.path;
+            for (var s = 0; s + 1 < pts.length; s++) {
+                var a = pts[s], b = pts[s + 1], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / stepL));
+                for (var k = (s ? 1 : 0); k <= n; k++) {
+                    var lx = a[0] + (b[0] - a[0]) * k / n, lz = a[1] + (b[1] - a[1]) * k / n, top = St.rects[0].top;
+                    P0.set(lx, top, lz).applyMatrix4(St.M); dir.copy(P0).normalize();
+                    var dc = dir.clone(), vis = visFoot(St, dc); check(St.name, dc, vis, lx.toFixed(1) + ',' + lz.toFixed(1));
+                }
+            }
+        });
+        // pad disc edges: centre -> blend + 10 H along a tangent, every live pad (outposts + village + hub + cvs, grown ones included)
+        var pinfo = ps.padsInfo ? ps.padsInfo() : [];
+        pinfo.slice(0, 6).forEach(function (pi, qi) {
+            var bd = pi.d.clone().normalize(), ref = Math.abs(bd.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0), e1 = new THREE.Vector3().crossVectors(bd, ref).normalize(), maxL = pi.blendL + 6 * H / L, stp = 0.6 * H / L;
+            for (var t = 0; t <= maxL; t += stp * (t > pi.flatL - 2 * H / L && t < pi.blendL + 2 * H / L ? 1 : 6)) { var ang = t * L / ps.radius, dr = bd.clone().multiplyScalar(Math.cos(ang)).addScaledVector(e1, Math.sin(ang)).normalize(); check('pad' + qi, dr, visFoot(null, dr), t.toFixed(1)); }
+        });
+        // audit: steps + pad coverage
+        var au = ps.floorAudit ? ps.floorAudit() : { worstStepH: 99, uncovered: ['no floorAudit'], sets: 0 }, keys = ps.floorKeys ? ps.floorKeys() : [];
+        // walk-through: push a capsule through the thickest wall boxes of every structure with an objPush step of 0.3 H; it must never get past the far face
+        var walkBad = [], nWalls = 0, wallSkip = 0; ship._g.objBegin();
+        function bx(b) { return b.min && b.min.x !== undefined ? { x0: b.min.x, y0: b.min.y, z0: b.min.z, x1: b.max.x, y1: b.max.y, z1: b.max.z } : { x0: b.min[0], y0: b.min[1], z0: b.min[2], x1: b.max[0], y1: b.max[1], z1: b.max[2] }; }
+        S.forEach(function (St) {
+            if (!St.walls || !St.walls.length) return;
+            var top = St.rects[0].top, list = St.walls.map(bx).filter(function (q) { return q.y0 <= top + 0.3 && q.y1 >= top + 1.2 * H / St.K && (q.x1 - q.x0) * (q.z1 - q.z0) > 0; });
+            list.sort(function (p, q) { return Math.max(q.x1 - q.x0, q.z1 - q.z0) - Math.max(p.x1 - p.x0, p.z1 - p.z0); });
+            list.slice(0, 3).forEach(function (q, qi) {
+                var alongX = (q.x1 - q.x0) < (q.z1 - q.z0), c = [(q.x0 + q.x1) / 2, (q.z0 + q.z1) / 2], half = alongX ? (q.x1 - q.x0) / 2 : (q.z1 - q.z0) / 2, m = 1.2 * H / St.K, stp = 0.3 * H / St.K;
+                if (half * St.K > 2.5 * H) return;          // a box thicker than a room is not a wall
+                for (var sg = -1; sg <= 1; sg += 2) {
+                    var tr = [], pass = false, nStep = Math.ceil(2 * (half + m) / stp) + 6, u = -sg * (half + m);
+                    P0.set(alongX ? c[0] + u : c[0], top + 0.02, alongX ? c[1] : c[1] + u).applyMatrix4(St.M); var pr0 = P0.length(); dir.copy(P0).multiplyScalar(1 / pr0); var dw0 = drawn(St, dir); P0.copy(dir).multiplyScalar(Math.max(pr0, dw0));
+                    if (ship._g.objPush(P0, H)) { wallSkip++; continue; }      // the start point is already inside another solid (shelf / gondola against the wall): not a clean wall approach
+                    nWalls++;
+                    for (var kk = 0; kk <= nStep && !pass; kk++) {        // a stateful walker: each frame it moves 0.3 H toward the +sg side and objPush resolves it, like the foot loop
+                        u += sg * stp;
+                        P0.set(alongX ? c[0] + u : c[0], top + 0.02, alongX ? c[1] : c[1] + u).applyMatrix4(St.M);
+                        var pr = P0.length(); dir.copy(P0).multiplyScalar(1 / pr); var dw = drawn(St, dir); P0.copy(dir).multiplyScalar(Math.max(pr, dw));
+                        ship._g.objPush(P0, H); P1.copy(P0).applyMatrix4(inv.copy(St.M).invert()); var cu = alongX ? P1.x - c[0] : P1.z - c[1]; u = cu;
+                        tr.push(+(cu * St.K / H).toFixed(2)); if (sg * cu > half + 0.5 * H / St.K) pass = true;      // ended beyond the far face = walked through
+                    }
+                    if (pass && walkBad.length < 8) walkBad.push(St.name + ' wall' + qi + ' dir' + sg + ' half_H=' + (half * St.K / H).toFixed(2) + ' trace_H=' + tr.join(','));
+                }
+            });
+        });
+        var res = { planet: node.id.split('.').pop(), structures: S.map(function (St) { return St.name; }), registered: keys, points: nPts, worst_H: +worst.toFixed(4), worstAt: worstAt, bad: bad, floorAudit: { worstStepH: +au.worstStepH.toFixed(3), worstAt: au.worstAt, info: au.worstInfo, uncovered: au.uncovered, sets: au.sets }, solidContactSkipped: solidSkip, wallsTried: nWalls, wallsSkipped: wallSkip, walkThrough: walkBad, tries: tries };
+        res.pass = S.length >= 3 && nPts > 40 && bad.length === 0 && au.worstStepH <= 0.35 && au.uncovered.length === 0 && walkBad.length === 0 && nWalls > 0;
+        T.fly();
+        return res;
+    }
+    return { pass: false, error: 'no village planet', tries: tries };
+}
+
 async function g20(T, o) {         // Q45: station docking: gotoStation -> Z auto-dock -> lights -> F shop (stock has GOR BALL 1-3) -> buy -> Z undock
     var ship = T.ship, out = { steps: [] }, st;
     T.fly(); await T.pause();
@@ -1273,7 +1371,7 @@ export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
-    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21], ['g22', g22]];
+    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21], ['g22', g22], ['g23', g23]];
     list.push(['g24', g24]);
     Object.keys(tests).forEach(function (k) { if (!list.some(function (l) { return l[0] === k; })) list.push([k, tests[k]]); });      // tests appended after the export (gF*) register themselves on `tests`
     for (var i = 0; i < list.length; i++) {
@@ -1287,7 +1385,7 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21, g22: g22, g24: g24 };
+export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21, g22: g22, g23: g23, g24: g24 };
 export { mk as makeHarness };
 
 // ─── gF1 / gF2 / gF3 — feel plan step 2 (self-contained): input latency + motion curves on foot, synthetic key events, frame counts at 60 Hz ───────────────────────────

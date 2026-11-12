@@ -125,11 +125,11 @@ export var HEIGHT_GLSL = [
 
 // pad-flattened height (shared by the patch and the site-anchored pad discs, so the two are bit-identical wherever a pad is): needs HEIGHT_GLSL + uRel
 var HFUNP_GLSL = [
-    'uniform vec3 uPadD[6]; uniform vec3 uPadP[6];',       // outpost pads: local dir, (flat chord, blend chord, height frac)
+    'uniform vec3 uPadD[6]; uniform vec3 uPadP[6];',       // pads: local dir, (flat chord, blend chord, height frac at the centre; the pad height is the tangent plane there)
     'float hfunP(vec3 d) {',
     '    float h = hfun(d);',
     '    for (int i = 0; i < 6; i++) {',
-    '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
+    '        if (uPadP[i].y > 0.0) h = mix(h, (1.0 + uPadP[i].z) / max(dot(d, uPadD[i]), 0.5) - 1.0, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
     '    }',
     '    return uBias + (h - uBias) * uRel;',
     '}'
@@ -651,7 +651,7 @@ function globeVert(lo) {
     lo || '',
     'float padH(vec3 d, float h) {',
     '    for (int i = 0; i < 6; i++) {',
-    '        if (uPadP[i].y > 0.0) h = mix(h, uPadP[i].z, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
+    '        if (uPadP[i].y > 0.0) h = mix(h, (1.0 + uPadP[i].z) / max(dot(d, uPadD[i]), 0.5) - 1.0, 1.0 - smoothstep(uPadP[i].x, uPadP[i].y, length(d - uPadD[i])));',
     '    }',
     '    return h;',
     '}',
@@ -963,6 +963,46 @@ function fbm(x, y, z) {
 }
 function smoothstep(a, b, x) { var t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
 
+// ── GROUND TRUTH (2026-11-11): the ONE floor. ps.groundTruth(x,y,z) = max(terrain with pad planes, every registered structure floor rect containing the point).
+// A structure floor is a set of rects {x0,x1,z0,z1,top} in structure-local metres under a planet-local matrix (store interiors + apron + parking slabs, Burger House, CVS,
+// village huts + doorsteps, the hub arch apron). Pure math here (plain arrays, node-testable); the ps methods below wire it to the live planet.
+export var STEP_WALK_H = 0.35;      // a slab edge is a step: <= this many human heights is walkable, taller must be a wall solid
+export function affInverse(e) {      // column-major 4x4 affine (rotation*scale + translation) -> inverse elements (Float64Array(16)), null when singular
+    var m00 = e[0], m10 = e[1], m20 = e[2], m01 = e[4], m11 = e[5], m21 = e[6], m02 = e[8], m12 = e[9], m22 = e[10], tx = e[12], ty = e[13], tz = e[14];
+    var det = m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20) + m02 * (m10 * m21 - m11 * m20); if (!det) return null;
+    var id = 1 / det, o = new Float64Array(16);
+    var i00 = (m11 * m22 - m12 * m21) * id, i01 = (m02 * m21 - m01 * m22) * id, i02 = (m01 * m12 - m02 * m11) * id;
+    var i10 = (m12 * m20 - m10 * m22) * id, i11 = (m00 * m22 - m02 * m20) * id, i12 = (m02 * m10 - m00 * m12) * id;
+    var i20 = (m10 * m21 - m11 * m20) * id, i21 = (m01 * m20 - m00 * m21) * id, i22 = (m00 * m11 - m01 * m10) * id;
+    o[0] = i00; o[1] = i10; o[2] = i20; o[4] = i01; o[5] = i11; o[6] = i21; o[8] = i02; o[9] = i12; o[10] = i22;
+    o[12] = -(i00 * tx + i01 * ty + i02 * tz); o[13] = -(i10 * tx + i11 * ty + i12 * tz); o[14] = -(i20 * tx + i21 * ty + i22 * tz); o[15] = 1;
+    return o;
+}
+export function makeFloorSet(me, K, rects) {      // me: 16 matrix elements (copied). K: structure unit in world units per local metre (its scale)
+    var e = Float64Array.from(me), ly = Math.sqrt(e[4] * e[4] + e[5] * e[5] + e[6] * e[6]) || 1, pl = Math.sqrt(e[12] * e[12] + e[13] * e[13] + e[14] * e[14]) || 1, b = 0, i, q;
+    for (i = 0; i < rects.length; i++) { q = rects[i]; b = Math.max(b, Math.hypot(Math.max(Math.abs(q.x0), Math.abs(q.x1)), Math.max(Math.abs(q.z0), Math.abs(q.z1)))); }
+    return { me: e, ie: affInverse(e), K: K || 1, rects: rects, len: ly, ny0: e[4] / ly, ny1: e[5] / ly, ny2: e[6] / ly, np: (e[4] * e[12] + e[5] * e[13] + e[6] * e[14]) / ly,
+        cx: e[12] / pl, cy: e[13] / pl, cz: e[14] / pl, br: b * (K || 1) * 1.05 };
+}
+// radius (world units) of the highest rect plane of set S containing the ray of unit direction (dx,dy,dz) from the planet centre; 0 when none. R = planet radius (chord -> world units).
+export function slabRadius(S, dx, dy, dz, R) {
+    var ddx = dx - S.cx, ddy = dy - S.cy, ddz = dz - S.cz;
+    if ((ddx * ddx + ddy * ddy + ddz * ddz) * R * R > S.br * S.br) return 0;
+    var nd = S.ny0 * dx + S.ny1 * dy + S.ny2 * dz; if (nd < 0.5 || !S.ie) return 0;
+    var ie = S.ie, best = 0, i, q, rT, px, py, pz, lx, lz;
+    for (i = 0; i < S.rects.length; i++) {
+        q = S.rects[i]; rT = (S.np + q.top * S.len) / nd; px = dx * rT; py = dy * rT; pz = dz * rT;
+        lx = ie[0] * px + ie[4] * py + ie[8] * pz + ie[12]; lz = ie[2] * px + ie[6] * py + ie[10] * pz + ie[14];
+        if (lx >= q.x0 && lx <= q.x1 && lz >= q.z0 && lz <= q.z1 && rT > best) best = rT;
+    }
+    return best;
+}
+// pad growth: a pad must be flat out to `need` (chord, unit sphere) with its shoulder (blend - flat) kept. Returns true when it changed.
+export function growPad(pd, need) {
+    if (!(need > pd.flat)) return false;
+    var sh = pd.sh > 0 ? pd.sh : pd.blend - pd.flat; pd.flat = need; pd.blend = need + sh; return true;
+}
+
 // terra n for unit direction d with uniform set u = {seed:{x,y,z}, freq, warp}
 function terraN(dx, dy, dz, seed, freq, warp) {
     var fq = f32(freq), px = f32(dx * fq + seed.x), py = f32(dy * fq + seed.y), pz = f32(dz * fq + seed.z);
@@ -1243,7 +1283,7 @@ export function createPlanetSurface(engine, L) {
         var h = sampleHeight(dx, dy, dz, seedV, freq, warp, sea, amp, bias, seaH);
         for (var i = 0; i < pads.length; i++) {
             var pd = pads[i], ch = Math.sqrt((dx - pd.d.x) * (dx - pd.d.x) + (dy - pd.d.y) * (dy - pd.d.y) + (dz - pd.d.z) * (dz - pd.d.z));
-            if (ch < pd.blend) { var w = 1 - smoothstep(pd.flat, pd.blend, ch); h = h * (1 - w) + pd.h * w; }
+            if (ch < pd.blend) { var w = 1 - smoothstep(pd.flat, pd.blend, ch), pdd = dx * pd.d.x + dy * pd.d.y + dz * pd.d.z; h = h * (1 - w) + ((1 + pd.h) / (pdd > 0.5 ? pdd : 0.5) - 1) * w; }      // 2026-11-11: a pad is the TANGENT PLANE at its centre (not a sphere cap): every structure slab / pad disc is a tangent plane, so slab and ground are one surface
         }
         return h;
     }
@@ -1723,7 +1763,7 @@ export function createPlanetSurface(engine, L) {
         var u = node.mesh.material.uniforms, lo = col3(u.uColLow.value), hi = col3(u.uColHigh.value), ac = col3(u.uAccent.value);
         for (i = 0; i < found.length; i++) {
             var f = found[i], d = f.d, id = node.id + '-op' + i;
-            pads.push({ d: d, flat: flatA, blend: blendA, h: f.h });
+            pads.push({ d: d, flat: flatA, blend: blendA, h: f.h, slot: i, sh: blendA - flatA });
             var pu = a.patchU;
             pu.uPadD.value[i].copy(d); pu.uPadP.value[i].set(flatA, blendA, f.h);
             var yaw = hash01(f.k, 11, sd, 5) * 6.2831853, cy2 = Math.cos(yaw), sy2 = Math.sin(yaw);
@@ -1788,6 +1828,7 @@ export function createPlanetSurface(engine, L) {
         a.colCol.array[i * 3] = ((hex >> 16) & 255) / 255; a.colCol.array[i * 3 + 1] = ((hex >> 8) & 255) / 255; a.colCol.array[i * 3 + 2] = (hex & 255) / 255;
     }
     function layoutCols() {
+        fitPads(); padsChanged();      // outposts were just (re)seeded: re-grow their pads under any registered structure
         var a = alloc; if (!a || !a.cols) return;
         var n = 0, i;
         if (node) {
@@ -1984,9 +2025,10 @@ export function createPlanetSurface(engine, L) {
         for (var si = 0; si < 3; si++) {
             var sd2 = siteDefs[si], slot = NPAD + si; if (!sd2 || !alloc) { if (alloc) alloc.patchU.uPadP.value[slot].set(0, 0, 0); continue; }
             var hh = hFrac(sd2.d.x, sd2.d.y, sd2.d.z), fl = sd2.flatL * L / R, bl = sd2.blendL * L / R;
-            pads.push({ d: sd2.d, flat: fl, blend: bl, h: hh, site: true });
+            pads.push({ d: sd2.d, flat: fl, blend: bl, h: hh, site: true, slot: slot, sh: bl - fl });
             alloc.patchU.uPadD.value[slot].copy(sd2.d); alloc.patchU.uPadP.value[slot].set(fl, bl, hh);
         }
+        fitPads(); padsChanged();
     }
     ps.setSitePad = function (slot, dir, flatL, blendL) {        // dir: unit planet-local Vector3 | null; flatL/blendL in ship lengths
         if (slot !== 0 && slot !== 1 && slot !== 2) return;
@@ -2891,6 +2933,73 @@ export function createPlanetSurface(engine, L) {
         return R * (nx * A.x + ny * A.y + nz * A.z) / den;
     };
     function a_tan() { return alloc ? alloc.patchU.uTan.value : 0.3; }
+
+    // ── GROUND TRUTH wiring (pure math: slabRadius / makeFloorSet / growPad at module level) ──
+    // Structures register their floor rects once (layout time, again after any re-seat): ps.floorPut(key, matrix|elements, K, rects). Registration also GROWS the nearest pad's flat disc
+    // until every rect corner + 1 H margin is on pad ground, so the terrain under a slab is the pad plane (= the slab plane family), never a hill poking through or a pit under it.
+    var floorSets = {}, HUM_H = 0.27;         // H_RATIO (ship-scale.js): human height in L
+    function sameEls(a, b) { for (var i = 0; i < 16; i++) if (a[i] !== b[i]) return false; return true; }
+    function fitPads() {
+        if (!alloc || !pads.length) return 0;
+        var H = HUM_H * L, grown = 0;
+        for (var key in floorSets) {
+            var S = floorSets[key], me = S.me, m = H / S.K, home = null, hc = 1e9, i;
+            for (i = 0; i < pads.length; i++) { var pq = pads[i], cc = Math.sqrt((S.cx - pq.d.x) * (S.cx - pq.d.x) + (S.cy - pq.d.y) * (S.cy - pq.d.y) + (S.cz - pq.d.z) * (S.cz - pq.d.z)); if (cc < hc) { hc = cc; home = pq; } }      // a structure belongs to ONE pad: the nearest to its origin (its slab plane is parallel to that pad's plane)
+            if (!home || hc * R > home.blend * R + 100 * H) continue;      // not a pad structure (audit reports it)
+            for (var ri = 0; ri < S.rects.length; ri++) {
+                var q = S.rects[ri], xs = [q.x0 - m, q.x1 + m], zs = [q.z0 - m, q.z1 + m];
+                for (var a = 0; a < 2; a++) for (var b = 0; b < 2; b++) {
+                    var lx = xs[a], lz = zs[b], px = me[0] * lx + me[4] * q.top + me[8] * lz + me[12], py = me[1] * lx + me[5] * q.top + me[9] * lz + me[13], pz = me[2] * lx + me[6] * q.top + me[10] * lz + me[14], pl = Math.sqrt(px * px + py * py + pz * pz) || 1;
+                    var c = Math.sqrt((px / pl - home.d.x) * (px / pl - home.d.x) + (py / pl - home.d.y) * (py / pl - home.d.y) + (pz / pl - home.d.z) * (pz / pl - home.d.z));
+                    if (growPad(home, c * 1.0005)) { grown++; if (home.slot != null) alloc.patchU.uPadP.value[home.slot].set(home.flat, home.blend, home.h); }
+                }
+            }
+        }
+        return grown;
+    }
+    var inPadsChanged = false;
+    function padsChanged() {      // pads were rebuilt: structures re-seat on the final pad planes (ship-world relayoutGround; guarded against re-entry)
+        if (inPadsChanged || !ps.world || !ps.world.relayoutGround) return;
+        inPadsChanged = true; try { ps.world.relayoutGround(); } catch (e) { console.info('[ship-planet] relayoutGround failed', e); } inPadsChanged = false;
+    }
+    ps.floorPut = function (key, matrix, K, rects) {
+        var me = matrix && matrix.elements ? matrix.elements : matrix; if (!me || !rects || !rects.length) { delete floorSets[key]; return; }
+        var o = floorSets[key]; if (o && o.rects === rects && o.K === (K || 1) && sameEls(o.me, me)) return;
+        floorSets[key] = makeFloorSet(me, K, rects);
+        fitPads();
+    };
+    ps.floorDrop = function (key) { delete floorSets[key]; };
+    ps.floorClear = function () { floorSets = {}; };
+    ps.floorKeys = function () { return Object.keys(floorSets); };
+    ps.padsInfo = function () { return pads.map(function (q) { return { d: q.d.clone(), flatL: q.flat * R / L, blendL: q.blend * R / L, site: !!q.site, slot: q.slot }; }); };      // live pad discs (grown ones included), in L
+    // THE floor: the radius (world units) of the ground a foot / landing / placement stands on at local direction (x,y,z) = max(terrain with pad planes, structure slab).
+    // The mesh-interpolated terrain is used outside a pad (that is what is drawn); inside a pad meshFloorLocal is already the analytic pad plane.
+    ps.groundTruth = function (x, y, z) {
+        var r = ps.meshFloorLocal(x, y, z); if (!(r > 0)) return r;
+        var l = Math.sqrt(x * x + y * y + z * z) || 1, dx = x / l, dy = y / l, dz = z / l, best = r;
+        for (var key in floorSets) { var sr = slabRadius(floorSets[key], dx, dy, dz, R); if (sr > best) best = sr; }
+        return best;
+    };
+    // audit: for every registered rect, the step between the slab and the terrain just outside each edge (human heights), and whether the rect + 1 H is on pad ground (flat disc).
+    ps.floorAudit = function () {
+        var H = HUM_H * L, out = { worstStepH: 0, worstAt: '', uncovered: [], sets: 0 }, v = [0, 0, 0];
+        for (var key in floorSets) {
+            var S = floorSets[key], me = S.me, m = H / S.K; out.sets++;
+            for (var ri = 0; ri < S.rects.length; ri++) {
+                var q = S.rects[ri], n = 6;
+                for (var e = 0; e < 4 * n; e++) {
+                    var t = (e % n) / (n - 1), side = (e / n) | 0, lx, lz;
+                    if (side === 0) { lx = q.x0 - m; lz = q.z0 + (q.z1 - q.z0) * t; } else if (side === 1) { lx = q.x1 + m; lz = q.z0 + (q.z1 - q.z0) * t; } else if (side === 2) { lz = q.z0 - m; lx = q.x0 + (q.x1 - q.x0) * t; } else { lz = q.z1 + m; lx = q.x0 + (q.x1 - q.x0) * t; }
+                    var px = me[0] * lx + me[4] * q.top + me[8] * lz + me[12], py = me[1] * lx + me[5] * q.top + me[9] * lz + me[13], pz = me[2] * lx + me[6] * q.top + me[10] * lz + me[14], pl = Math.sqrt(px * px + py * py + pz * pz);
+                    var dx = px / pl, dy = py / pl, dz = pz / pl, rT = (S.np + q.top * S.len) / (S.ny0 * dx + S.ny1 * dy + S.ny2 * dz), terr = ps.meshFloorLocal(dx, dy, dz), step = Math.abs(rT - terr) / H;
+                    if (step > out.worstStepH) { out.worstStepH = step; out.worstAt = key + '#' + ri + ':' + e; out.worstInfo = { slabMinusTerrH: +((rT - terr) / H).toFixed(3), nearestPadFlatMinusChordL: (function () { var bb = 1e9, bi = -1; for (var j = 0; j < pads.length; j++) { var c = Math.sqrt(Math.pow(dx - pads[j].d.x, 2) + Math.pow(dy - pads[j].d.y, 2) + Math.pow(dz - pads[j].d.z, 2)); if (c < bb) { bb = c; bi = j; } } return bi < 0 ? null : [bi, +((pads[bi].flat - bb) * R / L).toFixed(2), +((pads[bi].blend - bb) * R / L).toFixed(2)]; })() }; }
+                    var on = false; for (var i = 0; i < pads.length; i++) { var pd = pads[i]; if (Math.sqrt((dx - pd.d.x) * (dx - pd.d.x) + (dy - pd.d.y) * (dy - pd.d.y) + (dz - pd.d.z) * (dz - pd.d.z)) <= pd.flat * 1.001) { on = true; break; } }
+                    if (!on && out.uncovered.length < 12) out.uncovered.push(key + '#' + ri + ':' + e + ' step ' + step.toFixed(2) + ' H');
+                }
+            }
+        }
+        return out;
+    };
 
     ps.landLocal = function (x, y, z) {
         if (!node || !alloc) return false;

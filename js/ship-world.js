@@ -941,9 +941,17 @@ export function createWorld(THREE, ps, L, mods) {
     return s;
   }
 
+  // 2026-11-11 GROUND TRUTH: every structure floor registers with ps.floorPut (one floor list: ps.groundTruth = max(terrain with pad plane, slab)). Register first (this grows the
+  // nearest pad's flat disc over the footprint + 1 H), seat against that ground, register again with the final lifted matrix.
+  function seatAndRegister(key, M, floors, eps) {
+    if (ps && ps.floorPut) ps.floorPut(key, M, KS, floors);
+    const s = seatFloors(M, floors, eps);
+    if (ps && ps.floorPut) ps.floorPut(key, M, KS, floors);
+    return s;
+  }
   function layoutStore(site) {
     storeMatrix(site.pad, site.M);
-    seatFloors(site.M, site.store.interior.floors, 0.015 * KS);
+    seatAndRegister('store' + sites.indexOf(site), site.M, site.store.interior.floors, 0.015 * KS);
     const M = site.M, st = site.store;
     st.pos.set(0, 0, 0).applyMatrix4(M);
     const toW = (x, y, z, o) => o.set(x, y, z).applyMatrix4(M);
@@ -977,12 +985,12 @@ export function createWorld(THREE, ps, L, mods) {
       if (worst < 0.03 * L) break;
     }
     if (!best) { best = { dir: new T.Vector3(0, 0, 0).setFromMatrixPosition(pm).normalize(), fl: new T.Vector3().setFromMatrixPosition(pm).length() }; best.dir.multiplyScalar(1); }
-    const ground = best.dir.clone().multiplyScalar(best.fl), up = best.dir.clone();
+    const ground = best.dir.clone().multiplyScalar(best.fl), pe = pm.elements, up = new T.Vector3(pe[4], pe[5], pe[6]).normalize();      // up = the PAD's up: the pad ground is its tangent plane, so the Burger House slab is parallel to it (no tilt gap across the footprint)
     const padPos = new T.Vector3().setFromMatrixPosition(pm);
     const fwd = padPos.clone().sub(ground); fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.lengthSq() < 1e-12) fwd.set(1, 0, 0).addScaledVector(up, -up.x); fwd.normalize();
     const xA = new T.Vector3().crossVectors(up, fwd).normalize();
     burger.matrix.makeBasis(xA, up, fwd).setPosition(ground); burger.matrix.multiply(_sc.makeScale(KS, KS, KS));
-    seatFloors(burger.matrix, world.burgerHouse && world.burgerHouse.floors, 0.015 * KS);
+    seatAndRegister('burger', burger.matrix, world.burgerHouse && world.burgerHouse.floors, 0.015 * KS);
     burger.node.matrix.copy(burger.matrix); burger.node.matrixWorldNeedsUpdate = true;
     const bh = world.burgerHouse;
     bh.pos.set(0, 0, 0).applyMatrix4(burger.matrix); bh.windowPos.set(0, FY, 5.4).applyMatrix4(burger.matrix); bh.radius = 5.0 * KS;
@@ -1009,13 +1017,13 @@ export function createWorld(THREE, ps, L, mods) {
     const fwd = target.sub(ground); fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.lengthSq() < 1e-12) fwd.set(1, 0, 0).addScaledVector(up, -up.x); fwd.normalize();
     const xA = new T.Vector3().crossVectors(up, fwd).normalize();
     cvs.matrix.makeBasis(xA, up, fwd).setPosition(ground); cvs.matrix.multiply(_sc.makeScale(KS, KS, KS));
-    seatFloors(cvs.matrix, world.cvs && world.cvs.floors, 0.015 * KS);
+    seatAndRegister('cvs', cvs.matrix, world.cvs && world.cvs.floors, 0.015 * KS);
     cvs.node.matrix.copy(cvs.matrix); cvs.node.matrixWorldNeedsUpdate = true;
     const w = world.cvs;
     w.pos.set(0, 0, 0).applyMatrix4(cvs.matrix); w.reviveWin.set(-CVS_WX, FY, 5.4).applyMatrix4(cvs.matrix); w.healWin.set(CVS_WX, FY, 5.4).applyMatrix4(cvs.matrix);
     w.matrix.copy(cvs.matrix); w.unit = KS; w.radius = 3.0 * KS;
   }
-  function disposeCvs() { if (cvs) { group.remove(cvs.node); cvs = null; } world.cvs = null; world.nearCvs = null; }
+  function disposeCvs() { if (ps && ps.floorDrop) ps.floorDrop('cvs'); if (cvs) { group.remove(cvs.node); cvs = null; } world.cvs = null; world.nearCvs = null; }
   // dir: unit planet-local Vector3 | null; id: the planet node id it belongs to (a stale site from the previous planet is ignored)
   world.setCvsSite = function (dir, id) {
     disposeCvs();
@@ -1227,6 +1235,21 @@ export function createWorld(THREE, ps, L, mods) {
     group.updateMatrixWorld(true);
   }
 
+  // 2026-11-11: pads are (re)built after the structures can already be laid out (outposts reseed, site pads arrive from ship.js, a pad grows over a new footprint). ps calls this
+  // after every pad rebuild so each slab is re-seated on the FINAL pad plane: one ground, never a slab seated on a hill that a later pad flattened.
+  function relayoutGround() {
+    if (!world.node || !sites.length) return;
+    sites.forEach((st) => layoutStore(st));
+    if (burger) layoutBurger(sites[0]);
+    layoutCvs();
+    if (bodies) {
+      for (let i = 0; i < sites.length; i++) { bodies.setMatrixAt(i, sites[i].M); emis.setMatrixAt(i, sites[i].M); signs.setMatrixAt(i, sites[i].M); glasses.setMatrixAt(i, sites[i].M); }
+      bodies.instanceMatrix.needsUpdate = emis.instanceMatrix.needsUpdate = signs.instanceMatrix.needsUpdate = glasses.instanceMatrix.needsUpdate = true;
+    }
+    group.updateMatrixWorld(true);
+  }
+  world.relayoutGround = relayoutGround;
+
   function disposeSites() {
     sites.forEach((s) => { s.crowd.dispose(); if (s.shelfMesh) s.shelfMesh.dispose(); group.remove(s.node); });
     world.cart = []; world.heat = 0; world.heatStore = null;
@@ -1242,7 +1265,7 @@ export function createWorld(THREE, ps, L, mods) {
     world.detach(); world.node = node; taken = new Set(); rstate.clear(); build();
     return world;
   };
-  world.detach = function () { disposeSites(); world.shards = []; world.node = null; world.nearStore = world.nearBurger = world.nearCvs = world.nearNpc = null; lastKey = ''; };
+  world.detach = function () { if (ps && ps.floorClear) ps.floorClear(); disposeSites(); world.shards = []; world.node = null; world.nearStore = world.nearBurger = world.nearCvs = world.nearNpc = null; lastKey = ''; };
   world.markTaken = function (ids) { (ids || []).forEach((id) => taken.add(id)); world.shards.forEach((s) => { if (taken.has(s.id)) s.taken = true; }); };
   world.takeShard = function (id) {
     const s = world.shards.find((q) => q.id === id);
