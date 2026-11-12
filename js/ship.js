@@ -9680,7 +9680,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gbMon(e, g) {      // the one wild-mon recipe (species / individual / level) for a creature record g or a guardian entity e; battle + catch both use it
         var node = land.node, pid = String(node.id), tier, seed, kind, sp, ind, lvl;
         if (e) { tier = e.cr.tier || 1; seed = e.cr.seed | 0; kind = e.cr.kind || 'creature'; } else { tier = 1 + (hash25(pid + ':' + g.id) % 2); seed = hash25(pid + ':' + g.id); kind = CR_NAMES[crKind(g)]; }
-        sp = ptSpeciesOf(node, kind, tier + (e ? 1 : 0)); ind = PKG.individual(sp, seed + ':' + pid); lvl = Math.min(PKG.MAX_LEVEL, 2 + sp.tier * 3);
+        sp = ptSpeciesOf(node, kind, tier + (e ? 1 : 0)); ind = PKG.individual(sp, seed + ':' + pid); lvl = Math.min(PKG.MAX_LEVEL, 1 + sp.tier * 2);      // early grazers L3-5, guardians up to ~L7
         return PKC.makeMon(sp, ind, lvl, PKG.xpForLevel(lvl), pid);
     }
     function gbCatch(pf, mon, e, g) {      // a battle ended in 'caught': record + party/pen + dex + world removal of the creature (e / g are null for a console test battle)
@@ -9700,6 +9700,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         writeSave(); invFill();
     }
     // ═══ BATTLE: the only catch path. A thrown GOR BALL hit, or F within 3 H, opens js/pokemans-battle.js (pixel FIGHT / BALL / RUN). Balls are spent in the battle; 'caught' -> gbCatch.
+    window.addEventListener('pagehide', function () { try { if (ps && ps.creatSpriteDispose) ps.creatSpriteDispose(); } catch (e0) { /* ignore */ } });
     var BT = { on: false, loading: false, mod: null, ctrl: null, css: false };
     function gbBallTier(pf) { var t = 0, i, r, n; for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; n = /^gorball-([123])$/.exec(r.id); if (n && r.n > 0 && (!t || +n[1] < t)) t = +n[1]; } return t; }
     function gbBallCount(pf) { var n = 0, i, r; for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; if (/^gorball-[123]$/.test(r.id) && r.n > 0) n += r.n; } return n; }
@@ -9712,13 +9713,14 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return import('./pokemans-battle.js').then(function (B) {
             BT.loading = false; BT.mod = B;
             if (!BT.css) { BT.css = true; var lk = document.createElement('link'); lk.rel = 'stylesheet'; lk.href = 'style/pokemans-battle.css'; document.head.appendChild(lk); }
+            var wf = B.fighterOf(wild); if (g && ps.creatLook) { var lk0 = ps.creatLook(g.id); if (lk0) wf.v = lk0.v; }      // the world creature's own rig variant
             var mineMon = pf.party.length ? PKP.monById(pf, pf.party[0]) : null; if (mineMon && mineMon.dead) mineMon = null;
             BT.on = true; cmdOpen = true; keys = Object.create(null); mdx = mdy = 0; try { document.exitPointerLock(); } catch (e0) { /* ignore */ }
             if (g) { try { ps.calmCreature(g.id, 600); } catch (e1) { /* ignore */ } } if (e) e.held = true;
             aPlay('ui', { vel: 0.6, pitch: 0.7 });
             var u = opt.catchU;
             BT.ctrl = B.startBattle({
-                mine: mineMon ? B.fighterOf(mineMon) : B.youFighter(), wild: B.fighterOf(wild), chart: ptChart(), instant: !!opt.instant, rng: opt.rng,
+                mine: mineMon ? B.fighterOf(mineMon) : B.youFighter(), wild: wf, sprite: function (q) { return ps.creatSprite ? ps.creatSprite(q.v, q.rgb, q.view, q.px) : null; }, chart: ptChart(), instant: !!opt.instant, rng: opt.rng,
                 catchU: u === undefined ? undefined : function () { return u; },
                 bonus: function () { return (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0; },
                 balls: { tier: function () { return gbBallTier(pf); }, n: function () { return gbBallCount(pf); }, use: function (t) { for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + t) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; } invFill(); } },
@@ -10974,7 +10976,7 @@ setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: p
         get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
         land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyZ: onKeyZ, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
-        _gb: { GB: GB, throwBall: gbThrow, battle: function (opt) { opt = opt || {}; var nm, pf = ensureProfile(userName()); if (!opt.dbg && !opt.target) { var cl = creatList(); opt.target = cl[0]; } opt.dbg = !opt.target; if (opt.dbg) { var sp = PKG.species('dbg', 'grazer', { biome: 'lush', tier: opt.tier || 1 }), ind = PKG.individual(sp, 'dbg' + (opt.seed || 1)); opt.mon = PKC.makeMon(sp, ind, opt.wildLevel || 4, PKG.xpForLevel(opt.wildLevel || 4), String(land.node ? land.node.id : 'dbg')); } return battleBegin(null, opt.target || null, opt); }, get battleCtrl() { return BT.ctrl; }, get battleOn() { return BT.on; }, get hint() { return gbHintText; }, calm: function () { return ps; } },
+        _gb: { GB: GB, throwBall: gbThrow, battle: function (opt) { opt = opt || {}; var nm, pf = ensureProfile(userName()); if (!opt.dbg && !opt.target) { var cl = creatList(); opt.target = cl[0]; } opt.dbg = !opt.target; if (opt.dbg) { var sp = PKG.species('dbg' + (opt.sp || ''), opt.kind || 'grazer', { biome: opt.biome || 'lush', tier: opt.tier || 1 }), ind = PKG.individual(sp, 'dbg' + (opt.seed || 1)); opt.mon = PKC.makeMon(sp, ind, opt.wildLevel || 4, PKG.xpForLevel(opt.wildLevel || 4), String(land.node ? land.node.id : 'dbg')); } return battleBegin(null, opt.target || null, opt); }, get battleCtrl() { return BT.ctrl; }, get battleOn() { return BT.on; }, get hint() { return gbHintText; }, calm: function () { return ps; } },
         _g: { G_WALK: G_WALK, G_RUN: G_RUN, hOf: hOf, hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
         get stats() { return { hp: hp, wave: shownWave(), bossPhase: (api.boss || { bphase: 0 }).bphase, boss: (api.boss || { hp: 0 }).hp, bossMax: (api.boss || { maxHp: 0 }).maxHp, allies: allies.filter(function (a) { return a.alive; }).length, kills: kills, enemies: aliveCount(), L: L, dead: dead, gt: gt }; }
     };

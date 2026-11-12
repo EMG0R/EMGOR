@@ -1,12 +1,14 @@
 // pokemans-battle.js — the one catch path: a classic pixel turn-based battle (FIGHT / BALL / RUN) against a wild POKEMANS creature.
 //   Pure core (node-testable, rng injected): battleStats, moveList, calcDamage, turnOrder, runChance, foeMove, levelUp, createBattleCore
 //   DOM/canvas overlay (no Three.js): startBattle(opts) -> ctrl { core, act, fight, ball, run, close, done }
-// Sprites are the GOR BRAWL pixel rigs (smash-sprites.js atlas, no image files) recoloured to the species hue on the HUD violet palette.
+// Creature sprites: the real creature rig drawn by ps.creatSprite (ship-planet.js, one orthographic render, nearest-filtered target) and quantised to 6 violet-tinted
+// shades here, cached per species+variant+view for the session. "YOU" keeps the GOR BRAWL humanoid (smash-sprites.js atlas).
 import { statsAt, xpForLevel, MAX_LEVEL } from './pokemans-gen.js';
 import { battleCatchChance, LURE_BONUS } from './pokemans-catch.js';
 import { PLAN_BASE, TYPE_COL } from './pokemans-fighter.js';
 import { buildAtlas } from './smash-sprites.js';
 
+export const PLAN_V = { skimmer: 0, crawler: 2, floater: 1, strider: 3, burrower: 2, swarmer: 0 };      // species body plan -> creature rig variant
 export const LEVEL_CAP = 30, CRIT_DEN = 16, ROLL_MIN = 0.85, FLEE_TURNS = 3, WIN_HP_K = 1.08, WIN_POW_K = 1.04;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
@@ -24,11 +26,11 @@ export function moveList(mon) {
 }
 export const YOU_MOVES = [{ name: 'JET', type: 'spark', power: 55, accuracy: 100 }, { name: 'PUNCH', type: 'stone', power: 45, accuracy: 100 }, { name: 'DIVE', type: 'void', power: 70, accuracy: 85 }];
 export function youFighter() {
-  return { name: 'YOU', level: 5, types: [], st: { hp: 40, atk: 30, def: 30, spd: 36, sp: 30 }, hp: 40, max: 40, moves: YOU_MOVES.map((m) => Object.assign({}, m)), mon: null, fid: 'pilot', hue: -1 };
+  return { name: 'YOU', level: 10, types: [], st: { hp: 70, atk: 46, def: 40, spd: 40, sp: 46 }, hp: 70, max: 70, moves: YOU_MOVES.map((m) => Object.assign({}, m)), mon: null, fid: 'pilot', hue: -1, key: 'you', v: -1 };
 }
 export function fighterOf(mon) {
   const st = battleStats(mon), hp = mon.dead || !(mon.hp > 0) ? st.hp : Math.min(mon.hp, st.hp);
-  return { name: String(mon.sp.name).toUpperCase(), level: mon.level | 0 || 1, types: mon.sp.types.slice(), st, hp, max: st.hp, moves: moveList(mon), mon, fid: PLAN_BASE[mon.sp.bodyRecipe.plan] || 'twin', hue: ((mon.sp.bodyRecipe.hue + (mon.ind && mon.ind.hueFlip ? 180 : 0)) % 360 + 360) % 360 };
+  return { name: String(mon.sp.name).toUpperCase(), level: mon.level | 0 || 1, types: mon.sp.types.slice(), st, hp, max: st.hp, moves: moveList(mon), mon, key: mon.sp.id + ':' + mon.sp.tier, v: PLAN_V[mon.sp.bodyRecipe.plan] | 0, fid: PLAN_BASE[mon.sp.bodyRecipe.plan] || 'twin', hue: ((mon.sp.bodyRecipe.hue + (mon.ind && mon.ind.hueFlip ? 180 : 0)) % 360 + 360) % 360 };
 }
 // Gen-1 style: ((2L/5+2) * P * A/D)/50 + 2, x STAB 1.5, x type chart (2 / 0.5 / 1), x roll 0.85..1.0, x crit 2 at 1/16. roll01 / critU in [0,1).
 export function calcDamage(att, mv, def, roll01, critU, chart) {
@@ -115,6 +117,34 @@ export function drawSprite(cv, fid, hue) {
   ctx.putImageData(im, 0, 0); return cv;
 }
 
+const sprCache = new Map();
+// raw RGBA from the rig render -> 6 flat shades of the species hue mixed toward HUD violet + a 1px dark outline
+export function quantise(raw, hue) {
+  const px = raw.w, cv = document.createElement('canvas'); cv.width = px; cv.height = px;
+  const ctx = cv.getContext('2d'), im = ctx.createImageData(px, px), d = im.data, src = raw.data; let mx = 1e-3;
+  for (let i = 0; i < src.length; i += 4) if (src[i + 3] > 127) mx = Math.max(mx, (0.3 * src[i] + 0.59 * src[i + 1] + 0.11 * src[i + 2]) / 255);
+  const ramp = []; for (let q = 0; q < 6; q++) { const c = hsl(hue, 0.5, 0.14 + q * 0.1); ramp.push([c[0] * 0.8 + 168 * 0.2, c[1] * 0.8 + 85 * 0.2, c[2] * 0.8 + 247 * 0.2]); }
+  const solid = (x, y) => x >= 0 && y >= 0 && x < px && y < px && src[(y * px + x) * 4 + 3] > 127;
+  for (let y = 0; y < px; y++) for (let x = 0; x < px; x++) {
+    const o = (y * px + x) * 4;
+    if (solid(x, y)) { const q = Math.min(5, Math.floor(clamp((0.3 * src[o] + 0.59 * src[o + 1] + 0.11 * src[o + 2]) / 255 / mx, 0, 1) * 5.999)), c = ramp[q]; d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255; }
+    else if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) { d[o] = 0x1a; d[o + 1] = 0x12; d[o + 2] = 0x26; d[o + 3] = 255; }
+  }
+  ctx.putImageData(im, 0, 0); return cv;
+}
+export function clearSprites() { sprCache.clear(); }
+if (typeof window !== 'undefined') window.addEventListener('pagehide', clearSprites);
+// paint fighter f into canvas cv: creature rig via o.sprite({v, rgb, view, px}) (cached), else the humanoid fallback
+function paintFighter(cv, f, view, o) {
+  if (f.hue >= 0 && o.sprite) {
+    const key = f.key + ':' + f.v + ':' + view + ':' + Math.round(f.hue);
+    let c = sprCache.get(key);
+    if (!c) { try { const raw = o.sprite({ v: f.v, rgb: hsl(f.hue, 0.55, 0.55).map((n) => n / 255), view, px: view === 'back' ? 128 : 96 }); if (raw) { c = quantise(raw, f.hue); sprCache.set(key, c); } } catch (e) { console.warn('[battle] sprite', e); } }
+    if (c) { cv.width = c.width; cv.height = c.height; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(c, 0, 0); return; }
+  }
+  drawSprite(cv, f.fid, f.hue);
+}
+
 // ── overlay ───────────────────────────────────────────────────────────────────
 const BALL_COL = [0xFF5C7A, 0x5CE8FF, 0xFFD25C];
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
@@ -129,7 +159,7 @@ export function startBattle(o) {
     '<div class="pkb-ui gor-panel"><div class="pkb-msg"></div><div class="pkb-menu"></div></div>';
   const $ = (s) => root.querySelector(s), screen = $('.pkb-screen'), msgEl = $('.pkb-msg'), menu = $('.pkb-menu'), ballEl = $('.pkb-ball');
   const sprFoe = $('.pkb-foe'), sprMe = $('.pkb-me'), bFoe = $('.pkb-box-foe'), bMe = $('.pkb-box-me');
-  drawSprite(sprFoe, core.foe.fid, core.foe.hue); drawSprite(sprMe, core.me.fid, core.me.hue);
+  paintFighter(sprFoe, core.foe, 'side', o); paintFighter(sprMe, core.me, 'back', o);
   let mode = 'busy', sel = 0, closed = false, resolveDone, btns = [];
   const done = new Promise((r) => { resolveDone = r; });
   const wait = (ms) => new Promise((r) => (speed ? setTimeout(r, ms * speed) : r()));

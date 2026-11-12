@@ -2526,6 +2526,46 @@ export function createPlanetSurface(engine, L) {
         if (t - cd.folT > 0.35) cd.folPrev.copy(_tv);
         cd.folP.copy(_tv); cd.folT = t; return true;
     };
+    // Battle sprite: the REAL creature rig (variant v: 0 walker, 1 jelly, 2 ox, 3 strider; tint rgb 0..1) drawn once to a nearest-filtered WebGLRenderTarget, orthographic, flat-lit.
+    // view 'side' = side-on facing screen-left (the wild, toward the player); 'back' = from behind at ~20 deg. Returns { w, h, data: RGBA bytes, top row first } or null.
+    // The caller (pokemans-battle.js) quantises + caches; the mesh / target / material live here and are freed by ps.creatSpriteDispose().
+    var spr = null;
+    ps.creatSprite = function (v, rgb, view, px) {
+        if (!alloc) return null;
+        px = px | 0 || 96; v = v | 0;
+        if (!spr) {
+            var g = alloc.creat.geometry.clone(), one = function (n) { return new THREE.InstancedBufferAttribute(new Float32Array(n), n === 3 ? 3 : 1); };
+            g.setAttribute('aCol', new THREE.InstancedBufferAttribute(new Float32Array(3), 3)); g.setAttribute('aSel', new THREE.InstancedBufferAttribute(new Float32Array(1), 1));
+            g.setAttribute('aInstPh', new THREE.InstancedBufferAttribute(new Float32Array(1), 1)); g.setAttribute('aGlow', new THREE.InstancedBufferAttribute(new Float32Array(1), 1)); g.setAttribute('aMov', new THREE.InstancedBufferAttribute(new Float32Array(1), 1));
+            var strip = function (src) { return src.replace(/#include <logdepthbuf_\w+>/g, ''); };      // ortho + log depth would flatten every fragment to one depth
+            var u = { uTime: { value: 0 }, uFadeA: { value: 1e9 }, uFadeB: { value: 2e9 }, uLightDir: { value: new THREE.Vector3(-0.35, 0.8, -0.5).normalize() }, uFogCol: { value: new THREE.Color(0) }, uFogK: { value: 0 } };
+            var m = new THREE.InstancedMesh(g, new THREE.ShaderMaterial({ uniforms: u, vertexShader: strip(CREAT_VERT), fragmentShader: strip(INST_FRAG), side: THREE.DoubleSide, toneMapped: false }), 1);
+            m.frustumCulled = false; m.setMatrixAt(0, new THREE.Matrix4()); m.instanceMatrix.needsUpdate = true;
+            var sc = new THREE.Scene(); sc.add(m);
+            var bb = [], pos = g.attributes.position, av = g.attributes.aVar, i, k;
+            for (k = 0; k < 4; k++) bb.push({ x0: 1e9, x1: -1e9, y0: 1e9, y1: -1e9, z0: 1e9, z1: -1e9 });
+            for (i = 0; i < pos.count; i++) { var b = bb[av.getX(i) | 0]; if (!b) continue; b.x0 = Math.min(b.x0, pos.getX(i)); b.x1 = Math.max(b.x1, pos.getX(i)); b.y0 = Math.min(b.y0, pos.getY(i)); b.y1 = Math.max(b.y1, pos.getY(i)); b.z0 = Math.min(b.z0, pos.getZ(i)); b.z1 = Math.max(b.z1, pos.getZ(i)); }
+            spr = { g: g, m: m, sc: sc, u: u, bb: bb, rt: {}, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 100) };
+        }
+        var S = spr, b = S.bb[Math.max(0, Math.min(3, v))], rt = S.rt[px];
+        if (!rt) { rt = S.rt[px] = new THREE.WebGLRenderTarget(px, px, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, generateMipmaps: false }); }
+        var col = S.g.attributes.aCol, sel = S.g.attributes.aSel;
+        col.array[0] = rgb[0]; col.array[1] = rgb[1]; col.array[2] = rgb[2]; col.needsUpdate = true; sel.array[0] = v; sel.needsUpdate = true;
+        var cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, cz = (b.z0 + b.z1) / 2, back = view === 'back', ext = back ? Math.max(b.y1 - b.y0, b.z1 - b.z0) : Math.max(b.y1 - b.y0, b.x1 - b.x0), hh = ext * 0.56, cam = S.cam;
+        var az = back ? 20 * Math.PI / 180 : 0, dx = back ? -Math.cos(az) : 0, dz = back ? -Math.sin(az) : -1, dy = back ? 0.18 : 0.12, dl = Math.hypot(dx, dy, dz);
+        cam.left = -hh; cam.right = hh; cam.top = hh; cam.bottom = -hh; cam.updateProjectionMatrix();
+        cam.position.set(cx + dx / dl * 10, cy + dy / dl * 10, cz + dz / dl * 10); cam.up.set(0, 1, 0); cam.lookAt(cx, cy, cz); cam.updateMatrixWorld(true);
+        S.u.uTime.value = 0; S.u.uLightDir.value.set(back ? -0.2 : -0.35, 0.8, back ? -0.55 : -0.5).normalize();
+        var r = engine.renderer, oldRT = r.getRenderTarget(), oldCol = r.getClearColor(new THREE.Color()), oldA = r.getClearAlpha(), buf = new Uint8Array(px * px * 4), out = new Uint8Array(px * px * 4);
+        try { r.setRenderTarget(rt); r.setClearColor(0x000000, 0); r.clear(); r.render(S.sc, cam); r.readRenderTargetPixels(rt, 0, 0, px, px, buf); }
+        finally { r.setRenderTarget(oldRT); r.setClearColor(oldCol, oldA); }
+        for (var y = 0; y < px; y++) out.set(buf.subarray((px - 1 - y) * px * 4, (px - y) * px * 4), y * px * 4);
+        return { w: px, h: px, data: out };
+    };
+    ps.creatSpriteDispose = function () {
+        if (!spr) return; for (var k in spr.rt) spr.rt[k].dispose(); spr.g.dispose(); spr.m.material.dispose(); spr = null;
+    };
+    ps.creatLook = function (id) { var cd = findCd(id); return cd ? { v: cd.v, col: [cd.col[0], cd.col[1], cd.col[2]] } : null; };
     ps.glowCreature = function (id, secs) { var cd = findCd(id); if (cd) cd.glowT = secs || 1.6; return !!cd; };
     ps.glowNear = function (wp, radius, secs) {
         if (!alloc || !node) return 0; syncRide(); var r = alloc.ride, n = 0;
