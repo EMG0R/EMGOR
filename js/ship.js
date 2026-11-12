@@ -5182,7 +5182,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // human mesh and camera follow): it eases toward the physical height but never sinks below the ground.
     var FOOT_R = 0.26, FOOT_SLIDE_A = [0, 0.7, -0.7, 1.4, -1.4], FOOT_SLIDE_K = [1, 0.8, 0.8, 0.5, 0.5];
     var fsR = new THREE.Vector3(), fsF = new THREE.Vector3(), fsC = new THREE.Vector3(), fsT = new THREE.Vector3();
-    function mFloor(x, y, z, ref) { if (!ps) return hum.gr; var r = ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); if (flN > 0 && r > 0) r = flFloor(x, y, z, r); if (BK.n > 0 && ref > 0) { var bf = blkFloor(x, y, z, ref); if (bf > r) r = bf; } return r > 0 ? r : hum.gr; }      // mashup: ref = the feet radius, so the STEEV blocks are part of the ground (columns of 1 H cubes)
+    function mFloor(x, y, z, ref) { if (!ps) return hum.gr; var r = ps.groundTruth ? ps.groundTruth(x, y, z) : ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); if (BK.n > 0 && ref > 0) { var bf = blkFloor(x, y, z, ref); if (bf > r) r = bf; } return r > 0 ? r : hum.gr; }      // mashup: ref = the feet radius, so the STEEV blocks are part of the ground (columns of 1 H cubes)
     // ground radius under the footprint: max over the centre and four points at FOOT_R human heights around it (dir = unit local direction)
     function footFloor(dir, H, ref) {
         var a = FOOT_R * H / ((ps && ps.radius) || 1), best, v; if (!(ref > 0)) ref = hum.hr; best = mFloor(dir.x, dir.y, dir.z, ref);
@@ -5242,53 +5242,18 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function flKill() { if (!fl) return; fl.on = false; fl.v.set(0, 0, 0); fl.th = 0; fl.cr = 0; flT = 0; flHud(false, 0); }
     var opList = [], opPool = [], opA = new THREE.Vector3(), opB = new THREE.Vector3(), opC = new THREE.Vector3(), opU = new THREE.Vector3(), opBhI = new THREE.Matrix4(), opCvI = new THREE.Matrix4(), OP_HS = [0.25, 0.75];
-    // 2026-11-05: structure FLOORS are ground. Each structure that draws a floor slab (7/11 + apron, Burger House, CVS, village huts) hands objBegin its floor rects (structure-local
-    // metres, {x0,x1,z0,z1,top}); mFloor answers the slab plane inside a rect (the SAME numbers the mesh is built from) and a smoothstep ramp from the terrain to the slab over
-    // FL_RAMP human heights outside it, so there is no step at a door and the feet never stand in a slab. Pooled, no per-frame allocation.
-    var flSets = [], flN = 0, flH = 1, flR2 = 1, FL_RAMP = 1.5;
-    function flPut(m, inv, K, rects) {
-        if (!rects || !rects.length) return;
-        var e = flSets[flN] || (flSets[flN] = {}), me = m.elements, ly = Math.sqrt(me[4] * me[4] + me[5] * me[5] + me[6] * me[6]) || 1, pl = Math.sqrt(me[12] * me[12] + me[13] * me[13] + me[14] * me[14]) || 1, i, q, b = 0;
-        e.me = me; e.ie = inv.elements; e.K = K || 1; e.r = rects; e.ny0 = me[4] / ly; e.ny1 = me[5] / ly; e.ny2 = me[6] / ly; e.len = ly;
-        e.np = e.ny0 * me[12] + e.ny1 * me[13] + e.ny2 * me[14]; e.cx = me[12] / pl; e.cy = me[13] / pl; e.cz = me[14] / pl;
-        for (i = 0; i < rects.length; i++) { q = rects[i]; b = Math.max(b, Math.hypot(Math.max(Math.abs(q.x0), Math.abs(q.x1)), Math.max(Math.abs(q.z0), Math.abs(q.z1)))); }
-        e.br2 = Math.pow((b + FL_RAMP * flH / e.K) * e.K * 1.05, 2);
-        flN++;
-    }
-    function flFloor(x, y, z, r0) {      // terrain radius r0 under direction (x,y,z) -> the walkable radius with structure floors applied
-        var l = Math.sqrt(x * x + y * y + z * z) || 1, dx = x / l, dy = y / l, dz = z / l, slab = 0, rampR = 0, rampT = 0, si, ri, e, q, nd, rT, px, py, pz, lx, lz, ex, ez, dd, t, mw, ie, ddx, ddy, ddz;
-        for (si = 0; si < flN; si++) {
-            e = flSets[si]; ddx = dx - e.cx; ddy = dy - e.cy; ddz = dz - e.cz;
-            if ((ddx * ddx + ddy * ddy + ddz * ddz) * flR2 > e.br2) continue;
-            nd = e.ny0 * dx + e.ny1 * dy + e.ny2 * dz; if (nd < 0.5) continue;
-            ie = e.ie; mw = FL_RAMP * flH / e.K;
-            for (ri = 0; ri < e.r.length; ri++) {
-                q = e.r[ri]; rT = (e.np + q.top * e.len) / nd; px = dx * rT; py = dy * rT; pz = dz * rT;
-                lx = ie[0] * px + ie[4] * py + ie[8] * pz + ie[12]; lz = ie[2] * px + ie[6] * py + ie[10] * pz + ie[14];
-                ex = lx < q.x0 ? q.x0 - lx : lx > q.x1 ? lx - q.x1 : 0; ez = lz < q.z0 ? q.z0 - lz : lz > q.z1 ? lz - q.z1 : 0;
-                if (ex === 0 && ez === 0) { if (rT > slab) slab = rT; continue; }
-                dd = Math.sqrt(ex * ex + ez * ez); if (dd >= mw) continue;
-                t = 1 - dd / mw; if (t > rampT) { rampT = t; rampR = rT; }
-            }
-        }
-        if (slab > 0) return slab > r0 ? slab : r0;
-        if (rampT > 0 && rampR > r0) { t = rampT * rampT * (3 - 2 * rampT); return r0 + (rampR - r0) * t; }
-        return r0;
-    }
     function objBegin() {      // the solid sets for this frame (planet-local frame); returns how many
         var n = 0, i, s, I, bh = world && world.burgerHouse;
-        flN = 0;
         if (gmode !== 'foot') { opList.length = 0; return 0; }
-        flH = hOf(L); flR2 = ps ? ps.radius * ps.radius : 1;
         function put(m, inv, K, hw, hd, hh, a, b) { var e = opPool[n] || (opPool[n] = {}); e.m = m; e.inv = inv; e.K = K || 1; e.hw = hw; e.hd = hd; e.hh = hh; e.a = a; e.b = b; opList[n++] = e; }
         if (world && world.node && world.stores) for (i = 0; i < world.stores.length; i++) {
             s = world.stores[i]; I = s.interior;
-            if (I && I.matrix && I.inverse && I.walls) { put(I.matrix, I.inverse, I.unit, (I.size ? I.size.w : 40) / 2 + 1, (I.size ? I.size.d : 26) / 2 + 1, (I.size ? I.size.h : 16) + 1, I.walls, I.aisles); flPut(I.matrix, I.inverse, I.unit, I.floors); }
+            if (I && I.matrix && I.inverse && I.walls) { put(I.matrix, I.inverse, I.unit, (I.size ? I.size.w : 40) / 2 + 1, (I.size ? I.size.d : 26) / 2 + 1, (I.size ? I.size.h : 16) + 1, I.walls, I.aisles) }
         }
-        if (world && world.node && bh && bh.walls && bh.matrix) { put(bh.matrix, opBhI.copy(bh.matrix).invert(), bh.unit, 6, 5, 8, bh.walls, null); flPut(bh.matrix, opBhI, bh.unit, bh.floors); }
-        if (world && world.node && world.cvs && world.cvs.walls) { put(world.cvs.matrix, opCvI.copy(world.cvs.matrix).invert(), world.cvs.unit, 6, 5, 8, world.cvs.walls, null); flPut(world.cvs.matrix, opCvI, world.cvs.unit, world.cvs.floors); }
-        if (HB.hub && HB.hub.floors && HB.node === land.node && !HB.in) flPut(HB.hub.group.matrix, HB.mi, HB.mu, HB.hub.floors);      // Q53: the entrance arch apron is a drawn slab (hub metres -> planet-local), not raw terrain
-        if (VG.v && VG.v.solid && world && world.node && VG.node === land.node) { var vs = VG.v.solid; put(vs.m, vs.inv, vs.K, vs.hw, vs.hd, vs.hh, vs.a, vs.b); flPut(vs.m, vs.inv, vs.K, vs.floors); }      // villages: hut walls, the well and the stall are solid + indestructible
+        if (world && world.node && bh && bh.walls && bh.matrix) { put(bh.matrix, opBhI.copy(bh.matrix).invert(), bh.unit, 6, 5, 8, bh.walls, null) }
+        if (world && world.node && world.cvs && world.cvs.walls) { put(world.cvs.matrix, opCvI.copy(world.cvs.matrix).invert(), world.cvs.unit, 6, 5, 8, world.cvs.walls, null) }
+        if (ps && ps.floorPut) { if (HB.hub && HB.hub.floors && HB.node === land.node && !HB.in) ps.floorPut('hub', HB.hub.group.matrix, HB.mu, HB.hub.floors); else ps.floorDrop('hub'); }      // Q53: the entrance arch apron is a drawn slab (hub metres -> planet-local), not raw terrain
+        if (VG.v && VG.v.solid && world && world.node && VG.node === land.node) { var vs = VG.v.solid; put(vs.m, vs.inv, vs.K, vs.hw, vs.hd, vs.hh, vs.a, vs.b); if (ps && ps.floorPut) ps.floorPut('village', vs.m, vs.K, vs.floors); }      // villages: hut walls, the well and the stall are solid + indestructible
         opList.length = n;
         return 1;     // the hull is always a solid
     }
