@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# demgames — control + tune the Demiurge arcade console (matches the demX CLI
+# family). Run on the Pi. Install: sudo ln -sf ~/demiurge/games/bin/demgames
+# /usr/local/bin/demgames  (then just type `demgames`).
+set -uo pipefail
+
+GAMES_DIR="$HOME/demiurge/games"
+RACFG="$GAMES_DIR/retroarch/retroarch.cfg"
+DEFCFG="$HOME/.config/retroarch/retroarch.cfg"   # RetroArch's own default (authoritative)
+GCFG="$GAMES_DIR/games.conf"
+SVC="demiurge-arcade.service"
+
+# video_rotation lives in BOTH configs; the default one wins, so set both.
+set_video_rotation() {
+  local v="$1"
+  sed -i "s/^video_rotation = .*/video_rotation = \"$v\"/" "$RACFG" 2>/dev/null
+  if [ -f "$DEFCFG" ] && grep -q "^video_rotation" "$DEFCFG"; then
+    sed -i "s/^video_rotation = .*/video_rotation = \"$v\"/" "$DEFCFG"
+  elif [ -f "$DEFCFG" ]; then
+    echo "video_rotation = \"$v\"" >> "$DEFCFG"
+  fi
+}
+
+usage() {
+  cat <<EOF
+demgames — Demiurge arcade control
+  demgames                      status (service + current rotations)
+  demgames start|stop|restart   control the joystick/console supervisor
+  demgames rotate <0|1|2|3>     screen rotation: 0=0 1=90 2=180 3=270 (then re-combo)
+  demgames joy <0|90|180|270>   joystick rotation to match the screen
+  demgames flip                 cycle screen rotation 0->1->2->3->0 (quick tuning)
+  demgames log                  follow the live service log
+EOF
+}
+
+cur_video() { sed -n 's/^video_rotation = "\?\([0-9]\).*/\1/p' "$RACFG" | head -1; }
+
+case "${1:-status}" in
+  status)
+    systemctl is-active "$SVC" >/dev/null 2>&1 && echo "arcade: ACTIVE" || echo "arcade: down"
+    echo "screen video_rotation = $(grep -E '^video_rotation' "$RACFG" | head -1)"
+    echo "joystick $(grep -E '^joy_rotation' "$GCFG" | head -1)"
+    ;;
+  start|stop|restart)
+    sudo systemctl "$1" "$SVC" && echo "$1: ok"
+    ;;
+  rotate)
+    v="${2:?usage: demgames rotate 0|1|2|3}"
+    set_video_rotation "$v"
+    sudo systemctl restart "$SVC"
+    echo "screen rotation -> $v  (re-do the combo to see it)"
+    ;;
+  joy)
+    v="${2:?usage: demgames joy 0|90|180|270}"
+    sed -i "s/^joy_rotation = .*/joy_rotation = $v/" "$GCFG"
+    sudo systemctl restart "$SVC"
+    echo "joystick rotation -> $v"
+    ;;
+  inverty)
+    v="${2:?usage: demgames inverty on|off}"
+    sed -i "s/^joy_invert_y = .*/joy_invert_y = $v/" "$GCFG"
+    sudo systemctl restart "$SVC"
+    echo "joystick invert up/down -> $v"
+    ;;
+  invertx)
+    v="${2:?usage: demgames invertx on|off}"
+    sed -i "s/^joy_invert_x = .*/joy_invert_x = $v/" "$GCFG"
+    sudo systemctl restart "$SVC"
+    echo "joystick invert left/right -> $v"
+    ;;
+  flip)
+    n=$(( ( $(cur_video) + 1 ) % 4 ))
+    set_video_rotation "$n"
+    sudo systemctl restart "$SVC"
+    echo "screen rotation -> $n  (re-do the combo; run again to keep cycling)"
+    ;;
+  log)
+    journalctl -u "$SVC" -f
+    ;;
+  *) usage ;;
+esac

@@ -1,0 +1,20 @@
+{
+  "stage": "cpp",
+  "port": 9005,
+  "version": 1,
+  "params": [
+    {
+      "path": "/cpp/crush",
+      "label": "Crush chance",
+      "default": 0.125,
+      "map": "hard",
+      "proto": "p",
+      "native": {
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "unit": "p/beat"
+      }
+    }
+  ]
+}

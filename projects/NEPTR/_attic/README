@@ -1,0 +1,1 @@
+demiurge-power-restore{,.service}: retired 2026-10-03. Re-applied the live.conf '# power:' tag at boot via demiurge-power; superseded by config/pi5-performance/demiurge-power.{sh,service}, which reads the key (and the tag as fallback) itself.

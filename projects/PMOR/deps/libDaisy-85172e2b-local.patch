@@ -1,0 +1,38 @@
+diff --git a/src/dev/oled_ssd130x.h b/src/dev/oled_ssd130x.h
+index 965b1f0c..c13f4e50 100644
+--- a/src/dev/oled_ssd130x.h
++++ b/src/dev/oled_ssd130x.h
+@@ -241,6 +241,24 @@ class SSD130x4WireSoftSpiTransport
+ /**
+  * A driver implementation for the SSD1306/SSD1309
+  */
++
++/** Weak per-page yield hook for OLED updates.
++ *
++ * Update() pushes the framebuffer as several BACK-TO-BACK BLOCKING SPI
++ * transfers; nothing else on the CPU runs for their duration. That is fatal
++ * next to a USB device stack, whose control transfers are serviced from a
++ * task function (e.g. TinyUSB's tud_task()), not from the ISR: a display
++ * refreshing continuously starves it and the host never finishes
++ * enumerating. Measured on a Daisy Seed 2026-08-14 — a loop doing nothing
++ * but redrawing the screen ~4x/sec held enumeration off indefinitely
++ * (USB irq count climbing past 20000, tud_mounted() stuck at 0).
++ *
++ * Default is a no-op, so existing projects are unaffected. An application
++ * that runs a USB stack can override it:
++ *     dsy_oled_page_yield_hook = []{ tud_task(); };   // at startup
++ */
++extern "C" __attribute__((weak)) void (*dsy_oled_page_yield_hook)(void) = nullptr;
++
+ template <size_t width, size_t height, typename Transport>
+ class SSD130xDriver
+ {
+@@ -382,6 +400,8 @@ class SSD130xDriver
+         }
+         for(i = 0; i < (height / 8); i++)
+         {
++            // let a USB stack breathe between pages (see hook comment above)
++            if(dsy_oled_page_yield_hook) dsy_oled_page_yield_hook();
+             transport_.SendCommand(0xB0 + i);
+             transport_.SendCommand(0x00);
+             transport_.SendCommand(high_column_addr);

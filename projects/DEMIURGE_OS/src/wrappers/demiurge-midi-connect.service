@@ -1,0 +1,39 @@
+[Unit]
+# Keeps every physical MIDI controller wired into Midi Through, continuously.
+#
+# This replaces a udev RUN+= one-shot that could not work reliably: udev kills
+# long-running RUN processes, and a one-shot keyed to an add event misses
+# anything that appears late or re-enumerates. See the long comment at the top
+# of demiurge-midi-connect for the full story and the 2026-09-15 failure it
+# fixes (both controllers present, neither connected, body dead until replug).
+Description=DEMIURGE — keep hardware MIDI connected to the engine hub
+After=sound.target
+Wants=sound.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/demiurge-midi-connect
+Restart=always
+RestartSec=2
+
+# It only ever calls aconnect; it needs no privilege beyond the audio group and
+# has no business touching anything else on the box.
+# gorpi7 = (insert your name here) — documented placeholder, not a
+# requirement; no automated installer templates this unit yet (unlike
+# demiurge.service). Hand-installing: edit to your Pi user, or render with
+# sed -e "s/^User=.*/User=$USER/" first.
+User=gorpi7
+SupplementaryGroups=audio
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+
+# Idle priority on purpose. This must never compete with the audio thread; a
+# MIDI connection appearing three seconds late is invisible to a player,
+# whereas a reconcile loop preempting csound would not be.
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

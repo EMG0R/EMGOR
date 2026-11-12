@@ -1,0 +1,2 @@
+/usr/bin/ar qc libclock_engine_host_legacy.a CMakeFiles/clock_engine_host_legacy.dir/usb/clock_engine.c.o
+/usr/bin/ranlib libclock_engine_host_legacy.a

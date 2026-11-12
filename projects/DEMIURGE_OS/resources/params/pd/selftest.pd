@@ -1,0 +1,6 @@
+#N canvas 0 0 500 300 10;
+#X obj 20 20 dparam_rx 0 0;
+#X obj 20 60 dparam /test/ping 0.1;
+#X obj 20 100 dpout /test/ping;
+#X text 20 140 selftest: echo /test/ping back as /pout. Ports via pd -send.;
+#X connect 1 0 2 0;

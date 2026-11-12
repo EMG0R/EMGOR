@@ -1,0 +1,28 @@
+{
+  "stage": "nld-pd",
+  "port": 9000,
+  "version": 1,
+  "params": [
+    {
+      "path": "/nld-pd/density",
+      "label": "Density",
+      "default": 0.3,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-pd/tone",
+      "label": "Tone",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-pd/length",
+      "label": "Length",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    }
+  ]
+}

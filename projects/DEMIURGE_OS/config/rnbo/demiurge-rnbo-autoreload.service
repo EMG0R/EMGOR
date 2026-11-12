@@ -1,0 +1,11 @@
+[Unit]
+Description=DEMIURGE RNBO auto-reload (reload slot 0 on new Max push)
+After=rnbo-runner.service
+
+[Service]
+ExecStart=%h/.local/bin/demiurge-rnbo-autoreload.sh
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

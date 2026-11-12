@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/test_follower_legacy.dir/link.d CMakeFiles/test_follower_legacy.dir/tests/test_follower.cpp.o -o test_follower_legacy  libclock_engine_host_legacy.a libpmor_core.a -lm

@@ -1,0 +1,48 @@
+#!/bin/bash
+# demiurge-preset-wipe <gorcore|bass>  — clear a context's IN-ENGINE preset bank.
+#
+#   INSTALL ON THE PI:  sudo install -m0755 demiurge-preset-wipe /usr/local/bin/
+#
+# Presets now live entirely in the Csound engine: each context's 17-slot bank is
+# one file, ~/demiurge/presets/<context>/bank.ftab (+ bank.b.ftab dual copy),
+# written by state_persist.orc. A "wipe" is simply removing that file — on the
+# next boot the engine finds no valid stamp and starts every slot EMPTY.
+#
+# Backs up first. REFUSES 'surf' (surf keeps its gig bank) unless --force-surf.
+# Run this while the engine is STOPPED (or reboot after) so the live bank in RAM
+# isn't re-saved over the deletion.
+set -u
+
+PRESET_DIR="${DEMIURGE_PRESET_DIR:-$HOME/demiurge/presets}"
+FORCE_SURF=0
+CTX=""
+for a in "$@"; do
+  case "$a" in
+    --force-surf) FORCE_SURF=1 ;;
+    *) CTX="$a" ;;
+  esac
+done
+
+if [ -z "$CTX" ]; then
+  echo "usage: demiurge-preset-wipe <gorcore|bass|surf> [--force-surf]" >&2
+  exit 2
+fi
+if [ "$CTX" = "surf" ] && [ "$FORCE_SURF" -ne 1 ]; then
+  echo "demiurge-preset-wipe: REFUSING to wipe 'surf' — it keeps its gig bank. "\
+       "Pass --force-surf if you really mean it." >&2
+  exit 2
+fi
+
+D="$PRESET_DIR/$CTX"
+if [ ! -d "$D" ] || [ -z "$(ls -A "$D" 2>/dev/null)" ]; then
+  echo "nothing to wipe in $CTX ($D)"
+  exit 0
+fi
+
+BDIR="$PRESET_DIR/_backups"
+mkdir -p "$BDIR"
+TS="$(date +%Y%m%d-%H%M%S)"
+TAR="$BDIR/${CTX}-bank-${TS}.tar.gz"
+tar -C "$PRESET_DIR" -czf "$TAR" "$CTX" && echo "backup -> $TAR"
+rm -f "$D"/bank.ftab "$D"/bank.b.ftab
+echo "wiped $CTX preset bank (other contexts untouched). Reboot / restart the engine."

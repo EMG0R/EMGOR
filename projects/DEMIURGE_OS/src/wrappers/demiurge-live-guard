@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# demiurge-live-guard — refuse memory-heavy work while the instrument is live.
+#
+# WHY THIS EXISTS, measured not theorised.
+# On 2026-10-07 a profiling job on gorpi7v4 produced **2,543 underrun/overrun
+# warnings** on the live audio engine in 40 minutes. Zero before it started,
+# zero in the 60 s after it was killed.
+#
+# The engine runs on an isolated core (isolcpus=3) and that did not help,
+# because **isolcpus isolates CPU scheduling, not memory bandwidth**, and the
+# engine is bandwidth-bound. Bench: one csound instance 9.3 s CPU per 30 s of
+# audio; two on SEPARATE cores 18.8 s each; one beside a 256 MB memory-copy job
+# 31.6 s; beside a pure-CPU job 8.1 s.
+#
+# There is no hardware fix on this SoC: no resctrl, so no memory-bandwidth
+# allocation. nice and ionice do not help — they schedule CPU and IO, not
+# bandwidth. So the only mitigation is to not do it, and a rule nobody
+# remembers at 11pm before a set is not a mitigation. Hence an interlock.
+#
+# Call it before anything memory-heavy: a repo pull of the instrument tree, a
+# build, an export, a profiling run.
+#
+#   demiurge-live-guard            exit 0 safe, exit 3 instrument is live
+#   demiurge-live-guard --wait 300 wait up to 300 s for a window, then 0 or 3
+#   demiurge-live-guard --why      explain and exit 0 (for docs/humans)
+#
+# Deliberate override, for when a human has decided:
+#   DEMIURGE_ALLOW_HEAVY=1 demiurge-live-guard   -> exit 0, logs that it was overridden
+set -uo pipefail
+
+UNIT="${DEMIURGE_AUDIO_UNIT:-demiurge.service}"
+WAIT=0
+case "${1:-}" in
+  --wait) WAIT="${2:-0}" ;;
+  --why)  sed -n '3,25p' "$0"; exit 0 ;;
+  "")     : ;;
+  *)      echo "usage: $(basename "$0") [--wait SECONDS|--why]" >&2; exit 2 ;;
+esac
+
+# IS AUDIO ACTUALLY FLOWING, not merely "is the service up".
+#
+# The first version of this guard asked only `systemctl is-active`. Deploying it
+# to a second node showed why that is wrong: on neuralgrid demiurge.service is
+# active with NO csound running, so the guard refused unconditionally and the
+# node could never do heavy work at all. A guard that always says no gets
+# removed, and then it protects nothing.
+#
+# ALSA answers the real question directly: an idle PCM's hw_params reads the
+# single word "closed", and a streaming one reads its actual parameters. That is
+# per-device truth, not a guess about what a unit implies.
+pcm_streaming() {
+  local f first found=1
+  for f in /proc/asound/card*/pcm*p/sub0/hw_params /proc/asound/card*/pcm*c/sub0/hw_params; do
+    [ -r "$f" ] || continue
+    found=0
+    read -r first < "$f" 2>/dev/null || continue
+    [ "$first" = "closed" ] || return 0      # a device is open -> audio is live
+  done
+  return $(( found == 0 ? 1 : 2 ))           # 1 = all closed, 2 = no PCMs readable
+}
+
+live() {
+  pcm_streaming
+  case $? in
+    0) return 0 ;;                            # streaming: definitely live
+    1) # every PCM closed. The engine may still be armed; say so but allow,
+       # otherwise an idle node can never do heavy work.
+       if systemctl is-active --quiet "$UNIT" 2>/dev/null; then
+         echo "$(basename "$0"): note — $UNIT is active but no PCM is open; allowing heavy work. It will NOT be stopped if playback starts mid-run." >&2
+       fi
+       return 1 ;;
+    *) # cannot read any PCM: fall back to the unit, conservatively.
+       systemctl is-active --quiet "$UNIT" 2>/dev/null ;;
+  esac
+}
+
+if [ "${DEMIURGE_ALLOW_HEAVY:-0}" = 1 ]; then
+  echo "$(basename "$0"): OVERRIDDEN by DEMIURGE_ALLOW_HEAVY=1 — proceeding while $UNIT may be live" >&2
+  exit 0
+fi
+
+if ! live; then exit 0; fi
+
+if [ "${WAIT:-0}" -gt 0 ] 2>/dev/null; then
+  end=$(( $(date +%s) + WAIT ))
+  while [ "$(date +%s)" -lt "$end" ]; do
+    sleep 5
+    live || exit 0
+  done
+fi
+
+cat >&2 <<MSG
+$(basename "$0"): REFUSING — $UNIT is active (the instrument is live).
+Memory-heavy work degrades the audio engine even on an isolated core; this
+caused 2,543 underruns on 2026-10-07. Stop the engine for a window, or set
+DEMIURGE_ALLOW_HEAVY=1 if you have decided the glitching is acceptable.
+MSG
+exit 3

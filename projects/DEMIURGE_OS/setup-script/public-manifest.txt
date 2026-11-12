@@ -1,0 +1,492 @@
+# public-manifest.txt -- the per-FILE allowlist for the public DEMIURGE export.
+#
+# RULE: NOTHING SHIPS BECAUSE OF THE DIRECTORY IT SITS IN.
+# Every path below was opened (or, for small config/units, read in full or
+# scanned line by line for instrument/host terms) and judged on CONTENT.
+# A new file in an already-listed directory does NOT ship. Adding a path
+# here is a deliberate act: open the file, read it, then add one line.
+# There are no directory entries and no globs, except where a comment says
+# a whole directory is provably generic (none currently).
+#
+# Why this exists: the old manifest listed whole directories. A personal
+# file (docs/neptr-param-migration.md -- the owner's NEPTR menu/CC layout)
+# was dropped into docs/ and rode out to a public repo. A directory-level
+# allowlist is not an allowlist.
+#
+# THE WALL
+#   PUBLIC  = the SYSTEM: what a stranger needs to install and run DEMIURGE
+#             on their own Pi.
+#   PRIVATE = the INSTANCE: the owner's machines, home network, and his
+#             personal instrument NEPTR (control layout, menus, CC maps,
+#             effect params, patches, calibration), his hardware (PMOR,
+#             hyperGuitar, DUODECIMUS), incidents, agent handoffs.
+#   Ambiguous -> EXCLUDED. Excluding costs a feature; including costs his
+#   instrument design. Not symmetric.
+#
+# FORMAT: one repo-relative path per line. '#' lines are comments. Sections
+# marked HELD are commented out on purpose: they are NOT exported until the
+# owner makes the call described next to them.
+#
+# Marker NAME-ONLY: file contains the bare word NEPTR (or a service/path name
+# like neptr-ui, /dev/shm/neptr-state) in a comment or default, but no
+# layout, CC map, param, patch or calibration. Shipped on that basis; the
+# owner may veto by deleting the line. (Public publish-public.sh does NOT
+# scrub the word 'neptr'; it only scrubs hostnames/IPs/email.)
+#
+# publish-public.sh CONSUMES THIS FILE: it ships exactly the uncommented paths
+# below (must exist, be git-tracked, be a regular file) and nothing else. Its
+# sanitizer/verify pass catches GOR_CAVE (case-insensitive), MAC addresses and the
+# Focusrite serial as a second line of defense; those files are still excluded
+# here, not relied on to be sanitized. The script itself and this manifest never
+# ship (private-side tooling).
+
+###########################################################################
+# SHIP -- root
+###########################################################################
+# INSTRUCTIONS.md  NAME-ONLY (neptr/scripts/sync_to_pi.sh mention, neptr-state)
+INSTRUCTIONS.md
+install.sh
+pi_bootify.sh
+# bootstrap.sh + BOOTSTRAP.md: the entry point flash/firstrun.sh runs; read in full, no secrets or
+# owner paths. Its claude-rc / COD-bus steps are guarded `[ -f ... ]` and only warn when those files
+# are absent (they are not shipped). NAME-ONLY residue: 'neuralgrid-a' as a DEVICE= example in both
+# files, and a dangling CLAUDE_RC_AUTONOMOUS.md reference (same as FLASHING.md). Added 2026-10-05.
+bootstrap.sh
+BOOTSTRAP.md
+
+###########################################################################
+# SHIP -- docs/ (only these three; every other doc is excluded below)
+###########################################################################
+# cardinal.md: Cardinal (VCV fork) on a Pi 5, generic. Minor 'Before-NYC milestone' aside.
+docs/cardinal.md
+# core-layout.md: generic Pi 5 core-pinning plan. "EMGOR owns cmdline.txt" = public handle.
+docs/core-layout.md
+# HiFiBerry/HDMI interface selection: generic OS behaviour, no instrument content.
+docs/superpowers/specs/2026-08-05-hifiberry-hdmi-interface-design.md
+
+###########################################################################
+# SHIP -- install path (added by owner decision 2026-10-05)
+###########################################################################
+# FLASHING.md + flash/firstrun.sh: first-boot hook, stock Pi OS Lite -> node. A public
+# repo that cannot first-boot a node is useless, so these ship.
+# AUDIT NOTE (read when the owner reviews): at HEAD 07791bd both still carry instance
+# residue that the sanitizer does NOT remove: firstrun.sh default DEMIURGE_DEVICE=neptr,
+# comment examples 'neptr, neuralgrid-a'; FLASHING.md "Primary NEPTR" / "Neural Grid"
+# example blocks (names and a hostname-style example, no CC/menu/param layout). 'gorpi7'
+# in FLASHING.md is rewritten to 'pi' by the sanitizer. Both point at
+# setup-script/CLAUDE_RC_AUTONOMOUS.md, which is NOT shipped (dangling reference).
+# Shipped anyway per owner instruction; scrub the two files at source if that is unwanted.
+FLASHING.md
+flash/firstrun.sh
+
+###########################################################################
+# SHIP -- src/ (compiled code + wrappers)
+###########################################################################
+# SCOPE CHANGE 2026-10-05 (coordinator): src/ ships, because setup-demiurge.sh Phase 6 hard-builds
+# from it (cargo build, g++ demiurge-clock.cpp / demiurge-csound-host.cpp) and installs src/wrappers/*.
+# Every file below was read for secrets/hostnames/IPs/tokens: none. Residue is NAME-ONLY (PMOR /
+# "opgorator" clock-role token, NEPTR in comments, 'gorpi7' as a placeholder User= and a HOME fallback;
+# the sanitizer rewrites gorpi7 -> pi).
+# src/README.md: documents the launcher crate and clock daemon; no secrets.
+src/README.md
+# csound host: embedded csound in the JACK callback. NAME-ONLY (line 121 comment
+# 'NEPTR's own master clock broadcasts BPM on ch16 CC119').
+src/demiurge-csound-host.cpp
+# (src/companion/demiurge stays HELD: PMOR sync page + reads /tmp/neptr_companion_telemetry.)
+#
+# --- LAUNCHER + CLOCK: listed in SECTION 6 at the end of this file (publish-public.sh no longer
+# denies them). Recorded there: the export is the COMMITTED clock/launcher; a newer clock exists
+# uncommitted on another machine; do NOT replace it with that copy.
+# demiurge-sync: clock-role chooser (installed by Phase 6); names PMOR/"opgorator" as a role token,
+# no secrets. Ships with the launcher, which is hard-wired to the same token.
+src/wrappers/demiurge-sync
+# Wrappers. Wrappers still HELD (not needed by the installer, or instrument-bound):
+#   demiurge-midi-connect, demiurge-midi-connect.service -- names DUODECIMUS (ch7) and the CC29 pedal collision, 'Bela'
+#   demiurge-state-ram, demiurge-state-flush.service/.timer -- hardcode neptr_settings.ftab and /dev/shm/neptr-state
+#   demiurge-fix-double-trigger (NEPTR body encoders), demiurge-preset-wipe (his preset banks),
+#   demiurge-notify (his ~/Documents/_EMGOR_SYNTH and ~/EMGOR_SKILLS paths)
+#   (setup-demiurge.sh guards every one of these and logs a skip.)
+# Notes on NAME-ONLY ones:
+#   demiurge-run-csound   comments cite NEPTR's chase_bliss_clock.orc and /dev/shm/neptr-state
+#   demiurge-mixer        comment: levels vs NEPTR onset detector calibration (no numbers of design)
+#   demiurge-quantum-limits, demiurge-record, demiurge-set, demiurge-touch-poll,
+#   demiurge-touch-test, demiurge-audit-audio (mentions set name neptr_gorcore) NAME-ONLY
+src/wrappers/demiurge-agent
+src/wrappers/demiurge-audio
+src/wrappers/demiurge-audit-audio
+src/wrappers/demiurge-capture-guard
+src/wrappers/demiurge-enable-touch
+src/wrappers/demiurge-env.sh
+src/wrappers/demiurge-flash-pico
+src/wrappers/demiurge-flash-teensy
+src/wrappers/demiurge-graph
+src/wrappers/demiurge-interface
+src/wrappers/demiurge-meter
+src/wrappers/demiurge-mixer
+src/wrappers/demiurge-patch
+src/wrappers/demiurge-patch-new
+src/wrappers/demiurge-power
+src/wrappers/demiurge-quantum-limits
+src/wrappers/demiurge-record
+src/wrappers/demiurge-ringtest
+src/wrappers/demiurge-run-chuck
+src/wrappers/demiurge-run-cpp
+src/wrappers/demiurge-run-csound
+src/wrappers/demiurge-live-guard
+src/wrappers/demiurge-run-faust
+src/wrappers/demiurge-run-nam
+src/wrappers/demiurge-run-pd
+src/wrappers/demiurge-run-python
+src/wrappers/demiurge-run-rnbo
+src/wrappers/demiurge-run-sc
+src/wrappers/demiurge-run-strudel
+src/wrappers/demiurge-set
+src/wrappers/demiurge-stream-teensy
+src/wrappers/demiurge-stream-touch
+src/wrappers/demiurge-touch
+src/wrappers/demiurge-touch-poll
+src/wrappers/demiurge-touch-test
+src/wrappers/demiurge-wifi
+
+###########################################################################
+# SHIP -- config/ (per-rig/calibration/NEPTR-bound files removed, see EXCLUDED)
+###########################################################################
+# config/csound/librtjack.so + rtjack.c.patched: generic Csound rtjack long-port-name
+# fix. strings(1) on the .so shows no user/host paths.
+# config/pi5-performance/README.md, demiurge-power.sh: NAME-ONLY (neptr-ui service names).
+config/aloop/90-demiurge-aloop.conf
+config/aloop/demiurge-aloop.modprobe
+config/aloop/demiurge-aloop.modules
+config/aloop/README.md
+config/csound/librtjack.so
+config/csound/rtjack.c.patched
+config/demiurge-capture-guard.service
+# demiurge.service: the launcher unit (ExecStart=/opt/demiurge/bin/demiurge-launcher). Re-added with the
+# launcher. gorpi7/UID 1000 are placeholders the installer re-renders; sanitizer turns gorpi7 into pi.
+config/demiurge.service
+config/demiurge.conf.default
+config/demiurge-quantum-restore.service
+config/demiurge-touch.service
+config/network/10-demiurge-network.conf
+config/network/50-demiurge-brcmfmac.conf
+config/network/50-demiurge-netdev.rules
+config/network/90-demiurge-failover
+config/network/99-demiurge-persistent-journal.conf
+config/network/demiurge-netguard.service
+config/network/demiurge-netguard.sh
+config/network/demiurge-netguard.timer
+config/network/README.md
+config/pi5-performance/cmdline.txt.additions
+config/pi5-performance/cmdline.txt.coremap
+config/pi5-performance/config.txt.laptop.snippet
+config/pi5-performance/config.txt.snippet
+config/pi5-performance/demiurge-audio-bounce.sh
+config/pi5-performance/demiurge-audio-irq-rt.service
+config/pi5-performance/demiurge-audio-irq-rt.sh
+config/pi5-performance/demiurge-audio.limits.conf
+config/pi5-performance/demiurge-coremap.conf
+config/pi5-performance/demiurge-coremap.sh
+config/pi5-performance/demiurge-fastboot.sh
+config/pi5-performance/demiurge-irq-isolate.service
+config/pi5-performance/demiurge-irq-isolate.sh
+config/pi5-performance/demiurge-pipewire-lowlatency.conf
+config/pi5-performance/demiurge-power.service
+config/pi5-performance/demiurge-power.sh
+config/pi5-performance/demiurge-thermal-watchdog.service
+config/pi5-performance/demiurge-thermal-watchdog.sh
+config/pi5-performance/demiurge-thermal-watchdog.timer
+config/pi5-performance/README.md
+config/pipewire/demiurge-midi.conf
+config/pipewire/demiurge-virtual.conf
+config/README.md
+config/rnbo/demiurge-rnbo-autoreload.service
+config/rnbo/demiurge-rnbo-autoreload.sh
+config/rnbo/demiurge-rnbo-gate.sh
+config/rnbo/demiurge-runner.json
+config/rnbo/rnbo-runner.service
+config/systemd/demiurge.service.d/10-clock-lockstep.conf
+config/systemd/demiurge.service.d/cpu-affinity.conf
+config/udev/99-demiurge-pico.rules
+config/udev/99-demiurge-teensy.rules
+config/wireplumber/50-demiurge.conf
+
+###########################################################################
+# SHIP -- setup-script/
+###########################################################################
+# updater/: self-updater (README says 'EMGOR's remote' / NEPTR -- NAME-ONLY).
+# setup-demiurge.sh: THE installer. Every phase that needs neptr/, the launcher crate, the clock
+#   daemon, the web UI or another held file is now guarded (present -> unchanged; absent -> 'skip:'
+#   line), the unguarded neptr/scripts/sets rsync included. Phase 11 no longer clones the owner's
+#   shared-memory repo or sets his git identity on a tree without neptr/. NAME-ONLY residue in
+#   comments only (NEPTR, PMOR/Pocket OpGorator, 'neptr_gorcore', his); owner may scrub at source.
+# node-repo/init-node-repo.sh: seeds demiurge/local/device.md; generic code, no registry or topology.
+#   NAME-ONLY: 'twink' in one error-message example. KNOWN BREAK: line 'TEMPLATE ... || exit 1'
+#   requires MD/device.template.md, which is HELD (node registry), so the script exits 1 in the
+#   public tree until that one line is removed at source (the script already has a no-template path).
+setup-script/README.md
+setup-script/setup-demiurge.sh
+setup-script/node-repo/init-node-repo.sh
+setup-script/NEW_PI_BOOTSTRAP.md
+setup-script/build-rtjack-fix.sh
+setup-script/demiurge-qrestore
+setup-script/deploy-cardinal.sh
+setup-script/deploy-clock-config.sh
+# deploy-launcher.sh, deploy-mode-select.sh: install a freshly built launcher and restart demiurge.service
+# on the Pi. Re-added with the launcher. No secrets; PI_USER fallback 'gorpi7' (sanitized to pi).
+setup-script/deploy-launcher.sh
+setup-script/deploy-mode-select.sh
+setup-script/deploy-rtjack.sh
+setup-script/deploy-wrapper.sh
+setup-script/rnbo-add-repo.sh
+setup-script/rnbo-build-deps.sh
+setup-script/rnbo-build-runner.sh
+setup-script/rnbo-install-runner.sh
+setup-script/rnbo-test-run.sh
+setup-script/updater/README.md
+setup-script/updater/demiurge-update-revert.sh
+setup-script/updater/demiurge-update-stage.service
+setup-script/updater/demiurge-update-stage.sh
+setup-script/updater/demiurge-update-stage.timer
+setup-script/updater/demiurge-update-swap.service
+setup-script/updater/demiurge-update-swap.sh
+setup-script/updater/enable.sh
+
+###########################################################################
+# SHIP -- MD/
+###########################################################################
+# MD/DEMIURGE.public.md: generic parent MD (system overview, no instrument, node names or owner
+#   details), exported AS MD/DEMIURGE.md via the "src -> dest" rename syntax of publish-public.sh.
+#   The updater's stage-verify requires MD/DEMIURGE.md (with setup-demiurge.sh and install.sh), and the
+#   private MD/DEMIURGE.md must never ship, so the generic file lands at the path the updater checks.
+MD/DEMIURGE.public.md -> MD/DEMIURGE.md
+
+###########################################################################
+# SHIP -- misc
+###########################################################################
+# nam/: NAM-as-a-language design + csd template (paths cite neptr/csound/nam: NAME-ONLY).
+nam/design.md
+nam/templates/nam_stage.csd
+# norns/runtime: build patches for monome norns (third-party). norns/scripts/ dirs are empty.
+norns/runtime/install-norns.sh
+norns/runtime/patches/01-aarch64-flags.py
+norns/runtime/patches/02-liblo-typedef.py
+norns/runtime/patches/03-sdl-void-casts.py
+norns/runtime/patches/04-sdl-designated-init.py
+norns/runtime/patches/05-crone-string-include.py
+norns/runtime/patches/06-desktop-drop-gpio.py
+# pi-monitor: Mac-side link/temp poller. Defaults gorpi7@demiurge.local (sanitized).
+pi-monitor/pi-monitor.sh
+# bluetooth: generic BlueZ speaker tools. README EXCLUDED (his adapter + Bose MACs).
+bluetooth/90-demiurge-bluetooth.conf
+bluetooth/bt-bringup.sh
+bluetooth/demiurge-bt
+bluetooth/demiurge-bt-autoconnect.service
+bluetooth/demiurge-bt-autoconnect.sh
+
+###########################################################################
+# EXCLUDED / HELD -- do not undo without reading the reason.
+# Lines starting '#   path -- reason' are exclusions. Nothing below ships.
+###########################################################################
+
+# ---- PRIVATE: NEPTR / owner instance (never ship) -----------------------
+#   docs/neptr-param-migration.md -- THE LEAK. "Every rotation (CC20..26) is dispatched on gkLastToggle", full CC/menu/param map of his instrument.
+#   docs/2026-08-14-sensor-system-deploy.md -- "Modular sensor->parameter mapping for NEPTR ... any of its 35 destinations".
+#   docs/2026-08-12-state.md -- session handoff, his rig state ("Where the rig is right now").
+#   docs/BENCH_DEPLOY.md -- "TWINK NEPTR (and later real NEPTR)" deploy runbook, gorpi7v2.
+#   docs/patches-consolidation.md -- "Both NEPTR copies (neptr/scripts/...)", his sets car_mode/neptr_bass.
+#   docs/superpowers/specs/2026-09-15-hyperguitar-neptr-link-design.md -- "NEPTR's menu is hyperGuitar's replacement UI", Bela IPs.
+#   docs/superpowers/specs/2026-07-29-pocket-opgorator-integration-design.md -- his PMOR hardware + NEPTR looper changes.
+#   docs/notify.md -- "COD's unified voice hook", ~/Documents/_EMGOR_SYNTH, ~/EMGOR_SKILLS paths.
+#   web/demiurge_web.py -- line 11 'import neptr_model as neptr' at module top; NeptrState, /api/neptr/*, engine link, virtual panel. Not separable without code edits.
+#   web/neptr_model.py -- generated "NEPTR instrument model": MENUS, PARAM_CC, effect tables.
+#   web/gen_neptr_model.py -- lifts those tables from neptrPhase4_UI.py.
+#   web/static/app.js -- "The panel on the device is NEPTR-first"; routes /neptr/menus, /neptr/spectral, /neptr/panel.
+#   web/static/index.html, web/static/style.css -- shell for that app.js (style.css: '/* NEPTR */', spectral rack).
+#   web/static/video.js -- extension for his NEPTR_VIDEO engine (/nv/param -> neptr-video:8004).
+#   web/phone-ui/* -- "NEPTR phone-ui v1": mock.js lists 'BELA hyperGuitar', 'DAISY PMOR', 'NEPTR BODY' and his patch names.
+#   web/tests/* (test_neptr.py, test_server.py, test_parsers.py, test_video.py, fixtures/*) -- test NEPTR model; fixtures carry GOR_CAVE SSID, 'neptr_gorcore' live.conf, /home/gorpi7/NEPTR_phase4 paths, expr_targets.json.
+#   config/boot-face/* -- his NEPTR X_X face artwork ("NEPTR X_X splash", built from neptr/protoFACES/FACE3.png).
+#   config/demiurge-io.service -- "Teensy's 100 Hz NEPTR2 serial frame ... writes the result to the NEPTR engine".
+#   config/pi5-performance/neptr-ui.service.d/10-reclaim-retry.conf -- NEPTR UI unit drop-in.
+#   config/systemd/demiurge.service.d/20-state-ram.conf -- csound state in /dev/shm/neptr-state (goes with demiurge-state-ram).
+#   config/wireplumber/95-demiurge-opgorator.conf -- his PMOR (Pocket OpGorator) USB audio rule.
+#   config/wireplumber/99-demiurge-disable-bela-audio.conf -- "the hyperGuitar's Bela enumerates on the Pi".
+#   config/touch-cal.conf.example -- real calibration of HIS panel (raw_x_min = 142.0 ... date = 2026-10-02). Sensor calibration.
+#   config/_attic/* -- dead file, hardcodes his Focusrite serial (Y7HT8KA9C84089). Attic never ships.
+#   config/aloop/HANDOFF.md -- agent handoff ("Host gorpi7@demiurge.local ... the rig REBOOTS often", 'SURF default').
+#   src/demiurge-io/* (28 files: daemon.py, sources/teensy.py, pool.py, sinks/midi.py, DEPLOY.md, tests ...) -- "sensor -> parameter control plane for the NEPTR instrument"; sinks/midi.py RESERVED = {(1, 29)} # DUODECIMUS pedal; pool.py reads ~/NEPTR_phase4/.../expr_targets.json.
+#   src/wrappers/demiurge-fix-double-trigger -- "stop NEPTR body encoder clicks firing twice".
+#   src/wrappers/demiurge-preset-wipe -- his preset banks "<gorcore|bass|surf>" / "surf keeps its gig bank".
+#   src/wrappers/demiurge-state-ram, demiurge-state-flush.service, demiurge-state-flush.timer -- hardcode neptr_settings.ftab and /dev/shm/neptr-state.
+#   src/wrappers/demiurge-notify -- "$HOME/Documents/_EMGOR_SYNTH/______2026NEW/$name.wav", ~/EMGOR_SKILLS/sounds.
+#   src/wrappers/demiurge-midi-connect, demiurge-midi-connect.service -- "client 16 DUODECIMUS and client 20 Teensy MIDI"; default patterns "Teensy MIDI" and "Bela"; ch7/ch1 pedal collision.
+#   setup-script/deploy-io.sh -- installs demiurge-io; "IT REPLACES neptr-bridge.service".
+#   setup-script/deploy-nam.sh -- rsyncs neptr/csound/nam and builds from neptr/.
+#   setup-script/deploy-rnbo-wave1.sh -- "install the RNBO -> NEPTR audio integration".
+#   setup-script/backup-rig.sh, restore-rig.sh -- back up/restore HIS rig into rig-backup/ (a FORBIDDEN_NAMES dir); gorpi7v2 defaults, neptr-state.
+#   setup-script/CLAUDE_RC_AUTONOMOUS.md -- "TWINK NEPTR (gorpi7v2@demiurge.local) 2026-10-05" (already in EXCLUDE_SUBPATHS).
+#   setup-script/publish-public.sh -- private maintenance tool; contains the forbidden strings.
+#   MD/DEMIURGE.md -- (private; the public tree gets MD/DEMIURGE.public.md exported AS MD/DEMIURGE.md) "the brain of NEPTR Phase 4 ... 19+ menus, ~60 effects, 5-channel looper", HANDOFF index.
+#   MD/device.template.md -- "TWINK NEPTR", Neural Grid, MacBert/gorecave_MacBook node registry.
+#   (FLASHING.md and flash/firstrun.sh were here; moved to SHIP by owner decision, see AUDIT NOTE above.)
+
+# ---- SUPERSEDED 2026-10-05: src/ now ships (see SHIP -- src/) -------------------
+# The earlier owner decision to hold the launcher/clock is reversed: the installer builds from them.
+# STILL HELD: web/** (needs the owner's instrument model, incl. web/nld-ui/*), src/demiurge-io/**
+# (sensor->parameter plane for his instrument; names the DUODECIMUS pedal at CC29), config/demiurge-web.service.
+# KNOWN DANGLING REFERENCES in shipped docs (INSTRUCTIONS.md, setup-script/README.md,
+# NEW_PI_BOOTSTRAP.md, docs/core-layout.md) still describe the web UI.
+
+# ---- HELD: ambiguous, owner decision needed ------------------------------
+# 1. RESOLVED 2026-10-05: setup-script/setup-demiurge.sh now ships (see SHIP -- setup-script/).
+#    Its NEPTR-bound phases are guarded on neptr/ (and the other held files) existing.
+# 2. RESOLVED 2026-10-05: launcher crate + clock daemon ship as a unit (PMOR named as a supported clock
+#    device); see SHIP -- src/ for the entries and the publish-public.sh DENY_PREFIXES blocker.
+#src/companion/demiurge                  -- TUI; sync page calls `demiurge-sync opgorator` (PMOR); also reads /tmp/neptr_companion_telemetry
+# 3. Docs generic in substance but with instance residue (would ship after a 1-3 line scrub):
+#docs/parameters.md                      -- pool design; names 'neptr_gorcore' patch, DUODECIMUS pedal CC29, NEPTR2 frame, expr_targets
+#docs/preempt-rt-plan.md                -- PREEMPT_RT plan; grounded on gorpi7@demiurge.local, his measured rig
+#docs/patch-folders.md                  -- patch-folder mechanism; examples neptr_bass, "NEPTR pygame PRESETS"
+#docs/superpowers/specs/2026-07-26-interface-selection-design.md -- section 'NEPTR pygame UI: AUDIO tab, NEPTR_IFACE_*_CMD'
+#docs/superpowers/specs/2026-06-22-multi-interface-master-clock-design.md -- 'SURF default', CONTINUATION.md section 8 notes
+# 4. Agent / COD mesh stack (owner's agent infrastructure, not the audio OS):
+# (bootstrap.sh and BOOTSTRAP.md moved to SHIP -- root on 2026-10-05; their claude-rc/COD steps are
+#  guarded and skip when the held files below are absent.)
+#setup-script/cod-bus/README.md          -- hub default http://TAILNET_IP:8798 (gorcave tailnet IP) in cod, EMGOR_SKILLS/mesh path
+#setup-script/cod-bus/cod
+#setup-script/cod-bus/cod-bus.service
+#setup-script/node-repo/README.md        -- "Principle (EMGOR): ... TWINK NEPTR, Neural Grid, gorcave, MacBert"
+# (setup-script/node-repo/init-node-repo.sh moved to SHIP; it tolerates mesh-hook.sh being absent.)
+#setup-script/node-repo/mesh-hook.sh     -- "waiting on EMGOR topology verdict"
+#setup-script/pi-agent.sh                -- defaults gorpi7v2@demiurge.local
+#MD/ORGANIZATION.md                      -- COD aquarium / owner-hub layout; says it ships, but it is his agent topology
+#MD/README.md                            -- indexes his HANDOFF-*.md (NORRIS rack)
+# 5. Other held items:
+#config/network/demiurge-network.conf.default -- HOME_SSID="GOR_CAVE" (his home network; sanitizer misses it). Ship after blanking the SSID.
+#config/pi5-performance/demiurge-ui-launch.sh -- FALLBACK_CMD="$HOME/kivy-venv/bin/python $HOME/NEPTR_phase4/neptrPhase4_UI.py"
+#config/demiurge-touch-poll.service      -- Before=neptr-ui.service, try-restart neptr-ui.service (2 lines to generalize)
+#config/demiurge-web.service             -- only useful with the held web UI
+#bluetooth/README.md                     -- lines 126-128: his adapter MAC 88:A2:9E:04:05:86 and Bose Flex 2 speaker MAC E4:58:BC:B8:61:3C
+#pi-monitor/sounds/pi_big_load.wav       -- binary audio, not auditable by reading; confirm it is a plain beep
+#pi-monitor/sounds/pi_connected.wav
+#pi-monitor/sounds/pi_disconnected.wav
+#nam/_attic_src_single_instance/*        -- _attic never ships; hardcodes /home/gorpi7/NEPTR_phase4/csound/nam/profiles
+
+# ---- NOT SHIPPED, by decision --------------------------------------------
+#   pi-rig.conf -- his Mac-side user@host (PI_USER_DEFAULT="gorpi7v2", PI_HOST_DEFAULT="demiurge.local"). Instance file. Every consumer
+#       (pi-agent.sh, backup-rig.sh, deploy-nam.sh, restore-rig.sh) guards with `[[ -f ... ]] && source` and falls back to an inline default,
+#       so omitting it breaks nothing. If a template is wanted, ship pi-rig.conf.example with neutral values, as a new reviewed file.
+#   README.md -- publish-public.sh regenerates README.md; the private one (line 141 "neptr/ -- NEPTR Phase 4 (emgor's live performance instrument)") must never be copied.
+#   docs/wifi.md, setup-script/CLAUDE_RC_AUTONOMOUS.md -- already in EXCLUDE_SUBPATHS of the old script; keep excluded.
+#   OPTIONAL_MANIFEST dirs from the old script (bluetooth norns flash pi-monitor nam) are no longer wholesale: only the files listed above ship.
+
+# ---------------------------------------------------------------------------
+# SECTION 6 — ADDED 2026-10-06 by A, after the second leak.
+# src/ IS LOAD-BEARING: setup-demiurge.sh Phase 6 cargo-builds the launcher,
+# g++ builds the clock and the csound host, and installs src/wrappers/*.
+# Cutting src/ makes the installer fail and a node first-boot broken, which is
+# why the earlier scope cut was wrong. src/demiurge-io/** stays HELD (the
+# owner's sensor->parameter plane; it names his DUODECIMUS pedal at CC29).
+# The exported clock/launcher is this repo's COMMITTED state. A newer clock
+# exists uncommitted on another machine; exporting a committed file does not
+# disturb it, and the public tree simply lags until that work is committed.
+# Do NOT "fix" this by pulling the uncommitted copy.
+# ---------------------------------------------------------------------------
+src/demiurge-clock.cpp
+src/demiurge-clock-pll.h
+#src/wrappers/demiurge-state-flush.service   -- HELD: execs demiurge-state-ram (neptr_settings.ftab), which is held; orphan units otherwise
+#src/wrappers/demiurge-state-flush.timer   -- HELD: execs demiurge-state-ram (neptr_settings.ftab), which is held; orphan units otherwise
+
+# These three only make sense with the launcher, so they return with it.
+
+# RENAMES (src -> dest). Some files must land at a path the private tree cannot
+# use. MD/DEMIURGE.md and MD/device.template.md are PRIVATE (instrument detail,
+# his node names) but the updater and init-node-repo.sh require those exact
+# paths to exist. Generic twins are exported AS those paths.
+MD/device.template.public.md -> MD/device.template.md
+
+# Raspberry Pi Imager integration. os-list.json is served from raw GitHub so
+# the URL stays stable while the image URL underneath changes per  release.
+imager/os-list.json
+imager/README.md
+
+# ---------------------------------------------------------------------------
+# SECTION 7 — EXAMPLES. ADDED 2026-10-06 by A, at EMGOR's request.
+# WHY THIS WAS MISSING AND WHY IT MATTERED: demiurge/ is on the hard deny list
+# (it is the owner's runtime tree), so EVERY example was excluded with it. The
+# public distro therefore shipped a launcher with nothing to launch:
+# gorpi7v3's demiurge.service crash-looped on "the chain is empty".
+# A distro whose showcase feature cannot be demonstrated is not finished.
+# Exported to top-level examples/ via rename, which is where a stranger looks
+# and which avoids creating a 'demiurge' directory in the public tree.
+# hello_patching is the standard multi-language chain demo. rnbo_neptr and
+# nam_stage stay HELD: both are the owner's instrument.
+# ---------------------------------------------------------------------------
+
+# The agent layer is Demiurge-level, not one box: a node may run several
+# agents and a reboot must restore whatever was registered, by discovery.
+
+# Reviewed public trees: new files here ship WITHOUT a manifest edit, because
+# these directories exist only to be published. The content scan still runs on
+# every file, and the publish prints how many each glob matched.
+# NOTE: a bare demiurge/examples/** over-matched by 20 files on first use and
+# would have shipped rnbo_neptr and nam_stage, which are the owner's instrument.
+# The publish printing the match count is what caught it. Listed explicitly
+# until the examples tree holds nothing but public material.
+demiurge/examples/hello_chuck/README.md -> examples/hello_chuck/README.md
+demiurge/examples/hello_chuck/hello_nonlinear_daylight.ck -> examples/hello_chuck/hello_nonlinear_daylight.ck
+demiurge/examples/hello_csound/README.md -> examples/hello_csound/README.md
+demiurge/examples/hello_csound/hello_nonlinear_daylight.csd -> examples/hello_csound/hello_nonlinear_daylight.csd
+demiurge/examples/hello_faust/README.md -> examples/hello_faust/README.md
+demiurge/examples/hello_faust/hello_nonlinear_daylight.dsp -> examples/hello_faust/hello_nonlinear_daylight.dsp
+demiurge/examples/hello_pd/README.md -> examples/hello_pd/README.md
+demiurge/examples/hello_pd/hello_nonlinear_daylight.pd -> examples/hello_pd/hello_nonlinear_daylight.pd
+demiurge/examples/hello_patching/chuck_synth.ck -> examples/hello_patching/chuck_synth.ck
+demiurge/examples/hello_patching/cpp_crush.cpp -> examples/hello_patching/cpp_crush.cpp
+demiurge/examples/hello_patching/cpp_shape -> examples/hello_patching/cpp_shape
+demiurge/examples/hello_patching/cpp_shape.cpp -> examples/hello_patching/cpp_shape.cpp
+demiurge/examples/hello_patching/csound_reverb.csd -> examples/hello_patching/csound_reverb.csd
+demiurge/examples/hello_patching/csound_ringmod.csd -> examples/hello_patching/csound_ringmod.csd
+demiurge/examples/hello_patching/faust_crush.dsp -> examples/hello_patching/faust_crush.dsp
+demiurge/examples/hello_patching/faust_delay.dsp -> examples/hello_patching/faust_delay.dsp
+demiurge/examples/hello_patching/pd_gate.pd -> examples/hello_patching/pd_gate.pd
+demiurge/examples/hello_patching/sc_grain.scd -> examples/hello_patching/sc_grain.scd
+demiurge/examples/hello_patching/sc_stutter.scd -> examples/hello_patching/sc_stutter.scd
+demiurge/examples/hello_patching/strudel_drive.strudel -> examples/hello_patching/strudel_drive.strudel
+
+# --- 2026-10-06: post-swap apply (B, 2b5eff3) -------------------------------
+# Before this, a self-update never re-ran installers, so a release could add a
+# service and no existing node would ever get it. Silent and permanent.
+setup-script/updater/post-swap.sh
+setup-script/updater/demiurge-apply.sh
+setup-script/updater/demiurge-apply.service
+setup-script/updater/test-post-swap.sh
+setup-script/apply-user.sh
+
+# setup-script/claude-rc/* REMOVED on purpose. install-cod.sh now takes
+# claude-persist and the agent units from the COD repo (aquarium/agents/),
+# so shipping a second copy here would be two mechanisms for one job and they
+# would drift. The COD repo is the source for the agent layer.
+setup-script/cod/**
+
+# Unified Synthesis System, and the param hooks + stock checker.
+uss/**
+resources/**
+testing/stock-check/**
+
+# The launcher crate ships as a GLOB, not per-file. Reason, learned the hard way:
+# a per-file list missed src/params.rs when it was added, so the public distro
+# shipped main.rs with `mod params;` and NO params.rs. Every public install then
+# died at Phase 6 with E0583 and left /opt/demiurge/bin empty. A crate is all-or-
+# nothing: you cannot ship 13 of 14 source files and get a binary. Verified broken
+# on gorpi7v4 2026-10-07.
+src/demiurge-launcher-rs/**
+
+# Build input for src/demiurge-clock.cpp. Missing it broke every public install
+# at the clock build with 'demiurge-transport.h: No such file'. Third time a new
+# build input silently did not ship — see the BUILD INPUT CHECK in
+# publish-public.sh, added so the next one fails at publish, not on a stranger's Pi.
+src/demiurge-transport.h
+
+# USS instrument-slot wrapper (pmor, 6a08739). Generic.
+src/wrappers/demiurge-uss

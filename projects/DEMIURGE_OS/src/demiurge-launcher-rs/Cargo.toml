@@ -1,0 +1,16 @@
+[package]
+name = "demiurge-launcher"
+version = "0.1.0"
+edition = "2021"
+description = "DEMIURGE session launcher and patch graph supervisor"
+
+[[bin]]
+name = "demiurge-launcher"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+opt-level = "z"
+strip = true
+codegen-units = 1
+panic = "abort"

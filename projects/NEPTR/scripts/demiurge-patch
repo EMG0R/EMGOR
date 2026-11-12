@@ -1,0 +1,30 @@
+#!/bin/bash
+# demiurge-patch <name> — switch the active DEMIURGE patch and PERSIST it.
+#
+#   INSTALL ON THE PI:  sudo install -m0755 demiurge-patch /usr/local/bin/demiurge-patch
+#
+# Copies ~/demiurge/patches/<name>.conf -> ~/demiurge/live.conf, so the selected
+# mode survives reboot (demiurge launches from live.conf). Then applies the
+# patch's `# power:` level via demiurge-power and restarts demiurge. Mirrors the
+# terminal companion's switch(). Called by the python UI PRESETS screen
+# (NEPTR_PRESET_CMD = "demiurge-patch {name}") and usable from the shell.
+#
+# Runs as the desktop user (gorpi7) — it owns ~/demiurge, and uses passwordless
+# sudo only for the systemctl restart.
+set -u
+NAME="${1:-}"
+[ -z "$NAME" ] && { echo "usage: demiurge-patch <name>" >&2; exit 1; }
+
+LIVE="$HOME/demiurge/live.conf"
+PATCH="$HOME/demiurge/patches/$NAME.conf"
+[ -f "$PATCH" ] || { echo "demiurge-patch: no such patch: $PATCH" >&2; exit 1; }
+
+cp "$PATCH" "$LIVE" || { echo "demiurge-patch: cannot write $LIVE" >&2; exit 1; }
+
+# Apply the patch's declared power (normalise a 'med' shorthand to 'medium').
+pw=$(sed -n 's/^#[[:space:]]*power:[[:space:]]*//p' "$LIVE" | head -1 | tr -d '[:space:]')
+case "$pw" in med|MED|Med) pw=medium ;; esac
+case "$pw" in low|medium|high) demiurge-power "$pw" >/dev/null 2>&1 ;; esac
+
+sudo -n systemctl restart demiurge
+echo "[demiurge-patch] now: $NAME (power=${pw:-unchanged}) — persisted to live.conf"

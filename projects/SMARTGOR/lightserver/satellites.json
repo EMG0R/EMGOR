@@ -1,0 +1,17 @@
+{
+  "_comment": [
+    "Satellite 'dot' nodes: small 7px blobs anchored to a position on the",
+    "1920px ring map (see ring.json). `anchor` is a ring index 0..1919 —",
+    "repositionable at runtime via POST /satellites/{name} or by editing",
+    "this file, WITHOUT altering the ring's 1920px topology or its 3 strip",
+    "segments. mode 'mirror' (default) shows a 7px window of the ring",
+    "canvas centered on anchor, wrapping at the seam; 'independent' shows",
+    "a flat `color` instead, ignoring the ring, until switched back.",
+    "ANCHORS BELOW ARE PLACEHOLDERS (0 and 960 — opposite sides of the",
+    "1920px loop) pending physical positioning in the room."
+  ],
+  "satellites": [
+    {"node": "dot1", "anchor": 0, "mode": "mirror", "color": null},
+    {"node": "dot2", "anchor": 960, "mode": "mirror", "color": null}
+  ]
+}

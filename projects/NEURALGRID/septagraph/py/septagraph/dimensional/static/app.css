@@ -1,0 +1,131 @@
+:root{
+  --bg:#0c0e12; --panel:#14181f; --line:#232a35;
+  --ink:#e6ecf4; --dim:#7c8798; --accent:#57d1ff; --warm:#ffb545;
+  --good:#4ade80; --sigma:rgba(87,209,255,.22);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+  padding:0 16px 48px;
+}
+header{
+  display:flex; align-items:baseline; justify-content:space-between;
+  gap:12px; padding:18px 0 14px; border-bottom:1px solid var(--line);
+  position:sticky; top:0; background:var(--bg); z-index:2;
+}
+h1{font-size:15px; margin:0; letter-spacing:.14em; text-transform:uppercase}
+h2{font-size:20px; margin:0}
+.ver{color:var(--dim); font-weight:400; letter-spacing:0}
+.link{font-size:12px; color:var(--dim)}
+.link.up{color:var(--good)}
+.link.down{color:#ff6b6b}
+section{max-width:760px; margin:0 auto; padding-top:22px}
+
+/* calibrate */
+.step-head{display:flex; align-items:baseline; gap:12px}
+.counter{color:var(--warm); font-size:12px; letter-spacing:.1em}
+.instruction{font-size:17px; line-height:1.45; margin:14px 0 22px; color:var(--ink)}
+.capture{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px}
+.cap{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px}
+.cap-label{display:block; font-size:11px; color:var(--dim); letter-spacing:.1em; text-transform:uppercase}
+.cap b{font-size:20px; font-weight:600}
+.meter{height:10px; background:var(--panel); border:1px solid var(--line); border-radius:99px; overflow:hidden}
+.meter-fill{height:100%; width:0; background:var(--accent); transition:width .07s linear}
+.status{margin:10px 0 20px; font-size:13px; color:var(--dim)}
+.status.ok{color:var(--good)}
+.steps{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:22px}
+.chip{
+  font-size:11px; padding:5px 10px; border-radius:99px;
+  border:1px solid var(--line); background:var(--panel); color:var(--dim); cursor:pointer;
+}
+.chip.done{border-color:var(--good); color:var(--good)}
+.chip.here{border-color:var(--warm); color:var(--warm)}
+.actions{display:flex; gap:10px; flex-wrap:wrap}
+button{
+  font:inherit; padding:10px 16px; border-radius:8px; cursor:pointer;
+  background:var(--panel); color:var(--ink); border:1px solid var(--line);
+}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent); color:#06121a; border-color:var(--accent); font-weight:600}
+button.ghost{color:var(--dim)}
+
+/* run */
+.run-head{display:flex; align-items:center; justify-content:space-between}
+.hint{color:var(--dim); font-size:12px; margin:10px 0 20px}
+.hint b{color:var(--accent)}
+.chan{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px}
+.chan.idle{opacity:.42}
+.chan-head{display:flex; align-items:baseline; gap:8px; margin-bottom:8px}
+.chan-id{font-weight:600}
+.chan-meta{font-size:11px; color:var(--dim); letter-spacing:.06em}
+.assoc{font-size:11px; color:var(--warm)}
+.axis{display:grid; grid-template-columns:18px 1fr 56px; align-items:center; gap:8px; margin:5px 0}
+.axis-name{font-size:11px; color:var(--dim)}
+.track{position:relative; height:12px; background:#0a0d12; border-radius:99px; overflow:hidden}
+.band{position:absolute; top:0; bottom:0; background:var(--sigma)}
+.dot{position:absolute; top:1px; width:3px; height:10px; background:var(--accent); border-radius:2px}
+.val{font-size:11px; color:var(--dim); text-align:right}
+.idlemsg{font-size:11px; color:var(--dim)}
+.wire{margin-top:22px; color:var(--dim)}
+.wire summary{cursor:pointer; font-size:12px}
+.wire pre{
+  background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  padding:12px; overflow:auto; max-height:320px; font-size:11px; line-height:1.45;
+}
+@media (max-width:560px){
+  .capture{grid-template-columns:1fr 1fr}
+  .cap b{font-size:16px}
+  .instruction{font-size:15px}
+}
+
+/* raw */
+#rawpanel{max-width:760px; margin:0 auto; padding-top:26px; border-top:1px solid var(--line)}
+#rawpanel h3{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin:0 0 12px}
+.rawgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:8px}
+.raw{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 10px}
+.raw.lit{border-color:var(--accent)}
+.raw-name{font-size:10px; color:var(--dim); letter-spacing:.08em; text-transform:uppercase}
+.raw-val{font-size:17px; font-variant-numeric:tabular-nums}
+.raw-bar{height:3px; background:#0a0d12; border-radius:99px; margin-top:6px; overflow:hidden}
+.raw-bar i{display:block; height:100%; background:var(--accent)}
+.raw.dead .raw-val{color:var(--dim); font-size:12px; letter-spacing:.04em}
+.rawnote{margin-top:12px; font-size:11px; color:var(--dim)}
+
+/* per-pad FSR */
+.padgrid{
+  display:grid; grid-template-columns:repeat(8,1fr); gap:4px;
+  max-width:340px; margin:0 0 18px;
+}
+.padgrid i{
+  aspect-ratio:1; border-radius:4px; background:#141922;
+  border:1px solid var(--line); display:block;
+}
+.padgrid i.done{background:#14361f; border-color:var(--good)}
+.padgrid i.unfelt{background:#3a1414; border-color:#ff6b6b}
+.padgrid i.here{background:var(--accent); border-color:#fff; box-shadow:0 0 10px var(--accent)}
+
+.curve{
+  width:100%; max-width:340px; height:110px; display:block; margin:6px 0 4px;
+  background:var(--panel); border:1px solid var(--line); border-radius:8px;
+}
+.curve path{fill:none; stroke-width:1.6; vector-effect:non-scaling-stroke}
+.padgrid i.stab{background:#3a2a14; border-color:var(--warm)}
+
+/* live FSR bank on the calibration screen */
+.fsrbank{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:4px 0 14px}
+.fsrcell{
+  background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  padding:9px 10px; position:relative;
+}
+.fsrcell.live{border-color:var(--accent)}
+.fsrcell.dead{border-color:#5a2020; background:#1a1114}
+.fsrcell .nm{font-size:10px; color:var(--dim); letter-spacing:.09em; text-transform:uppercase}
+.fsrcell .pin{font-size:9px; color:var(--dim); opacity:.7}
+.fsrcell .raw{font-size:19px; font-variant-numeric:tabular-nums; line-height:1.2}
+.fsrcell.dead .raw{color:#ff6b6b}
+.fsrcell .delta{font-size:11px; color:var(--good); min-height:15px}
+.fsrcell .delta.neg{color:var(--dim)}
+.fsrbar{height:4px; background:#0a0d12; border-radius:99px; margin-top:6px; overflow:hidden}
+.fsrbar i{display:block; height:100%; background:var(--accent)}
+.fsrcell.dead .fsrbar i{background:#ff6b6b}

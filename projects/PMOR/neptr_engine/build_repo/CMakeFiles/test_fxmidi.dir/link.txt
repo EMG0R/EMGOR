@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/test_fxmidi.dir/link.d CMakeFiles/test_fxmidi.dir/tests/test_fxmidi.cpp.o -o test_fxmidi  libpmor_core.a

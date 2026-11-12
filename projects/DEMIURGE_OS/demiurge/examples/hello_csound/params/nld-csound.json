@@ -1,0 +1,28 @@
+{
+  "stage": "nld-csound",
+  "port": 9000,
+  "version": 1,
+  "params": [
+    {
+      "path": "/nld-csound/density",
+      "label": "Density",
+      "default": 0.35,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-csound/tone",
+      "label": "Tone",
+      "default": 0.45,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-csound/length",
+      "label": "Length",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/test_synth_filter.dir/link.d CMakeFiles/test_synth_filter.dir/tests/test_synth_filter.cpp.o -o test_synth_filter  libpmor_core.a

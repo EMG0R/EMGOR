@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>neuralGrid</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header>
+    <h1>neuralGrid</h1>
+    <div id="labPill" class="pill">LAB</div>
+    <label class="brightness-ctl">br
+      <input type="range" id="brightnessSlider" min="0" max="255" value="40">
+      <span id="brightnessVal">40</span>
+    </label>
+    <div id="status" class="status">connecting…</div>
+  </header>
+
+  <nav id="modeButtons" class="mode-buttons">
+    <button data-mode="direct_lab" class="mode-btn">DIRECT&nbsp;LAB</button>
+    <button data-mode="septagraph" class="mode-btn">SEPTAGRAPH</button>
+    <button data-mode="midi" class="mode-btn">MIDI</button>
+  </nav>
+
+  <section class="grid-wrap">
+    <div class="grid-stack">
+      <div id="grid" class="grid"></div>
+      <div id="orientCompass" class="orient-compass" title="physical edge currently facing 'up' logically">
+        <span id="orientArrow" class="orient-arrow">&#8593;</span>
+        <span id="orientLabel" class="orient-label">N</span>
+      </div>
+    </div>
+  </section>
+
+  <details id="sensorsPanel" class="panel sensors-panel">
+    <summary>SENSORS</summary>
+    <div class="sensors-body">
+      <h3>Softpots (raw 0-4095)</h3>
+      <div id="sensorSoftpots" class="sensor-lanes"></div>
+      <h3>FSRs (raw + curved value)</h3>
+      <div id="sensorFsrs" class="sensor-lanes"></div>
+      <h3>Lidar (mm, 0-2000)</h3>
+      <div id="sensorLidars" class="sensor-lanes"></div>
+      <p class="sensor-note">VL53L1X reads INVALID when nothing is within ~4m of the sensor, or the target is off-axis.</p>
+      <div id="sensorLink" class="sensor-link">link —</div>
+    </div>
+  </details>
+
+  <section id="panelDirect" class="panel">
+    <h2>Direct Machine Lab</h2>
+    <div class="layout-toggle" id="layoutToggle">
+      <span class="layout-label">layout</span>
+      <button data-layout="full" class="layout-btn" title="all 64 pads play">FULL</button>
+      <button data-layout="split" class="layout-btn" title="rows 0-3 play, rows 4-7 = sequencer">SPLIT</button>
+      <button data-layout="modulettes" class="layout-btn" title="all 64 pads -&gt; one modulettes solenoid each">MODULETTES</button>
+      <span id="layoutHint" class="layout-hint"></span>
+    </div>
+    <div>skips: <span id="directSkips">0</span></div>
+    <div class="last-sent">last: <span id="directLastSent">—</span></div>
+    <h3>Rows &amp; segments (per-segment catalog paging)</h3>
+    <p id="rowConfigModulettesNote" class="layout-hint" hidden>MODULETTES plays all 64 pads directly -- rows/segments below are the saved FULL layout and are not editable while MODULETTES is active.</p>
+    <div id="instrumentLegend" class="instrument-legend"></div>
+    <div id="rowConfig"></div>
+    <h3>Track assignment (sequencer)</h3>
+    <div id="trackAssign"></div>
+    <h3>FSR strike pads</h3>
+    <div id="fsrAssign"></div>
+  </section>
+
+  <section id="panelSeptagraph" class="panel" hidden>
+    <h2>Septagraph</h2>
+    <div class="presets">
+      <button data-preset="LAB_DIRECT">LAB DIRECT</button>
+      <button data-preset="CONTINUUM">CONTINUUM</button>
+      <button data-preset="HYBRID">HYBRID</button>
+      <button data-preset="MIRROR" disabled title="model not built">MIRROR</button>
+    </div>
+    <div>catalog points: <span id="septCatalogCount">0</span></div>
+    <div>snap radius: <span id="septSnapRadius">—</span></div>
+    <button id="manifestRequest">request manifests</button>
+  </section>
+
+  <section id="panelMidi" class="panel" hidden>
+    <h2>MIDI</h2>
+    <label>base note <input type="number" id="midiBaseNote" value="36" min="0" max="127"></label>
+    <label>channel <input type="number" id="midiChannel" value="0" min="0" max="15"></label>
+    <div>MIDI out: <span id="midiAvailable">?</span></div>
+    <h3>Output port</h3>
+    <div class="transport">
+      <select id="midiPortSelect"></select>
+      <button id="midiRefreshPorts">refresh</button>
+    </div>
+    <h3>FSR notes</h3>
+    <div id="midiFsrNotes"></div>
+    <label><input type="checkbox" id="midiFsrAftertouch"> held pressure -> channel aftertouch</label>
+  </section>
+
+  <section id="panelFsr" class="panel">
+    <h2>FSR (force pads)</h2>
+    <div id="fsrMeters" class="fsr-meters"></div>
+    <div class="transport">
+      <label>gamma <input type="number" id="fsrGamma" value="3.3" step="0.1" min="0.5" max="8"></label>
+      <label>floor <input type="number" id="fsrFloor" value="40" min="0" max="500"></label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Sequencer</h2>
+    <div class="transport">
+      <button id="playBtn">▶ play</button>
+      <button id="stopBtn">■ stop</button>
+      <label>bpm <input type="range" id="tempo" min="40" max="240" value="120"><span id="tempoVal">120</span></label>
+      <label>swing <input type="range" id="swing" min="0" max="60" value="0"><span id="swingVal">0</span>%</label>
+      <label>steps/beat
+        <select id="stepsPerBeat"><option>1</option><option>2</option><option>4</option></select>
+      </label>
+    </div>
+    <div id="seqGrid" class="seq-grid"></div>
+    <div class="pattern-slots">
+      slots:
+      <div id="patternSlots"></div>
+    </div>
+  </section>
+
+  <button id="panicBtn" class="panic">PANIC</button>
+
+  <script src="/app.js"></script>
+</body>
+</html>

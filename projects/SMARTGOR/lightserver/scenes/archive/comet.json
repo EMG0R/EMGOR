@@ -1,0 +1,20 @@
+{
+  "name": "comet",
+  "master": {"brightness": 1.0, "tone_map": "clip"},
+  "layers": [
+    {
+      "type": "particles",
+      "blend": "add",
+      "decay": 0.90,
+      "physics": {
+        "damping": 0.0,
+        "bounce": {"enabled": true, "restitution": 1.0}
+      },
+      "particles": [
+        {"pos": 100, "vel": 260, "color": "#ffb030", "size": 2.5, "mass": 1.0},
+        {"pos": 500, "vel": -180, "color": "#30c0ff", "size": 2.0, "mass": 1.0}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": false}
+    }
+  ]
+}

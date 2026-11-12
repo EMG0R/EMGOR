@@ -1,0 +1,41 @@
+{
+  "purple_vibe": {
+    "label": "Purple Vibe",
+    "commands": [
+      {"topic": "lights/strip/set", "payload": {"mode": "solid", "color": "#8b2fc9", "brightness": 128}},
+      {"topic": "lights/lamp1/set", "payload": {"on": true, "color": "#8b2fc9", "brightness": 70}},
+      {"topic": "lights/lamp2/set", "payload": {"on": true, "color": "#5d2fc9", "brightness": 70}},
+      {"topic": "lights/jars/scene", "payload": {"scene": "drift"}},
+      {"topic": "lights/jars/palette", "payload": {"palette": "purple"}}
+    ]
+  },
+  "chill": {
+    "label": "Chill",
+    "commands": [
+      {"topic": "lights/strip/set", "payload": {"mode": "generative", "brightness": 60}},
+      {"topic": "lights/lamp1/set", "payload": {"on": true, "color": "#ff9040", "brightness": 40}},
+      {"topic": "lights/lamp2/set", "payload": {"on": true, "color": "#ff7030", "brightness": 40}},
+      {"topic": "lights/jars/scene", "payload": {"scene": "calm"}},
+      {"topic": "lights/jars/palette", "payload": {"palette": "sunset"}}
+    ]
+  },
+  "party_reactive": {
+    "label": "Party / Reactive",
+    "commands": [
+      {"topic": "lights/strip/set", "payload": {"mode": "generative", "brightness": 200}},
+      {"topic": "lights/lamp1/set", "payload": {"on": true, "effect": "music", "brightness": 100}},
+      {"topic": "lights/lamp2/set", "payload": {"on": true, "effect": "music", "brightness": 100}},
+      {"topic": "lights/jars/scene", "payload": {"scene": "reactive"}},
+      {"topic": "lights/jars/palette", "payload": {"palette": "rainbow"}}
+    ]
+  },
+  "all_off": {
+    "label": "All Off",
+    "commands": [
+      {"topic": "lights/strip/set", "payload": {"brightness": 0}},
+      {"topic": "lights/lamp1/set", "payload": {"on": false}},
+      {"topic": "lights/lamp2/set", "payload": {"on": false}},
+      {"topic": "lights/jars/scene", "payload": {"scene": "off"}}
+    ]
+  }
+}

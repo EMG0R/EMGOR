@@ -1,0 +1,93 @@
+% intro.tex — Introduction body, \input from septagraph.tex.
+% Draft for emgor to re-voice. Beats, in order:
+%   1 the concrete problem (one grid, seven robots)
+%   2 why note/channel vocabularies fail
+%   3 MIDI's actual lesson (underspecification)
+%   4 the generative-audio control gap
+%   5 thesis (separation; where / how tightly / when)
+%   6 contributions + the interchangeability matrix
+% ACTION(emgor): confirm authorship/acknowledgment with Kapur and Colton
+%   before submission (the Machine Lab is named here and in Sec. origin).
+
+% --- 1. The problem -------------------------------------------------
+The Machine Lab at CalArts is a room of seven robotic instruments ---
+BreakBot, GanaPati, Tammy, Marimba, Trimpbeat, Modulettes, and
+RattleTron --- some tonal, some purely percussive, each bolted to its
+own spot in the room. Composers drive them today as the ensemble has
+always been driven: every instrument is a separate endpoint, reached
+by its own OSC address behind a MIDI channel and note number that
+select a beater and a velocity. Each machine has mechanical limits the
+sender must already know --- a maximum re-strike rate, a force range,
+and, on GanaPati, a thermal cutout: driven too fast it overheats and
+shuts down, so faster play must arrive at lower velocity or not at
+all. Nothing in the message vocabulary carries any of this.
+
+We wanted to play the room as \emph{one} instrument from one $8\times8$
+grid: move a hand across it and have the sound move from drum to
+marimba, dry to noisy, left to right in the room, without ever
+deciding which robot to address.
+
+% --- 2. Why notes and channels fail ---------------------------------
+Note and channel vocabularies cannot express that request. In MIDI, a
+robot is a channel and a beater is a note number; ``a bit noisier and
+a little further left'' is not a message that exists. There is no
+continuum between a drum and a marimba because there is no axis along
+which they differ --- they are two channels. The same wall stands
+between two software synthesizers, or between a synthesizer and a
+robot: as long as the shared language names \emph{sources}, a
+controller can only choose one.
+
+% --- 3. MIDI's actual lesson ----------------------------------------
+It is tempting to conclude the fix is a richer description of sound.
+MIDI's history argues the opposite. MIDI became universal because it
+said almost nothing --- which key, how hard, when --- and left the
+instrument to own everything else. That underspecification is why a
+1983 keyboard still drives a 2026 synthesizer. A control standard
+survives by naming the smallest thing both sides can agree on. MIDI's
+problem is not that it is thin; it is that the thin thing it names ---
+a key on a keyboard --- stopped being the right primitive once the
+receiver was no longer a keyboard instrument.
+
+% --- 4. The generative-audio control gap ----------------------------
+The gap is now acute. Neural and generative sound engines have no
+control vocabulary beyond whatever each model happens to expose: a
+text prompt, or a latent vector meaningless to any other model.
+Neither is portable; neither is something a hand can play in real
+time. What \emph{is} portable, across a neural engine, a deterministic
+synthesizer, and a solenoid-struck drum, is a perceptual description
+of the result --- how bright, how noisy, how fast it flutters, where
+in the room it sits. These are the quantities a listener hears and a
+performer aims for, and any engine can be asked to reach a point on
+them in its own way.
+
+% --- 5. Thesis ------------------------------------------------------
+Septagraph is built on one separation: the side that \emph{predicts
+the human} is kept apart from the side that \emph{renders the sound},
+meeting only in a shared perceptual coordinate space expressed as an
+OSC sublanguage. A controller says \emph{where} in that space a sound
+should land, \emph{how tightly} ($\sigma$, the renderer's declared
+freedom to deviate), and \emph{when} --- discrete events on a fast
+plane no model ever touches, and slower reconfiguration delivered only
+at gesture boundaries, so whatever intelligence sits behind the
+controller can be arbitrarily slow without its latency ever being
+heard. A renderer announces what it can reach: a continuous region for
+a synthesizer, or a measured \emph{catalog} of discrete positions for a
+physical ensemble, each carrying the mechanical constraints the robots
+forced us to model. Neither side knows anything else about the other.
+
+% --- 6. Contributions and the matrix --------------------------------
+This paper contributes: (i) the coordinate space and its wire grammar
+(Secs.~\ref{sec:space}--\ref{sec:window}); (ii) a zero-install browser
+controller/renderer pair on WebChucK a reader can run without
+downloading anything; (iii) a Machine Lab renderer that speaks the
+protocol into the ensemble's existing OSC server from a catalog of
+measured robot positions; (iv) the neuralGrid, a physical grid, ribbon,
+and lidar controller; (v) a latency evaluation of the fast plane; and
+(vi) a listening experiment testing whether the axes are independently
+steerable and whether the same coordinate stream is recognizable across
+renderers. The central evidence is an interchangeability matrix ---
+controllers against renderers, every cell the same protocol stream and
+a working performance (Sec.~\ref{sec:eval}). A neural renderer
+conditioned on the same axes is in progress with collaborators and is
+discussed as future work. Before the technical sections, we describe
+where this came from, because the robots shaped most of what follows.

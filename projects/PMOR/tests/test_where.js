@@ -1,0 +1,27 @@
+// node tests/test_where.js -- pmor_where.js decision: <set folder>/PMOR where the set folder is a Live project root or holds a .als; else "" (proto falls back to ~/Music/PMOR_Cache)
+const fs = require("fs"), os = require("os"), path = require("path"), vm = require("vm");
+const src = fs.readFileSync(path.join(__dirname, "..", "max", "devices", "pmor_where.js"), "utf8");
+const ctx = { module: { exports: {} }, inlets: 0, outlets: 0 }; vm.createContext(ctx); vm.runInContext(src, ctx);
+const { resolveSession, findSetFolder, sessionFor } = ctx.module.exports;
+const t = fs.mkdtempSync(path.join(os.tmpdir(), "pmorwhere-"));
+const proj = path.join(t, "My Set Project"); fs.mkdirSync(path.join(proj, "Ableton Project Info"), { recursive: true }); fs.mkdirSync(path.join(proj, "Presets", "sub"), { recursive: true });
+const alsDir = path.join(t, "Loose Sets"); fs.mkdirSync(path.join(alsDir, "devs", "deep"), { recursive: true }); fs.writeFileSync(path.join(alsDir, "Song.als"), "");
+const lib = path.join(t, "User Library", "Presets"); fs.mkdirSync(lib, { recursive: true }); fs.writeFileSync(path.join(t, "User Library", "stray.als"), "");
+const ls = d => { try { return fs.readdirSync(d); } catch (e) { return null; } };
+let pass = 0, fail = 0;
+const eq = (name, got, want) => { if (got === want) pass++; else { fail++; console.log("FAIL", name, JSON.stringify(got), "!=", JSON.stringify(want)); } };
+eq("device in project", resolveSession(path.join(proj, "Presets", "PMOR core.amxd"), ls), proj + "/PMOR");
+eq("device nested deeper", resolveSession(path.join(proj, "Presets", "sub", "PMOR core.amxd"), ls), proj + "/PMOR");
+eq("device in project root", resolveSession(path.join(proj, "PMOR core.amxd"), ls), proj + "/PMOR");
+eq("folder with a .als (no Project Info)", resolveSession(path.join(alsDir, "PMOR core.amxd"), ls), alsDir + "/PMOR");
+eq("nested device under a .als folder", resolveSession(path.join(alsDir, "devs", "deep", "PMOR core.amxd"), ls), alsDir + "/PMOR");
+eq("device in User Library (no project; stray .als above is ignored)", resolveSession(path.join(lib, "PMOR core.amxd"), ls), "");
+eq("unsaved / empty path", resolveSession("", ls), "");
+eq("Max HFS-style volume prefix", resolveSession("Macintosh HD:" + path.join(proj, "Presets", "PMOR core.amxd"), ls), proj + "/PMOR");
+eq("HFS prefix, .als folder", resolveSession("Macintosh HD:" + path.join(alsDir, "devs", "PMOR core.amxd"), ls), alsDir + "/PMOR");
+eq("unreadable dirs", resolveSession("/nonexistent/a/b.amxd", () => null), "");
+eq("findSetFolder returns the set folder, not PMOR", findSetFolder(path.join(proj, "Presets", "x.amxd"), ls), proj);
+eq("sessionFor strips trailing slash", sessionFor("/a/b/"), "/a/b/PMOR");
+eq("sessionFor empty", sessionFor(""), "");
+fs.rmSync(t, { recursive: true });
+console.log("test_where: " + pass + " passed, " + fail + " failed"); process.exit(fail ? 1 : 0);

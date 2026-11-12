@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>septagraph browser codec tests</title>
+<style>
+  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; background: #111; color: #ddd; }
+  h1 { font-size: 1.1rem; }
+  #summary { font-size: 1.05rem; margin: 1rem 0; padding: 0.75rem 1rem; border-radius: 6px; }
+  #summary.pass { background: #113311; color: #7fdb7f; }
+  #summary.fail { background: #331111; color: #ff8080; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { padding: 4px 10px; border-bottom: 1px solid #333; text-align: left; font-size: 13px; }
+  td.status-PASS { color: #7fdb7f; font-weight: bold; }
+  td.status-FAIL { color: #ff8080; font-weight: bold; }
+  code { color: #9cf; }
+</style>
+</head>
+<body>
+<h1>septagraph — browser codec + window golden tests</h1>
+<p>Serves against <code>../../golden/*.osc</code> produced by the Python core
+(<code>septagraph/py</code>). Open via
+<code>python3 -m http.server</code> from <code>neuralGrid/septagraph/</code>,
+then navigate to <code>web/test/codec.test.html</code>.</p>
+<div id="summary">running...</div>
+<table>
+  <thead><tr><th>#</th><th>test</th><th>status</th><th>detail</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<script src="https://cdn.jsdelivr.net/npm/osc@2.4.5/dist/osc-browser.min.js"></script>
+<script type="module">
+import {
+  encodeHit, encodeMove, encodeShape, encodeManifestRequest, encodeManifest, decode, Decoder,
+} from "../js/sept_codec.js";
+import { project, modulate, cellTable } from "../js/window.js";
+import { handToDevice, pinchFrom } from "../js/webcam_ctl.js";
+
+// ---------------------------------------------------------------------
+// Test harness
+// ---------------------------------------------------------------------
+const rows = document.getElementById("rows");
+const summary = document.getElementById("summary");
+let n = 0;
+let passed = 0;
+let failed = 0;
+
+function record(name, ok, detail) {
+  n += 1;
+  if (ok) passed += 1; else failed += 1;
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td>${n}</td><td>${name}</td><td class="status-${ok ? "PASS" : "FAIL"}">${ok ? "PASS" : "FAIL"}</td><td>${detail || ""}</td>`;
+  rows.appendChild(tr);
+  const line = `[sept-test] ${ok ? "PASS" : "FAIL"} ${name}${detail ? " — " + detail : ""}`;
+  if (ok) console.log(line); else console.error(line);
+}
+
+function test(name, fn) {
+  try {
+    fn();
+    record(name, true, "");
+  } catch (e) {
+    record(name, false, e && e.message ? e.message : String(e));
+  }
+}
+
+function assert(cond, msg) {
+  if (!cond) throw new Error(msg || "assertion failed");
+}
+
+function approx(a, b, eps = 1e-6) {
+  return Math.abs(a - b) <= eps;
+}
+
+function vecApprox(a, b, eps = 1e-6) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (!approx(a[i], b[i], eps)) return false;
+  return true;
+}
+
+function bytesEqual(a, b) {
+  const ua = a instanceof Uint8Array ? a : new Uint8Array(a);
+  const ub = b instanceof Uint8Array ? b : new Uint8Array(b);
+  if (ua.length !== ub.length) return false;
+  for (let i = 0; i < ua.length; i++) if (ua[i] !== ub[i]) return false;
+  return true;
+}
+
+async function fetchGolden(name) {
+  const res = await fetch(`../../golden/${name}.osc`);
+  if (!res.ok) throw new Error(`fetch ${name}.osc failed: ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+// ---------------------------------------------------------------------
+// Fixtures — ported from septagraph/py/tests/golden_fixtures.py
+// CHANGING ANY VALUE HERE IS A WIRE-FORMAT CHANGE.
+// ---------------------------------------------------------------------
+const ZERO = new Array(8).fill(0.0);
+const HALF = new Array(8).fill(0.5);
+
+const HIT_BASIC = {
+  voiceId: "grid:7",
+  layer: 0,
+  onset: true,
+  velocity: 0.8,
+  mu: [0.42, 0.7, 0.9, 0.02, 0.35, 0.5, 0.1, 0.2],
+  sigma: ZERO,
+};
+
+const MOVE_GLOBAL = { voiceId: "", mu: HALF };
+
+const SHAPE_TWO_KNOTS = {
+  shapeId: "bow",
+  layer: 0,
+  durationS: 2.5,
+  knots: [
+    { t: 0.0, mu: HALF, sigma: ZERO },
+    { t: 1.0, mu: new Array(8).fill(0.6), sigma: new Array(8).fill(0.1) },
+  ],
+};
+
+const MANIFEST_CONTINUOUS = {
+  rendererId: "chuck",
+  kind: "continuous",
+  name: "sept-render-chuck",
+  lo: ZERO,
+  hi: new Array(8).fill(1.0),
+  points: [],
+};
+
+const MANIFEST_CATALOG_2PTS = {
+  rendererId: "lab",
+  kind: "catalog",
+  name: "Machine Lab",
+  lo: null,
+  hi: null,
+  points: [
+    { pointId: 0, mu: HALF, sigma: ZERO, instrument: "breakBot", maxRateHz: 12.0, velMin: 0.1, velMax: 1.0 },
+    { pointId: 1, mu: new Array(8).fill(0.3), sigma: ZERO, instrument: "tammy", maxRateHz: 8.0, velMin: 0.2, velMax: 1.0 },
+  ],
+};
+
+const GOLDEN_FIXTURES = {
+  hit_basic: () => encodeHit(HIT_BASIC),
+  move_global: () => encodeMove(MOVE_GLOBAL),
+  shape_two_knots: () => encodeShape(SHAPE_TWO_KNOTS),
+  manifest_continuous: () => encodeManifest(MANIFEST_CONTINUOUS),
+  manifest_catalog_2pts: () => encodeManifest(MANIFEST_CATALOG_2PTS),
+};
+
+// ---------------------------------------------------------------------
+// Run
+// ---------------------------------------------------------------------
+async function run() {
+  // --- golden byte-equality tests -----------------------------------
+  for (const name of Object.keys(GOLDEN_FIXTURES).sort()) {
+    await test_async(`golden_bytes_stable[${name}]`, async () => {
+      const golden = await fetchGolden(name);
+      const encoded = GOLDEN_FIXTURES[name]();
+      assert(
+        bytesEqual(encoded, golden),
+        `byte mismatch: got ${encoded.length}B, golden ${golden.length}B`
+      );
+    });
+  }
+
+  // --- decode roundtrip sanity (not just encode) ----------------------
+  test("hit_roundtrip_and_address", () => {
+    const pkt = encodeHit(HIT_BASIC);
+    const addrBytes = new TextEncoder().encode("/sept/v1/hit\0");
+    assert(bytesEqual(pkt.slice(0, addrBytes.length), addrBytes), "address prefix mismatch");
+    const [out] = decode(pkt);
+    assert(out.type === "hit", "decoded type should be hit");
+    assert(out.voiceId === "grid:7" && out.layer === 0 && out.onset === true, "hit fields mismatch");
+    assert(approx(out.velocity, 0.8), "velocity mismatch");
+    assert(vecApprox(out.mu, HIT_BASIC.mu, 1e-6), "mu mismatch");
+  });
+
+  test("move_global_roundtrip", () => {
+    const [out] = decode(encodeMove(MOVE_GLOBAL));
+    assert(out.type === "move" && out.voiceId === "", "move voiceId should be empty (global)");
+    assert(vecApprox(out.mu, HALF), "move mu mismatch");
+  });
+
+  test("shape_roundtrip", () => {
+    const [out] = decode(encodeShape(SHAPE_TWO_KNOTS));
+    assert(out.type === "shape" && out.shapeId === "bow" && out.knots.length === 2, "shape fields mismatch");
+    assert(approx(out.durationS, 2.5), "durationS mismatch");
+    assert(vecApprox(out.knots[1].mu, new Array(8).fill(0.6)), "knot1 mu mismatch");
+    assert(vecApprox(out.knots[1].sigma, new Array(8).fill(0.1)), "knot1 sigma mismatch");
+  });
+
+  test("manifest_catalog_needs_end", () => {
+    const d = new Decoder();
+    const outs = d.feed(encodeManifest(MANIFEST_CATALOG_2PTS));
+    assert(outs.length === 1 && outs[0].kind === "catalog" && outs[0].points.length === 2, "catalog manifest shape mismatch");
+    assert(outs[0].points[1].instrument === "tammy", "point[1].instrument mismatch");
+  });
+
+  test("manifest_request_roundtrip", () => {
+    const pkt = encodeManifestRequest();
+    const addrBytes = new TextEncoder().encode("/sept/v1/manifest/request\0");
+    assert(bytesEqual(pkt.slice(0, addrBytes.length), addrBytes), "manifest/request address prefix mismatch");
+    const [out] = decode(pkt);
+    assert(out.type === "manifestRequest", "decoded type should be manifestRequest");
+  });
+
+  test("unknown_address_ignored", () => {
+    // Build a bare /sept/v1/whatever message directly with osc.js and
+    // confirm decode() silently drops it (spec §B conformance C1).
+    const pkt = window.osc.writePacket({
+      address: "/sept/v1/whatever",
+      args: [{ type: "i", value: 1 }],
+    });
+    const out = decode(pkt);
+    assert(Array.isArray(out) && out.length === 0, "unknown address should decode to []");
+  });
+
+  test("out_of_range_is_clamped_not_dropped", () => {
+    const args = [
+      { type: "s", value: "v" },
+      { type: "i", value: 0 },
+      { type: "i", value: 1 },
+      { type: "f", value: 3.0 },
+    ];
+    for (let i = 0; i < 16; i++) args.push({ type: "f", value: 2.0 });
+    const pkt = window.osc.writePacket({ address: "/sept/v1/hit", args });
+    const [out] = decode(pkt);
+    assert(vecApprox(out.mu, new Array(8).fill(1.0)), "mu should clamp to 1.0");
+    assert(approx(out.velocity, 1.0), "velocity should clamp to 1.0");
+  });
+
+  test("malformed_message_ignored", () => {
+    const pkt = window.osc.writePacket({ address: "/sept/v1/hit", args: [{ type: "s", value: "v" }] });
+    assert(decode(pkt).length === 0, "short hit message should decode to []");
+    const garbage = new TextEncoder().encode("garbage");
+    assert(decode(garbage).length === 0, "garbage bytes should decode to []");
+  });
+
+  // --- window.js tests — ported from py/tests/test_window.py ----------
+  const GRID = { name: "grid", dims: 2, kind: "discrete", size: [8, 8] };
+  const W = {
+    center: HALF,
+    extent: [0.4, 0.3, 0, 0, 0.4, 0, 0, 0],
+    assign: { grid: [0, 4] },
+  };
+
+  test("project_center_and_edges", () => {
+    assert(vecApprox(project(W, GRID, [0.5, 0.5]), HALF), "center gesture should map to HALF");
+    const mu = project(W, GRID, [0.0, 1.0]);
+    assert(approx(mu[0], 0.1), `mu[0] expected 0.1, got ${mu[0]}`);
+    assert(approx(mu[4], 0.9), `mu[4] expected 0.9, got ${mu[4]}`);
+  });
+
+  test("velocity_to_loud", () => {
+    assert(approx(project(W, GRID, [0.5, 0.5], 1.0)[1], 0.8), "velocity=1.0 should map loud to 0.8");
+    assert(approx(project(W, GRID, [0.5, 0.5], 0.0)[1], 0.2), "velocity=0.0 should map loud to 0.2");
+  });
+
+  test("cell_table_snaps", () => {
+    const pMu = project(W, GRID, [(3 + 0.5) / 8, (5 + 0.5) / 8]);
+    const p = { pointId: 0, mu: pMu, sigma: ZERO, instrument: "tammy", maxRateHz: 8, velMin: 0, velMax: 1 };
+    const tab = cellTable(W, GRID, [p]);
+    assert(tab.size === 64, `expected 64 cells, got ${tab.size}`);
+    assert(tab.get("3,5").point === p, "cell (3,5) should snap to p");
+    assert(tab.get("0,0").point === null, "cell (0,0) should not snap");
+  });
+
+  test("modulate_scales_by_extent_and_clamps", () => {
+    const mu = modulate(HALF, 0, 1.0, W);
+    assert(approx(mu[0], 0.9), "modulate +1.0 on idx0 should give 0.9");
+    const mu2 = modulate(new Array(8).fill(0.95), 0, 1.0, W);
+    assert(approx(mu2[0], 1.0), "modulate should clamp to 1.0");
+  });
+
+  // --- webcam_ctl.js tests (Task 4.3) — coordinate math only, no DOM/camera ---
+  function mkLandmarks(overrides) {
+    // 21-point MediaPipe hand landmark array; unused points default to
+    // {x:0,y:0,z:0} since handToDevice/pinchFrom only read indices
+    // 0 (wrist), 4 (thumb tip), 5 (index MCP), 8 (index tip).
+    const lms = Array.from({ length: 21 }, () => ({ x: 0, y: 0, z: 0 }));
+    for (const [i, p] of Object.entries(overrides)) lms[i] = { x: p.x, y: p.y, z: 0 };
+    return lms;
+  }
+
+  test("handToDevice_center_and_mirrored_xy", () => {
+    const FRAME_H = 480;
+    // wrist->indexMcp dy = 0.1 (normalized) => 48px @ frameH=480 =>
+    // ratio 0.1 => depth = (0.1-0.05)/0.25 = 0.2
+    const lms = mkLandmarks({ 0: { x: 0.5, y: 0.5 }, 5: { x: 0.5, y: 0.4 } });
+    const d = handToDevice(lms, FRAME_H);
+    assert(vecApprox(d, [0.5, 0.5, 0.2], 1e-6), `expected [0.5,0.5,0.2], got [${d}]`);
+  });
+
+  test("handToDevice_mirrors_wrist_xy", () => {
+    const lms = mkLandmarks({ 0: { x: 0.2, y: 0.8 }, 5: { x: 0.2, y: 0.7 } });
+    const d = handToDevice(lms, 480);
+    assert(approx(d[0], 0.8), `expected x=0.8 (1-0.2), got ${d[0]}`);
+    assert(approx(d[1], 0.2), `expected y=0.2 (1-0.8), got ${d[1]}`);
+  });
+
+  test("handToDevice_depth_clamps_to_0_and_1", () => {
+    // ratio = 0.05 exactly -> depth 0
+    const near = mkLandmarks({ 0: { x: 0.5, y: 0.5 }, 5: { x: 0.5, y: 0.45 } });
+    assert(approx(handToDevice(near, 480)[2], 0.0), "near-limit ratio should give depth 0");
+    // ratio = 0.3 exactly -> depth 1
+    const far = mkLandmarks({ 0: { x: 0.5, y: 0.5 }, 5: { x: 0.5, y: 0.2 } });
+    assert(approx(handToDevice(far, 480)[2], 1.0), "far-limit ratio should give depth 1");
+    // ratio below the near limit (very close hand-size, e.g. hand nearly
+    // off-frame) should clamp to 0, not go negative
+    const tiny = mkLandmarks({ 0: { x: 0.5, y: 0.5 }, 5: { x: 0.5, y: 0.501 } });
+    assert(approx(handToDevice(tiny, 480)[2], 0.0), "sub-near ratio should clamp to depth 0");
+  });
+
+  test("pinchFrom_open_closed_and_half", () => {
+    const base = { 0: { x: 0, y: 0 }, 5: { x: 0, y: 1 } }; // handSize = 1
+    const open = mkLandmarks({ ...base, 4: { x: 0, y: 0 }, 8: { x: 0, y: 1 } }); // dist=1 -> pinch=0
+    assert(approx(pinchFrom(open), 0.0), `expected open pinch=0, got ${pinchFrom(open)}`);
+    const closed = mkLandmarks({ ...base, 4: { x: 0, y: 0.5 }, 8: { x: 0, y: 0.5 } }); // dist=0 -> pinch=1
+    assert(approx(pinchFrom(closed), 1.0), `expected closed pinch=1, got ${pinchFrom(closed)}`);
+    const half = mkLandmarks({ ...base, 4: { x: 0, y: 0.25 }, 8: { x: 0, y: 0.75 } }); // dist=0.5 -> pinch=0.5
+    assert(approx(pinchFrom(half), 0.5), `expected half pinch=0.5, got ${pinchFrom(half)}`);
+  });
+
+  test("pinchFrom_ratio_beyond_handSize_clamps_to_0", () => {
+    const lms = mkLandmarks({
+      0: { x: 0, y: 0 },
+      5: { x: 0, y: 1 }, // handSize = 1
+      4: { x: 0, y: 0 },
+      8: { x: 0, y: 3 }, // dist = 3 -> ratio 3 -> clamp to 1 -> pinch = 0
+    });
+    assert(approx(pinchFrom(lms), 0.0), `expected pinch clamped to 0, got ${pinchFrom(lms)}`);
+  });
+
+  finish();
+}
+
+async function test_async(name, fn) {
+  try {
+    await fn();
+    record(name, true, "");
+  } catch (e) {
+    record(name, false, e && e.message ? e.message : String(e));
+  }
+}
+
+function finish() {
+  const ok = failed === 0;
+  summary.textContent = `${passed}/${n} passed${failed ? `, ${failed} FAILED` : ""}`;
+  summary.className = ok ? "pass" : "fail";
+  console.log(`[sept-test] ${ok ? "PASS" : "FAIL"} TOTAL ${passed}/${n}`);
+}
+
+run();
+</script>
+</body>
+</html>

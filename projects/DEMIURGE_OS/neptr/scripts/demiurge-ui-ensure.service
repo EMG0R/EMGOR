@@ -1,0 +1,20 @@
+# Boot backstop: make sure the face UI (neptr-ui) actually came up. It can get
+# condition-skipped at boot (a skip is "success", so Restart= never retries),
+# which leaves the panel on a bare terminal. This oneshot runs after the UI's
+# own boot attempt and starts it if it's down.
+#
+#   INSTALL ON THE PI:
+#     sudo install -m0644 demiurge-ui-ensure.service /etc/systemd/system/demiurge-ui-ensure.service
+#     sudo systemctl daemon-reload && sudo systemctl enable demiurge-ui-ensure.service
+[Unit]
+Description=DEMIURGE — ensure the face UI came up on boot (backstop)
+After=multi-user.target neptr-ui.service demiurge.service
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/demiurge-ui-ensure
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

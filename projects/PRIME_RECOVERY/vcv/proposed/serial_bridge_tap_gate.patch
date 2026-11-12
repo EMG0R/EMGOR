@@ -1,0 +1,21 @@
+--- /home/gorpi7v5/NEPTR_phase4/csound/serial_bridge.py	2026-10-22 21:48:10.156412243 -0700
++++ proposed/serial_bridge.py.new	2026-10-23 10:03:18.822930346 -0700
+@@ -74,6 +74,7 @@
+ # time as its own receive time minus that age, and does the tap analysis ONCE (the same
+ # analyzer PMOR compiles for standalone use) -- NEPTR never guesses a tempo of its own.
+ # b1's existing CC60 press/release is unchanged; the tap is additional.
++# GATED (proposed): the tap is only sent while the top-left encoder click (eb2) is held.
+ TAP_BUTTON      = "b1"
+ TAP_CC          = 113            # ch16 (utility channel) -- PMOR's own taps are CC112
+ TAP_CHANNEL     = 15             # MIDI channel 16, 0-indexed
+@@ -322,7 +323,9 @@
+                 out.send(mido.Message("control_change",
+                                        channel=CHANNEL, control=cc,
+                                        value=127 if cur else 0))
+-                if cur and field == TAP_BUTTON:
++                # TAP GATE (proposed 2026-10-23): the arcade is the VCV manual trigger by default; it is
++                # a tempo tap only while the TOP-LEFT encoder (serial e2 -> click field eb2) is held.
++                if cur and field == TAP_BUTTON and prev_btn.get("eb2", 0):
+                     out.send(mido.Message("control_change",
+                                            channel=TAP_CHANNEL, control=TAP_CC,
+                                            value=tap_age_ms(t_frame)))

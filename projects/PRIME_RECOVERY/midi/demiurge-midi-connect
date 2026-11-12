@@ -1,0 +1,203 @@
+#!/bin/bash
+# demiurge-midi-connect — keep every physical MIDI controller wired into the
+# engine, forever, without anyone having to replug anything.
+#
+# WHY THIS IS A DAEMON AND NOT A UDEV RUN+= SCRIPT
+# ------------------------------------------------
+# It used to be this, in /etc/udev/rules.d/99-demiurge-midi.rules:
+#
+#   SUBSYSTEM=="sound", ACTION=="add", KERNEL=="midiC*D*", \
+#       RUN+="/usr/local/bin/demiurge-midi-connect.sh"
+#
+# with a `sleep 1` at the top of the script. That cannot work reliably, and on
+# 2026-09-15 it left the rig with NOTHING connected to Midi Through after a
+# reboot: `aconnect -l` showed client 16 DUODECIMUS and client 20 Teensy MIDI
+# both present and neither wired in, so csound (-M 14:0) received nothing from
+# either controller and the whole NEPTR body was dead until a replug.
+#
+# Two independent reasons:
+#
+#   1. systemd-udevd KILLS processes spawned from RUN+= once the event is
+#      finished. A `sleep 1` inside a udev RUN is precisely the thing that gets
+#      reaped, so the aconnect after it often never runs at all.
+#   2. Even when it survives, it is a ONE-SHOT keyed to an event. Anything that
+#      appears late — a controller enumerating after the rule fired, a device
+#      re-enumerating on a USB glitch, a hub powering up slowly — is never
+#      connected, and nothing ever tries again.
+#
+# So this reconciles instead of reacting: every ALSA seq client that is a
+# hardware card gets connected to Midi Through, repeatedly, forever. aconnect
+# on an already-existing connection is harmless, which is what makes a
+# reconcile loop the right shape here — there is no state to keep and no event
+# to miss. Boot order stops mattering, hotplug stops mattering, and a device
+# that disappears and comes back is picked up within one interval.
+#
+# Cost is one `aconnect -l` every few seconds. It is a text dump of the seq
+# client list; on this Pi it does not show up in `top`.
+#
+# WHAT IT DELIBERATELY DOES NOT DO
+# --------------------------------
+# It does not try to tell controllers apart or route them differently. Every
+# hardware source is merged into Midi Through and the ENGINE separates them by
+# channel: DUODECIMUS sends everything on ch7, the NEPTR body on ch1. Where the
+# two genuinely collide — both have an expression pedal, and the body's is ch1
+# CC29 while DUODECIMUS's ch7 CC14 is funnelled to the same place — that is
+# resolved in midi_handler.orc, not here. Routing policy belongs with the thing
+# that understands the messages.
+
+set -u
+
+HUB="${DEMIURGE_MIDI_HUB:-14:0}"
+INTERVAL="${DEMIURGE_MIDI_INTERVAL:-3}"
+
+# DEVICES THAT MUST NOT BE WIRED INTO THE HUB
+# -------------------------------------------
+# A controller that is ALREADY being read over serial must not also be wired
+# into the MIDI hub, or csound receives every event TWICE and each press,
+# rotation and pedal move counts double.
+#
+# That is exactly what "Teensy MIDI" was doing: it enumerates as USB
+# "Serial + MIDI", demiurge-io reads its /dev/serial/by-id CDC port and
+# forwards control to csound on OSC 7770, and this loop was independently
+# wiring its ALSA seq client into Midi Through. Both paths carried the same
+# controls. Serial is the path we keep - it is the one with the 100 Hz NEPTR2
+# frame and the full sensor set; the MIDI side only ever carried a subset.
+#
+# Match is a substring of the ALSA client name. A client is skipped if its
+# name contains ANY pattern. Default patterns: "Teensy MIDI" and "Bela".
+# DEMIURGE_MIDI_EXCLUDE overrides the list, split on whitespace (one pattern
+# per word, so an env-set pattern cannot contain a space).
+#
+# BELA (ALSA client "Bela-XXXX", the USB MIDI gadget) is excluded in BOTH
+# directions -- here (device -> hub) and in the clock-sink pass below
+# (hub -> device). Same device, same reason as
+# config/wireplumber/99-demiurge-disable-bela-audio.conf: the Bela's audio
+# AND its MIDI are unused on this rig. Wired into the hub both ways it was a
+# dead port that logged `ALSA: seq_midi: MIDI output buffer overrun` ~1100
+# times per 5 s (2026-10-03).
+EXCLUDE_PATTERNS=("Teensy MIDI" "Bela")
+if [ -n "${DEMIURGE_MIDI_EXCLUDE:-}" ]; then
+    # override: one pattern per whitespace-separated word
+    read -r -a EXCLUDE_PATTERNS <<< "$DEMIURGE_MIDI_EXCLUDE"
+fi
+
+# 0 if the client name matches any exclude pattern (substring), else 1.
+is_excluded() {
+    local name="$1" pat
+    for pat in "${EXCLUDE_PATTERNS[@]}"; do
+        case "$name" in
+            *"$pat"*) return 0 ;;
+        esac
+    done
+    return 1
+}
+
+# ---------------------------------------------------------------- CLOCK SINKS
+# Devices that must also RECEIVE the hub, i.e. HUB -> device as well as
+# device -> HUB.
+#
+# Why this exists (bench-diagnosed 2026-10-01): this loop only ever wired
+# device -> HUB, so no hardware on this Pi could receive anything. PMOR (the
+# Daisy groovebox) is a clock FOLLOWER -- it needs the 24 PPQN 0xF8 stream plus
+# ch16 CC115/CC116/CC119 to lock tempo and phase. `aconnect -l` showed
+# "client 28: 'Pocket OpGorator' ... Connecting To: 14:0" with NO
+# "Connected From:" line at all: write-only. Its firmware PLL, its role
+# election and its phase lock were all correct and simply never received a
+# byte, which is why PMOR and the Pi audibly ran on separate clocks.
+#
+# This is an ALLOWLIST, not "wire everything both ways", on purpose. Echoing a
+# continuous 24 PPQN stream into every attached controller is pointless at best,
+# and for a device that parses MIDI in loosely it is a way to cause mystery
+# misbehaviour. Only devices that actually consume clock belong here.
+#
+# Feedback is safe for these: PMOR's clock_engine.c filters its own echo for
+# 0xF8/CC116/CC119 (see the self-echo comments in that file), which is exactly
+# the topology it was written for.
+#
+# Match is a substring of the ALSA client name, space separated.
+CLOCK_SINKS="${DEMIURGE_MIDI_CLOCK_SINKS:-OpGorator Daisy PMOR}"
+
+log() { echo "demiurge-midi-connect: $*"; }
+
+reconcile() {
+    local listing client name connected
+    listing="$(aconnect -l 2>/dev/null)" || return 0
+    [ -n "$listing" ] || return 0
+
+    # Only hardware cards. This deliberately excludes Csound's own ports, the
+    # PipeWire bridges and the RtMidi clients the UI and touch daemon open —
+    # connecting those would build feedback loops through the hub.
+    while read -r client name; do
+        [ -n "$client" ] || continue
+        [ "$client" = "${HUB%%:*}" ] && continue   # never wire the hub to itself
+        # skip serial-read / unused devices (Teensy MIDI, Bela) - see EXCLUDE_PATTERNS
+        is_excluded "$name" && continue
+
+        # Already connected? aconnect would warn; checking keeps the log clean
+        # and makes a genuine new connection visible when it happens.
+        connected="$(printf '%s\n' "$listing" | awk -v c="$client" '
+            $1 == "client" && $2 ~ "^"c":" { inblock = 1; next }
+            $1 == "client" { inblock = 0 }
+            inblock && /Connecting To:/ { print }
+        ')"
+        case "$connected" in
+            *"$HUB"*) continue ;;
+        esac
+
+        if aconnect "${client}:0" "$HUB" 2>/dev/null; then
+            log "connected client ${client} (${name}) -> ${HUB}"
+        fi
+    done < <(printf '%s\n' "$listing" | sed -n \
+        "s/^client \([0-9]\+\): '\([^']*\)' \[type=kernel,card.*/\1 \2/p")
+
+    # Second pass: HUB -> device, for clock sinks only. See CLOCK_SINKS above.
+    while read -r client name; do
+        [ -n "$client" ] || continue
+        [ "$client" = "${HUB%%:*}" ] && continue
+        # Bela (and anything else excluded) must not receive the hub either.
+        is_excluded "$name" && continue
+
+        local is_sink=0 pat
+        for pat in $CLOCK_SINKS; do
+            case "$name" in
+                *"$pat"*) is_sink=1; break ;;
+            esac
+        done
+        [ "$is_sink" = 1 ] || continue
+
+        # Already receiving the hub? The device's own block carries a
+        # "Connected From:" line listing its sources.
+        local sources
+        sources="$(printf '%s\n' "$listing" | awk -v c="$client" '
+            $1 == "client" && $2 ~ "^"c":" { inblock = 1; next }
+            $1 == "client" { inblock = 0 }
+            inblock && /Connected From:/ { print }
+        ')"
+        case "$sources" in
+            *"$HUB"*) continue ;;
+        esac
+
+        if aconnect "$HUB" "${client}:0" 2>/dev/null; then
+            log "connected ${HUB} -> client ${client} (${name}) [clock sink]"
+        fi
+    done < <(printf '%s\n' "$listing" | sed -n \
+        "s/^client \([0-9]\+\): '\([^']*\)' \[type=kernel,card.*/\1 \2/p")
+}
+
+case "${1:-}" in
+    --once)
+        reconcile
+        exit 0
+        ;;
+    --status)
+        echo "hub: $HUB"
+        aconnect -l 2>/dev/null | sed -n "/^client ${HUB%%:*}:/,/^client [0-9]/p"
+        exit 0
+        ;;
+esac
+
+log "reconciling hardware MIDI <-> ${HUB} every ${INTERVAL}s (clock sinks: ${CLOCK_SINKS})"
+while :; do
+    reconcile
+    sleep "$INTERVAL"
+done

@@ -1,0 +1,11 @@
+# Fetched dependencies -- see README.md "getting the dependencies".
+# Shallow-cloned on demand; not vendored into this repo.
+lib/libDaisy/
+lib/tinyusb/
+
+# Build output
+build/
+*.o
+*.d
+*.lst
+*.map

@@ -1,0 +1,38 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "layers": [
+    {
+      "id": "movie-glow",
+      "name": "Bias glow",
+      "visible": true,
+      "points": [[0, 0], [1920, 0], [1920, 1080], [0, 1080]],
+      "content": { "kind": "pattern", "pattern": "gradient", "url": null },
+      "params": { "speed": 0.3, "color1": "#0a0a14", "color2": "#141428", "brightness": 0.5, "opacity": 1 }
+    },
+    {
+      "id": "movie-screen",
+      "name": "Big screen",
+      "visible": true,
+      "points": [[240, 135], [1680, 135], [1680, 945], [240, 945]],
+      "content": { "kind": "screen", "pattern": null, "url": null },
+      "params": { "speed": 1, "color1": "#2ee6c8", "color2": "#3d4bff", "brightness": 1, "opacity": 1 }
+    },
+    {
+      "id": "movie-mask-top",
+      "name": "Letterbox top",
+      "visible": true,
+      "points": [[0, 0], [1920, 0], [1920, 120], [0, 120]],
+      "content": { "kind": "mask", "pattern": null, "url": null },
+      "params": { "speed": 1, "color1": "#000000", "color2": "#000000", "brightness": 1, "opacity": 1 }
+    },
+    {
+      "id": "movie-mask-bottom",
+      "name": "Letterbox bottom",
+      "visible": true,
+      "points": [[0, 960], [1920, 960], [1920, 1080], [0, 1080]],
+      "content": { "kind": "mask", "pattern": null, "url": null },
+      "params": { "speed": 1, "color1": "#000000", "color2": "#000000", "brightness": 1, "opacity": 1 }
+    }
+  ]
+}

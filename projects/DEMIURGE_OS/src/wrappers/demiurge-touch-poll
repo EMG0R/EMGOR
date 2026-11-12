@@ -1,0 +1,730 @@
+#!/usr/bin/env python3
+# demiurge-touch-poll — polling touchscreen driver + user-facing CLI.
+#
+#   demiurge-touch-poll              human status (SPI device, uinput node, rate)
+#   demiurge-touch-poll --status-machine   one parseable line for UIs
+#   demiurge-touch-poll --daemon     run the daemon (what the service does)
+#   demiurge-touch-poll --probe      live raw SPI readings (threshold tuning)
+#
+# WHY THIS EXISTS (2026-08-11)
+# ---------------------------
+# The panel's ADS7846/XPT2046 controller has a DEAD PENIRQ OUTPUT. A screen
+# came loose while the Pi was powered and the chip's interrupt pin is now
+# stuck permanently LOW. Proven both ways on the same pin: GPIO25 reads `lo`
+# with the panel attached and `hi` with it removed, so the Pi-side pull-up is
+# healthy and the SoC is undamaged — it is the panel end that died.
+#
+# The kernel's `ads7846` driver is purely interrupt-driven, and the IRQ is
+# EDGE-triggered. A line that is permanently low never produces an edge, so
+# the driver is never woken: `/proc/interrupts` showed 0 for ads7846 across
+# every CPU since boot. That is why no amount of rebooting or reseating ever
+# helped — there was nothing wrong with the software, and nothing a restart
+# could fix.
+#
+# But the CHIP ITSELF IS ALIVE. Bound to spidev and read directly while the
+# panel was pressed, it returns real pressure and real coordinates that track
+# the finger. The SPI bus, the resistive layers and the whole measurement
+# circuit are fine. ONLY the interrupt output is dead — which is a signal the
+# driver merely uses as an optimisation ("a finger arrived, go measure"). If
+# we are willing to ask the chip on a timer instead of waiting to be told,
+# the panel works completely normally. That is this daemon.
+#
+# DESIGN: LIE TO NOBODY, BREAK NOBODY
+# -----------------------------------
+# The daemon owns /dev/spidev0.1 and republishes the panel through uinput as
+# an ordinary absolute-XY touch device. Everything downstream — the NEPTR
+# UI's touch_evdev.py, the demiurge-touch MIDI daemon, demiurge-touch-test's
+# calibrator, SDL — reads /dev/input/eventN exactly as before and needs NO
+# code change whatsoever. None of them are aware polling is involved.
+#
+# The uinput device deliberately keeps the EXACT name of the kernel device it
+# replaces, "ADS7846 Touchscreen", because two persistence layers are keyed on
+# that string and would silently stop applying if it changed:
+#   * /etc/udev/hwdb.d/61-demiurge-touch-cal.hwdb — `evdev:name:ADS7846
+#     Touchscreen:*`, the calibrator-staged EVDEV_ABS entry that rewrites the
+#     advertised axis ranges for SDL consumers;
+#   * ~/demiurge/touch-cal.conf — records `device = ADS7846 Touchscreen`.
+# Keeping the name means the user's existing 5-point calibration survives
+# this change untouched. The name is also simply accurate: it IS an ADS7846
+# touchscreen, just reached by a different road. For anyone debugging, the
+# `phys` string is the giveaway and says so plainly:
+#   Phys=demiurge-touch-poll/spi0.1   (kernel driver was: spi0.1/input0)
+# The advertised axis ranges, the ABS_X/ABS_Y/ABS_PRESSURE axis set, the
+# BTN_TOUCH-only key set and PROP=0 all mirror the old device bit for bit.
+#
+# OWNING THE SPI DEVICE
+# ---------------------
+# Normally handled at boot: config.txt drops the `dtoverlay=ads7846,...` line,
+# which re-enables the `spidev@1` node the overlay was disabling, so
+# /dev/spidev0.1 exists from boot and ads7846 never loads. Nothing to fight
+# over, and no window in which a dead input device exists for the UI to latch
+# onto by mistake.
+#
+# The daemon ALSO self-heals if it finds ads7846 squatting on spi0.1 (a
+# reverted config.txt, a reflashed boot partition, a fresh install before its
+# first reboot): it unbinds ads7846, sets driver_override=spidev and binds.
+# Note the override is REQUIRED — a bare bind is rejected with ENODEV because
+# the devicetree node's compatible is `ti,ads7846`, not `spidev`. Those sysfs
+# writes need root, so they go through `sudo -n` (same non-interactive pattern
+# demiurge-touch-test uses to stage its hwdb file) and are entirely optional:
+# if sudo is unavailable the daemon just keeps retrying and logs why.
+#
+# COST, AND WHY IT IS NOT A PROBLEM FOR AUDIO
+# -------------------------------------------
+# The audio engine is pinned to isolated CPU 3 at FIFO 74. This daemon runs at
+# NORMAL priority and is kept OFF CPU 3 by CPUAffinity=0-2 in the unit — it
+# must never be a source of audio interference.
+#
+# Polling is cheap because the overlay's `speed=50000` was abandoned. At
+# 50 kHz a single 3-byte transfer costs 560 us and a 6-read burst 3.5 ms,
+# which genuinely would have burned a core. At 1 MHz, with all six reads
+# issued as ONE CS-held transfer (one syscall, not six), a full burst measures
+# ~180 us. Idle polling is cheaper still: a lone Z1 read, ~60 us.
+#
+# Rates are asymmetric on purpose — idle is the common case and nobody can
+# feel latency that has not started yet:
+#   idle    ~60 Hz, one Z1 read      -> ~0.4% of one core
+#   touched ~100 Hz, full burst      -> ~2% of one core while a finger is down
+# The UI polls at 60 Hz while touched, so 100 Hz keeps the input stream ahead
+# of the consumer without wasting work.
+#
+# TOUCH DETECTION
+# ---------------
+# Z1/Z2 give the standard ADS7846 pressure estimate:
+#   R_touch = xohms * (x / 4096) * (z2 / z1 - 1)      [xohms = 150, per panel]
+# A hard press is a LOW resistance. Idle, the measured noise floor on this
+# panel spikes Z1 as high as 60 with R_touch never below ~10 kOhm; a real
+# touch sits at Z1 in the hundreds and R_touch in the low thousands or less.
+# Both gates must agree, which rejects the phantom "corner touch" that a bare
+# Z1 threshold would let through (idle X pins at 4095 — the top-right corner —
+# so a false positive there is exactly the worst place to put one).
+#
+# A COORDINATE-SANITY gate runs alongside the pressure gate, and it is not
+# redundant. Untouched, the X plate floats to a RAIL — captured pinned at 4095
+# in one session and at 0 in another, so which rail is not predictable and
+# must not be assumed. Both rails are screen CORNERS, i.e. the worst possible
+# place to invent a tap. Requiring the coordinates to be plausibly mid-panel
+# rejects every rail-pinned phantom outright, including the low-pressure
+# transitionals at press onset and release. Measured separation across a 15 s
+# capture: pressure+coordinate gates passed 192 genuine samples and zero noise.
+#
+# Two further guards, both learned from the raw captures:
+#   * the first conversion after the analog drivers switch on is garbage (the
+#     probe's first two touch samples read X=0/Y=4095 before settling), so
+#     each axis is read TWICE per burst and only the settled second read used;
+#   * touch-DOWN requires two consecutive qualifying samples whose positions
+#     agree, so a single noise spike can never fabricate a tap.
+#
+# RELEASE HYSTERESIS — and why the obvious version was wrong
+# ----------------------------------------------------------
+# The first cut released on the FIRST sample below threshold, reasoning that
+# the UI's GapBridger already re-bridges dropouts inside a 70 ms grace window
+# so eagerness was free. In practice that broke swiping outright: a physical
+# swipe arrived as 46 separate down/up strokes, the UI's gesture classifier
+# saw a burst of taps instead of one drag, and gestures stopped working.
+#
+# A resistive panel loses contact constantly mid-stroke — that is normal for
+# the technology, not a fault. The reason eager release was not free is the
+# RE-ACQUISITION cost on the far side: after releasing, the poll loop dropped
+# to the idle rate and touch-down then demanded two agreeing samples, so the
+# round trip out and back could exceed the 70 ms bridge. Release was cheap;
+# getting back was not.
+#
+# So release is now asymmetric with press, and slower than it:
+#   * `hold` consecutive bad samples are required before emitting BTN_TOUCH=0
+#     (default 4 at 100 Hz = 40 ms); the position is held meanwhile;
+#   * the loop stays at the ACTIVE rate through that pending-release window
+#     and for a short warm period afterwards, so a re-press is caught in one
+#     poll instead of waiting on the idle timer.
+# Net effect: brief contact loss never reaches the UI at all, and the
+# GapBridger's 70 ms window is left as the second line of defence it was
+# designed to be rather than the only one.
+#
+# R_touch IS A BACKSTOP, NOT THE GATE — and a tight ceiling is a trap
+# ---------------------------------------------------------------------
+# The resistance estimate is proportional to x:
+#     R_touch = xohms * (x / 4096) * (z2 / z1 - 1)
+# so a FIXED ceiling silently demands more pressure the further right the
+# finger is. With the original 5000 ohm limit, passing the gate needed
+# Z1 >= 12 at x=400 but Z1 >= 112 at x=3850 — a 9x stricter requirement at
+# one edge of the screen than the other. Since pressure dips during any fast
+# or light swipe, dips were rejected near the right edge and tolerated on the
+# left, so strokes broke apart on one side of the panel only. That is exactly
+# what "swiping is not working fully" looked like: mostly fine, intermittently
+# and asymmetrically broken. Diagnosed from timestamped captures — the true
+# fragments all ended at high x (3261, 3340, 3849) with the finger still
+# essentially stationary across the gap.
+# The ceiling is now loose (20000) so that `zmin` is the binding constraint
+# uniformly across the panel, which keeps the touch decision position-
+# independent. R_touch is still what derives ABS_PRESSURE, where its x
+# dependence is harmless.
+#
+# Z1's floor is set low (40) ON PURPOSE. It is tempting to raise it, since a
+# firm press reads 480-660 — but pressure DIPS during a fast or light swipe,
+# and a high floor is exactly what chops strokes apart. The coordinate-sanity
+# gate is what actually rejects idle noise, because idle noise is always
+# rail-pinned regardless of how high Z1 spikes. Pressure and position gates do
+# different jobs; leaning on the position one lets the pressure one stay
+# permissive enough to track a real finger.
+#
+# live.conf keys (all optional — see demiurge/docs/config-reference.md):
+#   touch_poll        = on|off   master gate (default on; off -> exit 0 clean)
+#   touch_poll_hz     = 100      poll rate while a finger is down (20-250)
+#   touch_poll_idle_hz= 60       poll rate while idle (5-120)
+#   touch_poll_speed  = 1000000  SPI clock in Hz (50000-2000000)
+#   touch_poll_zmin   = 40       Z1 floor for "touched" (see the note above
+#                                before raising this — it chops up swipes)
+#   touch_poll_rmax   = 20000    R_touch ceiling in ohms — a loose BACKSTOP;
+#                                tightening it biases against the panel's
+#                                right edge (see the R_touch note above)
+#   touch_poll_margin = 100      raw counts from each rail treated as bogus
+#   touch_poll_hold   = 6        consecutive bad samples before releasing
+
+import errno
+import glob
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+
+# ---------------------------------------------------------------- constants
+SPI_BUS, SPI_CS = 0, 1
+SPI_DEV = "/dev/spidev%d.%d" % (SPI_BUS, SPI_CS)
+SPI_SYSFS = "/sys/bus/spi/devices/spi%d.%d" % (SPI_BUS, SPI_CS)
+
+# Control bytes. Bit layout: S(1) A2:A0 MODE(0=12bit) SER/DFR(0=diff) PD1:PD0.
+# PD=01 keeps the ADC powered between conversions (no re-settling mid-burst);
+# PENIRQ is disabled by that, which costs us nothing — it is the dead pin.
+# The final read of each burst uses PD=00 so the chip may idle down after.
+CMD_X, CMD_Y, CMD_Z1, CMD_Z2 = 0xD0, 0x90, 0xB0, 0xC0
+PD_ON = 0x01
+
+# One CS assertion, six back-to-back conversions. Each axis is read twice and
+# only the SECOND (settled) value used — see the settling note in the header.
+BURST = [CMD_Z1 | PD_ON, 0, 0,
+         CMD_Z2 | PD_ON, 0, 0,
+         CMD_X | PD_ON, 0, 0,
+         CMD_X | PD_ON, 0, 0,
+         CMD_Y | PD_ON, 0, 0,
+         CMD_Y, 0, 0]
+I_Z1, I_Z2, I_X, I_Y = 0, 1, 3, 5
+IDLE_PROBE = [CMD_Z1, 0, 0]
+
+MAX_12BIT = 4095
+XOHMS = 150.0             # panel X-plate resistance (matches the old overlay)
+
+# Axis ranges: byte-identical to what the kernel device advertised, so the
+# staged hwdb entry and the user's saved calibration keep applying as-is.
+ABS_RANGES = {"x": (78, 3861), "y": (112, 3856), "p": (0, 255)}
+
+DEV_NAME = "ADS7846 Touchscreen"       # MUST match — see header
+DEV_PHYS = "demiurge-touch-poll/spi0.1"
+
+DEFAULTS = {"hz": 100, "idle_hz": 60, "speed": 1000000,
+            "zmin": 40, "rmax": 20000, "margin": 100, "hold": 6}
+LIMITS = {"hz": (20, 250), "idle_hz": (5, 120), "speed": (50000, 2000000),
+          "zmin": (5, 2000), "rmax": (200, 100000), "margin": (0, 1000),
+          "hold": (1, 30)}
+
+# Touch-down needs two consecutive qualifying samples agreeing within this
+# many raw counts; a lone noise spike cannot fabricate a tap.
+DOWN_AGREE = 250
+
+# After a release, keep polling at the active rate this long so a re-press
+# (contact bounce, or a genuinely fast double-tap) is caught immediately
+# rather than waiting on the idle timer.
+WARM_S = 0.35
+
+
+def log(msg):
+    print("[touch-poll] %s" % msg, flush=True)
+
+
+# ---------------------------------------------------------------- live.conf
+def resolve_liveconf():
+    """Same resolution order as demiurge-touch / demiurge-ui-launch.sh."""
+    boot = "/boot/firmware/demiurge.conf"
+    if os.path.isfile(boot):
+        try:
+            with open(boot) as f:
+                for line in f:
+                    m = re.match(r"^\s*launch\s*=\s*(.+)", line)
+                    if m:
+                        p = m.group(1).split("#")[0].strip()
+                        if p and os.path.isfile(p):
+                            return p
+        except OSError:
+            pass
+    home = os.environ.get("HOME", "")
+    for p in ([os.path.join(home, "demiurge/live.conf")] if home else []) + \
+            sorted(glob.glob("/home/*/demiurge/live.conf")) + \
+            ["/root/demiurge/live.conf"]:
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def read_key(path, key, default=""):
+    if not path:
+        return default
+    try:
+        with open(path) as f:
+            for line in f:
+                m = re.match(r"^\s*%s\s*=\s*(.*)" % re.escape(key), line)
+                if m:
+                    return m.group(1).split("#")[0].strip() or default
+    except OSError:
+        pass
+    return default
+
+
+def read_int_key(path, key, default, lo, hi):
+    try:
+        n = int(read_key(path, key, ""))
+    except ValueError:
+        return default
+    return max(lo, min(hi, n))
+
+
+def poll_config():
+    live = resolve_liveconf()
+    on = read_key(live, "touch_poll", "on").lower() in ("on", "1", "yes", "true")
+    cfg = {k: read_int_key(live, "touch_poll_" + k, DEFAULTS[k], *LIMITS[k])
+           for k in DEFAULTS}
+    return live, on, cfg
+
+
+# ------------------------------------------------------------ SPI ownership
+def spi_driver():
+    """Basename of the driver currently bound to spi0.1, or None."""
+    try:
+        return os.path.basename(os.path.realpath(SPI_SYSFS + "/driver"))
+    except OSError:
+        return None
+
+
+def sudo_write(path, text):
+    """Root-only sysfs write via non-interactive sudo. True on success."""
+    try:
+        p = subprocess.run(["sudo", "-n", "tee", path], input=text.encode(),
+                           capture_output=True, timeout=10)
+        return p.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def claim_spi():
+    """Ensure /dev/spidev0.1 exists and is ours. Returns True if usable.
+
+    The boot-config path (no ads7846 overlay) means this normally finds the
+    node already present and does nothing. The takeover path exists so a
+    reverted/reflashed config.txt cannot leave the panel dead.
+    """
+    if os.path.exists(SPI_DEV):
+        return True
+    drv = spi_driver()
+    if drv is None:
+        log("spi0.1 not present at all — is dtparam=spi=on set?")
+        return False
+    if drv != "spidev":
+        log("spi0.1 is held by '%s'; taking it over (dead PENIRQ makes that "
+            "driver useless here)" % drv)
+        # Order matters: unbind first, then override, then bind. A bare bind
+        # without the override is rejected (ENODEV) — the DT compatible is
+        # `ti,ads7846`, which spidev's match table does not accept.
+        if not sudo_write("/sys/bus/spi/drivers/%s/unbind" % drv, "spi0.1"):
+            log("could not unbind %s (needs passwordless sudo) — retrying" % drv)
+            return False
+    if not sudo_write(SPI_SYSFS + "/driver_override", "spidev"):
+        log("could not set driver_override — retrying")
+        return False
+    if not sudo_write("/sys/bus/spi/drivers/spidev/bind", "spi0.1"):
+        # Already bound is fine; the node check below is the real verdict.
+        pass
+    for _ in range(20):
+        if os.path.exists(SPI_DEV):
+            log("claimed %s" % SPI_DEV)
+            return True
+        time.sleep(0.1)
+    log("%s did not appear after bind — retrying" % SPI_DEV)
+    return False
+
+
+# ------------------------------------------------------------------ reading
+class Panel:
+    """The ADS7846 as reached over spidev: bursts in, (z1, z2, x, y) out."""
+
+    def __init__(self, speed):
+        import spidev
+        self.spi = spidev.SpiDev()
+        self.spi.open(SPI_BUS, SPI_CS)
+        self.spi.mode = 0
+        self.spi.bits_per_word = 8
+        self.spi.max_speed_hz = speed
+
+    def close(self):
+        try:
+            self.spi.close()
+        except OSError:
+            pass
+
+    def probe_z(self):
+        """Cheap idle check: one 3-byte transfer, ~60 us."""
+        r = self.spi.xfer2(list(IDLE_PROBE))
+        return ((r[1] << 8) | r[2]) >> 3
+
+    def burst(self):
+        """Full sample as ONE CS-held transfer, ~180 us at 1 MHz."""
+        r = self.spi.xfer2(list(BURST))
+        v = [((r[i * 3 + 1] << 8) | r[i * 3 + 2]) >> 3 for i in range(6)]
+        return v[I_Z1], v[I_Z2], v[I_X], v[I_Y]
+
+
+def r_touch(z1, z2, x):
+    """Standard ADS7846 touch-resistance estimate in ohms; None if invalid.
+    Lower means pressed harder. Idle reads land above ~10 kOhm on this panel."""
+    if z1 <= 0 or z2 <= z1:
+        return None
+    return XOHMS * (x / 4096.0) * (z2 / float(z1) - 1.0)
+
+
+def coords_sane(x, y, margin):
+    """Reject rail-pinned readings. An untouched X plate floats to 0 or 4095
+    — both screen corners — so a phantom there would be maximally misleading.
+    Anything within `margin` counts of either rail is not a real contact."""
+    return (margin <= x <= MAX_12BIT - margin
+            and margin <= y <= MAX_12BIT - margin)
+
+
+def touched(z1, z2, x, y, cfg):
+    """The full touch verdict: pressure AND coordinate plausibility.
+    Returns (is_touched, r_touch)."""
+    rt = r_touch(z1, z2, x)
+    ok = (z1 >= cfg["zmin"]
+          and coords_sane(x, y, cfg["margin"])
+          and rt is not None and rt <= cfg["rmax"])
+    return ok, rt
+
+
+def pressure_of(rt, rmax):
+    """R_touch -> ABS_PRESSURE 1..255, monotonic (harder press = bigger).
+    Mirrors the kernel driver's convention of reporting an inverted
+    resistance; consumers only need it nonzero and ordered."""
+    if rt is None:
+        return 1
+    p = int(round(255.0 * (1.0 - rt / float(rmax))))
+    return max(1, min(255, p))
+
+
+# ------------------------------------------------------------------- uinput
+def make_uinput():
+    from evdev import UInput, AbsInfo, ecodes as e
+    xr, yr, pr = ABS_RANGES["x"], ABS_RANGES["y"], ABS_RANGES["p"]
+    cap = {
+        e.EV_KEY: [e.BTN_TOUCH],
+        e.EV_ABS: [
+            (e.ABS_X, AbsInfo(value=0, min=xr[0], max=xr[1],
+                              fuzz=0, flat=0, resolution=0)),
+            (e.ABS_Y, AbsInfo(value=0, min=yr[0], max=yr[1],
+                              fuzz=0, flat=0, resolution=0)),
+            (e.ABS_PRESSURE, AbsInfo(value=0, min=pr[0], max=pr[1],
+                                     fuzz=0, flat=0, resolution=0)),
+        ],
+    }
+    # No INPUT_PROP_DIRECT: the kernel device did not set it either (PROP=0),
+    # and adding it would change how SDL classifies the panel.
+    return UInput(cap, name=DEV_NAME, phys=DEV_PHYS, version=1)
+
+
+# -------------------------------------------------------------------- daemon
+class Daemon:
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.panel = None
+        self.ui = None
+        self.stop = False
+        self.touching = False
+        self.cand = None          # (x, y) of an unconfirmed touch-down sample
+        self.bad = 0              # consecutive below-threshold samples
+        self.warm_until = 0.0     # poll fast until this monotonic time
+        self.last = (None, None, None)   # last emitted x, y, pressure
+
+    def reset_state(self):
+        """Forget everything tied to the previous uinput device. Required on
+        reconnect: if release() failed against the closed device, `touching`
+        would still be True and the first sample on the NEW device would be
+        emitted as a move — a stroke that never sent BTN_TOUCH down, which
+        consumers would ignore forever. Stale `last` would likewise suppress
+        the first coordinate write."""
+        self.touching = False
+        self.cand = None
+        self.bad = 0
+        self.last = (None, None, None)
+
+    # ---- event emission
+    def emit(self, x, y, p, touch):
+        from evdev import ecodes as e
+        lx, ly, lp = self.last
+        sent = False
+        if x != lx:
+            self.ui.write(e.EV_ABS, e.ABS_X, x)
+            sent = True
+        if y != ly:
+            self.ui.write(e.EV_ABS, e.ABS_Y, y)
+            sent = True
+        if p != lp:
+            self.ui.write(e.EV_ABS, e.ABS_PRESSURE, p)
+            sent = True
+        if touch is not None:
+            self.ui.write(e.EV_KEY, e.BTN_TOUCH, 1 if touch else 0)
+            sent = True
+        if sent:
+            self.ui.syn()
+            self.last = (x, y, p)
+
+    def release(self):
+        from evdev import ecodes as e
+        if not self.touching:
+            return
+        self.touching = False
+        self.cand = None
+        self.bad = 0
+        self.warm_until = time.monotonic() + WARM_S
+        x, y, _ = self.last
+        self.ui.write(e.EV_ABS, e.ABS_PRESSURE, 0)
+        self.ui.write(e.EV_KEY, e.BTN_TOUCH, 0)
+        self.ui.syn()
+        self.last = (x, y, 0)
+
+    # ---- one poll cycle; returns True if a finger is down
+    def step(self):
+        cfg = self.cfg
+        if not self.touching and time.monotonic() >= self.warm_until:
+            # Cheap gate first: most polls in a session end right here. Skipped
+            # while warm so a re-press after contact bounce is never delayed.
+            if self.panel.probe_z() < max(4, cfg["zmin"] // 2):
+                self.cand = None
+                return False
+        z1, z2, x, y = self.panel.burst()
+        good, rt = touched(z1, z2, x, y, cfg)
+        if not good:
+            if self.touching:
+                # Hold the stroke through brief contact loss — releasing here
+                # is what fragmented swipes into taps. Position is held; the
+                # caller keeps polling at the active rate meanwhile.
+                self.bad += 1
+                if self.bad < cfg["hold"]:
+                    return True
+            self.release()
+            self.cand = None
+            return False
+        self.bad = 0
+        if not self.touching:
+            # Touch-down needs a second agreeing sample; one spike is noise.
+            if self.cand is None:
+                self.cand = (x, y)
+                return True
+            cx, cy = self.cand
+            if abs(x - cx) > DOWN_AGREE or abs(y - cy) > DOWN_AGREE:
+                self.cand = (x, y)
+                return True
+            self.cand = None
+            self.touching = True
+            self.emit(x, y, pressure_of(rt, cfg["rmax"]), True)
+            return True
+        self.emit(x, y, pressure_of(rt, cfg["rmax"]), None)
+        return True
+
+    def run(self):
+        cfg = self.cfg
+        active_dt = 1.0 / cfg["hz"]
+        idle_dt = 1.0 / cfg["idle_hz"]
+        log("polling %s at %d Hz active / %d Hz idle, SPI %d Hz, "
+            "zmin=%d rmax=%d ohm margin=%d hold=%d"
+            % (SPI_DEV, cfg["hz"], cfg["idle_hz"], cfg["speed"],
+               cfg["zmin"], cfg["rmax"], cfg["margin"], cfg["hold"]))
+        next_t = time.monotonic()
+        while not self.stop:
+            try:
+                busy = self.step()
+            except OSError as exc:
+                # The SPI node vanished (driver rebind, hotplug). Surface it
+                # and let the outer supervisor re-claim rather than dying.
+                if exc.errno in (errno.ENODEV, errno.EIO, errno.ENXIO):
+                    log("SPI read failed (%s) — re-claiming" % exc.strerror)
+                    return
+                raise
+            now = time.monotonic()
+            # Stay fast through the post-release warm window too, so a bounce
+            # re-press is caught on the next poll rather than up to 1/idle_hz
+            # later — that latency is what turned one swipe into many taps.
+            next_t += active_dt if (busy or now < self.warm_until) else idle_dt
+            if next_t < now:          # overran; resync rather than spiral
+                next_t = now
+            time.sleep(next_t - now)
+
+    def shutdown(self):
+        try:
+            self.release()
+        except OSError:
+            pass
+        if self.ui is not None:
+            try:
+                self.ui.close()
+            except OSError:
+                pass
+        if self.panel is not None:
+            self.panel.close()
+
+
+def run_daemon():
+    live, on, cfg = poll_config()
+    if not on:
+        log("touch_poll = off in %s — nothing to do" % (live or "live.conf"))
+        return 0
+    dmn = Daemon(cfg)
+
+    def onsig(_s, _f):
+        dmn.stop = True
+    signal.signal(signal.SIGTERM, onsig)
+    signal.signal(signal.SIGINT, onsig)
+
+    backoff = 1.0
+    while not dmn.stop:
+        if not claim_spi():
+            # Never exit non-zero for a missing dependency: a failed unit
+            # would poison `systemctl --failed` for the whole system.
+            time.sleep(backoff)
+            backoff = min(30.0, backoff * 2)
+            continue
+        backoff = 1.0
+        try:
+            dmn.reset_state()
+            dmn.panel = Panel(cfg["speed"])
+            dmn.ui = make_uinput()
+            log("uinput device up: name=%r phys=%r" % (DEV_NAME, DEV_PHYS))
+            dmn.run()
+        except (OSError, ImportError) as exc:
+            log("%s — retrying in %.0fs" % (exc, backoff))
+            time.sleep(backoff)
+            backoff = min(30.0, backoff * 2)
+        finally:
+            dmn.shutdown()
+            dmn.panel, dmn.ui = None, None
+    log("stopped")
+    return 0
+
+
+# --------------------------------------------------------------------- probe
+def run_probe():
+    """Live raw readings — the tool for re-tuning zmin/rmax on a new panel."""
+    _live, _on, cfg = poll_config()
+    if not claim_spi():
+        print("no %s" % SPI_DEV)
+        return 1
+    panel = Panel(cfg["speed"])
+    print("%-8s %6s %6s %6s %6s %10s  %s"
+          % ("t", "Z1", "Z2", "X", "Y", "R_touch", "verdict"))
+    t0 = time.monotonic()
+    try:
+        while True:
+            z1, z2, x, y = panel.burst()
+            good, rt = touched(z1, z2, x, y, cfg)
+            print("%-8.2f %6d %6d %6d %6d %10s  %s"
+                  % (time.monotonic() - t0, z1, z2, x, y,
+                     "-" if rt is None else "%.0f" % rt,
+                     "TOUCH" if good else ""))
+            time.sleep(0.02)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        panel.close()
+    return 0
+
+
+# -------------------------------------------------------------------- status
+def find_uinput_device():
+    """(/dev/input/eventN, name) for our polled panel, matched on phys so it
+    is unambiguous even though the name mirrors the kernel device's."""
+    try:
+        with open("/proc/bus/input/devices") as f:
+            text = f.read()
+    except OSError:
+        return None
+    for chunk in text.strip().split("\n\n"):
+        if DEV_PHYS not in chunk:
+            continue
+        m = re.search(r"(event\d+)", chunk)
+        if m:
+            return "/dev/input/" + m.group(1), DEV_NAME
+    return None
+
+
+def service_state():
+    try:
+        p = subprocess.run(["systemctl", "is-active",
+                            "demiurge-touch-poll.service"],
+                           capture_output=True, text=True, timeout=5)
+        return p.stdout.strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+def status_fields():
+    live, on, cfg = poll_config()
+    found = find_uinput_device()
+    return {
+        "enabled": "on" if on else "off",
+        "service": service_state(),
+        "spi": SPI_DEV if os.path.exists(SPI_DEV) else "-",
+        "spi_driver": spi_driver() or "-",
+        "device": found[0] if found else "-",
+        "hz": cfg["hz"], "idle_hz": cfg["idle_hz"], "speed": cfg["speed"],
+        "zmin": cfg["zmin"], "rmax": cfg["rmax"], "margin": cfg["margin"],
+        "hold": cfg["hold"],
+        "live": live or "-",
+    }
+
+
+def print_status():
+    f = status_fields()
+    print("touch_poll     %s" % f["enabled"])
+    print("service        %s" % f["service"])
+    print("spi device     %s  (driver: %s)" % (f["spi"], f["spi_driver"]))
+    print("input device   %s" % f["device"])
+    print("poll rate      %d Hz active / %d Hz idle" % (f["hz"], f["idle_hz"]))
+    print("spi clock      %d Hz" % f["speed"])
+    print("touch gate     Z1 >= %d, R_touch <= %d ohm, coords >= %d from rail"
+          % (f["zmin"], f["rmax"], f["margin"]))
+    print("live.conf      %s" % f["live"])
+    if f["device"] == "-":
+        print("\nNo polled input device. This panel's PENIRQ is dead, so the")
+        print("kernel ads7846 driver cannot work — this daemon replaces it.")
+        print("Start it with:  sudo systemctl start demiurge-touch-poll")
+
+
+def print_status_machine():
+    f = status_fields()
+    print(" ".join("%s=%s" % (k, v) for k, v in f.items()))
+
+
+def main(argv):
+    if "--daemon" in argv:
+        return run_daemon()
+    if "--probe" in argv:
+        return run_probe()
+    if "--status-machine" in argv:
+        print_status_machine()
+        return 0
+    if argv and argv[0] not in ("--status", "status"):
+        print("usage: demiurge-touch-poll [--daemon|--probe|--status-machine]",
+              file=sys.stderr)
+        return 2
+    print_status()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,231 @@
+#!/bin/bash
+# demiurge-sync [--auto] [<opgorator|demiurge>|--list]
+# View and set which side (OpGorator or Demiurge) is clock master.
+#
+# Usage:
+#   demiurge-sync                    human-readable status: role, live BPM,
+#                                     clock source alive?
+#   demiurge-sync --list             machine line: role|bpm|source_alive
+#                                     source_alive is 0/1
+#   demiurge-sync opgorator          set role = opgorator, inject CC116=1 live
+#   demiurge-sync demiurge           set role = demiurge,  inject CC116=2 live
+#   demiurge-sync --auto <role>      same, but stamps source=auto instead of
+#                                     source=manual (see below). Used ONLY by
+#                                     the launcher's device-presence
+#                                     auto-switch (demiurge-launcher-rs's
+#                                     clockrole.rs) — never type this by hand,
+#                                     it's not a different role, just a
+#                                     different author.
+#
+# No service restart — the daemon (src/demiurge-clock.cpp) re-reads
+# sync.conf at startup and reacts to CC116 live on the bus, same pattern
+# as the existing CC118 BPM-steer path (see demiurge/docs/clock.md
+# "How to steer the clock from any program"). This tool never talks to
+# the daemon directly; it only writes state + speaks MIDI on the shared
+# ALSA-seq bus ("Midi Through", client 14).
+#
+# Persistence: ~/demiurge/sync.conf (`role = opgorator|demiurge`),
+# separate from live.conf so `demiurge-set` patch switches don't clobber
+# it — same rationale as ~/demiurge/interface.conf.
+#
+# `source = auto|manual` (added alongside device-presence auto-switching):
+# records WHO set the current role.
+#   - A plain `demiurge-sync opgorator|demiurge` (a human, typed directly,
+#     or any UI button that shells the same way) stamps `source = manual`.
+#   - `demiurge-sync --auto opgorator|demiurge` (only the launcher's
+#     presence-based auto-switch calls this form) stamps `source = auto`.
+# This is what lets the automatic path tell "the user hasn't touched this"
+# apart from "the user deliberately chose a side" — an explicit human choice
+# must never be silently overridden by a device being plugged in. THIS
+# SCRIPT is the enforcement point: an `--auto` call is REJECTED (role left
+# untouched, CC116 NOT sent) whenever the file currently says
+# `source = manual`. Only another explicit (non---auto) call can move it
+# off manual. Missing file / missing `source` key defaults to `auto`, so a
+# sync.conf written before this feature existed doesn't accidentally freeze
+# out auto-detection.
+#
+# ch16 CC116 role announce:
+#   value 1 = OpGorator is master
+#   value 2 = Demiurge is master
+# ch16 CC119 is the existing BPM broadcast (READ-only, see clock.md);
+# this tool listens for it briefly to report live tempo but never writes
+# it — CC118 is the write side and is owned by the steer path, not us.
+
+SYNC="${HOME}/demiurge/sync.conf"
+LIVE="${HOME}/demiurge/live.conf"
+BUS="Midi Through:0"
+
+DEFAULT_ROLE="opgorator"
+
+current_role() {
+    local r
+    r="$(grep -m1 -E '^[[:space:]]*role[[:space:]]*=' "$SYNC" 2>/dev/null \
+        | sed 's/^[[:space:]]*role[[:space:]]*=[[:space:]]*//; s/[[:space:]]*$//; s/#.*//')"
+    [[ -z "$r" ]] && r="$DEFAULT_ROLE"
+    echo "$r"
+}
+
+# source = auto|manual — who last set the current role. Missing file or
+# missing key defaults to "auto" (see file header for why). Deliberately a
+# grep on the `source` key specifically, not "second line" — keeps this
+# tolerant of key order / future keys being added.
+current_source() {
+    local s
+    s="$(grep -m1 -E '^[[:space:]]*source[[:space:]]*=' "$SYNC" 2>/dev/null \
+        | sed 's/^[[:space:]]*source[[:space:]]*=[[:space:]]*//; s/[[:space:]]*$//; s/#.*//' \
+        | tr '[:upper:]' '[:lower:]')"
+    [[ "$s" == "manual" ]] && { echo "manual"; return; }
+    echo "auto"
+}
+
+live_conf_bpm() {
+    grep -m1 -E '^[[:space:]]*bpm[[:space:]]*=' "$LIVE" 2>/dev/null \
+        | sed 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*$//; s/#.*//'
+}
+
+# Capture a short window of the bus and report the most recent ch16
+# CC119 value as BPM, plus whether ANY clock activity (0xF8 tick or
+# CC119) was observed at all (source_alive). Degrades to "nothing seen"
+# when aseqdump/the bus isn't available (e.g. running off-Pi).
+#
+# Sets globals: SEEN_BPM (empty if none), SOURCE_ALIVE (0/1)
+probe_clock() {
+    SEEN_BPM=""
+    SOURCE_ALIVE=0
+    command -v aseqdump >/dev/null 2>&1 || return 0
+
+    local dump
+    dump="$(timeout 3 aseqdump -p "Midi Through" 2>/dev/null)"
+    [[ -z "$dump" ]] && return 0
+
+    # Any clock-realtime tick or CC119 broadcast counts as "alive".
+    # aseqdump prints event names like "Clock" and "Control change ...,
+    # controller 119, value N" (see demiurge/docs/clock.md's own
+    # `grep "controller 119"` verification recipe — match that wording).
+    if grep -qiE 'clock|controller 119' <<<"$dump"; then
+        SOURCE_ALIVE=1
+    fi
+
+    # Last "controller 119, value N" line -> BPM.
+    local last_v
+    last_v="$(grep -oiE 'controller 119, value [0-9]+' <<<"$dump" \
+        | tail -1 | grep -oE '[0-9]+$')"
+    if [[ -n "$last_v" ]]; then
+        SEEN_BPM="$(awk -v v="$last_v" 'BEGIN{printf "%.1f", 40 + (v/127.0)*360}')"
+    fi
+
+    # The canonical tempo is the 14-bit pair CC120 (MSB) + CC121 (LSB):
+    # 40 + ((MSB<<7)|LSB) * 360 / 16383, 0.022 BPM per step. CC119 above is the
+    # legacy 7-bit value (2.835 BPM per step) -- prefer the number when the
+    # bus carries it, so the sync pages show the same tempo the devices hold.
+    local msb lsb
+    msb="$(grep -oiE 'controller 120, value [0-9]+' <<<"$dump" | tail -1 | grep -oE '[0-9]+$')"
+    lsb="$(grep -oiE 'controller 121, value [0-9]+' <<<"$dump" | tail -1 | grep -oE '[0-9]+$')"
+    if [[ -n "$msb" && -n "$lsb" ]]; then
+        SEEN_BPM="$(awk -v m="$msb" -v l="$lsb" 'BEGIN{printf "%.2f", 40 + (m*128 + l)*360/16383}')"
+    fi
+}
+
+# Inject a live CC116 role-announce onto the shared bus. aseqsend takes
+# raw MIDI bytes in hex: 0xBF = Control Change on ch16, 0x74 = CC116.
+# (clock.md's `-C/-c/-v` flag example is not stock alsa-utils syntax.)
+send_cc116() {  # send_cc116 <value>
+    local val="$1"
+    if ! command -v aseqsend >/dev/null 2>&1; then
+        echo "demiurge-sync: aseqsend not found — sync.conf written, but CC116 was NOT sent live." >&2
+        echo "demiurge-sync: install alsa-utils, or the daemon will pick up the role on its next restart." >&2
+        return 1
+    fi
+    aseqsend -p "$BUS" bf 74 "$(printf '%02x' "$val")" 2>/dev/null
+}
+
+# --auto may appear before the role argument (`demiurge-sync --auto
+# opgorator`). Strip it here and remember it; every other subcommand ignores
+# it (there is no such thing as "auto --list").
+AUTO=0
+if [[ "$1" == "--auto" ]]; then
+    AUTO=1
+    shift
+fi
+
+case "$1" in
+    --list)
+        role="$(current_role)"
+        probe_clock
+        bpm="$SEEN_BPM"
+        [[ -z "$bpm" ]] && bpm="$(live_conf_bpm)"
+        [[ -z "$bpm" ]] && bpm="0"
+        printf '%s|%s|%s\n' "$role" "$bpm" "$SOURCE_ALIVE"
+        exit 0
+        ;;
+    ""|status)
+        role="$(current_role)"
+        probe_clock
+        bpm="$SEEN_BPM"
+        bpm_src="live"
+        if [[ -z "$bpm" ]]; then
+            bpm="$(live_conf_bpm)"
+            bpm_src="live.conf"
+            [[ -z "$bpm" ]] && { bpm="unknown"; bpm_src=""; }
+        fi
+        echo "Sync role: $role"
+        if [[ -n "$bpm_src" ]]; then
+            echo "BPM: $bpm ($bpm_src)"
+        else
+            echo "BPM: unknown"
+        fi
+        if [[ "$SOURCE_ALIVE" == 1 ]]; then
+            echo "Clock source: alive"
+        else
+            echo "Clock source: not detected"
+        fi
+        exit 0
+        ;;
+    opgorator|demiurge)
+        role="$1"
+        val=1
+        [[ "$role" == "demiurge" ]] && val=2
+
+        # EXPLICIT USER CHOICE WINS. An --auto call (only the launcher's
+        # device-presence auto-switch makes these) is rejected outright when
+        # a human has already claimed a side: role is left untouched, CC116
+        # is NOT sent, sync.conf is NOT rewritten. Only a non---auto call
+        # (a human, or a UI acting on the human's behalf) may move source
+        # off "manual". A plain call always proceeds regardless of source —
+        # that IS the human overriding whatever was there before.
+        if [[ "$AUTO" == 1 && "$(current_source)" == "manual" ]]; then
+            echo "demiurge-sync: --auto $role ignored — sync.conf source=manual (a human already chose '$(current_role)')" >&2
+            exit 0
+        fi
+
+        source_val="manual"
+        [[ "$AUTO" == 1 ]] && source_val="auto"
+
+        mkdir -p "$(dirname "$SYNC")"
+        {
+            echo "# DEMIURGE clock role — written by demiurge-sync."
+            echo "# opgorator = OpGorator is clock master, Demiurge follows."
+            echo "# demiurge  = Demiurge is clock master (free-run/Link/steer)."
+            echo "role = $role"
+            echo "# source: who set the role above — auto (device-presence"
+            echo "# auto-switch) or manual (a human ran demiurge-sync directly)."
+            echo "# auto-detection never overrides a manual choice; see"
+            echo "# demiurge/docs/clock-role-auto.md."
+            echo "source = $source_val"
+        } > "$SYNC"
+
+        echo "demiurge-sync: role -> $role (source=$source_val)"
+        if send_cc116 "$val"; then
+            echo "demiurge-sync: CC116=$val sent live on the bus (no restart needed)"
+        fi
+        exit 0
+        ;;
+    -h|--help)
+        sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0
+        ;;
+    *)
+        echo "demiurge-sync: unknown argument '$1' (expected: opgorator, demiurge, --list, or nothing)" >&2
+        exit 1
+        ;;
+esac

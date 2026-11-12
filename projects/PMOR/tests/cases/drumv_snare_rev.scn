@@ -1,0 +1,4 @@
+seconds 1.2
+set drums.pad.10.reverse 1
+set drums.pad.10.length 0.8
+at 0 drum 10 1.0

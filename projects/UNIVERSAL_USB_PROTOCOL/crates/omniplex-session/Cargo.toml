@@ -1,0 +1,23 @@
+[package]
+name = "omniplex-session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+omniplex-wire = { workspace = true }
+omniplex-transport = { workspace = true }
+omniplex-discovery = { workspace = true }
+omniplex-clock = { workspace = true }
+omniplex-mux = { workspace = true }
+omniplex-metrics = { workspace = true }
+
+tokio = { workspace = true }
+bytes = { workspace = true }
+postcard = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

@@ -1,0 +1,27 @@
+{
+  "name": "yellow-comet",
+  "_comment": [
+    "Pitch-black ring (no background layer) with one fast yellow comet",
+    "racing the 1920px closed loop at constant speed (physics.wrap, no",
+    "drive modulation, no forces) with a modest fading trail via layer",
+    "'trail' decay+blur. tone_map is 'clip' (not 'reinhard') so the head's",
+    "#ffdd00 linear-1.0 red channel round-trips to a true 255 instead of",
+    "being rolled off to ~186 by reinhard's x/(1+x) curve."
+  ],
+  "master": {"brightness": 1.0, "tone_map": "clip"},
+  "layers": [
+    {
+      "type": "particles",
+      "blend": "add",
+      "trail": {"decay": 0.4, "blur": 1.5},
+      "physics": {
+        "wrap": true,
+        "bounce": {"enabled": false}
+      },
+      "particles": [
+        {"pos": 0, "vel": 420, "size": 2.6, "color": "#ffdd00", "lifetime": null}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": false}
+    }
+  ]
+}

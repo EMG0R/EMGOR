@@ -1,0 +1,4 @@
+<resources>
+    <!-- Base theme; the Compose UI supplies its own Material3 colors at runtime. -->
+    <style name="Theme.TheWatch" parent="Theme.Material3.DayNight.NoActionBar" />
+</resources>

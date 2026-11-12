@@ -1,0 +1,111 @@
+// DEMIURGE hello_patching — Strudel MIDI driver
+//
+// PROVEN WORKING in this build:
+//   n(choose(a,b,...)).segment(N).degradeBy(p)  — fires N times/cycle, random pick
+//   stack(...)   — independent simultaneous layers
+//   slow(n)      — stretches a layer's cycle
+//
+// BROKEN / SILENT:
+//   n("a b c")           — sequence always samples t=0 → only ever first note
+//   choose([array])      — array arg treated as single value → note 0 (8 Hz, inaudible)
+//   .shuffle()           — strips value structure → silent
+//   n(X) without .segment() — raw value not a hap object → silent
+//
+// ARCHITECTURE — why one layer per scale degree:
+//   choose() is deterministic: it hashes the event phase to pick an item.
+//   With all notes of one octave in one choose() call, the last item gets a
+//   disproportionate share of phase-bucket collisions. The fix is structural:
+//   give each scale degree its own layer. Equal layer density → equal
+//   scale-degree probability by construction, regardless of choose() internals.
+//
+// OCTAVE DISTRIBUTION — every octave, no middle bias:
+//   Earlier this driver intentionally placed E4 four times at the end of each
+//   choose() list to bias toward E4 (the middle octave). That's now gone —
+//   each list contains the five octaves of its degree exactly once, equal
+//   weight, so the listener hears every octave with roughly the same
+//   frequency. (Trailing-item bias from choose() still gives the LAST entry a
+//   small extra share; we rotate which octave is last per scale degree so no
+//   single octave gets that bonus across all layers.)
+//
+// E major MIDI by degree and octave:
+//   E : 40 52 64 76 88
+//   F#: 42 54 66 78 90
+//   G#: 44 56 68 80 92
+//   A : 45 57 69 81 93
+//   B : 47 59 71 83 95
+//   C#: 49 61 73 85 97
+//   D#: 51 63 75 87 99
+//
+// DENSITY — 10% of prior, eliminates crackle / DSP stress:
+//   Old density: ~11.9 ev/s → ~24 simultaneous ChucK voices, on the edge of
+//   the 32-voice cap. That headroom-on-the-edge is what produced the audible
+//   crackle / DSP-distortion the user reported.
+//   New density: setcps scaled 10×, giving ~1.2 ev/s total → ~2–3
+//   simultaneous voices. ChucK polyphony is now massively underused, all DSP
+//   stress should vanish.
+//   Slow() polyrhythm relationships and segment(4) per layer are unchanged —
+//   only the global tempo shrinks.
+
+// PARAMETER (docs/parameters.md): /strudel/density (0..1) = share of scheduled
+// notes that actually fire (1 = every layer event plays, 0 = silence).
+// Driven from the Demiurge UI through the pool and echoed back via /pout.
+// The hook module resources/params/strudel/dparams.mjs (get/out) is loaded at
+// the top of this file; manifest: params/strudel.json (stage 0 -> port 9000).
+const _res = process.env.DEMIURGE_RESOURCES || '/opt/demiurge/resources'
+const dp = await import('file://' + _res + '/params/strudel/dparams.mjs')
+// port 0 would mean "env DEMIURGE_PARAM_PORT"; fall back to the manifest port
+// (stage 0 -> 9000) when the launcher did not set it.
+dp.init({ stage: 'strudel', port: +process.env.DEMIURGE_PARAM_PORT || 9000 })
+dp.add('/strudel/density', 0.7)
+let _lastDensity = -1
+// Read at query time (once per scheduled event); report only on change.
+const density = signal(() => {
+  const d = dp.get('/strudel/density')
+  if (Math.abs(d - _lastDensity) > 0.001) { _lastDensity = d; dp.out('/strudel/density', d) }
+  return 1 - d
+})
+
+setcps(110/60/4)
+
+// Equal-probability E major (= C# minor relative). All seven scale degrees,
+// each with five octaves uniformly weighted — no scale-degree bias, no
+// middle-octave bias. The vi minor root (C#) is one of seven equally likely
+// roots; the "super chill 6 minor" pull comes naturally from leaving the
+// listener's ear free to land on vi.
+//
+// Density ~10% via segment(1) + per-layer slow ~2.5×, since this Strudel
+// build silently ignores setcps() and stack-level .slow() (runner reads
+// global BPM, not per-file cps). Polyrhythmic slow values (2.50–2.98)
+// give an incommensurate-tempo texture so layers never lock in unison.
+//
+// Trailing-item bias rotation: Strudel's choose() slightly favours the
+// LAST item; we rotate which octave is last per layer so no single octave
+// gets a privileged share across the whole stack.
+// Per-octave weighting via choose() repetition, with the items truly SCRAMBLED
+// inside each list. Strudel's choose() in this build picks list indices by
+// hashing event phase — when the list is in any orderly pattern (whether
+// `A,A,A,...` or `A,B,C,A,B,C,...`) consecutive phase ticks produce ordered
+// octave runs that the ear hears as a scale.
+//
+// The scramble below was hand-shuffled so the index-walk no longer encodes a
+// progression: each position's octave choice is unrelated to its neighbours,
+// the rare oct5 and oct6 are sprinkled inside the list (not at the end), and
+// no two adjacent positions sit on the same scale-tone for too long.
+//
+// Statistics per layer are unchanged: 10:10:10:2:1 across oct 2/3/4/5/6 →
+//   oct 2 / 3 / 4 — 30.3% each
+//   oct 5         — 6.1%   (~25% of prior 20%)
+//   oct 6         — 3.0%   (~15% of prior 20%)
+// 7-scale-degree stack and per-layer polyrhythm preserved exactly.
+//
+// Scramble template (A=oct2, B=oct3, C=oct4, D=oct5, E=oct6):
+//   A B A C B A B D C A C B A C C B E A C B A C B D C A C B A C B B A
+stack(
+  n(choose(40,52,40,64,52,40,52,76,64,40,64,52,40,64,64,52,88,40,64,52,40,64,52,76,64,40,64,52,40,64,52,52,40)).segment(1).degradeBy(density).slow(4.50),  // E   (I)
+  n(choose(42,54,42,66,54,42,54,78,66,42,66,54,42,66,66,54,90,42,66,54,42,66,54,78,66,42,66,54,42,66,54,54,42)).segment(1).degradeBy(density).slow(4.65),  // F#  (ii)
+  n(choose(44,56,44,68,56,44,56,80,68,44,68,56,44,68,68,56,92,44,68,56,44,68,56,80,68,44,68,56,44,68,56,56,44)).segment(1).degradeBy(density).slow(4.80),  // G#  (iii)
+  n(choose(45,57,45,69,57,45,57,81,69,45,69,57,45,69,69,57,93,45,69,57,45,69,57,81,69,45,69,57,45,69,57,57,45)).segment(1).degradeBy(density).slow(4.95),  // A   (IV)
+  n(choose(47,59,47,71,59,47,59,83,71,47,71,59,47,71,71,59,95,47,71,59,47,71,59,83,71,47,71,59,47,71,59,59,47)).segment(1).degradeBy(density).slow(5.10),  // B   (V)
+  n(choose(49,61,49,73,61,49,61,85,73,49,73,61,49,73,73,61,97,49,73,61,49,73,61,85,73,49,73,61,49,73,61,61,49)).segment(1).degradeBy(density).slow(5.25),  // C#  (vi) — relative-minor root
+  n(choose(51,63,51,75,63,51,63,87,75,51,75,63,51,75,75,63,99,51,75,63,51,75,63,87,75,51,75,63,51,75,63,63,51)).segment(1).degradeBy(density).slow(5.40)   // D#  (vii°)
+)

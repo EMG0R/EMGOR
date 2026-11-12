@@ -1,0 +1,57 @@
+#!/bin/bash
+# demiurge-fix-double-trigger — stop NEPTR body encoder clicks firing twice.
+#
+# THE CAUSE, and it was self-inflicted.
+#
+# On 2026-09-15 the body's encoders and buttons were measured DEAD on both
+# paths: 15 s of aseqdump on its ALSA client produced zero messages, and 1036
+# raw NEPTR2 serial frames showed e1..e7/b1..b9/eb1..eb7 all flat zero while
+# every sensor streamed normally. On that evidence demiurge-io's
+# `--forward-control` was switched on, which translates the serial frame's
+# controls into OSC /cc at csound:7770.
+#
+# The body's control harness has since been repaired, so BOTH paths now work:
+#
+#   body USB-MIDI -> Midi Through 14:0 -> csound (-M 14:0)
+#   body serial   -> demiurge-io       -> OSC /cc -> csound:7770
+#
+# csound therefore sees every click TWICE. demiurge-io's own docstring predicts
+# exactly this: "if we ALSO forward encoder clicks as /cc, csound sees every
+# click TWICE and parameters move at double speed".
+#
+# THE FIX: turn --forward-control back off and let the body's own USB-MIDI be
+# the single path, which is the designed architecture — controls keep the
+# shortest route to the engine, and the MIDI hub is now kept wired by
+# demiurge-midi-connect.service rather than the old one-shot udev rule that
+# used to drop it.
+#
+# Sensors are UNAFFECTED: forward_control only gates the CONTROL forwarding.
+# jx/jy/exp/fsr/tof/accel/mic keep flowing through demiurge-io either way.
+#
+# IF THE BODY'S MIDI EVER GOES DEAD AGAIN, the inverse is one command:
+#     sudo systemctl edit --force demiurge-io    # re-add --forward-control
+# and then DISCONNECT the body from the hub, or you are back here:
+#     aconnect -d "Teensy MIDI":0 14:0
+# Exactly one path must be live. That is the whole rule.
+
+set -euo pipefail
+
+DROPIN=/etc/systemd/system/demiurge-io.service.d/10-forward-control.conf
+
+if [ ! -f "$DROPIN" ]; then
+    echo "forward-control drop-in not present — nothing to undo."
+else
+    sudo mv "$DROPIN" "${DROPIN}.disabled-$(date +%Y%m%d)"
+    sudo systemctl daemon-reload
+    sudo systemctl restart demiurge-io.service
+    echo "disabled --forward-control (drop-in kept as ${DROPIN}.disabled-*)"
+fi
+
+echo
+echo "verify — exactly ONE of these should deliver a click:"
+echo "  MIDI path : aseqdump -p \$(aconnect -l | sed -n \"s/^client \\([0-9]*\\): 'Teensy MIDI'.*/\\1/p\"):0"
+echo "  serial    : demiurge-io no longer forwards controls"
+echo
+systemctl show demiurge-io.service -p ExecStart --value | grep -q forward-control \
+    && echo "WARNING: --forward-control is STILL in ExecStart" \
+    || echo "confirmed: --forward-control is off"

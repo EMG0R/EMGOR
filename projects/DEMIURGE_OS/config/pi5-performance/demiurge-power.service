@@ -1,0 +1,15 @@
+[Unit]
+Description=DEMIURGE power level (live.conf power = low|medium|high)
+# Replaces demiurge-cpu-governor.service and demiurge-power-restore.service.
+# `high` relies on the overclock block in config.txt.snippet (setup Phase 8).
+Before=demiurge.service
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/demiurge-power.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

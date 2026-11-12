@@ -1,0 +1,102 @@
+#!/bin/bash
+# demiurge-power — view or set the CPU power level. ONE script, four names:
+#   demiurge-power            show level + live cpufreq/cores
+#   demiurge-power <level>    low | medium | high
+#   demlow / demmed / demhigh symlinks to this file (name picks the level)
+#
+# Writes the `power =` key in live.conf (the only config surface), then asks the
+# root oneshot demiurge-power.service to apply it (`sudo -n`, NOPASSWD on the
+# rig). The same service applies it at boot — there is no second mechanism.
+# See config/pi5-performance/demiurge-power.sh for what each level does.
+#
+#   --no-restart   write the key only (scripts/tests)
+
+set -u
+
+LIVE="${DEMIURGE_LIVE_CONF:-$HOME/demiurge/live.conf}"
+SYSROOT="${DEMIURGE_SYSFS_ROOT:-}"
+BLOCK_KEYS='chain|midi|inputs|ui_also'
+RESTART=1
+
+read_key() {
+    local v
+    v="$(grep -m1 -E "^[[:space:]]*$1[[:space:]]*=" "$LIVE" 2>/dev/null \
+         | sed 's/^[^=]*=[[:space:]]*//; s/#.*//; s/[[:space:]]*$//')"
+    [[ -z "$v" ]] && v="${2:-}"
+    printf '%s\n' "$v"
+}
+
+write_key() {
+    local key="$1" val="$2" tmp
+    tmp="$(mktemp "${TMPDIR:-/tmp}/demiurge-power.XXXXXX")" || return 1
+    trap 'rm -f "$tmp"' EXIT
+    if grep -qE "^[[:space:]]*$key[[:space:]]*=" "$LIVE" 2>/dev/null; then
+        awk -v k="$key" -v v="$val" '
+            !done && $0 ~ "^[[:space:]]*" k "[[:space:]]*=" {
+                printf "%-7s = %s\n", k, v; done=1; next
+            } { print }
+        ' "$LIVE" > "$tmp"
+    else
+        awk -v k="$key" -v v="$val" -v blocks="$BLOCK_KEYS" '
+            !done && $0 ~ "^[[:space:]]*(" blocks ")[[:space:]]*=" {
+                printf "%-7s = %s\n\n", k, v; done=1
+            } { print }
+            END { if (!done) printf "%-7s = %s\n", k, v }
+        ' "$LIVE" > "$tmp"
+    fi
+    [[ -s "$tmp" ]] || { echo "demiurge-power: refusing to write an empty live.conf" >&2; return 1; }
+    cat "$tmp" > "$LIVE" || return 1
+    rm -f "$tmp"; trap - EXIT
+}
+
+status() {
+    local lvl tag cpu=$SYSROOT/sys/devices/system/cpu
+    lvl="$(read_key power)"
+    if [[ -z "$lvl" ]]; then
+        tag="$(sed -n 's/^#[[:space:]]*power:[[:space:]]*//p' "$LIVE" 2>/dev/null | head -1 | tr -d '[:space:]')"
+        lvl="${tag:-high}"; [[ -n "$tag" ]] && lvl="$lvl (from # power: tag)" || lvl="$lvl (default)"
+    fi
+    echo "power: $lvl"
+    local ov; ov="$(read_key cpu_max_mhz)"; [[ -n "$ov" ]] && echo "  cpu_max_mhz override: $ov"
+    ov="$(read_key cpu_cores)";   [[ -n "$ov" ]] && echo "  cpu_cores override:   $ov"
+    local on=0 total=0 d n f
+    for d in "$cpu"/cpu[0-9]*; do
+        [[ -d "$d" ]] || continue
+        n="${d##*/cpu}"; total=$((total+1))
+        if [[ "$n" == 0 || "$(cat "$d/online" 2>/dev/null || echo 1)" == 1 ]]; then
+            on=$((on+1))
+            f="$d/cpufreq"
+            printf '  cpu%s  %s MHz  %s  (%s..%s)\n' "$n" \
+                "$(( $(cat "$f/scaling_cur_freq" 2>/dev/null || echo 0) / 1000 ))" \
+                "$(cat "$f/scaling_governor" 2>/dev/null || echo ?)" \
+                "$(( $(cat "$f/scaling_min_freq" 2>/dev/null || echo 0) / 1000 ))" \
+                "$(( $(cat "$f/scaling_max_freq" 2>/dev/null || echo 0) / 1000 ))"
+        fi
+    done
+    echo "  cores online: $on/$total"
+}
+
+LEVEL=""
+case "$(basename "$0")" in
+    demlow) LEVEL=low ;; demmed) LEVEL=medium ;; demhigh) LEVEL=high ;;
+esac
+for a in "$@"; do
+    case "$a" in
+        --no-restart) RESTART=0 ;;
+        low|medium|high) LEVEL="$a" ;;
+        med) LEVEL=medium ;;
+        -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+        *) echo "usage: demiurge-power [low|medium|high] [--no-restart]" >&2; exit 2 ;;
+    esac
+done
+
+[[ -z "$LEVEL" ]] && { status; exit 0; }
+
+[[ -f "$LIVE" ]] || { echo "demiurge-power: no live.conf at $LIVE" >&2; exit 1; }
+write_key power "$LEVEL" || exit 1
+echo "power = $LEVEL written to $LIVE"
+if [[ $RESTART == 1 ]]; then
+    sudo -n systemctl restart demiurge-power.service \
+        || { echo "demiurge-power: key saved, but could not apply now (will apply at next boot)" >&2; exit 1; }
+    echo "applied"
+fi

@@ -1,0 +1,46 @@
+{
+  "name": "aurora-drift",
+  "_comment": [
+    "Showcase: multi-color generative ambient. A gradient bed plus two",
+    "noise fields, each with its own multi-stop palette AND its own",
+    "palette_speed (cycles/sec) at incommensurate rates, so the whole",
+    "field's hue mix continuously reorganizes rather than looping on a",
+    "short fixed period -- no two moments look the same over hours.",
+    "Ring-space: gradient scale = ring length so it tiles seamlessly."
+  ],
+  "master": {"brightness": 0.85, "blur": 1.5, "tone_map": "reinhard"},
+  "layers": [
+    {
+      "type": "gradient",
+      "blend": "add",
+      "palette": ["#001a2c", "#3a0ca3", "#0a9396", "#7209b7", "#001a2c"],
+      "palette_speed": 0.021,
+      "scale": 1920,
+      "scroll_speed": 14,
+      "brightness": 0.55
+    },
+    {
+      "type": "noise",
+      "blend": "add",
+      "opacity": 0.6,
+      "scale": 260,
+      "speed": 0.08,
+      "octaves": 3,
+      "palette": ["#00131f", "#00c2a8", "#4cc9f0", "#f72585"],
+      "palette_speed": 0.037,
+      "brightness": 0.8
+    },
+    {
+      "type": "noise",
+      "blend": "max",
+      "opacity": 0.4,
+      "scale": 90,
+      "speed": -0.05,
+      "octaves": 2,
+      "palette": ["#000000", "#ffd60a", "#ff9e00"],
+      "palette_speed": -0.013,
+      "brightness": 0.5,
+      "threshold": 0.55
+    }
+  ]
+}

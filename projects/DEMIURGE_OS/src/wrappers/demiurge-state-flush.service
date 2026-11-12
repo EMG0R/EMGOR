@@ -1,0 +1,12 @@
+[Unit]
+Description=Mirror csound RAM state to SD (off the audio thread)
+[Service]
+Type=oneshot
+# gorpi7 = (insert your name here) — a documented placeholder, not a
+# requirement. This unit has no automated installer yet (unlike
+# demiurge.service / demiurge-touch.service, which setup-demiurge.sh
+# templates); if you wire one up, render this the same way: sed -e
+# "s/^User=.*/User=$USER/" before installing. Hand-installing: edit this
+# line to your Pi user first.
+User=gorpi7
+ExecStart=/usr/local/bin/demiurge-state-ram flush

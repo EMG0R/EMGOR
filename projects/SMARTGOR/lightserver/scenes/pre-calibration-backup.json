@@ -1,0 +1,175 @@
+{
+  "scene": {
+    "name": "chase",
+    "master": {
+      "brightness": 1.0,
+      "blur": 0.6,
+      "tone_map": "reinhard",
+      "strobe": {
+        "mode": "pulse",
+        "rate_hz": 3.2,
+        "depth": 0.22,
+        "duty": 0.6
+      }
+    },
+    "layers": [
+      {
+        "type": "gradient",
+        "blend": "add",
+        "opacity": 0.22,
+        "palette": [
+          "#20000e",
+          "#0a0010",
+          "#180016",
+          "#000000"
+        ],
+        "scale": 1920,
+        "scroll_speed": -40,
+        "palette_speed": 0.05
+      },
+      {
+        "type": "particles",
+        "blend": "add",
+        "opacity": 1.0,
+        "trail": {
+          "decay": 0.93,
+          "blur": 2.2
+        },
+        "physics": {
+          "wrap": true,
+          "damping": 0.0
+        },
+        "particles": [
+          {
+            "pos": 0,
+            "vel": 520,
+            "color": "#ff1e8c",
+            "size": 2.6,
+            "mass": 1.0
+          },
+          {
+            "pos": 40,
+            "vel": 520,
+            "color": "#ff5ad0",
+            "size": 1.8,
+            "mass": 1.0
+          },
+          {
+            "pos": 640,
+            "vel": 470,
+            "color": "#ff0066",
+            "size": 2.6,
+            "mass": 1.0
+          },
+          {
+            "pos": 676,
+            "vel": 470,
+            "color": "#e040ff",
+            "size": 1.8,
+            "mass": 1.0
+          },
+          {
+            "pos": 1280,
+            "vel": 560,
+            "color": "#ff2ea8",
+            "size": 2.4,
+            "mass": 1.0
+          },
+          {
+            "pos": 1316,
+            "vel": 560,
+            "color": "#c020ff",
+            "size": 1.7,
+            "mass": 1.0
+          }
+        ],
+        "render": {
+          "falloff": "gaussian",
+          "fade_out": false
+        }
+      },
+      {
+        "type": "particles",
+        "blend": "add",
+        "opacity": 1.0,
+        "trail": {
+          "decay": 0.86,
+          "blur": 1.0
+        },
+        "physics": {
+          "wrap": true,
+          "damping": 0.1,
+          "turbulence": {
+            "accel": 60,
+            "scale": 120,
+            "speed": 1.6
+          }
+        },
+        "emitters": [
+          {
+            "pos": [
+              200,
+              260
+            ],
+            "rate": 9,
+            "vel": 600,
+            "vel_jitter": 90,
+            "lifetime": 2.6,
+            "lifetime_jitter": 0.8,
+            "colors": [
+              "#ffd400",
+              "#ffee80",
+              "#ffa500"
+            ],
+            "size": 1.2,
+            "size_jitter": 0.4,
+            "hue_drift": 0.15
+          },
+          {
+            "pos": [
+              840,
+              900
+            ],
+            "rate": 9,
+            "vel": 640,
+            "vel_jitter": 90,
+            "lifetime": 2.4,
+            "lifetime_jitter": 0.8,
+            "colors": [
+              "#ffe020",
+              "#fff4a0",
+              "#ffb020"
+            ],
+            "size": 1.1,
+            "size_jitter": 0.4,
+            "hue_drift": 0.15
+          },
+          {
+            "pos": [
+              1480,
+              1540
+            ],
+            "rate": 9,
+            "vel": 620,
+            "vel_jitter": 90,
+            "lifetime": 2.5,
+            "lifetime_jitter": 0.8,
+            "colors": [
+              "#ffcc00",
+              "#ffffc0",
+              "#ff9010"
+            ],
+            "size": 1.2,
+            "size_jitter": 0.4,
+            "hue_drift": 0.15
+          }
+        ],
+        "render": {
+          "falloff": "gaussian",
+          "fade_out": true
+        }
+      }
+    ]
+  },
+  "node": "ring"
+}

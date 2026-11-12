@@ -1,0 +1,39 @@
+--- a/csound/handler/handler_looper.orc
++++ b/csound/handler/handler_looper.orc
+@@ -27,12 +27,22 @@
+ ; "instant the length became authoritative" moment for those. See
+ ; globals.orc's gkLpRecBpm declaration for why this can never feed back into
+ ; the tempo derivation (it mirrors the gkLpMasterLen capture-once pattern).
++; Max fraction of the chosen loop length a late close-tap may round back over
++; (OWNER CHOICE: 0.125 = 12.5%; 0 = never shorten, 0.5 = legacy nearest).
++#ifndef LP_TAIL_TOL
++#define LP_TAIL_TOL #0.125#
++#endif
+ #define LP_QCLOSE(kRaw'gkLen'gkState'gkRdPos'gkTgt'iBufN'gkTrimPos'gkRecBpm)#
+   if (gkLpMasterLen == 0) then
+     ; First loop closed anywhere = master transport
+     if (gkLpGridAvail == 1 && gkLpBeatSamples > 0) then
+       ; CLOCKED — quantize to the nearest whole-beat grid line.
+       kBeats_$gkLen = round($kRaw / gkLpBeatSamples)
++      ; TAIL PROTECT: never round BACK over more than LP_TAIL_TOL of a beat
++      ; of what was played; go to the next line instead (state 5 below)
++      if ($kRaw - kBeats_$gkLen * gkLpBeatSamples > $LP_TAIL_TOL * gkLpBeatSamples) then
++        kBeats_$gkLen += 1
++      endif
+       if (kBeats_$gkLen < 1) then
+         kBeats_$gkLen = 1
+       endif
+@@ -87,6 +97,13 @@
+     if (abs($kRaw - kC4_$gkLen) < kBsD_$gkLen) then
+       kBst_$gkLen = kC4_$gkLen
+     endif
++    ; TAIL PROTECT: nearest-candidate used to drop up to a third of the take
++    ; (1.49 x M -> M). Rounding back may cost at most LP_TAIL_TOL of the
++    ; chosen length; beyond that, step up one candidate (state 5 keeps
++    ; recording to it). Candidates are 2x apart, so x2 is the next one.
++    if ($kRaw > kBst_$gkLen * (1 + $LP_TAIL_TOL) && kBst_$gkLen < kC4_$gkLen) then
++      kBst_$gkLen = kBst_$gkLen * 2
++    endif
+     kBufSz_$gkLen = ftlen($iBufN)
+     if (kBst_$gkLen > kBufSz_$gkLen) then
+       kBst_$gkLen = kBufSz_$gkLen

@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>smartGOR</title>
+<style>
+  :root {
+    --bg: #0d0a14; --panel: #171126; --panel2: #1f1733;
+    --ink: #e8e2f5; --dim: #8d82a8; --edge: #2c2145;
+    --purple: #8b2fc9; --violet: #5d2fc9; --magenta: #c92fb0;
+    --good: #4cc98a; --warn: #c9a22f; --bad: #c94c4c;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: radial-gradient(1200px 600px at 70% -10%, #1d1038 0%, var(--bg) 60%);
+    color: var(--ink); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh; padding: 1rem;
+  }
+  header { display: flex; align-items: baseline; gap: .75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  h1 { font-size: 1.4rem; letter-spacing: .12em; }
+  h1 span { color: var(--purple); }
+  #conn { font-size: .78rem; padding: .15rem .6rem; border-radius: 999px; border: 1px solid var(--edge); color: var(--dim); }
+  #conn.live { color: var(--good); border-color: var(--good); }
+  #conn.demo { color: var(--warn); border-color: var(--warn); }
+
+  #scenes { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+  #scenes button {
+    background: linear-gradient(135deg, var(--violet), var(--purple));
+    color: #fff; border: 0; border-radius: .6rem; padding: .55rem 1.1rem;
+    font-size: .9rem; cursor: pointer; letter-spacing: .04em;
+  }
+  #scenes button:active { transform: scale(.96); }
+  #scenes button.off { background: var(--panel2); color: var(--dim); border: 1px solid var(--edge); }
+
+  .grid { display: grid; gap: .9rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .card {
+    background: var(--panel); border: 1px solid var(--edge); border-radius: .9rem;
+    padding: 1rem; display: flex; flex-direction: column; gap: .6rem;
+  }
+  .card h2 { font-size: .95rem; letter-spacing: .06em; color: var(--dim); font-weight: 600; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+  .pill { font-size: .75rem; color: var(--dim); background: var(--panel2); padding: .12rem .55rem; border-radius: 999px; }
+
+  .toggle { width: 46px; height: 26px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--edge); position: relative; cursor: pointer; flex: none; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--dim); transition: .15s; }
+  .toggle.on { background: var(--purple); border-color: var(--purple); }
+  .toggle.on::after { left: 22px; background: #fff; }
+
+  input[type=range] { width: 100%; accent-color: var(--purple); }
+  input[type=color] { border: 0; background: none; width: 36px; height: 28px; padding: 0; cursor: pointer; }
+  input[type=color].big { width: 46px; height: 34px; border-radius: .4rem; }
+  input.hex {
+    background: var(--panel2); color: var(--ink); border: 1px solid var(--edge);
+    border-radius: .4rem; padding: .3rem .5rem; font: .85rem monospace; width: 6.2rem;
+    text-transform: uppercase;
+  }
+  .seg { display: inline-flex; border: 1px solid var(--edge); border-radius: .5rem; overflow: hidden; }
+  .seg button {
+    background: var(--panel2); color: var(--dim); border: 0; padding: .35rem .9rem;
+    font-size: .82rem; cursor: pointer; letter-spacing: .03em;
+  }
+  .seg button.active { background: linear-gradient(135deg, var(--violet), var(--purple)); color: #fff; }
+  .swatches { display: flex; gap: .35rem; flex-wrap: wrap; }
+  .swatch { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--edge); cursor: pointer; }
+  .swatch:hover { transform: scale(1.12); }
+  .dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; background: var(--dim); margin-right: .35rem; }
+  .dot.on { background: var(--good); box-shadow: 0 0 6px var(--good); }
+  .dot.off { background: var(--bad); }
+  .muted { opacity: .45; pointer-events: none; }
+  .lbl { font-size: .72rem; color: var(--dim); letter-spacing: .05em; }
+  select {
+    background: var(--panel2); color: var(--ink); border: 1px solid var(--edge);
+    border-radius: .4rem; padding: .3rem .5rem; font-size: .85rem;
+  }
+
+  .bar { height: 10px; border-radius: 999px; background: var(--panel2); overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--violet), var(--magenta)); transition: width .6s; }
+  .bar.tank i { background: linear-gradient(90deg, #2f7dc9, #2fc9c0); }
+  .zone { display: grid; grid-template-columns: 4.2rem 1fr auto auto; gap: .5rem; align-items: center; font-size: .85rem; }
+  .zone .pct { color: var(--dim); min-width: 3ch; text-align: right; }
+  .water {
+    background: none; border: 1px solid var(--edge); color: var(--dim); border-radius: .4rem;
+    padding: .15rem .5rem; font-size: .75rem; cursor: pointer;
+  }
+  .water:hover { color: var(--ink); border-color: var(--purple); }
+  footer { margin-top: 1.4rem; color: var(--dim); font-size: .75rem; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>smart<span>GOR</span></h1>
+  <span id="conn">connecting…</span>
+</header>
+
+<div id="scenes"></div>
+<div class="grid" id="cards"></div>
+<footer>smartGOR room hub — MQTT-backed, served from the Pi</footer>
+
+<script>
+let S = null, scenes = {};
+
+const api = (path, body) => fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)} : {method: path.startsWith("/api/scene/")||path.startsWith("/api/plants/") ? "POST":"GET"}).then(r=>r.json());
+const cmd = (topic, payload) => api("/api/command", {topic, payload});
+// Strip goes to the dedicated endpoint (HTTP -> ESP32 + MQTT). Optimistic UI first.
+const strip = (payload) => {
+  if (payload.color && !payload.mode) {
+    // Color-only sends: stay in generative mode if the current style still uses
+    // color (nebula/pulse/chase); otherwise fall back to the old solid-mode default.
+    const cur = S ? S.state.strip : {};
+    const curStyle = cur.style || "nebula";
+    const staysGenerative = cur.mode === "generative" && curStyle !== "rainbow";
+    payload = {...payload, mode: staysGenerative ? "generative" : "solid"};
+  }
+  if (S) { Object.assign(S.state.strip, payload); render(); }
+  api("/api/strip", payload);
+};
+const STRIP_SWATCHES = ["#8b2fc9","#c92fb0","#5d2fc9","#2f7dc9","#2fc9c0","#ff9040","#ff3d5a","#ffffff"];
+
+function connect() {
+  const ws = new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws");
+  ws.onmessage = e => { const m = JSON.parse(e.data); if (m.type==="state") { S = m; render(); } };
+  ws.onclose = () => { setConn(null); setTimeout(connect, 2000); };
+  setInterval(()=>{ if (ws.readyState===1) ws.send("ping"); }, 25000);
+}
+
+function setConn(m) {
+  const el = document.getElementById("conn");
+  if (!m) { el.className=""; el.textContent="reconnecting…"; return; }
+  if (m.mqtt) { el.className="live"; el.textContent="● live · MQTT"; }
+  else if (m.demo) { el.className="demo"; el.textContent="◐ demo mode"; }
+  else { el.className=""; el.textContent="starting…"; }
+}
+
+function lampCard(id, d) {
+  return `<div class="card"><h2>${d.name}</h2>
+    <div class="row"><span class="pill">${d.effect||"static"}</span>
+      <div class="toggle ${d.on?"on":""}" onclick='cmd("lights/${id}/set",{on:${!d.on}})'></div></div>
+    <div class="row"><input type="color" value="${d.color||"#8b2fc9"}"
+        onchange='cmd("lights/${id}/set",{color:this.value})'>
+      <select onchange='cmd("lights/${id}/set",{effect:this.value})'>
+        ${["static","music","fade","strobe"].map(e=>`<option ${e===d.effect?"selected":""}>${e}</option>`).join("")}
+      </select></div>
+    <input type="range" min="1" max="100" value="${d.brightness??70}"
+      onchange='cmd("lights/${id}/set",{brightness:+this.value})'></div>`;
+}
+
+const STRIP_STYLES = ["nebula", "pulse", "chase", "rainbow"];
+const STRIP_STYLE_LABELS = {nebula: "Nebula", pulse: "Pulse", chase: "Chase", rainbow: "Rainbow"};
+
+function stripCard(d) {
+  const solid = d.mode === "solid";
+  const style = d.style || "nebula";
+  const color = (d.color || "#8b2fc9").toUpperCase();
+  const online = !!d.online;
+  // Rainbow ignores color entirely; nebula/pulse/chase all take a color.
+  const showColor = solid || style !== "rainbow";
+  const swatches = STRIP_SWATCHES.map(c =>
+    `<div class="swatch" style="background:${c}" title="${c}" onclick='strip({color:"${c}"})'></div>`).join("");
+  return `<div class="card"><h2>${d.name}</h2>
+    <div class="row">
+      <span><span class="dot ${online?"on":"off"}"></span>${online?("online · "+(d.ip||"—")):"offline"}</span>
+      <span class="pill">${d.wifi?"wifi":"no wifi"}</span>
+    </div>
+    <div class="row">
+      <span class="lbl">MODE</span>
+      <div class="seg">
+        <button class="${!solid?"active":""}" onclick='strip({mode:"generative"})'>Generative</button>
+        <button class="${solid?"active":""}" onclick='strip({mode:"solid"})'>Solid</button>
+      </div>
+    </div>
+    <div class="${solid?"muted":""}">
+      <div class="row">
+        <span class="lbl">STYLE</span>
+        <select onchange='strip({mode:"generative", style:this.value})'>
+          ${STRIP_STYLES.map(s=>`<option value="${s}" ${s===style?"selected":""}>${STRIP_STYLE_LABELS[s]}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="${showColor?"":"muted"}">
+      <div class="row">
+        <span class="lbl">COLOR</span>
+        <div class="row" style="gap:.4rem">
+          <input type="color" class="big" value="${color}" onchange='strip({color:this.value})'>
+          <input class="hex" value="${color}" maxlength="7"
+            onchange='strip({color:this.value})'
+            onkeydown='if(event.key==="Enter")strip({color:this.value})'>
+        </div>
+      </div>
+      <div class="swatches" style="margin-top:.5rem">${swatches}</div>
+    </div>
+    <div>
+      <span class="lbl">BRIGHTNESS · ${d.brightness??128}</span>
+      <input type="range" min="0" max="255" value="${d.brightness??128}"
+        onchange='strip({brightness:+this.value})'>
+    </div></div>`;
+}
+
+function render() {
+  setConn(S);
+  const st = S.state;
+  const jars = st.jars;
+  let html = "";
+
+  html += stripCard(st.strip);
+
+  html += lampCard("lamp1", st.lamp1) + lampCard("lamp2", st.lamp2);
+
+  html += `<div class="card"><h2>${jars.name}</h2>
+    <div class="row"><span class="pill">scene: ${jars.scene}</span><span class="pill">palette: ${jars.palette}</span></div>
+    <div class="row">
+      <select onchange='cmd("lights/jars/scene",{scene:this.value})'>
+        ${["off","calm","drift","reactive"].map(s=>`<option ${s===jars.scene?"selected":""}>${s}</option>`).join("")}
+      </select>
+      <select onchange='cmd("lights/jars/palette",{palette:this.value})'>
+        ${["purple","sunset","rainbow","ocean"].map(p=>`<option ${p===jars.palette?"selected":""}>${p}</option>`).join("")}
+      </select></div></div>`;
+
+  const zones = Object.entries(st.plants).map(([z,p]) => {
+    const m = p.moisture;
+    return `<div class="zone"><span>zone ${z}</span>
+      <div class="bar"><i style="width:${m??0}%"></i></div>
+      <span class="pct">${m==null?"—":Math.round(m)+"%"}</span>
+      <button class="water" onclick='api("/api/plants/water/${z}")'>💧</button></div>`;
+  }).join("");
+  const tank = st.tank.level_pct;
+  html += `<div class="card"><h2>Plants</h2>${zones}
+    <div class="row" style="margin-top:.3rem"><span class="pill">tank</span>
+      <span class="pct" style="color:${st.tank.low?"var(--bad)":"var(--dim)"}">${tank==null?"—":Math.round(tank)+"%"}${st.tank.low?" · LOW":""}</span></div>
+    <div class="bar tank"><i style="width:${tank??0}%"></i></div></div>`;
+
+  const sw = Object.entries(st.switches).map(([id,s]) =>
+    `<div class="row"><span>${s.name}</span>
+      <div class="toggle ${s.on?"on":""}" onclick='cmd("room/switch/${id}/set","${s.on?"off":"on"}")'></div></div>`).join("");
+  if (sw) html += `<div class="card"><h2>Switches</h2>${sw}</div>`;
+
+  document.getElementById("cards").innerHTML = html;
+}
+
+async function loadScenes() {
+  scenes = await api("/api/scenes");
+  document.getElementById("scenes").innerHTML = Object.entries(scenes).map(([k,s]) =>
+    `<button class="${k==="all_off"?"off":""}" onclick='api("/api/scene/${k}")'>${s.label}</button>`).join("");
+}
+
+loadScenes(); connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+#!/bin/bash
+# demiurge-run-cpp <binary-or-source>
+# If given an executable, runs it directly. If given a .cpp source
+# that has no matching binary, compiles it once with the DEMIURGE
+# default flags, then runs the result.
+set -e
+source /opt/demiurge/lib/demiurge-env.sh 2>/dev/null || source "$(dirname "$0")/../lib/demiurge-env.sh"
+
+if [[ -z "$1" ]]; then
+    echo "usage: demiurge-run-cpp <binary-or-source.cpp>" >&2
+    exit 1
+fi
+
+TARGET="$1"; shift
+
+# If target is source, one-shot compile next to it
+if [[ "$TARGET" == *.cpp && ! -x "$TARGET" ]]; then
+    OUT="${TARGET%.cpp}"
+    echo "demiurge-run-cpp: building $TARGET → $OUT" >&2
+    g++ -O2 -o "$OUT" "$TARGET" -ljack -lasound -lm -lpthread
+    TARGET="$OUT"
+fi
+
+# If target exists without extension but source sits next to it, same idea
+if [[ ! -x "$TARGET" && -f "${TARGET}.cpp" ]]; then
+    echo "demiurge-run-cpp: building ${TARGET}.cpp → $TARGET" >&2
+    g++ -O2 -o "$TARGET" "${TARGET}.cpp" -ljack -lasound -lm -lpthread
+fi
+
+if [[ ! -x "$TARGET" ]]; then
+    echo "demiurge-run-cpp: no executable at $TARGET" >&2
+    exit 2
+fi
+
+exec "$TARGET" "$@"

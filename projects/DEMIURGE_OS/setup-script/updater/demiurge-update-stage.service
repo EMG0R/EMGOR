@@ -1,0 +1,16 @@
+[Unit]
+Description=Demiurge updater: stage newest version in background (never swaps live)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/demiurge/current
+
+[Service]
+Type=oneshot
+ExecStart=/opt/demiurge/bin/demiurge-update-stage
+# Lowest priority everywhere; utility core only (core 0). Audio cores untouched.
+Nice=19
+IOSchedulingClass=idle
+CPUSchedulingPolicy=idle
+CPUAffinity=0
+CPUQuota=25%
+MemoryHigh=256M

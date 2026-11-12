@@ -1,0 +1,377 @@
+#!/bin/bash
+# demiurge-audio — view and change the audio engine settings that live in
+# live.conf but had no CLI: sample format, buffer size, sample rate and the
+# routing mode. One write path per setting; every UI calls this, nothing
+# edits live.conf itself (same doctrine as demiurge-interface / demiurge-touch).
+#
+# Usage:
+#   demiurge-audio                   human-readable status of all four keys
+#   demiurge-audio --list            machine lines for UIs, one per setting:
+#                                      key|value|default|options|effect
+#                                    options = comma-joined legal values
+#                                    effect  = one-line, MODE-AWARE plain-English
+#                                              description of what it does right now
+#   demiurge-audio --status-machine  one line: mode|rate|quantum|bits|latency_ms
+#                                    latency_ms = the honest number for the
+#                                    CURRENT mode ("pinned" in bypass, see below)
+#
+#   demiurge-audio bits 16|32|float
+#   demiurge-audio quantum <power of two, 32..2048>
+#   demiurge-audio check [quantum]   would this quantum work? (writes nothing)
+#   demiurge-audio rate 44100|48000|88200|96000
+#   demiurge-audio mode sync|bypass
+#
+#   --no-restart   write the key but don't bounce the engine (scripts/tests)
+#
+# ── bits ─────────────────────────────────────────────────────────────────────
+# 16 | 32 | float, and NOTHING ELSE. 24 is not a legal value: csound's realtime
+# ALSA backend rejects `-3` with "Unknown sample format" — 24-bit is a file-only
+# depth there. A 24-bit converter is fed correctly by `32` (S32_LE through
+# plughw, no conversion cost). Default 32; the old implicit S16_LE default was
+# throwing away the bottom 8 bits of a 24-bit DAC (measured 2026-08-10).
+#
+# ── quantum, and the honesty rule ────────────────────────────────────────────
+# `quantum` means two DIFFERENT things depending on the routing mode, and this
+# tool refuses to pretend otherwise:
+#
+#   mode = sync    quantum genuinely sets the graph period. Latency is real and
+#                  computable: quantum / rate seconds per period.
+#   mode = bypass  quantum does NOT change latency AT ALL. csound's ALSA backend
+#                  pins a 1024-frame ring whatever `-b` says (measured across 20
+#                  configs, every csound version tested — see gotchas Q7c). Here
+#                  quantum only trades CPU headroom: smaller = more wakeups.
+#
+# So the `effect` field of --list, and the human output, change wording with the
+# mode. UIs must show that string rather than inventing a latency claim.
+#
+# ── quantum, and the SAFETY rule ─────────────────────────────────────────────
+# A quantum is not legal just because it is a power of two. csound's `-b` must
+# be a multiple of the patch's ksmps, and PipeWire cannot run the graph below
+# the device's api.alsa.period-size. Violate either and csound exits during
+# init: its JACK ports vanish, every link dies, and the UI reports that the
+# patcher disconnected from the interface — with nothing anywhere naming the
+# real cause. That is what `quantum = 32` did on this rig.
+#
+# So this tool NEVER writes a quantum it has not checked. The check lives in
+# demiurge-quantum-limits (one file, all three constraints, also used by the
+# launcher) and this tool consumes its verdict:
+#
+#   ok      write it
+#   period  the only movable constraint is in the way — write the quantum and
+#           let `demiurge-quantum-limits lockstep` regenerate the device period
+#           (and rate pins) from it. The user is told, and is not asked to
+#           reason about ALSA rings.
+#   bad     REFUSE, name the constraint that fails, and print the nearest
+#           quantum that does work.
+#
+# `--list` reports only the reachable quanta in its options field, so a UI
+# cannot offer a value that would kill audio. If the helper is missing (older
+# deploy) everything falls back to the unchecked power-of-two ladder — no worse
+# than before, and it says so.
+#
+# ── mode (live.conf `sync_layer`) ────────────────────────────────────────────
+#   sync   (sync_layer = on)  full PipeWire graph: multi-stage chains, mixing,
+#                             loopback, several programs at once. quantum works.
+#   bypass (sync_layer = off) the single chain program owns the interface
+#                             directly. Fewer moving parts, but one program
+#                             only and quantum stops steering latency.
+# Switching modes restarts the engine and can silence a running set — callers
+# should confirm before invoking it.
+#
+# ── scope ────────────────────────────────────────────────────────────────────
+# All four keys live in live.conf, which `demiurge-set` REPLACES wholesale on a
+# patch switch. These are therefore per-patch settings: change patch and you get
+# that patch's values back. That is deliberate (a patch owns its audio setup)
+# and the human output says so.
+
+set -u
+
+LIVE="${DEMIURGE_LIVE_CONF:-$HOME/demiurge/live.conf}"
+RESTART=1
+
+BITS_OPTS="16,32,float"
+RATE_OPTS="44100,48000,88200,96000"
+MODE_OPTS="sync,bypass"
+QUANTUM_OPTS="32,64,128,256,512,1024,2048"
+
+DEF_BITS=32
+DEF_RATE=48000
+DEF_QUANTUM=128
+DEF_MODE=sync
+
+# Keys that introduce an indented block; a new key must be inserted BEFORE the
+# first of them or it would be swallowed into the block.
+BLOCK_KEYS='chain|midi|inputs|ui_also'
+
+read_key() {   # read_key <key> [default]
+    local v
+    v="$(grep -m1 -E "^[[:space:]]*$1[[:space:]]*=" "$LIVE" 2>/dev/null \
+         | sed 's/^[^=]*=[[:space:]]*//; s/#.*//; s/[[:space:]]*$//')"
+    [[ -z "$v" ]] && v="${2:-}"
+    printf '%s\n' "$v"
+}
+
+# write_key <key> <value> — replace in place, preserving the rest of the file
+# byte-for-byte; if the key is absent, insert it before the first block key
+# (never at EOF, which may sit inside an indented `chain =` list).
+write_key() {
+    local key="$1" val="$2" tmp
+    tmp="$(mktemp "${TMPDIR:-/tmp}/demiurge-audio.XXXXXX")" || return 1
+    trap 'rm -f "$tmp"' EXIT
+    if grep -qE "^[[:space:]]*$key[[:space:]]*=" "$LIVE" 2>/dev/null; then
+        awk -v k="$key" -v v="$val" '
+            !done && $0 ~ "^[[:space:]]*" k "[[:space:]]*=" {
+                printf "%-7s = %s\n", k, v; done=1; next
+            } { print }
+        ' "$LIVE" > "$tmp"
+    else
+        awk -v k="$key" -v v="$val" -v blocks="$BLOCK_KEYS" '
+            !done && $0 ~ "^[[:space:]]*(" blocks ")[[:space:]]*=" {
+                printf "%-7s = %s\n\n", k, v; done=1
+            } { print }
+            END { if (!done) printf "%-7s = %s\n", k, v }
+        ' "$LIVE" > "$tmp"
+    fi
+    [[ -s "$tmp" ]] || { echo "demiurge-audio: refusing to write an empty live.conf" >&2; return 1; }
+    cat "$tmp" > "$LIVE" || return 1      # in place: keep ownership/inode
+    rm -f "$tmp"; trap - EXIT
+}
+
+cur_mode() {
+    local sl; sl="$(read_key sync_layer on)"
+    case "$(tr '[:upper:]' '[:lower:]' <<<"$sl")" in
+        off|0|no|false) echo bypass ;;
+        *)              echo sync ;;
+    esac
+}
+
+# Bypass mode, both measured — they are DIFFERENT numbers and both matter:
+#   BYPASS_RING   frames csound's ALSA backend pins regardless of any setting.
+#                 Verified across 20 configurations, and present in csound6,
+#                 master and develop alike — upgrading csound does not fix it.
+#   BYPASS_QUEUED frames actually queued in that ring in practice. This is the
+#                 one that becomes the latency figure a player feels.
+BYPASS_RING=1024
+BYPASS_QUEUED=932
+
+# Output latency AT THE DEVICE, in ms. Deliberately NOT round-trip: a
+# converter-inclusive figure needs a physical loopback cable and has not been
+# measured, so nothing downstream may call this round-trip.
+latency_ms() {
+    local mode="$1" q="$2" r="$3"
+    if [[ "$mode" == bypass ]]; then
+        awk -v r="$r" -v n="$BYPASS_QUEUED" 'BEGIN{ printf "%.1f", n/r*1000 }'
+    else
+        awk -v q="$q" -v r="$r" 'BEGIN{ printf "%.2f", q/r*1000 }'
+    fi
+}
+
+# The NUMBER is always computed from frames + rate; only the explanatory
+# clause is fixed prose. A better measurement then changes data, not copy.
+#
+# The figures these describe are DEVICE-side queued (output) latency. Nothing
+# here is round-trip: a converter-inclusive measurement needs a physical
+# loopback and has not been made, so no UI string may claim one.
+quantum_effect() {
+    local mode="$1" q="$2" r="$3"
+    if [[ "$mode" == bypass ]]; then
+        printf 'CPU headroom only — the audio backend pins a %s-frame ring and ignores this setting, so output latency at the device stays around %s ms (%s frames queued) no matter what you pick' \
+               "$BYPASS_RING" "$(latency_ms bypass "$q" "$r")" "$BYPASS_QUEUED"
+    else
+        printf 'buffer size — %s frames at %s Hz is %s ms of output latency at the device per period; smaller = lower latency, more CPU. The engine adds a period or two of its own buffering on top, so what you feel is a little more than this' \
+               "$q" "$r" "$(latency_ms sync "$q" "$r")"
+    fi
+}
+
+mode_effect() {
+    if [[ "$1" == bypass ]]; then
+        printf 'bypass: the chain program owns the interface directly — one program only, and the buffer size stops steering latency'
+    else
+        printf 'sync: full audio graph — multi-stage chains, mixing and loopback, and the buffer size really does set latency'
+    fi
+}
+
+# ── the quantum safety check ────────────────────────────────────────────────
+# Resolve the helper from the deployed bin dir first, then from alongside this
+# script (so a working copy can be exercised before it is installed).
+LIMITS=""
+for _c in /opt/demiurge/bin/demiurge-quantum-limits "$(dirname "$0")/demiurge-quantum-limits"; do
+    [[ -x "$_c" ]] && { LIMITS="$_c"; break; }
+done
+unset _c
+
+# quantum_verdict <n> → "state|quantum|ksmps|period|nearest|message"
+# Falls back to a synthetic `unknown` line when the helper is absent, so every
+# caller can parse one shape and old deploys keep working.
+quantum_verdict() {
+    if [[ -n "$LIMITS" ]]; then
+        DEMIURGE_LIVE_CONF="$LIVE" "$LIMITS" check "$1" --machine --live "$LIVE" 2>/dev/null && return
+    fi
+    printf 'unknown|%s|||%s||demiurge-quantum-limits is not installed — the ksmps and period-size constraints were NOT checked\n' "$1" "$1"
+}
+
+# The quanta that are actually reachable right now. Used for the `options`
+# field so no UI can present a value that kills audio.
+reachable_quanta() {
+    local l=""
+    [[ -n "$LIMITS" ]] && l="$(DEMIURGE_LIVE_CONF="$LIVE" "$LIMITS" legal --live "$LIVE" 2>/dev/null)"
+    printf '%s\n' "${l:-$QUANTUM_OPTS}"
+}
+
+is_pow2_in_range() {
+    local n="$1"
+    [[ "$n" =~ ^[0-9]+$ ]] || return 1
+    (( n >= 32 && n <= 2048 )) || return 1
+    (( (n & (n - 1)) == 0 ))
+}
+
+in_csv() { [[ ",$2," == *",$1,"* ]]; }
+
+# Regenerate the device-side rate/period/clock files from the live.conf we just
+# wrote (demiurge-quantum-limits lockstep — the one-knob mechanism). --write-only:
+# this tool restarts the engine itself, and demiurge.service's ExecStartPre runs
+# lockstep again with the engine DOWN, which is where WirePlumber/PipeWire may be
+# bounced and the clock pinned. Bouncing them here, under a running graph, would
+# only glitch it. With --no-restart the files are still current for next start.
+# Never fatal: the ExecStartPre pass is the one that has to succeed.
+run_lockstep() {
+    [[ -n "$LIMITS" ]] || { echo "demiurge-audio: demiurge-quantum-limits not installed — device rate/period NOT regenerated" >&2; return 0; }
+    DEMIURGE_LIVE_CONF="$LIVE" "$LIMITS" lockstep --write-only --live "$LIVE" || true
+}
+
+restart_engine() {
+    if [[ "$RESTART" == 1 ]]; then
+        echo "demiurge-audio: restarting demiurge..."
+        sudo systemctl restart demiurge
+        echo "demiurge-audio: done"
+    else
+        echo "demiurge-audio: written (engine NOT restarted — takes effect on the next restart)"
+    fi
+}
+
+# strip --no-restart from anywhere in the argument list
+ARGS=()
+for a in "$@"; do
+    if [[ "$a" == "--no-restart" ]]; then RESTART=0; else ARGS+=("$a"); fi
+done
+set -- ${ARGS[@]+"${ARGS[@]}"}
+
+if [[ ! -f "$LIVE" ]]; then
+    echo "demiurge-audio: no live.conf at $LIVE" >&2
+    [[ "${1:-}" == "--list" || "${1:-}" == "--status-machine" ]] && exit 0
+    exit 1
+fi
+
+MODE="$(cur_mode)"
+RATE="$(read_key rate "$DEF_RATE")"
+QUANTUM="$(read_key quantum "$DEF_QUANTUM")"
+BITS="$(read_key bits "$DEF_BITS")"
+
+case "${1:-}" in
+--list)
+    printf 'mode|%s|%s|%s|%s\n'    "$MODE" "$DEF_MODE" "$MODE_OPTS" "$(mode_effect "$MODE")"
+    printf 'bits|%s|%s|%s|%s\n'    "$BITS" "$DEF_BITS" "$BITS_OPTS" \
+        'sample format sent to the device — 32-bit int is right for a 24-bit converter; 24 is not a legal value here'
+    printf 'quantum|%s|%s|%s|%s\n' "$QUANTUM" "$DEF_QUANTUM" "$(reachable_quanta)" "$(quantum_effect "$MODE" "$QUANTUM" "$RATE")"
+    printf 'rate|%s|%s|%s|%s\n'    "$RATE" "$DEF_RATE" "$RATE_OPTS" \
+        'sample rate of the whole graph — changing it renegotiates every stage'
+    exit 0 ;;
+--status-machine)
+    printf '%s|%s|%s|%s|%s\n' "$MODE" "$RATE" "$QUANTUM" "$BITS" \
+           "$(latency_ms "$MODE" "$QUANTUM" "$RATE")"
+    exit 0 ;;
+-h|--help)
+    sed -n '2,60p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+bits)
+    v="${2:-}"
+    in_csv "$v" "$BITS_OPTS" || {
+        echo "demiurge-audio: bits must be one of $BITS_OPTS" >&2
+        [[ "$v" == 24 ]] && echo "  (24-bit is not selectable: csound's realtime ALSA rejects it. Use 32 — that is how you feed a 24-bit converter.)" >&2
+        exit 2; }
+    write_key bits "$v" || exit 1
+    echo "demiurge-audio: bits = $v"
+    restart_engine; exit 0 ;;
+quantum)
+    v="${2:-}"
+    is_pow2_in_range "$v" || {
+        echo "demiurge-audio: quantum must be a power of two from 32 to 2048" >&2; exit 2; }
+
+    # Check BEFORE writing. A quantum the stack cannot honour does not fail
+    # loudly at write time — it fails at csound init, minutes later, as a dead
+    # graph. Nothing downstream can explain that, so it has to be caught here.
+    IFS='|' read -r q_state _q q_ksmps q_period q_near q_ptarget q_msg <<<"$(quantum_verdict "$v")"
+
+    case "$q_state" in
+    bad)
+        echo "demiurge-audio: refusing quantum $v — it would stop the audio engine." >&2
+        echo "  $q_msg" >&2
+        [[ -n "$q_near" ]] && echo "  nearest quantum that works: $q_near  (demiurge-audio quantum $q_near)" >&2
+        echo "  ksmps ${q_ksmps:-unknown}, api.alsa.period-size ${q_period:-n/a}, mode $MODE" >&2
+        exit 2 ;;
+    period)
+        # The one movable constraint is in the way. Nothing to do here any more:
+        # `lockstep` (below) regenerates the device period from the quantum we
+        # are about to write, so the user is not asked to learn what an ALSA
+        # period is and a hand-edit of live.conf gets the same treatment.
+        echo "demiurge-audio: quantum $v needs a different device period — applying it with the quantum."
+        echo "  $q_msg"
+        ;;
+    unknown)
+        echo "demiurge-audio: warning — $q_msg" >&2 ;;
+    esac
+
+    write_key quantum "$v" || exit 1
+    echo "demiurge-audio: quantum = $v"
+    run_lockstep
+    echo "  $(quantum_effect "$MODE" "$v" "$RATE")"
+    restart_engine; exit 0 ;;
+check)
+    # Ask whether a quantum would work, without writing anything. This is the
+    # honest way for a UI (or a person) to explore the ladder.
+    "${LIMITS:?demiurge-audio: demiurge-quantum-limits is not installed}" \
+        check "${2:-$QUANTUM}" --live "$LIVE"; exit $? ;;
+rate)
+    v="${2:-}"
+    in_csv "$v" "$RATE_OPTS" || {
+        echo "demiurge-audio: rate must be one of $RATE_OPTS" >&2; exit 2; }
+    write_key rate "$v" || exit 1
+    echo "demiurge-audio: rate = $v"
+    run_lockstep
+    restart_engine; exit 0 ;;
+mode)
+    v="$(tr '[:upper:]' '[:lower:]' <<<"${2:-}")"
+    in_csv "$v" "$MODE_OPTS" || {
+        echo "demiurge-audio: mode must be one of $MODE_OPTS" >&2; exit 2; }
+    [[ "$v" == sync ]] && sl=on || sl=off
+    write_key sync_layer "$sl" || exit 1
+    echo "demiurge-audio: mode = $v (sync_layer = $sl)"
+    echo "  $(mode_effect "$v")"
+    restart_engine; exit 0 ;;
+"") : ;;
+*)  echo "demiurge-audio: unknown setting '$1' (try --help)" >&2; exit 2 ;;
+esac
+
+# ── human status ──
+echo "MODE     $MODE"
+echo "         $(mode_effect "$MODE")"
+echo ""
+echo "RATE     $RATE Hz"
+echo "QUANTUM  $QUANTUM frames"
+echo "         $(quantum_effect "$MODE" "$QUANTUM" "$RATE")"
+# What else this quantum could be, and why not lower. Showing the reachable set
+# here is the difference between "32 is a power of two, why did it break audio"
+# and a rig that explains itself.
+IFS='|' read -r s_state _sq s_ksmps s_period _sn _sp _sm <<<"$(quantum_verdict "$QUANTUM")"
+echo "         reachable: $(reachable_quanta)   (ksmps ${s_ksmps:-unknown}, device period ${s_period:-n/a})"
+[[ "$s_state" == unknown ]] && echo "         note: constraints unverified — demiurge-quantum-limits not installed"
+echo "BITS     $BITS"
+if [[ "$BITS" == 32 ]]; then
+    echo "         32-bit int — the right choice for a 24-bit converter"
+elif [[ "$BITS" == float ]]; then
+    echo "         32-bit float"
+else
+    echo "         16-bit int — only worth it if a device refuses more"
+fi
+echo ""
+echo "These live in $LIVE, which a patch switch replaces — they belong to the"
+echo "current patch. Change one with e.g. 'demiurge-audio quantum 256'."

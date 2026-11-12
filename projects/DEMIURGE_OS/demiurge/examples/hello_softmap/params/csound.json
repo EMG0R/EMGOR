@@ -1,0 +1,46 @@
+{
+  "stage": "csound",
+  "port": 9000,
+  "version": 1,
+  "params": [
+    {
+      "path": "/csound/cutoff",
+      "label": "Filter cutoff",
+      "default": 0.5,
+      "map": "soft",
+      "proto": "p",
+      "native": {
+        "min": 200,
+        "max": 8000,
+        "curve": "exp",
+        "unit": "Hz"
+      }
+    },
+    {
+      "path": "/csound/rate",
+      "label": "Note rate",
+      "default": 0.4,
+      "map": "soft",
+      "proto": "p",
+      "native": {
+        "min": 0.5,
+        "max": 6,
+        "curve": "exp",
+        "unit": "notes/s"
+      }
+    },
+    {
+      "path": "/csound/detune",
+      "label": "Detune",
+      "default": 0.3,
+      "map": "soft",
+      "proto": "p",
+      "native": {
+        "min": 0,
+        "max": 25,
+        "curve": "lin",
+        "unit": "cents"
+      }
+    }
+  ]
+}

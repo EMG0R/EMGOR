@@ -1,0 +1,11 @@
+#!/bin/bash
+# Runs before every install/reinstall. Removes any prior install so a
+# rebuild during active development never leaves a stale binary, a stale
+# code-signature identity, or a stale version file behind.
+set -euo pipefail
+
+rm -f /usr/local/bin/omniplex
+rm -f /usr/local/share/omniplex/VERSION 2>/dev/null || true
+rmdir /usr/local/share/omniplex 2>/dev/null || true
+
+exit 0

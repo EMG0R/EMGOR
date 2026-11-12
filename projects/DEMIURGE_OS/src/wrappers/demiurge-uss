@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""demiurge-uss — the USS instrument slot next to the live NEPTR Csound.
+
+    demiurge-uss list                 installed instruments
+    demiurge-uss status               what is in the slot (and whether it can run)
+    demiurge-uss <name>               put <name> in the slot (replaces any other)
+    demiurge-uss off                  empty the slot
+    --dry-run                         print what would change, touch nothing
+
+HOW IT WORKS (docs/NEPTR_POOL_BENCH.md). A USS instrument runs as its OWN launcher
+stage in a second, parallel `chain =` block of live.conf; its terminal stage feeds
+`out`, which PipeWire sums with NEPTR's output (graph.rs, "multiple chain = blocks run
+in parallel"). The launcher hot-reloads live.conf (mtime poll) and RECONCILES by
+(id, file): the neptrPhase4 stage matches itself and is kept alive, only the USS stage
+is stopped/started. So switching instrument NEVER restarts csound.
+
+This tool changes exactly three things, atomically, backup first:
+  1. ~/demiurge/uss/active/uss-<name>.<ext>   symlink to the instrument's engine file
+     (program id = file basename = the manifest stage name `uss-<name>`).
+  2. ~/demiurge/params/uss-<name>.json        the instrument's manifest (7 hard params +
+     hard maps). Only the ACTIVE one is installed: that is what makes the hard maps and
+     the arcade's "trig" role live (arcade.py), and what removes them on `off`.
+  3. the managed block in ~/demiurge/live.conf between # USS-SLOT-BEGIN / # USS-SLOT-END.
+It never touches the NEPTR chain, csound_extra, rate/quantum, or any other line.
+
+Refuses (exit 2, nothing changed) when the slot cannot work: live.conf has
+`sync_layer = off` (bypass runs one program, no graph), or the installed launcher
+predates the pool launch contract (it would start the stage without its parameter
+hook). `--force` overrides the launcher check only.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+BEGIN = "# USS-SLOT-BEGIN"
+END = "# USS-SLOT-END"
+ENGINES = {".ck": "chuck", ".csd": "csound"}
+LAUNCHER = Path(os.environ.get("DEMIURGE_LAUNCHER_BIN", "/opt/demiurge/bin/demiurge-launcher"))
+
+
+def root() -> Path:
+    return Path(os.environ.get("DEMIURGE_ROOT") or (Path.home() / "demiurge"))
+
+
+def instruments(r: Path) -> dict:
+    out = {}
+    d = r / "uss" / "instruments"
+    if d.is_dir():
+        for p in sorted(d.iterdir()):
+            for ext in ENGINES:
+                f = p / f"{p.name}{ext}"
+                if f.is_file() and (p / "params" / f"uss-{p.name}.json").is_file():
+                    out[p.name] = f
+    return out
+
+
+def read_block(text: str):
+    """-> (text_without_block, previous_chain_path or None)"""
+    lines, out, inside, prev = text.splitlines(), [], False, None
+    for ln in lines:
+        t = ln.strip()
+        if t.startswith(BEGIN):
+            inside = True
+            continue
+        if t.startswith(END):
+            inside = False
+            continue
+        if inside:
+            if t and not t.startswith("#") and not t.startswith("chain"):
+                prev = t
+            continue
+        out.append(ln)
+    while out and not out[-1].strip():
+        out.pop()
+    return "\n".join(out) + "\n", prev
+
+
+def render(text: str, stage_path: str | None) -> str:
+    base, _ = read_block(text)
+    if stage_path is None:
+        return base
+    return (base + "\n" + BEGIN + " (managed by demiurge-uss: one instrument at a time; "
+            "`demiurge-uss off` removes it)\nchain =\n  " + stage_path + "\n" + END + "\n")
+
+
+def atomic_write(path: Path, data: str) -> None:
+    tmp = path.with_name(path.name + ".tmp-uss")
+    tmp.write_text(data)
+    os.replace(tmp, path)
+
+
+def sync_layer_off(text: str) -> bool:
+    for ln in text.splitlines():
+        k, _, v = ln.split("#", 1)[0].partition("=")
+        if k.strip() == "sync_layer":
+            return v.strip().lower() in ("off", "false", "no", "0")
+    return False
+
+
+def launcher_has_pool_contract() -> bool:
+    try:
+        return b"DEMIURGE_PARAM_PORT" in LAUNCHER.read_bytes()
+    except OSError:
+        return False
+
+
+def have_engine(kind: str) -> bool:
+    return shutil.which(kind) is not None
+
+
+def activate(name: str | None, r: Path, dry: bool, force: bool) -> int:
+    live = r / "live.conf"
+    if not live.is_file():
+        print(f"demiurge-uss: {live} not found", file=sys.stderr)
+        return 2
+    text = live.read_text()
+    if name is not None:
+        inst = instruments(r)
+        if name not in inst:
+            print(f"demiurge-uss: no such instrument '{name}' (have: {', '.join(inst) or 'none'})",
+                  file=sys.stderr)
+            return 2
+        eng = inst[name]
+        kind = ENGINES[eng.suffix]
+        if sync_layer_off(text):
+            print("demiurge-uss: live.conf has sync_layer = off (bypass runs a single program); "
+                  "the USS slot needs the sync layer. Nothing changed.", file=sys.stderr)
+            return 2
+        if not force and not launcher_has_pool_contract():
+            print(f"demiurge-uss: {LAUNCHER} predates the pool launch contract (no DEMIURGE_PARAM_PORT): "
+                  "it would start the stage without its parameter hook. Deploy the new launcher "
+                  "(docs/NEPTR_POOL_BENCH.md step 4) or pass --force. Nothing changed.", file=sys.stderr)
+            return 2
+        if not have_engine(kind):
+            print(f"demiurge-uss: '{kind}' is not installed. Nothing changed.", file=sys.stderr)
+            return 2
+        link = r / "uss" / "active" / f"uss-{name}{eng.suffix}"
+        stage_path = f"~/demiurge/uss/active/{link.name}" if str(r) == str(Path.home() / "demiurge") \
+            else str(link)
+        man_src = r / "uss" / "instruments" / name / "params" / f"uss-{name}.json"
+        json.loads(man_src.read_text())          # refuse a broken manifest before changing anything
+    else:
+        link = None
+        stage_path = None
+
+    new_text = render(text, stage_path)
+    stale_links = [p for p in (r / "uss" / "active").glob("uss-*")] if (r / "uss" / "active").is_dir() else []
+    stale_mans = list((r / "params").glob("uss-*.json")) if (r / "params").is_dir() else []
+    print(f"demiurge-uss: {'off' if name is None else name}"
+          f"{'  (dry run)' if dry else ''}")
+    print(f"  live.conf: {'USS block removed' if name is None else 'USS block -> ' + stage_path}")
+    print(f"  manifests removed: {[p.name for p in stale_mans if name is None or p.name != f'uss-{name}.json'] or 'none'}")
+    if name is not None:
+        print(f"  manifest installed: params/uss-{name}.json")
+    if dry:
+        return 0
+
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    shutil.copy2(live, live.with_name(f"live.conf.bak-uss-{stamp}"))
+    (r / "uss" / "active").mkdir(parents=True, exist_ok=True)
+    (r / "params").mkdir(parents=True, exist_ok=True)
+    # manifest first (the pool learns the hard maps), then the engine link, then live.conf
+    # last: the launcher starts the stage the moment live.conf changes.
+    if name is not None:
+        tmp = r / "params" / f"uss-{name}.json.tmp"
+        shutil.copyfile(man_src, tmp)
+        os.replace(tmp, r / "params" / f"uss-{name}.json")
+        if link.is_symlink() or link.exists():
+            link.unlink()
+        link.symlink_to(os.path.relpath(inst[name], link.parent))
+    for p in stale_mans:
+        if name is None or p.name != f"uss-{name}.json":
+            p.unlink()
+    for p in stale_links:
+        if name is None or p != link:
+            p.unlink()
+    atomic_write(live, new_text)
+    (r / "uss" / "state").mkdir(parents=True, exist_ok=True)
+    atomic_write(r / "uss" / "state" / "active", (name or "") + "\n")
+    return 0
+
+
+def status(r: Path) -> int:
+    live = r / "live.conf"
+    _, prev = read_block(live.read_text()) if live.is_file() else ("", None)
+    inst = instruments(r)
+    print(f"slot: {prev or 'empty'}")
+    print(f"installed: {', '.join(inst) or 'none'}")
+    print(f"launcher pool contract: {'yes' if launcher_has_pool_contract() else 'NO (deploy the new launcher)'}")
+    mans = sorted(p.name for p in (r / "params").glob("uss-*.json")) if (r / "params").is_dir() else []
+    print(f"manifests installed: {mans or 'none'}")
+    if live.is_file() and sync_layer_off(live.read_text()):
+        print("WARNING: sync_layer = off — the slot cannot work")
+    return 0
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="demiurge-uss", description=__doc__.split("\n\n")[0])
+    ap.add_argument("cmd", help="list | status | off | <instrument name>")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--force", action="store_true", help="skip the launcher-contract check only")
+    a = ap.parse_args(argv)
+    r = root()
+    if a.cmd == "list":
+        for n, f in instruments(r).items():
+            print(f"{n}\t{ENGINES[f.suffix]}")
+        return 0
+    if a.cmd == "status":
+        return status(r)
+    return activate(None if a.cmd == "off" else a.cmd, r, a.dry_run, a.force)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

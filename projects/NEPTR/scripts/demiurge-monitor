@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""
+demiurge-monitor — universal control-surface monitor for the DEMIURGE system.
+
+An always-on daemon that taps the control input (MIDI on ALSA-seq — a
+multi-subscriber fan-out, so it never contends with Csound, the arcade
+supervisor, or any UI) and publishes a one-line telemetry snapshot of every
+channel to a file. The terminal companion (`demiurge`) and any other consumer
+read that file.
+
+It is INDEPENDENT of any UI: monitoring lives in the demiurge system itself and
+keeps publishing whether or not a face UI is running. Reconfigure it (source
+port, output path, interval, and the CC->label map) via the conf file, so it
+works for whatever MIDI comes into the system — no code change.
+
+  INSTALL (on the Pi):
+    sudo install -m0755 demiurge-monitor /usr/local/bin/demiurge-monitor
+    (paired with demiurge-monitor.conf -> ~/demiurge/monitor.conf
+     and demiurge-monitor.service)
+
+Config search order (first found wins; else built-in Teensy defaults):
+  $DEMIURGE_MONITOR_CONF, ~/demiurge/monitor.conf, /etc/demiurge/monitor.conf
+
+Self-contained: imports nothing from ~/NEPTR_phase4 — it is a demiurge system
+component and must run even if NEPTR_phase4 is absent.
+"""
+
+import os
+import sys
+import time
+
+DEFAULT_OUTPUT = "/tmp/neptr_companion_telemetry"
+DEFAULT_INTERVAL = 0.4
+DEFAULT_PORT = "auto"
+DEFAULT_CENTER = {27: 64, 28: 64}     # joystick axes rest at centre
+# (label, CC) in display order — the Teensy control map.
+DEFAULT_MAP = [
+    ("jstX", 27), ("jstY", 28), ("joyB", 77), ("exp", 29),
+    ("ldr1", 30), ("ldr2", 36),
+    ("accX", 31), ("accY", 32), ("accZ", 33),
+    ("fsr1", 34), ("fsr2", 35), ("micL", 78), ("micR", 79),
+    ("btn1", 60), ("btn2", 61), ("btn3", 62), ("btn4", 63), ("btn5", 64),
+    ("btn6", 65), ("btn7", 66), ("btn8", 67), ("btn9", 68),
+    ("enc1", 20), ("enc2", 21), ("enc3", 22), ("enc4", 23),
+    ("enc5", 24), ("enc6", 25), ("enc7", 26),
+    ("eb1", 70), ("eb2", 71), ("eb3", 72), ("eb4", 73),
+    ("eb5", 74), ("eb6", 75), ("eb7", 76),
+]
+
+
+def log(m):
+    print(f"[monitor] {m}", file=sys.stderr, flush=True)
+
+
+def find_conf():
+    for p in (os.environ.get("DEMIURGE_MONITOR_CONF"),
+              os.path.expanduser("~/demiurge/monitor.conf"),
+              "/etc/demiurge/monitor.conf"):
+        if p and os.path.isfile(p):
+            return p
+    return None
+
+
+def load_conf():
+    cfg = dict(port=DEFAULT_PORT, output=DEFAULT_OUTPUT,
+               interval=DEFAULT_INTERVAL, center=dict(DEFAULT_CENTER),
+               cmap=list(DEFAULT_MAP))
+    path = find_conf()
+    if not path:
+        return cfg, None
+    cmap, in_map = [], False
+    try:
+        with open(path) as fh:
+            for raw in fh:
+                line = raw.split("#", 1)[0].strip()
+                if not line:
+                    continue
+                if line.lower() == "[map]":
+                    in_map = True
+                    continue
+                if in_map:
+                    if ":" in line:
+                        lbl, cc = line.split(":", 1)
+                        try:
+                            cmap.append((lbl.strip(), int(cc.strip())))
+                        except ValueError:
+                            pass
+                    continue
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    k, v = k.strip().lower(), v.strip()
+                    if k == "port":
+                        cfg["port"] = v
+                    elif k == "output":
+                        cfg["output"] = v
+                    elif k == "interval":
+                        try:
+                            cfg["interval"] = float(v)
+                        except ValueError:
+                            pass
+                    elif k == "center64":
+                        ctr = {}
+                        for tok in v.replace(",", " ").split():
+                            try:
+                                ctr[int(tok)] = 64
+                            except ValueError:
+                                pass
+                        cfg["center"] = ctr
+        if cmap:
+            cfg["cmap"] = cmap
+    except OSError as e:
+        log(f"conf read error ({e}) — using defaults")
+    return cfg, path
+
+
+def pick_port(mido, want):
+    names = mido.get_input_names()
+    if not names:
+        return None
+    if want and want.lower() != "auto":
+        for n in names:
+            if want.lower() in n.lower():
+                return n
+        return want
+    # Teensy raw hardware source first (independent of audio engine / UI /
+    # supervisor), then the bridge, then the Through aggregation, else first.
+    for kw in ("Teensy", "NEPTR Serial Bridge", "Bridge", "Through"):
+        for n in names:
+            if kw.lower() in n.lower():
+                return n
+    return names[0]
+
+
+def publish(path, text):
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w") as fh:
+            fh.write(text + "\n")
+        os.replace(tmp, path)        # atomic — readers never see a half-write
+    except OSError as e:
+        log(f"publish error: {e}")
+
+
+def main():
+    cfg, path = load_conf()
+    log(f"config: {path or 'built-in defaults'}  output={cfg['output']}  "
+        f"interval={cfg['interval']}s  channels={len(cfg['cmap'])}")
+    try:
+        import mido
+    except Exception as e:                 # noqa: BLE001
+        log(f"FATAL: mido unavailable: {e}")
+        return 1
+
+    values = dict(cfg["center"])           # latest value of every CC
+    cmap, out, interval = cfg["cmap"], cfg["output"], cfg["interval"]
+
+    while True:                            # reconnect loop (survives unplug)
+        port = pick_port(mido, cfg["port"])
+        if not port:
+            log("no MIDI input port yet — retrying in 2s")
+            time.sleep(2)
+            continue
+        log(f"reading MIDI port: {port}")
+        try:
+            with mido.open_input(port) as inport:
+                last = 0.0
+                while True:
+                    for msg in inport.iter_pending():
+                        if msg.type == "control_change":
+                            values[msg.control] = msg.value
+                    now = time.monotonic()
+                    if now - last >= interval:
+                        publish(out, " ".join(
+                            f"{lbl}:{values.get(cc, '-')}" for lbl, cc in cmap))
+                        last = now
+                    time.sleep(0.005)
+        except Exception as e:             # noqa: BLE001 — reopen on any error
+            log(f"MIDI read error ({e}) — reopening in 2s")
+            time.sleep(2)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,366 @@
+%% nam-csound.tex — "Integrating Neural Amp Modeling into Csound"
+%% NIME paper template (nimeart.cls), submission/review mode.
+%% Converted from paper-draft.md on 2026-07-09.
+%%
+%% For camera-ready, change to: \documentclass[sigconf]{nimeart}
+\documentclass[sigconf,anonymous,review]{nimeart}
+
+%% This package avoids urls margin overflow
+\usepackage{xurl}
+
+%% \BibTeX command to typeset BibTeX logo in the docs
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+\setcopyright{cc}
+\copyrightyear{2026}
+\acmYear{2026}
+\acmDOI{}
+
+\acmConference[NIME '26]{International Conference on New Interfaces for Musical Expression}{June 23--26,
+  2026}{London, UK}
+%% This suppresses the ACM Reference Format printing.
+\settopmatter{printacmref=false}
+\acmISBN{}
+
+\begin{document}
+
+\title{Integrating Neural Amp Modeling into Csound}
+
+%% Anonymous submission: the [anonymous,review] class options hide the
+%% author block. Replace with real authors for camera-ready.
+\author{Anonymous Author(s)}
+\email{anonymous@example.com}
+\affiliation{%
+  \institution{Anonymous Institution}
+  \city{Anonymous}
+  \country{Anonymous}
+}
+
+\renewcommand{\shortauthors}{Anon.}
+
+\begin{abstract}
+  Neural Amp Modeler (NAM) is the premier open-source system for the
+  black-box modeling of nonlinear audio hardware using neural networks. A
+  community library of several hundred thousand pre-trained captures
+  exists, but no way to use them inside Csound. This paper presents
+  \texttt{NAMProcess}, a Csound opcode that performs real-time NAM
+  inference. The opcode loads standard \texttt{.nam} model files, switches
+  between models during performance without interrupting audio, adds no
+  latency beyond the block boundary, and runs comfortably in real time on
+  systems like the Raspberry Pi. This paper details the implementation of
+  a thin wrapper around the NeuralAmpModelerCore C++ library and its
+  integration as a native plugin opcode, a Cabbage plugin, a live
+  dry-referenced volume compensation system, and ``tone selection'' in a
+  Raspberry Pi-based guitar pedal.
+\end{abstract}
+
+\keywords{Neural Amp Modeling, Volume Compensation, Raspberry Pi, Cabbage
+  Plugin, Csound Plugin Opcode}
+
+\maketitle
+
+\section{Introduction}
+
+Over the past several years a new approach has become standard practice in
+guitar audio: record a real device, then train a neural network to
+reproduce its input--output behavior. Neural Amp Modeler
+(NAM)~\cite{atkinson2025slimmable, nam} is the most widely used
+open-source implementation of this approach. Its model format has become a
+de facto interchange standard with over 350,000 accumulated on TONE3000
+alone~\cite{tone3000} --- covering amplifiers, effect pedals, preamps, and
+other outboard hardware, freely downloadable.
+
+\texttt{NAMProcess} wraps the existing NeuralAmpModelerCore inference
+library~\cite{nam} rather than reimplementing any DSP.
+Section~\ref{sec:opcode} covers the opcode's design, including a loader
+that never blocks the audio thread, correct handling of model state in
+stereo, and measured latency. Section~\ref{sec:volume} presents a live
+volume compensation system that references the player's dry signal, making
+heterogeneous community captures usable side by side.
+Sections~\ref{sec:plugin} and~\ref{sec:pedal} carry the engine into two
+deployment targets, a drag-and-drop Cabbage plugin for DAW hosts and
+``tone selection'' in a Raspberry Pi-based ``guitar pedal.''
+
+\section{Background and Related Work}
+
+Black-box neural modeling of guitar amplifiers was established by
+Damsk\"agg et al., first against simulated tube-amplifier
+data~\cite{damskagg2019tube} and then against real distortion circuits in
+real time~\cite{damskagg2019distortion}, using a feedforward variant of
+the WaveNet convolutional architecture. Wright et al.\ showed that
+recurrent (LSTM) models reach comparable accuracy at lower
+cost~\cite{wright2019rnn}, and consolidated the approach across amplifiers
+and pedals~\cite{wright2020realtime}, training with an error-to-signal
+ratio loss under a perceptual pre-emphasis
+filter~\cite{wright2020perceptual}. Steinmetz and Reiss extended efficient
+neural modeling to analog dynamic range
+compression~\cite{steinmetz2022compressor}. NAM~\cite{atkinson2025slimmable,
+nam} packages this family of techniques --- its model format supports
+WaveNet and LSTM architectures --- together with a training pipeline whose
+input is a fixed published reference signal reamped through the target
+device.
+
+Composers have extended music programming languages from within since the
+MUSIC-N family itself --- Tenney's instrument building at Bell
+Labs~\cite{tenney1969cme} sits at the head of the lineage that leads to
+Csound --- and an opcode continues that practice with a learned model as
+the unit generator.
+
+Real-time neural inference has precedent in other computer music
+environments. Chowdhury's RTNeural~\cite{chowdhury2021rtneural} provides a
+general inference library designed for audio callbacks, and UGens built on
+it exist for SuperCollider, with ports to Max/MSP and Pure
+Data~\cite{pluta_rtneural}. The \texttt{neural\_tilde} external loads
+\texttt{.nam} files directly in Max/MSP~\cite{neuraltilde}. Within Csound
+the closest prior work is the component-level triode opcode of Fink and
+Rabenstein~\cite{fink2011triode}, which models one circuit stage
+physically rather than capturing a whole device from data. We present a
+Csound~\cite{lazzarini2016csound} equivalent not present in the opcode
+manual, the plugin-opcode collections, or community archives.
+
+\section{The NAMProcess Opcode}
+\label{sec:opcode}
+
+\subsection{Interface}
+\label{sec:interface}
+
+\begin{verbatim}
+aoutL, aoutR NAMProcess ainL, ainR,
+      kProfileIdx, SLibDir
+      [, kAutoVol, kDriveDb]
+icount       NAMCount
+\end{verbatim}
+
+\texttt{SLibDir} names a directory scanned recursively for \texttt{.nam}
+files at initialization. The sorted file list defines stable indices.
+\texttt{kProfileIdx} selects the active model at k-rate. Writing a new
+index triggers an asynchronous load, and the running model is replaced
+only when the new one is ready. \texttt{NAMCount} returns the library size
+so orchestra logic can wrap or clamp index changes. Because model choice
+is an ordinary k-rate parameter, timbre selection is open to the same
+rule-based and generative processes as any other Csound value ---
+selection procedures in the sense Koenig practiced --- rather than
+confined to manual preset browsing. \texttt{kAutoVol}
+enables the volume compensation of Section~\ref{sec:volume} and defaults
+to on. \texttt{kDriveDb} is a pre-model gain in dB whose loudness cost the
+compensation absorbs, making it a pure saturation control. Existing
+four-argument call sites compile unchanged. A minimal live instrument:
+
+\begin{verbatim}
+instr 1
+  aL, aR  ins
+  kIdx    chnget "model" ; MIDI, OSC, score
+  aoL,aoR NAMProcess aL, aR, kIdx,
+          "/home/user/models"
+  outs aoL, aoR
+endin
+\end{verbatim}
+
+Until the first model finishes loading, and whenever the directory
+contains no models, the opcode passes audio through unchanged, so a
+misconfigured path degrades to bypass rather than silence.
+
+\subsection{Loader design}
+\label{sec:loader}
+
+All file and network-weight handling runs on a background thread owned by
+the opcode, following standard real-time audio
+discipline~\cite{bencina2011realtime}. The audio thread never allocates,
+parses JSON, or blocks on I/O. Per k-cycle it takes one uncontended mutex
+acquisition to copy a pointer to the active model pair. The loader thread
+builds the requested model off the audio thread, selects the full-quality
+submodel for slimmable models~\cite{atkinson2025slimmable}, and pre-warms
+internal buffers before publishing the swap. A load failure retains the
+previous model, so a corrupt file cannot interrupt a performance. Model
+switching is consequently click-safe and non-blocking. The old model runs
+until the exact block boundary at which the new pair is published.
+
+When a model's training sample rate differs from the engine rate, the
+loader wraps it in a Lanczos resampling container (the same mechanism the
+reference plugin uses), so the network always runs at its trained rate.
+Measured on a 48~kHz model under a 44.1~kHz engine, the harmonic spectrum
+matches the matched-rate reference within 0.3~dB; without the wrapper the
+model's learned filtering is stretched by the rate ratio and its whole
+voicing shifts audibly.
+
+\subsection{Model state and stereo processing}
+\label{sec:stereo}
+
+NAM models are stateful. WaveNet layers keep per-layer convolution history
+in ring buffers, and LSTM models carry hidden state across process calls.
+\texttt{NAMProcess} loads two independent instances of the same model
+file, resets both off-thread, and publishes them atomically as a pair.
+Each channel owns one instance. The cost is one extra load per switch and
+double the model memory. It buys exact channel isolation. Processing both
+channels through a shared instance instead convolves each block against
+the other channel's immediate past, which measures as $-4.7$~dB crosstalk
+on decorrelated stereo material.
+
+\subsection{Registering an a-rate plugin opcode in Csound 6.18}
+\label{sec:oentry}
+
+One implementation detail is worth recording for other opcode developers.
+Registered conventionally for an audio-rate generator, \texttt{OENTRY}
+with \texttt{thread = 5}, the a-rate callback is never scheduled under
+Csound 6.18's plugin registration path and the opcode emits silence with
+no error. The working registration is \texttt{thread = 3}, computing the
+full \texttt{ksmps} block inside the k-rate callback. Declaring
+\texttt{outypes = "aa"} still allocates a-rate outputs.
+
+\subsection{Latency}
+\label{sec:latency}
+
+Because the supported architectures are causal, the opcode should add no
+delay beyond the \texttt{ksmps} block granularity that every Csound opcode
+shares. Offline impulse renders confirm this. Response onset lies within
+one sample of the input impulse. Total added latency is therefore one
+k-cycle --- 128 samples, 2.7~ms at 48~kHz, in the pedal deployment of
+Section~\ref{sec:pedal}.
+
+\section{Live Volume Compensation}
+\label{sec:volume}
+
+The opcode continuously matches the wet output to the perceived loudness
+of the player's dry signal. Load any capture --- clean, cranked,
+mislabeled --- and the volume does not move.
+
+Without this, browsing a community library is unusable live: fed the same
+signal, 25 representative captures span about 10~dB, and their embedded
+loudness metadata does not predict the ranking (the quietest-tagged
+capture measures second-loudest). No pre-computed correction can close the
+gap, because saturating models compress: a loudness measurement is only
+valid near the input level at which it was taken, and one
+compression-dominated capture holds its output within 1~dB across a 14~dB
+input sweep, so no per-model gain equalizes it at all. The correction has
+to be relative to what the player is actually doing, and it has to be
+live.
+
+Dry input and wet output are metered as ITU-R BS.1770 K-weighted mean
+squares averaged with a 2.5~s time constant, and a slow output trim tracks
+their ratio. Program dynamics move both meters together and leave the
+ratio untouched, so the mechanism is not a compressor. The result is an
+engineered perceptual invariance --- loudness held constant while spectrum
+and saturation move --- the kind of controlled percept Tenney built pieces
+around. Measured after
+convergence, a $-12$~dB input step passes through as $-10.2$~dB of output,
+the residual being the amp's own compression. The trim engages after one
+second of active signal, slews at most 2~dB/s, holds within a 0.75~dB
+deadband, freezes below $-55$~dBFS input, and is clamped to $\pm 18$~dB.
+Converged trims are remembered per model file, so returning to a
+previously played capture lands at level immediately ($+0.6$~dB measured,
+inside the deadband). A load-time probe seeds the trim for unseen models;
+the live loop owns the result.
+
+Because the dry reference is tapped before the input stage,
+\texttt{kDriveDb} pushes the model into saturation without a level change.
+$+18$~dB of drive measured $+0.1$~dB of loudness and $-4.6$~dB of crest
+factor. Across the 25-capture library on identical material, the best
+static probe left a 9.9~dB spread (standard deviation 2.60~dB). The
+dry-referenced loop leaves 3.1~dB (0.83~dB), with every capture within
+$\pm 2$~dB of the dry signal, including the compression-dominated capture
+that no input gain can equalize. The official NAM plugin's normalized
+output mode applies a static gain from stored metadata or a fixed target.
+To our knowledge no published NAM host performs live dry-referenced
+compensation.
+
+\section{A Drag-and-Drop Cabbage Plugin}
+\label{sec:plugin}
+
+We present the packaging of this opcode as a VST3/AU plugin through
+Cabbage~\cite{walsh2011cabbage} not only to demonstrate our opcode's
+integration into a plugin but to encourage an open-source platform for NAM
+development in Csound. The plugin window is a single drop target. Cabbage
+publishes a dropped file's path on its reserved
+\texttt{LAST\_FILE\_DROPPED} channel, and a path-input variant of the
+loader hot-swaps to the dropped model through the background mechanism of
+Section~\ref{sec:loader}. The previous amp keeps running until the new one
+is ready. Companion opcodes report the path of the actually-loaded model,
+so the UI shows real state rather than the last request, and step through
+the sorted \texttt{.nam} siblings of the active file for in-folder
+browsing. The volume compensation of Section~\ref{sec:volume} defaults on,
+with a toggle exposing raw model level for A/B comparison. The input
+control is the loudness-compensated drive of Section~\ref{sec:interface},
+so it shapes saturation rather than volume. A gate, three-band tone stack,
+and DC blocker mirror the outboard chain of the reference NAM plugin.
+
+The plugin is architected to degrade gracefully rather than go silent. A
+plugin whose orchestra fails to compile emits silence yet still passes
+host validation, so the base orchestra contains no NAM references at all.
+The engine instrument is compiled at runtime with \texttt{compilestr}. If
+the opcode library fails to load, audio passes through dry and the failure
+is reported on the status display. The plugin also disables Csound's
+default MIDI instrument assignment with \texttt{massign 0, 0}. The loader
+registry is global, and a MIDI-spawned duplicate instrument instance would
+otherwise free the loader out from under it.
+
+\section{Tone Selection in a Raspberry Pi Guitar Pedal}
+\label{sec:pedal}
+
+The opcode's original deployment target is a Raspberry Pi 5-based guitar
+pedal running Csound 6.18 at 48~kHz with \texttt{ksmps} 128, the audio
+chain pinned to a dedicated core. A library of 25 captures acts as a bank
+of different ``tones''. Model selection is mapped to MIDI foot controls
+and OSC, arriving at the opcode as the k-rate index of
+Section~\ref{sec:interface}. Because loading is asynchronous and
+click-safe, the player steps between amps mid-phrase. Because compensation
+runs inside the opcode, no volume ride accompanies a tone change, even for
+brand-new additions to the library. Per-model trim memory keeps repeated
+tone-stepping stable. Added latency is the one k-cycle of
+Section~\ref{sec:latency} (2.7~ms), well inside a live monitoring budget.
+CPU load with a full-quality WaveNet-family model has been informally
+observed around 15\% of the audio core during performance.
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+\texttt{NAMProcess} gives Csound direct access to NAM's model format and
+its community library. Any of several hundred thousand captures --- amps,
+pedals, preamps, full chains --- becomes a drop-in nonlinear processor
+addressable by a k-rate index, composable with everything else in the
+orchestra. The same engine ships as a drag-and-drop Cabbage plugin and as
+the tone section of a Raspberry Pi guitar pedal.
+
+Several extensions are planned. Only one \texttt{NAMProcess} instance per
+orchestra is currently supported, and lifting this is planned, as is an
+n-channel variant following Csound's array conventions, per-model trim
+memory persisted across sessions, and support for the plugin mechanisms of
+Csound 7. Source code and measurement tooling are available at [link
+withheld for review].
+
+%% The Ethical Standards section is mandatory for all NIME submissions.
+\section{Ethical Standards}
+
+%% TODO: confirm/extend for camera-ready (funding, conflicts of interest).
+This work did not involve human participants or animals. The community
+model captures used for evaluation are freely downloadable; no potential
+conflicts of interest are known to the authors.
+
+%% Acknowledgments withheld for anonymous review; restore for camera-ready.
+% \begin{acks}
+% ...
+% \end{acks}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\end{document}
+
+%% ---------------------------------------------------------------------
+%% Submission notes (carried over from paper-draft.md):
+%%   ICSC 2026 deadline 2026-07-11 23:59 Rome time. llncs.cls template,
+%%   4 pages max, 5th page references-only OK. Blind: AuthorA/AuthorB
+%%   placeholders. Plugin name "NAM Drop", real repo link, acknowledgments
+%%   (Dr. B co-authorship) at camera-ready only. Optional figure: plugin
+%%   screenshot in a DAW (ICSC norm), crop name for blind. Verify Walsh
+%%   cite form ("Ways Ahead", Cambridge Scholars 2013) before camera-ready.
+%%   Static-calibration table (per-model input gains) removed 2026-07-09
+%%   per author: live dry-referenced comp IS the method; static schemes
+%%   appear only as compressed motivation. Pedal + plugin library = the
+%%   25-capture set in cabbage-plugin/models/. Section 4 numbers all from
+%%   volume-compensation-writeup.md (verified against shipped sources
+%%   csound_nam_opcode.cpp / nam_loader.cpp / kweight.h, 2026-07-09).
+%%   Full 9-approach experiment history lives in cabbage-plugin/archive/
+%%   volume-compensation-history.md - repo material, not paper.
+%% ---------------------------------------------------------------------

@@ -1,0 +1,16 @@
+[Unit]
+Description=Omniplex companion app
+After=network.target
+
+[Service]
+Type=simple
+# Edit the flags below to match what this Pi should bridge, e.g. drop
+# --video-test and add --serial /dev/ttyUSB0, or add --osc 9000:9001.
+ExecStart=/usr/local/bin/omniplex run --midi --audio --video-test
+Restart=on-failure
+RestartSec=2
+User=__INSTALL_USER__
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target

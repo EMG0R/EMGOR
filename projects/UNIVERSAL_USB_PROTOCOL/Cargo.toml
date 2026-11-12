@@ -1,0 +1,51 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/omniplex-wire",
+    "crates/omniplex-transport",
+    "crates/omniplex-discovery",
+    "crates/omniplex-clock",
+    "crates/omniplex-mux",
+    "crates/omniplex-metrics",
+    "crates/omniplex-session",
+    "crates/omniplex-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+omniplex-wire = { path = "crates/omniplex-wire" }
+omniplex-transport = { path = "crates/omniplex-transport" }
+omniplex-discovery = { path = "crates/omniplex-discovery" }
+omniplex-clock = { path = "crates/omniplex-clock" }
+omniplex-mux = { path = "crates/omniplex-mux" }
+omniplex-metrics = { path = "crates/omniplex-metrics" }
+omniplex-session = { path = "crates/omniplex-session" }
+
+tokio = { version = "1", features = ["full"] }
+bytes = "1"
+async-trait = "0.1"
+thiserror = "2"
+postcard = { version = "1", features = ["alloc"] }
+serde = { version = "1", features = ["derive"] }
+quinn = "0.11"
+rustls = { version = "0.23", features = ["ring"] }
+rcgen = "0.13"
+mdns-sd = "0.13"
+if-addrs = "0.13"
+rand = { version = "0.8", features = ["small_rng"] }
+arc-swap = "1"
+dashmap = "6"
+parking_lot = "0.12"
+hdrhistogram = "7"
+rtrb = "0.3"
+rubato = "0.16"
+cpal = "0.15"
+midir = "0.10"
+serialport = "4"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"

@@ -1,0 +1,56 @@
+[Unit]
+Description=DEMIURGE Audio Launcher
+After=sound.target user@1000.service
+Wants=user@1000.service
+
+[Service]
+Type=simple
+# gorpi7 = (insert your name here, this is mine) — the Pi user set in
+# Raspberry Pi Imager. Replace every gorpi7 below if yours is different.
+User=gorpi7
+Group=gorpi7
+Environment=HOME=/home/gorpi7
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+LimitMEMLOCK=infinity
+LimitRTPRIO=99
+LimitNICE=-20
+ExecStart=/opt/demiurge/bin/demiurge-launcher
+# WHY `systemctl stop` LEAVES THIS UNIT IN STATE "failed" — AND WHY THAT IS NOT
+# A BUG TO FIX. Observed 2026-10-08: a deliberate stop during a bench window
+# showed Result=exit-code, which reads exactly like a crash.
+#
+# The chain is all exec: the launcher execs the wrapper, the wrapper execs
+# csound, so CSOUND is the process systemd supervises. On SIGTERM csound shuts
+# down cleanly ("end of score", 0 errors, 0 samples out of range) and then exits
+# 1 of its own accord. systemd faithfully reports the 1.
+#
+# The two obvious fixes are both worse than the cosmetic wart:
+#
+#   SuccessExitStatus=1 — the launcher exits 1 DELIBERATELY to mean "bypass did
+#     not start, please retry" (main.rs:92 and :313). Combined with the
+#     Restart=on-failure below, that exit code is what RECOVERS a failed start.
+#     Declaring 1 a success both hides the real failure and disables the retry,
+#     turning a self-healing fault into a silently dead rig.
+#
+#   A SIGTERM trap in the wrapper — requires the wrapper to stop exec'ing and sit
+#     between csound and its own stderr. That was tried on 2026-10-03: csound took
+#     SIGPIPE on its first stderr write, died within seconds, and every respawn
+#     did the same. The instrument was dead for the duration.
+#
+# So: a deliberate stop looks like a failure here, on purpose. When reading this
+# unit's state, "failed" right after a stop you issued means nothing. Confirm a
+# real crash from the journal — csound logs its own clean shutdown.
+Restart=on-failure
+RestartSec=3
+# Forward SIGTERM to the whole cgroup so wrapper scripts → child engines
+# (csound, chuck, …) tear down cleanly on stop, not just the launcher.
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

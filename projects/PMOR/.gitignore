@@ -1,0 +1,5 @@
+build/
+build_host/
+build_host.cfg.log
+build_fw.log
+.check_stamp

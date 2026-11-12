@@ -1,0 +1,9 @@
+vendor/
+toolchain/
+.venv/
+stock/
+build/
+*.op1
+*.ldr
+.DS_Store
+__pycache__/

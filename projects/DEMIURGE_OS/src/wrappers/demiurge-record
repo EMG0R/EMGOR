@@ -1,0 +1,136 @@
+#!/bin/bash
+# demiurge-record <start|stop|toggle|status> — capture the MASTER OUTPUT to a
+# lossless wav, out of process, so recording never touches the audio thread.
+#
+#   INSTALL ON THE PI:  sudo install -m0755 demiurge-record /usr/local/bin/demiurge-record
+#
+# It records the MONITOR of the default output SINK via pw-record — i.e. exactly
+# the stereo master mix sent to the converters, AFTER the utility-page master-out
+# volume and every effect. (An earlier version targeted the "csound6" node; that
+# is the engine's output STREAM, which has no monitor to capture, so pw-record
+# attached to nothing and wrote a header-only, zero-frame file. The sink monitor
+# is the correct master tap.) pw-record runs as an ordinary PipeWire client on a
+# normal-priority thread; it cannot steal cycles from the RT audio graph, so a
+# long take does not slow down or xrun playback. Files land in
+# ~/demiurge/recordings/ named by timestamp, 32-bit float, at the graph rate.
+#
+# The UI's REC button calls `demiurge-record toggle`. Also usable by hand / over
+# ssh. `status` prints "recording <file>" or "idle" and exits 0/1 accordingly.
+set -u
+
+# PipeWire tools (pw-record) need XDG_RUNTIME_DIR to find the session socket. A
+# systemd service like neptr-ui does not export it to the subprocesses it spawns,
+# so a UI-triggered record would connect to nothing and write a header-only
+# (empty) wav. Set it ourselves when the caller's environment lacks it, and
+# point PipeWire at the same runtime dir, so `demiurge-record` works identically
+# from a login shell, over ssh, or from the UI button.
+if [ -z "${XDG_RUNTIME_DIR:-}" ] || [ ! -S "${XDG_RUNTIME_DIR:-}/pipewire-0" ]; then
+  export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+export PIPEWIRE_RUNTIME_DIR="${PIPEWIRE_RUNTIME_DIR:-$XDG_RUNTIME_DIR}"
+
+REC_DIR="${DEMIURGE_REC_DIR:-$HOME/demiurge/recordings}"
+STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+PIDFILE="$STATE_DIR/demiurge-record.pid"
+NAMEFILE="$STATE_DIR/demiurge-record.name"
+
+# Resolve the capture target: the default output SINK, whose monitor is the
+# master mix. Order: explicit override > PipeWire's default.audio.sink >
+# the first non-loopback Audio/Sink > the known platform sink. Auto-detection
+# means it follows an interface switch (USB card, HiFiBerry, HDMI) with no edit.
+resolve_target() {
+  if [ -n "${DEMIURGE_REC_TARGET:-}" ]; then echo "$DEMIURGE_REC_TARGET"; return; fi
+  local d
+  d=$(pw-metadata -n default 2>/dev/null | sed -n 's/.*default.audio.sink.*value:.*"name":"\([^"]*\)".*/\1/p' | head -1)
+  if [ -n "$d" ]; then echo "$d"; return; fi
+  d=$(pw-cli ls Node 2>/dev/null | grep -B1 'Audio/Sink' | grep 'node.name' | grep -v aloop | head -1 | sed 's/.*= "\(.*\)"/\1/')
+  if [ -n "$d" ]; then echo "$d"; return; fi
+  echo "alsa_output.platform-soc_107c000000_sound.pro-output-0"
+}
+
+is_running() {
+  [ -f "$PIDFILE" ] || return 1
+  local p; p=$(cat "$PIDFILE" 2>/dev/null)
+  [ -n "$p" ] && kill -0 "$p" 2>/dev/null
+}
+
+start() {
+  if is_running; then echo "already recording $(cat "$NAMEFILE" 2>/dev/null)"; return 0; fi
+  mkdir -p "$REC_DIR"
+  local f="$REC_DIR/rec-$(date +%Y%m%d-%H%M%S).wav"
+  local target; target=$(resolve_target)
+  # --target selects the SINK; pw-record captures its monitor (the master mix).
+  # Float wav for a bit-transparent capture. Detached; SIGINT finalizes the wav.
+  pw-record --target "$target" --format f32 "$f" >/dev/null 2>&1 &
+  local pid=$!
+  # give pw-record a moment to connect; if it died the target was wrong
+  sleep 0.4
+  if ! kill -0 "$pid" 2>/dev/null; then
+    echo "failed to start (target '$target' not found?) — set DEMIURGE_REC_TARGET" >&2
+    return 1
+  fi
+  echo "$pid" > "$PIDFILE"
+  echo "$f"   > "$NAMEFILE"
+  echo "recording $f"
+}
+
+stop() {
+  if ! is_running; then echo "not recording"; rm -f "$PIDFILE" "$NAMEFILE"; return 0; fi
+  local p; p=$(cat "$PIDFILE")
+  kill -INT "$p" 2>/dev/null        # SIGINT so pw-record writes a valid wav header
+  for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$p" 2>/dev/null || break; sleep 0.1; done
+  kill -0 "$p" 2>/dev/null && kill -TERM "$p" 2>/dev/null
+  local f; f=$(cat "$NAMEFILE" 2>/dev/null)
+  rm -f "$PIDFILE" "$NAMEFILE"
+  if [ -n "$f" ] && [ -f "$f" ]; then
+    local sz; sz=$(stat -c %s "$f" 2>/dev/null || echo 0)
+    if [ "$sz" -lt 1024 ]; then
+      echo "WARNING: $f is empty ($sz bytes) — captured no audio (wrong target?)" >&2
+    else
+      # Repair the WAV header if pw-record died un-finalized (RIFF/data/fact
+      # size fields left at 0 — the audio is all there, only the sizes are
+      # wrong). Harmless no-op on a cleanly-finalized file. Makes a long take
+      # survive an unclean writer exit instead of reading as 0-length.
+      repair_wav "$f"
+    fi
+  fi
+  echo "saved ${f:-recording}"
+}
+
+# Rewrite the RIFF size, data-chunk size and fact frame-count from the real
+# file size when they are zero (unfinalized). Walks the chunk list to find the
+# data offset, so it works regardless of fmt/fact/PEAK chunk layout.
+repair_wav() {
+  python3 - "$1" <<'PY' 2>/dev/null || true
+import struct,os,sys
+f=sys.argv[1]; sz=os.path.getsize(f)
+with open(f,'r+b') as fh:
+    if fh.read(4)!=b'RIFF': sys.exit(0)
+    fh.seek(0); head=fh.read(4096); i=12; data_off=None; fact_off=None; block=8
+    while i < len(head)-8:
+        cid=head[i:i+4]; csz=struct.unpack('<I',head[i+4:i+8])[0]
+        if cid==b'fmt ':
+            block=struct.unpack('<H',head[i+8+12:i+8+14])[0] or 8
+        if cid==b'fact': fact_off=i+8
+        if cid==b'data': data_off=i+8; break
+        i+=8+csz+(csz&1)
+    if data_off is None: sys.exit(0)
+    data_bytes=sz-data_off
+    # only touch it if the sizes look unfinalized (data size field 0)
+    fh.seek(data_off-4); cur=struct.unpack('<I',fh.read(4))[0]
+    if cur==data_bytes: sys.exit(0)          # already finalized
+    fh.seek(4);         fh.write(struct.pack('<I', sz-8))
+    fh.seek(data_off-4);fh.write(struct.pack('<I', data_bytes))
+    if fact_off is not None:
+        fh.seek(fact_off); fh.write(struct.pack('<I', data_bytes//block))
+    sys.stderr.write("repaired wav header (%d data bytes)\n"%data_bytes)
+PY
+}
+
+case "${1:-status}" in
+  start)  start ;;
+  stop)   stop ;;
+  toggle) if is_running; then stop; else start; fi ;;
+  status) if is_running; then echo "recording $(cat "$NAMEFILE" 2>/dev/null)"; exit 0; else echo "idle"; exit 1; fi ;;
+  *) echo "usage: demiurge-record <start|stop|toggle|status>" >&2; exit 2 ;;
+esac

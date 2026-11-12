@@ -1,0 +1,17 @@
+PRIME audio test  2026-10-23 08:17:40  tag=post-q128
+quantum/state: {'quantum': '128', 'force_quantum': '128', 'rate': '48000'}
+
+== path: hw  (rec 12.87 s)
+latency vs reference: median 17.6 ms (min 17.506, max 17.602), jitter 4.62 smp, corr [0.476, 0.426, 0.482]
+1 kHz: -68.72 dBFS peak (gain vs ref -47.69 dB), THD+N -5.68 dB (52.027 %), THD -48.26 dB, SNR 5.68 dB
+noise 20-20k: total -77.41 dBFS, robust -108.53 dBFS; silence rms -78.9 dBFS
+glitch-free 4.32 s: THD+N -6.2 dB (48.99185 %), THD -48.35 dB, SNR 6.2 dB, noise -77.64 dBFS; spurs: 59.9 Hz -11.15 dBc; 1500.0 Hz -15.26 dBc; 180.0 Hz -22.52 dBc; 419.9 Hz -40.67 dBc; 660.0 Hz -40.84 dBc; 539.9 Hz -41.58 dBc; 300.0 Hz -43.41 dBc; 998.2 Hz -43.71 dBc
+spurs: 60.0 Hz -12.33 dBc; 1500.0 Hz -14.99 dBc; 180.0 Hz -22.89 dBc; 420.0 Hz -41.09 dBc; 660.0 Hz -42.22 dBc; 540.0 Hz -42.66 dBc; 299.9 Hz -45.27 dBc; 780.0 Hz -50.06 dBc
+artifacts: 5 (e_sigma 1.01e-05, thr 2.00e-04), amp p2p 173.987 dB
+   t=3.312s sample=238080 len=2 peak=-68.0 dBFS slip=-15.95 zero_run=0
+   t=3.973s sample=269824 len=2 peak=-61.2 dBFS slip=15.99 zero_run=0
+   t=8.496s sample=486912 len=2 peak=-69.2 dBFS slip=-0.16 zero_run=0
+   t=8.499s sample=487040 len=2 peak=-70.4 dBFS slip=1.46 zero_run=9
+   t=8.501s sample=487168 len=2 peak=-70.6 dBFS slip=8.23 zero_run=8
+xrun delta (hat_out, hat_in, csound6): {'hat_out': 0, 'hat_in': 0, 'csound6': 0}
+channel alignment ok=False: {"in1": {"f1_dbfs": -148.3, "f2_dbfs": -130.9}, "in2": {"f1_dbfs": -144.5, "f2_dbfs": -129.1}, "in3": {"f1_dbfs": -149.2, "f2_dbfs": -137.1}, "in4": {"f1_dbfs": -151.0, "f2_dbfs": -138.1}, "in5": {"f1_dbfs": -148.7, "f2_dbfs": -137.3}, "in6": {"f1_dbfs": -147.9, "f2_dbfs": -137.3}, "in7": {"f1_dbfs": -71.7, "f2_dbfs": -83.7}, "in8": {"f1_dbfs": -92.7, "f2_dbfs": -24.2}}

@@ -1,0 +1,4 @@
+mode|sync|sync|sync,bypass|sync: full audio graph — multi-stage chains, mixing and loopback, and buffer size really sets latency
+bits|32|32|16,32,float|sample format sent to the device — 32-bit int is right for a 24-bit converter; 24 is not a legal value here
+quantum|128|128|32,64,128,256,512,1024,2048|buffer size — 128 frames at 48000 Hz is 2.67 ms per period; smaller = lower latency, more CPU
+rate|48000|48000|44100,48000,88200,96000|sample rate of the whole graph — changing it renegotiates every stage

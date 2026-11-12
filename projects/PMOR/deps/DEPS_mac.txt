@@ -1,0 +1,20 @@
+PMOR_V3 build dependencies on the Mac (macbert), captured 2026-11-06. Paths relative to ______2026NEW/Pocket-OpGorator/.
+Makefile (seed/PMOR_V3 and seed/PMOR_V3_clockagent): LIBDAISY_DIR=../../libDaisy, DAISYSP_DIR=../../DaisySP, TINYUSB_DIR=firmware-tinyusb/lib/tinyusb (absolute Mac path, ?= overridable), OPT=-Os, APP_TYPE=BOOT_SRAM.
+
+libDaisy   DaisyExamples/libDaisy   origin https://github.com/electro-smith/libDaisy
+  HEAD 85172e2b5c9abea1bf56dcd5d2c7b3f5717eb66b (v5.4.0-22-g85172e2b, 2024-01-08)
+  modified: src/dev/oled_ssd130x.h (+20 lines) -> libDaisy-85172e2b-local.patch
+  untracked: src/dev/oled_ssd130x.h.bak-pmor (backup copy, not used by the build)
+  submodule tests/googletest f5e592d8 (tests only)
+DaisySP    DaisyExamples/DaisySP    origin https://github.com/electro-smith/DaisySP
+  HEAD a0494a3adb67f549e18dfd71a35fa656f65b38b6 (V1.0.0, 2024-01-08), clean
+  submodule DaisySP-LGPL c89d380c62620d6fee9105c5035e081c9b7ea843
+TinyUSB    firmware-tinyusb/lib/tinyusb   origin https://github.com/hathach/tinyusb.git
+  HEAD e88fc441ddcaaa5abd4f4673ef2bf29499522dc0 (2026-07-29)
+  modified: src/class/midi/midi_device.c, src/class/midi/midi_device.h, src/portable/synopsys/dwc2/dcd_dwc2.c (+73 lines) -> tinyusb-e88fc441-local.patch
+(firmware-tinyusb/lib/libDaisy c02245d is NOT used by PMOR_V3; clean.)
+
+Toolchain: /usr/local/bin/arm-none-eabi-gcc -> /Library/DaisyToolchain/0.2.0/arm/bin/arm-none-eabi-gcc
+  arm-none-eabi-gcc (GNU Arm Embedded Toolchain 10.3-2021.10) 10.3.1 20210824 (release). Only toolchain on the Mac, so the 10-21 builds used it.
+
+10-06 flash of 722a311: no record of the flash itself on the Mac. Notes in seed/PMOR_V3_clockagent (CLOCK_TEST_PLAN / SEQUENCER_TEST_PLAN 2026-10-05) say build from the git worktree seed/PMOR_V3_clockagent on branch clock-agent-2026-10-05 with make + make program-dfu. That worktree's build/ was rebuilt 10-21 with 2 uncommitted files (see wip-mac-2026-11-06-clockagent), so the 10-06 binary is not preserved on the Mac.

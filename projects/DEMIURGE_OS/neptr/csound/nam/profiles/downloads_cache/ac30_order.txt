@@ -1,0 +1,3 @@
+https://api.tone3000.com/storage/v1/object/public/models/ebbf58daa89d3497_a2.nam
+https://api.tone3000.com/storage/v1/object/public/models/db47106733a2bd7d_a2.nam
+https://api.tone3000.com/storage/v1/object/public/models/8087f29b14d469b9_a2.nam

@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- NEPTR phone-ui v1 SCAFFOLD. Static, mock data, NOT wired to the engine. See README.md. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14001a">
+<title>NEPTR</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="banner">v1 SCAFFOLD &middot; MOCK DATA &middot; NOT CONNECTED TO THE ENGINE</div>
+<header><b>NEPTR</b><span id="where"></span></header>
+<main>
+  <section id="patches" class="screen"></section>
+  <section id="mapping" class="screen" hidden></section>
+  <section id="monitor" class="screen" hidden></section>
+</main>
+<nav id="tabs">
+  <button data-s="patches" class="on">PATCHES</button>
+  <button data-s="mapping">MAP</button>
+  <button data-s="monitor">INPUTS</button>
+</nav>
+<script src="mock.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

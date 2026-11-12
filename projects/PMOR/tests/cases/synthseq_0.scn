@@ -1,0 +1,9 @@
+seconds 4.0
+set syn.algo 0
+set seq.1.mode 1
+set seq.1.oct_amount 2
+set seq.1.oct_prob 0.8
+seq_step 1 0 0x1
+seq_step 1 4 0x10
+seq_step 1 8 0x200
+seq_step 1 12 0x5

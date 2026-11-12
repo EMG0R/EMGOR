@@ -1,0 +1,207 @@
+#!/bin/bash
+# demiurge-mixer — show / set / store / restore the audio interface's hardware mixer.
+#
+#   demiurge-mixer show             the relevant controls of the active card, with values
+#   demiurge-mixer gain <dB>        input gain, e.g. `gain 20` — sets the analogue PGA
+#                                   and pins the digital stage at 0 dB (never stack them)
+#   demiurge-mixer input <sel>      ADC input selector, e.g. `input "VINL1[SE]"` (see `show`)
+#   demiurge-mixer store            save the mixer: system alsactl state AND ~/demiurge/asound.state
+#   demiurge-mixer restore          load ~/demiurge/asound.state if it exists (silent no-op if not)
+#
+# WHY THIS EXISTS. The codec's mixer (input PGA gain, ADC input mux, de-emphasis,
+# DSP program) lives in /var/lib/alsa/asound.state and nowhere else. The 2026-10-01
+# SD card death took it with the rest of the card, and the rebuilt rig came up on
+# driver defaults: PGA at 0 dB, which put a guitar into a line-level ADC about
+# 30 dB under where NEPTR's onset detectors and NAM pregains were calibrated (the
+# previous session measured -47.8 dBFS RMS / 0.027 peak at the engine output and
+# never explained it). Nothing in the repo recorded his values. `store` writes a
+# copy under ~/demiurge/, which setup-script/backup-rig.sh pulls to the Mac, so the
+# NEXT card death restores the mixer instead of rediscovering it.
+#
+# `restore` is wired as a second ExecStartPre of demiurge.service
+# (config/systemd/demiurge.service.d/10-clock-lockstep.conf): ALSA restores
+# asound.state at boot via alsa-restore, but only the SYSTEM copy, and a fresh
+# install has none. The user copy is the one the backup kit keeps.
+#
+# CARD. The resolved interface: `demiurge-interface --list` marks the resolver's
+# pick `active`; its card id is the ALSA card name. If that tool is absent or
+# marks none, the first card that is not HDMI / Loopback. DEMIURGE_MIXER_CARD
+# overrides. Control NAMES are read from the card (amixer scontrols) and matched
+# by pattern — this tool never assumes a brand or a control name. A control that
+# is absent is reported and is not an error: every command exits 0 unless misused,
+# because `restore` runs in front of the audio engine and must never stop it.
+#
+# NOTE ON UNITS: `gain` takes dB. These codecs' raw percentages are not dB —
+# 23% of the PGA range is 0 dB on one of them, and "fixing" it to 85% applied +32 dB.
+#
+# TWO GAIN STAGES, ONE KNOB (2026-10-03). This codec has an analogue PGA *and* a
+# digital 'ADC Capture Volume', both spanning -12..+40 dB. On 2026-10-02 each was
+# set to +20 dB independently, stacking to +40 dB into a guitar-level input: the
+# converter hard-clipped, which sounds exactly like bitcrush and is immune to every
+# downstream change (quantum, bit depth, sync layer, interface — a full day was
+# spent on all of them). `gain` therefore owns BOTH stages: it puts the requested
+# dB on the analogue PGA and pins the digital stage at 0 dB, so input gain has
+# exactly one knob and cannot stack again. Project invariant #4.
+set -u
+
+# alsactl lives in /usr/sbin, which is NOT on the PATH of a non-login SSH shell —
+# `ssh pi demiurge-mixer store` reported "alsactl not installed" and silently did
+# nothing while the same command worked under systemd (whose default PATH has it).
+case ":$PATH:" in *:/usr/sbin:*) ;; *) PATH="$PATH:/usr/sbin:/sbin" ;; esac
+
+STATE_USER_HOME="$HOME"
+if [ -z "$STATE_USER_HOME" ] || [ "$STATE_USER_HOME" = /root ]; then
+    _u="${SUDO_USER:-$(getent passwd 1000 2>/dev/null | cut -d: -f1)}"
+    _h="$(getent passwd "$_u" 2>/dev/null | cut -d: -f6)"
+    [ -n "$_h" ] && STATE_USER_HOME="$_h"
+fi
+USER_STATE="${DEMIURGE_ASOUND_STATE:-$STATE_USER_HOME/demiurge/asound.state}"
+
+# Patterns for the controls worth showing / acting on.
+SHOW_RE='PGA|ADC|Digital|Deemphasis|De-emphasis|DSP Program|Analogue|Analog|Capture|Mic|Line|Input'
+GAIN_RE='PGA'
+# The digital capture stage `gain` pins to 0 dB so it can never stack on the PGA.
+DIGITAL_GAIN_RE='ADC Capture Volume|Digital Capture Volume'
+INPUT_RE='ADC.*Input'
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# ---- resolve the card -------------------------------------------------------
+resolve_card() {
+    local c iface l
+    [ -n "${DEMIURGE_MIXER_CARD:-}" ] && { printf '%s\n' "$DEMIURGE_MIXER_CARD"; return; }
+    for iface in /opt/demiurge/bin/demiurge-interface "$(dirname "$0")/demiurge-interface"; do
+        [ -x "$iface" ] || continue
+        # name|card_id|flags|display — flags is comma-joined, `active` = resolver's pick
+        c="$("$iface" --list 2>/dev/null | awk -F'|' '$3 ~ /(^|,)active(,|$)/ { print $2; exit }')"
+        [ -n "$c" ] && { printf '%s\n' "$c"; return; }
+    done
+    have aplay || return 0
+    aplay -l 2>/dev/null | while IFS= read -r l; do
+        case "$l" in "card "*) ;; *) continue ;; esac
+        c="${l#card [0-9]*: }"; c="${c%% *}"
+        case "$c" in vc4hdmi*|Loopback|DemiurgeLoop|"") continue ;; esac
+        printf '%s\n' "$c"; break
+    done
+}
+
+if ! have amixer; then
+    echo "demiurge-mixer: amixer not installed (alsa-utils) — nothing to do" >&2
+    exit 0
+fi
+CARD="$(resolve_card)"
+if [ -z "$CARD" ]; then
+    echo "demiurge-mixer: no audio card found — nothing to do" >&2
+    exit 0
+fi
+
+# Simple-control names on the card, one per line.
+controls() { amixer -c "$CARD" scontrols 2>/dev/null | sed -n "s/^Simple mixer control '\(.*\)',0$/\1/p"; }
+matching() { controls | grep -E "$1"; }
+
+usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; }
+
+cmd="${1:-show}"
+case "$cmd" in
+show)
+    echo "card: $CARD"
+    found=0
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        found=1
+        echo "--- $name"
+        amixer -c "$CARD" sget "$name" 2>/dev/null | sed '1d; s/^/    /'
+    done <<<"$(matching "$SHOW_RE")"
+    [ "$found" = 0 ] && echo "(no PGA/ADC/Digital/Analogue-style controls on this card)"
+    echo "user state file: $USER_STATE $( [ -f "$USER_STATE" ] && echo '(present)' || echo '(absent)')"
+    exit 0 ;;
+gain)
+    db="${2:-}"
+    case "$db" in
+        ''|*[!0-9.-]*) echo "demiurge-mixer: gain needs a number of dB, e.g. 'gain 20'" >&2; exit 2 ;;
+    esac
+    # Generous but bounded: a typo like 200 must not reach the converter.
+    awk -v d="$db" 'BEGIN { exit !(d >= -12 && d <= 40) }' \
+        || { echo "demiurge-mixer: $db dB is outside -12..40 — refusing" >&2; exit 2; }
+    names="$(matching "$GAIN_RE")"
+    if [ -z "$names" ]; then
+        echo "demiurge-mixer: card $CARD has no PGA control — nothing changed"; exit 0
+    fi
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        # The PGA is an ENUM control whose items read '20.0dB' — one decimal,
+        # exactly. "20dB" is not an item and amixer refuses it silently; that is
+        # how `gain 20` left the preamp at 0 dB on 2026-10-03. Format it.
+        dbs="$(awk -v d="$db" 'BEGIN { printf "%.1f", d }')"
+        if amixer -c "$CARD" sset "$name" "${dbs}dB" >/dev/null 2>&1 \
+           || amixer -c "$CARD" sset "$name" "${db}dB" >/dev/null 2>&1; then
+            echo "demiurge-mixer: '$name' -> ${db} dB"
+            amixer -c "$CARD" sget "$name" 2>/dev/null | grep -E '\[.*dB\]' | sed 's/^/    /'
+        else
+            echo "demiurge-mixer: could not set '$name' to ${db} dB (control may not take dB)" >&2
+        fi
+    done <<<"$names"
+    # Pin the digital stage to 0 dB. Without this it stacks on the PGA: see the
+    # "TWO GAIN STAGES" note at the top — that is what clipped the ADC on 2026-10-02.
+    dnames="$(matching "$DIGITAL_GAIN_RE")"
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        if amixer -c "$CARD" sset "$name" 0dB >/dev/null 2>&1; then
+            echo "demiurge-mixer: '$name' pinned -> 0 dB (digital stage; gain lives on the PGA)"
+        else
+            echo "demiurge-mixer: could not pin '$name' to 0 dB — CHECK IT, it may be stacking on the PGA" >&2
+        fi
+    done <<<"$dnames"
+    echo "demiurge-mixer: runtime only — 'demiurge-mixer store' to keep it across reboots"
+    exit 0 ;;
+input)
+    sel="${2:-}"
+    [ -n "$sel" ] || { echo "demiurge-mixer: input needs a selector name — see 'show' for the options" >&2; exit 2; }
+    names="$(matching "$INPUT_RE")"
+    if [ -z "$names" ]; then
+        echo "demiurge-mixer: card $CARD has no 'ADC ... Input' selector — nothing changed"; exit 0
+    fi
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        if amixer -c "$CARD" sset "$name" "$sel" >/dev/null 2>&1; then
+            echo "demiurge-mixer: '$name' -> $sel"
+        else
+            echo "demiurge-mixer: '$name' refused '$sel' (not one of its items?)" >&2
+        fi
+    done <<<"$names"
+    echo "demiurge-mixer: runtime only — 'demiurge-mixer store' to keep it across reboots"
+    exit 0 ;;
+store)
+    have alsactl || { echo "demiurge-mixer: alsactl not installed" >&2; exit 0; }
+    mkdir -p "$(dirname "$USER_STATE")" 2>/dev/null
+    # User copy: what the backup kit pulls and what `restore` loads.
+    if alsactl -f "$USER_STATE" store "$CARD" 2>/dev/null; then
+        echo "demiurge-mixer: stored -> $USER_STATE"
+    else
+        echo "demiurge-mixer: could not write $USER_STATE" >&2
+    fi
+    # System copy: what alsa-restore loads at boot. Needs root; never prompt.
+    if [ "$(id -u)" = 0 ]; then
+        alsactl store "$CARD" 2>/dev/null && echo "demiurge-mixer: stored -> /var/lib/alsa/asound.state"
+    elif sudo -n alsactl store "$CARD" 2>/dev/null; then
+        echo "demiurge-mixer: stored -> /var/lib/alsa/asound.state"
+    else
+        echo "demiurge-mixer: system copy NOT stored (no passwordless sudo) — run: sudo alsactl store" >&2
+    fi
+    exit 0 ;;
+restore)
+    if [ ! -f "$USER_STATE" ]; then
+        echo "demiurge-mixer: no $USER_STATE — mixer left as it is"; exit 0
+    fi
+    have alsactl || { echo "demiurge-mixer: alsactl not installed" >&2; exit 0; }
+    if timeout 10 alsactl -f "$USER_STATE" restore "$CARD" 2>/dev/null; then
+        echo "demiurge-mixer: restored $CARD from $USER_STATE"
+    else
+        echo "demiurge-mixer: restore from $USER_STATE failed — mixer left as it is" >&2
+    fi
+    exit 0 ;;
+-h|--help|help)
+    usage; exit 0 ;;
+*)
+    echo "demiurge-mixer: unknown command '$cmd'" >&2; usage >&2; exit 2 ;;
+esac

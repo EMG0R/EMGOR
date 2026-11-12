@@ -1,0 +1,65 @@
+#!/bin/bash
+# PMOR.app launcher — fully self-contained.
+#
+# Everything (code + venv) lives inside Contents/Resources/app. That is
+# deliberate: an earlier version ran the copy in ~/Documents and macOS TCC
+# denied it outright —
+#   PermissionError: [Errno 1] Operation not permitted: .../venv/pyvenv.cfg
+# An unsigned .app reading from Documents gets blocked, and the failure is a
+# hard error rather than a permission prompt. Keeping everything in the
+# bundle sidesteps TCC entirely and makes the app portable — drag it to
+# /Applications and it still works.
+#
+# `exec -a PMOR` sets argv[0] so the Dock tile and menu bar say PMOR instead
+# of "Python", which is the whole reason for having a bundle.
+
+set -u
+
+MACOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$(cd "$MACOS_DIR/../Resources/app" && pwd)"
+LOG="/tmp/pmor_app.log"
+
+{
+  echo "=== PMOR.app launch $(date) ==="
+  echo "app dir: $APP_DIR"
+} >>"$LOG" 2>&1
+
+cd "$APP_DIR" || { echo "PMOR: app dir missing: $APP_DIR" >>"$LOG"; exit 1; }
+
+# Self-heal: rebuild the venv if it is missing or broken.
+if [ ! -x venv/bin/python ]; then
+  echo "PMOR: bootstrapping venv" >>"$LOG"
+  /usr/bin/env python3 -m venv venv >>"$LOG" 2>&1
+  ./venv/bin/pip install -q -r requirements.txt >>"$LOG" 2>&1
+fi
+
+# Pin output to the built-in speakers. This Mac has several virtual output
+# devices (NDI, Omniplex, Loopback); if the system default points at one of
+# them the audio is routed away and appears silent even though it "works".
+# SINGLE INSTANCE via PID FILE — a previous PMOR left running (or half-hung
+# on a dead serial port) holds the CDC device and the audio stream, so a
+# fresh launch fights it and looks like "the app hangs opening". A pgrep
+# pattern kill is NOT safe here (it matched unrelated shells whose command
+# line merely contained the search string); kill exactly the recorded pid,
+# and only if it is still our python.
+PIDFILE=/tmp/pmor_app.pid
+if [ -f "$PIDFILE" ]; then
+  OLD=$(cat "$PIDFILE" 2>/dev/null)
+  if [ -n "$OLD" ] && ps -p "$OLD" -o command= 2>/dev/null | grep -q "main.py"; then
+    echo "PMOR: killing previous instance: $OLD" >>"$LOG"
+    kill "$OLD" 2>/dev/null; sleep 1; kill -9 "$OLD" 2>/dev/null
+  fi
+fi
+echo $$ >"$PIDFILE"   # exec below keeps this pid — it becomes the app's pid
+
+# -u: unbuffered stdout/stderr so the log shows crashes as they happen,
+# not only after the process exits.
+# --target-fill-ms 14: the device's USB capture arrives in slightly bursty
+# packets (its main loop drains between OLED page blits); the default 8ms
+# ring ran dry between bursts = audible crackle. 14ms rides the jitter.
+# For real low latency create the Aggregate Device (README / --create-
+# aggregate): the app then bypasses the ring entirely.
+exec -a PMOR ./venv/bin/python -u main.py \
+  --output-device "MacBook Pro Speakers" \
+  --target-fill-ms 14 \
+  "$@" >>"$LOG" 2>&1

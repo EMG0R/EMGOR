@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">The Watch</string>
+    <string name="notif_channel_service">Watch link</string>
+    <string name="notif_channel_service_desc">Keeps the connection to your watch alive</string>
+    <string name="notif_channel_camera">Watch camera</string>
+    <string name="notif_channel_camera_desc">Opens the camera when you tap the shutter on your watch</string>
+</resources>

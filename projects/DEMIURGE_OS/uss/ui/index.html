@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>USS</title>
+<!--
+  USS: the ONE shared UI for every Unified Synthesis System instrument (uss/README.md).
+  Serve it from web/examples (demiurge_web.py): /examples/uss.html?inst=<instrument>
+  No framework, everything custom-drawn on canvas, zero idle CPU (draws only on change).
+  Params: /uss-<inst>/{density,tone,length,space,intensity,pitch,trig}, floats 0..1.
+  Two-way: faders write via POST /api/pool/set; the page follows /api/pool/events (engine /pout -> pool -> here).
+  Locked = the MAPPING is hard (set by the instrument, not remappable); the value can still be played from here.
+-->
+<style>
+:root{--bg:#0b0613;--card:#150c24;--line:#2a1646;--ink:#efe6ff;--dim:#8d78b3;--v:#9b5cff;--v2:#d08cff;--bad:#ff6b8a}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.3 system-ui,sans-serif}
+main{max-width:560px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 2px;letter-spacing:.14em;font-weight:800}
+.sub{color:var(--dim);font-size:13px;margin-bottom:14px}
+#insts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+#insts button{font:inherit;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:none;color:var(--dim);cursor:pointer}
+#insts button.on{background:var(--v);border-color:var(--v);color:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:8px}
+.row b{font-weight:700}.row small{color:var(--dim)}
+.lock{color:var(--v2);font-size:12px;white-space:nowrap}
+.val{font-variant-numeric:tabular-nums;color:var(--v2);font-size:13px}
+canvas{width:100%;display:block;touch-action:none}
+canvas.f{height:42px}canvas.t{height:96px}
+#msg{color:var(--dim);font-size:13px;min-height:1.3em}#msg.bad{color:var(--bad)}
+</style></head><body><main>
+<h1>USS</h1>
+<div class="sub">unified synthesis system &middot; <span id="note"></span></div>
+<div id="insts"></div>
+<div id="trigcard" class="card"></div>
+<div id="faders"></div>
+<div id="msg"></div>
+<script>
+const INSTS = {nonlinear_daylight:"nonlinear daylight", supersaw:"supersaw", lockin:"lockin"};
+const FADERS = [["density","Density","how much happens"],["tone","Tone","brightness"],["length","Length","how long it lasts"],
+                ["space","Space","room"],["intensity","Intensity","level"],["pitch","Pitch","next note"]];
+const q = new URLSearchParams(location.search);
+let inst = q.get("inst"); if (!INSTS[inst]) inst = "nonlinear_daylight";
+const stage = "uss-" + inst, $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const st = {};   // name -> {v, echo, cv, val, path, drag, kind}
+let pending = {}, timer = null, maps = {};
+
+$("insts").innerHTML = Object.entries(INSTS).map(([k,l]) => `<button class="${k===inst?"on":""}" onclick="location.search='?inst=${k}'">${l}</button>`).join("");
+function msg(t,bad){ $("msg").textContent = t; $("msg").className = bad ? "bad" : ""; }
+
+function send(path, v){
+  pending[path] = v;
+  if (timer) return;
+  timer = setTimeout(async () => {          // coalesce to ~20 Hz, latest value per param
+    const batch = pending; pending = {}; timer = null;
+    for (const [p, val] of Object.entries(batch)){
+      try {
+        const r = await fetch("/api/pool/set", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({path:p, value:val})});
+        if (!r.ok) throw new Error("HTTP " + r.status); msg("");
+      } catch(e){ msg("POST /api/pool/set failed: " + e.message, true); }
+    }
+  }, 50);
+}
+
+function draw(name){
+  const s = st[name], cv = s.cv, dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.round(w*dpr)){ cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
+  const g = cv.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
+  if (s.kind === "trig"){
+    const on = s.v >= .5;
+    g.fillStyle = on ? css("--v2") : css("--v"); g.globalAlpha = on ? 1 : .85;
+    g.beginPath(); g.roundRect(2,2,w-4,h-4,18); g.fill(); g.globalAlpha = 1;
+    g.fillStyle = on ? "#1a0b2e" : css("--ink"); g.font = "800 22px system-ui"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(on ? "PLAYING" : "PLAY", w/2, h/2);
+    s.val.textContent = on ? "gate 1" : "gate 0"; return;
+  }
+  const pad = 14, y = h/2, x = v => pad + v*(w-2*pad);
+  g.lineCap = "round"; g.lineWidth = 8;
+  g.strokeStyle = css("--line"); g.beginPath(); g.moveTo(x(0),y); g.lineTo(x(1),y); g.stroke();
+  g.strokeStyle = css("--v"); g.beginPath(); g.moveTo(x(0),y); g.lineTo(x(s.v),y); g.stroke();
+  g.fillStyle = css("--ink"); g.beginPath(); g.arc(x(s.v),y,11,0,6.2832); g.fill();
+  if (s.echo != null){ g.strokeStyle = css("--v2"); g.lineWidth = 2; g.beginPath(); g.arc(x(s.echo),y,16,0,6.2832); g.stroke(); }
+  s.val.textContent = s.v.toFixed(2) + (s.echo != null ? "  echo " + s.echo.toFixed(2) : "");
+}
+
+function card(box, name, title, hint){
+  const c = document.createElement("div"); c.className = "card";
+  c.innerHTML = `<div class="row"><span><b>${title}</b> <small>${hint}</small></span><span><span class="lock"></span> <span class="val"></span></span></div><canvas class="${name==="trig"?"t":"f"}"></canvas>`;
+  box.appendChild(c);
+  const s = st[name] = {v:name==="space"&&inst!=="nonlinear_daylight"?0:.5, echo:null, kind:name==="trig"?"trig":"fader", cv:c.querySelector("canvas"),
+                        val:c.querySelector(".val"), lock:c.querySelector(".lock"), path:`/${stage}/${name}`};
+  if (name === "trig") s.v = 0;
+  const set = ev => { const r = s.cv.getBoundingClientRect(), pad = 14;
+    s.v = Math.max(0, Math.min(1, (ev.clientX - r.left - pad)/(r.width - 2*pad))); draw(name); send(s.path, s.v); };
+  if (name === "trig"){
+    const dn = e => { s.cv.setPointerCapture(e.pointerId); s.v = 1; draw(name); send(s.path, 1); };
+    const up = () => { if (s.v){ s.v = 0; draw(name); send(s.path, 0); } };
+    s.cv.addEventListener("pointerdown", dn); s.cv.addEventListener("pointerup", up); s.cv.addEventListener("pointercancel", up);
+  } else {
+    s.cv.addEventListener("pointerdown", e => { s.cv.setPointerCapture(e.pointerId); s.drag = true; set(e); });
+    s.cv.addEventListener("pointermove", e => { if (s.drag) set(e); });
+    const up = () => { s.drag = false; }; s.cv.addEventListener("pointerup", up); s.cv.addEventListener("pointercancel", up);
+  }
+  draw(name);
+}
+
+const SRC = {"/hw/teensy/b1":"arcade","/hw/teensy/jx":"joystick X","/hw/teensy/jy":"joystick Y","/hw/teensy/tof1":"lidar 1","/hw/teensy/tof2":"lidar 2",
+             "/hw/teensy/fsr1":"FSR 1","/hw/midi/1/29":"pedal"};
+function lockText(name){ const m = maps[st[name].path]; return m ? "\u{1F512} " + (SRC[m.source] || m.source) : ""; }
+
+async function init(){
+  card($("trigcard"), "trig", "Trigger", "one note / stab"); 
+  for (const [n,t,h] of FADERS) card($("faders"), n, t, h);
+  $("trigcard").className = "";   // the pad sits bare above the faders
+  addEventListener("resize", () => Object.keys(st).forEach(draw));
+  try {
+    const d = await (await fetch("/api/pool/params")).json();
+    for (const m of d.hard_maps || []) maps[m.target && m.target.param] = m;
+    let found = 0, hard = 0;
+    const by = Object.fromEntries((d.params||[]).map(p => [p.path, p]));
+    for (const n of Object.keys(st)){
+      const p = by[st[n].path]; if (!p) continue; found++; if (p.map === "hard") hard++;
+      if (typeof p.value === "number") st[n].v = p.value;
+      st[n].lock.textContent = lockText(n); draw(n);
+    }
+    $("note").textContent = found ? (hard === found ? "mapping locked by the instrument, values playable" : "") : "";
+    if (!found) msg("no /" + stage + "/* in the registry: copy uss/instruments/" + inst + "/params/" + stage + ".json to ~/demiurge/params/", true);
+  } catch(e){ msg("GET /api/pool/params failed: " + e.message, true); }
+  const es = new EventSource("/api/pool/events");
+  es.onmessage = m => { let e; try { e = JSON.parse(m.data); } catch(_){ return; }
+    for (const n of Object.keys(st)) if (st[n].path === e.path){ st[n].echo = e.value; if (!st[n].drag && st[n].kind !== "trig") st[n].v = e.value;
+      if (st[n].kind === "trig") st[n].v = e.value; draw(n); } };
+}
+init();
+</script></main></body></html>

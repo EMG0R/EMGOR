@@ -1,0 +1,258 @@
+From 6e4746f5c2fe53aba7d276865661d5b6b57df72c Mon Sep 17 00:00:00 2001
+From: EMG0R <maintainer@example.invalid>
+Date: Wed, 21 Oct 2026 22:57:12 -0700
+Subject: [PATCH] setup: Phase 8 base block always (usb_max_current), overclock
+ opt-in default NO, power default medium; TEMPLATE_USER single placeholder var
+
+Patch from -A- gorcave, applied on gorpi7v5. TEMPLATE_USER replaces the
+hardcoded /home/gorpi7 in the RNBO unit render.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0157CCEHWqzJgpTpAuC6hkgJ
+---
+ .../pi5-performance/config.txt.base.snippet   | 26 ++++++++
+ config/pi5-performance/config.txt.snippet     | 20 ++-----
+ config/pi5-performance/demiurge-power.sh      | 11 +++-
+ setup-script/setup-demiurge.sh                | 60 ++++++++++++++-----
+ 4 files changed, 83 insertions(+), 34 deletions(-)
+ create mode 100644 config/pi5-performance/config.txt.base.snippet
+
+diff --git a/config/pi5-performance/config.txt.base.snippet b/config/pi5-performance/config.txt.base.snippet
+new file mode 100644
+index 0000000..5e7c584
+--- /dev/null
++++ b/config/pi5-performance/config.txt.base.snippet
+@@ -0,0 +1,26 @@
++# DEMIURGE — Pi 5 BASE block for /boot/firmware/config.txt
++#
++# ALWAYS APPLIED. No overclock here, nothing that needs a 5 V/5 A PSU to be
++# safe at idle, so setup does not gate this behind a prompt. The overclock
++# lives in config.txt.snippet and is opt-in.
++
++[all]
++# --- Fast boot ---
++# Skip the rainbow splash and kernel boot delay — shaves ~1.5s off boot.
++disable_splash=1
++boot_delay=0
++
++# --- USB current ceiling ---
++# EMGOR, 2026-10-21: "yes add the max current usb for sure by default".
++# This is a standing rule, not a per-install choice.
++#
++# Default Pi 5 caps all USB ports at 600 mA TOTAL. One bus-powered audio
++# interface (~400 mA) fits; a second will silently fail to enumerate with
++# almost no log output — the symptom is "works on other Pis / my laptop, not
++# this one." With the official 5 V/5 A PSU each port goes to ~1.6 A and total
++# to ~5 A, enough for two bus-powered interfaces plus a USB MIDI controller.
++#
++# NOTE, honestly: this raises a CEILING, it does not draw current. On a weak
++# 3 A supply it does not hurt an idle rig, but it does let peripherals pull
++# enough to brown out under load. On the 5 A PSU it is simply correct.
++usb_max_current_enable=1
+diff --git a/config/pi5-performance/config.txt.snippet b/config/pi5-performance/config.txt.snippet
+index 15baa78..a8573c3 100644
+--- a/config/pi5-performance/config.txt.snippet
++++ b/config/pi5-performance/config.txt.snippet
+@@ -1,4 +1,8 @@
+-# DEMIURGE M8 — Pi 5 performance block for /boot/firmware/config.txt
++# DEMIURGE M8 — Pi 5 OVERCLOCK block for /boot/firmware/config.txt
++#
++# OPT-IN ONLY. Setup asks before applying this. The always-on settings
++# (usb_max_current_enable, fast boot) moved to config.txt.base.snippet so they
++# no longer ride along with an overclock decision. EMGOR, 2026-10-21.
+ #
+ # Append to the [all] section. REQUIRES:
+ #   - Official 5V / 5A USB-C PSU (not a 3A phone charger)
+@@ -24,17 +28,3 @@ gpu_freq=500
+ 
+ # Prefer performance ondemand transition thresholds
+ arm_boost=1
+-
+-# --- Fast boot ---
+-# Skip the rainbow splash and kernel boot delay — shaves ~1.5s off boot.
+-disable_splash=1
+-boot_delay=0
+-
+-# --- USB current ceiling ---
+-# Default Pi 5 caps all USB ports at 600 mA TOTAL. One bus-powered audio
+-# interface (~400 mA) fits; a second will silently fail to enumerate with
+-# almost no log output — the symptom is "works on other Pis / my laptop,
+-# not this one." Raising the cap is safe ONLY with the official 5V/5A PSU
+-# required above. With that PSU, each port goes up to ~1.6 A and total to
+-# ~5 A, enough for two bus-powered audio interfaces plus a USB MIDI controller.
+-usb_max_current_enable=1
+diff --git a/config/pi5-performance/demiurge-power.sh b/config/pi5-performance/demiurge-power.sh
+index 04db1c5..7831012 100755
+--- a/config/pi5-performance/demiurge-power.sh
++++ b/config/pi5-performance/demiurge-power.sh
+@@ -8,7 +8,7 @@
+ #             and `demiurge-power <level>` (restarts the unit after writing live.conf)
+ #
+ # live.conf keys (live.conf is the only config surface):
+-#   power         = low | medium | high      default high
++#   power         = low | medium | high      default MEDIUM (EMGOR 2026-10-21)
+ #   cpu_max_mhz   = <MHz>                    optional, overrides the table's max
+ #   cpu_cores     = <N>                      optional, overrides the table's core count
+ # If there is no `power =` key but the file carries a `# power: <level>` header
+@@ -29,6 +29,11 @@
+ # (arm_freq=2800 etc., installed by setup Phase 8): cpuinfo_max_freq is whatever
+ # config.txt allows, so without that block high == stock 2400.
+ #
++# DEFAULT IS `medium` (EMGOR, 2026-10-21): stock 2400 ceiling, no overclock, so
++# an unconfigured rig never silently runs overclocked. `high` stays available
++# and still works — it is opt-in by writing `power = high` in live.conf, and it
++# only exceeds 2400 if the config.txt overclock block was also applied.
++#
+ # Never offlines cpu0 or the isolated core. Core onlining can fail on a weak
+ # supply (EINVAL / psci) — logged, never fatal. Always exits 0: a power knob
+ # must not be able to fail a boot or hold up demiurge.service.
+@@ -77,8 +82,8 @@ if [[ -z "$raw" && -f "$LIVE" ]]; then
+ fi
+ LEVEL="$(norm_level "$raw")"
+ if [[ -z "$LEVEL" ]]; then
+-    [[ -n "$raw" ]] && log "unrecognised power '$raw' in $LIVE — using high"
+-    LEVEL=high; src="default"
++    [[ -n "$raw" ]] && log "unrecognised power '$raw' in $LIVE — using medium"
++    LEVEL=medium; src="default"
+ fi
+ 
+ # ── topology ────────────────────────────────────────────────────────────────
+diff --git a/setup-script/setup-demiurge.sh b/setup-script/setup-demiurge.sh
+index 1e24587..561ac80 100755
+--- a/setup-script/setup-demiurge.sh
++++ b/setup-script/setup-demiurge.sh
+@@ -8,11 +8,14 @@ set -euo pipefail
+ # systemd unit this script installs (demiurge.service, demiurge-touch.service,
+ # demiurge-touch-poll.service, demiurge-web.service, rnbo-runner.service) has
+ # its User=/Group=/HOME= templated FROM this one variable, so renaming the rig
+-# (e.g. pi -> pi) needs no edits anywhere: just run this script
++# (e.g. pi -> mynode) needs no edits anywhere: just run this script
+ # logged in as the new user and it picks it up automatically. Override only if
+ # you're installing AS a different account than the one that will run the
+ # instrument (rare): PI_USER=someoneelse ./setup-demiurge.sh
+ PI_USER="${PI_USER:-$USER}"
++# The placeholder account name the repo's unit files ship with (User=, /home/<x>).
++# Every unit is rendered from it to $PI_USER below. Set it in this ONE place.
++TEMPLATE_USER="${TEMPLATE_USER:-pi}"
+ #
+ # demiurge.local is the hostname set in Raspberry Pi Imager — substitute your
+ # own host below if yours differs (ssh <pi-user>@demiurge.local is just the
+@@ -826,9 +829,9 @@ if [ ! -f /boot/firmware/demiurge.conf ]; then
+ fi
+ 
+ # 4) Install + enable systemd service (+ every drop-in present in the repo)
+-# The repo ships the unit with pi / UID 1000 as placeholders. Render it
++# The repo ships the unit with $TEMPLATE_USER / UID 1000 as placeholders. Render it
+ # for whoever is actually running the install so the launcher starts as this
+-# user (avoids status=217/USER when the Pi user isn't named pi).
++# user (avoids status=217/USER when the Pi user isn't the template user).
+ _UID="$(id -u)"
+ _GRP="$(id -gn)"
+ if have config/demiurge.service; then
+@@ -1324,10 +1327,12 @@ echo "  A bad edit can make the Pi unbootable."
+ echo "  Both files are backed up before any change is made."
+ echo "  All tokens are applied idempotently (safe to re-run)."
+ echo ""
+-echo "  config.txt will gain:"
++echo "  config.txt will ALWAYS gain (base, no prompt — safe without a 5A PSU):"
++echo "    usb_max_current_enable=1  disable_splash=1  boot_delay=0"
++echo ""
++echo "  config.txt overclock block is OPT-IN and asked for separately:"
+ echo "    arm_freq=2800  over_voltage_delta=50000  force_turbo=0"
+-echo "    gpu_freq=500   arm_boost=1  disable_splash=1  boot_delay=0"
+-echo "    usb_max_current_enable=1"
++echo "    gpu_freq=500   arm_boost=1"
+ echo ""
+ echo "  cmdline.txt will gain:"
+ echo "    threadirqs  usbcore.autosuspend=-1  isolcpus=3"
+@@ -1359,13 +1364,36 @@ echo "  ${_CMDLINE_TXT}.bak-${_TS}"
+ echo ""
+ 
+ # ── config.txt ──────────────────────────────────────────────────────────────
++# --- BASE block: always applied, never prompted (EMGOR 2026-10-21) ----------
++# usb_max_current_enable=1 is a standing rule, not a per-install choice, and it
++# must not be hostage to the overclock decision the way it used to be.
++if grep -q "^usb_max_current_enable=" "$_CONFIG_TXT" 2>/dev/null; then
++    echo "config.txt: base block already present — skipping (already applied)"
++else
++    echo "config.txt: appending BASE block (usb_max_current_enable, fast boot)..."
++    echo "" | sudo tee -a "$_CONFIG_TXT" > /dev/null
++    sudo tee -a "$_CONFIG_TXT" < "$_PERF_DIR/config.txt.base.snippet" > /dev/null
++    echo "config.txt: base done"
++fi
++echo ""
++
++# --- OVERCLOCK block: opt-in, its own prompt, default NO --------------------
++# Default power mode is `medium` (stock 2400), so an unconfigured rig never
++# silently runs overclocked. Answer yes only on the official 5V/5A PSU with
++# active cooling.
+ if grep -q "^arm_freq=" "$_CONFIG_TXT" 2>/dev/null; then
+     echo "config.txt: arm_freq already present — skipping (already applied)"
+ else
+-    echo "config.txt: appending overclock block..."
+-    echo "" | sudo tee -a "$_CONFIG_TXT" > /dev/null
+-    sudo tee -a "$_CONFIG_TXT" < "$_PERF_DIR/config.txt.snippet" > /dev/null
+-    echo "config.txt: done"
++    read -r -p "  Also apply the 2800 MHz OVERCLOCK? Needs 5V/5A PSU + active cooling [yes/NO]: " _OC_CONFIRM
++    echo ""
++    if [[ "$_OC_CONFIRM" == "yes" ]]; then
++        echo "config.txt: appending overclock block..."
++        echo "" | sudo tee -a "$_CONFIG_TXT" > /dev/null
++        sudo tee -a "$_CONFIG_TXT" < "$_PERF_DIR/config.txt.snippet" > /dev/null
++        echo "config.txt: overclock done — set 'power = high' in live.conf to use it"
++    else
++        echo "config.txt: overclock SKIPPED (stock 2400 MHz). Re-run phase 8 to add it later."
++    fi
+ fi
+ echo ""
+ 
+@@ -1444,9 +1472,9 @@ sudo install -m 0644 "$SCRIPT_DIR/../web/static/index.html" \
+ 
+ # Unit: pinned off the audio core (CPUAffinity=0-2), Nice=10, deliberately
+ # NOT PartOf=demiurge.service (UI must survive audio stop). The repo ships
+-# User=pi as a placeholder — render it for whoever is actually running
++# User=$TEMPLATE_USER as a placeholder — render it for whoever is actually running
+ # the install, same templating as demiurge.service in Phase 6 (avoids
+-# status=217/USER when the Pi user isn't named pi).
++# status=217/USER when the Pi user isn't the template user).
+ # Confirm the Pi-side power helper name (`which demiurge-power`) and adjust
+ # Environment=DEMIURGE_POWER_CMD in the unit if it differs.
+ sed -e "s/^User=.*/User=$PI_USER/" \
+@@ -1541,7 +1569,7 @@ systemctl --user enable --now demiurge-rnbo-autoreload.service
+ 
+ # 7) RNBO runner gate (ExecCondition: only run when RNBO is actually wanted —
+ #    rnbo = on in live.conf, or a *.rnbo token is in the chain) + the
+-#    rnbo-runner.service unit itself. The repo ships both User=pi and
++#    rnbo-runner.service unit itself. The repo ships both User=$TEMPLATE_USER and
+ #    UID 1000 as placeholders — render them for whoever is actually running
+ #    the install, same templating as demiurge.service (Phase 6) and
+ #    demiurge-web.service (Phase 9).
+@@ -1552,7 +1580,7 @@ _GRP="$(id -gn)"
+ sed -e "s/^User=.*/User=$PI_USER/" \
+     -e "s/^Group=.*/Group=$_GRP/" \
+     -e "s#^Environment=HOME=.*#Environment=HOME=$HOME#" \
+-    -e "s#/home/pi#$HOME#g" \
++    -e "s#/home/$TEMPLATE_USER/#$HOME/#g" \
+     -e "s/1000/$_UID/g" \
+     "$SCRIPT_DIR/../config/rnbo/rnbo-runner.service" | sudo tee /etc/systemd/system/rnbo-runner.service >/dev/null
+ 
+@@ -1651,14 +1679,14 @@ done
+ 
+ # git identity: an agent that commits on the Pi must not produce commits
+ # attributed to nobody. Defaults to the rig's OWNER, not the machine — a
+-# hostname-derived identity produced commits by "demiurge <pi@demiurge.local>",
++# hostname-derived identity produced commits by "demiurge <user@demiurge.local>",
+ # which is noise in a history where every commit is his. The machine is already
+ # recorded in the commit message when it matters.
+ # Generic checkout (no neptr/): never invent an identity for someone else's
+ # machine; set one only if DEMIURGE_GIT_NAME / DEMIURGE_GIT_EMAIL are given.
+ if [ "$HAVE_NEPTR" = 1 ]; then
+ git config --global user.name  "${DEMIURGE_GIT_NAME:-EMG0R}" 2>/dev/null || true
+-git config --global user.email "${DEMIURGE_GIT_EMAIL:-you@example.com}" 2>/dev/null || true
++git config --global user.email "${DEMIURGE_GIT_EMAIL:-maintainer@example.invalid}" 2>/dev/null || true
+ else
+     [ -z "${DEMIURGE_GIT_NAME:-}" ]  || git config --global user.name  "$DEMIURGE_GIT_NAME"  2>/dev/null || true
+     [ -z "${DEMIURGE_GIT_EMAIL:-}" ] || git config --global user.email "$DEMIURGE_GIT_EMAIL" 2>/dev/null || true
+-- 
+2.47.3
+

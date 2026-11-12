@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Heavy 3D / CAD enclosure assets (not code)
+*.blend
+*.blend1
+*.stl
+*.3mf
+*.step
+*.stp
+
+# Large reference media
+*.pdf
+
+# Backups / archives
+backups/
+_backups/
+*.tar
+*.tar.gz
+*.zip
+
+# Csound render-test artifacts
+*.wav
+csound/effects/test_chan.wav
+
+# EXCEPTION: the impulse responses are a HARD dependency, not an artifact.
+# csound aborts at init with "soundin cannot open .../ir/<file>.wav" and the
+# instrument never starts. They lived only on one Mac until 2026-10-02 -- no
+# git, no remote, no backup -- which is exactly the exposure that made the
+# 2026-10-01 SD-card death a six-hour rebuild instead of a ten-minute restore.
+# 25 files, 15 MB, next to 7.1 MB of already-tracked NAM profiles.
+# The blanket *.wav above still covers the 111 MB of samples and render tests.
+!csound/ir/*.wav
+
+# OS cruft
+.DS_Store
+
+# Vendored upstream (has its own git history)
+csound/nam/libs/NeuralAmpModelerCore/
+
+# Local C++ build output (compiled .o/.so, CMake cache) — not source
+csound/nam/build/
+csound/nam/build-*/
+
+# Arduino-cli build cache for the Teensy firmware — not source
+TEENSYY/build/
+
+# Editor/manual backup files
+*.bak
+*.bak-*
+
+# SDD scratch (briefs, reviews, ledger)
+.superpowers/
+
+# Local Claude Code tool state (not project source)
+.claude/

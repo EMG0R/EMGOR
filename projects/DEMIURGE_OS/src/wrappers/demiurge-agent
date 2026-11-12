@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# demiurge-agent — run a coding agent ON THE PI, in the repo, with the right cwd.
+#
+# WHY THIS EXISTS: debugging this rig from a Mac over SSH means every edit is a
+# round trip, and the agent doing the work cannot see the hardware it is
+# reasoning about — it cannot read `aplay -l`, cannot watch journalctl live,
+# cannot run demiurge-ringtest while the artifact is audible. An agent running
+# ON the Pi can. That is the whole point: the machine with the problem should be
+# the machine doing the work.
+#
+# Usage:
+#   demiurge-agent "why is csound crash-looping?"        # default backend
+#   demiurge-agent --claude "..."                        # pick one explicitly
+#   demiurge-agent --gemini "..."
+#   demiurge-agent --codex  "..."
+#   demiurge-agent --bg "long job..."                    # detached in tmux
+#   demiurge-agent --attach                              # reattach to --bg run
+#   demiurge-agent --list                                # which backends are installed
+#
+# Non-interactive by default (print mode) so it works over `ssh pi demiurge-agent
+# "..."` and returns its answer on stdout. Use --bg for anything long: the SSH
+# connection dropping must not kill a 20-minute investigation, which is exactly
+# what happened repeatedly while debugging by hand.
+set -uo pipefail
+
+# The agent CLIs are npm globals under a per-user prefix (Phase 11 uses
+# ~/.npm-global so `npm update` never needs root). That prefix is added to
+# .bashrc, which a NON-INTERACTIVE shell never sources — so `ssh pi
+# demiurge-agent --list`, the documented usage, reported every backend as NOT
+# INSTALLED while they were all present. Put the prefix on the PATH here, where
+# it is true regardless of how this script was invoked.
+NPM_PREFIX="${NPM_CONFIG_PREFIX:-$HOME/.npm-global}"
+case ":$PATH:" in
+    *":$NPM_PREFIX/bin:"*) ;;
+    *) PATH="$NPM_PREFIX/bin:$PATH" ;;
+esac
+export PATH
+
+REPO="${DEMIURGE_REPO:-$HOME/_______DEMIURGE}"
+SESSION="${DEMIURGE_AGENT_SESSION:-demiurge-agent}"
+BACKEND="${DEMIURGE_AGENT_BACKEND:-claude}"
+BG=0
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+list_backends() {
+    echo "backends:"
+    for b in claude gemini codex; do
+        if have "$b"; then printf "  %-8s %s\n" "$b" "$(command -v "$b")"
+        else              printf "  %-8s NOT INSTALLED\n" "$b"
+        fi
+    done
+    echo
+    echo "default: $BACKEND   (override: DEMIURGE_AGENT_BACKEND or --claude/--gemini/--codex)"
+    echo "repo:    $REPO"
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --claude) BACKEND=claude; shift ;;
+        --gemini) BACKEND=gemini; shift ;;
+        --codex)  BACKEND=codex;  shift ;;
+        --bg)     BG=1; shift ;;
+        --list)   list_backends; exit 0 ;;
+        --attach) exec tmux attach -t "$SESSION" ;;
+        --help|-h)
+            sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0 ;;
+        --) shift; break ;;
+        -*) echo "demiurge-agent: unknown flag $1" >&2; exit 2 ;;
+        *)  break ;;
+    esac
+done
+
+if [ $# -eq 0 ]; then
+    echo "demiurge-agent: no prompt given" >&2
+    echo "try: demiurge-agent --help" >&2
+    exit 2
+fi
+PROMPT="$*"
+
+if ! have "$BACKEND"; then
+    echo "demiurge-agent: '$BACKEND' is not installed on this Pi." >&2
+    echo "Run setup-demiurge.sh phase 11, then authenticate (see its output)." >&2
+    list_backends >&2
+    exit 1
+fi
+
+[ -d "$REPO" ] || { echo "demiurge-agent: repo not found at $REPO" >&2; exit 1; }
+cd "$REPO" || exit 1
+
+# Per-backend non-interactive invocation. Each of these CLIs spells "just answer
+# this prompt and exit" differently; keeping the difference HERE means callers
+# (and agents on the Mac driving this over ssh) use one interface.
+run_backend() {
+    case "$BACKEND" in
+        claude) claude --permission-mode acceptEdits -p "$PROMPT" ;;
+        gemini) gemini -p "$PROMPT" ;;
+        codex)  codex exec "$PROMPT" ;;
+    esac
+}
+
+if [ "$BG" = 1 ]; then
+    have tmux || { echo "demiurge-agent: --bg needs tmux" >&2; exit 1; }
+    # One window per run, appended to a long-lived session, so several
+    # investigations can run at once and none die with the SSH connection.
+    WIN="$BACKEND-$(date +%H%M%S)"
+    if tmux has-session -t "$SESSION" 2>/dev/null; then
+        tmux new-window -t "$SESSION" -n "$WIN" "cd '$REPO' && $(declare -f run_backend); BACKEND='$BACKEND' PROMPT='$PROMPT' run_backend 2>&1 | tee '/tmp/demiurge-agent-$WIN.log'; echo; echo '[done — log: /tmp/demiurge-agent-$WIN.log]'; exec bash"
+    else
+        tmux new-session -d -s "$SESSION" -n "$WIN" "cd '$REPO' && $(declare -f run_backend); BACKEND='$BACKEND' PROMPT='$PROMPT' run_backend 2>&1 | tee '/tmp/demiurge-agent-$WIN.log'; echo; echo '[done — log: /tmp/demiurge-agent-$WIN.log]'; exec bash"
+    fi
+    echo "started $BACKEND in tmux session '$SESSION', window '$WIN'"
+    echo "  watch:  demiurge-agent --attach    (or: tmux attach -t $SESSION)"
+    echo "  log:    /tmp/demiurge-agent-$WIN.log"
+    exit 0
+fi
+
+run_backend

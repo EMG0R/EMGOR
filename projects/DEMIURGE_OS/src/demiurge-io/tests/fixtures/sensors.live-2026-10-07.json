@@ -1,0 +1,137 @@
+{
+  "sources": [
+    {
+      "id": "jx",
+      "label": "Joystick X",
+      "units": "raw",
+      "in_lo": 0,
+      "in_hi": 4095,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "jy",
+      "label": "Joystick Y",
+      "units": "raw",
+      "in_lo": 0,
+      "in_hi": 4095,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "exp",
+      "label": "Expression pedal",
+      "units": "raw",
+      "in_lo": 128,
+      "in_hi": 3992,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "fsr1",
+      "label": "FSR 1",
+      "units": "raw",
+      "in_lo": 2500,
+      "in_hi": 4000,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "fsr2",
+      "label": "FSR 2",
+      "units": "raw",
+      "in_lo": 2500,
+      "in_hi": 4000,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "tof1",
+      "label": "LiDAR 1",
+      "units": "mm",
+      "in_lo": 20,
+      "in_hi": 460,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "tof2",
+      "label": "LiDAR 2",
+      "units": "mm",
+      "in_lo": 20,
+      "in_hi": 460,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "ax",
+      "label": "Accel X",
+      "units": "raw",
+      "in_lo": -17000,
+      "in_hi": 17000,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "ay",
+      "label": "Accel Y",
+      "units": "raw",
+      "in_lo": -17000,
+      "in_hi": 17000,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "az",
+      "label": "Accel Z",
+      "units": "raw",
+      "in_lo": -17000,
+      "in_hi": 17000,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "ml",
+      "label": "Mic L envelope",
+      "units": "env",
+      "in_lo": 0,
+      "in_hi": 800,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "mr",
+      "label": "Mic R envelope",
+      "units": "env",
+      "in_lo": 0,
+      "in_hi": 800,
+      "dropout": "hold",
+      "deadzone": 0.02,
+      "smooth_ms": 30.0,
+      "enabled": true
+    }
+  ],
+  "maps": []
+}

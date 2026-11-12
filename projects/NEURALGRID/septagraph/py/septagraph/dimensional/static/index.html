@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>neuralGrid — dimensional</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header>
+  <h1>dimensional <span class="ver" id="ver"></span></h1>
+  <div class="link" id="link">…</div>
+</header>
+
+<!-- ── CALIBRATE ─────────────────────────────────────────────────── -->
+<section id="calibrate" hidden>
+  <div class="step-head">
+    <div class="counter" id="cal-counter">1 / 5</div>
+    <h2 id="cal-channel">softpot_n</h2>
+  </div>
+  <p class="instruction" id="cal-instruction"></p>
+
+  <div class="capture">
+    <div class="cap"><span class="cap-label">answered by</span><b id="cal-hw">—</b></div>
+    <div class="cap"><span class="cap-label">low</span><b id="cal-lo">—</b></div>
+    <div class="cap"><span class="cap-label">high</span><b id="cal-hi">—</b></div>
+    <div class="cap"><span class="cap-label">span</span><b id="cal-span">—</b></div>
+  </div>
+
+  <div class="meter"><div class="meter-fill" id="cal-meter"></div></div>
+  <div class="status" id="cal-status">waiting for movement…</div>
+
+  <div class="steps" id="cal-steps"></div>
+
+  <div class="actions">
+    <button id="cal-next" class="primary">Next step</button>
+    <button id="cal-redo">Redo this one</button>
+    <button id="cal-finish" class="ghost">Skip to encoder</button>
+  </div>
+</section>
+
+<!-- ── RUN ───────────────────────────────────────────────────────── -->
+<section id="run" hidden>
+  <div class="run-head">
+    <h2>encoder</h2>
+    <button id="run-rezero">Re-zero sensors</button>
+    <button id="run-fsr">Calibrate pads</button>
+    <button id="run-recal" class="ghost">Sensor map</button>
+  </div>
+  <p class="hint">Bars are the normalized value. The pale band around each is
+     <b>σ</b> — how precisely this device actually knows it.</p>
+  <div id="channels"></div>
+  <details class="wire">
+    <summary>wire frame</summary>
+    <pre id="wire"></pre>
+  </details>
+</section>
+
+<!-- ── FSR PER-PAD ───────────────────────────────────────────────── -->
+<section id="fsr" hidden>
+  <div class="step-head">
+    <div class="counter" id="fsr-counter">0 / 64</div>
+    <h2 id="fsr-title">hit the lit pad</h2>
+  </div>
+  <p class="instruction" id="fsr-instruction"></p>
+  <div class="padgrid" id="padgrid"></div>
+  <div class="fsrbank" id="fsrbank"></div>
+  <svg id="fsr-curve" class="curve" viewBox="0 0 320 110" preserveAspectRatio="none"></svg>
+  <div class="status" id="fsr-status"></div>
+  <div class="actions">
+    <button id="fsr-skip">Skip this pad</button>
+    <button id="fsr-finish" class="primary">Save &amp; run</button>
+  </div>
+</section>
+
+<section id="rawpanel">
+  <h3>raw counts</h3>
+  <div class="rawgrid" id="rawgrid"></div>
+  <div class="rawnote" id="rawnote"></div>
+</section>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

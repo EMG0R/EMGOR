@@ -1,0 +1,24 @@
+# large media: keep out of git (live on TANK / SAMP)
+*.wav
+*.aif
+*.aiff
+*.flac
+*.mp3
+*.ogg
+*.m4a
+*.nam
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.iso
+*.img
+.DS_Store
+__pycache__/
+*.pyc
+venv/

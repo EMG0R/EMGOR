@@ -1,0 +1,103 @@
+#!/bin/bash
+# demiurge-flash-teensy <hex-file> [--mcu=TEENSYxx]
+#
+# Flashes a Teensy microcontroller plugged into the Pi over SSH — no physical
+# access to the board's program button required.
+#
+# How it works (the Arduino-IDE-on-the-Pi trick):
+#   1. If the Teensy is currently running firmware with USB Serial enabled
+#      (any Teensyduino USB mode that includes Serial — "Serial", "Serial+MIDI",
+#      "Serial+Keyboard+Mouse+Joystick", etc.), setting its USB serial line to
+#      baud 134 is a magic value the Teensyduino USB stack handles by jumping
+#      to HalfKay (the bootloader). Same mechanism Arduino IDE uses internally.
+#   2. The Teensy re-enumerates as HalfKay (VID:PID 16c0:0478).
+#   3. teensy_loader_cli claims HalfKay's interface and uploads the .hex.
+#   4. HalfKay reboots into the new firmware automatically when the upload
+#      completes.
+#
+# If the Teensy is already in HalfKay (e.g. you held the program button before
+# plugging it in), step 1 is skipped.
+#
+# MCU defaults to TEENSY41. Override for other boards:
+#   demiurge-flash-teensy my.hex --mcu=TEENSY40
+#   demiurge-flash-teensy my.hex --mcu=TEENSY36
+#
+# Requires: teensy-loader-cli (apt), and the supplemental udev rule installed
+# by setup-demiurge.sh that grants plugdev access to the HalfKay endpoint.
+# Without that rule, run via sudo.
+
+set -e
+
+HEX="${1:-}"
+MCU="${2:---mcu=TEENSY41}"
+
+if [[ -z "$HEX" || "$HEX" == "-h" || "$HEX" == "--help" ]]; then
+    cat >&2 <<USAGE
+usage: demiurge-flash-teensy <hex-file> [--mcu=TEENSYxx]
+
+  Flashes a Teensy on the Pi remotely. Triggers a soft reboot into HalfKay
+  by writing baud 134 to the USB serial endpoint, then uploads the .hex.
+
+  --mcu defaults to TEENSY41. Other valid values: TEENSY40, TEENSY36, TEENSY35,
+  TEENSY32, TEENSY31, TEENSY30, TEENSY2, TEENSY2PP, TEENSYLC.
+USAGE
+    exit 1
+fi
+
+if [[ ! -f "$HEX" ]]; then
+    echo "demiurge-flash-teensy: $HEX not found" >&2
+    exit 1
+fi
+
+if ! command -v teensy_loader_cli >/dev/null; then
+    echo "demiurge-flash-teensy: teensy_loader_cli not installed" >&2
+    echo "  apt install teensy-loader-cli" >&2
+    exit 1
+fi
+
+# Step 1: locate a running Teensy serial endpoint (16c0:04*, mode with Serial).
+PORT=""
+for tty in /dev/ttyACM*; do
+    [[ -e "$tty" ]] || continue
+    dev_link="/sys/class/tty/$(basename "$tty")/device"
+    [[ -L "$dev_link" ]] || continue
+    # The idVendor file lives one or two levels up depending on driver layout.
+    vid=""
+    for up in .. ../.. ../../..; do
+        if [[ -r "$dev_link/$up/idVendor" ]]; then
+            vid=$(cat "$dev_link/$up/idVendor")
+            break
+        fi
+    done
+    if [[ "$vid" == "16c0" ]]; then
+        PORT="$tty"
+        break
+    fi
+done
+
+# Step 2: trigger soft reboot if firmware is running. Skip if already HalfKay.
+if lsusb | grep -q '16c0:0478'; then
+    echo "demiurge-flash-teensy: HalfKay already present, skipping soft reboot"
+elif [[ -n "$PORT" ]]; then
+    echo "demiurge-flash-teensy: soft-rebooting $PORT into HalfKay (baud 134)"
+    stty -F "$PORT" 134 2>/dev/null || true
+    # HalfKay typically enumerates in <500 ms. Poll up to 5 s.
+    for _ in $(seq 1 50); do
+        if lsusb | grep -q '16c0:0478'; then
+            break
+        fi
+        sleep 0.1
+    done
+    if ! lsusb | grep -q '16c0:0478'; then
+        echo "demiurge-flash-teensy: HalfKay did not appear after soft-reboot" >&2
+        echo "  Fallback: press the program button on the Teensy now." >&2
+    fi
+else
+    echo "demiurge-flash-teensy: no Teensy USB serial port found"
+    echo "  The board may be unplugged, or running a USB mode without Serial."
+    echo "  teensy_loader_cli -w will wait for HalfKay — press the program button if needed."
+fi
+
+# Step 3: flash. -w waits for HalfKay if it isn't visible yet.
+echo "demiurge-flash-teensy: flashing $HEX ($MCU)"
+exec teensy_loader_cli "$MCU" -w -v "$HEX"
