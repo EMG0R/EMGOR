@@ -1,4 +1,5 @@
 // pokemans-catch.js — pure GOR BALL throw + catch maths for POKEMANS (docs/next-stage-plan.md A2). No DOM, no THREE, no Math.random.
+//   battleCatchChance(tier, hp, maxHp [, bonus])  the battle BALL odds (pokemans-battle.js); catchChance = legacy curve still read by pokemans-fighter
 //   catchChance(tier, hpFrac [, bonus])  -> 0.1..1   tier(1-3)·(1-hp%)·0.9 + 0.1 (+ lure bonus), clamped
 //   catchRoll(chance, u)                 -> { shakes: 3, caught }   three shakes, then 'click' (caught) or 'burst' (escaped)
 //   arcPoint(o, d, t, out) / previewDots(o, d, out)   ballistic arc in H (human heights) along d (unit) with up (0,1,0 in the caller's frame)
@@ -49,12 +50,12 @@ export function solveAim(Tx, Ty, Tz, up, out) {
 }
 export function catchRoll(chance, u) { return { shakes: 3, caught: u < chance }; }
 
-// Q42 ring-fight catch: after a wild mon is KO'd in the ring the player has KO_WINDOW seconds to throw a GOR BALL at it.
-export const KO_WINDOW = 3;
-export const koOpen = (tKo, now) => now >= tKo && now - tKo <= KO_WINDOW;
-// remaining hp fraction of a ring fighter: pct = damage taken, budget = creatureFighter().hpPct (a KO has pct >= budget -> 0)
-export const wildHpFrac = (pct, budget) => Math.max(0, Math.min(1, 1 - (pct || 0) / Math.max(1, budget || 1)));
-export const ringCatchChance = (ballTier, hpFrac, bonus) => catchChance(ballTier, hpFrac, bonus);
+// Battle catch (the only catch path): chance = tierFloor x (1 - hp/maxHp x 0.8) (+ lure bonus), shown as a percentage on the BALL option.
+// tier 1..3 = ball tier. A full-hp wild keeps 20 % of the floor; a 1-hp wild keeps ~100 % of it.
+export function battleCatchChance(tier, hp, maxHp, bonus) {
+  const t = Math.max(1, Math.min(3, tier | 0 || 1)), f = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 1;
+  return Math.max(0, Math.min(1, FLOOR[t - 1] * (1 - f * 0.8) + (bonus || 0)));
+}
 
 // o = {x,y,z} hand, d = {x,y,z} unit aim, up = {x,y,z} unit. Position at time t of a ball thrown at BALL.speed with BALL.lift added along up.
 export function arcPoint(o, d, up, t, out) {

@@ -1,0 +1,43 @@
+/* pokemans-battle.css — the classic pixel catch battle. HUD tokens from ship.css (:root); fallbacks keep it readable if they are missing. */
+.pkb { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; background: rgba(8, 2, 20, 0.88);
+  font-family: var(--hud-font, 'Monocraft', ui-monospace, monospace); color: var(--hud-ink, #E0AAFF); user-select: none; transition: opacity 0.25s; }
+.pkb.is-out { opacity: 0; pointer-events: none; }
+.pkb-screen { position: relative; width: min(94vw, 168vh * 0.62, 900px); aspect-ratio: 16 / 9; overflow: hidden; border: 2px solid var(--hud-line, rgba(168, 85, 247, 0.45)); background: #14082c; image-rendering: pixelated; }
+.pkb-bg { position: absolute; inset: 0; background:
+  repeating-linear-gradient(0deg, rgba(0,0,0,0) 0 6px, rgba(0,0,0,0.12) 6px 7px),
+  linear-gradient(#2a0f55 0 34%, #3b1a78 34% 52%, #4d2796 52% 64%, #1c0b3e 64% 100%); }
+.pkb-pad { position: absolute; border-radius: 50%; background: radial-gradient(#6a3fc0 0 55%, #4d2796 56% 100%); opacity: 0.9; }
+.pkb-pad-foe { right: 5%; top: 40%; width: 34%; height: 11%; }
+.pkb-pad-me { left: 4%; bottom: 4%; width: 40%; height: 13%; background: radial-gradient(#7a4fd0 0 55%, #5a30a8 56% 100%); }
+.pkb-spr { position: absolute; image-rendering: pixelated; width: 30%; aspect-ratio: 1; transition: transform 0.32s steps(5), opacity 0.32s steps(5); }
+.pkb-foe { right: 11%; top: 11%; }
+.pkb-me { left: 10%; bottom: 7%; width: 38%; transform: scaleX(1); }
+.pkb-spr.is-in { transform: scale(0.02); opacity: 0; }
+.pkb-foe { animation: pkbbob 1.1s steps(2) infinite; } .pkb-me { animation: pkbbob 1.3s steps(2) infinite; }
+@keyframes pkbbob { 50% { margin-top: -2px; } }
+.pkb-spr.fx-hurt { animation: pkbhurt 0.26s steps(2); }
+.pkb-spr.fx-atkme { animation: pkbatkme 0.26s steps(3); } .pkb-spr.fx-atkfoe { animation: pkbatkfoe 0.26s steps(3); }
+@keyframes pkbhurt { 0%, 50% { opacity: 0.15; } 25%, 100% { opacity: 1; } }
+@keyframes pkbatkme { 50% { transform: translate(14%, -8%); } } @keyframes pkbatkfoe { 50% { transform: translate(-14%, 8%); } }
+.pkb-box { position: absolute; padding: 6px 10px; font-size: clamp(9px, 1.6vw, 13px); line-height: 1.3; min-width: 34%; }
+.pkb-box-foe { left: 4%; top: 7%; } .pkb-box-me { right: 4%; bottom: 14%; }
+.pkb-box b { font-weight: 400; } .pkb-box i { font-style: normal; float: right; color: var(--hud-dim, rgba(224, 170, 255, 0.55)); }
+.pkb-hp { height: 7px; margin-top: 4px; background: #120a28; border: 1px solid var(--hud-line, rgba(168, 85, 247, 0.45)); }
+.pkb-hp u { display: block; height: 100%; width: 100%; background: #7CFF8A; transition: width 0.45s steps(9); }
+.pkb-hp u.is-mid { background: #FFD36A; } .pkb-hp u.is-low { background: var(--hud-alert, #ff3a4a); }
+.pkb-hpn { display: block; text-align: right; color: var(--hud-dim, rgba(224, 170, 255, 0.55)); font-size: 0.85em; margin-top: 2px; }
+.pkb-ball { position: absolute; left: 0; top: 0; width: 20px; height: 20px; display: none; z-index: 4; border: 2px solid #120a28; border-radius: 50%; box-sizing: border-box;
+  background: linear-gradient(var(--bc, #3a1a78) 0 40%, #120a28 40% 60%, #EDE6FF 60% 100%); image-rendering: pixelated; }
+.pkb-ball::after { content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; background: #EDE6FF; border: 2px solid #120a28; border-radius: 50%; box-sizing: border-box; }
+.pkb.is-click .pkb-screen::after { content: ''; position: absolute; inset: 0; background: rgba(124, 255, 138, 0.28); animation: pkbflash 0.5s steps(4) forwards; }
+@keyframes pkbflash { to { opacity: 0; } }
+.pkb-wipe { position: absolute; inset: 0; background: #0d0221; z-index: 6; pointer-events: none; animation: pkbwipe 0.4s steps(8) forwards; background-image: repeating-linear-gradient(0deg, #1c0b3e 0 12px, #0d0221 12px 24px); }
+@keyframes pkbwipe { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 0 100%); } }
+.pkb-ui { position: relative; width: min(94vw, 168vh * 0.62, 900px); box-sizing: border-box; display: grid; grid-template-columns: 1fr minmax(180px, 44%); gap: 10px; padding: 10px 12px; margin-top: -2px; min-height: 96px; font-size: clamp(10px, 1.7vw, 14px); }
+.pkb-msg { align-self: center; line-height: 1.5; }
+.pkb-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-content: center; }
+.pkb-menu.m-fight { grid-template-columns: 1fr 1fr; }
+.pkb-b { font: inherit; color: var(--hud-ink, #E0AAFF); background: rgba(13, 2, 33, 0.6); border: 1px solid var(--hud-line, rgba(168, 85, 247, 0.45)); border-radius: 0; padding: 7px 8px; text-align: left; cursor: pointer; }
+.pkb-b.is-sel { color: #0d0221; background: var(--hud-ink, #E0AAFF); } .pkb-b.is-sel::before { content: '> '; }
+.pkb-b.is-ball { color: var(--hud-coin, #FFD36A); } .pkb-b.is-ball.is-sel { color: #0d0221; }
+@media (max-width: 560px) { .pkb-ui { grid-template-columns: 1fr; } }

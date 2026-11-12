@@ -8236,10 +8236,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var list = creatList(), H = hOf(L), i = PKC.wildEncounterIndex(list, hum.pos, 3 * H);
         return i < 0 || !PKC.encounterOk(list[i].lp.distanceTo(hum.pos) / H, gbKindOf(list[i]), null, 3) ? null : list[i];
     }
-    function wildFight(cr) {      // Q48: the same species/individual recipe as gbCatch's grazer path, so a ring catch lands the mon the ball would have
-        var node = land.node, pid = String(node.id), tier = 1 + (hash25(pid + ':' + cr.id) % 2), sp = ptSpeciesOf(node, CR_NAMES[crKind(cr)], tier), ind = PKG.individual(sp, hash25(pid + ':' + cr.id) + ':' + pid), lvl = Math.min(PKG.MAX_LEVEL, 2 + sp.tier * 3);
-        fightAsk({ kind: 'wild', obj: { id: 'wild:' + cr.id, name: sp.name, role: 'wild', pos: cr.lp }, wild: PKC.makeMon(sp, ind, lvl, PKG.xpForLevel(lvl), pid) });
-    }
+    function wildFight(cr) { battleBegin(null, cr, null); }      // F within 3 H of a wild creature starts the same pixel battle a thrown ball does
     function tameStart(c) { if (tame.on || !c) return; tame.on = true; tame.t = 0; tame.id = c.id; aPlay('ui', { vel: 0.6 }); addRow('', '', 'taming... hold still', 'is-sys'); }
     // ── harvesting: F near a resource node = 3 s channel, chunk bursts, then the stack goes to the inventory; spent nodes persist on the profile ──
     var harv = { on: false, t: 0, id: '', pos: new THREE.Vector3(), bt: 0 };
@@ -8827,10 +8824,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var info = fgInfo(ft), M = FG.mod; if (!M || !M.createFightSession) return;
         var samples = fgSamples(hum.pos, info.pos), seed = fnv(info.id) | 0, role = info.role;
         var styleNpc = FG_STYLE[role] || M.styleToFighter(info.id), night = (typeof mobNight === 'function') ? mobNight() : 0;
-        // Q24: a trainer's villager fights as their lead pokemans on the smash engine (one stock per mon); ft.wild = a wild mon: the player gets the GOR BALL slot (down+special)
+        // Q24: a trainer's villager fights as their lead pokemans on the smash engine (one stock per mon)
         var PX = FG.px, tr = null, wl = null, npcF = null, meF = null;
         if (PX && ft.kind === 'villager' && ft.obj && ft.obj.trainer && land.node) { tr = PX.trainerSpec(PX.trainerTeam(String(land.node.id), info.seed, role, 1 + (hash25(land.node.id) % 2))); npcF = { fid: tr.fid, def: tr.def, stocks: tr.stocks, color: tr.color }; }
-        else if (PX && ft.wild) { wl = PX.creatureFighter(ft.wild); npcF = { fid: wl.fid, def: wl.def, color: wl.color }; meF = { fid: M.styleToFighter(curStyleId || 'PILOT') }; meF.def = PX.withBall(meF.fid, wl); }
         FG.tr = tr; FG.wl = wl;
         try {
             FG.sess = M.createFightSession({
@@ -8892,14 +8888,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (FG.hid && hum.obj) hum.obj.group.visible = false;
         if (gmode !== 'foot' || !FG.sess) { fightEnd(null); return; }
         FG.t += dt; FG.sess.setInput(fgMask(), 0); FG.sess.update(dt);
-        var br = FG.sess.sim.ballReq;      // Q24: the GOR BALL slot asked for a throw; the roll lives here, the sim never rolls
-        if (br && FG.wl) { FG.sess.sim.ballReq = null; var rr = FG.px.ballRoll(FG.wl, br.frac, Math.random()); addRow('', '', rr.caught ? 'GOR BALL · click · ' + FG.wl.name : 'GOR BALL · it broke free (' + Math.round(rr.chance * 100) + ' %)', 'is-sys'); aPlay('ui', { vel: 0.7 }); if (rr.caught) { try { ringCatch(ensureProfile(userName()), FG.wl.mon); } catch (eC) { warnOnce('fight.catch', eC); } FG.ko = null; fightEnd(0); } }
     }
     function fightResult(res) {
         if (!FG.on || !res) return;
         var w = res.winner, info = FG.npc; FG.won = w === 0;
-        setTimeout(function () { fightEnd(w); }, FG.wl && w === 0 ? 1000 : 2600);      // let the GAME! card show (a wild KO closes early: the 3 s GOR BALL window runs from the KO)
-        if (FG.wl && w === 0 && FG.wl.mon) { try { var wf = FG.sess.sim.fighters[1]; FG.ko = { t: Date.now() / 1000, node: land.node, mon: FG.wl.mon, hp: PKC.wildHpFrac(wf ? wf.pct : FG.wl.hpPct, FG.wl.hpPct) }; addRow('', '', 'GOR BALL · B · 3 s', 'is-sys'); } catch (eK) { warnOnce('fight.ko', eK); } }
+        setTimeout(function () { fightEnd(w); }, 2600);      // let the GAME! card show (a wild KO closes early: the 3 s GOR BALL window runs from the KO)
         if (info && w === 0 && !(res.dealt && res.dealt[0] >= 1)) {
             addRow('', '', 'YOU WON · no hit landed · no payout', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
         } else if (info && w === 0) {
@@ -9678,7 +9671,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (GB.on) return;
         if (!gbOk()) { addRow('', '', invOpen || storeOpen ? 'CLOSE INVENTORY' : (gmode !== 'foot' ? 'ON FOOT ONLY' : 'NO PLANET UNDER YOU'), 'is-sys'); return; }
         if (!tier) { addRow('', '', 'NO GOR BALLS · 7/11', 'is-sys'); return; }
-        if (FG.ko && FG.ko.node === land.node && PKC.koOpen(FG.ko.t, Date.now() / 1000)) { koThrow(pf, tier); return; }
         for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + tier) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; }
         gbMesh(); gbAim(); gbPickAim();
         if (GB.tgtId) { try { ps.calmCreature(GB.tgtId, PKC.CALM_SECS); } catch (e0) { /* ignore */ } }      // an aimed-at creature stops fleeing for 2 s
@@ -9720,46 +9712,66 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var pf = ensureProfile(userName()), sp = ptSpeciesOf(node, kind, tier);
         if (PDX.note(pf, sp, planetLabel(node))) { addRow('', '', 'DEX · ' + sp.name.toUpperCase() + ' seen', 'is-sys'); writeSave(); }
     }
-    function gbCatch(pf) {
-        var node = land.node, pid = String(node.id), e = GB.e, g = GB.gr, tier, seed, kind, sp, ind, lvl, mon, nid;
+    function gbMon(e, g) {      // the one wild-mon recipe (species / individual / level) for a creature record g or a guardian entity e; battle + catch both use it
+        var node = land.node, pid = String(node.id), tier, seed, kind, sp, ind, lvl;
         if (e) { tier = e.cr.tier || 1; seed = e.cr.seed | 0; kind = e.cr.kind || 'creature'; } else { tier = 1 + (hash25(pid + ':' + g.id) % 2); seed = hash25(pid + ':' + g.id); kind = CR_NAMES[crKind(g)]; }
         sp = ptSpeciesOf(node, kind, tier + (e ? 1 : 0)); ind = PKG.individual(sp, seed + ':' + pid); lvl = Math.min(PKG.MAX_LEVEL, 2 + sp.tier * 3);
-        mon = PKC.makeMon(sp, ind, lvl, PKG.xpForLevel(lvl), pid); mon.at = Date.now();
+        return PKC.makeMon(sp, ind, lvl, PKG.xpForLevel(lvl), pid);
+    }
+    function gbCatch(pf, mon, e, g) {      // a battle ended in 'caught': record + party/pen + dex + world removal of the creature (e / g are null for a console test battle)
+        var node = land.node, pid = String(node.id), sp = mon.sp, ind = mon.ind, lvl = mon.level, seed = hash25(mon.id), nid;
+        mon.at = Date.now();
         for (nid = 0; pf.pokemans.some(function (m) { return m.id === mon.id + (nid ? '#' + nid : ''); }); nid++) { /* same species+size twice: suffix */ } if (nid) mon.id += '#' + nid;
         PDX.note(pf, sp, planetLabel(node)); pf.pokemans.push(mon);
         (pf.party.length < PKC.PARTY_MAX ? pf.party : pf.pen).push(mon.id);
         PKP.trimMons(pf, 200);      // after the new mon is in party/pen, so a full roster can never evict the catch itself
         giveItem({ id: mon.id, seed: seed >>> 0, name: sp.name, kind: 'pokemans', base: sp.types.join('/'), infusion: null, modifier: null, color: new THREE.Color().setHSL(sp.bodyRecipe.hue / 360, 0.6, 0.55).getHex(), price: 0, tier: sp.tier, category: 'pokemans', tags: ['pokemans'], stackKey: mon.id, iconHint: 'candy', blurb: sp.types.join(' / ') + ' · L' + lvl + ' · ' + sp.moves.map(function (m) { return m.name; }).join(', '), dealer: false }, 1);
         if (e) { if (e.guard) e.guard._gdDead = true; if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }      // PF2: a caught guardian is dead for the guard spawner too, as in gndKill
-        else { try { ps.setCreatureTamed(g.id, true); } catch (e0) { /* ignore */ } crCache.t = -1e9; pf.taken.push({ n: pid, id: g.id, k: g.kind }); pf.taken = pf.taken.slice(-40); }
+        else if (g) { try { ps.setCreatureTamed(g.id, true); } catch (e0) { /* ignore */ } crCache.t = -1e9; pf.taken.push({ n: pid, id: g.id, k: g.kind }); pf.taken = pf.taken.slice(-40); }
         try { ptSpoils(sp.tier, 'catch'); } catch (e2) { warnOnce('graft.drop', e2); }
         discClaim('creature', pid + ':' + sp.name, sp.name);
         ptGainXp(PKP.xpForCatch(sp.tier, lvl));
         addRow('', '', 'CAUGHT ' + sp.name.toUpperCase() + ' · L' + lvl + (ind.shiny ? ' · SHINY' : '') + (pf.party.indexOf(mon.id) >= 0 ? ' · party ' + pf.party.length + '/' + PKC.PARTY_MAX : ' · sent to the pen'), 'is-sys');
         writeSave(); invFill();
     }
-    function ringCatch(pf, m0) {      // Q42: a wild mon caught out of a ring fight: same record/party/dex path as gbCatch, keyed by the fight's mon (sp, ind, level)
-        var node = land.node, pid = String(node.id), sp = m0.sp, lvl = Math.max(1, m0.level | 0 || 1), mon = PKC.makeMon(sp, m0.ind, lvl, PKG.xpForLevel(lvl), pid), nid;
-        mon.at = Date.now();
-        for (nid = 0; pf.pokemans.some(function (m) { return m.id === mon.id + (nid ? '#' + nid : ''); }); nid++) { /* suffix */ } if (nid) mon.id += '#' + nid;
-        PDX.note(pf, sp, planetLabel(node)); pf.pokemans.push(mon);
-        (pf.party.length < PKC.PARTY_MAX ? pf.party : pf.pen).push(mon.id);
-        PKP.trimMons(pf, 200);
-        giveItem({ id: mon.id, seed: 0, name: sp.name, kind: 'pokemans', base: sp.types.join('/'), infusion: null, modifier: null, color: new THREE.Color().setHSL(sp.bodyRecipe.hue / 360, 0.6, 0.55).getHex(), price: 0, tier: sp.tier, category: 'pokemans', tags: ['pokemans'], stackKey: mon.id, iconHint: 'candy', blurb: sp.types.join(' / ') + ' · L' + lvl + ' · ' + sp.moves.map(function (m) { return m.name; }).join(', '), dealer: false }, 1);
-        try { ptSpoils(sp.tier, 'catch'); } catch (e2) { warnOnce('graft.drop', e2); }
-        discClaim('creature', pid + ':' + sp.name, sp.name);
-        ptGainXp(PKP.xpForCatch(sp.tier, lvl));
-        addRow('', '', 'CAUGHT ' + sp.name.toUpperCase() + ' · L' + lvl + (m0.ind && m0.ind.shiny ? ' · SHINY' : '') + (pf.party.indexOf(mon.id) >= 0 ? ' · party ' + pf.party.length + '/' + PKC.PARTY_MAX : ' · sent to the pen'), 'is-sys');
-        writeSave(); invFill();
-    }
-    function koThrow(pf, tier) {      // Q42: a ball thrown inside the 3 s KO window of a wild ring fight: no flight, three shakes' worth of roll
-        var k = FG.ko; FG.ko = null;
-        for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + tier) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; }
-        var bonus = (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0, ch = PKC.ringCatchChance(tier, k.hp, bonus);
-        aPlay('fire', { vel: 0.4, pitch: 0.8 });
-        if (PKC.catchRoll(ch, Math.random()).caught) { aPlay('tame'); ringCatch(pf, k.mon); }
-        else { aPlay('explosion', { pitch: 1.6, vel: 0.4 }); addRow('', '', 'it broke free (' + Math.round(ch * 100) + ' %)', 'is-sys'); }
-        writeSave(); invFill();
+    // ═══ BATTLE: the only catch path. A thrown GOR BALL hit, or F within 3 H, opens js/pokemans-battle.js (pixel FIGHT / BALL / RUN). Balls are spent in the battle; 'caught' -> gbCatch.
+    var BT = { on: false, loading: false, mod: null, ctrl: null, css: false };
+    function gbBallTier(pf) { var t = 0, i, r, n; for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; n = /^gorball-([123])$/.exec(r.id); if (n && r.n > 0 && (!t || +n[1] < t)) t = +n[1]; } return t; }
+    function gbBallCount(pf) { var n = 0, i, r; for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; if (/^gorball-[123]$/.test(r.id) && r.n > 0) n += r.n; } return n; }
+    function battleBegin(e, g, opt) {
+        opt = opt || {};
+        if (BT.on || BT.loading || !ps || !land.node || (!e && !g && !opt.dbg)) return null;
+        var pf = ensureProfile(userName()), wild = opt.mon || gbMon(e, g);
+        if (opt.wildLevel) { wild.level = opt.wildLevel; wild.xp = PKG.xpForLevel(wild.level); wild.hp = PKP.maxHp(wild); }
+        BT.loading = true;
+        return import('./pokemans-battle.js').then(function (B) {
+            BT.loading = false; BT.mod = B;
+            if (!BT.css) { BT.css = true; var lk = document.createElement('link'); lk.rel = 'stylesheet'; lk.href = 'style/pokemans-battle.css'; document.head.appendChild(lk); }
+            var mineMon = pf.party.length ? PKP.monById(pf, pf.party[0]) : null; if (mineMon && mineMon.dead) mineMon = null;
+            BT.on = true; cmdOpen = true; keys = Object.create(null); mdx = mdy = 0; try { document.exitPointerLock(); } catch (e0) { /* ignore */ }
+            if (g) { try { ps.calmCreature(g.id, 600); } catch (e1) { /* ignore */ } } if (e) e.held = true;
+            aPlay('ui', { vel: 0.6, pitch: 0.7 });
+            var u = opt.catchU;
+            BT.ctrl = B.startBattle({
+                mine: mineMon ? B.fighterOf(mineMon) : B.youFighter(), wild: B.fighterOf(wild), chart: ptChart(), instant: !!opt.instant, rng: opt.rng,
+                catchU: u === undefined ? undefined : function () { return u; },
+                bonus: function () { return (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0; },
+                balls: { tier: function () { return gbBallTier(pf); }, n: function () { return gbBallCount(pf); }, use: function (t) { for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + t) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; } invFill(); } },
+                onEnd: function (r, core) {
+                    BT.on = false; BT.ctrl = null; cmdOpen = false; keys = Object.create(null); mdx = mdy = 0;
+                    if (e) e.held = false;
+                    if (r === 'caught') { wild.hp = Math.max(1, core.foe.hp); aPlay('tame'); gbCatch(pf, wild, e, g); }
+                    else {
+                        if (g) { try { ps.calmCreature(g.id, r === 'win' ? 12 : 3); } catch (e2) { /* ignore */ } }
+                        if (e && r === 'win') { e.hp = 0; }
+                        if (r === 'win') { ptGainXp(PKP.xpForKill(wild.level, wild.sp.tier)); addRow('', '', 'WON · ' + wild.sp.name.toUpperCase() + ' fainted', 'is-sys'); }
+                        else addRow('', '', r === 'lose' ? 'you blacked out · nothing lost' : r === 'fled' ? wild.sp.name.toUpperCase() + ' fled' : 'got away', 'is-sys');
+                    }
+                    writeSave(); invFill(); try { var pl = document.body.requestPointerLock(); if (pl && pl.catch) pl.catch(function () { /* keyboard only */ }); } catch (e3) { /* ignore */ }
+                }
+            });
+            return BT.ctrl;
+        }).catch(function (err) { BT.loading = false; BT.on = false; cmdOpen = false; console.info('[ship] battle module unavailable', err); addRow('', '', 'battle failed to load', 'is-err'); return null; });
     }
     function gbFloor(v) { return ps.meshFloorLocal ? ps.meshFloorLocal(v.x, v.y, v.z) : ps.floorLocal(v.x, v.y, v.z); }
     function gbHint(dt) {      // 'B · THROW GOR BALL xn' / 'NO GOR BALLS · 7/11' while a catchable is within 25 H (read by the prompt line in the frame loop)
@@ -9787,14 +9799,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             gbToLocal(GB.p, GB.lp);
             if (GB.tgtId) { k = ps.creatBody(GB.tgtId, GB.cw); if (k >= 0) GB.missD = Math.min(GB.missD, GB.p.distanceTo(GB.cw) / H - k / H); }
             else if (GB.tgtE && GB.tgtE.alive) { k = gndSphere(GB.tgtE, GB.cw); GB.missD = Math.min(GB.missD, GB.p.distanceTo(GB.cw) / H - k / H); }
-            if (gbHitTest(H)) {
-                var hf = GB.e ? Math.max(0, Math.min(1, GB.e.hp / (GB.e.hpMax || 1))) : 1, bonus = (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0;
-                GB.chance = PKC.catchChance(GB.tier, hf, bonus); GB.shakeN = 0; GB.shakeT = 0; GB.ph = Math.random();
-                GB.nn.copy(GB.lp).sub(GB.cl); if (GB.nn.lengthSq() < 1e-9) GB.nn.copy(GB.lu); GB.nn.normalize();
-                GB.lo.copy(GB.lp); GB.lv.copy(GB.nn).multiplyScalar(3 * H).addScaledVector(GB.lu, 4 * H); GB.phase = 'bounce'; GB.pt = 0; GB.spin = -26;
-                if (GB.hitId) { try { ps.calmCreature(GB.hitId, 6); } catch (e1) { /* ignore */ } }
-                if (GB.e) GB.e.hitF = 1;
-                fx.impact(GB.p, 0xFFFFFF, 2, 'hit'); aPlay('hit', { dist: aDist(GB.p), vel: 0.5 }); addRow('', '', 'HIT', 'is-sys');
+            if (gbHitTest(H)) {      // a hit STARTS A BATTLE (no direct catch); the throw is refunded, balls are spent inside the battle
+                var hE = GB.e, hG = GB.gr, hT = GB.tier;
+                fx.impact(GB.p, 0xFFFFFF, 2, 'hit'); aPlay('hit', { dist: aDist(GB.p), vel: 0.5 });
+                try { giveItem(ITM.GORBALL_TIERS[hT - 1], 1); } catch (eR) { warnOnce('battle.refund', eR); }
+                gbEnd(); battleBegin(hE, hG, null); return;
             } else if (GB.t >= GB.tEnd || GB.lp.length() < gbFloor(GB.lp) + rb) {      // flew out of reach or into the ground: it lands, rolls a moment and is lost
                 GB.miss = true; GB.lv.copy(GB.lp).sub(GB.pp).multiplyScalar(1 / Math.max(dt, 1e-3)); GB.lo.copy(GB.lp); GB.phase = 'drop'; GB.pt = 0; GB.shakeN = 0;
                 addRow('', '', GB.missD < 1e8 ? 'MISSED · ' + Math.max(0, GB.missD).toFixed(1) + ' H' : 'MISSED', 'is-sys');
@@ -9802,18 +9811,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             GB.pp.copy(GB.lp);
             return;
         }
-        if (GB.hitId === '' && GB.e && !GB.e.alive) { gbEnd(); return; }      // killed mid-shake: no second reward
         GB.pt += dt;
-        if (GB.phase === 'bounce') {      // one bounce off the body
-            GB.lv.addScaledVector(GB.lu, -12 * H * dt); GB.lo.addScaledVector(GB.lv, dt);
-            if (GB.pt >= 0.28) { GB.phase = 'open'; GB.pt = 0; GB.lv.set(0, 0, 0); GB.spin = 0; aPlay('ui', { vel: 0.6, pitch: 1.4 }); }
-        } else if (GB.phase === 'open') {      // the ball opens (scale pop + flash) and the creature is sucked in over 0.32 s
-            u = Math.min(1, GB.pt / 0.32); pop = 1 + 0.5 * Math.sin(Math.PI * u);
-            GB.mTop.rotation.x = -1.1 * Math.min(1, u * 4);
-            if (GB.hitId) ps.shrinkCreature(GB.hitId, Math.max(0.001, 1 - u));
-            gbFlash(0xFFFFFF, u, H);
-            if (GB.pt >= 0.32) { GB.mTop.rotation.x = 0; if (GB.e) GB.e.held = true; GB.phase = 'drop'; GB.pt = 0; GB.shakeN = 0; }
-        } else if (GB.phase === 'drop' || GB.phase === 'roll') {
+        if (GB.phase === 'drop' || GB.phase === 'roll') {
             GB.nn.copy(GB.lo).normalize();
             if (GB.phase === 'drop') {
                 GB.lv.addScaledVector(GB.nn, -12 * H * dt); GB.lo.addScaledVector(GB.lv, dt);
@@ -9822,43 +9821,16 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                     GB.nn.copy(GB.lo).normalize(); GB.lo.copy(GB.nn).multiplyScalar(k); vr = GB.lv.dot(GB.nn);
                     if (GB.shakeN < 1 && vr < -2 * H) { GB.shakeN++; GB.lv.addScaledVector(GB.nn, -vr * 1.3); aPlay('hit', { vel: 0.25, pitch: 1.2 }); }
                     else if (GB.miss) { GB.lv.addScaledVector(GB.nn, -vr); GB.phase = 'roll'; GB.pt = 0; GB.spin = 0; }
-                    else { GB.phase = 'shake'; GB.shakeT = 0; GB.shakeN = 0; GB.lv.set(0, 0, 0); aPlay('hit', { vel: 0.3, pitch: 0.7 }); }
                 }
             } else {
                 GB.lo.addScaledVector(GB.lv, dt); GB.lv.multiplyScalar(Math.max(0, 1 - 4 * dt)); GB.lo.copy(GB.nn.copy(GB.lo).normalize()).multiplyScalar(gbFloor(GB.lo) + rb);
                 GB.m.rotation.x += GB.lv.length() / Math.max(rb, 1e-6) * dt;
                 if (GB.pt >= 0.7) { gbEnd(); return; }
             }
-        } else if (GB.phase === 'shake') {      // 0.7 s per shake: visible rocking for the first 0.5 s, a tick, a log row
-            GB.shakeT += dt;
-            if (GB.shakeT < 0.5) GB.m.rotation.z = Math.sin(GB.shakeT / 0.5 * Math.PI * 3) * 0.6 * (1 - GB.shakeT); else GB.m.rotation.z = 0;
-            if (GB.shakeT >= 0.7) {
-                GB.shakeT = 0; GB.shakeN++;
-                if (GB.shakeN < 3) { aPlay('ui', { vel: 0.5, pitch: 0.8 + GB.shakeN * 0.15 }); addRow('', '', 'shake ' + GB.shakeN + '/3', 'is-sys'); }
-                else {
-                    addRow('', '', 'shake 3/3', 'is-sys');
-                    if (PKC.catchRoll(GB.chance, GB.ph).caught) { fx.impact(GB.o, 0x7CFF8A, 3, 'explode'); aPlay('tame'); gbCatch(pf); GB.phase = 'done'; GB.pt = 0; GB.m.rotation.z = 0; }
-                    else {
-                        fx.impact(GB.o, 0xFF8A5C, 3, 'explode'); aPlay('explosion', { dist: aDist(GB.o), pitch: 1.6, vel: 0.4 });
-                        if (GB.e) { GB.e.held = false; GB.e.ph = 'idle'; GB.e.cd = 0.4; }
-                        addRow('', '', 'BROKE FREE', 'is-sys'); GB.phase = 'free'; GB.pt = 0; GB.m.rotation.z = 0;
-                    }
-                }
-            }
-        } else if (GB.phase === 'done') {      // click: green flash, the ball settles and fades out
-            u = Math.min(1, GB.pt / 0.8); pop = 1 - 0.4 * u; gbFlash(0x7CFF8A, Math.min(0.999, GB.pt / 0.35), H);
-            if (GB.pt >= 0.8) { gbEnd(); return; }
-        } else if (GB.phase === 'free') {      // pops open, the creature re-expands
-            u = Math.min(1, GB.pt / 0.32); GB.mTop.rotation.x = -1.1 * Math.min(1, u * 4); pop = 1 + 0.3 * Math.sin(Math.PI * u);
-            if (GB.hitId) ps.shrinkCreature(GB.hitId, Math.max(0.001, u));
-            gbFlash(0xFF8A5C, Math.min(0.999, GB.pt / 0.35), H);
-            if (GB.pt >= 0.45) { gbEnd(); return; }
         }
         gbProject();
         GB.m.visible = true; GB.m.position.copy(GB.o); GB.m.scale.setScalar(0.25 * H * pop);
-        if (GB.phase === 'shake' || GB.phase === 'done' || GB.phase === 'free') {      // resting: stand on the surface, rock about the tangent
-            GB.rw.copy(GB.lo).normalize().applyQuaternion(land.node.mesh.quaternion); k = GB.m.rotation.z; GB.m.quaternion.setFromUnitVectors(GB.Y, GB.rw); GB.m.rotateZ(k);
-        } else if (GB.phase !== 'roll') GB.m.rotation.x += GB.spin * dt;
+        if (GB.phase !== 'roll') GB.m.rotation.x += GB.spin * dt;
     }
     window.addEventListener('keydown', function (e) {
         if (e.code !== 'KeyB' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || state !== 'piloting' || cmdOpen) return;
@@ -11037,7 +11009,7 @@ setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: p
         get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
         land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyZ: onKeyZ, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
-        _gb: { GB: GB, throwBall: gbThrow, get hint() { return gbHintText; }, calm: function () { return ps; } },
+        _gb: { GB: GB, throwBall: gbThrow, battle: function (opt) { opt = opt || {}; var nm, pf = ensureProfile(userName()); if (!opt.dbg && !opt.target) { var cl = creatList(); opt.target = cl[0]; } opt.dbg = !opt.target; if (opt.dbg) { var sp = PKG.species('dbg', 'grazer', { biome: 'lush', tier: opt.tier || 1 }), ind = PKG.individual(sp, 'dbg' + (opt.seed || 1)); opt.mon = PKC.makeMon(sp, ind, opt.wildLevel || 4, PKG.xpForLevel(opt.wildLevel || 4), String(land.node ? land.node.id : 'dbg')); } return battleBegin(null, opt.target || null, opt); }, get battleCtrl() { return BT.ctrl; }, get battleOn() { return BT.on; }, get hint() { return gbHintText; }, calm: function () { return ps; } },
         _g: { G_WALK: G_WALK, G_RUN: G_RUN, hOf: hOf, hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
         get stats() { return { hp: hp, wave: shownWave(), bossPhase: (api.boss || { bphase: 0 }).bphase, boss: (api.boss || { hp: 0 }).hp, bossMax: (api.boss || { maxHp: 0 }).maxHp, allies: allies.filter(function (a) { return a.alive; }).length, kills: kills, enemies: aliveCount(), L: L, dead: dead, gt: gt }; }
     };

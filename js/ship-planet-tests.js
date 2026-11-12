@@ -1236,11 +1236,45 @@ async function g20(T, o) {         // Q45: station docking: gotoStation -> Z aut
     return out;
 }
 
+// ── g24 (pixel battle): land on foot, start a battle via _gb.battle, FIGHT until the wild is under 40 % hp, throw BALL on a forced-catch seed, expect the party/box to grow by one ──
+async function g24(T, o) {
+    var ship = T.ship, out = { tries: [] }, nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); }), ITM = await import('./ship-items.js');
+    for (var ni = 0; ni < nodes.length && ni < 4 && ship.gmode !== 'foot'; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) { out.tries.push(node.id + ': no land dir'); continue; }
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+        if (ship.gmode !== 'foot') out.tries.push(node.id + ': not on foot');
+    }
+    if (ship.gmode !== 'foot') { out.pass = false; out.error = 'never reached foot: ' + out.tries.join('; '); return out; }
+    T.step(30);
+    var pf = ship.dbg.profile(), n0 = pf.pokemans.length, seed = 1, ctrl = null, res = null;
+    (ship.giveItem || ship.dbg.giveItem)(ITM.GORBALL_TIERS[2], 5);
+    for (var att = 0; att < 6 && !(res && res.result === 'caught'); att++) {
+        var st = 12345 + att * 77, rng = function () { st = (Math.imul(st, 1664525) + 1013904223) >>> 0; return st / 4294967296; };
+        ctrl = await ship._gb.battle({ dbg: true, instant: true, wildLevel: 3, seed: att + 1, catchU: 0, rng: rng });
+        if (!ctrl) { out.error = 'battle did not start'; break; }
+        out.started = ship._gb.battleOn && !!document.getElementById('pkb');
+        var c = ctrl.core, weak = 0; c.me.moves.forEach(function (m, k) { if (m.power < c.me.moves[weak].power) weak = k; });
+        for (var k = 0; k < 30 && !c.over && c.foe.hp >= c.foe.max * 0.4; k++) await ctrl.fight(weak);
+        out.hpPct = Math.round(c.foe.hp / c.foe.max * 100);
+        if (c.over) { await ctrl.done; continue; }      // overkilled / fled: retry another seed
+        out.odds = c.ballOdds();
+        await ctrl.ball(); res = await ctrl.done;
+    }
+    await new Promise(function (r) { setTimeout(r, 30); });
+    out.result = res && res.result; out.added = pf.pokemans.length - n0; out.overlayGone = !document.getElementById('pkb'); out.battleOff = !ship._gb.battleOn;
+    out.pass = !!(out.started && out.result === 'caught' && out.added === 1 && out.hpPct < 40 && out.overlayGone && out.battleOff && out.odds && out.odds.pct > 0);
+    return out;
+}
+
 export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
     var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21], ['g22', g22]];
+    list.push(['g24', g24]);
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         T.reset();
@@ -1252,5 +1286,5 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21, g22: g22 };
+export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21, g22: g22, g24: g24 };
 export { mk as makeHarness };
