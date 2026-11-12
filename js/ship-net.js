@@ -89,10 +89,19 @@ export function connect(engine, hooks) {
         c.fillStyle = rg; c.fillRect(0, 0, 64, 64);
         return new THREE.CanvasTexture(cv);
     })();
+    // per-player beacon: one shared open cylinder (base at y=0, unit height/radius) + vertical-gradient texture; a material + mesh per ghost
+    var beaconGeo = new THREE.CylinderGeometry(1, 1, 1, 14, 1, true); beaconGeo.translate(0, 0.5, 0);
+    var beaconTex = (function () {
+        var cv = document.createElement('canvas'); cv.width = 4; cv.height = 64;
+        var c = cv.getContext('2d'), lg = c.createLinearGradient(0, 64, 0, 0);
+        lg.addColorStop(0, 'rgba(255,255,255,0.95)'); lg.addColorStop(0.5, 'rgba(255,255,255,0.35)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+        c.fillStyle = lg; c.fillRect(0, 0, 4, 64);
+        return new THREE.CanvasTexture(cv);
+    })();
     var vP = new THREE.Vector3(), qP = new THREE.Quaternion(), vF = new THREE.Vector3(), qQ = new THREE.Quaternion();
 
     function makeGhost(rec) {
-        var g = { id: rec.id, name: '', color: -1, s: 'docked', hp: 100, hpShown: 100, st: 0, samples: [], fsamples: [], mode: 'fly', human: null, mk2: null, root: new THREE.Group(), hull: null, glow: null, label: null, nameEl: null, pipU: null, shown: false, lblShown: true, lx: -1e9, ly: -1e9, placed: false, sc: 0 };
+        var g = { id: rec.id, name: '', color: -1, s: 'docked', hp: 100, hpShown: 100, st: 0, samples: [], fsamples: [], mode: 'fly', human: null, mk2: null, root: new THREE.Group(), hull: null, glow: null, label: null, nameEl: null, pipU: null, shown: false, lblShown: true, lx: -1e9, ly: -1e9, placed: false, sc: 0, bm: null, edge: null, edgeArrow: null, edgeName: null, edgeOn: false };
         g.root.name = 'ship-ghost'; g.root.visible = false;
         try { g.hull = hooks.buildGhost(); } catch (e) { g.hull = null; }
         if (g.hull) { g.hull.traverse(function (o) { o.frustumCulled = false; }); g.root.add(g.hull); }
@@ -106,6 +115,15 @@ export function connect(engine, hooks) {
         g.nameEl = b.firstChild; g.pipU = b.querySelector('u');
         document.body.appendChild(b);
         g.label = b;
+        g.bm = new THREE.Mesh(beaconGeo, new THREE.MeshBasicMaterial({ map: beaconTex, color: DEFAULT_COLOR, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, opacity: 0 }));
+        g.bm.frustumCulled = false; g.bm.visible = false; g.bm.name = 'ship-beacon';
+        scene.add(g.bm);
+        var e = document.createElement('div');
+        e.className = 'ship-ghost-edge'; e.style.display = 'none';
+        e.innerHTML = '<b></b><span></span>';
+        g.edgeArrow = e.firstChild; g.edgeName = e.lastChild;
+        document.body.appendChild(e);
+        g.edge = e;
         return g;
     }
     function disposeGhost(g) {
@@ -116,6 +134,8 @@ export function connect(engine, hooks) {
             if (o.material) { if (o.material.map === glowTex) o.material.map = null; o.material.dispose(); }
         });
         if (g.label.parentNode) g.label.parentNode.removeChild(g.label);
+        if (g.bm) { scene.remove(g.bm); g.bm.material.map = null; g.bm.material.dispose(); g.bm = null; }
+        if (g.edge && g.edge.parentNode) g.edge.parentNode.removeChild(g.edge);
     }
     function applyLook(g, rec) {
         var nm = cleanName(rec.name, g.name || 'PILOT');
@@ -127,13 +147,14 @@ export function connect(engine, hooks) {
                 if (nh) { if (g.hull) { g.root.remove(g.hull); g.hull.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); } g.hull = nh; nh.traverse(function (o) { o.frustumCulled = false; }); g.root.add(nh); if (g.color >= 0) hooks.tint(nh, g.color); }
             } catch (e) { /* keep the current hull */ }
         }
-        if (nm !== g.name) { g.name = nm; g.nameEl.textContent = nm; }
+        if (nm !== g.name) { g.name = nm; g.nameEl.textContent = nm; g.edgeName.textContent = nm; }
         var rc = cleanColor(rec.color);
         if (rc != null && rc !== g.color) {
             g.color = rc;
             if (g.hull) { try { hooks.tint(g.hull, g.color); } catch (e) { /* keep default livery */ } }
             g.glow.material.color.setHex(g.color);
             g.label.style.color = hex6(g.color); g.label.style.borderColor = hex6(g.color) + '66';
+            g.bm.material.color.setHex(g.color); g.edge.style.setProperty('--ge', hex6(g.color));
         }
     }
     function pushFoot(g, p, now) {          // rev 14: on-foot players: a separate sample list so their landed ship stays where it parked
@@ -177,6 +198,35 @@ export function connect(engine, hooks) {
     }
 
     var tmpPos = new THREE.Vector3(), tmpQuat = new THREE.Quaternion();
+    function hideBeacon(g) {
+        if (g.bm && g.bm.visible) g.bm.visible = false;
+        if (g.edgeOn) { g.edgeOn = false; g.edge.style.display = 'none'; }
+    }
+    // vertical shaft from the player's position, g.color, additive. Radius/height grow with distance (always readable from orbit); opacity ramps in from ~6L so it never dominates a nearby ship.
+    function beaconFx(g, pos, foot, onScreen, nx, ny, nz, dist, fade, L, W, H) {
+        var col = g.color >= 0 ? g.color : DEFAULT_COLOR;
+        var ramp = Math.min(1, Math.max(0, (dist - 6 * L) / (50 * L)));
+        var op = fade * 0.7 * ramp * ramp * (3 - 2 * ramp);
+        var bm = g.bm;
+        if (op < 0.01) { if (bm.visible) bm.visible = false; }
+        else {
+            var hgt = Math.min(Math.max(40 * L, dist * 0.6), 4e8), rad = Math.max(0.25 * L, dist * 0.0025);
+            bm.position.copy(pos);
+            if (foot && g.human) bm.quaternion.copy(g.human.group.quaternion); else if (g.mode === 'landed') bm.quaternion.copy(tmpQuat); else bm.quaternion.identity();
+            bm.scale.set(rad, hgt, rad);
+            bm.material.opacity = op;
+            bm.visible = true;
+        }
+        // off-screen edge marker: same colour, arrow points toward the player
+        if (onScreen) { if (g.edgeOn) { g.edgeOn = false; g.edge.style.display = 'none'; } return; }
+        if (nz > 1) { nx = -nx; ny = -ny; }
+        var m = Math.max(Math.abs(nx), Math.abs(ny), 1e-6), ex = nx / m, ey = ny / m, PAD = 34;
+        var px = Math.min(W - PAD, Math.max(PAD, (ex * 0.5 + 0.5) * W)), py = Math.min(H - PAD, Math.max(PAD, (-ey * 0.5 + 0.5) * H));
+        if (!g.edgeOn) { g.edgeOn = true; g.edge.style.display = ''; }
+        g.edge.style.opacity = fade < 1 ? String(fade) : '';
+        g.edge.style.transform = 'translate(' + px.toFixed(0) + 'px,' + py.toFixed(0) + 'px) translate(-50%,-50%)';
+        g.edgeArrow.style.transform = 'rotate(' + Math.atan2(-ey, ex).toFixed(3) + 'rad)';
+    }
     function update(dt, dockA) {
         if (!ghosts.size) { if (pip.style.display !== 'none') updatePip(); return; }
         var now = performance.now(), L = hooks.L || 1;
@@ -192,7 +242,7 @@ export function connect(engine, hooks) {
             var flying = g.s === 'piloting' && g.samples.length > 0;
             if (flying) {
                 sampleAt(g, rt); tmpPos.copy(vP); tmpQuat.copy(qP);
-                if ((g.sf && !(hooks.stationToWorld && hooks.stationToWorld(tmpPos, tmpQuat))) || (g.pf && !hooks.planetToWorld(g.pf, tmpPos, tmpQuat))) { g.root.visible = false; if (g.human) g.human.group.visible = false; if (g.lblShown) { g.lblShown = false; g.label.style.display = 'none'; } continue; }
+                if ((g.sf && !(hooks.stationToWorld && hooks.stationToWorld(tmpPos, tmpQuat))) || (g.pf && !hooks.planetToWorld(g.pf, tmpPos, tmpQuat))) { g.root.visible = false; if (g.human) g.human.group.visible = false; if (g.lblShown) { g.lblShown = false; g.label.style.display = 'none'; } hideBeacon(g); continue; }
             }
             else { hooks.dockSlot((dockA || 0) + 2 * Math.PI * (i + 1) / (n + 1), tmpPos, tmpQuat); }
             var foot = g.mode === 'foot' && g.fsamples.length > 0 && hooks.buildHuman;
@@ -251,6 +301,7 @@ export function connect(engine, hooks) {
                 g.pipU.style.transform = 'scaleX(' + Math.max(0, Math.min(1, g.hpShown / 100)).toFixed(3) + ')';
                 g.pipU.parentNode.style.display = flying ? '' : 'none';
             }
+            if (flying && !dead) beaconFx(g, tmpPos, foot, show, vP.x, vP.y, vP.z, dist, fade, L, W, H); else hideBeacon(g);
         }
         updatePip();
     }
@@ -468,6 +519,7 @@ export function connect(engine, hooks) {
         var s = ws; ws = null; open = false;
         if (s) { try { s.close(); } catch (e) { /* ignore */ } }
         clockOff(); dropGhosts();
+        beaconGeo.dispose(); beaconTex.dispose();
         if (pip.parentNode) pip.parentNode.removeChild(pip);
         if (current === net) current = null;
     }

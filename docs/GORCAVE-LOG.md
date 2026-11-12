@@ -712,3 +712,8 @@ OPEN / RISKS:
 - Q54: low-LOD twin (group.lo) skips the glass layer; orb glow is static.
 - Carry-overs from BENCHMARK-9 still open (HAULER throw, Q47 unreproduced, Q49 lazy relocation, ringCatch not taming).
 NEXT 5 TO QUEUE: (1) distance LOD switch + glass in group.lo; (2) round-rig tri reduction with shared geometry; (3) setCreatureTamed in ringCatch; (4) npcRelocate at village build + waypoint re-anchor; (5) HAULER wall stop + hand-bone attach + net sync.
+
+## 2026-11-11 multiplayer verify + per-player beacon (fx-mp)
+- Verified: live relay wss://gorcave.taila85593.ts.net/nmg reachable (node probe + two browser tabs): hi/roster, pos, planet-frame pos, chat, bye+roster on close all fine; ghosts render in both tabs with name/colour. No relay bug found, no redeploy needed.
+- Note: on localhost the client defaults to ws://127.0.0.1:8796 (no local relay = single-player); for a test against prod set localStorage 'nmg-relay' to the wss URL (+ ?mpA / ?mpB for distinct ids).
+- Added: js/ship-net.js beaconFx(): additive vertical shaft per flying/landed/on-foot remote player in their colour (ghost.color, from autoColor(name)); radius/height scale with distance, opacity ramps in 6L..56L so it never dominates nearby; shared geometry+texture, one mesh+material per ghost, disposed on bye/drop. Off-screen edge marker (.ship-ghost-edge, --hud-* tokens) with name. Docked players get neither.
