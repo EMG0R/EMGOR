@@ -1,0 +1,20 @@
+{
+ "id": "reverb",
+ "file": "fx_reverb.h",
+ "roles": {
+  "AMT": "MIX",
+  "TIME": "SIZE",
+  "TONE": "DAMP",
+  "MOD": "WARP",
+  "FB": "DECAY"
+ },
+ "actions": {
+  "MAIN": "unused",
+  "ALT": "unused",
+  "CLEAR": "unused",
+  "HOLD": "unused"
+ },
+ "ops_per_sample": "6-line FDN (HX_REVERB_LINES=6) + 8 scatter taps + 6 modulated allpasses; control (random walks, per-line delay targets, slews) every 24 samples, per-sample interpolated delays.",
+ "memory_bytes": 469504,
+ "notes": "v2 SCATTER->diffusion->FDN. Host bench 26.3 ns/sample default (=12.6 % device at x0.48), worst-case params avg 24.3, p99.9 block 31.3 (15 %). Defaults: RT60 ~9.3 s, DAMP 5.2k, SCATTER .65, SPREAD .8, DRIFT .12 Hz, SEED 7, BLOOM .5, CHAOS .5. Params 0..9 unchanged (MIX,DECAY,SIZE,WARP,DAMP,MODDEPTH,MODRATE,LOWCUT,WIDTH,PREDELAY); 10..15 new. Public wake() zeroes all state + buffers."
+}

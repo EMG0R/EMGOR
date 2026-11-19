@@ -1,0 +1,5 @@
+{"id":"mood","file":"fx_mood.h","roles":{"PITCH":"PITCH","AMT":"MOOD","TIME":"RATE","MOD":"AUTO"},
+"actions":{"MAIN":"force wet on now","ALT":"re-roll step immediately","CLEAR":"wet off"},
+"ops_per_sample":"hand count: delay write + step clock/ramp/mix ~12; + ~75 when the shifted voice runs (wet gate on or ramping); voice skipped when gated off. Host measured 12.0 ns/sample (mono in, default MOOD 0.5).",
+"memory_bytes":9800,
+"notes":"Same ShifterCore as harm. Ladder [-24,-17,-12,-9,0,+7,+12,+19,+24]; each step (RATE 30..500 ms log, default 125) roll r>MOOD -> wet 0 else 1; wet ramps linearly over RAMP ms (10..300, def 100) and crossfades dry<->shifted. AUTO 0..1 = probability a step picks a random ladder index (v1: toggle). SEED reseeds the LCG; fully deterministic. Tests: wet fraction within 3% of MOOD over 3000 steps, 8 steps/s at 125 ms, AUTO=1 uniform over 9 indices. Mono wet path: output is mono (returns stereoIn)."}

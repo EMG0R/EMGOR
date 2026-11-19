@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HYPERTRUMPET V2 bring-up</title>
+<style>
+:root{
+  --bg:#0a0612; --panel:#130b22; --panel2:#1a1030; --line:#2c1c4d; --ink:#ece4ff; --dim:#8f7fb8;
+  --v:#a78bfa; --m:#f472b6; --c:#67e8f9; --ok:#7cffb2; --bad:#ff5d7a; --warn:#ffcf5a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:15px;letter-spacing:.18em;margin:0;font-weight:700;color:var(--v)}
+h1 b{color:var(--m)}
+.sp{flex:1}
+button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 14px;font:inherit;cursor:pointer;letter-spacing:.06em}
+button:hover{border-color:var(--v)}
+button.pri{background:var(--v);color:#12081f;border-color:var(--v);font-weight:700}
+button:disabled{opacity:.35;cursor:default}
+.pill{padding:4px 10px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
+.pill.on{color:var(--ok);border-color:var(--ok)} .pill.off{color:var(--bad);border-color:var(--bad)}
+main{display:grid;grid-template-columns:minmax(300px,1fr) minmax(320px,1.2fr);gap:14px;padding:14px 16px}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card h2{margin:0 0 8px;font-size:12px;letter-spacing:.16em;color:var(--dim);font-weight:600;text-transform:uppercase}
+.chead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cname{font-weight:700;letter-spacing:.1em}
+.cpin{color:var(--dim);font-size:12px}
+.big{font-size:34px;font-weight:700;letter-spacing:.02em;line-height:1.1}
+.sub{color:var(--dim);font-size:12px}
+canvas{display:block;width:100%;height:100px;max-width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin-top:8px;font-size:12px}
+.grid2 span:nth-child(odd){color:var(--dim)}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)} .dim{color:var(--dim)}
+.step{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:8px 6px;border-radius:8px;border:1px solid transparent}
+.step.act{border-color:var(--v);background:var(--panel2)}
+.step .dot{font-weight:700}
+.step .t{font-weight:700}
+.step .i{color:var(--dim);font-size:12px}
+.chk{font-size:12px;margin-top:4px;display:grid;grid-template-columns:auto 1fr;gap:1px 10px}
+.banner{font-size:20px;font-weight:700;letter-spacing:.14em;text-align:center;padding:14px;border-radius:10px;border:1px solid var(--line);color:var(--dim)}
+.banner.pass{color:#06130c;background:var(--ok);border-color:var(--ok)} .banner.fail{color:#18040a;background:var(--bad);border-color:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.small{font-size:12px;color:var(--dim)}
+select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 8px;font:inherit}
+input[type=number]{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;width:130px}
+.chip{display:inline-block;padding:2px 8px;margin:2px 4px 2px 0;border-radius:6px;border:1px solid var(--line)}
+.chip.ok{border-color:var(--ok)}.chip.bad{border-color:var(--bad)}
+#msg{padding:0 16px 10px;color:var(--warn);min-height:1em}
+</style>
+</head>
+<body>
+<header>
+  <h1>HYPERTRUMPET <b>V2</b> / BRING-UP <span id="testname" class="dim"></span></h1>
+  <select id="testSel" title="test view (follows the firmware when connected)"><option value="01_faders">01 faders</option><option value="05_faders_imu_lidar">05 faders + pots + FSR + IMU + lidars</option><option value="06_pots2w_enc">06 faders + 2-wire pots + encoders + IMU + lidars</option></select>
+  <span id="conn" class="pill off">DISCONNECTED</span>
+  <span id="fwinfo" class="small"></span>
+  <span class="sp"></span>
+  <button id="bConnect" class="pri">Connect</button>
+  <button id="bDemo">Demo</button>
+  <button id="bReset" disabled>Reset stats</button>
+  <button id="bDfu" disabled>Enter DFU</button>
+</header>
+<div id="msg"></div>
+<main>
+  <div class="col">
+    <div id="cards" class="col"></div>
+    <div id="encwrap" class="col"></div>
+    <div id="calwrap" class="col"></div>
+    <div id="i2cwrap" class="col"></div>
+    <div class="card"><h2>Link</h2>
+      <div class="grid2" id="link"><span>sample rate</span><span id="lrate">-</span><span>frames dropped</span><span id="ldrop">-</span><span>stats frames</span><span id="lst">-</span></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card"><h2>Scope (10 s, full scale 0 to 65535; faders shown linearized)</h2><canvas id="scope" data-h="230"></canvas>
+      <div id="legend" class="small" style="margin-top:6px"></div></div>
+    <div id="banner" class="banner">NO RESULT YET</div>
+    <div class="card"><h2>Guided test</h2><div id="steps"></div>
+      <div class="row"><button id="bBegin" class="pri" disabled>Begin step</button><button id="bSkip" disabled>Skip</button><button id="bRestart" disabled>Restart test</button><button id="bCopy" disabled>Copy report</button><button id="bBase" disabled>Save noise baseline</button></div>
+      <div class="small" id="baseinfo" style="margin-top:8px"></div>
+    </div>
+  </div>
+</main>
+<script>
+"use strict";
+// ---------------------------------------------------------------- constants
+const FS = 65535, VREF = 3.3;
+const T = {                                   // PASS thresholds (see BRINGUP_PLAN.md, TEST 01)
+  edgeLo: 0.02, edgeHi: 0.98,                 // full-scale sweep must reach <2% and >98%
+  restPP: 64, restWarn: 160,                  // rest noise p-p, raw counts, 1 s window (200 samples)
+  restRecheck: 1.5, restRecheckAdd: 16,       // later rest p-p <= max(1.5 x first, first + 16)
+  backtrack: 0.02 * FS,                       // sweep must be monotonic within 2% FS
+  jump: 10000,                                // one-sample step bigger than this = dropout/glitch
+  xtalk: 0.01 * FS,                           // other channels' excursion during a sweep <= 1% FS
+  cover: 30,                                  // sweep must touch >= 30 of 32 bins
+  restSamples: 600, sweepTimeoutMs: 30000, sweepMinSamples: 100,
+  rateMin: 150, dropMax: 0.02
+};
+const COLORS = ['#a78bfa', '#f472b6', '#67e8f9', '#fbbf24', '#34d399', '#fb923c', '#60a5fa', '#e879f9'];
+const SCOPE_N = 2000;
+const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------- state
+const S = {
+  test: '', fw: '', ch: [], N: 0, hist: [], hpos: 0, hcount: 0, last: [], st: null,
+  seq: 0, lastSeq: -1, drops: 0, frames: 0, stFrames: 0, rate: 0, msBuf: [],
+  steps: [], cur: -1, run: null, rest1: null, connected: false, demo: false, port: null, writer: null,
+  cards: [], dirty: false, staleT: 0
+};
+
+// ---------------------------------------------------------------- line handling
+function onLine(line) {
+  let m; try { m = JSON.parse(line); } catch (e) { return; }
+  if (m.t === 'hello') return onHello(m);
+  if (m.t === 's') return onSample(m);
+  if (m.t === 'st') { S.st = m; S.stFrames++; mark(); }
+  if (m.t === 'imu') return onImu(m);
+  if (m.t === 'lid') return onLid(m);
+}
+function onHello(m) {
+  const sig = m.test + '|' + m.ch.map(c => c.n).join(',') + '|' + (m.i2c ? 'i2c' : '') + '|' + (m.enc ? 'enc' : '');
+  S.fw = m.fw; $('fwinfo').textContent = 'fw ' + m.fw + '  test ' + m.test + '  ' + m.rate + ' Hz  adc ' + m.adc_bits + 'b x' + m.ovs;
+  S.i2c = m.i2c || null; S.helloMs = m.ms; S.calFw = m.cal || null; S.invFw = m.inv || null; S.enc = !!m.enc;
+  if (m.calc && !S.calResent) { S.calResent = true; try { const o = JSON.parse(localStorage.getItem('ht_cal') || '{}'); m.ch.forEach((c, i) => { if (!m.calc[i] && o[c.n]) { send('cal ' + i + ' ' + o[c.n].join(' ')); if (S.cal && S.cal[i]) { S.cal[i].bp = o[c.n]; S.cal[i].sent = true; } } }); } catch (e) {} }
+  const sel = $('testSel'); if ([...sel.options].some(o => o.value === m.test)) sel.value = m.test;
+  if (S.sigKey !== sig) { S.sigKey = sig; S.test = m.test; S.ch = m.ch; S.N = m.ch.length; buildUI(); }
+  if (S.run && S.run.s.kind === 'i2c') i2cStepFeed(m);
+  mark();
+}
+// ---- IMU / lidar streams (test 05)
+const IMU_N = 1000, LID_N = 400;
+function onImu(m) {
+  const I = S.imu; if (!I) return;
+  const a = m.a.map(x => x / 16384), g = m.g.map(x => x / 131);
+  for (let k = 0; k < 3; k++) { I.a[k][I.pos] = a[k]; I.g[k][I.pos] = g[k]; }
+  I.pos = (I.pos + 1) % IMU_N; if (I.cnt < IMU_N) I.cnt++;
+  I.last = { a, g, ra: m.a, rg: m.g, mag: Math.hypot(a[0], a[1], a[2]), pitch: m.pr[0] / 100, roll: m.pr[1] / 100, tmp: m.tmp / 340 + 36.53 };
+  I.ms.push(m.ms); if (I.ms.length > 100) I.ms.shift();
+  if (I.ms.length > 10) I.rate = 1000 * (I.ms.length - 1) / (I.ms[I.ms.length - 1] - I.ms[0]);
+  if (S.run && (S.run.s.kind === 'imu_rest' || S.run.s.kind === 'imu_faces')) imuStepFeed(m, a, g);
+  mark();
+}
+function onLid(m) {
+  const k = m.i || 0, L = S.lids && S.lids[k]; if (!L) return;
+  L.mm[L.pos] = m.mm; L.st[L.pos] = m.st; L.pos = (L.pos + 1) % LID_N; if (L.cnt < LID_N) L.cnt++;
+  L.last = m; L.ms.push(m.ms); if (L.ms.length > 40) L.ms.shift();
+  if (L.ms.length > 5) L.rate = 1000 * (L.ms.length - 1) / (L.ms[L.ms.length - 1] - L.ms[0]);
+  if (S.run && S.run.s.kind === 'lid_fixed' && S.run.s.lk === k) lidStepFeed(m);
+  mark();
+}
+function onSample(m) {
+  if (!S.N) return;
+  if (S.lastSeq >= 0 && m.n !== S.lastSeq + 1) S.drops += Math.max(0, m.n - S.lastSeq - 1);
+  S.lastSeq = m.n; S.frames++;
+  S.msBuf.push(m.ms); if (S.msBuf.length > 200) S.msBuf.shift();
+  if (S.msBuf.length > 20) S.rate = 1000 * (S.msBuf.length - 1) / (S.msBuf[S.msBuf.length - 1] - S.msBuf[0]);
+  const LV = m.l || m.v;
+  for (let i = 0; i < S.N; i++) { S.hist[i][S.hpos] = m.v[i]; S.histL[i][S.hpos] = LV[i]; }
+  S.hpos = (S.hpos + 1) % SCOPE_N; if (S.hcount < SCOPE_N) S.hcount++;
+  S.last = m.v; S.lastL = LV; if (m.e) { S.encv = m.e; if (S.run && S.run.s.kind === 'enc') encStepFeed(m); }
+  if (S.run && (S.run.s.kind === 'rest' || S.run.s.kind === 'sweep' || S.run.s.kind === 'fsr')) stepSample(m.v, m.ms, LV);
+  mark();
+  if (S.connected && !S.demo) { clearTimeout(S.staleT); S.staleT = setTimeout(stale, 1500); }
+}
+function stale() { setMsg('No data for 1.5 s. Check USB, or the firmware is not the bring-up app.'); setConn(false, 'NO DATA'); }
+
+// ---------------------------------------------------------------- UI build
+function buildUI() {
+  $('testname').textContent = S.test;
+  S.hist = S.ch.map(() => new Uint16Array(SCOPE_N)); S.histL = S.ch.map(() => new Uint16Array(SCOPE_N)); S.hpos = 0; S.hcount = 0;
+  const cards = $('cards'); cards.innerHTML = ''; S.cards = [];
+  S.ch.forEach((c, i) => {
+    const d = document.createElement('div'); d.className = 'card';
+    d.innerHTML = '<div class="chead"><span class="cname" style="color:' + COLORS[i % 8] + '">' + c.n + '</span><span class="cpin">' + c.pin + ' / Seed pin ' + c.phys + '</span></div>' +
+      '<div class="big"><span class="raw">-</span> <span class="sub pct"></span> <span class="sub rv"></span></div>' +
+      '<canvas class="meter" data-h="46"></canvas>' +
+      '<div class="grid2"><span>voltage</span><span class="volt">-</span><span>min / max seen</span><span class="mm">-</span>' +
+      '<span>noise p-p now (1 s)</span><span class="pp">-</span><span>noise p-p best</span><span class="ppb">-</span>' +
+      '<span>coverage</span><span class="cov">-</span><span>status</span><span class="stat">-</span></div>';
+    cards.appendChild(d);
+    S.cards.push({ el: d, raw: d.querySelector('.raw'), pct: d.querySelector('.pct'), rv: d.querySelector('.rv'), cv: d.querySelector('canvas'), volt: d.querySelector('.volt'),
+      mm: d.querySelector('.mm'), pp: d.querySelector('.pp'), ppb: d.querySelector('.ppb'), cov: d.querySelector('.cov'), stat: d.querySelector('.stat') });
+  });
+  $('legend').innerHTML = S.ch.map((c, i) => '<span style="color:' + COLORS[i % 8] + '">&#9632; ' + c.n + '</span>').join('  ');
+  buildEnc(); buildCal(); buildPanels(); buildSteps(); drawSteps(); initCanvases();
+}
+function buildSteps() {
+  const sw = S.ch.map((c, i) => ({ c, i })).filter(x => x.c.k === 'slider' || x.c.k === 'pot' || x.c.k === 'pot2w' || x.c.k === 'stick' || x.c.k === 'fsr');
+  S.steps = [{ id: 'rest', kind: 'rest', title: 'Rest noise', instr: 'Hands off everything for 3 s. Wires still, nothing touching the faders.', state: 'idle', checks: [] }];
+  if (S.i2c) S.steps.unshift({ id: 'i2c', kind: 'i2c', title: 'I2C devices', instr: 'Scan shows 0x68 and 0x29, both devices ok, zero I2C errors for 10 s. Hands off.', state: 'idle', checks: [] });
+  sw.forEach(x => S.steps.push(x.c.k === 'fsr' ? { id: 'fsr' + x.i, kind: 'fsr', ch: x.i, state: 'idle', checks: [], title: 'Press ' + x.c.n,
+    instr: 'Keep hands off for 0.5 s, then press ' + x.c.n + ' firmly (above 60% FS), then let go fast. Others untouched.' } : { id: 'sw' + x.i, kind: 'sweep', ch: x.i, state: 'idle', checks: [],
+    title: 'Sweep ' + x.c.n,
+    instr: x.c.k === 'fsr' ? 'Press ' + x.c.n + ' from nothing to hardest, then release. Others untouched.'
+      : 'Move ' + x.c.n + ' from the very bottom to the very top, slowly (2 to 4 s). Touch nothing else.' }));
+  if (sliders().length) S.steps.unshift({ id: 'cal', kind: 'cal', title: 'Calibrate faders and pots', instr: 'Optional but recommended (faders are A taper, pots C500K reverse-log). Capture bottom, 25 %, 50 %, 75 %, top for each fader in the Fader calibration card, then Fit and send. Skip keeps the default A-taper inverse.', state: 'idle', checks: [] });
+  S.steps.push({ id: 'rest2', kind: 'rest', title: 'Rest noise recheck', instr: 'Let go of everything again. Noise must not be worse than the first rest step.', state: 'idle', checks: [] });
+  if (S.i2c) addI2cSteps();
+  if (S.enc) addEncSteps();
+  S.cur = 0; S.run = null; S.rest1 = null;
+  $('bBegin').disabled = !S.connected; $('bSkip').disabled = !S.connected; $('bRestart').disabled = false;
+  $('banner').className = 'banner'; $('banner').textContent = 'NO RESULT YET';
+  showBase();
+}
+function drawSteps() {
+  const el = $('steps'); el.innerHTML = '';
+  S.steps.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'step' + (i === S.cur ? ' act' : '');
+    const dot = s.state === 'pass' ? '<span class="dot ok">&#10003;</span>' : s.state === 'fail' ? '<span class="dot bad">&#10005;</span>' : s.state === 'run' ? '<span class="dot warn">&#9654;</span>' : '<span class="dot dim">' + (i + 1) + '</span>';
+    let h = dot + '<div><div class="t">' + s.title + '</div><div class="i">' + s.instr + '</div>';
+    if (s.state === 'run') h += '<div class="i warn">' + (s.progress || 'measuring') + '</div>';
+    if (s.checks.length) h += '<div class="chk">' + s.checks.map(c => '<span class="' + (c.ok ? 'ok' : 'bad') + '">' + (c.ok ? 'PASS' : 'FAIL') + '</span><span>' + c.name + ': ' + c.detail + '</span>').join('') + '</div>';
+    d.innerHTML = h + '</div>'; el.appendChild(d);
+  });
+  const all = S.steps.length && S.steps.every(s => s.state === 'pass' || s.state === 'skip');
+  const anyFail = S.steps.some(s => s.state === 'fail');
+  const done = S.steps.every(s => s.state === 'pass' || s.state === 'fail' || s.state === 'skip');
+  const b = $('banner');
+  if (done && all && S.steps.some(s => s.state === 'pass')) { b.className = 'banner pass'; b.textContent = 'TEST ' + S.test + ' PASS'; }
+  else if (done && anyFail) { b.className = 'banner fail'; b.textContent = 'TEST ' + S.test + ' FAIL'; }
+  else { b.className = 'banner'; b.textContent = 'NO RESULT YET'; }
+  $('bCopy').disabled = !S.steps.some(s => s.checks.length);
+  $('bBase').disabled = !S.rest1;
+}
+
+// ---------------------------------------------------------------- step engine
+function begin() {
+  const s = S.steps[S.cur]; if (!s || !S.N) return;
+  s.checks = []; s.state = 'run';
+  if (s.kind === 'enc') { S.run = { s }; s.progress = 'turn / press now'; }
+  else if (s.kind === 'cal') { S.run = { s }; s.progress = 'use the Fader calibration card'; }
+  else if (s.kind === 'i2c') { S.run = { s, ms0: S.helloMs, err0: S.i2c ? S.i2c.err : 0, seen: 0, bad: 0 }; s.progress = 'waiting for hello frames'; }
+  else if (s.kind === 'fsr') S.run = { s, ms0: null, rest: [], peak: 0, lastHi: -1, back: -1, t0: performance.now(), mn: S.ch.map(() => 65535), mx: S.ch.map(() => 0), n: 0 };
+  else if (s.kind === 'imu_rest') S.run = { s, a: [[], [], []], g: [[], [], []], n: 0, ms: [] };
+  else if (s.kind === 'imu_faces') S.run = { s, hit: { '+X': 0, '-X': 0, '+Y': 0, '-Y': 0, '+Z': 0, '-Z': 0 }, worst: {} };
+  else if (s.kind === 'lid_fixed') S.run = { s, mm: [], ok: 0, n: 0, ms: [] };
+  else if (s.kind === 'rest') S.run = { s, buf: S.ch.map(() => []) };
+  else S.run = { s, t0: performance.now(), path: [], lo: null, hi: null, mn: S.ch.map(() => 65535), mx: S.ch.map(() => 0), n: 0, first: null, firstIdx: -1, hiIdx: -1, loIdx: -1 };
+  drawSteps();
+}
+function stepSample(v, ms, lv) {
+  const r = S.run, s = r.s;
+  if (s.kind === 'fsr') return fsrFeed(v, ms);
+  if (s.kind === 'rest') {
+    v.forEach((x, i) => r.buf[i].push(x));
+    s.progress = r.buf[0].length + ' / ' + T.restSamples + ' samples';
+    if (r.buf[0].length >= T.restSamples) finishRest(r);
+    if (r.buf[0].length % 50 === 0) drawSteps();
+    return;
+  }
+  const w = lv || v;                                     // sweep checks use the LINEARIZED values
+  const c = s.ch; r.n++; r.path.push(w[c]);
+  for (let i = 0; i < S.N; i++) { if (w[i] < r.mn[i]) r.mn[i] = w[i]; if (w[i] > r.mx[i]) r.mx[i] = w[i]; }
+  const x = w[c], idx = r.path.length - 1;
+  if (x < T.edgeLo * FS) { r.loIdx = idx; if (r.first === null) r.first = 'lo'; }
+  if (x > T.edgeHi * FS) { r.hiIdx = idx; if (r.first === null) r.first = 'hi'; }
+  const lo = r.mn[c] < T.edgeLo * FS, hi = r.mx[c] > T.edgeHi * FS;
+  s.progress = (lo ? 'bottom seen' : 'bottom not yet') + ', ' + (hi ? 'top seen' : 'top not yet') + '  (' + Math.round(x / FS * 100) + '%)';
+  if (r.n % 20 === 0) drawSteps();
+  const kindFsr = S.ch[c].k === 'fsr';
+  if ((lo && hi) || (kindFsr && hi)) {
+    // finish once the mover sits at the second extreme it was waiting for
+    const secondFirstHi = r.first === 'lo' ? r.hiIdx === idx : r.loIdx === idx;
+    if (secondFirstHi || kindFsr) finishSweep(r);
+  } else if (performance.now() - r.t0 > T.sweepTimeoutMs) finishSweep(r, true);
+}
+function fsrFeed(v, ms) {
+  const r = S.run, s = r.s, c = s.ch, x = v[c]; r.n++;
+  if (r.ms0 === null) r.ms0 = ms;
+  for (let i = 0; i < S.N; i++) { if (v[i] < r.mn[i]) r.mn[i] = v[i]; if (v[i] > r.mx[i]) r.mx[i] = v[i]; }
+  if (ms - r.ms0 < 500) { r.rest.push(x); s.progress = 'hands off... measuring rest'; return; }
+  if (x > r.peak) r.peak = x;
+  if (x >= 0.10 * FS) { r.lastHi = ms; r.back = -1; }
+  else if (r.back < 0 && r.peak > 0.6 * FS && r.lastHi > 0 && x < 0.02 * FS) { r.back = ms; return finishFsr(r); }
+  s.progress = 'peak ' + (r.peak / FS * 100).toFixed(0) + '% (need > 60%), now ' + (x / FS * 100).toFixed(1) + '%'; if (r.n % 20 === 0) drawSteps();
+  if (performance.now() - r.t0 > 30000) finishFsr(r);
+}
+function finishFsr(r) {
+  const s = r.s, c = s.ch, ck = [], rest = r.rest.length ? Math.max(...r.rest) : 65535;
+  ck.push({ name: 'rest level', ok: rest < 0.02 * FS, detail: 'max ' + rest + ' = ' + pct(rest) + ' before pressing, need < 2% FS' });
+  ck.push({ name: 'firm press peak', ok: r.peak > 0.6 * FS, detail: 'peak ' + r.peak + ' = ' + pct(r.peak) + ', need > 60% FS' });
+  const fall = r.back > 0 && r.lastHi > 0 ? r.back - r.lastHi : -1;
+  ck.push({ name: 'release returns to < 2%', ok: fall >= 0 && fall <= 200, detail: fall < 0 ? 'never returned below 2% FS' : fall + ' ms from last sample above 10% FS, limit 200 ms' });
+  S.ch.forEach((cc, i) => { if (i === c) return; const ex = r.mx[i] - r.mn[i];
+    ck.push({ name: 'crosstalk on ' + cc.n, ok: ex <= T.xtalk, detail: 'moved ' + ex + ' counts = ' + (ex / FS * 100).toFixed(2) + '% FS, limit 1% FS' }); });
+  s.checks = ck; endStep(ck.every(x => x.ok));
+}
+function pct(x) { return (x / FS * 100).toFixed(2) + '%'; }
+function finishRest(r) {
+  const s = r.s, W = 200, ck = [];
+  const worst = S.ch.map((c, i) => {
+    const b = r.buf[i]; let w = 0;
+    for (let k = 0; k + W <= b.length; k += 50) { let lo = 65535, hi = 0; for (let j = k; j < k + W; j++) { if (b[j] < lo) lo = b[j]; if (b[j] > hi) hi = b[j]; } if (hi - lo > w) w = hi - lo; }
+    return w;
+  });
+  S.ch.forEach((c, i) => { if (c.k !== 'fsr') return; const m = mean(r.buf[i]); ck.push({ name: c.n + ' rest level', ok: m < 0.02 * FS, detail: 'mean ' + Math.round(m) + ' = ' + pct(m) + ', need < 2% FS' }); });
+  worst.forEach((w, i) => {
+    const bits = (16 - Math.log2(Math.max(w, 1))).toFixed(1);
+    ck.push({ name: S.ch[i].n + ' rest p-p (worst 1 s window)', ok: w <= T.restPP,
+      detail: w + ' counts = ' + (w / FS * VREF * 1000).toFixed(2) + ' mV, ' + bits + ' noise-free bits, limit ' + T.restPP + (w > T.restWarn ? (w > 2000 ? '  (looks floating / unwired)' : '  (high)') : '') });
+  });
+  if (s.id === 'rest') {
+    S.rest1 = { pp: worst, names: S.ch.map(c => c.n) };
+    if (!S.test.startsWith('01')) {                  // later tests: noise recheck against the saved test 01 baseline
+    let b = {}; try { b = JSON.parse(localStorage.getItem('ht_noise_base') || '{}'); } catch (e) {}
+    worst.forEach((w, i) => { const n0 = b[S.ch[i].n]; if (n0 === undefined) return; const lim = Math.max(n0 * T.restRecheck, n0 + T.restRecheckAdd);
+      ck.push({ name: S.ch[i].n + ' vs test 01 baseline (I2C live)', ok: w <= lim, detail: w + ' counts vs baseline ' + n0 + ', limit ' + Math.round(lim) }); });
+    }
+  } else if (S.rest1) worst.forEach((w, i) => {
+    const lim = Math.max(S.rest1.pp[i] * T.restRecheck, S.rest1.pp[i] + T.restRecheckAdd);
+    ck.push({ name: S.ch[i].n + ' recheck vs first rest', ok: w <= lim, detail: w + ' counts vs first ' + S.rest1.pp[i] + ', limit ' + Math.round(lim) });
+  });
+  else ck.push({ name: 'recheck', ok: false, detail: 'no first rest step recorded' });
+  s.checks = ck; endStep(ck.every(c => c.ok));
+  if (s.id === 'rest' && S.test.startsWith('01')) saveBase(true);
+}
+function finishSweep(r, timeout) {
+  const s = r.s, c = s.ch, ck = [], p = r.path, kind = S.ch[c].k;
+  const lo = r.mn[c], hi = r.mx[c];
+  if (timeout && !(lo < T.edgeLo * FS && hi > T.edgeHi * FS)) { /* fall through, checks will fail */ }
+  ck.push({ name: 'reaches bottom', ok: lo < T.edgeLo * FS || kind === 'fsr', detail: 'min ' + lo + ' = ' + pct(lo) + ', need < 2%' });
+  ck.push({ name: 'reaches top', ok: hi > T.edgeHi * FS || kind === 'fsr', detail: 'max ' + hi + ' = ' + pct(hi) + ', need > 98%' });
+  // sweep segment: from the last time at the first extreme up to the first time at the opposite extreme
+  let a = 0, b = p.length - 1;
+  if (r.first === 'lo') { b = p.findIndex(x => x > T.edgeHi * FS); if (b < 0) b = p.length - 1; for (a = b; a > 0 && p[a] >= T.edgeLo * FS; a--); }
+  else if (r.first === 'hi') { b = p.findIndex(x => x < T.edgeLo * FS); if (b < 0) b = p.length - 1; for (a = b; a > 0 && p[a] <= T.edgeHi * FS; a--); }
+  const seg = p.slice(a, b + 1), up = r.first !== 'hi';
+  let bt = 0, run = up ? -1 : 65536, jump = 0; const bins = new Set();
+  seg.forEach((x, k) => {
+    bins.add(x >> 11);
+    if (up) { if (x > run) run = x; bt = Math.max(bt, run - x); } else { if (x < run) run = x; bt = Math.max(bt, x - run); }
+    if (k) jump = Math.max(jump, Math.abs(x - seg[k - 1]));
+  });
+  if (kind !== 'fsr') {
+    ck.push({ name: 'monotonic', ok: bt <= T.backtrack, detail: 'worst backtrack ' + bt + ' counts = ' + pct(bt) + ', limit 2%' });
+    ck.push({ name: 'no dropouts', ok: jump <= T.jump, detail: 'largest one-sample jump ' + jump + ' counts, limit ' + T.jump });
+    ck.push({ name: 'sweep coverage', ok: bins.size >= T.cover, detail: bins.size + ' / 32 bins touched, need >= ' + T.cover + (bins.size < T.cover ? ' (sweep slower)' : '') + '; ' + seg.length + ' samples' });
+  }
+  const span = Math.max(1, hi - lo);
+  S.ch.forEach((cc, i) => {
+    if (i === c) return;
+    const ex = r.mx[i] - r.mn[i];
+    ck.push({ name: 'crosstalk on ' + cc.n, ok: ex <= T.xtalk, detail: 'moved ' + ex + ' counts = ' + (ex / FS * 100).toFixed(2) + '% FS (' + (ex / span * 100).toFixed(2) + '% of mover), limit 1% FS' });
+  });
+  s.checks = ck; endStep(ck.every(x => x.ok));
+}
+function endStep(ok) {
+  const s = S.run.s; s.state = ok ? 'pass' : 'fail'; s.progress = ''; S.run = null;
+  if (ok && S.cur < S.steps.length - 1) S.cur++;
+  drawSteps(); mark();
+}
+
+// ---------------------------------------------------------------- fader linearization (A-taper -> linear)
+// 5 captured points (bottom, 25 %, 50 %, 75 %, top of physical travel) -> monotonic PCHIP -> 9 raw breakpoints at positions k/8.
+// The firmware maps raw -> lin 0..65535 by piecewise-linear interpolation of these breakpoints. Default (no cal) = inverse A taper,
+// 15 % output at mid travel: breakpoint k = (k/8)^n * 65535, n = ln .15 / ln .5.
+const COMP = 0.35, CAL_POS = [0, 0.25, 0.5, 0.75, 1], CAL_LBL = ['Bottom', '25%', '50%', '75%', 'Top'];
+function pchip(xs, ys) {
+  const n = xs.length, h = [], d = [], m = new Array(n);
+  for (let i = 0; i < n - 1; i++) { h[i] = xs[i + 1] - xs[i]; d[i] = (ys[i + 1] - ys[i]) / h[i]; }
+  const endS = (h0, h1, d0, d1) => { let s = ((2 * h0 + h1) * d0 - h0 * d1) / (h0 + h1); if (Math.sign(s) !== Math.sign(d0)) s = 0; else if (Math.sign(d0) !== Math.sign(d1) && Math.abs(s) > 3 * Math.abs(d0)) s = 3 * d0; return s; };
+  for (let i = 1; i < n - 1; i++) { if (d[i - 1] * d[i] <= 0) m[i] = 0; else { const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1]; m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]); } }
+  if (n === 2) { m[0] = m[1] = d[0]; } else { m[0] = endS(h[0], h[1], d[0], d[1]); m[n - 1] = endS(h[n - 2], h[n - 3], d[n - 2], d[n - 3]); }
+  return x => { let i = 0; while (i < n - 2 && x > xs[i + 1]) i++; const t = (x - xs[i]) / h[i], t2 = t * t, t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h[i] * m[i] + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h[i] * m[i + 1]; };
+}
+function fitCal(raws, kind) {                       // raws: 5 captured raw values -> {bp:[9 ints]} or {err}
+  for (let k = 1; k < 5; k++) if (!(raws[k] > raws[k - 1] + 8)) return { err: 'points must rise by more than 8 counts each: ' + CAL_LBL[k - 1] + ' ' + raws[k - 1] + ' then ' + CAL_LBL[k] + ' ' + raws[k] + '. Recapture.' };
+  const COMP = compFor(kind), xs = raws.map(r => Math.pow(Math.max(r, 0) / FS, COMP)), f = pchip(xs, CAL_POS), bp = [];
+  for (let j = 0; j <= 8; j++) {
+    let lo = xs[0], hi = xs[4]; for (let it = 0; it < 50; it++) { const mid = (lo + hi) / 2; if (f(mid) < j / 8) lo = mid; else hi = mid; }
+    bp.push(Math.round(Math.pow((lo + hi) / 2, 1 / COMP) * FS));
+  }
+  bp[0] = raws[0]; bp[8] = raws[4];
+  for (let j = 1; j <= 8; j++) if (bp[j] < bp[j - 1]) bp[j] = bp[j - 1];
+  return { bp };
+}
+function linApply(bp, raw) {                  // identical to the firmware
+  if (raw <= bp[0]) return 0; if (raw >= bp[8]) return FS;
+  for (let k = 0; k < 8; k++) if (raw < bp[k + 1]) { const sp = bp[k + 1] - bp[k]; return Math.trunc((k + (sp ? (raw - bp[k]) / sp : 0)) * (FS / 8)); }
+  return FS;
+}
+const defaultBp = kind => { if (kind === 'pot2w') return Array.from({ length: 9 }, (_, k) => Math.round(FS * 47 / (47 + 500 * k / 8))); const n = tapeN(kind); return Array.from({ length: 9 }, (_, k) => Math.round(Math.pow(k / 8, n) * FS)); };
+function sliders() { return S.ch.map((c, i) => ({ c, i })).filter(x => x.c.k === 'slider' || x.c.k === 'pot' || x.c.k === 'pot2w'); }   // faders (A taper) and pots (C500K reverse-log)
+const compFor = kind => kind === 'pot' ? 3.0 : kind === 'pot2w' ? 0.6 : 0.35, tapeN = kind => Math.log(kind === 'pot' ? 0.85 : 0.15) / Math.log(0.5);
+// ---------------------------------------------------------------- encoders (test 06): ENC1 A D1/pin 2, B D2/pin 3, SW D3/pin 4; ENC2 A D4/pin 5, B D5/pin 6, SW D6/pin 7
+const ENCPIN = ['A D1 (pin 2)  B D2 (pin 3)  SW D3 (pin 4)', 'A D4 (pin 5)  B D5 (pin 6)  SW D6 (pin 7)'];
+function buildEnc() {
+  const w = $('encwrap'); w.innerHTML = ''; S.encv = null; if (!S.enc) return;
+  w.innerHTML = [0, 1].map(k => '<div class="card"><div class="chead"><span class="cname" style="color:' + COLORS[(k + 4) % 8] + '">ENCODER ' + (k + 1) + '</span><span class="cpin">' + ENCPIN[k] + '</span></div>' +
+    '<div style="display:flex;gap:14px;align-items:center"><canvas id="encdial' + k + '" data-h="96" style="width:96px;flex:none"></canvas><div><div class="big"><span id="encdet' + k + '">-</span> <span class="sub">detents</span></div><div class="sub" id="enccnt' + k + '"></div></div>' +
+    '<div style="margin-left:auto;text-align:center"><div id="encled' + k + '" style="width:34px;height:34px;border-radius:50%;border:2px solid var(--line);background:#1d1236;margin:auto"></div><div class="small">button</div></div></div>' +
+    '<div class="grid2"><span>presses</span><span id="encpr' + k + '">-</span><span>invalid transitions</span><span id="encbad' + k + '">-</span></div></div>').join('');
+}
+function drawEnc() {
+  if (!S.enc || !S.encv) return;
+  [0, 1].forEach(k => {
+    const cnt = S.encv[k * 4], btn = S.encv[k * 4 + 1], pr = S.encv[k * 4 + 2], bad = S.encv[k * 4 + 3], det = Math.floor(cnt / 4);
+    $('encdet' + k).textContent = det; $('enccnt' + k).textContent = cnt + ' counts (4 per detent), ' + (cnt % 4 === 0 ? 'on a detent' : 'between detents');
+    $('encpr' + k).textContent = pr; $('encbad' + k).textContent = bad; $('encbad' + k).className = bad ? 'bad' : 'ok';
+    const led = $('encled' + k); led.style.background = btn ? 'var(--m)' : '#1d1236'; led.style.borderColor = btn ? 'var(--m)' : 'var(--line)';
+    const { g, w, h } = fit($('encdial' + k)), cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 6, a = cnt / 4 * (Math.PI / 12) - Math.PI / 2;
+    g.clearRect(0, 0, w, h); g.strokeStyle = '#2c1c4d'; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke();
+    g.fillStyle = '#8f7fb8'; for (let t = 0; t < 24; t++) { const aa = t * Math.PI / 12; g.fillRect(cx + Math.cos(aa) * (R - 2) - 1, cy + Math.sin(aa) * (R - 2) - 1, 2, 2); }
+    g.strokeStyle = COLORS[(k + 4) % 8]; g.lineWidth = 4; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (R - 4), cy + Math.sin(a) * (R - 4)); g.stroke();
+  });
+}
+function addEncSteps() {
+  [0, 1].forEach(k => S.steps.push({ id: 'enc' + k, kind: 'enc', ek: k, title: 'Encoder ' + (k + 1), state: 'idle', checks: [],
+    instr: 'Turn ENCODER ' + (k + 1) + ' 20 detents clockwise, then 20 counter-clockwise (back to where you started), then press its button exactly 5 times. The step ends 1 s after the 5th press.' }));
+}
+function encStepFeed(m) {
+  const r = S.run, s = r.s, k = s.ek, cnt = m.e[k * 4], pr = m.e[k * 4 + 2], bad = m.e[k * 4 + 3];
+  if (r.c0 === undefined) { r.c0 = cnt; r.p0 = pr; r.b0 = bad; r.max = 0; r.min = 0; r.t5 = 0; }
+  const d = cnt - r.c0; if (d > r.max) r.max = d; if (d < r.min) r.min = d; r.fall = Math.max(r.fall || 0, r.max - d);
+  const dp = pr - r.p0; if (dp >= 5 && !r.t5) r.t5 = m.ms;
+  s.progress = 'detents ' + Math.floor(d / 4) + ' (max +' + Math.floor(r.max / 4) + ', min ' + Math.ceil(r.min / 4) + '), presses ' + dp + ' / 5'; if (m.ms % 25 === 0) drawSteps();
+  if (!r.t5 || m.ms - r.t5 < 1000) return;
+  const ck = [], fin = Math.round(d / 4);
+  ck.push({ name: 'clockwise travel', ok: r.max >= 80, detail: 'max ' + (r.max / 4).toFixed(1) + ' detents, need >= +20' });
+  ck.push({ name: 'counter-clockwise travel', ok: (r.fall || 0) >= 80, detail: 'came back down ' + ((r.fall || 0) / 4).toFixed(1) + ' detents from the peak, need >= 20' });
+  ck.push({ name: 'no lost or doubled counts', ok: Math.abs(d) <= 4, detail: 'ended ' + (d / 4).toFixed(2) + ' detents from start after 20 + 20, limit +-1' });
+  ck.push({ name: 'button presses', ok: pr - r.p0 === 5, detail: (pr - r.p0) + ' events for 5 presses (debounce 15 ms, no double fires)' });
+  ck.push({ name: 'invalid transitions', ok: bad - r.b0 === 0, detail: (bad - r.b0) + ' (skipped Gray-code states), limit 0' });
+  s.checks = ck; endStep(ck.every(c => c.ok));
+}
+function buildCal() {
+  const w = $('calwrap'); w.innerHTML = ''; S.cal = {};
+  const sl = sliders(); if (!sl.length) return;
+  sl.forEach(x => S.cal[x.i] = { pts: [null, null, null, null, null], bp: null, sent: false });
+  w.innerHTML = '<div class="card"><h2>Fader and pot calibration (taper to linear)</h2><div class="small">Faders are A taper, pots C500K reverse-log (default: 85% at mid rotation). Set the control at each mark of its physical travel, click Capture. Then Fit and send. Until then the firmware uses an inverse A taper (15 % at mid).</div><div id="calrows"></div>' +
+    '<canvas id="calcv" data-h="220" style="margin-top:8px"></canvas><div class="small">x: physical position. dim: raw (what the ADC reads). bright: corrected (lin). Dots at the captured points.</div>' +
+    '<div class="row"><button id="bFitAll" class="pri">Fit and send all</button><button id="bCalReset">Reset cal (clears saved ht_cal)</button><button id="bCalCopy">Copy cal JSON</button></div><div class="small" id="calinfo"></div></div>';
+  const rows = $('calrows');
+  sl.forEach(x => { const d = document.createElement('div'); d.style.margin = '8px 0';
+    d.innerHTML = '<span class="cname" style="color:' + COLORS[x.i % 8] + '">' + x.c.n + '</span> ' + CAL_LBL.map((l, k) => '<button data-cap="' + x.i + ':' + k + '" style="padding:5px 8px;margin:2px">' + l + '<br><span class="small" id="cp' + x.i + '_' + k + '">-</span></button>').join('') + ' <button data-fit="' + x.i + '">Fit and send</button> <button data-inv="' + x.i + '">Invert direction</button> <span class="small" id="cs' + x.i + '"></span>';
+    rows.appendChild(d); });
+  rows.onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.cap) { const [i, k] = b.dataset.cap.split(':').map(Number); calCapture(i, k); } if (b.dataset.fit) calFit(+b.dataset.fit); if (b.dataset.inv) { const i = +b.dataset.inv; S.cal[i].inv = !S.cal[i].inv; send('calinv ' + i + ' ' + (S.cal[i].inv ? 1 : 0)); $('cs' + i).textContent = 'direction ' + (S.cal[i].inv ? 'inverted' : 'normal'); } };
+  $('bFitAll').onclick = () => sliders().forEach(x => { if (S.cal[x.i].pts.every(p => p !== null)) calFit(x.i); });
+  $('bCalReset').onclick = () => { send('calreset'); sliders().forEach(x => { S.cal[x.i].bp = null; S.cal[x.i].sent = false; $('cs' + x.i).textContent = 'default curve'; S.cal[x.i].inv = false; }); try { localStorage.removeItem('ht_cal'); } catch (e) {} mark(); };
+  $('bCalCopy').onclick = () => { const o = { note: 'fader linearization: raw breakpoints at physical positions k/8 (k=0..8); lin = piecewise-linear interpolation to 0..65535', adc: '16-bit, 0..65535 = 0..+3V3A', faders: {} };
+    sliders().forEach(x => { o.faders[x.c.n] = { pin: x.c.pin, points_raw: S.cal[x.i].pts, positions: CAL_POS, bp9: S.cal[x.i].bp || (S.calFw && S.calFw[x.i] && S.calFw[x.i].length ? S.calFw[x.i] : defaultBp(x.c.k)), source: S.cal[x.i].bp ? 'measured' : 'default A-taper' }; });
+    const t = JSON.stringify(o, null, 1); navigator.clipboard && navigator.clipboard.writeText(t).catch(() => {}); $('calinfo').textContent = 'copied ' + t.length + ' bytes'; };
+  mark();
+}
+function calCapture(i, k) {
+  const H = S.hist[i], n = Math.min(20, S.hcount); if (!n) return;
+  let s = 0; for (let j = 1; j <= n; j++) s += H[(S.hpos - j + SCOPE_N) % SCOPE_N];
+  S.cal[i].pts[k] = Math.round(s / n); S.cal[i].bp = null; S.cal[i].sent = false;
+  $('cp' + i + '_' + k).textContent = S.cal[i].pts[k]; $('cs' + i).textContent = ''; mark();
+}
+function calFit(i) {
+  const c = S.cal[i]; if (c.pts.some(p => p === null)) { $('cs' + i).textContent = 'capture all 5 points first'; return; }
+  let pts = c.pts.slice(), rev = false; if (pts[4] < pts[0]) { pts.reverse(); rev = true; }   // raw falls with travel (2-wire pots): fit on the reversed order and invert in firmware
+  const r = fitCal(pts, S.ch[i].k); if (r.err) { $('cs' + i).textContent = r.err; $('cs' + i).className = 'small bad'; return; }
+  c.bp = r.bp; c.sent = true; c.rev = rev; send('cal ' + i + ' ' + r.bp.join(' ')); send('calinv ' + i + ' ' + (rev ? 1 : 0));
+  $('cs' + i).className = 'small ok'; $('cs' + i).textContent = 'sent' + (rev ? ' (reversed, inverted in firmware)' : '') + ': ' + r.bp.join(' ');
+  try { const o = JSON.parse(localStorage.getItem('ht_cal') || '{}'); o[S.ch[i].n] = r.bp; localStorage.setItem('ht_cal', JSON.stringify(o)); } catch (e) {}
+  if (S.run && S.run.s.kind === 'cal' && sliders().every(x => S.cal[x.i].sent)) {
+    const ck = sliders().map(x => ({ name: S.ch[x.i].n + ' calibration', ok: true, detail: 'points ' + S.cal[x.i].pts.join(' ') + ' -> breakpoints ' + S.cal[x.i].bp.join(' ') }));
+    S.run.s.checks = ck; endStep(true);
+  }
+  mark();
+}
+function drawCal() {
+  const cv = $('calcv'); if (!cv || !S.cal) return;
+  const { g, w, h } = fit(cv); g.clearRect(0, 0, w, h);
+  g.strokeStyle = '#2c1c4d'; g.lineWidth = 1; for (let k = 0; k <= 4; k++) { const y = 6 + (h - 12) * (1 - k / 4), x = 6 + (w - 12) * k / 4; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.moveTo(x, 6); g.lineTo(x, h - 6); g.stroke(); }
+  const X = p => 6 + (w - 12) * p, Y = v => 6 + (h - 12) * (1 - v / FS);
+  sliders().forEach(x => {
+    const c = S.cal[x.i], col = COLORS[x.i % 8], bp0 = c.bp || (S.calFw && S.calFw[x.i] && S.calFw[x.i].length === 9 ? S.calFw[x.i] : defaultBp(x.c.k));
+    const dec = bp0[8] < bp0[0], bp = bp0;
+    g.strokeStyle = col; g.globalAlpha = .35; g.lineWidth = 1.5; g.beginPath();                 // raw curve: through the captured points, else through the breakpoints
+    if (c.pts.every(p => p !== null)) c.pts.forEach((p, k) => k ? g.lineTo(X(CAL_POS[k]), Y(p)) : g.moveTo(X(0), Y(p)));
+    else bp.forEach((p, k) => k ? g.lineTo(X(k / 8), Y(p)) : g.moveTo(X(0), Y(p)));
+    g.stroke(); g.globalAlpha = 1; g.lineWidth = 2; g.beginPath();                              // corrected line: lin(raw at each position)
+    if (dec) { g.moveTo(X(0), Y(0)); g.lineTo(X(1), Y(FS)); } else bp.forEach((p, k) => { const y = Y(linApply(bp, p)); k ? g.lineTo(X(k / 8), y) : g.moveTo(X(0), y); }); g.stroke();
+    c.pts.forEach((p, k) => { if (p === null) return; g.fillStyle = col; g.beginPath(); g.arc(X(CAL_POS[k]), Y(p), 3, 0, 7); g.fill(); if (!dec) { g.beginPath(); g.arc(X(CAL_POS[k]), Y(linApply(bp, p)), 3, 0, 7); g.fill(); } });
+  });
+}
+
+// ---------------------------------------------------------------- test 05: I2C scan, IMU, lidar
+const KNOWN = { 0x30: 'VL53L1X LIDAR1 (moved)', 0x68: 'MPU6050', 0x69: 'MPU6050 (AD0 high)', 0x29: 'VL53L1X LIDAR2', 0x2E: 'NeoTrellis', 0x3C: 'OLED?', 0x77: 'BME680?' };
+const hex = n => '0x' + n.toString(16).toUpperCase().padStart(2, '0');
+const WHO_OK = [0x68, 0x70, 0x71, 0x72, 0x98];
+const lidDevs = () => S.i2c ? (S.i2c.lid2 ? [S.i2c.lid, S.i2c.lid2] : [S.i2c.lid]) : [];
+const LNAME = ['LIDAR1 (SHUT D7, 0x30)', 'LIDAR2 (SHUT D9, 0x29)'];
+function buildPanels() {
+  const w = $('i2cwrap'); w.innerHTML = ''; S.imu = null; S.lids = null;
+  if (!S.i2c) return;
+  const f32 = () => new Float32Array(IMU_N);
+  S.imu = { a: [f32(), f32(), f32()], g: [f32(), f32(), f32()], pos: 0, cnt: 0, last: null, ms: [], rate: 0 };
+  S.lids = lidDevs().map(() => ({ mm: new Uint16Array(LID_N), st: new Uint8Array(LID_N), pos: 0, cnt: 0, last: null, ms: [], rate: 0 }));
+  w.innerHTML =
+    '<div class="card"><h2>I2C bus: D11 SCL pin 12, D12 SDA pin 13, about 100 kHz</h2><div id="scanchips"></div><div class="grid2" id="i2cinfo"></div><div class="row"><button id="bScan">Rescan</button></div></div>' +
+    '<div class="card"><h2>IMU MPU6050 @ 0x68 (+-2 g, +-250 dps, DLPF 44 Hz, 100 Hz)</h2><div id="imubadge" class="banner" style="font-size:14px;padding:8px;margin-bottom:8px"></div><canvas id="horizon" data-h="170"></canvas><canvas id="imutr" data-h="190" style="margin-top:8px"></canvas>' +
+    '<div class="small">top: accel X/Y/Z, +-2 g. bottom: gyro X/Y/Z, +-250 dps.</div><div class="grid2" id="imuinfo"></div></div>' +
+    S.lids.map((_, k) => '<div class="card"><h2>' + LNAME[k] + ' VL53L1X (short mode, 50 ms, continuous)</h2><div id="lidbadge' + k + '" class="banner" style="font-size:14px;padding:8px;margin-bottom:8px"></div><canvas id="lidbar' + k + '" data-h="34"></canvas><canvas id="lidtr' + k + '" data-h="110" style="margin-top:8px"></canvas>' +
+      '<div class="grid2" id="lidinfo' + k + '"></div><div class="row"><label class="small">target distance mm (optional, accuracy check) <input id="tgt' + k + '" type="number" min="30" max="1200"></label></div></div>').join('');
+  $('bScan').onclick = () => send('scan');
+}
+function addI2cSteps() {
+  S.steps.push(
+    { id: 'imu_rest', kind: 'imu_rest', title: 'IMU rest', instr: 'Board flat and still on the table for 3 s.', state: 'idle', checks: [] },
+    { id: 'imu_faces', kind: 'imu_faces', title: 'IMU six faces', instr: 'Rest the board flat on each of its 6 faces for 0.5 s each (any order). Each axis must read +-1 g with the other two near 0.', state: 'idle', checks: [] });
+  lidDevs().forEach((_, k) => S.steps.push({ id: 'lid_fixed' + k, kind: 'lid_fixed', lk: k, title: 'Lidar ' + (k + 1) + ' fixed target', instr: 'Hold a flat target at one fixed distance (30 to 1200 mm) in front of ' + LNAME[k] + ' for 3 s. Type the true distance in its box for the accuracy check.', state: 'idle', checks: [] }));
+}
+function i2cStepFeed(m) {
+  const r = S.run, s = r.s, I = m.i2c; if (!I) return;
+  const LD = I.lid2 ? [I.lid, I.lid2] : [I.lid];
+  const el = m.ms - r.ms0; r.seen++;
+  if (I.imu.s !== 'ok' || LD.some(d => d.s !== 'ok')) r.bad++;
+  s.progress = Math.min(10, el / 1000).toFixed(0) + ' / 10 s'; drawSteps();
+  if (el < 10000) return;
+  const ck = [];
+  [0x68, 0x29].concat(I.lid2 ? [0x30] : []).forEach(a => ck.push({ name: 'scan sees ' + hex(a) + ' ' + KNOWN[a], ok: I.scan.includes(a), detail: 'found ' + (I.scan.map(hex).join(' ') || 'nothing') }));
+  ck.push({ name: 'MPU6050 state', ok: I.imu.s === 'ok' && WHO_OK.includes(I.imu.who) && r.bad === 0,
+    detail: I.imu.s + ', WHO_AM_I ' + hex(I.imu.who) + (I.imu.who === 0x68 ? ' (genuine MPU6050)' : WHO_OK.includes(I.imu.who) ? ' (clone/MPU6500 family: accepted)' : ' (unexpected)') });
+  LD.forEach((d, k) => ck.push({ name: 'LIDAR' + (k + 1) + ' state', ok: d.s === 'ok' && d.id === 0xEACC && r.bad === 0, detail: d.s + ', model id ' + hex(d.id) + ' (expect 0xEACC), address ' + (d.addr ? hex(d.addr) : '-') }));
+  const d = I.err - r.err0;
+  ck.push({ name: 'I2C errors over 10 s', ok: d === 0, detail: d + ' new (total since boot ' + I.err + '), limit 0' });
+  s.checks = ck; endStep(ck.every(c => c.ok));
+}
+function winPP(arr, W) {                      // worst p-p over non-overlapping-ish W windows
+  let w = 0; for (let k = 0; k + W <= arr.length; k += Math.max(1, W >> 1)) { let lo = 1e9, hi = -1e9; for (let j = k; j < k + W; j++) { if (arr[j] < lo) lo = arr[j]; if (arr[j] > hi) hi = arr[j]; } if (hi - lo > w) w = hi - lo; }
+  return w;
+}
+const mean = a => a.reduce((x, y) => x + y, 0) / (a.length || 1);
+function imuStepFeed(m, a, g) {
+  const r = S.run, s = r.s;
+  if (s.kind === 'imu_rest') {
+    for (let k = 0; k < 3; k++) { r.a[k].push(a[k]); r.g[k].push(g[k]); } r.n++; r.ms.push(m.ms);
+    s.progress = r.n + ' / 300 samples'; if (r.n % 25 === 0) drawSteps();
+    if (r.n < 300) return;
+    const ck = [], ax = ['X', 'Y', 'Z'];
+    const mag = r.a[0].map((_, i) => Math.hypot(r.a[0][i], r.a[1][i], r.a[2][i])), mm = mean(mag);
+    ck.push({ name: 'gravity magnitude |a|', ok: Math.abs(mm - 1) <= 0.05, detail: mm.toFixed(3) + ' g, need 1.00 +-0.05' });
+    for (let k = 0; k < 3; k++) {
+      const pp = winPP(r.a[k], 100);
+      ck.push({ name: 'accel ' + ax[k] + ' rest p-p (1 s)', ok: pp <= 0.02, detail: (pp * 1000).toFixed(1) + ' mg = ' + Math.round(pp * 16384) + ' counts, limit 20 mg' });
+    }
+    for (let k = 0; k < 3; k++) {
+      const bias = mean(r.g[k]), pp = winPP(r.g[k], 100);
+      ck.push({ name: 'gyro ' + ax[k] + ' bias / p-p', ok: Math.abs(bias) <= 5 && pp <= 2, detail: 'bias ' + bias.toFixed(2) + ' dps (limit 5), p-p ' + pp.toFixed(2) + ' dps (limit 2)' });
+    }
+    const rate = 1000 * (r.ms.length - 1) / (r.ms[r.ms.length - 1] - r.ms[0]);
+    ck.push({ name: 'IMU read rate', ok: rate >= 90, detail: rate.toFixed(0) + ' Hz, need >= 90' });
+    s.checks = ck; endStep(ck.every(c => c.ok)); return;
+  }
+  // faces: dominant axis +-1 g (0.9..1.1) with the other two within 0.1 g, held 30 samples
+  const names = ['X', 'Y', 'Z'];
+  let dom = -1; for (let k = 0; k < 3; k++) if (Math.abs(a[k]) >= 0.9 && Math.abs(a[k]) <= 1.1 && names.every((_, j) => j === k || Math.abs(a[j]) <= 0.1)) dom = k;
+  const face = dom < 0 ? null : (a[dom] > 0 ? '+' : '-') + names[dom];
+  if (face) { r.hold = r.hold && r.hold.f === face ? { f: face, n: r.hold.n + 1 } : { f: face, n: 1 };
+    if (r.hold.n >= 50 && !r.hit[face + '_ok']) { r.hit[face] = a[dom]; r.hit[face + '_ok'] = 1; } } else r.hold = null;
+  const done = ['+X', '-X', '+Y', '-Y', '+Z', '-Z'].filter(f => r.hit[f + '_ok']);
+  s.progress = done.length + ' / 6 faces: ' + (done.join(' ') || 'none yet'); if (m.ms % 20 === 0) drawSteps();
+  if (done.length < 6) return;
+  const ck = done.map(f => ({ name: 'face ' + f, ok: true, detail: 'axis read ' + r.hit[f].toFixed(3) + ' g, limit 0.9 to 1.1, others <= 0.1 g' }));
+  s.checks = ck; endStep(true);
+}
+function lidStepFeed(m) {
+  const r = S.run, s = r.s; r.n++; r.ms.push(m.ms);
+  const valid = m.st === 9 && m.mm >= 30 && m.mm <= 1200; if (valid) { r.ok++; r.mm.push(m.mm); }
+  const el = m.ms - r.ms[0]; s.progress = (el / 1000).toFixed(1) + ' / 3 s, ' + r.n + ' samples'; if (r.n % 10 === 0) drawSteps();
+  if (el < 3000) return;
+  const ck = [], ratio = r.ok / r.n, rate = 1000 * (r.n - 1) / el;
+  ck.push({ name: 'valid range readings', ok: ratio >= 0.95, detail: (ratio * 100).toFixed(1) + ' % valid (status 9, 30-1200 mm), need >= 95 %' });
+  const mu = mean(r.mm), sd = Math.sqrt(mean(r.mm.map(x => (x - mu) ** 2))), pp = r.mm.length ? Math.max(...r.mm) - Math.min(...r.mm) : 0;
+  ck.push({ name: 'noise at fixed target', ok: r.mm.length > 10 && sd <= 5 && pp <= 20, detail: 'mean ' + mu.toFixed(1) + ' mm, sigma ' + sd.toFixed(2) + ' mm (limit 5), p-p ' + pp + ' mm (limit 20)' });
+  const tg = parseFloat($('tgt' + s.lk) && $('tgt' + s.lk).value);
+  if (tg > 0) ck.push({ name: 'accuracy vs typed target', ok: Math.abs(mu - tg) <= 15, detail: 'error ' + (mu - tg).toFixed(1) + ' mm, limit 15' });
+  ck.push({ name: 'lidar result rate', ok: rate >= 25, detail: rate.toFixed(1) + ' Hz, need >= 25' });
+  s.checks = ck; endStep(ck.every(c => c.ok));
+}
+function drawPanels() {
+  if (!S.i2c) return;
+  const I = S.i2c;
+  $('scanchips').innerHTML = (I.scan.length ? I.scan.map(a => '<span class="chip ' + (KNOWN[a] ? 'ok' : '') + '">' + hex(a) + ' ' + (KNOWN[a] || 'unknown') + '</span>').join('') : '<span class="bad">nothing answered: check SDA/SCL, 3V3D, GND</span>');
+  const sc = x => x === 'ok' ? 'ok' : x === 'error' ? 'bad' : 'warn';
+  $('i2cinfo').innerHTML = '<span>MPU6050</span><span class="' + sc(I.imu.s) + '">' + I.imu.s + '  WHO_AM_I ' + hex(I.imu.who) + '</span>' + lidDevs().map((d, k) => '<span>' + LNAME[k] + '</span><span class="' + sc(d.s) + '">' + d.s + '  id ' + hex(d.id) + '</span>').join('') + '<span>I2C errors</span><span class="' + (I.err ? 'bad' : 'ok') + '">' + I.err + '</span>';
+  const badge = (id, name, d, extra) => { const e = $(id); e.className = 'banner ' + (d.s === 'ok' ? 'pass' : d.s === 'error' ? 'fail' : ''); e.textContent = name + ': ' + d.s.toUpperCase() + extra + (d.s === 'error' ? '  (init or id check failed, retrying every 2 s)' : d.s === 'missing' ? '  (no ACK at address)' : ''); };
+  badge('imubadge', 'MPU6050 0x68', I.imu, '  WHO_AM_I ' + hex(I.imu.who));
+  const U = S.imu;
+  const il = U.last;
+  if (il) {
+    const ppA = [0, 1, 2].map(k => { const n = Math.min(100, U.cnt); let lo = 9, hi = -9; for (let j = 1; j <= n; j++) { const x = U.a[k][(U.pos - j + IMU_N) % IMU_N]; if (x < lo) lo = x; if (x > hi) hi = x; } return hi - lo; });
+    $('imuinfo').innerHTML = '<span>accel g</span><span>' + il.a.map(x => x.toFixed(3)).join('  ') + '</span><span>|a|</span><span class="' + (Math.abs(il.mag - 1) <= 0.05 ? 'ok' : 'bad') + '">' + il.mag.toFixed(3) + ' g (need 1.00 +-0.05)</span>' +
+      '<span>gyro dps</span><span>' + il.g.map(x => x.toFixed(2)).join('  ') + '</span><span>pitch / roll</span><span>' + il.pitch.toFixed(1) + ' / ' + il.roll.toFixed(1) + ' deg</span>' +
+      '<span>accel p-p (last 1 s)</span><span>' + ppA.map(x => (x * 1000).toFixed(1)).join('  ') + ' mg</span><span>temp / rate</span><span>' + il.tmp.toFixed(1) + ' C / ' + U.rate.toFixed(0) + ' Hz</span>';
+    drawHorizon(il.pitch, il.roll); drawImuTrace();
+  } else { $('imuinfo').innerHTML = '<span>status</span><span class="warn">no IMU data (' + I.imu.s + ')</span>'; drawHorizon(0, 0, true); }
+  lidDevs().forEach((D, k) => {
+    const L = S.lids[k], ll = L.last, dbg = D.dbg ? '  polls ' + D.dbg[0] + ' ready ' + D.dbg[1] + ' reg30 ' + hex(D.dbg[3]) + ' reg31 ' + hex(D.dbg[2]) : '';
+    badge('lidbadge' + k, LNAME[k], D, '  model id ' + hex(D.id) + (D.id !== 0xEACC ? ' (expect 0xEACC)' : '') + '  addr ' + (D.addr ? hex(D.addr) : '-'));
+    if (ll) {
+      const n = Math.min(30, L.cnt), v = []; for (let j = 1; j <= n; j++) v.push(L.mm[(L.pos - j + LID_N) % LID_N]);
+      const mu = mean(v), sd = Math.sqrt(mean(v.map(x => (x - mu) ** 2))), valid = ll.st === 9 && ll.mm >= 30 && ll.mm <= 1200;
+      $('lidinfo' + k).innerHTML = '<span>distance</span><span class="' + (valid ? 'ok' : 'warn') + '" style="font-size:20px">' + ll.mm + ' mm</span><span>range status</span><span class="' + (ll.st === 9 ? 'ok' : 'warn') + '">' + ll.st + (ll.st === 9 ? ' (9 = valid)' : ' (not valid)') + '</span>' +
+        '<span>noise (last 30)</span><span>sigma ' + sd.toFixed(2) + ' mm, p-p ' + (Math.max(...v) - Math.min(...v)) + ' mm</span><span>result rate</span><span>' + L.rate.toFixed(1) + ' Hz</span><span>data-ready</span><span>' + dbg + '</span>';
+      drawLidar(k, ll.mm, valid);
+    } else { $('lidinfo' + k).innerHTML = '<span>status</span><span class="warn">no lidar data (' + D.s + ')' + dbg + '</span>'; drawLidar(k, 0, false, true); }
+  });
+}
+function drawHorizon(pitch, roll, none) {
+  const { g, w, h } = fit($('horizon')); g.clearRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2, R = 76; g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
+  g.translate(cx, cy); g.rotate(-roll * Math.PI / 180); const off = Math.max(-90, Math.min(90, pitch)) * R / 45;
+  g.fillStyle = '#3b2a78'; g.fillRect(-200, -200 + off, 400, 200); g.fillStyle = '#12091f'; g.fillRect(-200, off, 400, 200);
+  g.strokeStyle = '#ece4ff'; g.lineWidth = 2; g.beginPath(); g.moveTo(-200, off); g.lineTo(200, off); g.stroke();
+  g.lineWidth = 1; g.strokeStyle = 'rgba(236,228,255,.5)'; for (let k = -3; k <= 3; k++) { if (!k) continue; const y = off + k * 15 * R / 45, hw = k % 2 ? 14 : 24; g.beginPath(); g.moveTo(-hw, y); g.lineTo(hw, y); g.stroke(); }
+  g.restore(); g.strokeStyle = none ? '#444' : '#a78bfa'; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke();
+  g.strokeStyle = '#f472b6'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx - 30, cy); g.lineTo(cx - 8, cy); g.lineTo(cx, cy + 6); g.lineTo(cx + 8, cy); g.lineTo(cx + 30, cy); g.stroke();
+}
+function drawImuTrace() {
+  const U = S.imu, { g, w, h } = fit($('imutr')); g.clearRect(0, 0, w, h);
+  const half = h / 2, n = U.cnt, start = (U.pos - n + IMU_N) % IMU_N;
+  [[U.a, 2, 0], [U.g, 250, half]].forEach(([arr, rng, y0]) => {
+    g.strokeStyle = '#2c1c4d'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, y0 + half / 2); g.lineTo(w, y0 + half / 2); g.stroke();
+    if (y0 === 0) { g.strokeStyle = 'rgba(124,255,178,.35)'; [1, -1].forEach(v => { const y = y0 + half / 2 - v / rng * (half / 2 - 4); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }); }
+    arr.forEach((a, k) => { g.strokeStyle = COLORS[k]; g.lineWidth = 1.3; g.beginPath();
+      for (let i = 0; i < n; i++) { const x = w - (n - 1 - i) * w / IMU_N, y = y0 + half / 2 - Math.max(-1, Math.min(1, a[(start + i) % IMU_N] / rng)) * (half / 2 - 4); i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke(); });
+  });
+}
+function drawLidar(k, mm, valid, none) {
+  const L = S.lids[k]; let { g, w, h } = fit($('lidbar' + k)); g.clearRect(0, 0, w, h);
+  g.fillStyle = '#1d1236'; g.fillRect(0, 0, w, 22); g.fillStyle = 'rgba(124,255,178,.12)'; g.fillRect(w * 30 / 1200, 0, w * 1170 / 1200, 22);
+  if (!none) { g.fillStyle = valid ? '#67e8f9' : '#ffcf5a'; g.fillRect(0, 0, w * Math.min(mm, 1200) / 1200, 22); }
+  g.fillStyle = '#8f7fb8'; g.font = '10px monospace'; [0, 300, 600, 900, 1200].forEach(v => g.fillText(v, Math.min(w - 24, v / 1200 * w + 2), 32));
+  ({ g, w, h } = fit($('lidtr' + k))); g.clearRect(0, 0, w, h);
+  g.strokeStyle = '#2c1c4d'; g.lineWidth = 1; for (let q = 0; q <= 4; q++) { const y = 4 + (h - 8) * (1 - q / 4); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+  const n = L.cnt, start = (L.pos - n + LID_N) % LID_N; g.lineWidth = 1.5;
+  for (let i = 1; i < n; i++) { const j = (start + i) % LID_N, j0 = (j - 1 + LID_N) % LID_N, x0 = w - (n - i) * w / LID_N, x1 = w - (n - 1 - i) * w / LID_N;
+    g.strokeStyle = L.st[j] === 9 ? '#67e8f9' : '#ffcf5a';
+    g.beginPath(); g.moveTo(x0, 4 + (h - 8) * (1 - Math.min(L.mm[j0], 1200) / 1200)); g.lineTo(x1, 4 + (h - 8) * (1 - Math.min(L.mm[j], 1200) / 1200)); g.stroke(); }
+}
+
+// ---------------------------------------------------------------- baseline (localStorage, optional)
+function saveBase(auto) {
+  if (!S.rest1) return;
+  try { const o = JSON.parse(localStorage.getItem('ht_noise_base') || '{}'); S.rest1.names.forEach((n, i) => o[n] = S.rest1.pp[i]); localStorage.setItem('ht_noise_base', JSON.stringify(o)); } catch (e) {}
+  showBase();
+}
+function showBase() {
+  let t = ''; try { t = localStorage.getItem('ht_noise_base') || ''; } catch (e) {}
+  $('baseinfo').textContent = t ? 'saved noise baseline (counts p-p): ' + t : 'no saved noise baseline yet (saved automatically when the test 01 rest step passes)';
+}
+
+// ---------------------------------------------------------------- drawing (only when data arrives)
+function mark() { if (!S.dirty) { S.dirty = true; requestAnimationFrame(draw); } }
+// Canvas sizing happens ONLY in the ResizeObserver (never in draw): CSS height is fixed in px from data-h,
+// the backing store is rect width x DPR (capped 4096) by data-h x DPR. A draw can never change the layout.
+const RO = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(es => { es.forEach(e => sizeCanvas(e.target)); mark(); }) : null;
+function sizeCanvas(cv) {
+  const hh = parseInt(cv.dataset.h, 10) || 100, dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const w = Math.max(1, Math.round(cv.getBoundingClientRect().width));
+  const bw = Math.min(4096, Math.round(w * dpr)), bh = Math.min(4096, Math.round(hh * dpr));
+  if (cv.width !== bw) cv.width = bw;
+  if (cv.height !== bh) cv.height = bh;
+}
+function initCanvas(cv) {
+  if (cv._init) return; cv._init = true;
+  cv.style.height = (parseInt(cv.dataset.h, 10) || 100) + 'px';
+  cv.addEventListener('contextlost', e => { e.preventDefault(); });
+  cv.addEventListener('contextrestored', () => { sizeCanvas(cv); mark(); });
+  sizeCanvas(cv); if (RO) RO.observe(cv);
+}
+function initCanvases() { document.querySelectorAll('canvas').forEach(initCanvas); }
+function fit(cv) {
+  const g = cv.getContext('2d'), w = cv.clientWidth || 1, hh = parseInt(cv.dataset.h, 10) || 100;
+  g.setTransform(cv.width / w, 0, 0, cv.height / hh, 0, 0); return { g, w, h: hh };
+}
+function noiseCls(pp) { return pp <= T.restPP ? 'ok' : pp <= T.restWarn ? 'warn' : 'bad'; }
+function draw() {
+  S.dirty = false;
+  $('lrate').textContent = S.rate ? S.rate.toFixed(0) + ' Hz' + (S.rate < T.rateMin ? '  (low)' : '') : '-';
+  $('ldrop').textContent = S.drops + (S.frames ? '  (' + (S.drops / (S.frames + S.drops) * 100).toFixed(2) + '%)' : '');
+  $('lst').textContent = S.stFrames;
+  const st = S.st;
+  S.cards.forEach((cd, i) => {
+    const rawv = S.last[i]; if (rawv === undefined) return;
+    const v = S.lastL ? S.lastL[i] : rawv, lin = S.ch[i].k === 'slider' || S.ch[i].k === 'pot' || S.ch[i].k === 'pot2w', w2 = S.ch[i].k === 'pot2w';
+    cd.raw.textContent = v; cd.pct.textContent = (v / FS * 100).toFixed(1) + '%' + (lin ? ' lin' : ''); cd.rv.textContent = lin ? 'raw ' + rawv : '';
+    cd.volt.textContent = (rawv / FS * VREF).toFixed(4) + ' V (raw)' + (w2 ? '   Rx = ' + (rawv < 1 ? '-' : (47 * (FS / rawv - 1)).toFixed(0) + ' k') + ' (2-wire: 47 k to DGND)' : '');
+    if (st) {
+      cd.mm.textContent = st.min[i] + ' / ' + st.max[i] + '  (' + (st.min[i] / FS * 100).toFixed(1) + '% / ' + (st.max[i] / FS * 100).toFixed(1) + '%)';
+      const pp = st.pp[i], pb = st.ppmin[i];
+      cd.pp.textContent = pp + ' counts (' + (pp / FS * VREF * 1000).toFixed(2) + ' mV)'; cd.pp.className = noiseCls(pp);
+      cd.ppb.textContent = pb === 65535 ? 'window filling' : pb + ' counts'; cd.ppb.className = pb === 65535 ? 'dim' : noiseCls(pb);
+      let n = 0; for (let b = 0; b < 32; b++) if (st.cov[i] >>> b & 1) n++;
+      cd.cov.textContent = n + ' / 32 bins';
+      if (S.ch[i].k === 'fsr') { const pk = st.max[i] / FS; cd.stat.textContent = 'press peak ' + (pk * 100).toFixed(1) + '%  rest now ' + (v / FS * 100).toFixed(2) + '%' + (v < 0.02 * FS ? ' (rest ok)' : '') + (pk > 0.6 ? '  firm press seen' : '  (press harder: need > 60%)'); cd.stat.className = pk > 0.6 ? 'ok' : 'dim'; }
+      else if (S.ch[i].k === 'pot2w') { const okk = st.max[i] > 0.9 * FS && st.min[i] < 0.15 * FS; cd.stat.textContent = okk ? 'full travel seen (Rx 0 to 500k)' : 'travel incomplete (raw ' + st.min[i] + ' to ' + st.max[i] + ', expect about 5600 to 65000)'; cd.stat.className = okk ? 'ok' : 'dim'; }
+      else { cd.stat.textContent = st.min[i] < T.edgeLo * FS && st.max[i] > T.edgeHi * FS ? 'full range seen' : 'range incomplete'; cd.stat.className = st.min[i] < T.edgeLo * FS && st.max[i] > T.edgeHi * FS ? 'ok' : 'dim'; }
+    }
+    // meter: bar + 2%/98% pass zones + 32-bin coverage strip
+    const { g, w, h } = fit(cd.cv); g.clearRect(0, 0, w, h);
+    g.fillStyle = '#1d1236'; g.fillRect(0, 0, w, 22);
+    g.fillStyle = COLORS[i % 8]; g.fillRect(0, 0, w * v / FS, 22);
+    g.fillStyle = 'rgba(124,255,178,.5)'; g.fillRect(0, 0, 2, 22); g.fillRect(w - 2, 0, 2, 22);
+    g.strokeStyle = '#8f7fb8'; g.lineWidth = 1; g.beginPath(); g.moveTo(w * T.edgeLo, 0); g.lineTo(w * T.edgeLo, 26); g.moveTo(w * T.edgeHi, 0); g.lineTo(w * T.edgeHi, 26); g.stroke();
+    for (let b = 0; b < 32; b++) { const hit = st && (st.cov[i] >>> b & 1); g.fillStyle = hit ? COLORS[i % 8] : '#241640'; g.fillRect(b * w / 32 + 1, 30, w / 32 - 2, 12); }
+  });
+  drawScope(); drawPanels(); drawCal(); drawEnc();
+}
+function drawScope() {
+  const { g, w, h } = fit($('scope')); g.clearRect(0, 0, w, h);
+  g.strokeStyle = '#2c1c4d'; g.lineWidth = 1; g.fillStyle = '#8f7fb8'; g.font = '10px monospace';
+  for (let k = 0; k <= 4; k++) { const y = 6 + (h - 12) * (1 - k / 4); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); g.fillText(k * 25 + '%', 3, y - 2); }
+  if (!S.hcount) return;
+  S.histL.forEach((hs, i) => {
+    g.strokeStyle = COLORS[i % 8]; g.lineWidth = 1.5; g.beginPath();
+    const n = S.hcount, start = (S.hpos - n + SCOPE_N) % SCOPE_N;
+    for (let k = 0; k < n; k++) {
+      const x = w - (n - 1 - k) * w / SCOPE_N, y = 6 + (h - 12) * (1 - hs[(start + k) % SCOPE_N] / FS);
+      k ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke();
+  });
+}
+function setMsg(t) { $('msg').textContent = t || ''; }
+function setConn(on, label) { const p = $('conn'); p.className = 'pill ' + (on ? 'on' : 'off'); p.textContent = label || (on ? 'STREAMING' : 'DISCONNECTED'); }
+function ctl(on) { ['bReset', 'bDfu', 'bBegin', 'bSkip'].forEach(id => $(id).disabled = !on); }
+
+// ---------------------------------------------------------------- WebSerial
+const SFILT = [{ usbVendorId: 0x0483 }, { usbVendorId: 0xcafe }];
+async function connect() {
+  if (!('serial' in navigator)) return setMsg('WebSerial missing: use Chrome or Edge on http://localhost (see README).');
+  try { await openPort(await navigator.serial.requestPort({ filters: SFILT })); } catch (e) { setMsg('Connect failed: ' + e.message); }
+}
+async function openPort(port) {
+  if (S.connected && !S.demo) return;
+  await port.open({ baudRate: 115200 });
+  try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) {}
+  S.port = port; S.demo = false; S.connected = true; S.expectReboot = false; setMsg(''); setConn(true); ctl(true); resetLink();
+  S.writer = port.writable.getWriter(); send('hello');
+  readLoop(port);
+}
+async function autoReconnect(tries) {            // after a flash/replug: re-open the permitted port, a few tries, then give up
+  if (!navigator.serial || (S.connected && !S.demo)) return;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const ps = (await navigator.serial.getPorts()).filter(p => { const k = p.getInfo(); return k.usbVendorId === 0x0483 || k.usbVendorId === 0xcafe; });
+      if (ps.length) { await openPort(ps[0]); return; }
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 700));
+  }
+  setMsg('Seed rebooted or re-enumerated. Press Connect.');
+}
+async function readLoop(port) {
+  const dec = new TextDecoder(); let buf = '';
+  try {
+    while (port.readable) {
+      const rd = port.readable.getReader();
+      try { for (;;) { const { value, done } = await rd.read(); if (done) break;
+        buf += dec.decode(value, { stream: true }); let k;
+        while ((k = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, k); buf = buf.slice(k + 1); if (l.length > 1) onLine(l); }
+        if (buf.length > 4096) buf = ''; } } finally { rd.releaseLock(); }
+    }
+  } catch (e) { setMsg('Serial read ended: ' + e.message); }
+  S.connected = false; S.writer = null; clearTimeout(S.staleT); setConn(false); ctl(false);
+}
+function send(s) { if (S.writer) S.writer.write(new TextEncoder().encode(s + '\n')).catch(() => {}); }
+function resetLink() { S.calResent = false; S.lastSeq = -1; S.drops = 0; S.frames = 0; S.stFrames = 0; S.msBuf = []; S.rate = 0; S.sigKey = ''; S.st = null; }
+
+// ---------------------------------------------------------------- demo / self-test feed (same parser as the real stream)
+function simLines(scn, nCh) {                // generates JSON lines for a scripted run, 200 Hz
+  const out = []; let seq = 0, ms = 1000; const noise = scn.noise || 8;
+  const ch = ['FADER1', 'FADER2', 'FADER3'].map((n, i) => ({ n, k: 'slider', pin: ['A3/D18', 'A4/D19', 'A5/D20'][i], phys: 25 + i }));
+  const t5 = !!scn.t5, nz = () => Math.random() - .5;
+  const t6 = !!scn.t6;
+  if (t6) { ch.push({ n: 'POT1', k: 'pot2w', pin: 'A6/D21', phys: 28 }, { n: 'POT2', k: 'pot2w', pin: 'A7/D22', phys: 29 }); } else if (t5) ch.push({ n: 'FSR', k: 'fsr', pin: 'A8/D23', phys: 30 });
+  const NC = ch.length;
+  const hello = () => out.push(JSON.stringify(Object.assign({ t: 'hello', test: t6 ? '06_pots2w_enc' : t5 ? '05_faders_imu_lidar' : '01_faders', fw: 'sim', rate: 200, adc_bits: 16, ovs: 32, win: 200, ms, ch },
+    (t6 ? { enc: 2 } : {}), t5 ? { i2c: { scl: 'D11/12', sda: 'D12/13', err: scn.i2cerr || 0, scan: [41, 48, 104], imu: { s: 'ok', who: 104 }, lid: { s: 'ok', id: 60108, addr: 48, dbg: [10, 10, 3, 17] }, lid2: { s: 'ok', id: 60108, addr: 41, dbg: [10, 10, 3, 17] } } } : {})));
+  hello();
+  let ori = [0, 0, scn.badimu ? 20000 : 16384], lidmm = 300;
+  const rest = t6 ? [20000, 33000, 45000, 30000, 12000] : t5 ? [20000, 33000, 45000, 120] : [20000, 33000, 45000];
+  const E = [0, 0, 0, 0, 0, 0, 0, 0]; const cur = rest.slice();
+  const min = rest.map(() => 65535), max = rest.map(() => 0), cov = rest.map(() => 0);
+  const frame = (lvl) => { // lvl: array of 3 target values
+    seq++; ms += 5; const v = lvl.map(x => Math.max(0, Math.min(65535, Math.round(x + (Math.random() - .5) * noise))));
+    if (t5) {
+      if (seq % 200 === 0) hello();
+      if (seq % 2 === 0) { const a = ori.map(x => Math.round(x + nz() * 6)); const pr = [Math.round(Math.atan2(-a[0], Math.hypot(a[1], a[2])) * 5729.578), Math.round(Math.atan2(a[1], a[2]) * 5729.578)];
+        out.push(JSON.stringify({ t: 'imu', ms, a, g: [Math.round(nz() * 40 + 20), Math.round(nz() * 40), Math.round(nz() * 40 - 10)], tmp: -3900, pr })); }
+      if (seq % 6 === 0) out.push(JSON.stringify({ t: 'lid', ms, mm: Math.round(lidmm + nz() * 4), st: 9 }));
+      if (seq % 6 === 3) out.push(JSON.stringify({ t: 'lid', i: 1, ms, mm: Math.round(lidmm + 150 + nz() * 4), st: 9 }));
+    }
+    v.forEach((x, i) => { min[i] = Math.min(min[i], x); max[i] = Math.max(max[i], x); cov[i] |= 1 << (x >> 11); });
+    out.push(JSON.stringify(Object.assign({ t: 's', n: seq, ms, v }, t6 ? { e: E.slice() } : {})));
+    if (seq % 10 === 0) out.push(JSON.stringify({ t: 'st', min: min.slice(), max: max.slice(), pp: rest.map(() => noise), ppmin: rest.map(() => noise), cov: cov.map(c => c >>> 0), fill: 200 }));
+  };
+  const hold = n => { for (let i = 0; i < n; i++) frame(cur); };
+  if (t5) hold(2200);                                           // I2C devices step (10 s)
+  hold(700);                                                    // rest step
+  for (let f = 0; f < (t6 ? 5 : 3); f++) {                       // sweep each fader / pot (bottom -> top)
+    const bad = scn.bad === f;
+    for (let i = 0; i <= 600; i++) { cur[f] = i / 600 * 65535; if (bad && i === 300) cur[f] += 14000; if (bad && i === 301) cur[f] -= 14000; if (scn.xtalk === f && i === 300) cur[(f + 1) % 3] += 3000; frame(cur); }
+    hold(40);
+  }
+  if (t6) { hold(60); } else if (t5) { hold(200); for (let i = 0; i <= 40; i++) { cur[3] = i / 40 * 50000; frame(cur); } hold(40); for (let i = 0; i < 6; i++) { cur[3] = 50000 * (1 - (i + 1) / 6); frame(cur); } cur[3] = 120; hold(100); }
+  hold(700);                                                    // rest recheck
+  if (t5) {
+    hold(700);                                                  // IMU rest, flat
+    [[16384, 0, 0], [-16384, 0, 0], [0, 16384, 0], [0, -16384, 0], [0, 0, 16384], [0, 0, -16384]].forEach(o => { ori = o.slice(); hold(260); });
+    ori = [0, 0, 16384]; hold(60); hold(700); hold(760);        // lidar 1 then lidar 2 fixed targets
+  }
+  if (t6) {                                                      // encoders: 20 detents cw, 20 ccw, 5 presses each
+    hold(200);
+    [0, 1].forEach(k => { for (let i = 0; i < 80; i++) { E[k * 4]++; hold(2); } for (let i = 0; i < 80; i++) { E[k * 4]--; hold(2); } hold(40);
+      for (let p = 0; p < 5; p++) { E[k * 4 + 1] = 1; hold(12); E[k * 4 + 1] = 0; E[k * 4 + 2]++; hold(12); } hold(260); });
+  }
+  return out;
+}
+function runScripted(scn) {                  // synchronous, no timers: drives the real step engine
+  resetLink(); S.connected = true; S.demo = true;
+  const lines = simLines(scn); let k = 0;
+  const feed = n => { for (let i = 0; i < n && k < lines.length; i++) onLine(lines[k++]); };
+  feed(2); while (S.steps[S.cur] && S.steps[S.cur].kind === 'cal') { S.steps[S.cur].state = 'skip'; S.cur++; }
+  begin();                                              // hello + first sample, start rest
+  let guard = 0;
+  while (k < lines.length && guard++ < 100000) {
+    feed(1);
+    if (S.run) continue;
+    const s = S.steps[S.cur]; if (!s) break;
+    if (s.kind === 'cal') { s.state = 'skip'; S.cur++; continue; }
+    if (s.state === 'idle') { feed(60); begin(); }   // settle like a human would before pressing Begin
+    else if (s.state === 'fail') { if (S.cur < S.steps.length - 1) { S.cur++; feed(60); begin(); } else break; }
+    else if (s.state === 'pass' && S.cur === S.steps.length - 1) break;
+  }
+  drawSteps();
+  return S.steps.map(s => s.id + ':' + s.state).join(' ') + ' | ' + $('banner').textContent;
+}
+let demoTimer = 0;
+function demoLive() {
+  if (demoTimer) { clearInterval(demoTimer); demoTimer = 0; S.demo = false; setConn(false); ctl(false); return; }
+  resetLink(); S.connected = true; S.demo = true; setConn(true, 'DEMO'); ctl(true); setMsg('Demo: synthetic data, not the Seed.');
+  const lines = simLines({ noise: 10, t5: $('testSel').value.startsWith('05') }); let k = 0;
+  demoTimer = setInterval(() => { for (let i = 0; i < 2 && k < lines.length; i++) onLine(lines[k++]); if (k >= lines.length) k = 3; }, 10);
+}
+
+// ---------------------------------------------------------------- wiring
+$('testSel').onchange = () => { if (S.connected && !S.demo && $('testSel').value !== S.test) { $('testSel').value = S.test; setMsg('The firmware reports test ' + S.test + '; the view follows the firmware. Flash another test to change it.'); } };
+$('bConnect').onclick = connect;
+$('bDemo').onclick = demoLive;
+$('bReset').onclick = () => { send('reset'); S.st = null; mark(); };
+$('bDfu').onclick = () => { if (confirm('Reboot the Seed into the bootloader for reflash?')) { send('dfu'); S.expectReboot = true; setMsg('DFU sent. The port will vanish: flash, then Connect again.'); } };
+$('bBegin').onclick = begin;
+$('bSkip').onclick = () => { if (S.run) { S.run.s.state = 'idle'; S.run = null; } const s = S.steps[S.cur]; if (s) s.state = 'skip'; if (S.cur < S.steps.length - 1) S.cur++; drawSteps(); };
+$('bRestart').onclick = () => { S.run = null; buildSteps(); drawSteps(); send('reset'); };
+$('bBase').onclick = () => saveBase(false);
+$('bCopy').onclick = () => {
+  const t = ['HYPERTRUMPET V2 bring-up ' + S.test + '  fw ' + S.fw, $('banner').textContent].concat(S.steps.map(s => s.title + ': ' + s.state + '\n' + s.checks.map(c => '  ' + (c.ok ? 'PASS ' : 'FAIL ') + c.name + ': ' + c.detail).join('\n'))).join('\n');
+  navigator.clipboard && navigator.clipboard.writeText(t).catch(() => {});
+};
+initCanvases();
+if (navigator.serial) {
+  navigator.serial.addEventListener('disconnect', () => { S.connected = false; S.writer = null; clearTimeout(S.staleT); setConn(false, 'REBOOTING'); ctl(false); setMsg(S.expectReboot ? 'Seed rebooted into DFU / flashing. It reconnects by itself when it is back; if not, press Connect.' : 'Seed disconnected or rebooted. Reconnecting automatically; if it does not come back press Connect.'); });
+  navigator.serial.addEventListener('connect', () => autoReconnect(8));
+}
+const q = new URLSearchParams(location.search);
+if (q.get('selftest') === 'cal') {                // fit accuracy for several taper exponents
+  const out = []; [[2.737, 'slider'], [3.5, 'slider'], [1.5, 'slider'], [1.0, 'slider'], [0.234, 'pot'], [0.5, 'pot']].forEach(([n, kd]) => { const raws = CAL_POS.map(p => Math.round(Math.pow(p, n) * FS)); const r = fitCal(raws, kd); let worst = 0;
+    if (r.err) out.push('n=' + n + ' ' + r.err); else { for (let i = 0; i <= 100; i++) { const p = i / 100, raw = Math.pow(p, n) * FS, e = Math.abs(linApply(r.bp, raw) / FS - p); if (e > worst) worst = e; } out.push(kd + ' n=' + n + ' worst lin error ' + (worst * 100).toFixed(2) + '% FS bp=' + r.bp.join(',')); } });
+  const o = document.createElement('pre'); o.id = 'selftest'; o.textContent = out.join('\n'); document.body.appendChild(o);
+} else if (q.get('selftest')) {                       // headless check of the PASS/FAIL logic: ?selftest=ok|bad|xtalk
+  const st = q.get('selftest'), scn0 = st === 'ok6' ? { t6: true } : null, scn = st.startsWith('bad') ? { bad: 1 } : st.startsWith('xtalk') ? { xtalk: 0 } : st === 'badimu5' ? { badimu: 1 } : st === 'err5' ? { i2cerr: 0 } : {};
+  if (scn0) { scn.t6 = true; scn.t5 = true; }
+  if (st.endsWith('5')) scn.t5 = true; if (st === 'badimu5') scn.badimu = true; if (st === 'bad5') scn.bad = 1;
+  const r = runScripted(scn); document.title = 'SELFTEST ' + r; draw();
+  const o = document.createElement('pre'); o.id = 'selftest'; o.textContent = r + '\n' + S.steps.map(s => s.title + '\n' + s.checks.map(c => (c.ok ? ' PASS ' : ' FAIL ') + c.name + ': ' + c.detail).join('\n')).join('\n'); document.body.appendChild(o);
+} else {
+  showBase(); drawScope(); autoReconnect(1);
+  if (q.get('demo')) { if (q.get('t') === '05') $('testSel').value = '05_faders_imu_lidar'; demoLive(); }
+  if (q.get('cvlog')) setTimeout(() => { document.title = 'CV dpr' + devicePixelRatio + ' ' + [...document.querySelectorAll('canvas')].map(c => (c.id || c.className) + ':' + c.width + 'x' + c.height + ' css' + Math.round(c.getBoundingClientRect().height)).join(' | '); }, 5000);
+}
+</script>
+</body>
+</html>

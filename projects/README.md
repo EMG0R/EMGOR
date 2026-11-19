@@ -5,7 +5,8 @@
 | [NEPTR](projects/NEPTR) | Csound guitar/bass multi-FX instrument: ~60 effects, looper, NAM, presets, Teensy body, pygame touch UI |
 | [DEMIURGE_OS](projects/DEMIURGE_OS) | Audio-first Raspberry Pi 5 OS: PipeWire hub, multi-language chain, Rust launcher, one live.conf |
 | [HYPERGUITAR](projects/HYPERGUITAR) | Hex-pickup guitar on Bela: per-string pitch engine, formant, resonators |
-| [HYPERTRUMPET](projects/HYPERTRUMPET) | Hyper-instrument trumpet work |
+| [HYPERTRUMPET](projects/HYPERTRUMPET) | Hyper-instrument trumpet: v1 Max patch + Teensy (root), V2 Daisy Seed 3 firmware / web UI / docs / print set (V2/) |
+| [HYPER_CORE](projects/HYPER_CORE) | Shared Daisy Seed DSP/HAL library used by HYPERTRUMPET V2 (libDaisy v9.0.0 fetched separately) |
 | [NEURALGRID](projects/NEURALGRID) | 8x8 NeoTrellis + sensor grid instrument, gesture-to-sound-space translator |
 | [PMOR](projects/PMOR) | Daisy Seed pocket groovebox firmware (snapshot of PMOR_V3 macbert/max, 2026-11-12) |
 | [DUODECIMUS](projects/DUODECIMUS) | Teensy 4.1 12-encoder MIDI controller |

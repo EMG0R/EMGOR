@@ -1,0 +1,12 @@
+{
+ "wrap_height_mm": 16.0,
+ "lip_thickness_mm": 1.5,
+ "bead_height_mm": 0.7,
+ "bead_zone_height_mm": 2.2,
+ "lip_free_length_mm": 12.0,
+ "strain_pct_cantilever_estimate": 1.09,
+ "parting_line_clearance_mm": 0.2,
+ "plate_thickness_mm": 1.5,
+ "notches": "3 x 8 mm wide x 1.2 deep on the -y side housing at x 805/837/869",
+ "parting_line_z": -35.49999999999999
+}

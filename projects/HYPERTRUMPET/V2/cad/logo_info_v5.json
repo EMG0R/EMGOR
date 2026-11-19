@@ -1,0 +1,20 @@
+{
+ "face": "control face (+y), lower-left over the Daisy Seed housing",
+ "block_mm": [
+  48.4,
+  14.4
+ ],
+ "big_cap_height_mm": 4.9,
+ "small_cap_height_mm": 2.3,
+ "centre_xz": [
+  776.2,
+  24.2
+ ],
+ "margin_mm": 6.0,
+ "depth_mm": 1.35,
+ "stroke_half_width_mm": 0.5,
+ "wall_under_deepest_mm": 3.55,
+ "faces": 236736,
+ "watertight": true,
+ "euler": -64
+}

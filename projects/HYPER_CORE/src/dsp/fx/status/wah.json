@@ -1,0 +1,6 @@
+{"id":"wah","file":"fx_wah.h",
+ "roles":{"TONE":"FREQ","AMT":"ENVAMT","MOD":"Q","TIME":"RANGE"},
+ "actions":{"MAIN":"unused","ALT":"unused","CLEAR":"unused","HOLD":"unused"},
+ "ops_per_sample":"Svf tick ~12 flops + mode select/comp (4) + dry/wet (3) = ~19/sample/channel; coefficient update (tanf, 1 divide) every 16 samples ~ +4 amortised. ~25 flops ~ 35 cycles ~ 0.35% of M7 per channel.",
+ "memory_bytes":0,
+ "notes":"No arena use. Host ns/sample: 8.6 mono, 12.9 stereo. FREQ 350..2500 Hz log (lidar -> TONE role). BP is unity-peak then lifted by 1+0.5*sqrt(Q); LP by 1/sqrt(Q); NOTCH unity. ENVAMT*ctx.env*RANGE*3 octaves opens the filter. AUTOQ scales Q by (940/fc)^0.35. Verified BP peak within +-7% of FREQ over 350..2500 (noise measurement; limited by FFT-less Goertzel scan resolution/noise)."}

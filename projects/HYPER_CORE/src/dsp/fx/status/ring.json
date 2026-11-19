@@ -1,0 +1,6 @@
+{"id":"ring","file":"fx_ringmod.h",
+ "roles":{"AMT":"DEPTH","PITCH":"FREQ","TONE":"TONE","MOD":"RATIO"},
+ "actions":{"HOLD":"pad 5 momentary: 1 = engage (wet gate ramps to 1 in 10 ms), 0 = release (10 ms). After the first A_HOLD the gate is active; before it the effect is always on. MAIN/ALT/CLEAR unused"},
+ "ops_per_sample":"carrier: 1 glide one-pole (2) + phase (3) + sinPar (~12) or tri (3) or square+2 polyBLEP (~14) + gate/mix ramp (~8) = ~28; per channel: optional softclip drive (~8), multiply, optional LP (3), mix (3) = ~10-18. ~45 flops stereo = ~60 cycles ~ 0.6% of M7.",
+ "memory_bytes":0,
+ "notes":"No arena use. Host ns/sample 9.1 mono. FREQ 1..2000 Hz log, GLIDE 1..2000 ms (default 200 = v1). SHAPE sine/tri/square(polyBLEP). TRACK mode: carrier = ctx.f0*RATIO (last f0 held when unvoiced). DEPTH blends AM <-> ring. Goertzel-verified: 1 kHz x 300 Hz -> 700 + 1300 Hz, input and carrier suppressed >40 dB (sine)."}

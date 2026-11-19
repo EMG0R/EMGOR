@@ -1,0 +1,79 @@
+{
+ "mount_arms_plate": {
+  "casings/caps/buttons": 1.23,
+  "slide legs+crowns": 3.02,
+  "finger ring": 18.11,
+  "thumb hook": 21.79,
+  "brace": 61.75,
+  "leadpipe": 4.13,
+  "bell+rim": 2.94,
+  "waterkey3_assumed": 0.8,
+  "waterkey_tuning_assumed": 94.2
+ },
+ "pod_face_panel": {
+  "casings/caps/buttons": 15.2,
+  "slide legs+crowns": 19.4,
+  "finger ring": 41.49,
+  "thumb hook": 42.3,
+  "brace": 70.19,
+  "leadpipe": 34.85,
+  "bell+rim": 8.18,
+  "waterkey3_assumed": 59.0,
+  "waterkey_tuning_assumed": 100.3
+ },
+ "palm_rest_dome": {
+  "casings/caps/buttons": 9.6,
+  "slide legs+crowns": 35.4,
+  "finger ring": 65.8,
+  "thumb hook": 118.44,
+  "brace": 99.36,
+  "leadpipe": 108.95,
+  "bell+rim": 243.51,
+  "waterkey3_assumed": 44.2,
+  "waterkey_tuning_assumed": 140.2
+ },
+ "elec_bay_cap": {
+  "casings/caps/buttons": 43.96,
+  "slide legs+crowns": 62.58,
+  "finger ring": 88.66,
+  "thumb hook": 177.21,
+  "brace": 205.12,
+  "leadpipe": 129.17,
+  "bell+rim": 350.56,
+  "waterkey3_assumed": 56.1,
+  "waterkey_tuning_assumed": 245.6
+ },
+ "hall_rail_49E": {
+  "casings/caps/buttons": 0.25,
+  "slide legs+crowns": 58.35,
+  "finger ring": 32.76,
+  "thumb hook": 18.87,
+  "brace": 104.85,
+  "leadpipe": 4.47,
+  "bell+rim": 262.52,
+  "waterkey3_assumed": 95.0,
+  "waterkey_tuning_assumed": 150.8
+ },
+ "spiral_ribbon_mic_arm": {
+  "casings/caps/buttons": 119.78,
+  "slide legs+crowns": 28.14,
+  "finger ring": 184.99,
+  "thumb hook": 90.13,
+  "brace": 19.49,
+  "leadpipe": 8.1,
+  "bell+rim": 1.43,
+  "waterkey3_assumed": 238.5,
+  "waterkey_tuning_assumed": 12.3
+ },
+ "spiral_diffuser": {
+  "casings/caps/buttons": 124.25,
+  "slide legs+crowns": 35.13,
+  "finger ring": 190.52,
+  "thumb hook": 92.5,
+  "brace": 19.96,
+  "leadpipe": 6.57,
+  "bell+rim": 4.69,
+  "waterkey3_assumed": 245.8,
+  "waterkey_tuning_assumed": 13.0
+ }
+}

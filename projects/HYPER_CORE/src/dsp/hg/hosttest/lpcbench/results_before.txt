@@ -1,0 +1,107 @@
+
+STEADY  string 4  f0=196.0 Hz  B=1.0e-04   envelope err dB RMS (bypass err / lpc err) | gain dB
+  rho \ phi |   phi=0.75: by   lpc  gain |   phi=1.00: by   lpc  gain |   phi=1.30: by   lpc  gain |
+   0.50    |    4.46  4.87  0.63 |    4.40  4.42  0.01 |    4.63  4.25 -0.58 |
+   0.75    |    0.00  1.96  0.31 |    4.63  4.64  0.00 |    5.44  4.89 -0.29 |
+   1.00    |    4.21  3.59 -0.05 |    0.00  0.06  0.00 |    4.97  4.29 -0.05 |
+   1.50    |    5.17  5.23 -0.51 |    5.57  5.58  0.01 |    3.48  4.62  0.65 |
+   2.00    |    5.70  5.47 -1.17 |    5.83  5.85  0.02 |    6.37  5.79  0.58 |
+  MEAN: bypass 4.32 dB, lpc 4.37 dB, |gain| 0.32 dB
+
+STEADY  string 4  f0=392.0 Hz  B=3.0e-04   envelope err dB RMS (bypass err / lpc err) | gain dB
+  rho \ phi |   phi=0.75: by   lpc  gain |   phi=1.00: by   lpc  gain |   phi=1.30: by   lpc  gain |
+   0.50    |    4.64  5.14  0.65 |    4.57  4.59 -0.03 |    4.99  4.55 -0.63 |
+   0.75    |    0.00  1.80  0.26 |    4.72  4.72 -0.01 |    5.97  5.44 -0.35 |
+   1.00    |    4.42  3.89 -0.19 |    0.00  0.08  0.01 |    5.05  4.15 -0.13 |
+   1.50    |    5.23  5.43 -0.91 |    5.06  5.07  0.07 |    3.89  4.82  0.42 |
+   2.00    |    4.93  4.81 -1.56 |    5.84  5.85  0.11 |    5.69  4.65  0.72 |
+  MEAN: bypass 4.33 dB, lpc 4.33 dB, |gain| 0.40 dB
+
+INVALID analyses while loud (non-bypass): 0 of 19498 hops
+
+STEADY  string 0  f0=65.4 Hz  B=1.0e-04   envelope err dB RMS (bypass err / lpc err) | gain dB
+  rho \ phi |   phi=0.75: by   lpc  gain |   phi=1.00: by   lpc  gain |   phi=1.30: by   lpc  gain |
+   0.50    |    4.96  5.37  0.77 |    4.81  4.85  0.24 |    4.95  4.59 -0.47 |
+   0.75    |    0.00  1.88  0.29 |    4.87  4.90  0.08 |    5.78  5.29 -0.21 |
+   1.00    |    4.79  4.24 -0.06 |    0.00  0.20 -0.00 |    5.07  4.43 -0.01 |
+   1.50    |    5.13  5.20 -0.55 |    6.05  6.07 -0.10 |    3.62  4.57  0.54 |
+   2.00    |    5.30  5.09 -0.96 |    5.69  5.70 -0.10 |    6.76  6.35  0.65 |
+  MEAN: bypass 4.52 dB, lpc 4.58 dB, |gain| 0.34 dB
+
+STEADY  string 0  f0=130.8 Hz  B=3.0e-04   envelope err dB RMS (bypass err / lpc err) | gain dB
+  rho \ phi |   phi=0.75: by   lpc  gain |   phi=1.00: by   lpc  gain |   phi=1.30: by   lpc  gain |
+   0.50    |    4.88  5.32  0.68 |    4.72  4.74  0.10 |    4.87  4.47 -0.56 |
+   0.75    |    0.00  2.01  0.34 |    4.79  4.81  0.04 |    5.70  5.20 -0.26 |
+   1.00    |    4.55  3.97  0.00 |    0.00  0.10  0.01 |    4.95  4.30 -0.02 |
+   1.50    |    4.96  5.10 -0.47 |    5.95  5.97 -0.04 |    3.60  4.72  0.65 |
+   2.00    |    5.08  4.84 -1.10 |    5.52  5.54 -0.06 |    6.75  6.37  0.59 |
+  MEAN: bypass 4.42 dB, lpc 4.50 dB, |gain| 0.33 dB
+
+INVALID analyses while loud (non-bypass): 0 of 19498 hops
+
+ATTACK  string 4  note B at 247.0 Hz after note A (different envelope); rise 10-90% in ms, output time
+  rho  phi |  y(ref)  lpc   delta  | peak ratio lpc/y | level dB @20-30ms
+  0.50 0.75 |  10.39  10.48  +0.09  |  1.01            | +0.69
+  0.50 1.00 |  10.39  10.39  +0.00  |  0.99            | -0.16
+  0.50 1.30 |  10.39  10.43  +0.05  |  0.99            | -0.68
+  0.75 0.75 |   6.96   6.96  +0.00  |  1.04            | +0.67
+  0.75 1.00 |   6.96   6.92  -0.05  |  0.98            | -0.04
+  0.75 1.30 |   6.96   7.07  +0.11  |  1.01            | -0.49
+  1.00 0.75 |   5.85   5.85  +0.00  |  1.03            | +0.54
+  1.00 1.00 |   5.85   5.85  +0.00  |  0.98            | +0.03
+  1.00 1.30 |   5.85   5.83  -0.02  |  1.05            | -0.24
+  1.50 0.75 |   2.00   3.97  +1.97  |  1.08            | +0.15
+  1.50 1.00 |   2.00   4.01  +2.02  |  1.00            | +0.28
+  1.50 1.30 |   2.00   1.95  -0.05  |  1.16            | +0.40
+  2.00 0.75 |   3.31   3.11  -0.20  |  0.99            | -0.85
+  2.00 1.00 |   3.31   3.31  +0.00  |  1.02            | +0.28
+  2.00 1.30 |   3.31   3.33  +0.02  |  1.14            | +0.55
+  MEAN delta rise (non-bypass cases) +0.304 ms | mean |peak dB| 0.33 | mean |level dB| 0.40
+
+INVALID analyses while loud (non-bypass): 0 of 7583 hops
+
+ATTACK  string 0  note B at 82.4 Hz after note A (different envelope); rise 10-90% in ms, output time
+  rho  phi |  y(ref)  lpc   delta  | peak ratio lpc/y | level dB @20-30ms
+  0.50 0.75 |  14.22  12.56  -1.66  |  1.06            | +1.30
+  0.50 1.00 |  14.22  12.61  -1.61  |  0.99            | +0.57
+  0.50 1.30 |  14.22  14.13  -0.09  |  1.03            | -0.49
+  0.75 0.75 |   8.00   8.07  +0.07  |  0.97            | +0.41
+  0.75 1.00 |   8.00   8.05  +0.05  |  0.96            | +0.07
+  0.75 1.30 |   8.00   8.05  +0.05  |  0.99            | -0.24
+  1.00 0.75 |   6.08   6.12  +0.05  |  0.98            | +0.33
+  1.00 1.00 |   6.08   6.10  +0.02  |  0.95            | +0.13
+  1.00 1.30 |   6.08   6.10  +0.02  |  1.01            | +0.05
+  1.50 0.75 |   4.49   4.58  +0.09  |  0.92            | -0.44
+  1.50 1.00 |   4.49   4.47  -0.02  |  0.99            | -0.11
+  1.50 1.30 |   4.49   4.54  +0.05  |  1.11            | +0.42
+  2.00 0.75 |   3.47   3.45  -0.02  |  0.88            | -1.02
+  2.00 1.00 |   3.47   3.45  -0.02  |  0.99            | -0.14
+  2.00 1.30 |   3.47   3.45  -0.02  |  1.03            | +0.50
+  MEAN delta rise (non-bypass cases) -0.242 ms | mean |peak dB| 0.35 | mean |level dB| 0.42
+
+INVALID analyses while loud (non-bypass): 0 of 7583 hops
+
+CONVERGE string 4  new note 247.0 Hz after a different-envelope note; env err dB (25 ms windows starting at +t ms)
+  rho  phi | +  0 + 10 + 20 + 35 + 50 + 80 +130 +250   | mean(0..80ms)
+  1.00 1.30 |  4.7  4.8  4.3  4.4  4.3  4.0  4.0  4.0   | 4.43
+  1.00 0.75 |  5.4  4.9  4.3  4.5  4.3  4.1  4.1  4.1   | 4.59
+  1.50 1.00 |  5.7  6.2  6.4  6.3  6.4  6.4  6.4  6.4   | 6.22
+  0.75 1.00 |  5.3  4.4  5.0  3.9  4.4  4.4  4.4  4.4   | 4.56
+  MEAN(0..80ms) 4.95
+
+INVALID analyses while loud (non-bypass): 0 of 1865 hops
+
+IDENTITY string 4  max|out - y| / peak(y)  (rho=phi cases are a plain resample)
+  rho=phi=1.00  2.518e-01 (-12.0 dBFS rel)
+  rho=phi=1.50  5.581e-01 (-5.1 dBFS rel)
+  rho=phi=0.75  2.826e-01 (-11.0 dBFS rel)
+
+INVALID analyses while loud (non-bypass): 0 of 0 hops
+
+CPU string 0: analyse 5.1 us/hop (host), process 19.2 ns/sample (host)
+
+INVALID analyses while loud (non-bypass): 0 of 234 hops
+
+CPU string 4: analyse 5.0 us/hop (host), process 19.5 ns/sample (host)
+
+INVALID analyses while loud (non-bypass): 0 of 234 hops

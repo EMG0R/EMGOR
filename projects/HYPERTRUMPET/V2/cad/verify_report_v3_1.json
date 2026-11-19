@@ -1,0 +1,817 @@
+{
+ "parts": {
+  "battery_drawer": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 25.45,
+   "bbox_mm": [
+    47.7,
+    80.1,
+    24.3
+   ],
+   "fits_bed": true
+  },
+  "coupon_grip_ring_c02": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 3.04,
+   "bbox_mm": [
+    24.8,
+    24.8,
+    14.0
+   ],
+   "fits_bed": true
+  },
+  "coupon_grip_ring_c04": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 3.09,
+   "bbox_mm": [
+    25.2,
+    25.2,
+    14.0
+   ],
+   "fits_bed": true
+  },
+  "coupon_grip_ring_c06": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 3.15,
+   "bbox_mm": [
+    25.6,
+    25.6,
+    14.0
+   ],
+   "fits_bed": true
+  },
+  "hall_rail_49E": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 4.09,
+   "bbox_mm": [
+    68.7,
+    25.2,
+    8.4
+   ],
+   "fits_bed": true,
+   "min_clear_by_item": {
+    "cap2": 0.25,
+    "cap1": 0.25,
+    "cap3": 0.27,
+    "stem1": 1.25,
+    "stem2": 1.25,
+    "stem3": 1.3,
+    "casing1": 2.9,
+    "casing2": 2.91
+   },
+   "clear_by_class": {
+    "casings/caps/buttons": 0.25,
+    "slide legs+crowns": 57.95,
+    "finger ring": 32.4,
+    "thumb hook": 18.88,
+    "brace": 104.81,
+    "leadpipe": 4.1,
+    "bell+rim": 262.56
+   }
+  },
+  "mic_insert_tilt_+00": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 5.4,
+   "bbox_mm": [
+    20.4,
+    20.4,
+    25.5
+   ],
+   "fits_bed": true
+  },
+  "mic_insert_tilt_+06": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 5.4,
+   "bbox_mm": [
+    21.7,
+    20.4,
+    26.5
+   ],
+   "fits_bed": true
+  },
+  "mic_insert_tilt_-04": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 5.4,
+   "bbox_mm": [
+    21.3,
+    20.4,
+    26.2
+   ],
+   "fits_bed": true
+  },
+  "mount_original_arms_plate": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 277.83,
+   "bbox_mm": [
+    221.0,
+    61.8,
+    145.7
+   ],
+   "fits_bed": true,
+   "min_clear_by_item": {
+    "slide3_leg0": 0.55,
+    "slide1_leg0": 0.55,
+    "slide3_crown": 0.63,
+    "slide1_leg1": 0.64,
+    "slide3_leg1": 0.64,
+    "saddle_hook": 0.65,
+    "casing1": 0.71,
+    "casing2": 0.72
+   },
+   "clear_by_class": {
+    "casings/caps/buttons": 0.71,
+    "slide legs+crowns": 0.55,
+    "finger ring": 11.2,
+    "thumb hook": 0.65,
+    "brace": 57.82,
+    "leadpipe": 3.27,
+    "bell+rim": 9.8
+   }
+  },
+  "shell_flowing_pod_palm": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 101.02,
+   "bbox_mm": [
+    152.8,
+    92.6,
+    203.7
+   ],
+   "fits_bed": true,
+   "min_clear_by_item": {
+    "cap3": 22.19,
+    "botcap2": 22.49,
+    "cap2": 22.54,
+    "botcap3": 22.83,
+    "casing3": 23.2,
+    "casing2": 23.24,
+    "cap1": 25.43,
+    "botcap1": 25.86
+   },
+   "clear_by_class": {
+    "casings/caps/buttons": 22.19,
+    "slide legs+crowns": 26.43,
+    "finger ring": 44.43,
+    "thumb hook": 50.24,
+    "brace": 111.72,
+    "leadpipe": 41.36,
+    "bell+rim": 255.38
+   }
+  },
+  "spiral_A_bridge_and_tail": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 9.23,
+   "bbox_mm": [
+    168.1,
+    45.6,
+    64.7
+   ],
+   "fits_bed": true,
+   "min_clear_by_item": {
+    "bell": 1.5,
+    "leadpipe": 18.68,
+    "slide1_leg1": 22.13,
+    "casing3": 22.18,
+    "saddle_hook": 25.1,
+    "cap3": 33.61,
+    "brace": 33.63,
+    "slide1_crown": 35.74
+   },
+   "clear_by_class": {
+    "casings/caps/buttons": 22.18,
+    "slide legs+crowns": 22.13,
+    "finger ring": 81.61,
+    "thumb hook": 25.1,
+    "brace": 33.63,
+    "leadpipe": 18.68,
+    "bell+rim": 1.5
+   }
+  },
+  "spiral_B_bell_and_mic_arm": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 11.93,
+   "bbox_mm": [
+    149.7,
+    66.8,
+    70.8
+   ],
+   "fits_bed": true,
+   "min_clear_by_item": {
+    "bell": 1.5,
+    "leadpipe": 36.31,
+    "brace": 59.91,
+    "slide1_crown": 65.16,
+    "slide1_leg1": 67.0,
+    "slide1_leg0": 80.71,
+    "saddle_hook": 125.96,
+    "cap3": 153.7
+   },
+   "clear_by_class": {
+    "casings/caps/buttons": 153.7,
+    "slide legs+crowns": 65.16,
+    "finger ring": 223.3,
+    "thumb hook": 125.96,
+    "brace": 59.91,
+    "leadpipe": 36.31,
+    "bell+rim": 1.5
+   }
+  },
+  "spiral_diffuser": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 1.5,
+   "bbox_mm": [
+    190.7,
+    34.2,
+    55.8
+   ],
+   "fits_bed": true,
+   "min_clear_by_item": {
+    "bell": 7.55,
+    "leadpipe": 24.29,
+    "slide1_leg1": 29.92,
+    "saddle_hook": 35.77,
+    "slide1_crown": 37.55,
+    "brace": 38.33,
+    "slide1_leg0": 47.93,
+    "casing3": 51.93
+   },
+   "clear_by_class": {
+    "casings/caps/buttons": 51.93,
+    "slide legs+crowns": 29.92,
+    "finger ring": 117.96,
+    "thumb hook": 35.77,
+    "brace": 38.33,
+    "leadpipe": 24.29,
+    "bell+rim": 7.55
+   }
+  },
+  "valve_cap_1": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 1.61,
+   "bbox_mm": [
+    18.0,
+    25.4,
+    7.4
+   ],
+   "fits_bed": true
+  },
+  "valve_cap_2": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 1.61,
+   "bbox_mm": [
+    18.0,
+    25.4,
+    7.4
+   ],
+   "fits_bed": true
+  },
+  "valve_cap_3": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 1.61,
+   "bbox_mm": [
+    18.0,
+    25.4,
+    7.4
+   ],
+   "fits_bed": true
+  },
+  "valve_cap_3_spare": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 1.61,
+   "bbox_mm": [
+    18.0,
+    25.4,
+    7.4
+   ],
+   "fits_bed": true
+  }
+ },
+ "control_diff": [
+  {
+   "control": "trellis_00",
+   "orig_centre": [
+    830.6,
+    67.6
+   ],
+   "v3_centre": [
+    830.6,
+    67.65
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    10.8
+   ]
+  },
+  {
+   "control": "trellis_01",
+   "orig_centre": [
+    830.6,
+    82.7
+   ],
+   "v3_centre": [
+    830.6,
+    82.65
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_02",
+   "orig_centre": [
+    830.6,
+    97.7
+   ],
+   "v3_centre": [
+    830.6,
+    97.65
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_03",
+   "orig_centre": [
+    830.6,
+    112.8
+   ],
+   "v3_centre": [
+    830.6,
+    112.75
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_10",
+   "orig_centre": [
+    845.6,
+    67.6
+   ],
+   "v3_centre": [
+    845.6,
+    67.65
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    10.8
+   ]
+  },
+  {
+   "control": "trellis_11",
+   "orig_centre": [
+    845.6,
+    82.7
+   ],
+   "v3_centre": [
+    845.6,
+    82.65
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_12",
+   "orig_centre": [
+    845.6,
+    97.7
+   ],
+   "v3_centre": [
+    845.6,
+    97.65
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_13",
+   "orig_centre": [
+    845.6,
+    112.8
+   ],
+   "v3_centre": [
+    845.6,
+    112.75
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_20",
+   "orig_centre": [
+    860.7,
+    67.6
+   ],
+   "v3_centre": [
+    860.8,
+    67.65
+   ],
+   "d_centre_mm": 0.11,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    10.8,
+    10.8
+   ]
+  },
+  {
+   "control": "trellis_21",
+   "orig_centre": [
+    860.7,
+    82.7
+   ],
+   "v3_centre": [
+    860.7,
+    82.65
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_22",
+   "orig_centre": [
+    860.7,
+    97.7
+   ],
+   "v3_centre": [
+    860.7,
+    97.65
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_23",
+   "orig_centre": [
+    860.7,
+    112.8
+   ],
+   "v3_centre": [
+    860.7,
+    112.75
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_30",
+   "orig_centre": [
+    875.7,
+    67.6
+   ],
+   "v3_centre": [
+    875.8,
+    67.65
+   ],
+   "d_centre_mm": 0.11,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    10.8,
+    10.8
+   ]
+  },
+  {
+   "control": "trellis_31",
+   "orig_centre": [
+    875.7,
+    82.7
+   ],
+   "v3_centre": [
+    875.7,
+    82.75
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    10.8
+   ]
+  },
+  {
+   "control": "trellis_32",
+   "orig_centre": [
+    875.7,
+    97.7
+   ],
+   "v3_centre": [
+    875.7,
+    97.65
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "trellis_33",
+   "orig_centre": [
+    875.7,
+    112.8
+   ],
+   "v3_centre": [
+    875.7,
+    112.75
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    11.0,
+    11.1
+   ],
+   "v3_size": [
+    11.0,
+    11.0
+   ]
+  },
+  {
+   "control": "fader_0",
+   "orig_centre": [
+    841.75,
+    23.3
+   ],
+   "v3_centre": [
+    841.8,
+    23.3
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    4.1,
+    38.4
+   ],
+   "v3_size": [
+    3.8,
+    38.0
+   ]
+  },
+  {
+   "control": "fader_1",
+   "orig_centre": [
+    852.7,
+    23.3
+   ],
+   "v3_centre": [
+    852.75,
+    23.3
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    4.1,
+    38.4
+   ],
+   "v3_size": [
+    3.8,
+    38.0
+   ]
+  },
+  {
+   "control": "fader_2",
+   "orig_centre": [
+    863.6500000000001,
+    23.3
+   ],
+   "v3_centre": [
+    863.7,
+    23.3
+   ],
+   "d_centre_mm": 0.05,
+   "orig_size": [
+    4.1,
+    38.4
+   ],
+   "v3_size": [
+    3.8,
+    38.0
+   ]
+  },
+  {
+   "control": "lidar",
+   "orig_centre": [
+    852.7,
+    57.0
+   ],
+   "v3_centre": [
+    852.7,
+    57.0
+   ],
+   "d_centre_mm": 0.0,
+   "orig_size": [
+    11.0,
+    8.0
+   ],
+   "v3_size": [
+    10.6,
+    7.6
+   ]
+  },
+  {
+   "control": "round_0",
+   "orig_centre": [
+    753.7,
+    46.8
+   ],
+   "v3_centre": [
+    753.75,
+    46.85
+   ],
+   "d_centre_mm": 0.07,
+   "orig_size": [
+    8.7,
+    8.3
+   ],
+   "v3_size": [
+    8.4,
+    8.0
+   ]
+  },
+  {
+   "control": "round_1",
+   "orig_centre": [
+    753.7,
+    96.5
+   ],
+   "v3_centre": [
+    753.75,
+    96.55
+   ],
+   "d_centre_mm": 0.07,
+   "orig_size": [
+    8.7,
+    8.3
+   ],
+   "v3_size": [
+    8.4,
+    8.0
+   ]
+  },
+  {
+   "control": "round_2",
+   "orig_centre": [
+    810.7,
+    56.3
+   ],
+   "v3_centre": [
+    810.75,
+    56.35
+   ],
+   "d_centre_mm": 0.07,
+   "orig_size": [
+    8.7,
+    8.3
+   ],
+   "v3_size": [
+    8.4,
+    8.0
+   ]
+  },
+  {
+   "control": "round_3",
+   "orig_centre": [
+    810.7,
+    90.0
+   ],
+   "v3_centre": [
+    810.75,
+    90.05
+   ],
+   "d_centre_mm": 0.07,
+   "orig_size": [
+    8.7,
+    8.3
+   ],
+   "v3_size": [
+    8.4,
+    8.0
+   ]
+  },
+  {
+   "control": "joystick",
+   "orig_centre": [
+    780.7,
+    72.3
+   ],
+   "v3_centre": [
+    780.7,
+    72.4
+   ],
+   "d_centre_mm": 0.1,
+   "orig_size": [
+    29.4,
+    28.0
+   ],
+   "v3_size": [
+    29.0,
+    27.8
+   ]
+  }
+ ],
+ "mic_envelope_min_clearance_to_bell_mm": {
+  "-4.0": 1.3,
+  "0.0": 4.36,
+  "6.0": 6.46
+ },
+ "assembly_intersections_mm3": {
+  "mount_original_arms_plate x spiral_A_bridge_and_tail": 0.02,
+  "spiral_A_bridge_and_tail x spiral_B_bell_and_mic_arm": 0.64,
+  "spiral_A_bridge_and_tail x spiral_diffuser": 1.91
+ }
+}

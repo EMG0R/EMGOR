@@ -1,0 +1,11 @@
+# HYPER_CORE: shared Daisy DSP/HAL library. libDaisy is a submodule (electro-smith v9.0.0).
+build/
+.DS_Store
+__pycache__/
+*.o
+*.d
+*.elf
+*.map
+*.hex
+*.wav
+tools/*/build/
