@@ -19,3 +19,10 @@ Flashing: only the Mac with the Seed on USB (`bringup/tools/flash.sh <bin>`; QSP
 
 Rules for agents: edit in place, additive; bump the version string on every behaviour change; say `CLAIMING <path> on <node>` on the bus before editing shared files; `git pull --rebase`, never force-push.
 Docs: `docs/` (TRELLIS_MAP, FX_BUDGET, LOOPER, V1_MAP_AUDIT, GROUNDING_PLAN, MIC_CHAIN), `bringup/BRINGUP_PLAN.md`.
+
+## Building and flashing from NEPTR (Linux Pi, `gorpi7v5`)
+Toolchain: GNU Arm 10.3-2021.10 (aarch64) in `~/toolchains/gcc-arm-none-eabi-10.3-2021.10/` (the system gcc 14 overflows SRAM). libDaisy is cloned, uncommitted, into `HYPER_CORE/third_party/libDaisy` and built with the same toolchain. The Pi plays live audio: builds run `nice -n 19`, `make -j1`.
+`bringup/tools/ht`:
+- `ht build`: pull, build 14_padfx, archive to `~/HYPERTRUMPET_BUILDS/<version>-<sha>.bin` + `.sha256` (never overwritten)
+- `ht list`: archive, newest first, `*` = last flashed (`~/HYPERTRUMPET_BUILDS/FLASHED`)
+- `ht flash <version|file>` / `ht switch <version>`: verify sha256, refuse if any other Daisy Seed (bench Seed 18063371376) is attached, ask the trumpet Seed (by-id serial 327F34773333) for DFU, refuse ROM DFU (no `/0x90` region), then only `dfu-util -a 0 -s 0x90040000:leave`; reads the hello `fw` string afterwards.

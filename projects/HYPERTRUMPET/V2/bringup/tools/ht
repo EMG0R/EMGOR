@@ -1,0 +1,95 @@
+#!/bin/bash
+# ht <build|list|flash|switch>: build, archive and flash HYPERTRUMPET V2 firmware from the NEPTR Pi (Linux port of flash.sh).
+#   ht build            pull, build 14_padfx with GNU Arm 10.3, archive to ~/HYPERTRUMPET_BUILDS/<version>-<sha>.bin (+ .sha256, never overwritten)
+#   ht list             archived builds, newest first, '*' = last flashed
+#   ht flash <ver|file> verify sha256, put the trumpet Seed in DFU, flash QSPI 0x90040000 only, read hello
+#   ht switch <ver>     same as flash (rollback / forward)
+# Heavy work runs under nice -n 19, make -j1: this Pi plays live audio. Never touches services.
+set -u
+REPO=$HOME/EMGOR; V2=$REPO/projects/HYPERTRUMPET/V2; FW=$V2/bringup/fw
+TC=$HOME/toolchains/gcc-arm-none-eabi-10.3-2021.10/bin
+ARCH=$HOME/HYPERTRUMPET_BUILDS; FLASHED=$ARCH/FLASHED
+TRUMPET=/dev/serial/by-id/usb-Electrosmith_Daisy_Seed_Built_In_327F34773333-if00
+BENCH_SERIAL=18063371376   # spare bench Seed: never flash with it attached
+mkdir -p "$ARCH"
+
+build() {
+  git -C "$REPO" pull --rebase || { echo "pull failed"; exit 1; }
+  local sha ver
+  sha=$(git -C "$REPO" rev-parse --short HEAD)
+  ver=$(grep -o 'FW_VERSION "padfx-[^"]*"' "$FW/main.cpp" | head -1 | sed 's/.*"\(.*\)"/\1/')
+  [ -n "$ver" ] || { echo "no padfx version string in main.cpp"; exit 1; }
+  local out=$ARCH/$ver-$sha.bin
+  [ -e "$out" ] && { echo "already archived: $out"; exit 0; }
+  ( cd "$FW" && PATH=$TC:$PATH nice -n 19 make -j1 TEST=14_padfx APP_TYPE=BOOT_SRAM BUILD_DIR=build_padfx CORE="$REPO/projects/HYPER_CORE" ) || { echo "BUILD FAILED"; exit 1; }
+  cp "$FW/build_padfx/bringup_14_padfx.bin" "$out"
+  ( cd "$ARCH" && sha256sum "$(basename "$out")" > "$out.sha256" )
+  echo "archived $out"; cat "$out.sha256"
+}
+
+list() {
+  local last=""; [ -e "$FLASHED" ] && last=$(tail -1 "$FLASHED" | awk '{print $2}')
+  for f in $(ls -t "$ARCH"/*.bin 2>/dev/null); do
+    b=$(basename "$f"); m=" "; [ "$b" = "$last" ] && m="*"
+    echo "$m $b  $(stat -c %y "$f" | cut -c1-16)"
+  done
+  if [ -e "$FLASHED" ]; then echo "last flashed: $(tail -1 "$FLASHED")"; fi
+}
+
+flash() {
+  local arg=${1:-}; [ -n "$arg" ] || { echo "usage: ht flash <version|file>"; exit 2; }
+  local bin
+  if [ -f "$arg" ]; then bin=$(readlink -f "$arg"); else bin=$(ls -t "$ARCH/$arg"-*.bin "$ARCH/$arg" 2>/dev/null | head -1); fi
+  [ -f "${bin:-}" ] || { echo "no archived build matches '$arg'"; exit 2; }
+  [ -f "$bin.sha256" ] || { echo "no .sha256 beside $bin: only archived builds are flashed"; exit 2; }
+  ( cd "$(dirname "$bin")" && sha256sum -c "$(basename "$bin").sha256" ) || { echo "SHA256 MISMATCH - abort"; exit 2; }
+  ls /dev/serial/by-id/ 2>/dev/null | grep -q "$BENCH_SERIAL" && { echo "BENCH SEED PRESENT - abort"; exit 3; }
+  # any Daisy Seed other than the trumpet's is refused
+  ls /dev/serial/by-id/ 2>/dev/null | grep 'Daisy_Seed' | grep -qv 327F34773333 && { echo "OTHER DAISY SEED PRESENT - abort"; exit 3; }
+  if ! dfu-util -l 2>/dev/null | grep -q '0483:df11'; then
+    [ -e "$TRUMPET" ] || { echo "trumpet Seed not on USB ($TRUMPET)"; exit 1; }
+    # ask the firmware to enter DFU: 'dfu\n' at 115200, DTR set (stdlib only)
+    python3 -I - "$TRUMPET" <<'PY'
+import os, sys, termios, fcntl, struct, time
+fd = os.open(sys.argv[1], os.O_RDWR | os.O_NOCTTY)
+a = termios.tcgetattr(fd); a[0] = a[1] = a[3] = 0; a[2] = termios.CS8 | termios.CREAD | termios.CLOCAL
+a[4] = a[5] = termios.B115200; termios.tcsetattr(fd, termios.TCSANOW, a)
+fcntl.ioctl(fd, termios.TIOCMBIS, struct.pack('I', termios.TIOCM_DTR))
+os.write(fd, b'dfu\n'); termios.tcdrain(fd); time.sleep(0.3); os.close(fd)
+PY
+  fi
+  local i; for i in $(seq 1 40); do dfu-util -l 2>/dev/null | grep -q '0483:df11' && break; sleep 0.5; done
+  dfu-util -l 2>/dev/null | grep -q '0483:df11' || { echo "TIMEOUT: no DFU device"; exit 1; }
+  if ! dfu-util -l 2>/dev/null | grep -q '/0x90'; then
+    echo "ROM DFU (no QSPI region): refusing to flash. Tap RESET on the Seed, then RESET + BOOT during the LED pulse for the Daisy bootloader."; exit 4
+  fi
+  # the only write this tool ever does: QSPI app slot
+  local out; out=$(dfu-util -a 0 -s 0x90040000:leave -D "$bin" -d ,0483:df11 2>&1 | tr '\r' '\n')
+  echo "$out" | grep -q 'File downloaded successfully' || { echo "FLASH FAILED: $(echo "$out" | tail -2)"; exit 1; }
+  echo FLASHED; echo "$(date -Is) $(basename "$bin")" >> "$FLASHED"
+  for i in $(seq 1 60); do [ -e "$TRUMPET" ] && break; sleep 0.5; done; sleep 3   # port back + boot
+  python3 -I - "$TRUMPET" <<'PY'
+import os, sys, termios, fcntl, struct, time, re, select
+try:
+    fd = os.open(sys.argv[1], os.O_RDWR | os.O_NOCTTY)
+    a = termios.tcgetattr(fd); a[0] = a[1] = a[3] = 0; a[2] = termios.CS8 | termios.CREAD | termios.CLOCAL
+    a[4] = a[5] = termios.B115200; termios.tcsetattr(fd, termios.TCSANOW, a)
+    fcntl.ioctl(fd, termios.TIOCMBIS, struct.pack('I', termios.TIOCM_DTR))
+    time.sleep(1.5); termios.tcflush(fd, termios.TCIFLUSH); os.write(fd, b'hello\n')
+    t = time.time(); b = b''
+    while time.time() - t < 3:   # same read as tools/rd.py
+        if select.select([fd], [], [], 0.3)[0]: b += os.read(fd, 16384)
+    m = re.findall(r'"fw":"[^"]+"', b.decode(errors='replace'))
+    print(m[-1] if m else 'no hello/fw line read')
+except Exception as e:
+    print('hello read failed:', e)
+PY
+  curl -s -m 2 -X POST -H 'x-ht: 1' --data-binary '__take' http://127.0.0.1:8731/cmd >/dev/null 2>&1 || true   # web-tab release, harmless if nothing listens
+}
+
+case "${1:-}" in
+  build) build ;;
+  list) list ;;
+  flash|switch) flash "${2:-}" ;;
+  *) echo "usage: ht build | list | flash <version|file> | switch <version>"; exit 2 ;;
+esac
