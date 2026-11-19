@@ -145,80 +145,54 @@ static volatile float g_mic_peak = 0, g_mic_ms = 0; static volatile uint32_t g_m
 static inline float hash1(int n) { uint32_t h = (uint32_t)n * 0x9E3779B1u; h ^= h >> 15; h *= 0x85EBCA77u; h ^= h >> 13; return (h & 0xFFFF) / 65535.0f; }
 static inline float vnoise(float x) { int i = (int)floorf(x); float f = x - i; f = f * f * (3 - 2 * f); float a = hash1(i), b = hash1(i + 1); return a + (b - a) * f; }
 static inline float sstep(float a, float b, float x) { float t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }
-static inline float fieldAt(float x, float t) {
-    float w = vnoise(x * 0.09f + t * 0.7f + 31.0f);                  // warp
-    float x2 = x + (w - 0.5f) * 30.0f;
-    float a = vnoise(x2 * 0.045f + t * 0.35f), b = vnoise(x2 * 0.11f - t * 0.5f + 7.0f);
-    return 0.65f * a + 0.35f * b;
-}
 struct RGB { float r, g, b; };
-static const RGB kP0 = { 1 / 255.0f, 3 / 255.0f, 22 / 255.0f }, kP1 = { 8 / 255.0f, 28 / 255.0f, 140 / 255.0f }, kBlue = { 70 / 255.0f, 150 / 255.0f, 255 / 255.0f };   // 2026-11-17: dark blue lava (navy floor, deep blue body, electric blue highlights)
-static float g_capBoost = 1.0f;
-// 2026-11-17 colour journey: quiet = dark purples and blues; louder playing climbs through light blue and teal; the loudest peaks reach yellow and pink.
-static const float kRampPos[6] = { 0.0f, 0.22f, 0.45f, 0.62f, 0.80f, 1.0f };
-static const float kRampCol[6][3] = { { 22, 4, 44 }, { 10, 18, 110 }, { 60, 150, 255 }, { 20, 225, 195 }, { 255, 205, 60 }, { 255, 80, 175 } };
-static inline void rampCol(float v, float* o) {
-    v = v < 0 ? 0 : v > 1 ? 1 : v; int k = 0; while(k < 4 && v > kRampPos[k + 1]) k++;
-    const float t = (v - kRampPos[k]) / (kRampPos[k + 1] - kRampPos[k]);
-    for(int c = 0; c < 3; c++) o[c] = (kRampCol[k][c] + (kRampCol[k + 1][c] - kRampCol[k][c]) * t) / 255.0f;
-}   // strip brightness multiplier from the envelope (stripFrame), loud = brighter
+static const RGB kBlue = { 70 / 255.0f, 150 / 255.0f, 255 / 255.0f };   // Trellis key flash (non-rig builds only)
+static float g_capBoost = 1.0f;                                         // strip brightness multiplier from the level (stripFrame)
 static float g_gamma[256];
-static float g_t = 0, g_bias = 0, g_envs = 0; static uint32_t g_lastOn = 0;
-struct Bloom { float r, amp; bool on; }; static Bloom g_bloom[4];
 #ifndef STRIP_FROM_END
 #define STRIP_FROM_END 0   // 0: pixel 0 is the near (mouthpiece) end and motion flows toward the bell; 1: the strip is wired from the bell end
 #endif
 static RGB g_px[STRIP_N]; static float g_px_s[STRIP_N]; static RGB g_tr[16]; static float g_flash[16];
 static float g_resid[STRIP_N][3];                                      // temporal dithering residue (cap 64 leaves few LSBs)
 
-// 2026-11-17 strip v3: QUIET = a dark lava that wanders through deep purples and blues (with passing dark red / green / teal tints), never black.
-// LOUD = no static glow: blobs of many different speeds and sizes shoot OUT from the near end toward the bell, brighter and more numerous the louder.
-static inline void hsv(float h, float sat, float v, float* o) {
-    h -= floorf(h); const float hh = h * 6.0f; const int i = (int)hh; const float f = hh - i, p = v * (1 - sat), q = v * (1 - sat * f), t = v * (1 - sat * (1 - f));
-    switch(i % 6) { case 0: o[0] = v; o[1] = t; o[2] = p; break; case 1: o[0] = q; o[1] = v; o[2] = p; break; case 2: o[0] = p; o[1] = v; o[2] = t; break;
-                    case 3: o[0] = p; o[1] = q; o[2] = v; break; case 4: o[0] = t; o[1] = p; o[2] = v; break; default: o[0] = v; o[1] = p; o[2] = q; break; }
-}
-struct Blob { float x, v, w, amp; float c[3]; bool on; };
-static Blob g_blob[24]; static uint32_t g_brng = 0x1234567u;
-static inline float brnd() { g_brng = g_brng * 1664525u + 1013904223u; return (float)(g_brng >> 8) * (1.0f / 16777216.0f); }
-static void blobSpawn(float loud) {
-    for(int k = 0; k < 24; k++) if(!g_blob[k].on) {
-        Blob& B = g_blob[k]; B.on = true; B.x = -2.0f - 6.0f * brnd();
-        B.v = (35.0f + 260.0f * brnd() * brnd()) * (0.6f + 0.8f * loud);          // many different speeds, skewed slow with fast outliers
-        B.w = 1.5f + 6.5f * brnd(); B.amp = 0.55f + 0.45f * loud;
-        float rc[3]; rampCol(0.45f + 0.55f * brnd(), rc); B.c[0] = rc[0]; B.c[1] = rc[1]; B.c[2] = rc[2];   // light blue / teal / yellow / pink
-        return;
-    }
+// 2026-11-18 strip v4 (padfx-4.11): OFF AT REST. Lights only while playing. The gate is the web UI light threshold (lthr) on the input envelope g_env, with
+// 4 dB of hysteresis (opens above lthr, closes below lthr - 4), so it does not flicker at the edge. g_act = the gate smoothed (attack 25 ms, release 260 ms);
+// below 0.003 every pixel is exactly 0. g_lvl = the dynamic level (lthr .. lthr + 24 dB, 0..1), smoothed 40 ms up / 250 ms down.
+// SPEED follows g_lvl: colour drift 0.04 .. 0.6 palette steps/s, motion 6 .. 105 px/s. Palette = hot pink / warm yellow / light blue blended along the strip
+// with value-noise domain warping, three incommensurate noise clocks: no fixed loop. Brightness follows g_lvl (35 % .. 100 %) times g_act.
+static float g_act = 0, g_lvl = 0, g_envs = 0, g_pp = 0, g_pw = 0, g_ps = 0; static bool g_open = false;
+static const float kPal[3][3] = { { 255, 60, 170 }, { 255, 210, 40 }, { 90, 190, 255 } };   // pink, yellow, light blue
+static inline void palCol(float p, float* o) {
+    p -= 3.0f * floorf(p / 3.0f); int i = (int)p; if(i > 2) i = 2; const int j = i == 2 ? 0 : i + 1; const float f = sstep(0.0f, 1.0f, p - (float)i);
+    for(int c = 0; c < 3; c++) o[c] = (kPal[i][c] + (kPal[j][c] - kPal[i][c]) * f) * (1.0f / 255.0f);
 }
 static void lightsCompute(float dt) {
-    float en = g_env;
-    const float db = 20.0f * log10f(en + 1e-7f), thr = g_lthr;          // threshold from the web UI (lthr)
-    float e = (db - thr) / 20.0f; e = e < 0 ? 0 : e > 1 ? 1 : e; e = e * e;
-    g_envs += (e - g_envs) * (e > g_envs ? 0.6f : 0.15f);                // fast attack, slower release, 0..1
-    g_t += dt * (0.10f + 1.2f * g_envs);                                 // the lava itself stays slow; the motion comes from the blobs
-    g_capBoost = 1.0f + 1.3f * g_envs;                                   // headroom for bright blobs (stripFrame caps at 150)
-    // spawn: a rate that grows with volume, plus a burst on every loud attack
-    static float acc = 0.0f; acc += dt * (g_envs > 0.02f ? 4.0f + 40.0f * g_envs : 0.0f); while(acc >= 1.0f) { acc -= 1.0f; blobSpawn(g_envs); }
-    uint32_t on = g_onsets; if(on != g_lastOn) { g_lastOn = on; if(g_envs > 0.15f) for(int n = 0; n < 3 + (int)(5 * g_envs); n++) blobSpawn(g_envs); }
-    for(int k = 0; k < 24; k++) if(g_blob[k].on) { Blob& B = g_blob[k]; B.x += B.v * dt; B.amp *= expf(-dt / 1.6f); if(B.x - 3 * B.w > STRIP_N || B.amp < 0.03f) B.on = false; }
-    // quiet palette: hue wanders slowly across purple <-> blue, with occasional passes through dark teal and dark red / magenta
-    const float hw = vnoise(g_t * 0.05f + 3.0f), hBase = 0.70f + 0.07f * (hw - 0.5f) * 2.0f;   // blue (0.63) .. purple (0.77) only: no red / green drift
+    const float db = 20.0f * log10f(g_env + 1e-7f), thr = g_lthr;       // threshold from the web UI (lthr)
+    if(!g_open && db > thr) g_open = true; else if(g_open && db < thr - 4.0f) g_open = false;
+    float l = (db - thr) / 24.0f; l = l < 0 ? 0 : l > 1 ? 1 : l;
+    if(!g_open) l = 0.0f;
+    g_act += ((g_open ? 1.0f : 0.0f) - g_act) * (1.0f - expf(-dt / (g_open ? 0.025f : 0.260f)));
+    g_lvl += (l - g_lvl) * (1.0f - expf(-dt / (l > g_lvl ? 0.040f : 0.250f)));
+    g_envs = g_lvl; g_capBoost = 1.0f + 1.0f * g_lvl;
+    const bool dark = g_act < 0.003f;
+    g_pp += dt * (0.04f + 0.56f * g_lvl); g_pw += dt * (0.07f + 0.9f * g_lvl); g_ps += dt * (0.4f + 7.0f * g_lvl);   // palette phase, warp clock, travel clock (all faster when louder)
+    const float bri = g_act * (0.35f + 0.65f * g_lvl);
     for(int i = 0; i < STRIP_N + 16; i++) {
         bool strip = i < STRIP_N; float x = strip ? (float)(STRIP_FROM_END ? (STRIP_N - 1 - i) : i) : ((i - STRIP_N) + 0.5f) / 16.0f * STRIP_N;   // x = distance from the near (mouthpiece) end
-        const float f = fieldAt(x - g_t * 4.0f, g_t);
-        float h = hBase + 0.05f * (f - 0.5f) + 0.03f * (vnoise(x * 0.03f + g_t * 0.2f) - 0.5f); h = h < 0.62f ? 0.62f : h > 0.80f ? 0.80f : h;
-        float bg[3]; hsv(h, 0.80f, 0.30f + 0.22f * f + 0.10f * g_envs, bg);      // dark lava but bright enough that 8-bit + gamma keeps it blue/purple (no green/red speckle at the bottom of the range)
-        RGB c = { bg[0], bg[1], bg[2] }; float ss = 1.0f;
-        if(strip) for(int k = 0; k < 24; k++) if(g_blob[k].on) {
-            const Blob& B = g_blob[k]; const float d = (x - B.x) / B.w; if(d < -3 || d > 3) continue;
-            const float w = B.amp * expf(-d * d); c.r += B.c[0] * w; c.g += B.c[1] * w; c.b += B.c[2] * w;   // additive: blobs glow over the lava
+        RGB c = { 0, 0, 0 };
+        if(!dark) {
+            const float p = g_pp + x * 0.022f + 1.1f * (vnoise(x * 0.035f + g_pw + 11.0f) - 0.5f) + 0.5f * (vnoise(x * 0.09f - g_pw * 0.6f + 47.0f) - 0.5f);
+            float pc[3]; palCol(p, pc);
+            const float sh = 0.7f * vnoise(x * 0.07f - g_ps) + 0.3f * vnoise(x * 0.19f - g_ps * 1.7f + 5.0f);   // shimmer travelling toward the bell
+            const float k = bri * (0.30f + 0.70f * sh);
+            c.r = pc[0] * k; c.g = pc[1] * k; c.b = pc[2] * k;
         }
         if(!strip) { int k = i - STRIP_N; c.r += (kBlue.r - c.r) * g_flash[k]; c.g += (kBlue.g - c.g) * g_flash[k]; c.b += (kBlue.b - c.b) * g_flash[k]; }
         if(c.r > 1) c.r = 1; if(c.g > 1) c.g = 1; if(c.b > 1) c.b = 1;
 #if defined(TEST_DELAY) && (!defined(HX_MIN_DRONE) || defined(HX_RIG))
-        if(strip) { g_px[i] = c; g_px_s[i] = ss; }                       // rig builds: the Trellis is the pad menu (its own code owns g_tr[]), lava on the strip only
-#else                                                                   // 08 / drone-only: lava on the strip AND the Trellis
-        if(strip) { g_px[i] = c; g_px_s[i] = ss; } else { g_tr[i - STRIP_N] = c; }
+        if(strip) { g_px[i] = c; g_px_s[i] = 1.0f; }                     // rig builds: the Trellis is the pad menu (its own code owns g_tr[]), lights on the strip only
+#else                                                                   // 08 / drone-only: lights on the strip AND the Trellis
+        if(strip) { g_px[i] = c; g_px_s[i] = 1.0f; } else { g_tr[i - STRIP_N] = c; }
 #endif
     }
     for(int k = 0; k < 16; k++) g_flash[k] *= expf(-dt / 0.3f);        // key flashes decay
