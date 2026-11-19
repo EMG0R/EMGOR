@@ -59,34 +59,63 @@ static uint32_t g_lpClickAt = 0, g_lpOvrPend = 0, g_lpDel = 0; static float g_lp
 static uint32_t g_frzClearMs = 0, g_loopEvt = 0; static bool g_gateSim = false;      // freeze reset fade start (ms), last looper event, freeze gate latched open by a UI / sim tap
 static const int kRadio[3] = { 7, 13, 14 };                                      // radio group pads: dronemaker (8), reverb (14), granular (15); the freeze (pads 9 / 10) joins it through its own logic
 static inline bool padRadio(int k) { return k == 7 || k == 13 || k == 14; }                // pads 13, 14, 15: drone / reverb / granular, one at a time (pad 16, the tape delay, stacks with everything)
-// ---- HARMONY page (user 2026-11-17): either encoder button toggles it. All 16 pads become MOMENTARY intervals: hold = voiceOn, release = voiceOff (the DSP fades ~15 ms), at most 3 voices (the DSP steals the
-// oldest on a 4th press). The effect is switched on by the first press and off 150 ms after the last release. Interval table = the old one dropped an octave.
-// padfx-4.9 table (close voicings for a monophonic trumpet, up to 3 added voices; rows top -> bottom, left -> right; pad 1 = top-left). LOW intervals on rows 1-2, upper ones below:
-//   row 1:  -12  -10   -9   -8     octave, minor 7th, major 6th, minor 6th below
-//   row 2:   -7   -5   -4   -2     fifth, FOURTH, major 3rd, major 2nd below
-//   row 3:   +2   +3   +4   +5     sus2 / add9, minor 3rd, major 3rd, sus4
-//   row 4:   +7   +9  +10  +12     fifth, 6, minor 7th, octave
-// Why: the fifth and fourth below (-7 / -5) stack into quartal / sus voicings under the line, +2 and +5 are the sus2 / sus4 colour tones above, and any two or three of these sit within an octave of the
-// played note and a fourth or fifth apart, so they never form a minor-second cluster (the -1 / +1 / +6 pads of the old table did).
-static const int8_t kHarmSemi[16] = { -12, -10, -9, -8, -7, -5, -4, -2, 2, 3, 4, 5, 7, 9, 10, 12 };
-static bool g_harmMode = false; static uint16_t g_hvHeld = 0, g_hvPend = 0; static uint32_t g_hvRel = 0; static volatile uint16_t g_padRelReq = 0; static volatile uint32_t g_simEncPress = 0;
+// ---- HARMONY page (user 2026-11-17; chords padfx-4.12, 2026-11-19): either encoder button toggles it. Each pad is a CHORD under the played note (the trumpet stays the top voice), except three
+// LATCHING single intervals (tap on / tap off, they survive leaving the page): pad 1 octave down, pad 5 fifth down, pad 12 fourth UP (the only upward pitch). Chord pads are momentary: hold = on.
+// The DSP has 3 voices: latched intervals take theirs first, the most recent held chord fills what is left (its voices are listed most-defining first, so a 2-latch + chord keeps the colour tone).
+// Every voicing is a moving-structure shape (sus / quartal / open fifths / triad-over-root): no minor-second rubs against the melody, so it planes in parallel with any line. Melody shown as the chord tone:
+//   row 1:  [-12 L]       open 5ths -7 -12 -19 (5)   sus4 -2 -7 -12 (5)       sus2 -2 -7 -14 (9)
+//   row 2:  [-7 L]        quartal -5 -10 -15 (4ths)  9sus4 -4 -9 -14 (9)      sus4add9 -3 -5 -10 (4)
+//   row 3:  6/9 -5 -10 -14 (9)  major -5 -8 -12 (1)  minor -5 -9 -12 (1)      [+5 L]
+//   row 4:  maj7 -4 -7 -11 (7)  lydian D/C -4 -9 -18 (#11)  min9 -4 -11 -14 (9)  6 -2 -5 -9 (6)
+static const int8_t kHarmCh[16][3] = {
+    {-12, 0, 0}, {-7, -12, -19}, {-2, -7, -12}, {-2, -7, -14},
+    {-7, 0, 0},  {-5, -10, -15}, {-4, -9, -14}, {-3, -5, -10},
+    {-5, -10, -14}, {-5, -8, -12}, {-5, -9, -12}, {5, 0, 0},
+    {-4, -7, -11}, {-4, -9, -18}, {-4, -11, -14}, {-2, -5, -9} };
+static const uint16_t kHarmLatch = (uint16_t)((1u << 0) | (1u << 4) | (1u << 11));
+static bool g_harmMode = false; static uint16_t g_hvHeld = 0, g_hvLatch = 0; static int g_hvLast = -1; static int8_t g_hvOn[3] = {0, 0, 0}; static bool g_hvDirty = false, g_hvResync = true;
+static uint32_t g_hvRel = 0; static volatile uint16_t g_padRelReq = 0; static volatile uint32_t g_simEncPress = 0;
+static void harmWant(int8_t w[3]) {
+    int n = 0; w[0] = w[1] = w[2] = 0;
+    auto add = [&](int8_t s) { if(!s || n >= 3) return; for(int i = 0; i < n; i++) if(w[i] == s) return; w[n++] = s; };
+    for(int k = 0; k < 16; k++) if(g_hvLatch & (1u << k)) add(kHarmCh[k][0]);
+    int c = (g_hvLast >= 0 && (g_hvHeld & (1u << g_hvLast))) ? g_hvLast : -1;
+    if(c < 0) for(int k = 0; k < 16; k++) if(g_hvHeld & (1u << k)) { c = k; break; }
+    if(c >= 0) for(int i = 0; i < 3; i++) add(kHarmCh[c][i]);
+}
+static void harmTick(uint32_t now) {                                                     // every loop, on or off the page: drive the DSP voices to the wanted set (off first, so nothing gets stolen)
+    FxG& h = g_fxg[GI_HARMONY]; if(!h.ok) return; hx::FxHarmony* hm = static_cast<hx::FxHarmony*>(h.fx);
+    if(h.gate.state != FXS_ACTIVE) { g_hvResync = true; }                                 // a wake resets the effect: re-send everything once it is ACTIVE
+    else if(g_hvDirty || g_hvResync) {
+        int8_t w[3]; harmWant(w);
+        if(g_hvResync) { hm->allOff(); g_hvOn[0] = g_hvOn[1] = g_hvOn[2] = 0; g_hvResync = false; }
+        for(int i = 0; i < 3; i++) if(g_hvOn[i]) { bool keep = false; for(int j = 0; j < 3; j++) if(w[j] == g_hvOn[i]) keep = true; if(!keep) hm->voiceOff(g_hvOn[i]); }
+        for(int j = 0; j < 3; j++) if(w[j]) { bool had = false; for(int i = 0; i < 3; i++) if(g_hvOn[i] == w[j]) had = true; if(!had) hm->voiceOn(w[j], 1.0f); }
+        for(int i = 0; i < 3; i++) g_hvOn[i] = w[i]; g_hvDirty = false;
+    }
+    if(!g_hvHeld && !g_hvLatch && h.latch && now - g_hvRel > 150) h.latch = false;       // off 150 ms after the last voice goes
+}
 static void harmToggle(uint32_t now) {
 #ifdef HX_NO_HARMPAGE
     (void)now; return;                                                        // bisect build: harmony init only, page disabled
 #endif
-    g_harmMode = !g_harmMode; FxG& h = g_fxg[GI_HARMONY];
-    if(!g_harmMode && h.ok) { static_cast<hx::FxHarmony*>(h.fx)->allOff(); g_hvHeld = g_hvPend = 0; g_hvRel = now ? now : 1; }
+    g_harmMode = !g_harmMode;
+    if(!g_harmMode) { g_hvHeld = 0; g_hvLast = -1; g_hvDirty = true; g_hvRel = now ? now : 1; }   // leaving: held chords stop, latched intervals keep sounding
 }
 static void harmonyPage(uint16_t& rise, uint16_t& fall, uint16_t& req, uint16_t& hreq, uint16_t& rel, uint32_t now) {
-    FxG& h = g_fxg[GI_HARMONY]; if(!h.ok) return; hx::FxHarmony* hm = static_cast<hx::FxHarmony*>(h.fx);
+    FxG& h = g_fxg[GI_HARMONY]; if(!h.ok) return;
     const uint16_t press = (uint16_t)(rise | hreq), release = (uint16_t)(fall | rel);
     for(int k = 0; k < 16; k++) {
         const uint16_t bit = (uint16_t)(1u << k);
-        if(press & bit) { if(!h.latch && padRefuse(k, admit(GI_HARMONY, now), now)) continue; g_hvHeld |= bit; if(!h.latch) { h.latch = true; g_enabledAt[GI_HARMONY] = now; } if(h.gate.state == FXS_ACTIVE) hm->voiceOn(kHarmSemi[k], 1.0f); else g_hvPend |= bit; }   // a wake resets the effect: the voice starts once it is ACTIVE
-        if(release & bit) { g_hvHeld &= (uint16_t)~bit; g_hvPend &= (uint16_t)~bit; hm->voiceOff(kHarmSemi[k]); g_hvRel = now ? now : 1; }
+        if(press & bit) {
+            if(!h.latch && padRefuse(k, admit(GI_HARMONY, now), now)) continue;
+            if(kHarmLatch & bit) { g_hvLatch ^= bit; if(!(g_hvLatch & bit)) g_hvRel = now ? now : 1; }
+            else { g_hvHeld |= bit; g_hvLast = k; }
+            if(!h.latch && (g_hvHeld | g_hvLatch)) { h.latch = true; g_enabledAt[GI_HARMONY] = now; }
+            g_hvDirty = true;
+        }
+        if((release & bit) && !(kHarmLatch & bit)) { g_hvHeld &= (uint16_t)~bit; g_hvDirty = true; g_hvRel = now ? now : 1; }
     }
-    if(g_hvPend && h.gate.state == FXS_ACTIVE) { for(int k = 0; k < 16; k++) if(g_hvPend & (1u << k)) hm->voiceOn(kHarmSemi[k], 1.0f); g_hvPend = 0; }
-    if(!g_hvHeld && !g_hvPend && h.latch && now - g_hvRel > 150) h.latch = false;
     rise = fall = req = hreq = rel = 0;
 }
 static void padTap(int k, uint32_t now) {                                             // PK_TOGGLE pads
@@ -161,7 +190,7 @@ static void fxControlsTick(const uint16_t* lin, uint32_t now) {
     uint16_t req = g_padReq, hreq = g_padHoldReq, relq = g_padRelReq; g_padReq = (uint16_t)(g_padReq & ~req); g_padHoldReq = (uint16_t)(g_padHoldReq & ~hreq); g_padRelReq = (uint16_t)(g_padRelReq & ~relq);
     {   static uint32_t s1 = 0, s2 = 0; static bool ini = false; const uint32_t p1 = g_enc[0].presses + g_simEncPress, p2 = g_enc[1].presses; if(!ini) { ini = true; s1 = p1; s2 = p2; } if(p1 != s1 || p2 != s2) { s1 = p1; s2 = p2; harmToggle(now); } }
     if(g_harmMode) harmonyPage(rise, fall, req, hreq, relq, now);
-    else if(g_fxg[GI_HARMONY].latch && !g_hvHeld && now - g_hvRel > 150) g_fxg[GI_HARMONY].latch = false;                      // tail after leaving the page
+    harmTick(now);
     for(int k = 0; k < 16; k++) {
         const uint16_t bit = (uint16_t)(1u << k); if(kPads[k].gi < 0) continue;
         if(rise & bit) { g_tapHw = g_tapHw + 1; g_ppressMs[k] = now; g_plongDone[k] = false; }
@@ -252,7 +281,7 @@ static void fxControlsTick(const uint16_t* lin, uint32_t now) {
         g_tr[k].r = lv * cr / 255.0f; g_tr[k].g = lv * cg / 255.0f; g_tr[k].b = lv * cb / 255.0f;
         if(g_refuseUntil[k] > now) { const bool bl = ((g_refuseUntil[k] - now) / 110) & 1; g_tr[k].r = bl ? 1.0f : 0.1f; g_tr[k].g = 0.0f; g_tr[k].b = 0.0f; }   // refused: red blink
     }
-    if(g_harmMode) for(int k = 0; k < 16; k++) { const float lv = ((g_hvHeld >> k) & 1) ? 0.95f : 0.13f; g_tr[k].r = lv * 155 / 255.0f; g_tr[k].g = lv * 133 / 255.0f; g_tr[k].b = lv; }   // harmony page: one violet, held = bright
+    if(g_harmMode) for(int k = 0; k < 16; k++) { const bool L = (kHarmLatch >> k) & 1; const float lv = (((g_hvHeld | g_hvLatch) >> k) & 1) ? 0.95f : 0.13f; if(L) { g_tr[k].r = lv; g_tr[k].g = lv * 60 / 255.0f; g_tr[k].b = lv * 170 / 255.0f; } else { g_tr[k].r = lv * 155 / 255.0f; g_tr[k].g = lv * 133 / 255.0f; g_tr[k].b = lv; } }   // harmony page: chords violet, the 3 latches pink, sounding = bright
 }
 static void fxShedPoll(uint32_t now) {
     static uint32_t lastShed = 0;
@@ -264,7 +293,7 @@ static void fxShedPoll(uint32_t now) {
     }
     g_shedReq = false; lastShed = now; if(victim < 0) return;
     g_peOn[victim] = false; if(victim != GI_DRONE && g_fxg[victim].ok) g_fxg[victim].latch = false;
-    if(victim == GI_HARMONY) { static_cast<hx::FxHarmony*>(g_fxg[victim].fx)->allOff(); g_hvHeld = g_hvPend = 0; }
+    if(victim == GI_HARMONY) { static_cast<hx::FxHarmony*>(g_fxg[victim].fx)->allOff(); g_hvHeld = g_hvLatch = 0; g_hvOn[0] = g_hvOn[1] = g_hvOn[2] = 0; g_hvDirty = false; }
     if(victim == GI_FREEZE) { g_frzClearMs = 0; g_gateSim = false; }
     g_shedUntil[victim] = now + 5000; g_shedCount = g_shedCount + 1; g_shedLast = victim;
     for(int k = 0; k < 16; k++) if(kPads[k].gi == victim) g_refuseUntil[k] = now + 1200;
@@ -281,12 +310,12 @@ static void padTelemetry() {
     puts_(",\"ax\":["); putu((uint32_t)g_ax_used[0]); put(','); putu((uint32_t)g_ax_used[1]); put(','); putd(g_ax_owner); puts_("]"); if(g_whyUntil && (int32_t)(g_whyUntil - (uint32_t)System::GetNow()) > 0) { puts_(",\"why\":\""); puts_(g_why); put('"'); }
     puts_(",\"jf\":["); putu((uint32_t)(g_joyUp * 1000.0f)); put(','); putd((int32_t)(g_joyFb * 1000.0f)); put(']');
     if(g_fxg[GI_FLANGE].ok) { puts_(",\"md\":"); putu((uint32_t)(g_fxg[GI_FLANGE].fx->v[hx::FxModBlock::K_MODE] + 0.5f)); }
-    puts_(",\"hm\":"); put(g_harmMode ? '1' : '0'); puts_(",\"hv\":"); putu(g_hvHeld); puts_(",\"rf\":"); putu(g_refuseCount); puts_(",\"shed\":["); putu(g_shedCount); put(','); putd(g_shedLast); put(']');
+    puts_(",\"hm\":"); put(g_harmMode ? '1' : '0'); puts_(",\"hv\":"); putu((uint16_t)(g_hvHeld | g_hvLatch)); puts_(",\"rf\":"); putu(g_refuseCount); puts_(",\"shed\":["); putu(g_shedCount); put(','); putd(g_shedLast); put(']');
     puts_(",\"js\":"); putd(g_joySemi); { hx::FxLooper* lq = g_fxg[GI_LOOPER].ok ? static_cast<hx::FxLooper*>(g_fxg[GI_LOOPER].fx) : nullptr; puts_(",\"lp\":["); putu(lq ? (uint32_t)lq->state() : 0); put(','); putu(lq ? (uint32_t)lq->layers() : 0); put(','); putu(g_lpDel ? 1u : 0u); put(']'); }
     puts_(",\"og\":"); putd(g_og_db10); puts_(",\"ns\":"); put(g_nosave ? '1' : '0'); puts_(",\"tp\":["); putu(g_tapHw); put(','); putu(g_tapReq); puts_("],\"keys\":"); putu(g_keys); puts_(",\"rst\":"); putu(g_rsr); puts_(",\"txd\":"); putu(g_txDrop); puts_("}");
 }
 static void padHello() {
     static const char* H = "0123456789abcdef"; puts_(",\"pm\":[");
     for(int k = 0; k < 16; k++) { if(k) put(','); put('['); put('"'); puts_(kPads[k].name); put('"'); put(','); put('"'); if(kPads[k].gi >= 0) for(int c = 0; c < 3; c++) { put(H[kPads[k].rgb[c] >> 4]); put(H[kPads[k].rgb[c] & 15]); } put('"'); put(','); put('"'); if(kPads[k].gi >= 0) puts_(g_glue[kPads[k].gi].id); put('"'); puts_(",["); for(int n = 0; n < 3; n++) { if(n) put(','); put('"'); if(kPads[k].gi >= 0) puts_(faderParam(kPads[k].gi, n)); put('"'); } put(']'); put(']'); }   // [name, rgb, effect id]
-    puts_("],\"hi\":["); for(int k = 0; k < 16; k++) { if(k) put(','); putd(kHarmSemi[k]); } put(']');
+    puts_("],\"hi\":["); for(int k = 0; k < 16; k++) { if(k) put(','); putd(kHarmCh[k][0]); } put(']');
 }

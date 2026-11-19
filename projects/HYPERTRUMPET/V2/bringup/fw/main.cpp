@@ -52,7 +52,7 @@
 #ifdef HX_D12
 #define FW_VERSION "drone12-1.4"
 #elif defined(HX_MIN_DRONE)
-#define FW_VERSION "padfx-4.11"
+#define FW_VERSION "padfx-4.12"
 #elif defined(HX_OUTSTAGE)
 #define FW_VERSION "rig-2.6"
 #elif defined(TEST_DELAY)
