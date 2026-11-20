@@ -184,3 +184,7 @@ body {
   opacity: 0.5;
 }
 .untitled-mark { opacity: 0.5; font-weight: 400; }
+
+/* live papers */
+.live-paper h1, .live-paper h2, .live-paper h3 { margin: 1.4rem 0 0.6rem; }
+.live-paper p { margin: 0 0 1rem; }
