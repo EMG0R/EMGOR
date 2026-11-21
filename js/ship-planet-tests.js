@@ -1464,7 +1464,8 @@ async function gP1(T, o) {
     var ship = T.ship, out = {};
     if (!(await gpFoot(T))) return { pass: false, error: 'never reached foot' };
     T.step(30); ship.village.make(); T.step(10);
-    var vs = ship.village.info().villagers.filter(function (v) { return v.human && v.role !== 'elder'; });
+    // `human` is only true once the villager's rig is spawned (near you), so it is not a lookup key: use the roster position and walk up
+    var vs = ship.village.info().villagers.filter(function (v) { return v.role !== 'elder' && v.role !== 'golum'; });
     if (!vs.length) return { pass: false, error: 'no human villager' };
     for (var a = 0; a < vs.length && ship.footTarget().kind !== 'villager'; a++) {
         ship.village.goto(vs[a].x, vs[a].z - 6); T.step(30);

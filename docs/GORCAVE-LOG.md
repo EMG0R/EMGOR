@@ -762,3 +762,5 @@ NEXT 5 TO QUEUE: (1) distance LOD switch + glass in group.lo; (2) round-rig tri 
 - update(dt, st) takes new optional fields: vH (ground speed, H/s), dist (H moved this frame), turn (yaw rate, + = left), look {x,z,d}. Callers without them fall back to speed-derived values.
 - ship-foot.js: body yaw lag 0.12 s (was ~0.07), feeds turn / look / groundAt. ship-village.js: villager yaw lag, distance-driven stride, look at player, idle gestures, stop-and-look radius 4 H. VILLAGER_TRI_BUDGET 800 -> 1800 (measured 1.2-1.3k).
 - Limit: legs are 0.42 H long and walk speed is 6 H/s, so at >~4 H/s the stance foot still slips (~0.03 H/frame at 6 H/s); <= 3 H/s is planted (< 0.02). Tests gC1-gC3 in ship-planet-tests.js.
+
+- fx-fight3: gP1 "no human villager" = test bug, not a rig regression: village.info().villagers[].human is true only while the villager rig is spawned near you, so the filter returned nothing on a fresh load. Lookup now uses role (not elder/golum) and walks up. F,F on the merged head (def4216) verified.
