@@ -26,6 +26,7 @@
 //   village.serialize() / restore(o)   (trade stock per UTC day)       village.stats { tris, draws }       village.toParent(v, out) / toLocal(p, out)
 //   village.setNight(n)  dims the day mesh / brightens windows + torches.  Draw calls: 2 merged meshes (+2 per live human within 40 L, +5 per golum).
 import { createHuman } from './ship-human.js';
+import { rboxEmit, makeLitMaterial } from './ship-world.js';
 import { compose, makeMaterials, mergeLit, mulberry as pmul } from './ship-parts.js';
 import { storeMenu, resourceItem, RESOURCE_BASE } from './ship-items.js';
 import * as lingo from './ship-lingo.js';
@@ -138,18 +139,23 @@ export function createVillage(engine, u, opts) {
   const WALL = lush ? [0.62, 0.5, 0.34] : [0.43, 0.41, 0.48], ROOF = lush ? [0.36, 0.2, 0.55] : [0.3, 0.17, 0.26], WOOD = [0.22, 0.14, 0.09], PATH = lush ? [0.56, 0.47, 0.33] : [0.36, 0.34, 0.4];
   const SOIL = [0.25, 0.16, 0.1], CROP = lush ? [0.3, 0.7, 0.28] : [0.5, 0.35, 0.7], STONE = [0.5, 0.5, 0.56];
   const sh = (nx, ny, nz) => 0.5 + 0.5 * Math.max(0, nx * LDIR.x + ny * LDIR.y + nz * LDIR.z);
-  function tri(P, C, a, b, c, cc, nx, ny, nz, k) {
-    const s = sh(nx, ny, nz) * (k || 1);
-    for (const v of [a, b, c]) { P.push(v[0], v[1], v[2]); C.push(cc[0] * s, cc[1] * s, cc[2] * s); }
+  function tri(P, C, a, b, c, cc, nx, ny, nz, k) {     // look rev 28: no baked light; the normal rides along (P.N) for the shared sky-fill + key shader
+    const s = k || 1, N = P.N || (P.N = []);
+    for (const v of [a, b, c]) { P.push(v[0], v[1], v[2]); C.push(cc[0] * s, cc[1] * s, cc[2] * s); N.push(nx, ny, nz); }
+  }
+  function rtri(P, C, a, b, c, na, nb, nc, cc, k) {
+    const s = k || 1, N = P.N || (P.N = []);
+    P.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); N.push(na[0], na[1], na[2], nb[0], nb[1], nb[2], nc[0], nc[1], nc[2]);
+    for (let i = 0; i < 3; i++) C.push(cc[0] * s, cc[1] * s, cc[2] * s);
+  }
+  // rounded box (bevel ~ 0.1 of its height, capped): every structure piece goes through here, no hard 90 degree outer edges
+  function rboxG(P, C, x0, y0, z0, x1, y1, z1, cc, rad, m) {
+    const k = 0.94 + rng() * 0.1, hx = (x1 - x0) / 2, hy = (y1 - y0) / 2, hz = (z1 - z0) / 2, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+    const r = rad != null ? rad : Math.min(0.1 * (y1 - y0), 0.22, 0.45 * Math.min(2 * hx, 2 * hy, 2 * hz));
+    rboxEmit(hx, hy, hz, r, m || (r > 0.08 ? 2 : 1), (a, b, c, na, nb, nc) => rtri(P, C, [a[0] + cx, a[1] + cy, a[2] + cz], [b[0] + cx, b[1] + cy, b[2] + cz], [c[0] + cx, c[1] + cy, c[2] + cz], na, nb, nc, cc, k));
   }
   function quad(P, C, a, b, c, d, cc, n, k) { tri(P, C, a, b, c, cc, n[0], n[1], n[2], k); tri(P, C, a, c, d, cc, n[0], n[1], n[2], k); }
-  function boxG(P, C, x0, y0, z0, x1, y1, z1, cc, bottom) {
-    const k = 0.92 + rng() * 0.16;
-    quad(P, C, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], cc, [0, 0, 1], k); quad(P, C, [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], cc, [0, 0, -1], k);
-    quad(P, C, [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], cc, [1, 0, 0], k); quad(P, C, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], cc, [-1, 0, 0], k);
-    quad(P, C, [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], cc, [0, 1, 0], k);
-    if (bottom) quad(P, C, [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], cc, [0, -1, 0], k);
-  }
+  function boxG(P, C, x0, y0, z0, x1, y1, z1, cc, bottom) { rboxG(P, C, x0, y0, z0, x1, y1, z1, cc); }
   const mkBox = (name, x0, y0, z0, x1, y1, z1) => ({ name, min: vec(x0, y0, z0), max: vec(x1, y1, z1), solid: true, indestructible: true });
   const tint = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
   const walls = [], floorRects = [];
@@ -235,15 +241,8 @@ export function createVillage(engine, u, opts) {
     const pt = (a, b, y) => (ax ? [cx + a, y, cz + b] : [cx + b, y, cz + a]);
     const rn = (p0, p1, p2) => { const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2]; let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l; const mx = (p0[0] + p1[0] + p2[0]) / 3 - cx, mz = (p0[2] + p1[2] + p2[2]) / 3 - cz; if (nx * mx + nz * mz + ny * 0.2 < 0) { nx = -nx; ny = -ny; nz = -nz; } return [nx, ny, nz]; };
     const rq = (p0, p1, p2, p3, k) => { quad(LP, LC, p0, p1, p2, p3, rc, rn(p0, p1, p2), k); };
-    if (tm.roof === 'pyramid') {
-      const apex = [cx, yR + rh, cz], c4 = [[cx - hx - ov, yR, cz - hz - ov], [cx + hx + ov, yR, cz - hz - ov], [cx + hx + ov, yR, cz + hz + ov], [cx - hx - ov, yR, cz + hz + ov]];
-      for (let i = 0; i < 4; i++) { const a = c4[i], b = c4[(i + 1) % 4]; tri(LP, LC, a, b, apex, rc, ...rn(a, b, apex), 0.9 + (i % 2) * 0.12); }
-    } else {
-      const r0 = pt(-ha, -hb, yR), r1 = pt(ha, -hb, yR), r2 = pt(ha, hb, yR), r3 = pt(-ha, hb, yR), t0 = pt(-ha, 0, yR + rh), t1 = pt(ha, 0, yR + rh);
-      rq(r0, r1, t1, t0, 1.0); rq(r2, r3, t0, t1, 0.88);
-      const g0 = [r3, r0, t0], g1 = [r1, r2, t1];
-      tri(LP, LC, g0[0], g0[1], g0[2], tint(wc, 0.9), ...rn(g0[0], g0[1], g0[2]), 1); tri(LP, LC, g1[0], g1[1], g1[2], tint(wc, 0.9), ...rn(g1[0], g1[1], g1[2]), 1);
-    }
+    { const rh2 = Math.min(hb * 0.62, tm.roof === 'pyramid' ? hb * 0.9 : hb * 0.62);      // look rev 28: a soft loaf / dome roof with curved eaves instead of a pitched box
+      rboxG(LP, LC, cx - (ax ? ha : hb), yR - 0.3 * rh2, cz - (ax ? hb : ha), cx + (ax ? ha : hb), yR + 1.3 * rh2, cz + (ax ? hb : ha), rc, 0.78 * rh2, 3); }
     // chimney on the cottage / longhouse
     if (tm.roof === 'gable') boxG(LP, LC, cx + (ax ? ha * 0.5 : hb * 0.4) - 0.3, yR + 0.2, cz + (ax ? -hb * 0.35 : ha * 0.5) - 0.3, cx + (ax ? ha * 0.5 : hb * 0.4) + 0.3, yR + rh + 1.1, cz + (ax ? -hb * 0.35 : ha * 0.5) + 0.3, tint(STONE, 0.8));
     // door torches (a post + flame each side of the door front)
@@ -268,8 +267,7 @@ export function createVillage(engine, u, opts) {
     var wellBoxes = [w1, w2, w3, w4];
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) boxG(LP, LC, sx * 1.35 - 0.12, wy1, sz * 1.35 - 0.12, sx * 1.35 + 0.12, wellY + 3.2, sz * 1.35 + 0.12, tint(WOOD, 1));
     boxG(LP, LC, -1.5, wellY + 3.0, -0.12, 1.5, wellY + 3.25, 0.12, tint(WOOD, 1.15));
-    const apex = [0, wellY + 4.5, 0], c4 = [[-2.0, wellY + 3.2, -2.0], [2.0, wellY + 3.2, -2.0], [2.0, wellY + 3.2, 2.0], [-2.0, wellY + 3.2, 2.0]], rc = tint(ROOF, 1);
-    for (let i = 0; i < 4; i++) { const a = c4[i], b = c4[(i + 1) % 4]; const nx = (a[0] + b[0]) / 2, nz = (a[2] + b[2]) / 2, l = Math.hypot(nx, nz) || 1; tri(LP, LC, a, b, apex, rc, nx / l * 0.6, 0.8, nz / l * 0.6, 0.9 + (i % 2) * 0.12); }
+    rboxG(LP, LC, -2.1, wellY + 3.0, -2.1, 2.1, wellY + 4.7, 2.1, tint(ROOF, 1), 0.8, 3);
     quad(LP, LC, [-0.8, wellY + 0.55, -0.8], [0.8, wellY + 0.55, -0.8], [0.8, wellY + 0.55, 0.8], [-0.8, wellY + 0.55, 0.8], [0.3, 0.75, 1.0], [0, 1, 0], 1.25);
     boxG(LP, LC, -0.16, wellY + 2.15, -0.14, 0.16, wellY + 2.75, 0.14, [1.0, 0.82, 0.3]);       // the bell
   }
@@ -324,8 +322,8 @@ export function createVillage(engine, u, opts) {
   ribbon(0, 0, 0, 0, 1, PATH); ribbon(Math.cos(stall.a) * RP, Math.sin(stall.a) * RP, stall.cx - Math.cos(stall.a) * 2.5 * VS, stall.cz - Math.sin(stall.a) * 2.5 * VS, 1.6 * VS, PATH);
 
   // ── meshes: ONE lit (day) + ONE emissive (windows / torches / stall lamps, night-bright) ──
-  function mkGeo(P, C) { const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('color', new T.Float32BufferAttribute(C, 3)); g.computeBoundingSphere(); return g; }
-  const litMat = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide }), emiMat = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, toneMapped: false });
+  function mkGeo(P, C) { const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('color', new T.Float32BufferAttribute(C, 3)); if (P.N && P.N.length === P.length) g.setAttribute('normal', new T.Float32BufferAttribute(P.N, 3)); g.computeBoundingSphere(); return g; }
+  const litMat = makeLitMaterial(T), emiMat = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, toneMapped: false });
   const litMesh = new T.Mesh(mkGeo(LP, LC), litMat), emiMesh = new T.Mesh(mkGeo(EP, EC), emiMat);
   litMesh.name = 'village-day'; emiMesh.name = 'village-glow'; litMesh.frustumCulled = false; emiMesh.frustumCulled = false; emiMesh.renderOrder = 1;
   const syncFn = typeof opts.sync === 'function' ? opts.sync : null;      // 2026-11-05: ps.sync at render time (no one-frame spin slip of the ride group)
@@ -336,7 +334,7 @@ export function createVillage(engine, u, opts) {
   let nightV = -1;
   function setNight(n) {
     n = Math.max(0, Math.min(1, n)); if (Math.abs(n - nightV) < 0.01) return; nightV = n;
-    const d = 1 - 0.62 * n; litMat.color.setRGB(d * (1 - 0.1 * n), d, d * (1 + 0.15 * n)); const e = 0.28 + 0.72 * n; emiMat.color.setRGB(e, e, e);
+    const e = 0.28 + 0.72 * n; emiMat.color.setRGB(e, e, e);
   }
   setNight(0);
 

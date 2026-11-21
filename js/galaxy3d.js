@@ -91,6 +91,7 @@ import * as GL from './galaxy-layout.js';
     // ─── three.js state ────────────────────────────────────────
     var renderer, scene, camera;
     var composer = null, bloomPass = null;  // post chain (null until addons load)
+    var lookPass = null, lookAmt = 0, lookTm = false, lookStamp = 0;   // look rev 28: landed-view post (soft DoF, vignette, grain) + AgX while landed
     var visionPass = null;                  // rev 23 vision effects pass (after bloom, before OutputPass)
     var vis = { blur: 0, chroma: 0, hue: 0, wobble: 0, double: 0, contrast: 0, invert: 0, tint: [0, 0, 0], tintAmt: 0, fov: 0, timeScale: 1 };
     var visFovApplied = 0;
@@ -2251,6 +2252,15 @@ import * as GL from './galaxy-layout.js';
             _vu.uTime.value = time;
             visionPass.enabled = visionActive();
         }
+        if (lookAmt > 0 && performance.now() - lookStamp > 600) lookAmt = 0;   // game exited / planet update stopped: back to the site look
+        if (lookPass) {
+            var _lk = lookAmt > 0.02;
+            lookPass.enabled = _lk && bloomOn;
+            lookPass.material.uniforms.uAmt.value = lookAmt; lookPass.material.uniforms.uTime.value = time;
+            if (bloomPass) { bloomPass.threshold = 0.82 + 0.2 * lookAmt; bloomPass.strength = 0.48 - 0.13 * lookAmt; }
+        }
+        var _tm = lookAmt > (lookTm ? 0.3 : 0.6);   // hysteresis; orbit / galaxy keep the site's ACES
+        if (_tm !== lookTm) { lookTm = _tm; renderer.toneMapping = _tm ? THREE.AgXToneMapping : THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = _tm ? 1.0 : 1.15; }
         if (composer && bloomOn) composer.render();
         else renderer.render(scene, camera);
         if (_fo) {
@@ -2612,6 +2622,8 @@ import * as GL from './galaxy-layout.js';
                 applyBloomSize();
             },
             get bloom() { return { on: bloomOn, scale: bloomScale }; },
+            setLook: function (a) { lookAmt = Math.max(0, Math.min(1, +a || 0)); lookStamp = performance.now(); },
+            get look() { return lookAmt; },
             // fraction (0..1) of the star sky + dust band that is drawn (draw range on the Points; stars are in random order)
             setStarFraction: function (f) {
                 f = Math.max(0, Math.min(1, +f));
@@ -2804,6 +2816,52 @@ import * as GL from './galaxy-layout.js';
         return pass;
     }
 
+    function makeLookPass(PassBase, FSQuad) {
+        var pass = new PassBase();
+        pass.material = new THREE.ShaderMaterial({
+            uniforms: { tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uAmt: { value: 0 }, uTime: { value: 0 } },
+            vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }',
+            fragmentShader: [
+                'uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uAmt, uTime; varying vec2 vUv;',
+                'float h21(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }',
+                'void main(){',
+                '  vec2 px = 1.0 / uRes; vec2 uv = vUv; vec2 d = uv - vec2(0.5, 0.42);',
+                // depth-free DoF: the player sits near the focus point; the sky and far field (top) and the screen edges blur
+                '  float far = smoothstep(0.12, 0.5, uv.y - 0.42) * 0.9 + smoothstep(0.35, 0.8, length(d)) * 0.7;',
+                '  float rad = far * uAmt * 5.0;',
+                '  vec4 c = texture2D(tDiffuse, uv);',
+                '  if (rad > 0.4) {',
+                '    vec4 acc = c; float wsum = 1.0;',
+                '    for (int i = 1; i < 9; i++) {',
+                '      float fi = float(i); float a = fi * 2.399963; float r = sqrt(fi / 8.0) * rad;',
+                '      vec4 t = texture2D(tDiffuse, uv + vec2(cos(a), sin(a)) * r * px);',
+                '      acc += t; wsum += 1.0;',
+                '    }',
+                '    c = acc / wsum;',
+                '  }',
+                '  float vg = smoothstep(0.35, 0.95, length(d * vec2(1.0, 1.15)));',
+                '  c.rgb *= 1.0 - 0.28 * vg * uAmt;',
+                '  c.rgb += (h21(uv * uRes + fract(uTime) * 37.0) - 0.5) * 0.02 * uAmt;',
+                '  c.rgb = max(c.rgb, vec3(0.012, 0.006, 0.03) * uAmt);',
+                '  gl_FragColor = c;',
+                '}'
+            ].join('\n'),
+            depthTest: false, depthWrite: false, transparent: false
+        });
+        pass.fsQuad = new FSQuad(pass.material);
+        pass.needsSwap = true;
+        pass.render = function (r, writeBuffer, readBuffer) {
+            var u = this.material.uniforms;
+            u.tDiffuse.value = readBuffer.texture;
+            u.uRes.value.set(readBuffer.width, readBuffer.height);
+            r.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+            if (this.clear) r.clear();
+            this.fsQuad.render(r);
+        };
+        pass.enabled = false;
+        return pass;
+    }
+
     function setupPost() {
         Promise.all([
             import('three/addons/postprocessing/EffectComposer.js'),
@@ -2836,6 +2894,8 @@ import * as GL from './galaxy-layout.js';
             c.addPass(bloomPass);
             visionPass = makeVisionPass(mods[4].Pass, mods[4].FullScreenQuad);
             c.addPass(visionPass);
+            lookPass = makeLookPass(mods[4].Pass, mods[4].FullScreenQuad);
+            c.addPass(lookPass);
             c.addPass(new mods[3].OutputPass());
             composer = c;
             applyBloomSize();

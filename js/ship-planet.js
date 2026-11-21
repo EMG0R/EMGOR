@@ -232,15 +232,25 @@ var PATCH_VERT = [
 ].join('\n');
 
 // colour logic: PLANET_FRAG verbatim (terra / gas / speckle), then slope shading + fog
+// look rev 28: shared sky-fill + warm wrapped key (terrain, flora, rocks, outposts; ship-world mirrors it)
+var LIGHT_GLSL = [
+    'vec3 litHemiKey(vec3 base, vec3 N, vec3 up, vec3 L, vec3 sky, float night) {',
+    '    float h = dot(N, up) * 0.5 + 0.5;',
+    '    vec3 fill = mix(base * vec3(0.2, 0.13, 0.3), sky * 0.8 + vec3(0.04, 0.02, 0.09), h);',
+    '    float w = clamp((dot(N, L) + 0.3) / 1.3, 0.0, 1.0);',
+    '    vec3 key = vec3(1.0, 0.9, 0.8) * smoothstep(0.0, 1.0, w) * (1.0 - 0.85 * night);',
+    '    return base * (fill * 0.7 + key * 0.7);',
+    '}'
+].join('\n');
 var PATCH_FRAG = [
     'uniform vec3 uColHigh; uniform vec3 uColLow; uniform vec3 uColSea; uniform vec3 uAtmo; uniform vec3 uAccent;',
     'uniform float uBiome; uniform float uBandFreq; uniform float uSpeckle; uniform vec3 uLightDir;',
     'uniform vec3 uSeed; uniform float uFreq; uniform float uWarp; uniform float uSeaLevel;',
     'uniform float uFade; uniform float uSurf; uniform vec3 uFogCol; uniform float uFogK; uniform float uLook; uniform float uDetD; uniform float uDetK; uniform float uTime;',
-    'varying vec3 vDir; varying vec3 vN; varying vec3 vView; varying float vRim; varying float vH; varying vec3 vUp;',
+    'varying vec3 vDir; varying vec3 vN; varying vec3 vView; varying float vRim; varying float vH; varying vec3 vUp; uniform float uNightF;',
     '#include <common>',
     '#include <logdepthbuf_pars_fragment>',
-    NOISE_GLSL,
+    NOISE_GLSL, LIGHT_GLSL,
     'void main() {',
     '    #include <logdepthbuf_fragment>',
     '    vec3 sp = normalize(vDir);',
@@ -284,7 +294,7 @@ var PATCH_FRAG = [
     '    float slope = 1.0 - clamp(dot(N, normalize(vUp)), 0.0, 1.0);',
     '    float hh = smoothstep(0.03, 0.2, vH);',
     '    float steep = smoothstep(0.035, 0.2, slope);',
-    '    float tn = fbm(sp * uFreq * 24.0 + uSeed);',
+    '    float tn = 0.5;',                                                    // look rev 28: no ground colour noise, gradient bands only
     '    if (uBiome < 0.5) {',
     '        vec3 rockC = mix(uColLow, uColHigh, 0.4) * vec3(0.42, 0.38, 0.4) + 0.045;',
     '        if (uLook < 0.5) {',                                                   // rocky: dusty plains, banded dark cliffs, pale summits
@@ -307,9 +317,11 @@ var PATCH_FRAG = [
     '        col = mix(col, bandC * (0.55 + 0.9 * dot(col, vec3(0.33))) , 0.28 * (1.0 - seaM));',
     '        float cap = smoothstep(0.7, 0.92, hh) * (1.0 - steep * 0.75);',
     '        col = mix(col, mix(uColHigh, vec3(0.93, 0.93, 0.95), 0.62) * 0.95 + 0.04, cap * 0.75 * (1.0 - seaM));',
-    '        float dk = 1.0 - smoothstep(uDetD * 0.4, uDetD, dist);',
-    '        float dn = vnoise(sp * uDetK / 1.6) * 0.6 + vnoise(sp * uDetK / 0.55) * 0.4;',
-    '        col *= 1.0 + (dn - 0.5) * 0.55 * dk * (1.0 - seaM * 0.8);',
+    '        vec3 dpC = uColLow * vec3(0.5, 0.36, 0.7);',                    // look rev 28: violet-anchored 4-stop height ramp, smooth bands
+    '        vec3 rmp = mix(dpC, uColLow, smoothstep(-0.02, 0.05, vH));',
+    '        rmp = mix(rmp, mix(uColLow, uColHigh, 0.5), smoothstep(0.04, 0.11, vH));',
+    '        rmp = mix(rmp, uColHigh, smoothstep(0.1, 0.2, vH));',
+    '        col = mix(col, rmp * (0.7 + 0.6 * dot(col, vec3(0.33))), 0.5 * (1.0 - seaM));',
     '    }',
     '    if (uBiome > 0.5) {',                                                   // rev 20: cloud world. local latitude stripes (palette bands) + domain-warped swirls + puffs, all in L
     '        vec3 gp = sp * uDetK;',
@@ -341,8 +353,7 @@ var PATCH_FRAG = [
     '        foam = cb * (0.5 + 0.5 * rip) * (1.0 - smoothstep(uDetD * 4.0, uDetD * 14.0, dist));',
     '    }',
     '    float ndl = dot(N, uLightDir) * 0.5 + 0.5;',
-    '    float lightAmt = mix(0.14, 0.98, smoothstep(0.2, 0.88, ndl));',
-    '    col *= lightAmt;',
+    '    col = litHemiKey(col, N, normalize(vUp), uLightDir, uFogCol, uNightF);',
     '    float fr = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.6);',
     '    col += uAtmo * fr * 0.18;',
     '    if (uBiome < 0.5) {',
@@ -353,12 +364,12 @@ var PATCH_FRAG = [
     '        col = mix(col, vec3(0.95, 0.98, 1.0) * (0.35 + 0.65 * ndl), foam * 0.72);',
     '    }',
     '    if (uBiome < 0.5 && uLook > 1.5) col += vec3(0.8, 0.9, 1.0) * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 6.0) * 0.25 * (1.0 - steep);',
-    '    col = mix(col, col * vec3(0.55, 0.52, 0.58), smoothstep(0.04, 0.2, slope) * step(uBiome, 0.5) * 0.75);',
+    '    col = mix(col, col * vec3(0.6, 0.48, 0.74), smoothstep(0.04, 0.22, slope) * step(uBiome, 0.5) * 0.6);',
     '    gcol = mix(gcol, col, uSurf);',
     '    }',
     '    col = gcol;',
     '    float f = 1.0 - exp(-pow(dist * uFogK, 2.0));',
-    '    f = min(f, 0.93);',
+    '    f = min(f, 0.985);',
     '    f *= 1.0 - 0.45 * wM * uSurf;',      // rev 25: water keeps its own (darker) tone at distance, so the horizon line against the sky survives the haze
     '    col = mix(col, uFogCol, f);',
     '    float alpha = uFade * (1.0 - smoothstep(0.8, 1.0, vRim));',
@@ -370,19 +381,19 @@ var PATCH_FRAG = [
 
 // instanced flora / creatures share one fragment: flat-lit palette colour + fog
 var INST_FRAG = [
-    'uniform vec3 uLightDir; uniform vec3 uFogCol; uniform float uFogK;',
+    'uniform vec3 uLightDir; uniform vec3 uFogCol; uniform float uFogK; uniform vec3 uUpW; uniform float uNightF;',
     'varying vec3 vCol; varying vec3 vN; varying vec3 vView;',
     '#include <common>',
+    LIGHT_GLSL,
     '#include <logdepthbuf_pars_fragment>',
     'void main() {',
     '    #include <logdepthbuf_fragment>',
     '    vec3 N = normalize(vN);',
     '    if (!gl_FrontFacing) N = -N;',
     '    float ndl = dot(N, uLightDir) * 0.5 + 0.5;',
-    '    float lightAmt = mix(0.3, 1.0, smoothstep(0.08, 0.92, ndl));',
-    '    vec3 col = vCol * lightAmt;',
+    '    vec3 col = litHemiKey(vCol, N, uUpW, uLightDir, uFogCol, uNightF);',
     '    float dist = length(vView);',
-    '    float f = min(1.0 - exp(-pow(dist * uFogK, 2.0)), 0.93);',
+    '    float f = min(1.0 - exp(-pow(dist * uFogK, 2.0)), 0.985);',
     '    col = mix(col, uFogCol, f);',
     '    gl_FragColor = vec4(col, 1.0);',
     '    #include <tonemapping_fragment>',
@@ -391,7 +402,7 @@ var INST_FRAG = [
 ].join('\n');
 
 var FLORA_FRAG = INST_FRAG.replace('varying vec3 vCol;', 'uniform float uGlow; uniform float uBioN; varying vec3 vBio; varying vec3 vLP; varying float vTop; varying vec3 vCol;')
-    .replace('vec3 col = vCol * lightAmt;', 'vec3 col = vCol * lightAmt; col += vCol * uGlow * smoothstep(0.8, 0.95, vTop) * 1.8; float bsp = smoothstep(0.5, 0.72, sin(vLP.x * 13.0 + vLP.y * 9.0) * sin(vLP.z * 11.0 - vLP.y * 7.0) * 0.5 + 0.5); float bk = max(vBio.r, max(vBio.g, vBio.b)) * uBioN * (0.3 + 0.7 * bsp); col = mix(col, vBio * (1.2 + 0.5 * bsp), min(bk, 0.92));');
+    .replace('vec3 col = litHemiKey(vCol, N, uUpW, uLightDir, uFogCol, uNightF);', 'vec3 col = litHemiKey(vCol, N, uUpW, uLightDir, uFogCol, uNightF); col += vCol * uGlow * smoothstep(0.8, 0.95, vTop) * 1.0; float bsp = smoothstep(0.5, 0.72, sin(vLP.x * 13.0 + vLP.y * 9.0) * sin(vLP.z * 11.0 - vLP.y * 7.0) * 0.5 + 0.5); float bk = max(vBio.r, max(vBio.g, vBio.b)) * uBioN * (0.3 + 0.7 * bsp); col = mix(col, vBio * (1.2 + 0.5 * bsp), min(bk, 0.92));');
 var FLORA_VERT = [
     'attribute float aVar; attribute float aPart; attribute float aSel; attribute vec3 aCol; attribute vec3 aBio;',
     'uniform float uFadeA; uniform float uFadeB; uniform float uNearA; uniform float uNearB;',
@@ -417,7 +428,7 @@ var FLORA_VERT = [
 ].join('\n');
 
 var FLORA_VERT_SW = FLORA_VERT.replace('uniform float uFadeA;', 'uniform float uTime; uniform float uSway; uniform float uFadeA;')
-    .replace('    pos *= k;', '    float swp = uTime * 1.7 + iw.x * 0.07 + iw.z * 0.05;\n    pos.x += (sin(swp) + 0.5 * sin(swp * 2.3 + 1.3)) * uSway * 0.2 * position.y * position.y;\n    pos.z += cos(swp * 0.8) * uSway * 0.12 * position.y * position.y;\n    pos *= k;');
+    .replace('    pos *= k;', '    float swp = uTime * 0.45 + iw.x * 0.07 + iw.z * 0.05;\n    pos.x += (sin(swp) + 0.5 * sin(swp * 2.3 + 1.3)) * uSway * 0.2 * position.y * position.y;\n    pos.z += cos(swp * 0.8) * uSway * 0.12 * position.y * position.y;\n    pos *= k;');
 
 var CREAT_VERT = [
     'attribute float aVar; attribute float aW; attribute float aPh; attribute float aSel; attribute vec3 aCol; attribute float aPartC;',
@@ -543,18 +554,18 @@ var OUT_VERT = [
     '}'
 ].join('\n');
 var OUT_FRAG = [
-    'uniform vec3 uLightDir; uniform vec3 uFogCol; uniform float uFogK;',
+    'uniform vec3 uLightDir; uniform vec3 uFogCol; uniform float uFogK; uniform vec3 uUpW; uniform float uNightF;',
     'varying vec3 vCol; varying vec3 vN; varying vec3 vView; varying float vGlow;',
     '#include <common>',
+    LIGHT_GLSL,
     '#include <logdepthbuf_pars_fragment>',
     'void main() {',
     '    #include <logdepthbuf_fragment>',
     '    vec3 N = normalize(vN);',
     '    if (!gl_FrontFacing) N = -N;',
     '    float ndl = dot(N, uLightDir) * 0.5 + 0.5;',
-    '    float lightAmt = mix(0.3, 1.0, smoothstep(0.08, 0.92, ndl));',
-    '    vec3 col = mix(vCol * lightAmt, vCol, vGlow);',
-    '    float f = min(1.0 - exp(-pow(length(vView) * uFogK, 2.0)), 0.93);',
+    '    vec3 col = mix(litHemiKey(vCol, N, uUpW, uLightDir, uFogCol, uNightF), vCol, vGlow);',
+    '    float f = min(1.0 - exp(-pow(length(vView) * uFogK, 2.0)), 0.985);',
     '    col = mix(col, uFogCol, f * (1.0 - vGlow * 0.6));',
     '    gl_FragColor = vec4(col, 1.0);',
     '    #include <tonemapping_fragment>',
@@ -739,7 +750,7 @@ var DOME_VERT = [
     '}'
 ].join('\n');
 var DOME_FRAG = [
-    'uniform vec3 uFogCol; uniform vec3 uAtmo; uniform vec3 uUp; uniform float uAlpha; uniform float uSun; uniform float uHor; uniform vec3 uSunDir; uniform float uStar; uniform float uStorm;',
+    'uniform vec3 uFogCol; uniform vec3 uAtmo; uniform vec3 uUp; uniform float uAlpha; uniform float uSun; uniform float uHor; uniform vec3 uSunDir; uniform float uStar; uniform float uStorm; uniform float uTime;',
     'uniform vec3 uPc; uniform vec3 uRingN; uniform vec3 uRingC; uniform vec2 uRingR; uniform float uRingA; uniform vec4 uMoon[4]; uniform vec3 uMoonC[4];',
     'varying vec3 vP;',
     '#include <common>',
@@ -749,19 +760,23 @@ var DOME_FRAG = [
     '    vec3 v = normalize(vP);',
     '    float c = dot(v, normalize(uUp));',
     '    float z = clamp((c - uHor) / (1.0 - uHor), 0.0, 1.0);',   // 0 at the geometric horizon
-    '    vec3 zen = uAtmo * (0.18 + 0.5 * uSun) * 1.5;',
-    '    zen = mix(vec3(dot(zen, vec3(0.33))), zen, 0.6 + 0.4 * smoothstep(0.1, 0.8, z));',    // less saturated near the ground
-    '    vec3 col = mix(uFogCol, zen, pow(z, 0.7));',
+    '    vec3 hor = uFogCol;',                                            // look rev 28: 3-stop gradient, horizon stop == fog colour exactly
+    '    vec3 mid = mix(uFogCol, uAtmo, 0.55) * (0.35 + 0.65 * uSun);',
+    '    vec3 zen = mix(uAtmo * vec3(0.55, 0.45, 0.95), vec3(0.06, 0.03, 0.14), 1.0 - uSun);',
+    '    float bnd = 0.5 + 0.5 * sin(c * 7.0 + dot(v, vec3(1.3, 0.2, 0.7)) * 2.6 + uTime * 0.2) * (0.6 + 0.4 * sin(dot(v, vec3(0.4, 1.1, -0.8)) * 3.1 - uTime * 0.13));',   // lava-lamp bands, <= 0.05 Hz
+    '    vec3 col = mix(hor, mid, smoothstep(0.0, 0.35, z));',
+    '    col = mix(col, zen, smoothstep(0.25, 1.0, z));',
+    '    col *= 1.0 + (bnd - 0.5) * 0.07;',
     '    float night = 1.0 - uSun;',
     '    vec3 sc = floor(v * 260.0); float sh = fract(sin(dot(sc, vec3(12.9898, 78.233, 37.719))) * 43758.5453);',
     '    float star = step(0.9965, sh) * smoothstep(0.35, 0.85, z) * night * (0.35 + 0.65 * fract(sh * 91.7));',
     '    col += vec3(0.85, 0.9, 1.0) * star;',
     '    float wash = smoothstep(uHor + 0.002, uHor + 0.07, c);',     // sky only; the ground below is the patch + fog
     '    float sd = dot(v, normalize(uSunDir));',
-    '    float glow = pow(max(sd, 0.0), 2.5) * 0.10 * uSun;',            // rev 19: soft directional brightening toward the light, no disc / sprite
-    '    col += uFogCol * glow;',
-    '    float seeThru = mix(0.4, 0.84, uSun);',                          // planets / the black hole stay visible through the dome: ghosts by day, clearer at night
-    '    float thick = 0.5 + 0.5 * smoothstep(0.0, 0.6, z);',
+    '    float glow = pow(max(sd, 0.0), 6.0) * 0.3 * uSun + smoothstep(0.9993, 0.9997, sd) * 1.4 * uSun;',            // rev 19: soft directional brightening toward the light, no disc / sprite
+    '    col += vec3(1.0, 0.86, 0.72) * glow;',
+    '    float seeThru = mix(0.6, 0.92, uSun);',                          // planets / the black hole stay visible through the dome: ghosts by day, clearer at night
+    '    float thick = 0.78 + 0.22 * smoothstep(0.0, 0.6, z);',
     '    float alpha = max(uAlpha * wash * seeThru * thick, star * 0.9 * uStar);',
     '    if (uRingA > 0.001) {',                                  // rev 27: the planet ring from the ground: exact ray / ring-plane hit (tilt + colour from node.ringMesh), planet shadow on the far side
     '        float dn = dot(v, uRingN);',
@@ -1080,10 +1095,25 @@ GeoBuilder.prototype.box = function (x0, y0, z0, x1, y1, z1, shade) {
     function quad(a, b, c, d) { q.tri(a, b, c, 0, shade); q.tri(a, c, d, 0, shade); }
     quad(A, D, C, B); quad(E, F, G, H); quad(A, E, H, D); quad(B, C, G, F); quad(D, H, G, C); quad(A, B, F, E);
 };
+// look rev 28: rounded box (bevel rad, m segments per 45 deg); `part` carries the shade like box(); finishGeo(..., { smooth: true }) welds the normals
+GeoBuilder.prototype.rbox = function (x0, y0, z0, x1, y1, z1, shade, rad, m) {
+    var hx = (x1 - x0) / 2, hy = (y1 - y0) / 2, hz = (z1 - z0) / 2, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+    var r = Math.max(1e-3, Math.min(rad, hx * 0.999, hy * 0.999, hz * 0.999)); m = m || 2;
+    var ang = [], j, i, axis, sgn, sa, sb, q = this; for (j = 0; j <= m; j++) ang.push(Math.tan(Math.PI / 4 * j / m));
+    for (axis = 0; axis < 3; axis++) for (sgn = -1; sgn <= 1; sgn += 2) for (sa = -1; sa <= 1; sa += 2) for (sb = -1; sb <= 1; sb += 2) {
+        var grid = [];
+        for (i = 0; i <= m; i++) { var row = []; for (j = 0; j <= m; j++) {
+            var dv = [0, 0, 0]; dv[axis] = sgn; dv[(axis + 1) % 3] = sa * ang[i]; dv[(axis + 2) % 3] = sb * ang[j];
+            var L2 = Math.hypot(dv[0], dv[1], dv[2]), nx = dv[0] / L2, ny = dv[1] / L2, nz = dv[2] / L2;
+            row.push([cx + (hx - r) * (nx >= 0 ? 1 : -1) + r * nx, cy + (hy - r) * (ny >= 0 ? 1 : -1) + r * ny, cz + (hz - r) * (nz >= 0 ? 1 : -1) + r * nz]);
+        } grid.push(row); }
+        for (i = 0; i < m; i++) for (j = 0; j < m; j++) { q.tri(grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], 0, shade); q.tri(grid[i][j], grid[i + 1][j + 1], grid[i][j + 1], 0, shade); }
+    }
+};
 // flat hexagon fan at height y between radii r0 (inner, 0 = filled) and r1
 GeoBuilder.prototype.hex = function (r0, r1, y, shade) {
-    for (var i = 0; i < 6; i++) {
-        var a0 = i / 6 * Math.PI * 2, a1 = (i + 1) / 6 * Math.PI * 2;
+    for (var i = 0; i < 28; i++) {      // look rev 28: round discs (was a hexagon)
+        var a0 = i / 28 * Math.PI * 2, a1 = (i + 1) / 28 * Math.PI * 2;
         var o0 = [Math.cos(a0) * r1, y, Math.sin(a0) * r1], o1 = [Math.cos(a1) * r1, y, Math.sin(a1) * r1];
         if (r0 <= 0) this.tri([0, y, 0], o1, o0, 0, shade);
         else {
@@ -1116,6 +1146,11 @@ function finishGeo(THREE, g, names) {
         var nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
         var l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
         for (var k = 0; k < 3; k++) { nrm[(i + k) * 3] = nx; nrm[(i + k) * 3 + 1] = ny; nrm[(i + k) * 3 + 2] = nz; }
+    }
+    if (names.smooth) {      // look rev 28: weld normals by position (soft rounded forms instead of flat facets)
+        var acc = {}, key = function (i) { return Math.round(g.pos[i * 3] * 2000) + ',' + Math.round(g.pos[i * 3 + 1] * 2000) + ',' + Math.round(g.pos[i * 3 + 2] * 2000); };
+        for (var i2 = 0; i2 < vcount; i2++) { var kk = key(i2), e = acc[kk] || (acc[kk] = [0, 0, 0]); e[0] += nrm[i2 * 3]; e[1] += nrm[i2 * 3 + 1]; e[2] += nrm[i2 * 3 + 2]; }
+        for (var i3 = 0; i3 < vcount; i3++) { var e2 = acc[key(i3)], l3 = Math.hypot(e2[0], e2[1], e2[2]) || 1; nrm[i3 * 3] = e2[0] / l3; nrm[i3 * 3 + 1] = e2[1] / l3; nrm[i3 * 3 + 2] = e2[2] / l3; }
     }
     geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     geo.setAttribute('aVar', new THREE.Float32BufferAttribute(g.var_, 1));
@@ -1253,7 +1288,7 @@ export function createPlanetSurface(engine, L) {
         uFogK: { value: 0 },
         uLightDir: { value: new THREE.Vector3(-0.62, 0.52, 0.4).normalize() },
         uTime: { value: 0 },
-        uNight: { value: 0 },
+        uNight: { value: 0 }, uUpW: { value: new THREE.Vector3(0, 1, 0) },
         uBio: { value: 0 }          // rev 27: night-scaled bioluminescence (flora / rocks / fireflies)
     };
     var alloc = null;            // built on first near-mode entry
@@ -1388,7 +1423,7 @@ export function createPlanetSurface(engine, L) {
             uSeed: { value: new THREE.Vector3() }, uColHigh: { value: new THREE.Color() }, uColLow: { value: new THREE.Color() },
             uColSea: { value: new THREE.Color() }, uAtmo: { value: new THREE.Color() }, uAccent: { value: new THREE.Color() },
             uBiome: { value: 0 }, uLook: { value: 0 }, uFreq: { value: 3 }, uWarp: { value: 1 }, uBandFreq: { value: 8 }, uSeaLevel: { value: 0.5 },
-            uSpeckle: { value: 0 }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK,
+            uSpeckle: { value: 0 }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK, uNightF: SH.uNight,
             uSeaH: { value: 0.5 }, uAmp: { value: AMP }, uBias: { value: BIAS }, uEps: { value: 0.0012 }, uTime: SH.uTime, uR: { value: 1 }, uDetD: { value: 140 * L }, uDetK: { value: 3000 },
             uC: { value: C }, uT1: { value: T1 }, uT2: { value: T2 }, uTan: { value: 0.3 }, uFade: { value: 1 }, uSurf: { value: 0 }, uRel: { value: 0 },
             uPadD: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }, uPadP: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] }
@@ -1408,27 +1443,24 @@ export function createPlanetSurface(engine, L) {
 
         // flora: 3 variants merged, selected per instance
         var g = new GeoBuilder();
-        // 0 conifer
-        g.cone(0, 0, 0, 0.07, 0.3, 0.05, 5, 0, 0);
-        g.cone(0, 0.2, 0, 0.42, 0.65, 0.2, 6, 0, 1);
-        g.cone(0, 0.5, 0, 0.3, 1.0, 0.0, 6, 0, 1);
-        // 1 round tree
-        g.cone(0, 0, 0, 0.08, 0.5, 0.06, 5, 1, 0);
-        g.sphere(0, 0.72, 0, 0.42, 0.34, 0.42, 7, 4, 0, Math.PI, 1, 1, 0, 0, 0);
-        // 2 palm / mushroom cap
-        g.cone(0, 0, 0, 0.06, 0.8, 0.04, 4, 2, 0);
-        g.cone(0, 0.78, 0, 0.62, 0.9, 0.0, 7, 2, 1);
-        g.cone(0, 0.74, 0, 0.0, 0.78, 0.62, 7, 2, 1);
+        // look rev 28: two repeated families, smooth normals. 0 stalk (tall thin tapered stroke + a small bulb tip), 1 blob (thin stem + smooth ellipsoid canopy)
+        g.cone(0, 0, 0, 0.07, 0.95, 0.02, 10, 0, 0);
+        g.sphere(0, 0.96, 0, 0.09, 0.1, 0.09, 10, 6, 0, Math.PI, 0, 1, 0, 0, 0);
+        g.cone(0, 0, 0, 0.06, 0.5, 0.05, 10, 1, 0);
+        g.sphere(0, 0.72, 0, 0.44, 0.36, 0.44, 14, 9, 0, Math.PI, 1, 1, 0, 0, 0);
+        // 2 (unused since rev 28, kept so variant ids stay stable): a lower, wider blob
+        g.cone(0, 0, 0, 0.06, 0.3, 0.05, 10, 2, 0);
+        g.sphere(0, 0.5, 0, 0.55, 0.3, 0.55, 14, 9, 0, Math.PI, 2, 1, 0, 0, 0);
         // 3 ice spire (icy planets)
-        g.cone(0, 0, 0, 0.16, 1.0, 0.0, 5, 3, 1);
-        g.cone(0.22, 0, 0.05, 0.1, 0.55, 0.0, 5, 3, 1);
-        var fg = finishGeo(THREE, g, { part: true });
+        g.cone(0, 0, 0, 0.16, 1.0, 0.0, 8, 3, 1);
+        g.cone(0.22, 0, 0.05, 0.1, 0.55, 0.0, 8, 3, 1);
+        var fg = finishGeo(THREE, g, { part: true, smooth: true });
         var fa = new Float32Array(FLORA_MAX * 3), fs = new Float32Array(FLORA_MAX);
         a.floraCol = new THREE.InstancedBufferAttribute(fa, 3);
         a.floraSel = new THREE.InstancedBufferAttribute(fs, 1);
         fg.setAttribute('aCol', a.floraCol); fg.setAttribute('aSel', a.floraSel);
         a.floraBio = new THREE.InstancedBufferAttribute(new Float32Array(FLORA_MAX * 3), 3); fg.setAttribute('aBio', a.floraBio);
-        a.floraU = { uTime: SH.uTime, uSway: { value: 0.1 }, uFadeA: { value: 130 * L }, uFadeB: { value: 190 * L }, uNearA: { value: 0 }, uNearB: { value: 1e-4 }, uGlow: SH.uNight, uBioN: SH.uBio, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK };
+        a.floraU = { uTime: SH.uTime, uSway: { value: 0.1 }, uFadeA: { value: 130 * L }, uFadeB: { value: 190 * L }, uNearA: { value: 0 }, uNearB: { value: 1e-4 }, uGlow: SH.uNight, uBioN: SH.uBio, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK, uUpW: SH.uUpW, uNightF: SH.uNight };
         a.flora = new THREE.InstancedMesh(fg, new THREE.ShaderMaterial({
             uniforms: a.floraU, vertexShader: FLORA_VERT_SW, fragmentShader: FLORA_FRAG, side: THREE.DoubleSide, toneMapped: false
         }), FLORA_MAX);
@@ -1474,7 +1506,7 @@ export function createPlanetSurface(engine, L) {
         a.creatGlow = new THREE.InstancedBufferAttribute(new Float32Array(CREAT_MAX), 1); a.creatMov = new THREE.InstancedBufferAttribute(new Float32Array(CREAT_MAX), 1);
         a.creatGlow.setUsage(THREE.DynamicDrawUsage); a.creatMov.setUsage(THREE.DynamicDrawUsage);
         cg.setAttribute('aCol', a.creatCol); cg.setAttribute('aSel', a.creatSel); cg.setAttribute('aInstPh', a.creatPh); cg.setAttribute('aGlow', a.creatGlow); cg.setAttribute('aMov', a.creatMov);
-        a.creatU = { uTime: SH.uTime, uFadeA: { value: 110 * L }, uFadeB: { value: 160 * L }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK };
+        a.creatU = { uTime: SH.uTime, uFadeA: { value: 110 * L }, uFadeB: { value: 160 * L }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK, uUpW: SH.uUpW, uNightF: SH.uNight };
         a.creat = new THREE.InstancedMesh(cg, new THREE.ShaderMaterial({
             uniforms: a.creatU, vertexShader: CREAT_VERT, fragmentShader: INST_FRAG, side: THREE.DoubleSide, toneMapped: false
         }), CREAT_MAX);
@@ -1489,15 +1521,13 @@ export function createPlanetSurface(engine, L) {
 
         // rocks (rev 18): 300 instanced lumpy boulders scattered on the land near the ship (same shader as the flora, one variant)
         var rk = new GeoBuilder();
-        rk.sphere(0, 0.28, 0, 0.72, 0.5, 0.62, 5, 3, 0, Math.PI, 0, 1, 0, 0, 0);
-        rk.sphere(0.46, 0.18, 0.22, 0.38, 0.3, 0.32, 4, 2, 0, Math.PI, 0, 1, 0, 0, 0);
-        rk.sphere(-0.4, 0.14, -0.2, 0.3, 0.24, 0.28, 4, 2, 0, Math.PI, 0, 1, 0, 0, 0);
-        var rg = finishGeo(THREE, rk, { part: true });
+        rk.sphere(0, 0.2, 0, 0.74, 0.46, 0.62, 14, 9, 0, Math.PI, 0, 1, 0, 0, 0);        // look rev 28: one smooth pebble (a soft rounded stone), sizes come from the instance scale
+        var rg = finishGeo(THREE, rk, { part: true, smooth: true });
         a.rockCol = new THREE.InstancedBufferAttribute(new Float32Array(ROCK_MAX * 3), 3);
         a.rockSel = new THREE.InstancedBufferAttribute(new Float32Array(ROCK_MAX), 1);
         rg.setAttribute('aCol', a.rockCol); rg.setAttribute('aSel', a.rockSel);
         a.rockBio = new THREE.InstancedBufferAttribute(new Float32Array(ROCK_MAX * 3), 3); rg.setAttribute('aBio', a.rockBio);
-        a.rockU = { uFadeA: { value: 90 * L }, uFadeB: { value: 150 * L }, uNearA: { value: 1.6 }, uNearB: { value: 3.0 }, uGlow: { value: 0 }, uBioN: SH.uBio, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK };
+        a.rockU = { uFadeA: { value: 90 * L }, uFadeB: { value: 150 * L }, uNearA: { value: 1.6 }, uNearB: { value: 3.0 }, uGlow: { value: 0 }, uBioN: SH.uBio, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK, uUpW: SH.uUpW, uNightF: SH.uNight };
         a.rocks = new THREE.InstancedMesh(rg, new THREE.ShaderMaterial({
             uniforms: a.rockU, vertexShader: FLORA_VERT, fragmentShader: FLORA_FRAG, side: THREE.DoubleSide, toneMapped: false
         }), ROCK_MAX);
@@ -1520,7 +1550,7 @@ export function createPlanetSurface(engine, L) {
         a.spores.onBeforeRender = syncRide; a.ride.add(a.spores);
 
         // atmosphere dome (camera-attached inverted sphere)
-        a.domeU = { uFogCol: SH.uFogCol, uAtmo: { value: new THREE.Color() }, uUp: { value: new THREE.Vector3(0, 1, 0) }, uAlpha: { value: 0 }, uSun: { value: 1 }, uHor: { value: -0.3 }, uSunDir: SH.uLightDir, uStar: { value: 0 }, uStorm: { value: 0 },
+        a.domeU = { uFogCol: SH.uFogCol, uAtmo: { value: new THREE.Color() }, uUp: SH.uUpW, uAlpha: { value: 0 }, uSun: { value: 1 }, uHor: { value: -0.3 }, uSunDir: SH.uLightDir, uStar: { value: 0 }, uStorm: { value: 0 }, uTime: SH.uTime,
             uPc: { value: new THREE.Vector3() }, uRingN: { value: new THREE.Vector3(0, 1, 0) }, uRingC: { value: new THREE.Color(1, 1, 1) }, uRingR: { value: new THREE.Vector2(1.4, 1.9) }, uRingA: { value: 0 },
             uMoon: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] }, uMoonC: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] } };
         a.dome = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), new THREE.ShaderMaterial({
@@ -1609,21 +1639,21 @@ export function createPlanetSurface(engine, L) {
             pg2.box(hx - 0.035, 0.1, hz - 0.035, hx + 0.035, 0.34, hz + 0.035, 2.3);
         }
         var bg = new GeoBuilder();
-        bg.box(-3, -0.8, -2.5, 3, 3.2, 2.5, 1.0);        // main block
-        bg.box(-3.2, 3.2, -2.7, 3.2, 3.45, 2.7, 0.55);   // roof
-        bg.box(-1.8, 3.45, -1.6, 1.8, 5.2, 1.7, 0.88);   // upper floor
-        bg.box(-2.0, 5.2, -1.8, 2.0, 5.4, 1.9, 0.55);
-        bg.box(3.0, -0.8, -1.2, 5.2, 1.8, 1.2, 0.78);    // annex
+        bg.rbox(-3, -0.8, -2.5, 3, 3.2, 2.5, 1.0, 0.9);        // main block
+        bg.rbox(-3.2, 3.2, -2.7, 3.2, 3.45, 2.7, 0.55, 0.12, 1);   // roof
+        bg.rbox(-1.8, 3.45, -1.6, 1.8, 5.2, 1.7, 0.88, 0.7);   // upper floor
+        bg.rbox(-2.0, 5.2, -1.8, 2.0, 5.4, 1.9, 0.55, 0.1, 1);
+        bg.rbox(3.0, -0.8, -1.2, 5.2, 1.8, 1.2, 0.78, 0.6);    // annex
         bg.box(-0.1, 5.4, -0.1, 0.1, 10.0, 0.1, 0.5);    // antenna mast
         bg.box(-0.25, 10.0, -0.25, 0.25, 10.5, 0.25, 2.4);   // antenna lamp
         bg.box(-3.06, 1.5, -1.9, -3.0, 2.4, 1.9, 1.9);   // lit window strip, faces the pad
         bg.box(-1.2, 3.9, 1.7, 1.2, 4.7, 1.76, 1.9);
         function outMesh(gb, name) {
-            var geo = finishGeo(THREE, gb, { part: true });
+            var geo = finishGeo(THREE, gb, { part: true, smooth: true });
             var col = new THREE.InstancedBufferAttribute(new Float32Array(NPAD * 3), 3);
             geo.setAttribute('aCol', col);
             var m = new THREE.InstancedMesh(geo, new THREE.ShaderMaterial({
-                uniforms: { uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK },
+                uniforms: { uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK, uUpW: SH.uUpW, uNightF: SH.uNight },
                 vertexShader: OUT_VERT, fragmentShader: OUT_FRAG, side: THREE.DoubleSide, toneMapped: false,
                 polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3
             }), NPAD);
@@ -2195,7 +2225,7 @@ export function createPlanetSurface(engine, L) {
         var cnt = 0, mat = a.flora.instanceMatrix.array, ca = a.floraCol.array, sa = a.floraSel.array;
         var lo = col3(node.mesh.material.uniforms.uColLow.value), hi = col3(node.mesh.material.uniforms.uColHigh.value), ac = col3(node.mesh.material.uniforms.uAccent.value);
         bioColor();
-        var fCap = Math.round((look === 1 ? 700 : (look === 0 ? 150 : 60)) * floraLim / 700);
+        var fCap = Math.round((look === 1 ? 350 : (look === 0 ? 110 : 50)) * floraLim / 700);
         for (var c = 0; c < cands.length && cnt < fCap; c++) {
             var cd = cands[c], dx = cd[1], dy = cd[2], dz = cd[3];
             var h = hFrac(dx, dy, dz);
@@ -2203,7 +2233,8 @@ export function createPlanetSurface(engine, L) {
             if (pads.length && nearPad(dx, dy, dz, 3)) continue;     // keep outposts clear
             if (_lastN > sea + 0.19) { if (hash01(cd[4], cd[5], cd[6], seed + 9) < 0.7) continue; }
             var rr = hash01(cd[4], cd[5], cd[6], seed + 4), r2 = hash01(cd[4], cd[5], cd[6], seed + 5), r3 = hash01(cd[4], cd[5], cd[6], seed + 6);
-            var variant = look === 2 ? 3 : Math.floor(rr * 3) % 3, sh = (4 + r2 * 4) * 1.5 * L, sw = sh * (0.38 + r3 * 0.22) * (look === 2 ? 0.7 : 1);
+            if (hash01(Math.floor(cd[4] / 4), Math.floor(cd[5] / 4), Math.floor(cd[6] / 4), seed + 13) < 0.45) continue;      // look rev 28: groves with empty space between
+            var variant = look === 2 ? 3 : (rr < 0.45 ? 0 : 1), sh = (4 + r2 * 4) * 1.5 * L * (variant === 0 ? 1.35 : 1), sw = sh * (variant === 0 ? 0.2 + r3 * 0.06 : 0.38 + r3 * 0.22) * (look === 2 ? 0.7 : 1);
             var rad = Rr * (1 + h) - 0.25 * L;
             // basis: right = d x ref, fwd = right x d, yaw by r3
             var ref0 = Math.abs(dy) < 0.9 ? 0 : 1;
@@ -2221,7 +2252,7 @@ export function createPlanetSurface(engine, L) {
             mat[o + 8] = vx * sw; mat[o + 9] = vy * sw; mat[o + 10] = vz * sw; mat[o + 11] = 0;
             mat[o + 12] = dx * rad; mat[o + 13] = dy * rad; mat[o + 14] = dz * rad; mat[o + 15] = 1;
             // palette tint: lerp lo/hi, with an occasional accent-coloured tree
-            var tt = 0.25 + 0.75 * r2, base = hash01(cd[4], cd[5], cd[6], seed + 7) < 0.12 ? ac : null;
+            var tt = 0.25 + 0.75 * r2, base = null;      // look rev 28: no accent-coloured confetti trees
             for (var q = 0; q < 3; q++) ca[cnt * 3 + q] = look === 2 ? [0.62, 0.8, 0.98][q] * (0.8 + 0.3 * r2) : ((base ? base[q] * 0.5 : (lo[q] * (1 - tt) + hi[q] * tt)) * 0.82 + 0.02);
             sa[cnt] = variant;
             var bio = hash01(cd[4], cd[5], cd[6], seed + 11) < (look === 1 ? 0.38 : (look === 2 ? 0.3 : 0.14)) ? 0.6 + 0.4 * r3 : 0, bb = a.floraBio.array;
@@ -2789,16 +2820,17 @@ export function createPlanetSurface(engine, L) {
         tmpV.set(shipPos.x - node.anchor.position.x, shipPos.y - node.anchor.position.y, shipPos.z - node.anchor.position.z).normalize();
         var sunDot = tmpV.dot(SH.uLightDir.value), sunTerm = smoothstep(-0.25, 0.55, sunDot);
         var fb = 0.28 + 0.72 * sunTerm;
-        SH.uFogCol.value.set((A[0] * 0.5 + Hh[0] * 0.5) * fb * 0.6 + 0.02, (A[1] * 0.5 + Hh[1] * 0.5) * fb * 0.6 + 0.02, (A[2] * 0.5 + Hh[2] * 0.5) * fb * 0.6 + 0.02);   // horizon tint = pal.hi, zenith = pal.atmo
+        var hz = 0.15 + 0.85 * sunTerm; SH.uFogCol.value.set((A[0] * 0.6 + Hh[0] * 0.4) * hz * 0.95 + 0.04, (A[1] * 0.6 + Hh[1] * 0.4) * hz * 0.85 + 0.03, (A[2] * 0.6 + Hh[2] * 0.4) * hz + 0.08);   // look rev 28: luminous violet-biased haze   // horizon tint = pal.hi, zenith = pal.atmo
         // rev 19: ground visibility >= 400 L (f(400 L) = 0.38, f(150 L) = 0.05); only the haze layer near the top of the atmosphere densifies, and space (depth 0) is clear
         // rev 24: no top-of-atmosphere haze layer; fog density follows the altitude above the ground (clear from the air, f(400 L) = 0.10 on the surface)
         var altF = Math.max(0, ratioD * R - R * (1 + hFrac(dirObj.x, dirObj.y, dirObj.z))) / L;
-        SH.uFogK.value = (0.78 / (400 * L)) * 0.42 * Math.exp(-altF / 450) * smoothstep(0.0, 0.04, ps.depth);
+        SH.uFogK.value = (0.78 / (400 * L)) * 0.85 * Math.exp(-altF / 450) * smoothstep(0.0, 0.04, ps.depth);
         if (isGas) SH.uFogK.value *= 2.4;          // rev 20: a thicker haze layer over the cloud tops
         SH.uNight.value = 1 - sunTerm;
         updateWeather(dt, sunTerm);
         a.domeU.uUp.value.copy(tmpV); a.domeU.uSun.value = sunTerm;
-        a.domeU.uAlpha.value = Math.pow(ps.depth, 0.8) * 0.45; a.domeU.uStar.value = Math.pow(ps.depth, 0.8);   // rev 24: dome alpha <= 0.45
+        if (engine.setLook) engine.setLook(ps.visible ? smoothstep(0.35, 0.95, ps.depth) : 0);
+        a.domeU.uAlpha.value = Math.pow(ps.depth, 0.6) * (0.5 + 0.35 * sunTerm); a.domeU.uStar.value = Math.pow(ps.depth, 0.8);   // rev 24: dome alpha <= 0.45
         a.domeU.uHor.value = -Math.sqrt(Math.max(0, 1 - 1 / (ratioE * ratioE)));   // sin(elevation) of the geometric horizon
         a.dome.position.copy(camera.position); a.dome.updateMatrixWorld();
         updateScars(dt);
@@ -3140,6 +3172,8 @@ export function createPlanetSurface(engine, L) {
         return buf;
     };
 
+    if (typeof globalThis !== 'undefined') globalThis.EMGOR_SKY_UNIFORMS = SH;
+    ps.shared = SH;      // look rev 28: shared light / fog uniforms (uLightDir, uFogCol, uFogK, uNight, uUpW) for ship-world / ship-village
     ps.sunDir = function () { return SH.uLightDir.value; };      // Q37: the live sun vector (photo mode rotates it for time of day and restores it)
     ps.release = function () { if (node) deactivate(); };      // 2026-10-14: leave the active planet (hi-res globe, halo hooks, outposts, world) without disposing the module
     ps.dispose = function () {

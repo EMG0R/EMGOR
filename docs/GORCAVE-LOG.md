@@ -749,3 +749,10 @@ NEXT 5 TO QUEUE: (1) distance LOD switch + glass in group.lo; (2) round-rig tri 
 - Win verified by hand (NPC set to 1 stock via `_gb.fightSess.sim`): reward card, +25 gorCoin, onb.won set, back on foot, FOV 55.
 - F within 3 H of a creature opens the battle; FIGHT/BALL by keys, ball miss, "fled" path verified. Real B throw fires but needs the camera facing the creature (not scriptable headless); catch not reproduced by hand in budget (g24 covers it).
 - gP2 now opens the battle via F near a creature (debug `_gb.warpToCreature`/`wildNear` hooks).
+## 2026-11-20 planet look pass (fx-look)
+- Landed view only (orbit/galaxy path untouched): sky dome 3-stop gradient + sun disc + slow bands, alpha ~0.8 so planets/black hole stay visible; fog = horizon colour, denser, cap 0.985.
+- Shared LIGHT chunk (sky fill + warm key) on terrain, flora, rocks, outposts, 7/11, Burger House, CVS, village (village off MeshBasic, now ShaderMaterial with vertex normals). AgX + exposure 1.0 only while landed (engine.setLook), ACES otherwise.
+- Terrain landed branch: ground noise removed, violet 4-stop height ramp. Props: stalk/blob + one smooth pebble, smoothed normals, groves, lush cap 350, slow sway.
+- Buildings: rboxEmit/rbox/pillar in ship-world (rounded boxes, round corner columns, rounded roofs/signs), village boxG all rounded + loaf roofs, outpost blocks rounded, pad discs round.
+- Post: lookPass (screen-space DoF, vignette, grain, violet black lift) enabled only landed.
+- Not done: planet-ramp tint of 7/11 walls, hub arch, station, human rig, village window shapes. g21/g22/g23 pass; frame cost on a contested GPU not cleanly measurable (CPU submit +0.4 ms median).

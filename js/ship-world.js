@@ -55,15 +55,18 @@ function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.l
 function mulberry(a) { a |= 0; return function () { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 const VERT = /* glsl */`
-varying vec3 vC; varying vec3 vV;
+varying vec3 vC; varying vec3 vV; varying vec3 vNw;
 #include <common>
 #include <logdepthbuf_pars_vertex>
 void main(){
   vC = color;
   vec4 lp = vec4(position, 1.0);
+  vec3 nl = normal;
   #ifdef USE_INSTANCING
     lp = instanceMatrix * lp;
+    nl = mat3(instanceMatrix) * nl;
   #endif
+  vNw = mat3(modelMatrix) * nl;
   #ifdef USE_INSTANCING_COLOR
     vC *= instanceColor;
   #endif
@@ -72,17 +75,24 @@ void main(){
   gl_Position = projectionMatrix * mv;
   #include <logdepthbuf_vertex>
 }`;
+// look rev 28: shared sky-fill + warm wrapped key (same model as ship-planet LIGHT_GLSL), smooth vertex normals, fog toward the sky colour, matte
 const FRAG_LIT = /* glsl */`
-varying vec3 vC; varying vec3 vV;
+uniform vec3 uLight; uniform vec3 uUpW; uniform vec3 uSky; uniform float uFogK; uniform float uNightF;
+varying vec3 vC; varying vec3 vV; varying vec3 vNw;
 #include <common>
 #include <logdepthbuf_pars_fragment>
 void main(){
   #include <logdepthbuf_fragment>
-  vec3 n = normalize(cross(dFdx(vV), dFdy(vV)));
-  vec3 L = normalize(mat3(viewMatrix) * normalize(vec3(-0.62, 0.52, 0.4)));
-  float d = max(0.0, dot(n, L)) * 0.7 + 0.3;
-  float rim = pow(1.0 - max(0.0, dot(n, normalize(-vV))), 3.0) * 0.28;
-  gl_FragColor = vec4(vC * d + rim * vec3(0.5, 0.3, 0.85), 1.0);
+  vec3 N = normalize(vNw);
+  if (dot(N, N) < 0.5) N = normalize(cross(dFdx(vV), dFdy(vV)));
+  float h = dot(N, normalize(uUpW)) * 0.5 + 0.5;
+  vec3 fill = mix(vC * vec3(0.2, 0.13, 0.3), uSky * 0.8 + vec3(0.04, 0.02, 0.09), h);
+  float w = clamp((dot(N, normalize(uLight)) + 0.3) / 1.3, 0.0, 1.0);
+  vec3 key = vec3(1.0, 0.9, 0.8) * smoothstep(0.0, 1.0, w) * (1.0 - 0.8 * uNightF);
+  vec3 col = vC * (fill * 0.6 + key * 0.5 + 0.22);
+  float f = min(1.0 - exp(-pow(length(vV) * uFogK, 2.0)), 0.985);
+  col = mix(col, uSky, f);
+  gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
@@ -97,9 +107,28 @@ void main(){
   #include <colorspace_fragment>
 }`;
 
-// ── non-indexed box soup with vertex colours (position + color only) ──
+// rounded box shell centred on the origin (half extents hx,hy,hz, bevel r, m segments per 45 degrees): emit(pa, pb, pc, na, nb, nc) per triangle with smooth outward normals.
+export function rboxEmit(hx, hy, hz, rad, m, emit) {
+  const r = Math.max(1e-3, Math.min(rad, hx * 0.999, hy * 0.999, hz * 0.999));
+  const ang = []; for (let j = 0; j <= m; j++) ang.push(Math.tan(Math.PI / 4 * j / m));
+  for (let axis = 0; axis < 3; axis++) for (let sgn = -1; sgn <= 1; sgn += 2) for (let sa2 = -1; sa2 <= 1; sa2 += 2) for (let sb = -1; sb <= 1; sb += 2) {
+    const grid = [];
+    for (let i = 0; i <= m; i++) { const row = []; for (let j = 0; j <= m; j++) {
+      const dv = [0, 0, 0]; dv[axis] = sgn; dv[(axis + 1) % 3] = sa2 * ang[i]; dv[(axis + 2) % 3] = sb * ang[j];
+      const Ln = Math.hypot(dv[0], dv[1], dv[2]), nx = dv[0] / Ln, ny = dv[1] / Ln, nz = dv[2] / Ln;
+      row.push({ p: [(hx - r) * (nx >= 0 ? 1 : -1) + r * nx, (hy - r) * (ny >= 0 ? 1 : -1) + r * ny, (hz - r) * (nz >= 0 ? 1 : -1) + r * nz], n: [nx, ny, nz] });
+    } grid.push(row); }
+    for (let i = 0; i < m; i++) for (let j = 0; j < m; j++) {
+      const A = grid[i][j], B = grid[i + 1][j], C = grid[i + 1][j + 1], D = grid[i][j + 1];
+      emit(A.p, B.p, C.p, A.n, B.n, C.n); emit(A.p, C.p, D.p, A.n, C.n, D.n);
+    }
+  }
+}
+
+// ── non-indexed box soup with vertex colours + normals (flat boxes, rounded boxes, cylinders / capsules) ──
 function makeSoup(T) {
-  const pos = [], col = [], c = new T.Color(), q = new T.Vector3();
+  const pos = [], col = [], nrm = [], c = new T.Color(), q = new T.Vector3();
+  const tri = (a, b, cc, na, nb, nc, r, g, bl) => { for (const [p, n] of [[a, na], [b, nb], [cc, nc]]) { pos.push(p[0], p[1], p[2]); nrm.push(n[0], n[1], n[2]); col.push(r, g, bl); } };
   const soup = {
     // box: size (w,h,d), centre x, bottom y, centre z, colour, optional rotation about X (rad) around its own bottom-front... centre of the box
     box(w, h, d, cx, y0, cz, hex, rx = 0, brightness = 1) {
@@ -112,11 +141,37 @@ function makeSoup(T) {
       }
       // faces by corner index: bit0=x, bit1=y, bit2=z.  Two triangles per face, CCW seen from outside (DoubleSide anyway).
       const quads = [[1, 3, 7, 5], [0, 4, 6, 2], [2, 6, 7, 3], [0, 1, 5, 4], [4, 5, 7, 6], [0, 2, 3, 1]];
-      for (const f of quads) for (const t of [[0, 1, 2], [0, 2, 3]]) for (const k of t) { const p = corners[f[k]]; pos.push(p[0], p[1], p[2]); col.push(r, g, b); }
+      const fn = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+      quads.forEach((f, fi) => { let n = fn[fi]; if (rx) { const cs = Math.cos(rx), sn = Math.sin(rx); n = [n[0], n[1] * cs - n[2] * sn, n[1] * sn + n[2] * cs]; }
+        for (const t of [[0, 1, 2], [0, 2, 3]]) for (const k of t) { const p = corners[f[k]]; pos.push(p[0], p[1], p[2]); nrm.push(n[0], n[1], n[2]); col.push(r, g, b); } });
+    },
+    // rounded box (same arguments + bevel radius r, m = arc segments per 45 deg half-bevel): inner box + r-radius shell, smooth normals. radius is clamped to 0.5 * the smallest side.
+    rbox(w, h, d, cx, y0, cz, hex, rad, rx = 0, brightness = 1, m = 2) {
+      c.set(hex); const cr = c.r * brightness, cg = c.g * brightness, cb = c.b * brightness;
+      const ca = rx ? Math.cos(rx) : 1, sa = rx ? Math.sin(rx) : 0, hy = h / 2;
+      const T3 = (v) => { let x = v[0], y = v[1], z = v[2]; if (rx) { const yy = y * ca - z * sa, zz = y * sa + z * ca; y = yy; z = zz; } return [x, y, z]; };
+      const L = (p) => { const t = T3(p); return [t[0] + cx, t[1] + y0 + hy, t[2] + cz]; };
+      rboxEmit(w / 2, h / 2, d / 2, rad, m, (A, B, C, na, nb, nc) => tri(L(A), L(B), L(C), T3(na), T3(nb), T3(nc), cr, cg, cb));
+    },
+    // vertical cylinder with an optional hemispherical dome on top: radius rad, shaft height h from y0, seg sides
+    pillar(rad, h, cx, y0, cz, hex, cap = 'dome', seg = 14, brightness = 1) {
+      c.set(hex); const cr = c.r * brightness, cg = c.g * brightness, cb = c.b * brightness;
+      const rings = cap === 'dome' ? 4 : 0, prof = [[rad, 0, 0], [rad, h, 0]];
+      for (let k = 1; k <= rings; k++) { const a = (Math.PI / 2) * k / rings; prof.push([rad * Math.cos(a), h + rad * Math.sin(a), a]); }
+      const P = (k, a) => [cx + Math.cos(a) * prof[k][0], y0 + prof[k][1], cz + Math.sin(a) * prof[k][0]];
+      const N = (k, a) => { const e = prof[k][2]; return [Math.cos(a) * Math.cos(e), Math.sin(e), Math.sin(a) * Math.cos(e)]; };
+      for (let i = 0; i < seg; i++) {
+        const a0 = i / seg * Math.PI * 2, a1 = (i + 1) / seg * Math.PI * 2;
+        for (let k = 0; k < prof.length - 1; k++) {
+          tri(P(k, a0), P(k + 1, a1), P(k, a1), N(k, a0), N(k + 1, a1), N(k, a1), cr, cg, cb);
+          tri(P(k, a0), P(k + 1, a0), P(k + 1, a1), N(k, a0), N(k + 1, a0), N(k + 1, a1), cr, cg, cb);
+        }
+      }
     },
     geometry() {
       const g = new T.BufferGeometry();
       g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+      g.setAttribute('normal', new T.Float32BufferAttribute(nrm, 3));
       g.setAttribute('color', new T.Float32BufferAttribute(col, 3));
       g.computeBoundingSphere();
       return g;
@@ -124,6 +179,15 @@ function makeSoup(T) {
     tris() { return pos.length / 9; },
   };
   return soup;
+}
+
+// lit material shared by the outposts and the village (sky fill + warm key + fog, vertex colour + vertex normal); bind to the planet's uniforms with ps.shared
+export function makeLitMaterial(T, ps) {
+  const m = new T.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_LIT, vertexColors: true, side: T.DoubleSide,
+    uniforms: { uLight: { value: new T.Vector3(-0.62, 0.52, 0.4).normalize() }, uUpW: { value: new T.Vector3(0, 1, 0) }, uSky: { value: new T.Color(0.36, 0.3, 0.5) }, uFogK: { value: 0 }, uNightF: { value: 0 } } });
+  const S = (ps && ps.shared) || (typeof globalThis !== 'undefined' && globalThis.EMGOR_SKY_UNIFORMS) || null;
+  if (S) { const u = m.uniforms; u.uLight = S.uLightDir; u.uUpW = S.uUpW; u.uSky = S.uFogCol; u.uFogK = S.uFogK; u.uNightF = S.uNight; }
+  return m;
 }
 
 // ── layout plan for a store of W x D x H metres (all store-local metres, front +Z). Planet stores are PD (64x40x15, ~2.5x the old floor area); the station store is CD (the old 40x26 footprint, same look). ──
@@ -148,18 +212,19 @@ function buildStoreGeoms(T, opts) {
   const B = makeSoup(T), E = makeSoup(T), walls = [], aisles = [];
   const WALL = 0xF4F2EE, TRIM = 0xC9C5D2, DARK = 0x2A2430, FLOOR = 0xB4AEC8, SHELF = 0xE8E4EE, SHELFD = 0x6C6878, RED = SEVEN.RED, CHROME = 0x9AA0AE;
   const rec = (list, name, w, h, dd, cx, y0, cz) => list.push({ name, min: [cx - w / 2, y0, cz - dd / 2], max: [cx + w / 2, y0 + h, cz + dd / 2] });
-  const wall = (name, w, h, dd, cx, y0, cz, hex) => { B.box(w, h, dd, cx, y0, cz, hex); rec(walls, name, w, h, dd, cx, y0, cz); };
+  const wall = (name, w, h, dd, cx, y0, cz, hex, rad) => { if (rad) B.rbox(w, h, dd, cx, y0, cz, hex, rad); else B.box(w, h, dd, cx, y0, cz, hex); rec(walls, name, w, h, dd, cx, y0, cz); };
   const aisle = (name, w, h, dd, cx, y0, cz) => rec(aisles, name, w, h, dd, cx, y0, cz);
   let ci = 0; const nextCol = () => ITEM_COLORS[(ci++ * 7 + 3) % ITEM_COLORS.length];
   const gh = d.gh, top = H + 0.2;
 
   // slab + foundation + tile floor (+ two lit strips along the cross aisles)
-  B.box(W + 1.6, 3.2, D + 1.6, 0, -3.0, 0, 0x6A6480); B.box(W + 1.6, 0.5, D + 1.6, 0, -0.3, 0, FLOOR); B.box(W - 1, 0.02, D - 1, 0, 0.2, 0, 0xDAD6E6);
+  B.rbox(W + 1.6, 3.2, D + 1.6, 0, -3.0, 0, 0x6A6480, 0.9); B.rbox(W + 1.6, 0.5, D + 1.6, 0, -0.3, 0, FLOOR, 0.24); B.box(W - 1, 0.02, D - 1, 0, 0.2, 0, 0xDAD6E6);
   E.box(W - 4, 0.02, 0.2, 0, 0.22, d.zS, 0xB8A8F0, 0, 0.7); E.box(W - 4, 0.02, 0.2, 0, 0.22, d.zN, 0xB8A8F0, 0, 0.7);
   // white shell
   wall('back', W, H, WT, 0, 0.2, -HD + WT / 2, WALL);
   wall('wallL', WT, H, D, -HW + WT / 2, 0.2, 0, WALL); wall('wallR', WT, H, D, HW - WT / 2, 0.2, 0, WALL);
-  wall('roof', W + 1.2, 0.8, D + 1.2, 0, top, 0, TRIM);                                         // flat roof
+  wall('roof', W + 1.2, 0.8, D + 1.2, 0, top, 0, TRIM, 0.39);                                    // roof, rounded eaves
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) B.pillar(0.85, H + 0.5, sx * (HW + 0.02), 0.2, sz * (HD + 0.02), WALL, null, 16);   // round corner columns: no 90 degree outer corners
   // stripe band under the roofline, all four sides: orange / green / red
   const bh = H * 0.07, bands = [SEVEN.ORANGE, SEVEN.GREEN, SEVEN.RED];
   bands.forEach((c, i) => { const y0 = top - bh * (i + 1);
@@ -177,14 +242,14 @@ function buildStoreGeoms(T, opts) {
   E.box(1.4, 0.4, 0.1, 0, gh - 0.5, HD - 0.05, 0xFF3A3A, 0, 0.9);                                    // OPEN light over the door
   // facade sign on the roof (white board, red neon frame; the lettering plane is A.signGeo) + roof gear
   const sw = d.signW, sh = d.signH, sy = H + 1.0;
-  B.box(sw + 0.8, sh + 0.6, 0.7, 0, sy, HD + 0.1, 0xFFFFFF);
+  B.rbox(sw + 0.8, sh + 0.6, 0.7, 0, sy, HD + 0.1, 0xFFFFFF, 0.3);
   E.box(sw + 1.0, 0.2, 0.2, 0, sy - 0.1, HD + 0.5, RED); E.box(sw + 1.0, 0.2, 0.2, 0, sy + sh + 0.5, HD + 0.5, RED);
   E.box(0.2, sh + 0.8, 0.2, -(sw / 2 + 0.5), sy - 0.1, HD + 0.5, RED); E.box(0.2, sh + 0.8, 0.2, sw / 2 + 0.5, sy - 0.1, HD + 0.5, RED);
-  B.box(3.4, 1.4, 2.2, -W * 0.3, top + 0.8, -2, 0xBFBBC8); B.box(3.4, 1.4, 2.2, -W * 0.3 + 5, top + 0.8, 3, 0xBFBBC8);
+  B.rbox(3.4, 1.4, 2.2, -W * 0.3, top + 0.8, -2, 0xBFBBC8, 0.5); B.rbox(3.4, 1.4, 2.2, -W * 0.3 + 5, top + 0.8, 3, 0xBFBBC8, 0.5);
   B.box(0.3, 1.8, 0.3, W * 0.3, top + 0.8, 4, DARK); B.box(2.4, 0.2, 2.4, W * 0.3, top + 2.4, 4, 0xDDD8EE, 0.7);
   // sign tower out front: pole + a two-sided white board (planes in A.signGeo)
   const tx = -HW + 3.5, tz = HD + 4.4, th = H + 6;
-  B.box(1.2, th, 1.2, tx, 0.2, tz, 0xFFFFFF); B.box(7.4, 6.0, 0.9, tx, th - 3.0, tz, 0xFFFFFF);
+  B.pillar(0.6, th, tx, 0.2, tz, 0xFFFFFF, null, 14); B.rbox(7.4, 6.0, 0.9, tx, th - 3.0, tz, 0xFFFFFF, 0.45);
   E.box(7.6, 0.2, 0.2, tx, th + 2.9, tz + 0.5, RED); E.box(7.6, 0.2, 0.2, tx, th - 3.1, tz + 0.5, RED);
   rec(walls, 'tower', 1.2, th, 1.2, tx, 0.2, tz);
   // ceiling: panels + 4 long beams
@@ -303,15 +368,16 @@ function buildBurgerGeoms(T) {
   const B = makeSoup(T), E = makeSoup(T), walls = [];
   const WH = 0xF6F2EC, RED = 0xD8312F, DARK = 0x2A2024, CONC = 0xBDB8C8, CREAM = 0xFFF1C8, CHROME = 0xB8BEC8;
   const wall = (name, w, h, d, cx, y0, cz, hex) => { B.box(w, h, d, cx, y0, cz, hex); walls.push({ name, min: [cx - w / 2, y0, cz - d / 2], max: [cx + w / 2, y0 + h, cz + d / 2] }); };
-  B.box(17, 2.4, 15, 0, -2.2, 2.6, 0x6A6480); B.box(16, 0.3, 14, 0, -0.1, 2.6, CONC);                    // foundation + concrete lot
+  B.rbox(17, 2.4, 15, 0, -2.2, 2.6, 0x6A6480, 0.7); B.rbox(16, 0.3, 14, 0, -0.1, 2.6, CONC, 0.14, 0, 1, 1);                    // foundation + concrete lot
   E.box(15.6, 0.02, 0.25, 0, 0.2, 9.2, RED, 0, 0.7);                                                       // painted kerb line
   // body 10 x 6 x 3.4, front wall z=+3 with the walk-up window (x -2.4..2.4, y 1.3..2.7)
   wall('back', 10, 3.4, 0.3, 0, 0.2, -2.85, WH); wall('sideL', 0.3, 3.4, 6, -4.85, 0.2, 0, WH); wall('sideR', 0.3, 3.4, 6, 4.85, 0.2, 0, WH);
   wall('frontL', 2.6, 3.4, 0.3, -3.7, 0.2, 2.85, WH); wall('frontR', 2.6, 3.4, 0.3, 3.7, 0.2, 2.85, WH);
   wall('frontLow', 4.8, 1.1, 0.3, 0, 0.2, 2.85, WH); wall('frontHigh', 4.8, 0.9, 0.3, 0, 2.7, 2.85, WH);
-  B.box(10.2, 0.7, 6.2, 0, 0.2, 0, RED);                 // red base band (wraps the walls)
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) B.pillar(0.55, 3.45, sx * 4.98, 0.2, sz * 2.98, WH, null, 14);   // look rev 28: round corner columns
+  B.rbox(10.2, 0.7, 6.2, 0, 0.2, 0, RED, 0.3);                 // red base band (wraps the walls)
   B.box(10.3, 0.25, 6.3, 0, 2.95, 0, RED);                                                                  // red stripe under the roof
-  B.box(10.6, 0.3, 6.6, 0, 3.6, 0, WH); B.box(10.8, 0.12, 6.8, 0, 3.9, 0, RED);                            // flat roof + red cap
+  B.rbox(10.6, 0.3, 6.6, 0, 3.6, 0, WH, 0.14); B.rbox(10.8, 0.12, 6.8, 0, 3.9, 0, RED, 0.058, 0, 1, 1);                            // flat roof + red cap
   B.box(4.9, 0.14, 0.1, 0, 2.62, 3.04, CHROME); B.box(4.9, 0.14, 0.1, 0, 1.25, 3.04, CHROME);              // chrome window trim
   B.box(0.14, 1.5, 0.1, -2.45, 1.25, 3.04, CHROME); B.box(0.14, 1.5, 0.1, 2.45, 1.25, 3.04, CHROME);
   B.box(8.6, 1.5, 0.1, 0, 1.0, -2.65, DARK); E.box(4.6, 1.3, 0.06, 0, 1.1, -2.58, 0xFFC878, 0, 0.7);         // lit kitchen wall glow
@@ -319,7 +385,7 @@ function buildBurgerGeoms(T) {
   wall('floorInside', 9.4, 0.1, 5.4, 0, 0.2, 0, DARK);
   B.box(5.8, 0.12, 1.1, 0, 1.2, 3.55, RED); B.box(6.0, 0.05, 1.2, 0, 1.32, 3.55, WH);                       // service ledge
   // angled canopy over the window: 10 striped slats tilted down toward the street, red fascia, posts
-  for (let i = 0; i < 10; i++) { const w = 10.8 / 10; B.box(w, 0.14, 3.7, -5.4 + w * (i + 0.5), 3.2, 4.65, i % 2 ? WH : RED, 0.2); }
+  for (let i = 0; i < 10; i++) { const w = 10.8 / 10; B.rbox(w, 0.14, 3.7, -5.4 + w * (i + 0.5), 3.2, 4.65, i % 2 ? WH : RED, 0.06, 0.2, 1, 1); }
   B.box(10.8, 0.5, 0.14, 0, 2.55, 6.4, RED); B.box(0.14, 2.4, 0.14, -4.9, 0.2, 6.2, CHROME); B.box(0.14, 2.4, 0.14, 4.9, 0.2, 6.2, CHROME);
   for (let k = 0; k < 14; k++) E.box(0.14, 0.14, 0.14, -5.2 + k * 0.8, 2.4, 6.45, k % 2 ? 0xFFE08A : 0xFFB04A);     // bulbs along the canopy edge
   E.box(5.0, 0.08, 0.08, 0, 2.75, 3.12, 0xFF4A4A); E.box(5.0, 0.08, 0.08, 0, 1.3, 3.12, 0xFF4A4A); E.box(0.08, 1.5, 0.08, -2.5, 1.3, 3.12, 0xFF4A4A); E.box(0.08, 1.5, 0.08, 2.5, 1.3, 3.12, 0xFF4A4A);  // red neon window outline
@@ -328,13 +394,13 @@ function buildBurgerGeoms(T) {
   for (let k = 0; k < 4; k++) { E.box(1.0, 0.14, 0.08, -4.1, 2.45 - k * 0.38, 3.12, k % 2 ? RED : 0x2A2024); E.box(0.4, 0.14, 0.08, -3.1, 2.45 - k * 0.38, 3.12, 0xD8312F); }
   E.box(1.7, 0.18, 0.08, -3.75, 2.62, 3.14, 0xFFC878);
   // neon script sign on the roof (backing + red neon frame; the script plane is bGeo) and fry box
-  B.box(8.0, 2.8, 0.35, 0, 4.0, 0, DARK); B.box(0.3, 0.9, 0.3, -3.0, 4.0, 0, CHROME); B.box(0.3, 0.9, 0.3, 3.0, 4.0, 0, CHROME);
+  B.rbox(8.0, 2.8, 0.35, 0, 4.0, 0, DARK, 0.17); B.pillar(0.15, 0.7, -3.0, 4.0, 0, CHROME, null, 8); B.pillar(0.15, 0.7, 3.0, 4.0, 0, CHROME, null, 8);
   E.box(8.3, 0.14, 0.14, 0, 4.0, 0.2, 0xFF4A6A); E.box(8.3, 0.14, 0.14, 0, 6.7, 0.2, 0xFF4A6A); E.box(0.14, 2.8, 0.14, -4.1, 4.0, 0.2, 0xFF4A6A); E.box(0.14, 2.8, 0.14, 4.1, 4.0, 0.2, 0xFF4A6A);
   // pylon sign, outdoor tables with stools
-  B.box(0.3, 6.2, 0.3, 7.2, 0.2, 5.5, RED); B.box(3.0, 1.7, 0.3, 7.2, 5.95, 5.5, DARK); E.box(3.2, 0.12, 0.14, 7.2, 7.65, 5.62, 0xFF4A6A); E.box(3.2, 0.12, 0.14, 7.2, 5.9, 5.62, 0xFF4A6A);
+  B.pillar(0.17, 6.2, 7.2, 0.2, 5.5, RED, 'dome', 10); B.rbox(3.0, 1.7, 0.3, 7.2, 5.95, 5.5, DARK, 0.14, 0, 1, 1); E.box(3.2, 0.12, 0.14, 7.2, 7.65, 5.62, 0xFF4A6A); E.box(3.2, 0.12, 0.14, 7.2, 5.9, 5.62, 0xFF4A6A);
   for (const [tx, tz] of [[-5.5, 8.0], [-1.5, 9.2], [3.0, 8.2]]) {
-    B.box(1.7, 0.1, 1.1, tx, 0.95, tz, WH); B.box(1.72, 0.04, 1.12, tx, 0.93, tz, RED); B.box(0.16, 0.75, 0.16, tx, 0.2, tz, CHROME);
-    for (const s of [-1, 1]) { B.box(0.45, 0.1, 0.45, tx + s * 0.55, 0.55, tz + 0.9, RED); B.box(0.1, 0.35, 0.1, tx + s * 0.55, 0.2, tz + 0.9, CHROME); B.box(0.45, 0.1, 0.45, tx + s * 0.55, 0.55, tz - 0.9, RED); B.box(0.1, 0.35, 0.1, tx + s * 0.55, 0.2, tz - 0.9, CHROME); }
+    B.rbox(1.7, 0.1, 1.1, tx, 0.95, tz, WH, 0.05, 0, 1, 1); B.pillar(0.08, 0.75, tx, 0.2, tz, CHROME, null, 8);
+    for (const s of [-1, 1]) { B.pillar(0.24, 0.09, tx + s * 0.55, 0.55, tz + 0.9, RED, null, 10); B.box(0.1, 0.35, 0.1, tx + s * 0.55, 0.2, tz + 0.9, CHROME); B.pillar(0.24, 0.09, tx + s * 0.55, 0.55, tz - 0.9, RED, null, 10); B.box(0.1, 0.35, 0.1, tx + s * 0.55, 0.2, tz - 0.9, CHROME); }
   }
   return { body: B.geometry(), emi: E.geometry(), tris: B.tris() + E.tris(), walls, floors: [{ x0: -8, x1: 8, z0: -4.4, z1: 9.6, top: 0.2 }] };
 }
@@ -368,14 +434,15 @@ function buildCvsGeoms(T) {
   const B = makeSoup(T), E = makeSoup(T), walls = [];
   const WH = 0xF8F6F4, RED = 0xD21F2E, DARK = 0x2A2024, CONC = 0xC4C0CC, CHROME = 0xB8BEC8, GRN = 0x39E58C;
   const wall = (name, w, h, d, cx, y0, cz, hex) => { B.box(w, h, d, cx, y0, cz, hex); walls.push({ name, min: [cx - w / 2, y0, cz - d / 2], max: [cx + w / 2, y0 + h, cz + d / 2] }); };
-  B.box(17, 2.4, 15, 0, -2.2, 2.6, 0x6A6480); B.box(16, 0.3, 14, 0, -0.1, 2.6, CONC);                    // foundation + concrete lot
+  B.rbox(17, 2.4, 15, 0, -2.2, 2.6, 0x6A6480, 0.7); B.rbox(16, 0.3, 14, 0, -0.1, 2.6, CONC, 0.14, 0, 1, 1);                    // foundation + concrete lot
   E.box(15.6, 0.02, 0.25, 0, 0.2, 9.2, RED, 0, 0.7);                                                       // painted kerb line
   wall('back', 10, 3.4, 0.3, 0, 0.2, -2.85, WH); wall('sideL', 0.3, 3.4, 6, -4.85, 0.2, 0, WH); wall('sideR', 0.3, 3.4, 6, 4.85, 0.2, 0, WH);
   wall('frontEdgeL', 0.85, 3.4, 0.3, -4.425, 0.2, 2.85, WH); wall('frontMid', 3.2, 3.4, 0.3, 0, 0.2, 2.85, WH); wall('frontEdgeR', 0.85, 3.4, 0.3, 4.425, 0.2, 2.85, WH);
   for (const s of [-1, 1]) { wall('low' + s, 2.4, 1.1, 0.3, s * CVS_WX, 0.2, 2.85, WH); wall('high' + s, 2.4, 0.9, 0.3, s * CVS_WX, 2.7, 2.85, WH); }
-  B.box(10.2, 0.5, 6.2, 0, 0.2, 0, RED);                  // red base band
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) B.pillar(0.55, 3.45, sx * 4.98, 0.2, sz * 2.98, WH, null, 14);   // look rev 28: round corner columns
+  B.rbox(10.2, 0.5, 6.2, 0, 0.2, 0, RED, 0.22);                  // red base band
   B.box(10.3, 0.22, 6.3, 0, 2.98, 0, RED);                // red stripe under the roof
-  B.box(10.6, 0.3, 6.6, 0, 3.6, 0, WH); B.box(10.8, 0.12, 6.8, 0, 3.9, 0, RED);                          // flat roof + red cap
+  B.rbox(10.6, 0.3, 6.6, 0, 3.6, 0, WH, 0.14); B.rbox(10.8, 0.12, 6.8, 0, 3.9, 0, RED, 0.058, 0, 1, 1);                          // flat roof + red cap
   for (const s of [-1, 1]) {
     const x = s * CVS_WX;
     B.box(2.6, 0.14, 0.1, x, 2.62, 3.04, CHROME); B.box(2.6, 0.14, 0.1, x, 1.25, 3.04, CHROME);          // chrome window trim
@@ -388,14 +455,14 @@ function buildCvsGeoms(T) {
   B.box(8.6, 1.5, 0.1, 0, 1.0, -2.65, DARK);
   wall('floorInside', 9.4, 0.1, 5.4, 0, 0.2, 0, DARK);
   // flat awning over both windows, red fascia, posts, bulbs
-  B.box(10.8, 0.16, 2.6, 0, 3.15, 4.3, WH, 0.14); B.box(10.8, 0.5, 0.14, 0, 2.6, 5.6, RED); B.box(0.14, 2.4, 0.14, -4.9, 0.2, 5.5, CHROME); B.box(0.14, 2.4, 0.14, 4.9, 0.2, 5.5, CHROME);
+  B.rbox(10.8, 0.16, 2.6, 0, 3.15, 4.3, WH, 0.07, 0.14, 1, 1); B.box(10.8, 0.5, 0.14, 0, 2.6, 5.6, RED); B.box(0.14, 2.4, 0.14, -4.9, 0.2, 5.5, CHROME); B.box(0.14, 2.4, 0.14, 4.9, 0.2, 5.5, CHROME);
   for (let k = 0; k < 14; k++) E.box(0.14, 0.14, 0.14, -5.2 + k * 0.8, 2.35, 5.65, k % 2 ? 0xFFFFFF : 0xFF8A94);
   // roof sign: backing + red neon frame; the script plane is cGeo. Pylon with the cross.
-  B.box(8.0, 2.8, 0.35, 0, 4.0, 0, DARK); B.box(0.3, 0.9, 0.3, -3.0, 4.0, 0, CHROME); B.box(0.3, 0.9, 0.3, 3.0, 4.0, 0, CHROME);
+  B.rbox(8.0, 2.8, 0.35, 0, 4.0, 0, DARK, 0.17); B.pillar(0.15, 0.7, -3.0, 4.0, 0, CHROME, null, 8); B.pillar(0.15, 0.7, 3.0, 4.0, 0, CHROME, null, 8);
   E.box(8.3, 0.14, 0.14, 0, 4.0, 0.2, 0xFF4A5A); E.box(8.3, 0.14, 0.14, 0, 6.7, 0.2, 0xFF4A5A); E.box(0.14, 2.8, 0.14, -4.1, 4.0, 0.2, 0xFF4A5A); E.box(0.14, 2.8, 0.14, 4.1, 4.0, 0.2, 0xFF4A5A);
-  B.box(0.3, 6.2, 0.3, 7.2, 0.2, 5.5, RED); B.box(2.0, 2.0, 0.3, 7.2, 5.9, 5.5, DARK);
+  B.pillar(0.17, 6.2, 7.2, 0.2, 5.5, RED, 'dome', 10); B.rbox(2.0, 2.0, 0.3, 7.2, 5.9, 5.5, DARK, 0.14, 0, 1, 1);
   E.box(1.5, 0.45, 0.1, 7.2, 6.9, 5.68, 0xFF3A4A); E.box(0.45, 1.5, 0.1, 7.2, 6.4, 5.68, 0xFF3A4A);          // lit red cross on the pylon (vertical + horizontal arm)
-  for (const [tx, tz] of [[-5.5, 7.6], [4.6, 8.2]]) { B.box(1.1, 0.1, 1.1, tx, 0.55, tz, WH); B.box(0.16, 0.35, 0.16, tx, 0.2, tz, CHROME); }   // two waiting benches' tops
+  for (const [tx, tz] of [[-5.5, 7.6], [4.6, 8.2]]) { B.rbox(1.1, 0.1, 1.1, tx, 0.55, tz, WH, 0.05, 0, 1, 1); B.box(0.16, 0.35, 0.16, tx, 0.2, tz, CHROME); }   // two waiting benches' tops
   return { body: B.geometry(), emi: E.geometry(), tris: B.tris() + E.tris(), walls, floors: [{ x0: -8, x1: 8, z0: -4.4, z1: 9.6, top: 0.2 }] };
 }
 function cvsSignTexture(T) {
@@ -463,7 +530,7 @@ function makeAssets(T, dims) {
   const base = { vertexShader: VERT, vertexColors: true, side: T.DoubleSide };
   const A = {
     uniformsT, geoms: null, burger: null,
-    matBody: new T.ShaderMaterial(Object.assign({ fragmentShader: FRAG_LIT, uniforms: {} }, base)),
+    matBody: new T.ShaderMaterial(Object.assign({ fragmentShader: FRAG_LIT, uniforms: { uLight: { value: new T.Vector3(-0.62, 0.52, 0.4).normalize() }, uUpW: { value: new T.Vector3(0, 1, 0) }, uSky: { value: new T.Color(0.36, 0.3, 0.5) }, uFogK: { value: 0 }, uNightF: { value: 0 } } }, base)),
     matEmi: new T.ShaderMaterial(Object.assign({ fragmentShader: FRAG_EMI, uniforms: { uTime: uniformsT } }, base)),
     matGlass: new T.MeshBasicMaterial({ color: 0xA8ECFF, transparent: true, opacity: 0.16, depthWrite: false, side: T.DoubleSide }),
     signTex: null, matSign: null, signGeo: null, glassGeo: null, bTex: null, bMat: null, bGeo: null, cvs: null, cTex: null, cMat: null, cGeo: null,
@@ -871,6 +938,7 @@ export function createWorld(THREE, ps, L, mods) {
   function ensureShared() {
     if (A) return;
     A = makeAssets(T, PD); world.storeTris = A.geoms.tris;
+    if (ps && ps.shared) { const u = A.matBody.uniforms, S = ps.shared; u.uLight = S.uLightDir; u.uUpW = S.uUpW; u.uSky = S.uFogCol; u.uFogK = S.uFogK; u.uNightF = S.uNight; }   // look rev 28: one light model for terrain / props / buildings
     matShard = new T.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_EMI, vertexColors: true, side: T.DoubleSide, uniforms: { uTime: A.uniformsT } });
     shardGeo = shardGeometry(T);
     resMat = new T.ShaderMaterial({ vertexShader: RES_VERT, fragmentShader: RES_FRAG, vertexColors: true, side: T.DoubleSide, uniforms: { uTime: A.uniformsT, uScan: { value: 0 } } });
