@@ -2818,6 +2818,7 @@ export function createPlanetSurface(engine, L) {
         var A = col3o(node.mesh.material.uniforms.uAtmo.value, _cA), Hh = col3o(node.mesh.material.uniforms.uColHigh.value, _cH);
         // up (world) from planet centre to camera -> sun term
         tmpV.set(shipPos.x - node.anchor.position.x, shipPos.y - node.anchor.position.y, shipPos.z - node.anchor.position.z).normalize();
+        if (ps.sunElev != null) { var se = ps.sunElev, ce = Math.sqrt(Math.max(0, 1 - se * se)); _sx.set(tmpV.y * 0 + 1, 0, 0); if (Math.abs(tmpV.x) > 0.9) _sx.set(0, 1, 0); _sx.crossVectors(tmpV, _sx).normalize(); SH.uLightDir.value.copy(tmpV).multiplyScalar(se).addScaledVector(_sx, ce).normalize(); }   // debug: ps.sunElev = sin(sun elevation) pins the time of day (null = real)
         var sunDot = tmpV.dot(SH.uLightDir.value), sunTerm = smoothstep(-0.25, 0.55, sunDot);
         var fb = 0.28 + 0.72 * sunTerm;
         var hz = 0.15 + 0.85 * sunTerm; SH.uFogCol.value.set((A[0] * 0.6 + Hh[0] * 0.4) * hz * 0.95 + 0.04, (A[1] * 0.6 + Hh[1] * 0.4) * hz * 0.85 + 0.03, (A[2] * 0.6 + Hh[2] * 0.4) * hz + 0.08);   // look rev 28: luminous violet-biased haze   // horizon tint = pal.hi, zenith = pal.atmo
@@ -2829,7 +2830,7 @@ export function createPlanetSurface(engine, L) {
         SH.uNight.value = 1 - sunTerm;
         updateWeather(dt, sunTerm);
         a.domeU.uUp.value.copy(tmpV); a.domeU.uSun.value = sunTerm;
-        if (engine.setLook) engine.setLook(ps.visible ? smoothstep(0.35, 0.95, ps.depth) : 0);
+        if (engine.setLook) engine.setLook(ps.visible ? smoothstep(0.35, 0.95, ps.depth) : 0, 110 * L);
         a.domeU.uAlpha.value = Math.pow(ps.depth, 0.6) * (0.5 + 0.35 * sunTerm); a.domeU.uStar.value = Math.pow(ps.depth, 0.8);   // rev 24: dome alpha <= 0.45
         a.domeU.uHor.value = -Math.sqrt(Math.max(0, 1 - 1 / (ratioE * ratioE)));   // sin(elevation) of the geometric horizon
         a.dome.position.copy(camera.position); a.dome.updateMatrixWorld();
@@ -3173,6 +3174,7 @@ export function createPlanetSurface(engine, L) {
     };
 
     if (typeof globalThis !== 'undefined') globalThis.EMGOR_SKY_UNIFORMS = SH;
+    var _sx = new THREE.Vector3();
     ps.shared = SH;      // look rev 28: shared light / fog uniforms (uLightDir, uFogCol, uFogK, uNight, uUpW) for ship-world / ship-village
     ps.sunDir = function () { return SH.uLightDir.value; };      // Q37: the live sun vector (photo mode rotates it for time of day and restores it)
     ps.release = function () { if (node) deactivate(); };      // 2026-10-14: leave the active planet (hi-res globe, halo hooks, outposts, world) without disposing the module

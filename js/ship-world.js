@@ -131,7 +131,7 @@ function makeSoup(T) {
   const tri = (a, b, cc, na, nb, nc, r, g, bl) => { for (const [p, n] of [[a, na], [b, nb], [cc, nc]]) { pos.push(p[0], p[1], p[2]); nrm.push(n[0], n[1], n[2]); col.push(r, g, bl); } };
   const soup = {
     // box: size (w,h,d), centre x, bottom y, centre z, colour, optional rotation about X (rad) around its own bottom-front... centre of the box
-    box(w, h, d, cx, y0, cz, hex, rx = 0, brightness = 1) {
+    box(w, h, d, cx, y0, cz, hex, rx = 0, brightness = 1, skip = 0) {
       c.set(hex); const r = c.r * brightness, g = c.g * brightness, b = c.b * brightness;
       const corners = [];
       for (let i = 0; i < 8; i++) {
@@ -142,7 +142,7 @@ function makeSoup(T) {
       // faces by corner index: bit0=x, bit1=y, bit2=z.  Two triangles per face, CCW seen from outside (DoubleSide anyway).
       const quads = [[1, 3, 7, 5], [0, 4, 6, 2], [2, 6, 7, 3], [0, 1, 5, 4], [4, 5, 7, 6], [0, 2, 3, 1]];
       const fn = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
-      quads.forEach((f, fi) => { let n = fn[fi]; if (rx) { const cs = Math.cos(rx), sn = Math.sin(rx); n = [n[0], n[1] * cs - n[2] * sn, n[1] * sn + n[2] * cs]; }
+      quads.forEach((f, fi) => { if (skip & (1 << fi)) return; if (fi === 3 && !rx && y0 <= 2.0) return; /* resting on the floor: bottom face is never seen */ let n = fn[fi]; if (rx) { const cs = Math.cos(rx), sn = Math.sin(rx); n = [n[0], n[1] * cs - n[2] * sn, n[1] * sn + n[2] * cs]; }
         for (const t of [[0, 1, 2], [0, 2, 3]]) for (const k of t) { const p = corners[f[k]]; pos.push(p[0], p[1], p[2]); nrm.push(n[0], n[1], n[2]); col.push(r, g, b); } });
     },
     // rounded box (same arguments + bevel radius r, m = arc segments per 45 deg half-bevel): inner box + r-radius shell, smooth normals. radius is clamped to 0.5 * the smallest side.
@@ -218,7 +218,7 @@ function buildStoreGeoms(T, opts) {
   const gh = d.gh, top = H + 0.2;
 
   // slab + foundation + tile floor (+ two lit strips along the cross aisles)
-  B.rbox(W + 1.6, 3.2, D + 1.6, 0, -3.0, 0, 0x6A6480, 0.9); B.rbox(W + 1.6, 0.5, D + 1.6, 0, -0.3, 0, FLOOR, 0.24); B.box(W - 1, 0.02, D - 1, 0, 0.2, 0, 0xDAD6E6);
+  B.rbox(W + 1.6, 3.2, D + 1.6, 0, -3.0, 0, 0x6A6480, 0.9, 0, 1, 1); B.rbox(W + 1.6, 0.5, D + 1.6, 0, -0.3, 0, FLOOR, 0.24, 0, 1, 1); B.box(W - 1, 0.02, D - 1, 0, 0.2, 0, 0xDAD6E6);
   E.box(W - 4, 0.02, 0.2, 0, 0.22, d.zS, 0xB8A8F0, 0, 0.7); E.box(W - 4, 0.02, 0.2, 0, 0.22, d.zN, 0xB8A8F0, 0, 0.7);
   // white shell
   wall('back', W, H, WT, 0, 0.2, -HD + WT / 2, WALL);
@@ -245,7 +245,7 @@ function buildStoreGeoms(T, opts) {
   B.rbox(sw + 0.8, sh + 0.6, 0.7, 0, sy, HD + 0.1, 0xFFFFFF, 0.3);
   E.box(sw + 1.0, 0.2, 0.2, 0, sy - 0.1, HD + 0.5, RED); E.box(sw + 1.0, 0.2, 0.2, 0, sy + sh + 0.5, HD + 0.5, RED);
   E.box(0.2, sh + 0.8, 0.2, -(sw / 2 + 0.5), sy - 0.1, HD + 0.5, RED); E.box(0.2, sh + 0.8, 0.2, sw / 2 + 0.5, sy - 0.1, HD + 0.5, RED);
-  B.rbox(3.4, 1.4, 2.2, -W * 0.3, top + 0.8, -2, 0xBFBBC8, 0.5); B.rbox(3.4, 1.4, 2.2, -W * 0.3 + 5, top + 0.8, 3, 0xBFBBC8, 0.5);
+  B.rbox(3.4, 1.4, 2.2, -W * 0.3, top + 0.8, -2, 0xBFBBC8, 0.5, 0, 1, 1); B.rbox(3.4, 1.4, 2.2, -W * 0.3 + 5, top + 0.8, 3, 0xBFBBC8, 0.5, 0, 1, 1);
   B.box(0.3, 1.8, 0.3, W * 0.3, top + 0.8, 4, DARK); B.box(2.4, 0.2, 2.4, W * 0.3, top + 2.4, 4, 0xDDD8EE, 0.7);
   // sign tower out front: pole + a two-sided white board (planes in A.signGeo)
   const tx = -HW + 3.5, tz = HD + 4.4, th = H + 6;
@@ -253,7 +253,7 @@ function buildStoreGeoms(T, opts) {
   E.box(7.6, 0.2, 0.2, tx, th + 2.9, tz + 0.5, RED); E.box(7.6, 0.2, 0.2, tx, th - 3.1, tz + 0.5, RED);
   rec(walls, 'tower', 1.2, th, 1.2, tx, 0.2, tz);
   // ceiling: panels + 4 long beams
-  for (let x = -W / 2 + 4; x < W / 2 - 2; x += 8) for (let z = -D / 2 + 4; z < D / 2 - 2; z += 8) E.box(3.6, 0.1, 2.6, x, top - 0.12, z, 0xFFF4D8, 0, 0.95);
+  for (let x = -W / 2 + 4; x < W / 2 - 2; x += 8) for (let z = -D / 2 + 4; z < D / 2 - 2; z += 8) E.box(3.6, 0.1, 2.6, x, top - 0.12, z, 0xFFF4D8, 0, 0.95, 4 | 3 | 48);
   for (let k = -1.5; k <= 1.5; k++) B.box(0.5, 0.6, D - 1, k * W / 4, top - 0.6, 0, SHELFD);
   // back wall: fridge doors (glass, lit, 2 rows of colourful stock)
   const nF = Math.floor((W - 6) / 4);
@@ -280,7 +280,7 @@ function buildStoreGeoms(T, opts) {
     B.box(0.12, 2.2, len, gx, 0.2, gzc, SHELFD); B.box(1.7, 0.2, len, gx, 0.2, gzc, SHELFD);
     for (let l = 0; l < 3; l++) {
       B.box(1.6, 0.08, len, gx, 0.45 + l * 0.65, gzc, SHELF);
-      for (const sd of [-1, 1]) for (let k = 0; k < nBlk; k++) E.box(0.5, 0.42, bl, gx + sd * 0.52, 0.55 + l * 0.65, gzc - len / 2 + (k + 0.5) * len / nBlk, nextCol(), 0, 0.82);
+      for (const sd of [-1, 1]) for (let k = 0; k < nBlk; k++) E.box(0.5, 0.42, bl, gx + sd * 0.52, 0.55 + l * 0.65, gzc - len / 2 + (k + 0.5) * len / nBlk, nextCol(), 0, 0.82, (sd > 0 ? 2 : 1) | 48);   // inner face (toward the gondola core) is never seen
     }
     B.box(1.7, 0.7, 0.2, gx, 2.4, gzc - len / 2, DARK); E.box(1.5, 0.5, 0.08, gx, 2.5, gzc - len / 2 + 0.12, tints[gi % 3], 0, 0.9);       // end-cap sign
     B.box(0.08, 4.4, 0.08, gx, H - 4.6 + 0.2, gzc, DARK); E.box(1.8, 0.8, 0.1, gx, H - 5.2 + 0.2, gzc, tints[gi % 3], 0, 0.9);              // hanging aisle sign
@@ -309,9 +309,9 @@ function buildStoreGeoms(T, opts) {
   // apron + parking pads outside
   // 2026-11-05: the apron + parking pads are rigid tangent slabs: on a sphere their far edge (47 su from the centre) sits s^2/2R above the ground (1.0 su at R = 320 L), so they carry the
   // same 3 su foundation skirt as the main slab (top 0.2 = the slab: no sill step) and no edge floats down to R ~ 110 L
-  B.box(W + 4, 3.1, 7, 0, -2.9, HD + 3.5, 0x6A6480);
+  B.rbox(W + 4, 3.1, 7, 0, -2.9, HD + 3.5, 0x6A6480, 0.6, 0, 1, 1);
   if (opts.pads !== false) for (const f of [-0.25, 0.05, 0.3625]) { const px = f * W;
-    B.box(8, 3.1, 10, px, -2.9, HD + 11, 0x5A5470);
+    B.rbox(8, 3.1, 10, px, -2.9, HD + 11, 0x5A5470, 0.6, 0, 1, 1);
     E.box(8, 0.02, 0.2, px, 0.2, HD + 6.2, 0x2FD9C8); E.box(0.2, 0.02, 10, px - 3.9, 0.2, HD + 11, 0x2FD9C8); E.box(0.2, 0.02, 10, px + 3.9, 0.2, HD + 11, 0x2FD9C8); E.box(2.4, 0.02, 0.4, px, 0.2, HD + 11, 0xFF5CE1);
   }
   B.box(1.2, 0.9, 1.2, -0.17 * W, 0.2, HD + 3.2, 0x6A5030); B.box(0.8, 1.0, 0.8, HW + 1, 0.2, HD + 2.4, 0x555064); E.box(0.82, 0.12, 0.82, HW + 1, 1.2, HD + 2.4, 0xFF8A5C);

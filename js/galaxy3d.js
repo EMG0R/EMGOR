@@ -91,7 +91,7 @@ import * as GL from './galaxy-layout.js';
     // ─── three.js state ────────────────────────────────────────
     var renderer, scene, camera;
     var composer = null, bloomPass = null;  // post chain (null until addons load)
-    var lookPass = null, lookAmt = 0, lookTm = false, lookStamp = 0;   // look rev 28: landed-view post (soft DoF, vignette, grain) + AgX while landed
+    var lookDepth = null, lookFocus = 100, lookPass = null, lookAmt = 0, lookTm = false, lookStamp = 0;   // look rev 28: landed-view post (soft DoF, vignette, grain) + AgX while landed
     var visionPass = null;                  // rev 23 vision effects pass (after bloom, before OutputPass)
     var vis = { blur: 0, chroma: 0, hue: 0, wobble: 0, double: 0, contrast: 0, invert: 0, tint: [0, 0, 0], tintAmt: 0, fov: 0, timeScale: 1 };
     var visFovApplied = 0;
@@ -2622,7 +2622,7 @@ import * as GL from './galaxy-layout.js';
                 applyBloomSize();
             },
             get bloom() { return { on: bloomOn, scale: bloomScale }; },
-            setLook: function (a) { lookAmt = Math.max(0, Math.min(1, +a || 0)); lookStamp = performance.now(); },
+            setLook: function (a, focus) { lookAmt = Math.max(0, Math.min(1, +a || 0)); lookStamp = performance.now(); if (focus > 0) lookFocus = focus; },
             get look() { return lookAmt; },
             // fraction (0..1) of the star sky + dust band that is drawn (draw range on the Points; stars are in random order)
             setStarFraction: function (f) {
@@ -2819,23 +2819,26 @@ import * as GL from './galaxy-layout.js';
     function makeLookPass(PassBase, FSQuad) {
         var pass = new PassBase();
         pass.material = new THREE.ShaderMaterial({
-            uniforms: { tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uAmt: { value: 0 }, uTime: { value: 0 } },
+            uniforms: { tDiffuse: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uAmt: { value: 0 }, uTime: { value: 0 }, uFar1: { value: 1e6 }, uFocus: { value: 100 } },
             vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }',
             fragmentShader: [
-                'uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uAmt, uTime; varying vec2 vUv;',
+                'uniform sampler2D tDiffuse; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uAmt, uTime, uFar1, uFocus; varying vec2 vUv;',
+                'float wOf(vec2 uv){ return pow(uFar1, texture2D(tDepth, uv).x) - 1.0; }',   // three's log depth: gl_FragDepth = log2(1 + w) / log2(far + 1)
                 'float h21(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }',
                 'void main(){',
                 '  vec2 px = 1.0 / uRes; vec2 uv = vUv; vec2 d = uv - vec2(0.5, 0.42);',
-                // depth-free DoF: the player sits near the focus point; the sky and far field (top) and the screen edges blur
-                '  float far = smoothstep(0.12, 0.5, uv.y - 0.42) * 0.9 + smoothstep(0.35, 0.8, length(d)) * 0.7;',
-                '  float rad = far * uAmt * 5.0;',
+                // depth-aware DoF: only pixels beyond the focus distance (far ground, sky) blur, and near opaque taps never bleed into them
+                '  float w0 = wOf(uv);',
+                '  float coc = smoothstep(uFocus, uFocus * 5.0, w0);',
+                '  float rad = coc * uAmt * 5.0 * (uRes.y / 900.0);',
                 '  vec4 c = texture2D(tDiffuse, uv);',
-                '  if (rad > 0.4) {',
+                '  if (rad > 0.5) {',
                 '    vec4 acc = c; float wsum = 1.0;',
                 '    for (int i = 1; i < 9; i++) {',
                 '      float fi = float(i); float a = fi * 2.399963; float r = sqrt(fi / 8.0) * rad;',
-                '      vec4 t = texture2D(tDiffuse, uv + vec2(cos(a), sin(a)) * r * px);',
-                '      acc += t; wsum += 1.0;',
+                '      vec2 tuv = uv + vec2(cos(a), sin(a)) * r / uRes;',
+                '      float wt = step(w0 * 0.85, wOf(tuv));',
+                '      acc += texture2D(tDiffuse, tuv) * wt; wsum += wt;',
                 '    }',
                 '    c = acc / wsum;',
                 '  }',
@@ -2853,6 +2856,7 @@ import * as GL from './galaxy-layout.js';
         pass.render = function (r, writeBuffer, readBuffer) {
             var u = this.material.uniforms;
             u.tDiffuse.value = readBuffer.texture;
+            u.tDepth.value = lookDepth; u.uFar1.value = camera.far + 1; u.uFocus.value = lookFocus;
             u.uRes.value.set(readBuffer.width, readBuffer.height);
             r.setRenderTarget(this.renderToScreen ? null : writeBuffer);
             if (this.clear) r.clear();
@@ -2873,7 +2877,10 @@ import * as GL from './galaxy-layout.js';
             var c = new mods[0].EffectComposer(renderer);
             c.setPixelRatio(DPR);
             c.setSize(W, H);
-            c.addPass(new mods[1].RenderPass(scene, camera));
+            [c.renderTarget1, c.renderTarget2].forEach(function (t) { t.depthTexture = new THREE.DepthTexture(W * DPR, H * DPR); t.depthTexture.type = THREE.UnsignedIntType; });   // look rev 28: depth for the landed DoF
+            var rp = new mods[1].RenderPass(scene, camera), rpRender = rp.render.bind(rp);
+            rp.render = function (r, w, rb) { rpRender(r, w, rb); lookDepth = rb.depthTexture; };   // whichever target the scene landed in this frame
+            c.addPass(rp);
             // threshold high enough that only atmosphere limbs, accent
             // speckle and the accretion disk's hot core cross it — the
             // bloom is a soft breath on the bright bits, not a smear.
