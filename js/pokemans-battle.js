@@ -226,8 +226,10 @@ export function startBattle(o) {
     if (closed) return;
     const k = e.code; let used = true;
     if (mode === 'busy') used = /^(Arrow|Key[WASDEFXQ]|Enter|Space|Escape|Backspace|Tab)/.test(k);
-    else if (k === 'ArrowDown' || k === 'ArrowRight' || k === 'KeyS' || k === 'KeyD') { sel = (sel + 1) % btns.length; paint(); }
-    else if (k === 'ArrowUp' || k === 'ArrowLeft' || k === 'KeyW' || k === 'KeyA') { sel = (sel + btns.length - 1) % btns.length; paint(); }
+    else if (k === 'ArrowDown' || k === 'KeyS') { sel = sel + 2 < btns.length ? sel + 2 : sel % 2; paint(); }      // the menu is a 2-column grid: down/up step a row (they used to step the next button: FIGHT -> BALL, never RUN)
+    else if (k === 'ArrowUp' || k === 'KeyW') { var up = sel - 2; if (up < 0) { up = sel % 2; while (up + 2 < btns.length) up += 2; } sel = up; paint(); }
+    else if (k === 'ArrowRight' || k === 'KeyD') { sel = (sel + 1) % btns.length; paint(); }
+    else if (k === 'ArrowLeft' || k === 'KeyA') { sel = (sel + btns.length - 1) % btns.length; paint(); }
     else if (k === 'Enter' || k === 'Space' || k === 'KeyE' || k === 'KeyF') { if (btns[sel]) btns[sel]._f(); }
     else if (k === 'Escape' || k === 'Backspace' || k === 'KeyX') { if (mode === 'fight') { mode = 'main'; sel = 0; render(); } }
     else used = /^(Key|Digit|Arrow|Tab|Shift)/.test(k);

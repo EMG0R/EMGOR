@@ -737,3 +737,9 @@ NEXT 5 TO QUEUE: (1) distance LOD switch + glass in group.lo; (2) round-rig tri 
 - ps.creatSprite(v, rgb, view, px) in ship-planet.js renders the actual creature geometry (variant walker/jelly/ox/strider) once to a nearest-filtered WebGLRenderTarget, orthographic, flat-lit (log-depth stripped); side view faces left (wild, 96 px), back view at ~20 deg (your creature, 128 px). pokemans-battle.js quantises to 6 violet-tinted shades + outline and caches per species+variant+view; freed on pagehide (ps.creatSpriteDispose). "YOU" keeps the humanoid.
 - Balance: YOU is L10 (70 hp, 46 atk); wild level = 1 + 2 x tier (L3-5 grazers). Sim: YOU beats 90/90 L9 wilds of tiers 1-3.
 - Gotcha: a long-lived localhost port can serve stale cached modules to the browser; fetch(url, {cache:'reload'}) before testing.
+
+## fx-fight: GOR BRAWL + POKEMANS by hand
+- Real-key pass (F, F, WASD, JKL, B, arrows, Enter): fight starts/ends clean (gmode foot, FOV 55), CPU fights back, battle FIGHT/RUN/BALL work by keyboard.
+- Fixed: pokemans battle menu is a 2-col grid but Up/Down stepped +-1 (FIGHT -> BALL, RUN unreachable by Down); now +-2.
+- gP1 (F, F fight + Esc forfeit) and gP2 (B throw + battle keyboard RUN) added to ship-planet-tests.js.
+- Note: the first F on a villager only loads the ring module (async); the "F AGAIN" ask appears ~100 ms later, so a very fast F,F does nothing.

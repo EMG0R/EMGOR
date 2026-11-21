@@ -1372,7 +1372,7 @@ export async function runAll(engine, ship, opts) {
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
     var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21], ['g22', g22], ['g23', g23]];
-    list.push(['g24', g24]);
+    list.push(['g24', g24]); list.push(['gP1', function (T, o) { return gpTests.gP1(T, o); }]); list.push(['gP2', function (T, o) { return gpTests.gP2(T, o); }]);
     Object.keys(tests).forEach(function (k) { if (!list.some(function (l) { return l[0] === k; })) list.push([k, tests[k]]); });      // tests appended after the export (gF*) register themselves on `tests`
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
@@ -1446,3 +1446,59 @@ function gFeelAssert(col, max) {
 }
 var gF1 = gFeelAssert('F1', 2), gF2 = gFeelAssert('F2', 6), gF3 = gFeelAssert('F3', 1);
 tests.gF1 = gF1; tests.gF2 = gF2; tests.gF3 = gF3;
+
+
+// ── gP1 / gP2: the PLAYER's path with synthetic KeyboardEvents only (no debug hooks once on foot, bar the landing + warping next to the village) ──
+async function gpFoot(T) {
+    var ship = T.ship, nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    for (var ni = 0; ni < nodes.length && ni < 4 && ship.gmode !== 'foot'; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) continue;
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+    }
+    return ship.gmode === 'foot';
+}
+async function gP1(T, o) {
+    var ship = T.ship, out = {};
+    if (!(await gpFoot(T))) return { pass: false, error: 'never reached foot' };
+    T.step(30); ship.village.make(); T.step(10);
+    var vs = ship.village.info().villagers.filter(function (v) { return v.human && v.role !== 'elder'; });
+    if (!vs.length) return { pass: false, error: 'no human villager' };
+    for (var a = 0; a < vs.length && ship.footTarget().kind !== 'villager'; a++) {
+        ship.village.goto(vs[a].x, vs[a].z - 6); T.step(30);
+        for (var i = 0; i < 14 && ship.footTarget().kind !== 'villager'; i++) { T.kd('KeyW'); T.step(10); T.ku('KeyW'); T.step(4); }
+    }
+    out.target = ship.footTarget().kind; if (out.target !== 'villager') { out.pass = false; out.error = 'never faced a villager by WASD'; return out; }
+    var fov0 = T.engine.camera.fov;
+    T.kd('KeyF'); T.ku('KeyF'); T.step(10);
+    for (i = 0; i < 40 && !/AGAIN/.test((document.querySelector('.gor-prompt') || {}).textContent || ''); i++) { await new Promise(function (r) { setTimeout(r, 100); }); T.step(2); }      // first F loads the ring module, then asks
+    out.asked = /AGAIN/.test((document.querySelector('.gor-prompt') || {}).textContent || ''); T.kd('KeyF'); T.ku('KeyF');
+    for (i = 0; i < 400 && !document.body.classList.contains('sh-fight'); i++) { T.step(1); if (i % 20 === 0) await T.pause(); }      // the ring module loads async
+    out.started = document.body.classList.contains('sh-fight');
+    for (i = 0; i < 60; i++) { T.kd(i % 2 ? 'KeyJ' : 'KeyD'); T.step(3); T.ku(i % 2 ? 'KeyJ' : 'KeyD'); }
+    T.kd('Escape'); T.ku('Escape'); T.step(120);      // forfeit: the camera eases back over 0.4 s
+    out.ended = !document.body.classList.contains('sh-fight'); out.gmode = ship.gmode; out.fov = +T.engine.camera.fov.toFixed(2); out.fov0 = +fov0.toFixed(2);
+    out.pass = !!(out.started && out.ended && out.gmode === 'foot' && Math.abs(out.fov - 55) < 0.5);
+    return out;
+}
+async function gP2(T, o) {
+    var ship = T.ship, out = {}, ITM = await import('./ship-items.js');
+    if (ship.gmode !== 'foot' && !(await gpFoot(T))) return { pass: false, error: 'never reached foot' };
+    T.step(30); ship.giveItem(ITM.GORBALL_TIERS[0], 3);
+    var n0 = ship.dbg.profile().items.filter(function (i) { return /gorball/.test(i.id); }).reduce(function (a, i) { return a + i.n; }, 0);
+    T.kd('KeyB'); T.step(10); T.ku('KeyB'); T.step(2);      // hold + release = throw (a ball in flight, one fewer in the bag)
+    var n1 = ship.dbg.profile().items.filter(function (i) { return /gorball/.test(i.id); }).reduce(function (a, i) { return a + i.n; }, 0);
+    out.thrown = n1 === n0 - 1; T.step(200);
+    ship._gb.battle({ dbg: true, wildLevel: 3, seed: 2 }); await T.pause(); await new Promise(function (r) { setTimeout(r, 800); });
+    out.opened = ship._gb.battleOn && !!document.getElementById('pkb');
+    for (var w = 0; w < 40 && !document.querySelector('#pkb .pkb-b'); w++) await new Promise(function (r) { setTimeout(r, 100); });      // intro text first, then the menu
+    T.kd('ArrowDown'); T.ku('ArrowDown');      // 2-column grid: down from FIGHT = RUN
+    var sel = document.querySelector('#pkb .is-sel'); out.sel = sel && sel.textContent;
+    T.kd('Enter'); T.ku('Enter'); await new Promise(function (r) { setTimeout(r, 2800); });
+    out.closed = !ship._gb.battleOn && !document.getElementById('pkb');
+    out.pass = !!(out.thrown && out.opened && /RUN/.test(out.sel || '') && out.closed);
+    return out;
+}
+export var gpTests = { gP1: gP1, gP2: gP2 };
