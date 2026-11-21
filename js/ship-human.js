@@ -13,13 +13,16 @@ import { normRig } from './ship-styles.js';
 import { VILLAGER_GEO, VILLAGER_TRI_BUDGET } from './ship-geo-cache.js';
 
 const VERT = /* glsl */`
-varying vec3 vC; varying vec3 vV;
+varying vec3 vC; varying vec3 vV; varying vec3 vN;
 #include <common>
 #include <skinning_pars_vertex>
 #include <logdepthbuf_pars_vertex>
 void main(){
   vC = color;
+  #include <beginnormal_vertex>
   #include <skinbase_vertex>
+  #include <skinnormal_vertex>
+  vN = normalize(normalMatrix * objectNormal);
   #include <begin_vertex>
   #include <skinning_vertex>
   vec4 mv = modelViewMatrix * vec4(transformed, 1.0);
@@ -27,20 +30,30 @@ void main(){
   gl_Position = projectionMatrix * mv;
   #include <logdepthbuf_vertex>
 }`;
+// soft 3-band toon ramp (shadow / mid / light, blurred band edges), smooth normals, accent-coloured rim, no specular
 const FRAG = /* glsl */`
-varying vec3 vC; varying vec3 vV;
+uniform vec3 uRim; uniform vec3 uShade; uniform vec3 uLight;
+varying vec3 vC; varying vec3 vV; varying vec3 vN;
 #include <common>
 #include <logdepthbuf_pars_fragment>
 void main(){
   #include <logdepthbuf_fragment>
-  vec3 n = normalize(cross(dFdx(vV), dFdy(vV)));
+  vec3 n = dot(vN, vN) > 0.01 ? normalize(vN) : normalize(cross(dFdx(vV), dFdy(vV)));      // pets ship no normals: flat fallback
   vec3 L = normalize(mat3(viewMatrix) * normalize(vec3(-0.62, 0.52, 0.4)));
-  float d = max(0.0, dot(n, L)) * 0.7 + 0.3;
-  float rim = pow(1.0 - max(0.0, dot(n, normalize(-vV))), 3.0) * 0.28;
-  gl_FragColor = vec4(vC * d + rim * vec3(0.5, 0.3, 0.85), 1.0);
+  float d = dot(n, L) * 0.5 + 0.5;
+  float b1 = smoothstep(0.26, 0.5, d), b2 = smoothstep(0.58, 0.82, d);
+  vec3 ramp = mix(mix(uShade, vec3(1.0), b1), uLight, b2);
+  float fr = 1.0 - max(0.0, dot(n, normalize(-vV)));
+  float rim = smoothstep(0.55, 1.0, fr) * (0.25 + 0.75 * b1);
+  gl_FragColor = vec4(vC * ramp + rim * uRim * 0.5, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
+
+function mkToon(THREE) {
+  return new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, vertexColors: true, uniforms: {
+    uRim: { value: new THREE.Color(0xB89CFF) }, uShade: { value: new THREE.Color(0.50, 0.44, 0.70) }, uLight: { value: new THREE.Color(1.1, 1.08, 1.12) } } });
+}
 
 // bone name -> world-space joint position at bind pose, parent. Round rig: head joint sits at the head centre (so headScale is exact about it), hands / feet / face / wings / orbs have their own bones
 // (hd* / ft* are counter-scaled so mitts and boots stay round when arms / legs are stretched).
@@ -63,29 +76,36 @@ export function createHuman(THREE, opts = {}) {
   const MARK = 0xFF00FF;      // part colour that marks theme-tinted verts (g ~ 0 survives the parts' brightness jitter); setColor repaints them
   const PAL = { base: 0x3A3446, panel: DARK, accent: MARK, glow: 0xF4F8FF, dark: DARK, metal: GREY };
   // palette channels: 'T' theme (torso, arms), 'B' base (head, mitts), 'A' accent (boots, belly, trim), 'D' deep (legs, pelvis). Parts tagged with a channel repaint on setColor / setRig.
-  const CH = { T: 1, B: 2, A: 3, D: 4 }, cols = [null, theme, new THREE.Color(), new THREE.Color(), new THREE.Color()];
-  let palette = null;
+  const CH = { T: 1, B: 2, A: 3, D: 4 }, cols = [null, new THREE.Color(), new THREE.Color(), new THREE.Color(), new THREE.Color()];
+  let palette = null, rimMat = null, rimHex = null;      // rimHex: planet accent (setAccent) tints the rim light
+  // palette: muted violet-grey suit (theme pulled toward a grey-violet), pale lilac base, deep shade, ONE soft accent
   function derive() {
     const p = palette || {};
-    if (p.base != null) cols[2].set(p.base); else cols[2].copy(theme).lerp(_W.set(0xFFFFFF), 0.8);
-    if (p.accent != null) cols[3].set(p.accent); else cols[3].set(0xFFB04A);
-    if (p.deep != null) cols[4].set(p.deep); else cols[4].copy(theme).multiplyScalar(0.3);
+    cols[1].copy(theme).lerp(_W.set(0x8E87A3), 0.5);
+    if (p.base != null) cols[2].set(p.base); else cols[2].copy(theme).lerp(_W.set(0xE8E2F2), 0.78);
+    if (p.accent != null) cols[3].set(p.accent); else cols[3].set(0xE0A45C);
+    if (p.deep != null) cols[4].set(p.deep); else cols[4].copy(theme).lerp(_W.set(0x2A2438), 0.72);
+    if (rimMat) { if (rimHex != null) rimMat.uniforms.uRim.value.set(rimHex); else rimMat.uniforms.uRim.value.copy(cols[3]).lerp(_W.set(0xFFFFFF), 0.25); }
   }
   const _W = new THREE.Color();
   derive();
 
   // skinned geometry for one LOD: hi = full detail, lo = fewer segments (same bones, same layout)
-  function mkBuilder(LO) {
+  function mkBuilder(LO, VL) {
     const parts = [], emiParts = [], glassParts = [], rng = pmul(77);
-    const SW = LO ? 5 : 8, SH = LO ? 3 : 6;
+    const SW = LO ? (VL ? 8 : 6) : 12, SH = LO ? (VL ? 5 : 4) : 8;      // hi / far LOD / villager LOD sphere segments; smooth normals hide the rest
     function put(geo, hex, bone, o = {}) {
       geo = geo.index ? geo.toNonIndexed() : geo;
-      geo.deleteAttribute('normal'); geo.deleteAttribute('uv');
+      geo.deleteAttribute('uv');
       const n = geo.attributes.position.count, code = typeof hex === 'string' ? CH[hex] : 0, c = code ? cols[code] : new THREE.Color(hex);
       const col = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
       for (let i = 0; i < n; i++) {
         col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
         si[i * 4] = bi(bone); sw[i * 4] = 1;
+        if (o.blend) {      // smooth two-bone skin across a joint: blend = [boneBelow, jointY, halfWidth]; the vertex's own bone is the upper one
+          const y = geo.attributes.position.getY(i), u = Math.max(0, Math.min(1, (o.blend[1] - y) / (2 * o.blend[2]) + 0.5)), w = u * u * (3 - 2 * u);
+          si[i * 4 + 1] = bi(o.blend[0]); sw[i * 4] = 1 - w; sw[i * 4 + 1] = w;
+        }
       }
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
       geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
@@ -100,7 +120,7 @@ export function createHuman(THREE, opts = {}) {
       for (const k of ['geo', 'emissive']) {
         const g = res[k]; if (!g) continue;
         g.applyMatrix4(m);
-        for (const a of ['normal', 'uv', 'aFx', 'aPiv', 'aLm']) g.deleteAttribute(a);
+        for (const a of ['uv', 'aFx', 'aPiv', 'aLm']) g.deleteAttribute(a);
         const n = g.attributes.position.count, si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
         for (let i = 0; i < n; i++) { si[i * 4] = bi(bone); sw[i * 4] = 1; }
         g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
@@ -122,7 +142,7 @@ export function createHuman(THREE, opts = {}) {
     // cap: pill (stretched ellipsoid, 56 tris) whose end-sphere centres are a and b
     const cap = (a, b, r, hex, bone, o) => {
       const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), len = A.distanceTo(B);
-      const g = new THREE.SphereGeometry(1, LO ? 5 : 7, LO ? 3 : 5); g.scale(r * 1.06, len / 2 + r * 0.82, r * 1.06);
+      const g = new THREE.SphereGeometry(1, LO ? (VL ? 7 : 5) : 10, LO ? (VL ? 4 : 3) : 7); g.scale(r * 1.06, len / 2 + r * 0.82, r * 1.06);
       g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()));
       g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2); put(g, hex, bone, o);
     };
@@ -135,28 +155,37 @@ export function createHuman(THREE, opts = {}) {
     };
     // rbox: box with a spherical bevel of radius r (2 segments per axis = 48 tris)
     const rbox = (w, h, d, r, x, y, z, hex, bone, o = {}) => {
-      const g = new THREE.BoxGeometry(w, h, d, 2, 2, 2), P = g.attributes.position, hw = w / 2 - r, hh = h / 2 - r, hd = d / 2 - r;
+      const g = new THREE.BoxGeometry(w, h, d, 2, 2, 2), P = g.attributes.position, N = g.attributes.normal, hw = w / 2 - r, hh = h / 2 - r, hd = d / 2 - r;
       for (let i = 0; i < P.count; i++) {
         const vx = P.getX(i), vy = P.getY(i), vz = P.getZ(i), cx = Math.max(-hw, Math.min(hw, vx)), cy = Math.max(-hh, Math.min(hh, vy)), cz = Math.max(-hd, Math.min(hd, vz));
         const dx = vx - cx, dy = vy - cy, dz = vz - cz, l = Math.hypot(dx, dy, dz) || 1;
-        P.setXYZ(i, cx + dx / l * r, cy + dy / l * r, cz + dz / l * r);
+        P.setXYZ(i, cx + dx / l * r, cy + dy / l * r, cz + dz / l * r); N.setXYZ(i, dx / l, dy / l, dz / l);
       }
       rot3(g, o.rot); g.translate(x, y, z); put(g, hex, bone, o);
+    };
+    // limb: one tapered, round-ended lathe from yTop down to yBot (vertical, bind pose), skinned smoothly across a joint: bone = upper bone, o.blend = [lowerBone, jointY, halfWidth]
+    const limb = (x, yTop, yBot, rTop, rBot, hex, bone, o = {}) => {
+      const pts = [], N = LO ? 4 : 5, cs = [-90, -42], ct = [42, 90], rt = r => Math.max(r, 0.001);
+      for (const a of cs) { const q = a * Math.PI / 180; pts.push(new THREE.Vector2(rt(rBot * Math.cos(q)), yBot + rBot + rBot * Math.sin(q))); }
+      for (let i = 0; i <= N; i++) { const t = i / N; pts.push(new THREE.Vector2(rBot + (rTop - rBot) * t, yBot + rBot + (yTop - rTop - yBot - rBot) * t)); }
+      for (const a of ct) { const q = a * Math.PI / 180; pts.push(new THREE.Vector2(rt(rTop * Math.cos(q)), yTop - rTop + rTop * Math.sin(q))); }
+      const g = new THREE.LatheGeometry(pts, LO ? (VL ? 8 : 6) : 10); g.translate(x, 0, 0); put(g, hex, bone, o);
     };
     const box = (w, h, d, x, y, z, hex, bone, o) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); put(g, hex, bone, o); };      // only for the (hidden) jet flames
     function finish() {
       if (!parts.length || !emiParts.length) return null;
+      for (const g of parts.concat(emiParts, glassParts)) if (!g.attributes.normal) g.computeVertexNormals();
       const geoLit = mergeGeometries(parts), geoEmi = mergeGeometries(emiParts);
       const panelMask = [], emiTint = [];
       parts.forEach(g => { for (let i = 0; i < g.attributes.position.count; i++) panelMask.push(g.userData.mask ? g.userData.mask[i] : g.userData.code); });
       emiParts.forEach(g => { for (let i = 0; i < g.attributes.position.count; i++) emiTint.push(g.userData.tint ? 1 : 0); });
       return { geoLit, geoEmi, geoGlass: glassParts.length ? mergeGeometries(glassParts) : null, panelMask, emiTint };
     }
-    return { put, putPart, box, ell, cap, cone, rbox, finish };
+    return { put, putPart, box, ell, cap, cone, rbox, limb, finish };
   }
   function genGeo(lod) {
-    const V = lod === 'vil', LO = lod === 'lo' || V, { putPart, ell, cap, rbox, finish } = mkBuilder(LO);
-    // pelvis + egg torso + belly patch + glow button (the eyes / face live in genAtt, they depend on the style)
+    const V = lod === 'vil', LO = lod === 'lo' || V, { putPart, ell, cap, rbox, limb, finish } = mkBuilder(LO, V);
+    // few round shapes: pelvis + egg torso + head, one tapered capsule per limb (overlapping the torso so no gap shows) + round boots
     ell(0.17, 0.105, 0.135, 0, 0.52, 0, 'D', 'hips');
     ell(0.19, 0.19, 0.16, 0, 0.665, 0, 'T', 'torso');
     if (!V) ell(0.095, 0.1, 0.05, 0, 0.645, -0.118, 'A', 'torso', { sm: true });
@@ -168,21 +197,13 @@ export function createHuman(THREE, opts = {}) {
       putPart('engine', { r: 0.034, len: 0.08 }, [0, 0.52, 0.205], [Math.PI, 0, 0], 'pack');
     }
     // head: one big soft ellipsoid + ear nubs
-    ell(0.145, 0.14, 0.14, 0, 0.93, 0, 'B', 'head', { seg: LO ? [6, 4] : [10, 7] });
-    if (!V) for (const sx of [-1, 1]) ell(0.028, 0.04, 0.03, sx * 0.14, 0.925, 0.0, 'B', 'head', { seg: [5, 3] });
-    // arms: stubby capsules + round mitts
+    ell(0.145, 0.14, 0.14, 0, 0.93, 0, 'B', 'head', { seg: LO ? (V ? [10, 7] : [8, 5]) : [16, 11] });
+    if (!V) for (const sx of [-1, 1]) ell(0.028, 0.04, 0.03, sx * 0.14, 0.925, 0.0, 'B', 'head', { seg: [6, 4] });
     for (const s of ['L', 'R']) {
-      const x = s === 'L' ? -1 : 1, sh = 'sh' + s, el = 'el' + s, hd = 'hd' + s;
-      cap([x * 0.185, 0.745, 0], [x * 0.195, 0.585, 0], 0.064, 'T', sh);
-      cap([x * 0.195, 0.585, 0], [x * 0.195, 0.47, 0], 0.058, 'T', el);
-      ell(0.074, 0.07, 0.074, x * 0.195, 0.425, 0, 'B', hd);
-    }
-    // legs: stubby capsules + round boots
-    for (const s of ['L', 'R']) {
-      const x = s === 'L' ? -1 : 1, hp = 'hp' + s, kn = 'kn' + s, ft = 'ft' + s;
-      cap([x * 0.075, 0.50, 0], [x * 0.075, 0.27, 0], 0.08, 'D', hp);
-      cap([x * 0.075, 0.27, 0], [x * 0.075, 0.12, 0], 0.07, 'D', kn);
-      ell(0.088, 0.07, 0.13, x * 0.075, 0.07, -0.035, 'A', ft);
+      const x = s === 'L' ? -1 : 1;
+      limb(x * 0.19, 0.775, 0.415, 0.066, 0.06, 'T', 'sh' + s, { blend: ['el' + s, 0.585, 0.05] });      // arm: shoulder -> elbow -> rounded hand
+      limb(x * 0.075, 0.545, 0.1, 0.084, 0.064, 'D', 'hp' + s, { blend: ['kn' + s, 0.27, 0.05] });      // leg: hip -> knee -> ankle
+      ell(0.088, 0.07, 0.13, x * 0.075, 0.07, -0.035, 'D', 'ft' + s, { seg: LO ? (V ? [8, 5] : [6, 4]) : [12, 8] });
     }
     return finish();
   }
@@ -200,7 +221,7 @@ export function createHuman(THREE, opts = {}) {
     else bones[n].position.set(x, y, z);
   }
   const skeleton = new THREE.Skeleton(list);
-  const litMat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, vertexColors: true });
+  const litMat = mkToon(THREE); rimMat = litMat; derive();
   const emiMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   const lit = new THREE.SkinnedMesh(geoLit, litMat), emi = new THREE.SkinnedMesh(geoEmi, emiMat);
   for (const m of [lit, emi]) { m.frustumCulled = false; m.add(bones.hips); }
@@ -236,7 +257,7 @@ export function createHuman(THREE, opts = {}) {
   };
   const clampT = v => Math.max(0, Math.min(3, Math.round(+v || 0)));
   const B = bones, HIP_Y = 0.52;
-  const rg = { tx: 1, ty: 1, tz: 1, hipOff: 0, stride: 1, bounce: 1, arm: 1, lean: 1, stance: 0, headY: 0, wings: 0, orbs: 0 };
+  const rg = { legLen: 1, tx: 1, ty: 1, tz: 1, hipOff: 0, stride: 1, bounce: 1, arm: 1, lean: 1, stance: 0, headY: 0, wings: 0, orbs: 0 };
   const cur = { suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 0 }, role: null, vill: null, extra: [], rig: normRig(null) };
   // villager variants: same base body, hats / apron / glasses / beard per role. opts.role can be 'farmer'|'trader'|'elder'|'kid'; a bare colour from ship-village's ROLE_COL falls back to the same table.
   const VILL = { farmer: ['strawhat', 'apron'], trader: ['beret', 'glasses', 'satchel'], elder: ['beard', 'glasses', 'scarf'], kid: ['beanie', 'pigtails'] };
@@ -253,7 +274,7 @@ export function createHuman(THREE, opts = {}) {
   if (opts.role == null && opts.rig == null && VILL_COLOR[opts.color]) cur.vill = VILL_COLOR[opts.color];
   const jetNozzles = [];
   function genAtt() {
-    const su = cur.suit, role = cur.role, { put, putPart, box, ell, cap, cone, rbox, finish } = mkBuilder(VIL);
+    const su = cur.suit, role = cur.role, { put, putPart, box, ell, cap, cone, rbox, finish } = mkBuilder(VIL, VIL);
     const J = su.jetpack, S = su.scanner, P = su.sprint, K = su.storage, RG = cur.rig, EX = new Set(VIL ? (cur.vill ? VILL[cur.vill] : []) : cur.extra.concat(RG.extras, cur.vill ? VILL[cur.vill] : []));
     const PI = Math.PI, EYE = DARK;
     jetNozzles.length = 0;
@@ -469,7 +490,7 @@ export function createHuman(THREE, opts = {}) {
   // ── Q10 rig: bone scales (torso / head / arms / legs) + genAtt extras; the animator reads rg for hip height, breathing scale and the gait table ──
   function applyRig() {
     const r = cur.rig, ts = r.ts, aw = r.limbShape === 'cube' ? 1.15 : 1, fs = r.feet === 'none' ? 0.6 : 1;
-    rg.tx = ts[0]; rg.ty = ts[1]; rg.tz = ts[2]; rg.hipOff = r.hipOff; rg.stride = r.gait.stride; rg.bounce = r.gait.bounce; rg.arm = r.gait.arm; rg.lean = r.gait.lean; rg.stance = r.stance;
+    rg.tx = ts[0]; rg.ty = ts[1]; rg.tz = ts[2]; rg.hipOff = r.hipOff; rg.legLen = r.leg; rg.stride = r.gait.stride; rg.bounce = r.gait.bounce; rg.arm = r.gait.arm; rg.lean = r.gait.lean; rg.stance = r.stance;
     rg.wings = r.extras.indexOf('wings') >= 0 ? 1 : 0; rg.orbs = r.extras.indexOf('orbs') >= 0 ? 1 : 0;
     B.head.scale.set(r.hs[0] / ts[0], r.hs[1] / ts[1], r.hs[2] / ts[2]);                // counter the torso scale so headScale is absolute (head joint = head centre)
     rg.headY = JOINTS.head[1] - JOINTS.torso[1] - r.headDrop / ts[1]; B.head.position.set(0, rg.headY, 0);
@@ -484,75 +505,140 @@ export function createHuman(THREE, opts = {}) {
     palette = r.palette; if (r.palette && r.palette.theme != null) setColor(r.palette.theme); else repaint();
   }
   function setRig(rc) { setSuit({ rig: rc, extra: [] }); return cur.rig; }
-  // ── procedural animation ──
-  let t = 0, wingPh = 0, phase = 0, mv = 0, run = 0, air = 0, crouch = 0, pit = 0, wasAir = false, landT = 0, yaw = 0;
+  // ── procedural animation (distance-driven gait, 2-bone leg IK, weight / lean / lag) ──
+  // st: moving running airborne speed(0..1) facing jet scan | vH (ground speed, human heights / s) dist (heights moved this frame) turn (yaw rate rad/s, + = left)
+  //     look {x,z,d} (target in model-local H: x right, z back) | groundAt(lx, lz) -> ground height under a foot relative to the standing plane (H; on group.userData)
+  let t = 0, wingPh = 0, psi = 0, vs = 0, vsPrev = 0, accS = 0, run = 0, air = 0, crouch = 0, pit = 0, wasAir = false, sqz = 0, sqzT = 0, takeT = 0, yaw = 0;
+  let rollS = 0, lookY = 0, lookG = 0, shiftX = 0, shiftTo = 0, shiftT = 3 + Math.random() * 2, gestT = 4 + Math.random() * 5, gestK = 0, gestSide = 1, dhL = 0, dhR = 0;
   const lerp = (a, b, k) => a + (b - a) * k;
   const damp = (cur, tgt, rate, dt) => cur + (tgt - cur) * (1 - Math.exp(-rate * dt));
+  const sstep = (a, b, x) => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+  const ik = { a: 0, k: 0 };
+  // 2-bone leg in the sagittal plane: foot at (f forward, d below the hip joint); thigh length L1, shin L2. Knee bends forward (shin goes back).
+  function legIK(f, d, L1, L2) {
+    let D = Math.hypot(f, d); const lam = Math.atan2(f, d), Dm = (L1 + L2) * 0.998, Dn = Math.abs(L1 - L2) + 0.02;
+    D = Math.max(Dn, Math.min(Dm, D));
+    ik.k = -(Math.PI - Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + L2 * L2 - D * D) / (2 * L1 * L2)))));
+    ik.a = lam + Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + D * D - L2 * L2) / (2 * L1 * D))));
+  }
+  // one leg's gait target: p in [0,1) cycle phase, duty = stance fraction, E = half stance excursion, lift = swing height. returns f (forward), y (lift), toe pitch
+  const gt = { f: 0, y: 0, pt: 0 };
+  function gaitFoot(p, duty, E, lift) {
+    if (p < duty) { const u = p / duty; gt.f = E * (1 - 2 * u); gt.y = 0; gt.pt = lerp(0.3, -0.4, sstep(0.55, 1, u)) * (u < 0.55 ? 1 - 0.7 * (u / 0.55) : 1); }
+    else { const u = (p - duty) / (1 - duty), e = sstep(0, 1, u); gt.f = -E + 2 * E * e; gt.y = lift * Math.sin(Math.PI * Math.pow(u, 0.8)); gt.pt = lerp(-0.4, 0.3, u); }
+  }
+  group.userData.bones = bones;
 
   function update(dt, st = {}) {
     dt = Math.min(dt, 0.1); t += dt;
     const sp = Math.max(0, Math.min(1, st.speed == null ? 1 : st.speed));
-    mv = damp(mv, st.moving ? Math.max(0.35, sp) : 0, 10, dt);
+    const vWant = !st.moving ? 0 : st.vH != null ? st.vH : 2.6 + Math.max(0, sp - 0.5) * 8.8;
+    vs = damp(vs, vWant, 14, dt);
+    const acc = (vs - vsPrev) / Math.max(dt, 1e-4); vsPrev = vs; accS = damp(accS, Math.max(-60, Math.min(60, acc)), 10, dt);
     run = damp(run, st.running && st.moving ? 1 : 0, 8, dt);
     air = damp(air, st.airborne ? 1 : 0, 14, dt);
-    if (wasAir && !st.airborne) landT = 0.28;
+    if (wasAir && !st.airborne) { sqz = 1; sqzT = 0.13; }                       // landing squash: y 0.9 held 6 frames, then relaxes
+    if (!wasAir && st.airborne) takeT = 0.12;                                     // takeoff stretch
     wasAir = !!st.airborne;
-    landT = Math.max(0, landT - dt);
-    const wantC = landT > 0 || st.crouch > 0.5;      // MARO: styles drive crouch (long-jump / backflip wind-up, slide) as well as the landing
-    crouch = damp(crouch, wantC ? 1 : 0, wantC ? 30 : 9, dt);
-    pit = damp(pit, st.pitch > 0.5 ? 1 : 0, 14, dt);      // dive / belly slide: body face-down
-    const freq = lerp(1.8, 2.6, run) * rg.stride * (st.cad == null ? 1 : lerp(0.6, 1.1, Math.min(1, st.cad)));      // cadence follows ground speed when the caller passes cad
-    phase += dt * freq * Math.PI * 2 * (st.moving ? 1 : 0.0);
+    sqzT = Math.max(0, sqzT - dt); takeT = Math.max(0, takeT - dt);
+    if (sqzT <= 0) sqz = damp(sqz, 0, 11, dt);
+    crouch = damp(crouch, st.crouch > 0.5 ? 1 : 0, st.crouch > 0.5 ? 30 : 9, dt);      // MARO styles drive crouch (long-jump / backflip wind-up, slide)
+    pit = damp(pit, st.pitch > 0.5 ? 1 : 0, 14, dt);                              // dive / belly slide: body face-down
     if (st.facing != null) group.rotation.y = st.facing;
 
-    const g = 1 - air;                         // ground weight
-    const w = mv * g;                          // locomotion weight
-    const s = Math.sin(phase), c = Math.cos(phase);
-    const amp = lerp(0.55, 0.95, run), arm = lerp(0.5, 1.0, run) * rg.arm;
-    const br = Math.sin(t * Math.PI), look = Math.sin(t * 0.37) * 0.35 + Math.sin(t * 0.91) * 0.12;
+    const g = 1 - air, gw = sstep(0.12, 0.9, vs) * g;                             // ground weight, gait weight
+    // gait (all distance driven): step rate R grows with speed, step length Ls = v / R, stance duty shrinks (walk > 0.5 > run), foot excursion = Ls * duty
+    const R = Math.max(2.4, Math.min(7.5, 2.6 + 0.55 * vs)) * rg.stride, Ls = Math.max(0.12, vs / R), duty = Math.max(0.28, Math.min(0.62, 0.62 - 0.07 * vs));
+    const dist = st.dist != null ? st.dist : vs * dt;
+    psi = (psi + (vs > 0.05 ? dist / (2 * Ls) : 0)) % 1;
+    const E = Math.min(0.21, Ls * duty), lift = 0.05 + 0.04 * Math.min(1, vs / 8);
+    const c2 = Math.cos(2 * Math.PI * psi), s2 = Math.sin(2 * Math.PI * psi);
+    const turn = st.turn || 0, br = Math.sin(t * Math.PI * 0.8);
 
-    // legs: +x swings forward (-Z)
-    let lh = s * amp * w, rh = -s * amp * w;
-    let lk = -Math.max(0, -c * 1.0 + 0.2) * 0.9 * w * (0.7 + 0.6 * run), rk = -Math.max(0, c * 1.0 + 0.2) * 0.9 * w * (0.7 + 0.6 * run);
-    // jump tuck
-    lh = lerp(lh, 0.8, air); rh = lerp(rh, 0.5, air);
-    lk = lerp(lk, -1.5, air); rk = lerp(rk, -1.1, air);
-    // landing crouch
-    lh += 0.75 * crouch; rh += 0.75 * crouch; lk -= 1.3 * crouch; rk -= 1.3 * crouch;
-    const sz = 0.02 - rg.stance; B.hpL.rotation.set(lh, 0, sz); B.hpR.rotation.set(rh, 0, -sz);
-    B.ftL.rotation.z = -sz; B.ftR.rotation.z = sz;          // wide stances splay the legs but the boots stay flat
-    B.knL.rotation.x = lk; B.knR.rotation.x = rk;
+    // idle: weight shift every 3-5 s (hips slide over one foot, legs counter so the feet stay put)
+    shiftT -= dt; if (shiftT <= 0) { shiftT = 3 + Math.random() * 2; shiftTo = (Math.random() < 0.5 ? -1 : 1) * 0.018; }
+    shiftX = damp(shiftX, shiftTo * (1 - gw) * g, 2.2, dt);
 
-    // hips: bob + crouch lowering
-    const bob = Math.abs(Math.cos(phase)) * lerp(0.018, 0.04, run) * w * rg.bounce;
-    B.hips.position.y = HIP_Y + rg.hipOff + bob - 0.17 * crouch - 0.05 * air + (1 - mv) * g * br * 0.003;
-    const sq = crouch * (landT > 0 ? 1 : 0.6);             // landing squash (crouch also drives wind-ups): wider, shorter; stretch while airborne
-    B.hips.scale.set(1 + 0.09 * sq - 0.03 * air, 1 - 0.1 * sq + 0.05 * air, 1 + 0.09 * sq - 0.03 * air);
-    B.hips.rotation.y = -s * 0.1 * w;
-    // style flips: st.flip is 0..1 progress, flipKind 1 = front, 2 / 3 = back (backflip, skid flip), 4 = wall kick (no rotation); pitch tips the body face-down
+    // hips: bob at twice the step frequency (high at mid-stance when walking, low at mid-stance when running), crouch, landing squash, airborne stretch
+    const sgn = Math.max(-1, Math.min(1, (duty - 0.5) * 10)), bobA = lerp(0.014, 0.035, sstep(1, 8, vs)) * rg.bounce * gw;
+    const bob = bobA * sgn * Math.cos(4 * Math.PI * (psi - duty / 2));
+    const reach = 0.40 * rg.legLen, sink = Math.max(0, 0.42 * rg.legLen - Math.sqrt(Math.max(0.01, reach * reach - E * E))) * gw + 0.015 * (1 - gw) * g;
+    const sy = 1 - 0.1 * sqz + 0.07 * (takeT / 0.12) + 0.05 * air * (1 - sqz) - 0.1 * crouch * 0.6, sxz = 1 + 0.09 * sqz - 0.03 * air + 0.06 * crouch * 0.6;
+    let hipY = HIP_Y + rg.hipOff + bob - sink - 0.09 * sqz - 0.17 * crouch - 0.05 * air + (1 - gw) * g * br * 0.003;
+    B.hips.scale.set(sxz, sy, sxz);
+    const gAt = group.userData.groundAt, sz = 0.02 - rg.stance;
+
+    // legs: foot targets -> IK -> bone angles; blended with the jump tuck while airborne
+    const legs = [['L', 0, -1], ['R', 0.5, 1]], hYaw = -0.1 * c2 * gw, hRoll = shiftX * 2.2 + 0.03 * s2 * gw;      // pelvis yaw / roll move the hip joints: the IK target compensates so a planted foot stays planted
+    let minDh = 0;
+    const dhs = [0, 0];      // slopes: each foot's target rides the ground under it, the pelvis drops toward the lower one
+    for (let li = 0; li < 2; li++) {
+      const [sd, off, sx] = legs[li], p = (psi + off) % 1;
+      gaitFoot(p, duty, E, lift);
+      const f = gt.f * gw;
+      let dh = 0;
+      if (gAt && g > 0.4) { try { dh = Math.max(-0.25, Math.min(0.3, +gAt(sx * 0.075, -(f + 0.035)) || 0)); } catch (e) { dh = 0; } }
+      if (li === 0) dhL = damp(dhL, dh, 24, dt); else dhR = damp(dhR, dh, 24, dt);
+      dhs[li] = li === 0 ? dhL : dhR; if (dhs[li] < minDh) minDh = dhs[li];
+    }
+    hipY += 0.5 * minDh * g;
+    B.hips.position.y = hipY; B.hips.position.x = shiftX;
+    const ankle = HIP_Y + rg.hipOff - 0.44 * rg.legLen;                            // ankle height above the standing plane in bind pose
+    for (let li = 0; li < 2; li++) {
+      const [sd, off, sx] = legs[li], p = (psi + off) % 1;
+      gaitFoot(p, duty, E, lift);
+      const f = gt.f * gw, ly = gt.y * gw, pt = gt.pt * gw;
+      const d = (hipY - 0.02 * sy - (ankle + ly + dhs[li])) / sy, fl2 = (f - sx * 0.075 * Math.sin(hYaw)) / sxz;
+      legIK(fl2, Math.max(0.05, d), 0.23 * rg.legLen, 0.19 * rg.legLen);
+      let a = ik.a, k = ik.k;
+      // airborne tuck (ground weight g blends the planted leg back in on landing)
+      const tuckA = li === 0 ? 0.8 : 0.5, tuckK = li === 0 ? -1.5 : -1.1;
+      a = lerp(tuckA, a, g); k = lerp(tuckK, k, g);
+      B['hp' + sd].rotation.set(a, 0, (sd === 'L' ? sz : -sz) - shiftX / Math.max(0.2, d) - hRoll * g);
+      B['kn' + sd].rotation.x = k;
+      B['ft' + sd].rotation.x = -(a + k) + pt * (1 - air) + 0.5 * air;
+      B['ft' + sd].rotation.z = sd === 'L' ? -sz : sz;
+    }
+    B.hips.rotation.y = hYaw;
     B.hips.rotation.x = (st.flip > 0 && st.flipKind > 0 && st.flipKind < 4 ? (st.flipKind === 1 ? -1 : 1) * Math.PI * 2 * st.flip : 0) - 1.35 * pit;
-    // torso: lean, counter-twist, breathing
-    const lean = lerp(0.05, 0.38, run) * mv * g * rg.lean + 0.18 * crouch + 0.1 * air + 0.05 * (1 - mv) * g;      // idle: relaxed forward lean
-    B.torso.rotation.set(-lean + (1 - mv) * br * 0.012, s * 0.12 * w, 0);
-    B.torso.scale.set(rg.tx * (1 + (1 - mv) * br * 0.008), rg.ty * (1 + (1 - mv) * br * 0.015), rg.tz * (1 + (1 - mv) * br * 0.02));
-    // head: counter the lean, idle look-around
-    B.head.rotation.set(lean * 0.8 - 0.05 * air + 0.03 * w * Math.sin(2 * phase - 0.7), look * (1 - mv) * g, s * 0.03 * w);
-    B.head.position.y = rg.headY + 0.012 * w * Math.sin(2 * phase - 0.9) * rg.bounce - 0.006 * (1 - mv) * br;      // head bob on walk, soft breath rise at idle
+    B.hips.rotation.z = hRoll;
+
+    // torso: lean into acceleration and speed, roll into turns, counter-rotated shoulders, breathing
+    rollS = damp(rollS, Math.max(-0.26, Math.min(0.26, turn * Math.min(vs, 6) * 0.03)), 9, dt);
+    const lean = lerp(0.04, 0.2, sstep(0.5, 6, vs)) * g * rg.lean + Math.max(-0.12, Math.min(0.22, accS * 0.012)) * g + 0.12 * crouch + 0.1 * air + 0.05 * (1 - gw) * g;
+    // look-at: head turns toward a nearby target (within 6 H), body follows a quarter of it
+    const lk = st.look; let tgtY = 0, has = false;
+    if (lk && lk.d < 6 && g > 0.5) { tgtY = Math.max(-1.1, Math.min(1.1, Math.atan2(-lk.x, -lk.z))); has = true; }
+    lookG = damp(lookG, has ? 1 : 0, 4, dt); lookY = damp(lookY, tgtY, 7, dt);
+    const idleLook = (Math.sin(t * 0.37) * 0.35 + Math.sin(t * 0.91) * 0.12) * (1 - gw) * g * (1 - lookG);
+    const tw = 0.18 * c2 * gw + 0.25 * lookY * lookG + turn * 0.04;
+    B.torso.rotation.set(-lean + (1 - gw) * br * 0.012, tw, rollS);
+    B.torso.scale.set(rg.tx * (1 + (1 - gw) * br * 0.008), rg.ty * (1 + (1 - gw) * br * 0.015), rg.tz * (1 + (1 - gw) * br * 0.02));
+    // head: stabilised (counter-lean, counter-roll, counter-bob), leads turns, looks at targets
+    B.head.rotation.set(lean * 0.85 - 0.05 * air + 0.012 * gw * Math.sin(4 * Math.PI * psi - 0.7), idleLook + 0.75 * lookY * lookG + Math.max(-0.5, Math.min(0.5, turn * 0.1)) - tw * 0.8, -rollS * 0.7 - shiftX * 1.5);
+    B.head.position.y = rg.headY - bob * 0.6 - 0.006 * (1 - gw) * br;
     const bl = (t % 4.3) < 0.14 ? Math.abs(Math.sin((t % 4.3) / 0.14 * Math.PI)) : 0; B.fc.scale.set(1, 1 - 0.9 * bl, 1);      // blink
 
-    // arms: opposite phase to legs; jump = arms up; idle = slight sway
-    const sa = Math.sin(phase - 0.35), ea = sa * (1.15 - 0.15 * sa * sa);      // arms trail the legs a touch and ease through the ends
-    let alS = -ea * arm * w, arS = ea * arm * w;
-    let alE = 0.25 + (0.15 + 0.9 * run) * w, arE = alE;
-    alS = lerp(alS, -2.5, air); arS = lerp(arS, -2.5, air);
-    alE = lerp(alE, 0.5, air); arE = lerp(arE, 0.5, air);
-    alS += 0.4 * crouch; arS += 0.4 * crouch;
-    const sway = br * 0.03 * (1 - mv) * g;
-    B.shL.rotation.set(alS + sway, 0, 0.08 + 0.55 * air); B.shR.rotation.set(arS - sway, 0, -0.08 - 0.55 * air);
+    // arms: opposite to the legs, trailing them by a beat; elbow bends with speed; jump = arms up; villagers add an idle gesture
+    const aAmp = lerp(0.45, 0.95, sstep(1, 8, vs)) * rg.arm, ph2 = 2 * Math.PI * (psi - 0.07), ea = Math.cos(ph2) * (1.1 - 0.1 * Math.cos(ph2) * Math.cos(ph2));
+    let alS = ea * aAmp * gw, arS = -ea * aAmp * gw;
+    let alE = 0.22 + (0.12 + 0.75 * sstep(2, 9, vs)) * gw, arE = alE;
+    alS = lerp(-2.5, alS, g); arS = lerp(-2.5, arS, g);
+    alE = lerp(0.5, alE, g); arE = lerp(0.5, arE, g);
+    alS += 0.3 * crouch + 0.25 * sqz; arS += 0.3 * crouch + 0.25 * sqz;
+    if (VIL) {
+      gestT -= dt; if (gestT <= 0 && gestK <= 0 && gw < 0.1 && g > 0.5) { gestT = 5 + Math.random() * 5; gestK = 1.4; gestSide = Math.random() < 0.5 ? -1 : 1; }
+      if (gestK > 0) {
+        gestK -= dt; const u = Math.sin(Math.max(0, Math.min(1, gestK / 1.4)) * Math.PI), wv = Math.sin(t * 9) * 0.25 * u;
+        if (gestSide < 0) { alS = lerp(alS, -1.4, u); alE = lerp(alE, 1.1 + wv, u); } else { arS = lerp(arS, -1.4, u); arE = lerp(arE, 1.1 + wv, u); }
+      }
+    }
+    const sway = br * 0.03 * (1 - gw) * g;
+    B.shL.rotation.set(alS + sway, 0, 0.08 + 0.55 * air - rollS * 0.5); B.shR.rotation.set(arS - sway, 0, -0.08 - 0.55 * air - rollS * 0.5);
     B.elL.rotation.x = alE; B.elR.rotation.x = arE;
     B.elL.rotation.z = B.elR.rotation.z = 0;
 
-    if (rg.wings) { const cd = st.cad == null ? mv : Math.min(1, st.cad), fa = 0.18 + 0.5 * air + 0.12 * mv; wingPh += dt * (4 + 12 * air + 5 * cd * (1 - air)); const fl2 = Math.sin(wingPh) * fa; B.wgL.rotation.z = -fl2; B.wgR.rotation.z = fl2; }      // Q54: beat rate follows cadence on the ground; phase integrated so rate changes do not jump
+    if (rg.wings) { const mv = Math.min(1, vs / 3), cd = st.cad == null ? mv : Math.min(1, st.cad), fa = 0.18 + 0.5 * air + 0.12 * mv; wingPh += dt * (4 + 12 * air + 5 * cd * (1 - air)); const fl2 = Math.sin(wingPh) * fa; B.wgL.rotation.z = -fl2; B.wgR.rotation.z = fl2; }      // Q54: beat rate follows cadence on the ground; phase integrated so rate changes do not jump
     if (rg.orbs) B.orb.rotation.y = t * 0.9;
     // jetpack: backpack vibration + nozzle flame scale; scanner: visor pulse (emissive brightness)
     const jet = Math.max(0, Math.min(1, st.jet || 0)), scan = Math.max(0, Math.min(1, st.scan || 0));
@@ -569,7 +655,7 @@ export function createHuman(THREE, opts = {}) {
     if (hiKey) VILLAGER_GEO.release(hiKey, freeSet); else freeSet(hi); if (loGroup) loGroup.userData.geoms.forEach(g => g.dispose()); if (attKey) VILLAGER_GEO.release(attKey, freeSet); else { attLit.geometry.dispose(); attEmi.geometry.dispose(); if (attGlass.geometry !== EMPTY_GEO) attGlass.geometry.dispose(); } if (pet) pet.dispose(); flameGeo.dispose(); puffGeo.dispose(); glassMat.dispose(); EMPTY_GEO.dispose(); flameMatO.dispose(); flameMatI.dispose(); for (const p of JETFX.puffs) p.m.material.dispose(); litMat.dispose(); emiMat.dispose(); skeleton.dispose();
     if (group.parent) group.parent.remove(group);
   }
-  return { group, update, setColor, setSuit, setRig, pet, dispose };
+  return { group, update, setColor, setSuit, setRig, pet, dispose, setAccent(hex) { rimHex = hex; derive(); } };
 }
 
 // ── companion critter: 3 silhouettes, ~0.4 human height (feet at y=0, forward -Z), <= 600 tris, no skeleton ──
@@ -577,7 +663,7 @@ export function createPet(THREE, o = {}) {
   const seed = o.seed != null ? (o.seed | 0) : 1, rng = pmul(seed * 131 + 7), PLANS = ['walker', 'jelly', 'strider'];
   let plan = o.plan; if (typeof plan === 'number') plan = PLANS[((plan % 3) + 3) % 3]; if (!PLANS.includes(plan)) plan = PLANS[Math.abs(seed) % 3];
   const hue = rng(), body = new THREE.Color().setHSL(hue, 0.5, 0.52), belly = new THREE.Color().setHSL(hue, 0.4, 0.72), dark = new THREE.Color().setHSL(hue, 0.35, 0.26), glowC = new THREE.Color().setHSL((hue + 0.45) % 1, 0.9, 0.65);
-  const litMat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, vertexColors: true }), emiMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const litMat = mkToon(THREE), emiMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   const geoms = [], root = new THREE.Group(), bodyG = new THREE.Group();
   root.add(bodyG);
   const paint = (g, c) => {

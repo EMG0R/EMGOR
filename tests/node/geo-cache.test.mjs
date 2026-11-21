@@ -23,4 +23,4 @@ test('release frees only at refs 0 and drops the entry', () => {
   let built = 0; c.acquire('k', () => ++built); assert.equal(built, 1, 'rebuilt after full release');
 });
 test('release of an unknown key is a no-op', () => { const c = createGeoCache(), f = mk(); c.release('nope', f.free); assert.equal(f.freed, 0); });
-test('villager budget constant', () => assert.equal(VILLAGER_TRI_BUDGET, 800));
+test('villager budget constant', () => assert.equal(VILLAGER_TRI_BUDGET, 1800));

@@ -28,6 +28,29 @@ export function createFoot(ctx) {
         } else gv = Math.max(0, gv - topRef / LOCO.FRIC_T * dt);
         return gv;
     }
+    // character animation feed (ship-human.js update): signed yaw rate, ground under each foot, nearest creature to look at
+    var ftOld = new THREE.Vector3(), ftX = new THREE.Vector3(), ftTurn = 0, gaV = new THREE.Vector3(), gaR = new THREE.Vector3(), lkP = new THREE.Vector3(), lkO = { x: 0, z: 0, d: 99 }, lkHave = false, lkT = 0;
+    function groundAtFoot(lx, lz) {          // lx right, lz back (human heights, body frame) -> ground height under that foot relative to the one under the body (H)
+        var H = hOf(S.L); gaR.crossVectors(hum.face, hum.up);
+        gaV.copy(hum.pos).addScaledVector(gaR, lx * H).addScaledVector(hum.face, -lz * H); var r = gaV.length() || 1; gaV.divideScalar(r);
+        return (footFloor(gaV, H, hum.hr) - hum.gr) / H;
+    }
+    function lookFeed(dt, H, up) {           // nearest creature within 6 H (re-scanned 5x / s); returns the look target in body-frame H, or undefined
+        lkT -= dt;
+        if (lkT <= 0) {
+            lkT = 0.2; lkHave = false;
+            try {
+                var ps = S.ps; if (ps && ps.creatures && ps.creatLocal) {
+                    var cs = ps.creatures(), bd = 36 * H * H, i, d2;
+                    for (i = 0; i < cs.length; i++) { if (!ps.creatLocal(cs[i].id, gaV)) continue; d2 = gaV.distanceToSquared(hum.pos); if (d2 < bd) { bd = d2; lkP.copy(gaV); lkHave = true; } }
+                }
+            } catch (e0) { lkHave = false; }
+        }
+        if (!lkHave) return undefined;
+        gaV.subVectors(lkP, hum.pos); gaR.crossVectors(hum.face, up);
+        lkO.x = gaV.dot(gaR) / H; lkO.z = -gaV.dot(hum.face) / H; lkO.d = gaV.length() / H;
+        return lkO;
+    }
     var styCam = 1, flF = new THREE.Vector3(), flA = new THREE.Vector3();
     function vTo(tgt, step) { var d = tgt - hum.vv; hum.vv += d > step ? step : d < -step ? -step : d; }
     function flightStep(dt, c, qM) {
@@ -143,7 +166,9 @@ export function createFoot(ctx) {
         if (hum.air) hum.airT = (hum.airT || 0) + dt; else hum.airT = 0;
         hum.sAnim = sr && sr.anim != null ? sr.anim : null;
         hum.moving = moving; hum.running = run;
-        if (moving) hum.face.lerp(gB, damp(14, dt));
+        ftOld.copy(hum.face);
+        if (moving) hum.face.lerp(gB, damp(8.3, dt));      // the body turns toward the velocity with a ~0.12 s lag
+        ftX.crossVectors(ftOld, hum.face); ftTurn = dt > 0 ? Math.atan2(ftX.dot(up), ftOld.dot(hum.face)) / dt : 0;
         // jump (once per press)
         if (!sty && !hum.air && wantJump && !S.jumpHeld) { hum.air = true; hum.vv = G_JUMP * H * S.fxJump; aPlay('jump', { vel: 0.6 }); }
         S.jumpHeld = wantJump;
@@ -231,8 +256,8 @@ export function createFoot(ctx) {
         o.group.quaternion.setFromRotationMatrix(mM);
         o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr), H);
         flHud(false, 0);
-        if (hum.sAnim) { var ua = Object.assign(styU, hum.sAnim); ua.facing = 0; ua.jet = S.jetLvl; ua.scan = S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0; o.update(dt, ua); }
-        else o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, cad: moving ? clamp(spd / (G_RUN * H), 0.3, 1.2) : 0, facing: 0, jet: S.jetLvl, scan: S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0 });
+        if (hum.sAnim) { var ua = Object.assign(styU, hum.sAnim); ua.facing = 0; ua.jet = S.jetLvl; ua.scan = S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0; ua.vH = sSpd >= 0 ? sSpd : undefined; ua.dist = sSpd >= 0 && !hum.air ? sSpd * dt : undefined; ua.turn = ftTurn; ua.look = lookFeed(dt, H, up); o.group.userData.groundAt = groundAtFoot; o.update(dt, ua); }
+        else { o.group.userData.groundAt = groundAtFoot; o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, cad: moving ? clamp(spd / (G_RUN * H), 0.3, 1.2) : 0, vH: moving ? spd / H : 0, dist: moving && !hum.air ? spd * dt / H : 0, turn: ftTurn, look: lookFeed(dt, H, up), facing: 0, jet: S.jetLvl, scan: S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0 }); }
         jetFx(dt, jet, H, qM, c, dir, supNow, hr);
         if (landImp > 0.35) S.fx.impact(hum.w, 0xc8b89a, 0.6 + landImp);
         // camera: 4.5 human heights back, pitched, never under the floor; it follows the SMOOTHED position (hum.w), not the raw step

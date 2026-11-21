@@ -1506,3 +1506,46 @@ async function gP2(T, o) {
     return out;
 }
 export var gpTests = { gP1: gP1, gP2: gP2, gpFoot: gpFoot, mk: mk };
+// ── gC1..gC3 (characters): distance-driven gait plants the feet, landing squashes, villagers stay cheap and share geometry. Pure rig tests (no landing needed). ──
+async function mkRig(opts) { var TH = await import('three'), HM = await import('./ship-human.js'); return { TH: TH, h: HM.createHuman(TH, opts || {}) }; }
+async function gC1() {
+    var R = await mkRig({}), h = R.h, TH = R.TH, g = h.group, out = { speeds: {} }, dt = 1 / 60, pL = new TH.Vector3(), pR = new TH.Vector3();
+    var bL = g.userData.bones.ftL, bR = g.userData.bones.ftR, pass = true;
+    [1.5, 3, 6].forEach(function (v) {
+        g.position.set(0, 0, 0); var maxD = 0, stance = 0, n = 0, prev = [null, null];
+        for (var i = 0; i < 360; i++) {
+            g.position.z -= v * dt;
+            h.update(dt, { moving: true, running: v > 4, airborne: false, speed: 0.5, vH: v, dist: v * dt, turn: 0 });
+            g.updateMatrixWorld(true); bL.getWorldPosition(pL); bR.getWorldPosition(pR);
+            if (i >= 150) {
+                [pL, pR].forEach(function (p, k) {
+                    var on = p.y < 0.0815; n++;
+                    if (on && prev[k] && prev[k].on) { stance++; var d = Math.hypot(p.x - prev[k].x, p.z - prev[k].z); if (d > maxD) maxD = d; }
+                    prev[k] = { x: p.x, z: p.z, on: on };
+                });
+            }
+        }
+        out.speeds[v] = { maxSlide: +maxD.toFixed(4), stanceFrac: +(stance / n).toFixed(2) };
+        if (v <= 3 && (maxD >= 0.02 || stance / n < 0.3)) pass = false;
+    });
+    out.pass = pass; h.dispose(); return out;
+}
+async function gC2() {
+    var R = await mkRig({}), h = R.h, g = h.group, hips = g.userData.bones.hips, out = {}, dt = 1 / 60, i, ys = [], mx = 0;
+    for (i = 0; i < 40; i++) h.update(dt, { moving: false, airborne: true, speed: 0 });
+    for (i = 0; i < 30; i++) { h.update(dt, { moving: false, airborne: false, speed: 0 }); ys.push(hips.scale.y); }
+    var mn = Math.min.apply(null, ys), low = ys.filter(function (y) { return y <= 0.93; }).length;
+    var h2 = (await mkRig({})).h; h2.update(dt, { moving: false, airborne: false, speed: 0 }); for (i = 0; i < 4; i++) { h2.update(dt, { moving: false, airborne: true, speed: 0 }); mx = Math.max(mx, h2.group.userData.bones.hips.scale.y); }
+    out.minScaleY = +mn.toFixed(3); out.framesBelow93 = low; out.takeoffMaxY = +mx.toFixed(3);
+    out.pass = mn <= 0.915 && low >= 6 && mx > 1.03; h.dispose(); h2.dispose(); return out;
+}
+async function gC3() {
+    var TH = await import('three'), HM = await import('./ship-human.js'), roles = [['farmer', 0x8FD06A], ['trader', 0xFFD36A], ['elder', 0xB08CFF], ['kid', 0xFF8AE0]], hs = [], out = { tris: {} }, geos = new Set(), maxT = 0, i;
+    for (i = 0; i < 12; i++) { var r = roles[i % 4]; hs.push(HM.createHuman(TH, { color: r[1], role: r[0], lod: 'villager' })); }
+    var meshes = function (h) { var a = []; h.group.traverse(function (o) { if (o.isSkinnedMesh && o.geometry.attributes.position && o.geometry.attributes.position.count > 0) a.push(o.geometry); }); return a; };
+    hs.forEach(function (h, k) { var t = h.group.userData.tris; maxT = Math.max(maxT, t); out.tris[roles[k % 4][0]] = t; meshes(h).forEach(function (g) { geos.add(g); }); });
+    var shared = true; for (i = 4; i < 12; i++) { var a1 = meshes(hs[i]), a0 = meshes(hs[i % 4]); shared = shared && a1.length === a0.length && a1.every(function (g, k) { return g === a0[k]; }); }
+    out.maxTris = maxT; out.uniqueGeos = geos.size; out.sharedPerRole = shared;
+    out.pass = maxT <= 1800 && shared && geos.size <= 4 * 5; hs.forEach(function (h) { h.dispose(); }); return out;
+}
+tests.gC1 = gC1; tests.gC2 = gC2; tests.gC3 = gC3;

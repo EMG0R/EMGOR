@@ -559,6 +559,7 @@ export function createVillage(engine, u, opts) {
     g.pos = M.root.position;
   }
 
+  const lookO = { x: 0, z: 0, d: 99 };
   village.update = (dt, ctx) => {
     ctx = ctx || {}; const night = ctx.night || 0; village.night = night; setNight(night);
     if (village.threat) { village.threat.t -= dt; if (village.threat.t <= 0) village.threat = null; }
@@ -585,7 +586,7 @@ export function createVillage(engine, u, opts) {
       const tg = targetFor(v, tm, night);
       if (!(v.inside && tg.home)) setPath(v, tg);
       let moving = false;
-      if (haveP && !v.inside && v.panic <= 0 && Math.hypot(v.x - px, v.z - pz) < 5.25 + 0.5) { v.attend = 6; v.yaw = Math.atan2(-(px - v.x), -(pz - v.z)); }      // Q29: approached -> stops walking 6 s and turns to face you
+      if (haveP && !v.inside && v.panic <= 0 && Math.hypot(v.x - px, v.z - pz) < 7.0) { v.attend = 6; v.yaw = Math.atan2(-(px - v.x), -(pz - v.z)); }      // Q29: approached -> stops walking 6 s and turns to face you
       if (v.attend > 0) v.attend -= dt;
       if (v.attend > 0 && v.panic <= 0) { /* hold position */ }
       else if (v.path && v.pi < v.path.length) {
@@ -599,7 +600,18 @@ export function createVillage(engine, u, opts) {
       const hm = v.human;
       if (hm) {
         const vis = !v.inside; if (hm.group.visible !== vis) hm.group.visible = vis;
-        if (vis) { hm.group.position.set(v.x, v.y, v.z); hm.group.rotation.y = v.yaw; try { hm.update(dt, { moving, running: v.panic > 0, airborne: false, speed: moving ? (v.panic > 0 ? 1 : 0.5) : 0, facing: 0, jet: 0, scan: 0 }); } catch (e) { /* ignore */ } }
+        if (vis) {
+          // body yaw follows the heading with a ~0.12 s lag (turn rate fed to the rig for lean / head lead); stride is driven by the distance actually walked
+          const hs = hm.group.scale.x || 1.75;
+          if (v.yawV == null) v.yawV = v.yaw;
+          let dyw = v.yaw - v.yawV; while (dyw > Math.PI) dyw -= 6.2831853; while (dyw < -Math.PI) dyw += 6.2831853;
+          const ky = 1 - Math.exp(-dt / 0.12), turn = dt > 0 ? dyw * ky / dt : 0; v.yawV += dyw * ky;
+          const stepD = v.px == null || dt <= 0 ? 0 : Math.min(Math.hypot(v.x - v.px, v.z - v.pz), 1.5 * dt * WALK * 2) / hs; v.px = v.x; v.pz = v.z;
+          hm.group.position.set(v.x, v.y, v.z); hm.group.rotation.y = v.yawV;
+          const gud = hm.group.userData; if (!gud.groundAt) gud.groundAt = (lx, lz) => { const c = Math.cos(v.yawV), sn = Math.sin(v.yawV); return (groundLive(v.x + (lx * c + lz * sn) * hs, v.z + (-lx * sn + lz * c) * hs) - v.y) / hs; };
+          let look; if (haveP && !v.inside) { const ox = px - v.x, oz = pz - v.z, c = Math.cos(v.yawV), sn = Math.sin(v.yawV); lookO.x = (ox * c - oz * sn) / hs; lookO.z = (ox * sn + oz * c) / hs; lookO.d = Math.hypot(ox, oz) / hs; look = lookO; }
+          try { hm.update(dt, { moving, running: v.panic > 0, airborne: false, speed: moving ? (v.panic > 0 ? 1 : 0.5) : 0, vH: moving && dt > 0 ? stepD / dt : 0, dist: stepD, turn, look, facing: 0, jet: 0, scan: 0 }); } catch (e) { /* ignore */ }
+        }
       }
       if (haveP && !v.inside) { const d = Math.hypot(v.x - px, v.z - pz); if (d < nd) { nd = d; near = v; } }
       // a mob within 2.5 m of a villager = a hit on a villager
