@@ -743,3 +743,9 @@ NEXT 5 TO QUEUE: (1) distance LOD switch + glass in group.lo; (2) round-rig tri 
 - Fixed: pokemans battle menu is a 2-col grid but Up/Down stepped +-1 (FIGHT -> BALL, RUN unreachable by Down); now +-2.
 - gP1 (F, F fight + Esc forfeit) and gP2 (B throw + battle keyboard RUN) added to ship-planet-tests.js.
 - Note: the first F on a villager only loads the ring module (async); the "F AGAIN" ask appears ~100 ms later, so a very fast F,F does nothing.
+
+## fx-fight2: fast F,F + win path + wild creature F
+- Ring modules now preload when a fightable human is in reach (fgPreload via fightLabel); F pressed before load is queued, a second F while queued starts the fight. Fast F,F (80 ms) verified.
+- Win verified by hand (NPC set to 1 stock via `_gb.fightSess.sim`): reward card, +25 gorCoin, onb.won set, back on foot, FOV 55.
+- F within 3 H of a creature opens the battle; FIGHT/BALL by keys, ball miss, "fled" path verified. Real B throw fires but needs the camera facing the creature (not scriptable headless); catch not reproduced by hand in budget (g24 covers it).
+- gP2 now opens the battle via F near a creature (debug `_gb.warpToCreature`/`wildNear` hooks).

@@ -8754,7 +8754,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var FG_TIER = { villager: 1, shopper: 1, clerk: 1, cashier: 1, farmer: 1, kid: 1, trader: 2, dealer: 2, guard: 2, elder: 3, golum: 3 };      // bot difficulty: 1 easy, 2 medium, 3 hard (smash-engine BOT_TIERS)
     var FG_ASK_T = 4;
     var FG_COIN = { farmer: 25, kid: 25, villager: 25, shopper: 25, clerk: 25, cashier: 25, trader: 50, dealer: 50, elder: 100, golum: 100, guard: 100 };
+    function fgPreload() {      // load the ring modules as soon as a fightable human is in reach, so the first F shows the ask at once and a fast F,F starts the fight
+        if (FG.mod || FG.loading) return; FG.loading = true;
+        Promise.all([import('./smash-world.js'), import('./pokemans-fighter.js')]).then(function (ms) {
+            FG.mod = ms[0]; FG.px = ms[1]; FG.loading = false;
+            if (FG.pend && !FG.on && !FG.ask) { if (FG.pendGo && FG.pendFt && gmode === 'foot') fightStart(FG.pendFt); else { FG.ask = { id: FG.pend, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 }); } } FG.pend = null; FG.pendGo = false; FG.pendFt = null;
+        }).catch(function (e) { FG.loading = false; console.info('[ship] fight module unavailable', e); });
+    }
     function fightLabel(id, talk) {
+        if (!FG.mod && !FG.loading && gmode === 'foot') fgPreload();
         var c = FG.cd[id]; if (c && Date.now() < c) return talk;
         if (FG.ask && FG.ask.id === id && FG.ask.t > 0) return 'FIGHT? F AGAIN ' + ['◔', '◑', '◕', '●'][clamp(Math.floor((1 - FG.ask.t / FG_ASK_T) * 4), 0, 3)] + ' ' + Math.ceil(FG.ask.t) + ' · ' + talk;
         return 'F · FIGHT · ' + talk;
@@ -8768,9 +8776,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return { id: id, name: String(ft.kind === 'clerk' ? (oc.name || clerkName(o)) : (oc.name || ft.kind.toUpperCase())), role: String(ft.kind === 'clerk' ? 'cashier' : (oc.role || ft.kind)), seed: oc.seed != null ? oc.seed : fnv(id), pos: pos };
     }
     function fightAsk(ft) {
-        if (FG.on || FG.loading || hum.air || gmode !== 'foot' || !ps || ps.active !== land.node) return;
+        if (FG.on || hum.air || gmode !== 'foot' || !ps || ps.active !== land.node) return;
         var id = String((ft.obj && (ft.obj.id || ft.obj.name)) || ft.kind), c = FG.cd[id];
-        if (!FG.mod && !FG.loading) { FG.loading = true; Promise.all([import('./smash-world.js'), import('./pokemans-fighter.js')]).then(function (ms) { var m = ms[0]; FG.mod = m; FG.px = ms[1]; FG.loading = false; if (!FG.on && !FG.ask) { FG.ask = { id: id, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 }); } }).catch(function (e) { FG.loading = false; console.info('[ship] fight module unavailable', e); }); addRow('', '', 'loading the ring...', 'is-sys'); return; }
+        if (!FG.mod) { FG.pendGo = FG.pend === id; FG.pend = id; FG.pendFt = ft; fgPreload(); if (FG.loading) addRow('', '', 'loading the ring...', 'is-sys'); return; }      // F pressed before the preload finished: the ask opens the instant it does
         if (c && Date.now() < c) { addRow('', '', 'they are catching their breath · ' + Math.ceil((c - Date.now()) / 1000) + ' s', 'is-sys'); return; }
         if (FG.ask && FG.ask.id === id && FG.ask.t > 0) { FG.ask = null; fightStart(ft); return; }
         FG.ask = { id: id, t: FG_ASK_T }; aPlay('ui', { vel: 0.6 });
@@ -10976,7 +10984,8 @@ setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: p
         get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
         land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyZ: onKeyZ, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
-        _gb: { GB: GB, throwBall: gbThrow, battle: function (opt) { opt = opt || {}; var nm, pf = ensureProfile(userName()); if (!opt.dbg && !opt.target) { var cl = creatList(); opt.target = cl[0]; } opt.dbg = !opt.target; if (opt.dbg) { var sp = PKG.species('dbg' + (opt.sp || ''), opt.kind || 'grazer', { biome: opt.biome || 'lush', tier: opt.tier || 1 }), ind = PKG.individual(sp, 'dbg' + (opt.seed || 1)); opt.mon = PKC.makeMon(sp, ind, opt.wildLevel || 4, PKG.xpForLevel(opt.wildLevel || 4), String(land.node ? land.node.id : 'dbg')); } return battleBegin(null, opt.target || null, opt); }, get battleCtrl() { return BT.ctrl; }, get battleOn() { return BT.on; }, get hint() { return gbHintText; }, calm: function () { return ps; } },
+        _gb: { GB: GB, get fightSess() { return FG.sess; }, get party() { return ptMon ? ptMon() : null; }, wildNear: function (k) { var l = creatList(); return l.slice(0, 40).map(function (c) { return { id: c.id, kind: c.kind, d: c.lp.distanceTo(hum.pos) / hOf(L) }; }).sort(function (x, y) { return x.d - y.d; }).slice(0, k || 3); },
+            warpToCreature: function (id, back) { var l = creatList(), c = l.filter(function (q) { return q.id === id; })[0]; if (!c || gmode !== 'foot' || !hum.obj) return false; var H = hOf(L), tmp = c.lp.clone().normalize(); hum.pos.copy(c.lp).multiplyScalar(1 + (back || 2) * H / c.lp.length()); hum.hr = hum.gr = hum.vh = hum.pos.length(); hum.air = true; hum.vv = 0; camRelInit = false; return true; }, throwBall: gbThrow, battle: function (opt) { opt = opt || {}; var nm, pf = ensureProfile(userName()); if (!opt.dbg && !opt.target) { var cl = creatList(); opt.target = cl[0]; } opt.dbg = !opt.target; if (opt.dbg) { var sp = PKG.species('dbg' + (opt.sp || ''), opt.kind || 'grazer', { biome: opt.biome || 'lush', tier: opt.tier || 1 }), ind = PKG.individual(sp, 'dbg' + (opt.seed || 1)); opt.mon = PKC.makeMon(sp, ind, opt.wildLevel || 4, PKG.xpForLevel(opt.wildLevel || 4), String(land.node ? land.node.id : 'dbg')); } return battleBegin(null, opt.target || null, opt); }, get battleCtrl() { return BT.ctrl; }, get battleOn() { return BT.on; }, get hint() { return gbHintText; }, calm: function () { return ps; } },
         _g: { G_WALK: G_WALK, G_RUN: G_RUN, hOf: hOf, hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
         get stats() { return { hp: hp, wave: shownWave(), bossPhase: (api.boss || { bphase: 0 }).bphase, boss: (api.boss || { hp: 0 }).hp, bossMax: (api.boss || { maxHp: 0 }).maxHp, allies: allies.filter(function (a) { return a.alive; }).length, kills: kills, enemies: aliveCount(), L: L, dead: dead, gt: gt }; }
     };

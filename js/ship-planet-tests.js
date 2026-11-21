@@ -1478,7 +1478,8 @@ async function gP1(T, o) {
     for (i = 0; i < 400 && !document.body.classList.contains('sh-fight'); i++) { T.step(1); if (i % 20 === 0) await T.pause(); }      // the ring module loads async
     out.started = document.body.classList.contains('sh-fight');
     for (i = 0; i < 60; i++) { T.kd(i % 2 ? 'KeyJ' : 'KeyD'); T.step(3); T.ku(i % 2 ? 'KeyJ' : 'KeyD'); }
-    T.kd('Escape'); T.ku('Escape'); T.step(120);      // forfeit: the camera eases back over 0.4 s
+    T.kd('Escape'); T.ku('Escape'); for (i = 0; i < 30 && document.body.classList.contains('sh-fight'); i++) { T.step(10); await new Promise(function (r) { setTimeout(r, 50); }); }      // forfeit (a KO result may be showing: Esc still ends it)
+    T.step(60);      // forfeit: the camera eases back over 0.4 s
     out.ended = !document.body.classList.contains('sh-fight'); out.gmode = ship.gmode; out.fov = +T.engine.camera.fov.toFixed(2); out.fov0 = +fov0.toFixed(2);
     out.pass = !!(out.started && out.ended && out.gmode === 'foot' && Math.abs(out.fov - 55) < 0.5);
     return out;
@@ -1491,14 +1492,17 @@ async function gP2(T, o) {
     T.kd('KeyB'); T.step(10); T.ku('KeyB'); T.step(2);      // hold + release = throw (a ball in flight, one fewer in the bag)
     var n1 = ship.dbg.profile().items.filter(function (i) { return /gorball/.test(i.id); }).reduce(function (a, i) { return a + i.n; }, 0);
     out.thrown = n1 === n0 - 1; T.step(200);
-    ship._gb.battle({ dbg: true, wildLevel: 3, seed: 2 }); await T.pause(); await new Promise(function (r) { setTimeout(r, 800); });
+    for (var wa = 0; wa < 8 && ship.footTarget().kind !== 'wild'; wa++) { var wc = ship._gb.wildNear(1)[0]; if (!wc) break; ship._gb.warpToCreature(wc.id, 1); T.step(8); await new Promise(function (r) { setTimeout(r, 120); }); }
+    out.wildPrompt = ship.footTarget().kind === 'wild';
+    if (out.wildPrompt) { T.kd('KeyF'); T.ku('KeyF'); } else ship._gb.battle({ dbg: true, wildLevel: 3, seed: 2 });      // the real F-near-a-creature path; the debug battle only if no creature could be reached
+    await T.pause(); await new Promise(function (r) { setTimeout(r, 800); });
     out.opened = ship._gb.battleOn && !!document.getElementById('pkb');
     for (var w = 0; w < 40 && !document.querySelector('#pkb .pkb-b'); w++) await new Promise(function (r) { setTimeout(r, 100); });      // intro text first, then the menu
     T.kd('ArrowDown'); T.ku('ArrowDown');      // 2-column grid: down from FIGHT = RUN
-    var sel = document.querySelector('#pkb .is-sel'); out.sel = sel && sel.textContent;
+    var sel = document.querySelector('#pkb .is-sel'); out.sel = sel && sel.textContent; out.pkb = (document.getElementById('pkb') || {}).innerText;
     T.kd('Enter'); T.ku('Enter'); await new Promise(function (r) { setTimeout(r, 2800); });
     out.closed = !ship._gb.battleOn && !document.getElementById('pkb');
-    out.pass = !!(out.thrown && out.opened && /RUN/.test(out.sel || '') && out.closed);
+    out.pass = !!(out.thrown && out.opened && out.wildPrompt && /RUN/.test(out.sel || '') && out.closed);
     return out;
 }
-export var gpTests = { gP1: gP1, gP2: gP2 };
+export var gpTests = { gP1: gP1, gP2: gP2, gpFoot: gpFoot, mk: mk };
