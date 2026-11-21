@@ -2819,18 +2819,19 @@ import * as GL from './galaxy-layout.js';
     function makeLookPass(PassBase, FSQuad) {
         var pass = new PassBase();
         pass.material = new THREE.ShaderMaterial({
-            uniforms: { tDiffuse: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uAmt: { value: 0 }, uTime: { value: 0 }, uFar1: { value: 1e6 }, uFocus: { value: 100 } },
+            uniforms: { tDiffuse: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uAmt: { value: 0 }, uTime: { value: 0 }, uFar1: { value: 1e6 }, uFocus: { value: 100 }, uDbg: { value: 0 }, uBlur: { value: 0 } },
             vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }',
             fragmentShader: [
-                'uniform sampler2D tDiffuse; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uAmt, uTime, uFar1, uFocus; varying vec2 vUv;',
+                'uniform sampler2D tDiffuse; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uAmt, uTime, uFar1, uFocus, uDbg, uBlur; varying vec2 vUv;',
                 'float wOf(vec2 uv){ return pow(uFar1, texture2D(tDepth, uv).x) - 1.0; }',   // three's log depth: gl_FragDepth = log2(1 + w) / log2(far + 1)
                 'float h21(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }',
                 'void main(){',
                 '  vec2 px = 1.0 / uRes; vec2 uv = vUv; vec2 d = uv - vec2(0.5, 0.42);',
                 // depth-aware DoF: only pixels beyond the focus distance (far ground, sky) blur, and near opaque taps never bleed into them
                 '  float w0 = wOf(uv);',
+                '  if (uDbg > 0.5) { gl_FragColor = vec4(w0, texture2D(tDepth, uv).x, 0.0, 1.0); return; }',
                 '  float coc = smoothstep(uFocus, uFocus * 5.0, w0);',
-                '  float rad = coc * uAmt * 5.0 * (uRes.y / 900.0);',
+                '  float rad = coc * uAmt * uBlur * 5.0 * (uRes.y / 900.0);',
                 '  vec4 c = texture2D(tDiffuse, uv);',
                 '  if (rad > 0.5) {',
                 '    vec4 acc = c; float wsum = 1.0;',
@@ -2856,8 +2857,14 @@ import * as GL from './galaxy-layout.js';
         pass.render = function (r, writeBuffer, readBuffer) {
             var u = this.material.uniforms;
             u.tDiffuse.value = readBuffer.texture;
-            u.tDepth.value = lookDepth; u.uFar1.value = camera.far + 1; u.uFocus.value = lookFocus;
+            u.tDepth.value = lookDepth; u.uFar1.value = camera.far + 1; u.uFocus.value = lookFocus; u.uBlur.value = window.EMGOR_DOF ? 1 : 0;   // far blur is OFF by default (set window.EMGOR_DOF = 1 to try it); vignette + grain + black lift stay
             u.uRes.value.set(readBuffer.width, readBuffer.height);
+            if (window.__dbgDepth) {      // debug: window.__dbgDepth = [fx, fy] -> window.__dbgDepthRes = { w (world dist), d (raw depth) } at that screen fraction
+                var rt = new THREE.WebGLRenderTarget(readBuffer.width, readBuffer.height, { type: THREE.FloatType }), px = new Float32Array(4);
+                u.uDbg.value = 1; r.setRenderTarget(rt); this.fsQuad.render(r);
+                r.readRenderTargetPixels(rt, Math.floor(window.__dbgDepth[0] * rt.width), Math.floor(window.__dbgDepth[1] * rt.height), 1, 1, px);
+                window.__dbgDepthRes = { w: px[0], d: px[1] }; u.uDbg.value = 0; rt.dispose(); window.__dbgDepth = null;
+            }
             r.setRenderTarget(this.renderToScreen ? null : writeBuffer);
             if (this.clear) r.clear();
             this.fsQuad.render(r);

@@ -2645,7 +2645,7 @@ export function createPlanetSurface(engine, L) {
         rainN = Math.floor(a.rainN * Math.min(1, wxI.storm * eff * 1.05));
         a.rain.geometry.setDrawRange(0, rainN * 2);
         if (rainN > 0) {
-            var ru = a.rainU; ru.uUp.value.copy(tmpV); ru.uRt.value.copy(wxRt); ru.uFw.value.copy(wxFw); ru.uWind.value.copy(ps.wind); ru.uAlpha.value = 0.55 * Math.min(1, wxI.storm * eff);
+            var ru = a.rainU; ru.uUp.value.copy(tmpV); ru.uRt.value.copy(wxRt); ru.uFw.value.copy(wxFw); ru.uWind.value.copy(ps.wind); ru.uAlpha.value = 0.3 * Math.min(1, wxI.storm * eff);
         }
         // aurora: a curtain over the pole, night side only (a forced aurora shows regardless of the sun)
         var nightK = wxForce === 'aurora' ? 1 : smoothstep(0.35, 0.85, 1 - sunTerm);
