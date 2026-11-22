@@ -120,3 +120,5 @@ Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batc
 - [x] A12 (own pass, landed only) Post folded into OutputPass: vignette, grain, violet black lift, split-tone
 - [ ] A13 Delete list: ground noise, accent trees, mushroom/palm, slab rocks, day stars, slope grey, terra speckle, 1 hut template, day torches
 - [ ] A14 Night pass: indigo sky, cool moon key, bio on accent only, fireflies 400 -> 120
+- [ ] Q62 Ship renders ghosted/blown-out white on foot ONLY after a harness-driven landing (T.hoverAt + Z, seen at 52853c3 and def4216); normal Z landing is fine (look3-foot-ship.jpg). Find the state the harness leaves (landing glow / thruster emissive / vertex colour > 1.15 in ship-parts.js) and clamp it; add a g-test that reads a ship pixel luminance after landing.
+- [ ] Q63 Far-blur DoF is off by default (window.EMGOR_DOF=1 enables). Re-enable once Q62 is understood; the "blurry" look currently comes from vignette + grain + black lift only.
