@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "name": "ofp_probe",
+  "title": "OP FREAK measurement overlay (probe)",
+  "version": "0.1",
+  "status": "experimental",
+  "status_note": "built and host-tested only; never run on a device",
+  "firmware": {
+    "R246": "c5315218f825f143b415ca554516541898abee843d3a236df0b54c04e1fb13a9"
+  },
+  "sdk": 1,
+  "prefix": "ofp_",
+  "summary": "Full-screen measurement overlay, off by default, toggled by shift + speech: CPU % (idle thread, now + peak), audio ISR busy % and per-block worst case, late / hot block counters, USB to-host ring fill / underrun / overrun / drift, TLSF + VDK heap free, flash free, tape yaffs write stalls. Also shows the raw volume-knob byte and the accelerometer words.",
+  "license": "MIT",
+  "authors": [
+    "Emory Smith (EMGOR)"
+  ],
+  "docs": "README.md",
+  "sources": [
+    "ofp_probe.c",
+    "ofp_core.c"
+  ],
+  "libs": [
+    "gfx"
+  ],
+  "shared": [
+    {
+      "point": "on_key",
+      "fn": "ofp_key",
+      "mode": "filter"
+    },
+    {
+      "point": "frame",
+      "fn": "ofp_frame"
+    }
+  ],
+  "hooks": {
+    "pointers": [
+      {
+        "addr": "0x01911b98",
+        "expect": "0x01a5e240",
+        "c": "ofp_idle_run",
+        "what": "kTE_Idle vtable run slot: remember the idle thread (VDK run-cycle statistics)"
+      }
+    ],
+    "call_sites": [
+      {
+        "site": "0x01a5482e",
+        "expect": "0x01a9a0e4",
+        "c": "ofp_tape_pre",
+        "what": "tape_c::service: lseek before the clip write (start stamp)"
+      },
+      {
+        "site": "0x01a54842",
+        "expect": "0x01a99f84",
+        "c": "ofp_tape_post",
+        "after": true,
+        "what": "tape_c::service: yaffs_write of a dirty clip returned (end stamp)"
+      }
+    ]
+  },
+  "controls": [
+    "shift + speech: off -> page 1 -> page 2 -> off (opening resets counters)"
+  ],
+  "tests": [
+    "test_core.c"
+  ],
+  "depends": [
+    "ofp_audio"
+  ],
+  "conflicts": [
+    "meminfo"
+  ],
+  "claims": [
+    {
+      "input": "speech_press",
+      "shift": "yes",
+      "screen": "any"
+    }
+  ]
+}

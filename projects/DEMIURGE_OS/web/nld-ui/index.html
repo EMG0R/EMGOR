@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0d0618">
+<title>nonlinear daylight</title>
+<link rel="stylesheet" href="nld.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>nonlinear daylight</h1>
+    <button id="active" type="button" aria-live="polite" title="tap to refresh"><span id="lang">no engine data</span><i id="dot"></i></button>
+  </header>
+  <section id="sliders">
+    <div class="sl" data-name="density" role="slider" aria-label="density" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.35" tabindex="0">
+      <div class="fill"></div><label>density</label><output>0.35</output>
+    </div>
+    <div class="sl" data-name="tone" role="slider" aria-label="tone" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.45" tabindex="0">
+      <div class="fill"></div><label>tone</label><output>0.45</output>
+    </div>
+    <div class="sl" data-name="length" role="slider" aria-label="length" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.5" tabindex="0">
+      <div class="fill"></div><label>length</label><output>0.50</output>
+    </div>
+  </section>
+  <footer id="status">starting</footer>
+</main>
+<script src="nld.js"></script>
+</body>
+</html>

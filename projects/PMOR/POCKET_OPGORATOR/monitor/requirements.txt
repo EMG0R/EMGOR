@@ -1,0 +1,12 @@
+sounddevice>=0.4.6
+python-rtmidi>=1.5.8
+pygame>=2.5.0
+numpy>=1.24
+pyserial>=3.5
+# Needed only for programmatic macOS Aggregate Device creation
+# (aggregate_device.py) -- AudioHardwareCreateAggregateDevice's
+# CFDictionaryRef description is built as a plain Python dict, which
+# pyobjc bridges to NSDictionary/CFDictionary automatically.
+pyobjc-core>=10.0; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=10.0; sys_platform == "darwin"
+pyobjc-framework-CoreAudio>=10.0; sys_platform == "darwin"

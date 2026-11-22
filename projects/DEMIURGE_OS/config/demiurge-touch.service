@@ -1,0 +1,25 @@
+[Unit]
+Description=DEMIURGE touchscreen -> MIDI CC daemon (utility channel, Midi Through pool)
+# Needs the ALSA seq layer (Midi Through) up; after demiurge so the pool wiring
+# pass has run. Deliberately NOT PartOf=demiurge.service: touch input keeps
+# working across audio-stack restarts (same reasoning as the arcade supervisor).
+After=sound.target demiurge.service
+
+[Service]
+Type=simple
+User=gorpi7
+Group=gorpi7
+SupplementaryGroups=input audio
+Environment=HOME=/home/gorpi7
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 /opt/demiurge/bin/demiurge-touch --daemon
+# touch = off in live.conf -> the daemon exits 0 and the unit goes inactive
+# cleanly (same self-gate pattern as demiurge-ui-launch.sh / ui = off).
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

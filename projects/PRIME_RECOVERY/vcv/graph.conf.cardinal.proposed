@@ -1,0 +1,11 @@
+# PROPOSED additions for ~/demiurge/graph.conf -- NOT APPLIED.
+# Format is the launcher's own (src/graph.rs read_graph_overrides): one `connect = src -> dst` per line.
+# Why graph.conf: the launcher's scrub_hw_playback() deletes any link into a HAT playback port that is
+# not in `desired`; graph.conf entries are merged into `desired` and re-asserted with pw_link on every
+# graph pass, so (1) the link survives scrubs, (2) it is re-made after a HAT stream reset, (3) a missing
+# port (Cardinal not running) is a silent no-op. Additive only; no csound6 link is touched.
+# PORT NAMES ARE A GUESS until first launch (DPF JACK standalone names: audio-out1, audio-out2; client
+# "Cardinal"). Verify with `pw-link -o | grep -i cardinal` and fix before appending.
+# csound6:output1/2 -> AUX0/AUX1 already exist; PipeWire sums multiple sources into one playback port.
+connect = Cardinal:audio-out1 -> alsa_output.platform-soc_107c000000_sound.pro-output-0:playback_AUX0
+connect = Cardinal:audio-out2 -> alsa_output.platform-soc_107c000000_sound.pro-output-0:playback_AUX1

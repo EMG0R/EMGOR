@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# ui-release — stop the face UI so it RELEASES the screen for RetroArch.
+#
+# The Kivy UI (neptr-ui.service) is SDL2-KMSDRM and holds DRM master via a direct
+# /dev/dri/card1 open with NO VT/seat — so it can't be pried off the panel while
+# alive (a frozen UI keeps master and RetroArch's modeset fails). Stopping the
+# service closes the DRM fd and frees the CRTC; RetroArch then becomes master and
+# its KMS modeset succeeds (verified in the TESTING_GROUND sandbox 2026-06-15).
+#
+# Trade-off vs a true freeze: the UI's in-memory frame (the exact face) is lost on
+# restart, but it's an OSC-driven read-only mirror, so menu/effect state is
+# rebuilt from the engine's OSC. (Upgrade path: have the UI cooperatively
+# drmDropMaster on a signal — then it could be SIGSTOP-paused like the audio.)
+#
+# Needs root (system unit). Try direct, then sudo -n.
+set -uo pipefail
+UNIT="neptr-ui.service"
+systemctl is-active --quiet "$UNIT" 2>/dev/null || { echo "[ui-release] $UNIT not active — skip"; exit 0; }
+if systemctl stop "$UNIT" 2>/dev/null || sudo -n systemctl stop "$UNIT" 2>/dev/null; then
+  echo "[ui-release] $UNIT stopped (screen released)"
+else
+  echo "[ui-release] FAILED to stop $UNIT (need root / NOPASSWD)" >&2
+  exit 1
+fi

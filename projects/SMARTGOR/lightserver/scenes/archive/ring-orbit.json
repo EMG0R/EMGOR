@@ -1,0 +1,52 @@
+{
+  "name": "ring-orbit",
+  "_comment": [
+    "Boot-default ring scene (1920px closed loop). Chill: the whole ring",
+    "breathes between dark purple and violet, each area gently shifting,",
+    "while one ~10-LED orb with soft gaussian edges orbits the full 360",
+    "degrees once every 15 seconds (1920px / 15s = 128 px/s), crossing",
+    "strip boundaries and the ring seam seamlessly (physics wrap=true;",
+    "wave wavelengths divide 1920 so they tile the loop)."
+  ],
+  "master": {
+    "brightness": 0.85,
+    "tone_map": "reinhard",
+    "strobe": {"mode": "pulse", "rate_hz": 0.045, "depth": 0.3}
+  },
+  "layers": [
+    {
+      "type": "gradient",
+      "blend": "add",
+      "opacity": 1.0,
+      "palette": ["#1a0433", "#2a0a52", "#43137a", "#301060", "#22084a",
+                  "#3a1270", "#2a0a52", "#1a0433"],
+      "scale": 1920,
+      "scroll_speed": 9,
+      "brightness": 0.5
+    },
+    {
+      "type": "wave",
+      "blend": "add",
+      "opacity": 0.35,
+      "waves": [
+        {"wavelength": 960, "speed": 11, "amplitude": 0.6},
+        {"wavelength": 640, "speed": -7, "amplitude": 0.4}
+      ],
+      "palette": ["#12042a", "#2c0e5e", "#4a1f92", "#2c0e5e", "#12042a"],
+      "bias": 0.05
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "opacity": 1.0,
+      "decay": 0.55,
+      "physics": {"wrap": true, "damping": 0.0,
+                  "bounce": {"enabled": false}},
+      "particles": [
+        {"pos": 0, "vel": 128, "color": "#c08aff", "size": 2.2,
+         "lifetime": null}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": false}
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+seconds 2.0
+smp_fill 0 60000
+set smp.slot.0.pitch -0.5
+set smp.slot.0.formant 0.6
+set smp.slot.0.cutoff 0.4
+set smp.slot.0.reverse 0
+at 0 smp 0 1.0

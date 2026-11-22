@@ -1,0 +1,67 @@
+// fx_shifter_core.h -- shared pitch-synchronous time-domain pitch shifter for HYPERTRUMPET V2 (harm + mood). NEW 2026-11-15.
+// Method: one shared input delay line feeds N voices. Each voice = two crossfading Hermite read heads whose delay drifts
+// at (1 - ratio) samples/sample inside a grain window [DMIN, DMIN+G]; at the window edge (weight 0) the head jumps by G.
+// G = 2*M*period (period from the tracker, ctx.f0) so the two heads are an integer number of periods apart and the jump
+// is waveform-coherent (SOLAD / dual-delay-line shifting); unvoiced fallback G = 24 ms. Window = smoothstep triangle
+// (complementary: w(p)+w(p+1/2)=1), normalised by the actual weight sum when grain lengths differ during pitch moves.
+// Written from scratch for this library. The old hyperGuitar SOLAD/PSOLA code (HYPER_CORE/src/dsp/hg/shifter.cpp) is
+// tightly coupled to Bela globals; it was read for ideas only, nothing is copied.
+// Latency: mean read delay = DMIN + G/2 ~ 10..13 ms. Range: ratio 0.25..4 (+-24 st).
+// Ops/sample per active voice (hand count): 2 Hermite reads (~22 flops each) + 2 windows/wrap tests (~14) + norm (~6) + lp (2) ~ 70.
+#pragma once
+#include "fx_common.h"
+namespace hx {
+
+struct ShifterCore {
+    static constexpr float DMIN = 4.f;
+    static constexpr float GMIN = 256.f, GMAX = 1400.f, GFALL = 1152.f;
+    DelayLine dl;
+    float Gt = GFALL, Gs = GFALL;      // target grain (samples), slow-smoothed copy
+
+    bool init(Arena& a) { return dl.init(a, 1600); }
+    inline void write(float x) { dl.write(x); }
+
+    // per-block: derive grain length from the tracker (period-synchronous). Call once per block.
+    // Period source (EMGOR decision 2026-11-15): tracked f0 when the tracker is confident, else the valve pitch hint (3 Hall valves + partial
+    // estimate, ctx.valvePitchHz), else the 24 ms unvoiced fallback. `src` records which one was taken (tests, meters).
+    int src = 0;                       // 0 fallback, 1 tracked, 2 valve hint
+    void setPitch(float f0, float conf, float sr, float valveHz = 0.f) {
+        float g = GFALL * (sr / 48000.f);
+        src = 0;
+        if (!(f0 > 70.f && f0 < 1600.f && conf > 0.4f) && valveHz > 70.f && valveHz < 1600.f) { f0 = valveHz; conf = 1.f; src = 2; }
+        else if (f0 > 70.f && f0 < 1600.f && conf > 0.4f) src = 1;
+        if (src) {
+            float P = sr / f0; float M = floorf(0.010f * sr / P + 0.5f); if (M < 1.f) M = 1.f;
+            g = 2.f * M * P;
+        }
+        g = clampf(g, GMIN, GMAX);
+        Gs += (g - Gs) * 0.5f; Gt = Gs;                                  // light smoothing of tracker jitter
+    }
+};
+
+struct ShVoice {
+    float d[2] = {0.f, 0.f}, G[2] = {ShifterCore::GFALL, ShifterCore::GFALL};
+    float lp = 0.f;
+    void reset(float g = ShifterCore::GFALL) { G[0] = G[1] = g; d[0] = ShifterCore::DMIN + 0.25f * g; d[1] = ShifterCore::DMIN + 0.75f * g; lp = 0.f; }
+
+    static inline float win(float p) { float q = p < 0.5f ? 2.f * p : 2.f - 2.f * p; q = q < 0.f ? 0.f : (q > 1.f ? 1.f : q); return q * q * (3.f - 2.f * q); }
+
+    // one output sample at pitch ratio r (read AFTER the input sample was written to the core)
+    inline float tick(const ShifterCore& c, float r) {
+        const float step = 1.f - r, dmin = ShifterCore::DMIN;
+        float y[2], w[2];
+        for (int k = 0; k < 2; k++) {
+            float dd = d[k] + step;
+            if (dd > dmin + G[k]) { dd -= G[k]; G[k] = c.Gt; }
+            else if (dd < dmin)   { G[k] = c.Gt; dd += G[k]; }
+            d[k] = dd;
+            float p = (dd - dmin) / G[k];
+            w[k] = win(p);
+            y[k] = c.dl.read(dd);
+        }
+        float s = w[0] + w[1]; if (s < 0.3f) s = 0.3f;
+        return (w[0] * y[0] + w[1] * y[1]) / s;
+    }
+};
+
+} // namespace hx

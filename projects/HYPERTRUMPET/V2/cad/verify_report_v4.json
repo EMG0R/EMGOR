@@ -1,0 +1,1023 @@
+{
+ "parts": {
+  "battery_door_v4": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 15.25,
+   "bbox_mm": [
+    132.0,
+    71.0,
+    21.4
+   ],
+   "fits_bed_256": true
+  },
+  "mount_original_arms_plate_v4": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 250.71,
+   "bbox_mm": [
+    220.0,
+    59.6,
+    137.6
+   ],
+   "fits_bed_256": true
+  },
+  "shell_pebble_v4": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 357.52,
+   "bbox_mm": [
+    177.9,
+    89.0,
+    196.8
+   ],
+   "fits_bed_256": true
+  },
+  "valve_cap_v4": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 1.88,
+   "bbox_mm": [
+    22.6,
+    22.6,
+    11.6
+   ],
+   "fits_bed_256": true
+  }
+ },
+ "hole_table": [
+  {
+   "control": "trellis_00",
+   "spec_centre": [
+    830.6,
+    67.6
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    830.65,
+    67.55
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    825.15,
+    836.15
+   ],
+   "z_edges": [
+    62.0,
+    73.1
+   ]
+  },
+  {
+   "control": "trellis_01",
+   "spec_centre": [
+    830.6,
+    82.7
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    830.65,
+    82.65
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    825.15,
+    836.15
+   ],
+   "z_edges": [
+    77.1,
+    88.2
+   ]
+  },
+  {
+   "control": "trellis_02",
+   "spec_centre": [
+    830.6,
+    97.7
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    830.65,
+    97.65
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    825.15,
+    836.15
+   ],
+   "z_edges": [
+    92.1,
+    103.2
+   ]
+  },
+  {
+   "control": "trellis_03",
+   "spec_centre": [
+    830.6,
+    112.8
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    830.65,
+    112.75
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    825.15,
+    836.15
+   ],
+   "z_edges": [
+    107.2,
+    118.3
+   ]
+  },
+  {
+   "control": "trellis_10",
+   "spec_centre": [
+    845.6,
+    67.6
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    845.65,
+    67.55
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    840.15,
+    851.15
+   ],
+   "z_edges": [
+    62.0,
+    73.1
+   ]
+  },
+  {
+   "control": "trellis_11",
+   "spec_centre": [
+    845.6,
+    82.7
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    845.6,
+    82.7
+   ],
+   "size": [
+    11.1,
+    11.0
+   ],
+   "x_edges": [
+    840.05,
+    851.15
+   ],
+   "z_edges": [
+    77.2,
+    88.2
+   ]
+  },
+  {
+   "control": "trellis_12",
+   "spec_centre": [
+    845.6,
+    97.7
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    845.65,
+    97.65
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    840.15,
+    851.15
+   ],
+   "z_edges": [
+    92.1,
+    103.2
+   ]
+  },
+  {
+   "control": "trellis_13",
+   "spec_centre": [
+    845.6,
+    112.8
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    845.6,
+    112.8
+   ],
+   "size": [
+    11.1,
+    11.0
+   ],
+   "x_edges": [
+    840.05,
+    851.15
+   ],
+   "z_edges": [
+    107.3,
+    118.3
+   ]
+  },
+  {
+   "control": "trellis_20",
+   "spec_centre": [
+    860.7,
+    67.6
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    860.75,
+    67.55
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    855.25,
+    866.25
+   ],
+   "z_edges": [
+    62.0,
+    73.1
+   ]
+  },
+  {
+   "control": "trellis_21",
+   "spec_centre": [
+    860.7,
+    82.7
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    860.75,
+    82.65
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    855.25,
+    866.25
+   ],
+   "z_edges": [
+    77.1,
+    88.2
+   ]
+  },
+  {
+   "control": "trellis_22",
+   "spec_centre": [
+    860.7,
+    97.7
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    860.75,
+    97.65
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    855.25,
+    866.25
+   ],
+   "z_edges": [
+    92.1,
+    103.2
+   ]
+  },
+  {
+   "control": "trellis_23",
+   "spec_centre": [
+    860.7,
+    112.8
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    860.75,
+    112.75
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    855.25,
+    866.25
+   ],
+   "z_edges": [
+    107.2,
+    118.3
+   ]
+  },
+  {
+   "control": "trellis_30",
+   "spec_centre": [
+    875.7,
+    67.6
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    875.75,
+    67.55
+   ],
+   "size": [
+    11.0,
+    11.1
+   ],
+   "x_edges": [
+    870.25,
+    881.25
+   ],
+   "z_edges": [
+    62.0,
+    73.1
+   ]
+  },
+  {
+   "control": "trellis_31",
+   "spec_centre": [
+    875.7,
+    82.7
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    875.7,
+    82.7
+   ],
+   "size": [
+    11.1,
+    11.0
+   ],
+   "x_edges": [
+    870.15,
+    881.25
+   ],
+   "z_edges": [
+    77.2,
+    88.2
+   ]
+  },
+  {
+   "control": "trellis_32",
+   "spec_centre": [
+    875.7,
+    97.7
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    875.7,
+    97.65
+   ],
+   "size": [
+    11.1,
+    11.1
+   ],
+   "x_edges": [
+    870.15,
+    881.25
+   ],
+   "z_edges": [
+    92.1,
+    103.2
+   ]
+  },
+  {
+   "control": "trellis_33",
+   "spec_centre": [
+    875.7,
+    112.8
+   ],
+   "spec_size": [
+    11.0,
+    11.1
+   ],
+   "centre": [
+    875.7,
+    112.8
+   ],
+   "size": [
+    11.1,
+    11.0
+   ],
+   "x_edges": [
+    870.15,
+    881.25
+   ],
+   "z_edges": [
+    107.3,
+    118.3
+   ]
+  },
+  {
+   "control": "fader_0",
+   "spec_centre": [
+    830.0,
+    12.2
+   ],
+   "spec_size": [
+    5.6,
+    41.0
+   ],
+   "centre": [
+    830.05,
+    12.2
+   ],
+   "size": [
+    5.6,
+    40.9
+   ],
+   "x_edges": [
+    827.25,
+    832.85
+   ],
+   "z_edges": [
+    -8.25,
+    32.65
+   ]
+  },
+  {
+   "control": "fader_1",
+   "spec_centre": [
+    852.7,
+    12.2
+   ],
+   "spec_size": [
+    5.6,
+    41.0
+   ],
+   "centre": [
+    852.7,
+    12.2
+   ],
+   "size": [
+    5.7,
+    40.9
+   ],
+   "x_edges": [
+    849.85,
+    855.55
+   ],
+   "z_edges": [
+    -8.25,
+    32.65
+   ]
+  },
+  {
+   "control": "fader_2",
+   "spec_centre": [
+    875.4,
+    12.2
+   ],
+   "spec_size": [
+    5.6,
+    41.0
+   ],
+   "centre": [
+    875.35,
+    12.2
+   ],
+   "size": [
+    5.6,
+    40.9
+   ],
+   "x_edges": [
+    872.55,
+    878.15
+   ],
+   "z_edges": [
+    -8.25,
+    32.65
+   ]
+  },
+  {
+   "control": "lidar",
+   "spec_centre": [
+    852.7,
+    47.2
+   ],
+   "spec_size": [
+    11.0,
+    8.0
+   ],
+   "centre": [
+    852.7,
+    47.2
+   ],
+   "size": [
+    10.9,
+    7.9
+   ],
+   "x_edges": [
+    847.25,
+    858.15
+   ],
+   "z_edges": [
+    43.25,
+    51.15
+   ]
+  },
+  {
+   "control": "round_0",
+   "spec_centre": [
+    753.7,
+    41.8
+   ],
+   "spec_size": [
+    8.7,
+    8.3
+   ],
+   "centre": [
+    753.7,
+    41.8
+   ],
+   "size": [
+    8.6,
+    8.2
+   ],
+   "x_edges": [
+    749.4,
+    758.0
+   ],
+   "z_edges": [
+    37.7,
+    45.9
+   ]
+  },
+  {
+   "control": "round_1",
+   "spec_centre": [
+    753.7,
+    101.5
+   ],
+   "spec_size": [
+    8.7,
+    8.3
+   ],
+   "centre": [
+    753.7,
+    101.5
+   ],
+   "size": [
+    8.6,
+    8.2
+   ],
+   "x_edges": [
+    749.4,
+    758.0
+   ],
+   "z_edges": [
+    97.4,
+    105.6
+   ]
+  },
+  {
+   "control": "round_2",
+   "spec_centre": [
+    810.7,
+    51.3
+   ],
+   "spec_size": [
+    8.7,
+    8.3
+   ],
+   "centre": [
+    810.7,
+    51.3
+   ],
+   "size": [
+    8.6,
+    8.2
+   ],
+   "x_edges": [
+    806.4,
+    815.0
+   ],
+   "z_edges": [
+    47.2,
+    55.4
+   ]
+  },
+  {
+   "control": "round_3",
+   "spec_centre": [
+    810.7,
+    95.0
+   ],
+   "spec_size": [
+    8.7,
+    8.3
+   ],
+   "centre": [
+    810.7,
+    95.0
+   ],
+   "size": [
+    8.6,
+    8.2
+   ],
+   "x_edges": [
+    806.4,
+    815.0
+   ],
+   "z_edges": [
+    90.9,
+    99.1
+   ]
+  },
+  {
+   "control": "joystick",
+   "spec_centre": [
+    780.7,
+    72.3
+   ],
+   "spec_size": [
+    29.4,
+    28.0
+   ],
+   "centre": [
+    780.7,
+    72.3
+   ],
+   "size": [
+    29.3,
+    27.9
+   ],
+   "x_edges": [
+    766.05,
+    795.35
+   ],
+   "z_edges": [
+    58.35,
+    86.25
+   ]
+  }
+ ],
+ "holes_not_found": [],
+ "hole_max_centre_diff_mm": 0.07,
+ "hole_size_max_diff_mm": 0.1,
+ "fader_outer_span_mm": 50.9,
+ "fader_centre_offset_mm": 0.0,
+ "fader_slot_size_mm": [
+  5.7,
+  40.9
+ ],
+ "lidar_size_mm": [
+  10.9,
+  7.9
+ ],
+ "lidar_far_edge_minus_knob_lower_face_mm": 24.95,
+ "lidar_to_trellis_web_mm": 10.85,
+ "smallest_webs_mm_nominal": [
+  [
+   3.9,
+   "trellis_01",
+   "trellis_02"
+  ],
+  [
+   3.9,
+   "trellis_11",
+   "trellis_12"
+  ],
+  [
+   3.9,
+   "trellis_21",
+   "trellis_22"
+  ],
+  [
+   3.9,
+   "trellis_31",
+   "trellis_32"
+  ],
+  [
+   4.0,
+   "trellis_00",
+   "trellis_10"
+  ],
+  [
+   4.0,
+   "trellis_01",
+   "trellis_11"
+  ]
+ ],
+ "control_face_y_min_max": [
+  567.19,
+  568.441
+ ],
+ "control_face_samples": 12080,
+ "ports": {
+  "usb_c_opening": {
+   "wall": "-x (mouthpiece side)",
+   "wall_outer_x": 738.1,
+   "centre_y": 555.2,
+   "centre_z": 6.0,
+   "opening_y_mm": 7.5,
+   "opening_z_mm": 14.0,
+   "nominal": "13 (z, portrait) x 7.5 (y), stadium r 3.75, 0.5 chamfer",
+   "wall_thickness_next_to_opening_mm": 2.31,
+   "receptacle_mouth_x": 740.7,
+   "seed_board_x": [
+    742.25,
+    793.25
+   ],
+   "seed_z": [
+    -3.0,
+    15.0
+   ],
+   "seed_pcb_top_y": 553.6,
+   "plug_insertion_depth_available_mm": "unlimited through the wall: opening is bigger than the 12 x 6.5 overmold; plug can seat fully (receptacle mouth only 2.6 mm behind the outer wall plane)",
+   "open_to_outside": true
+  },
+  "jack": {
+   "wall": "+x (bell side)",
+   "x_wall": 897.8,
+   "y": 555.2,
+   "z": 6.0,
+   "hole_y_mm": 6.4,
+   "hole_z_mm": 6.3,
+   "open_to_outside": true
+  },
+  "same_y_and_z": true,
+  "ray_along_x_through_pod_hits": 0,
+  "opposite_each_other": true,
+  "mirror_plane_x": 817.9,
+  "fader_centre_x": 852.7,
+  "note": "mirror plane of the two ports is the pod's own centre; the fader plane (852.7) cannot be the mirror plane because the Seed lobe makes the -x wall at fader height sit at x 737.9"
+ },
+ "seed": {
+  "centre": [
+   788.0,
+   6.0
+  ],
+  "vertical": false,
+  "top_z": 15.0,
+  "joystick_hole_bottom_z": 58.35,
+  "gap_mm": 43.35,
+  "x_range": [
+   762.5,
+   813.5
+  ]
+ },
+ "palm_rest": {
+  "x_extent": [
+   766.0,
+   904.0
+  ],
+  "length_mm": 138.0,
+  "pod_bottom_x_extent_hint": [
+   765.0,
+   905.0
+  ],
+  "mirror_centre_x": 835.0,
+  "max_mirror_height_difference_mm": 0.74,
+  "max_y": 583.07,
+  "puff_beyond_face_mm": 14.67,
+  "face_normal_world": [
+   0.0,
+   0.981,
+   -0.194
+  ],
+  "face_direction": "+y (out toward the palm), tilted 11 deg DOWN (-z)"
+ },
+ "shave": {
+  "edge_x_at_fader_height": 897.8,
+  "edge_x_at_trellis": 902.9,
+  "edge_pulled_in_mm": 5.1,
+  "design_pull_in_mm": 3.0
+ },
+ "clearance_to_horn_by_part_mm": {
+  "mount_original_arms_plate_v4": {
+   "casings/caps/stems": -0.91,
+   "bottom caps": 3.49,
+   "slide legs+crowns": -5.86,
+   "finger ring": 11.76,
+   "thumb hook": -1.36,
+   "brace": 58.4,
+   "leadpipe": 3.48,
+   "bell+rim bead": 11.68
+  },
+  "shell_pebble_v4": {
+   "casings/caps/stems": 1.75,
+   "bottom caps": 12.15,
+   "slide legs+crowns": 25.8,
+   "finger ring": 41.71,
+   "thumb hook": 28.69,
+   "brace": 100.11,
+   "leadpipe": 23.48,
+   "bell+rim bead": 246.45
+  },
+  "battery_door_v4": {
+   "casings/caps/stems": 40.65,
+   "bottom caps": 31.67,
+   "slide legs+crowns": 57.29,
+   "finger ring": 86.52,
+   "thumb hook": 139.68,
+   "brace": 114.81,
+   "leadpipe": 130.66,
+   "bell+rim bead": 255.25
+  }
+ },
+ "wrap_to_bell": {},
+ "mic_body_x_crown_mm3": 0.0,
+ "hall_rail": {
+  "pocket_xyz_mm": [
+   82.0,
+   21.0,
+   8.0
+  ],
+  "pocket_x": [
+   809.0,
+   891.0
+  ],
+  "pocket_y": [
+   523.8,
+   544.8
+  ],
+  "pocket_z": [
+   120.9,
+   128.9
+  ],
+  "valve_facing_wall_y": 521.8,
+  "sensor_holes_xz": [
+   [
+    831.2,
+    124.9
+   ],
+   [
+    853.5,
+    124.9
+   ],
+   [
+    875.8,
+    124.9
+   ]
+  ],
+  "sensor_hole_top_z": 128.9,
+  "magnet_to_sensor": {
+   "rest": {
+    "magnet_face_above_sensor_top_mm": 9.8,
+    "sensor_to_magnet_axis_lateral_mm": 12.3,
+    "centre_to_centre_3d_mm": 19.63
+   },
+   "full_press_13.0": {
+    "magnet_face_above_sensor_top_mm": -3.2,
+    "sensor_to_magnet_axis_lateral_mm": 12.3,
+    "centre_to_centre_3d_mm": 12.51
+   },
+   "full_press_13.5": {
+    "magnet_face_above_sensor_top_mm": -3.7,
+    "sensor_to_magnet_axis_lateral_mm": 12.3,
+    "centre_to_centre_3d_mm": 12.43
+   }
+  },
+  "cap_to_rail_min_distance_by_travel_mm": {
+   "0.0": 2.8,
+   "3.0": 1.68,
+   "6.0": 1.06,
+   "9.0": 1.23,
+   "12.0": 1.59,
+   "13.0": 1.42,
+   "13.5": 1.17
+  },
+  "stem_surface_to_rail_wall_mm": 10.3,
+  "top_cap_surface_to_rail_wall_mm": 1.8,
+  "feet_z": [
+   110.6,
+   119.6
+  ]
+ },
+ "mount_cut": {
+  "notch_x": [
+   805.9,
+   894.1
+  ],
+  "notch_y": [
+   519.0,
+   548.0
+  ],
+  "notch_z_from": 116.4,
+  "volume_before_cm3": 250.92,
+  "volume_after_cm3": 250.71,
+  "removed_cm3": 0.21,
+  "bodies_after": 1
+ },
+ "cap_full_press_x_pod_mm3": 0.0,
+ "assembly_intersections_mm3": {
+  "mount_original_arms_plate_v4 x shell_pebble_v4": 0.0,
+  "shell_pebble_v4 x battery_door_v4": 1.23
+ },
+ "facets": {
+  "shell_pebble_v4": {
+   "faces": 236736,
+   "edge_len_mm": {
+    "median": 0.553,
+    "p95": 4.015,
+    "max": 109.502
+   },
+   "chord_error_mm": {
+    "median": 0.003,
+    "p99": 0.0973,
+    "max": 7.2621
+   },
+   "crease_edges_over_35deg": 2149
+  },
+  "battery_door_v4": {
+   "faces": 100000,
+   "edge_len_mm": {
+    "median": 0.834,
+    "p95": 2.173,
+    "max": 5.638
+   },
+   "chord_error_mm": {
+    "median": 0.0004,
+    "p99": 0.0239,
+    "max": 0.271
+   },
+   "crease_edges_over_35deg": 1873
+  },
+  "valve_cap_v4": {
+   "faces": 40000,
+   "edge_len_mm": {
+    "median": 0.184,
+    "p95": 1.219,
+    "max": 8.913
+   },
+   "chord_error_mm": {
+    "median": 0.0026,
+    "p99": 0.0288,
+    "max": 0.3155
+   },
+   "crease_edges_over_35deg": 1081
+  }
+ },
+ "seconds": 9.6
+}

@@ -1,0 +1,70 @@
+{
+ "description": "NEPTR 4.2 housing outer form (analytic). Plan outline C0 = curvature-spline curve (cubic B-spline curvature, G3), mirrored in x; profile = quintic Bezier (G2 into flat top/bottom), inset d(z) applied as exact parallel offset along C0 normal.",
+ "units": "mm",
+ "height": 62.0,
+ "wall": 2.4,
+ "seam_z": 12.4,
+ "floor": 2.4,
+ "D": 25.5,
+ "c0": {
+  "K": 24,
+  "deg": 3,
+  "L": 337.4952512795723,
+  "x1": 73.37332393577293,
+  "yT": 103.45869988918561,
+  "coefs_full": [
+   0.0,
+   0.0,
+   -0.001248899579774832,
+   -0.03703703703703703,
+   -0.03703703703703696,
+   -0.03703703703703703,
+   -0.020750963267615323,
+   0.007483031049347585,
+   0.014461346275091618,
+   0.01075496008631418,
+   0.009567545100292865,
+   0.007742343966060093,
+   0.011903880347861058,
+   -0.011510937575497428,
+   -0.0019719367411074958,
+   -0.03703703604803915,
+   -0.03703703703690976,
+   -0.03703703703683998,
+   -2.797274145157153e-23,
+   -5.6509293410186e-19,
+   -2.47933485361868e-19,
+   -4.4247273074027975e-18,
+   0.0,
+   0.0
+  ],
+  "note": "half curve from top-centre flat (x 0..x1) heading +x, clockwise to bottom-centre; kappa(s)=cubic B-spline (coefs_full, clamped uniform knots on [0,L]); L solved so phi(L)=-pi exactly; x mirrored for the left half"
+ },
+ "profile": {
+  "D": 25.5,
+  "a1": 4.187,
+  "a2": 18.595,
+  "h": 28.989,
+  "c1": 9.398,
+  "c2": 16.15,
+  "note": "quintic Bezier in (d,z): P0=(D,0) P1=(D-a1,0) P2=(D-a2,0) P3=(0,h-c2) P4=(0,h-c1) P5=(0,h); vertical wall h..62-h; top = mirror z->62-z. d = inward offset of the outline."
+ },
+ "mesh": {
+  "dphi_deg": 1.5,
+  "hmax": 1.2,
+  "interior_h": 2.5
+ },
+ "fit": {
+  "outline_vs_old_z30_rms": 0.44,
+  "outline_vs_old_z30_max": 1.51,
+  "profile_vs_old_rms": 0.069,
+  "profile_vs_old_max": 0.3,
+  "surface_3D_nearest_old_to_new_rms": 0.365,
+  "surface_3D_nearest_old_to_new_max": 2.28,
+  "p95": 0.91,
+  "p99": 1.46,
+  "min_convex_outline_radius": 27.0,
+  "flat_edge_corner_radius": 1.5,
+  "note": "old SE corner/ear rings recede faster than a parallel offset (plan-section residual up to 7.5 mm at the SE inner rings, 3D normal distance <= 2.3): not reproduced, the new form uses one parallel-offset family for all four corners"
+ }
+}

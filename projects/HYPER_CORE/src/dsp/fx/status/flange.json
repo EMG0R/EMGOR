@@ -1,0 +1,17 @@
+{
+  "id": "flange",
+  "file": "fx_flanger.h",
+  "roles": {
+    "AMT": "MIX",
+    "TIME": "RATE",
+    "TONE": "OFFSET",
+    "MOD": "DEPTH",
+    "FB": "FB"
+  },
+  "actions": {
+    "CLEAR": "clear delay lines"
+  },
+  "ops_per_sample": "~45 flops per channel: LFO (sinPar ~10 / tri / parabola / random lerp), 1 ms delay slew, 1 Hermite read (~20), feedback write, DC block (~4), mix ramp (~5). Mono-in = 1 channel, stereo-in = 2.",
+  "memory_bytes": 66560,
+  "notes": "Re-implementation of McCurdy Flanger.csd (CC BY-NC-SA 4.0). Thru-zero (default, v1) means MIX=0 outputs the INVERTED dry delayed 1 sample, as in v1; set THRUZ=0 for a plain flanger (MIX=0 = dry). Min loop delay 2 samples (offset 20 us is clamped, as the Csound opcode clamps to 1 sample). fb clamped +-0.95. Mono in -> mono out."
+}

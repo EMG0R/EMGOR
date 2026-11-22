@@ -1,0 +1,2567 @@
+{
+ "version": "4.2-analytic-v2+controls+lidar_mount+enc_n+led_v2_thin_band+lidar_seat+eth_v3+insert_pilots",
+ "units": "mm",
+ "bases": {
+  "dome": "dome_SMOOTH_base_v2",
+  "cap": "cap_SMOOTH_base_v2"
+ },
+ "recipe": "final part = *_SMOOTH_base_v2 (triangulated once), then apply features of that part in ascending order. Booleans: EXACT, use_self=False, use_hole_tolerant=False. Batches: dome [10] [20,30,40] [51,52,53] [45,46 + 54-58 (boss discs first, then holes)] [70,71]; cap [10] [20] [30] [40] [50] [60]. Helpers must be built from matrix_basis (library objects live in a hidden collection, matrix_world is stale). Verification counts strict (float64, touching excluded) self-intersections; raw BVH touch pairs are listed separately. Controls (2026-10-15): dome batches 7 buttons, 8 encoders, 9 fsr, 10 joystick, 11 lidar, each ONE EXACT boolean on the part above split_z=50 only (closed with a bridged annulus, welded back); helper NEPTR_4.2_apply_features.py rebuilds any part with include/exclude group filters. LiDAR brackets (2026-10-15): dome batch 14 (after the LED dots), ONE EXACT union on a local slab only (split_box x -42..42, y 60..74.5, z>50; see _box_boolean), aim = LIDAR[angle_deg] in NEPTR_4.2_apply_features.py (15 deg outward now; 0 = straight up). Batches 15/16: ENC6/ENC7 holes (encoders_n), each its own local slab. Final dome = neptr_top_dome_4.2_backup_v23. LED dots v2 (2026-10-15 polish): 3 rows pitch 0.9, dome_cut_led_dots regenerated from dome backup_v17 contour (z_c unchanged); dome = neptr_top_dome_4.2_backup_v24. Pi sled: NEPTR_4.2_pi_sled.py build_sled(zs) (not a boolean feature; derived from the z10 sled).",
+ "features": [
+  {
+   "name": "cap_cut_old_pi_legs",
+   "part": "cap",
+   "op": "cut",
+   "order": 0,
+   "applied": false,
+   "centre": [
+    0.0,
+    9.0,
+    23.7
+   ],
+   "world_bbox_min": [
+    -34.0,
+    -29.5,
+    2.4
+   ],
+   "world_bbox_max": [
+    34.0,
+    47.5,
+    45.0
+   ],
+   "spec": {
+    "boxes": 19,
+    "centres": [
+     [
+      24.5,
+      -20
+     ],
+     [
+      -24.5,
+      -20
+     ],
+     [
+      24.5,
+      38
+     ],
+     [
+      -24.5,
+      38
+     ]
+    ],
+    "z0": 2.4,
+    "z1": 45,
+    "note": "reference only: old Pi leg cones are not in the clean STAGE2-derived base, so this cut is a no-op and is not applied"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 0,
+   "group": "legacy"
+  },
+  {
+   "name": "cap_add_fastener_bosses",
+   "part": "cap",
+   "op": "add",
+   "order": 10,
+   "applied": true,
+   "centre": [
+    0.0,
+    0.0,
+    8.0
+   ],
+   "world_bbox_min": [
+    -93.75,
+    -93.76,
+    2.238
+   ],
+   "world_bbox_max": [
+    93.75,
+    93.76,
+    12.2
+   ],
+   "spec": {
+    "od": 8.0,
+    "top_z": 12.2,
+    "bosses": [
+     {
+      "axis": [
+       -89.75,
+       -89.76
+      ],
+      "plane": [
+       -0.0463,
+       -0.5724,
+       5.5018
+      ],
+      "sink_normal": 0.8,
+      "bottom_z_axis": 4.579,
+      "rms": 0.176,
+      "max": 0.661,
+      "slope_deg": 29.87
+     },
+     {
+      "axis": [
+       -89.75,
+       89.76
+      ],
+      "plane": [
+       -0.0221,
+       0.5619,
+       5.4031
+      ],
+      "sink_normal": 0.8,
+      "bottom_z_axis": 4.485,
+      "rms": 0.172,
+      "max": 0.662,
+      "slope_deg": 29.35
+     },
+     {
+      "axis": [
+       89.75,
+       -89.76
+      ],
+      "plane": [
+       0.0463,
+       -0.5724,
+       5.5018
+      ],
+      "sink_normal": 0.8,
+      "bottom_z_axis": 4.579,
+      "rms": 0.176,
+      "max": 0.661,
+      "slope_deg": 29.87
+     },
+     {
+      "axis": [
+       89.75,
+       89.76
+      ],
+      "plane": [
+       0.0221,
+       0.5619,
+       5.4031
+      ],
+      "sink_normal": 0.8,
+      "bottom_z_axis": 4.485,
+      "rms": 0.172,
+      "max": 0.662,
+      "slope_deg": 29.35
+     }
+    ],
+    "note": "v2: plane fits redone on cap_SMOOTH_base_v2 inner skin (r 4.6), sunk 0.8 along the normal"
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 1,
+   "group": "fasteners"
+  },
+  {
+   "name": "cap_cut_fastener_bores",
+   "part": "cap",
+   "op": "cut",
+   "order": 20,
+   "applied": true,
+   "centre": [
+    0.0,
+    0.0,
+    5.75
+   ],
+   "world_bbox_min": [
+    -91.55,
+    -91.56,
+    -2.0
+   ],
+   "world_bbox_max": [
+    91.55,
+    91.56,
+    13.5
+   ],
+   "spec": {
+    "d": 3.6,
+    "z0": -2,
+    "z1": 13.5,
+    "axes": [
+     [
+      -89.75,
+      -89.76
+     ],
+     [
+      -89.75,
+      89.76
+     ],
+     [
+      89.75,
+      -89.76
+     ],
+     [
+      89.75,
+      89.76
+     ]
+    ]
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 2,
+   "group": "fasteners"
+  },
+  {
+   "name": "cap_cut_fastener_recesses",
+   "part": "cap",
+   "op": "cut",
+   "order": 30,
+   "applied": true,
+   "centre": [
+    0.0,
+    0.0,
+    1.2
+   ],
+   "world_bbox_min": [
+    -92.74,
+    -92.75,
+    -2.0
+   ],
+   "world_bbox_max": [
+    92.74,
+    92.75,
+    4.4
+   ],
+   "spec": {
+    "d": 5.98,
+    "z0": -2,
+    "z1": 4.4,
+    "axes": [
+     [
+      -89.75,
+      -89.76
+     ],
+     [
+      -89.75,
+      89.76
+     ],
+     [
+      89.75,
+      -89.76
+     ],
+     [
+      89.75,
+      89.76
+     ]
+    ]
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 3,
+   "group": "fasteners"
+  },
+  {
+   "name": "cap_add_joystick_supports",
+   "part": "cap",
+   "op": "add",
+   "order": 40,
+   "applied": true,
+   "centre": [
+    -65.0,
+    44.0,
+    26.0
+   ],
+   "world_bbox_min": [
+    -82.05,
+    25.95,
+    1.8
+   ],
+   "world_bbox_max": [
+    -43.95,
+    58.05,
+    50.0
+   ],
+   "spec": {
+    "cones": [
+     [
+      -76,
+      32
+     ],
+     [
+      -76,
+      52
+     ],
+     [
+      -50,
+      52
+     ]
+    ],
+    "cone_R_base_z2p4": 6.0,
+    "cone_R_top": 2.384,
+    "cone_top_z": 45.7,
+    "pin_r": 1.45,
+    "pin_top_z": 50.0,
+    "peg": [
+     -62,
+     42
+    ],
+    "peg_r": 3.0,
+    "peg_top_z": 45.7
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 4,
+   "group": "joystick"
+  },
+  {
+   "name": "cap_cut_grill",
+   "part": "cap",
+   "op": "cut",
+   "order": 50,
+   "applied": true,
+   "centre": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "world_bbox_min": [
+    -48.0,
+    -37.0,
+    -1.0
+   ],
+   "world_bbox_max": [
+    48.0,
+    37.0,
+    3.0
+   ],
+   "spec": {
+    "n": 59,
+    "diamond_half_diag": 4.0,
+    "pitch": 11.0,
+    "z0": -1,
+    "z1": 3.0,
+    "centres": [
+     [
+      5.5,
+      -33.0
+     ],
+     [
+      -5.5,
+      -33.0
+     ],
+     [
+      16.5,
+      -33.0
+     ],
+     [
+      -16.5,
+      -33.0
+     ],
+     [
+      27.5,
+      -33.0
+     ],
+     [
+      -27.5,
+      -33.0
+     ],
+     [
+      38.5,
+      -33.0
+     ],
+     [
+      -38.5,
+      -33.0
+     ],
+     [
+      0,
+      -22.0
+     ],
+     [
+      11,
+      -22.0
+     ],
+     [
+      -11,
+      -22.0
+     ],
+     [
+      22,
+      -22.0
+     ],
+     [
+      -22,
+      -22.0
+     ],
+     [
+      33,
+      -22.0
+     ],
+     [
+      -33,
+      -22.0
+     ],
+     [
+      44,
+      -22.0
+     ],
+     [
+      -44,
+      -22.0
+     ],
+     [
+      5.5,
+      -11.0
+     ],
+     [
+      -5.5,
+      -11.0
+     ],
+     [
+      16.5,
+      -11.0
+     ],
+     [
+      -16.5,
+      -11.0
+     ],
+     [
+      27.5,
+      -11.0
+     ],
+     [
+      -27.5,
+      -11.0
+     ],
+     [
+      38.5,
+      -11.0
+     ],
+     [
+      -38.5,
+      -11.0
+     ],
+     [
+      0,
+      0.0
+     ],
+     [
+      11,
+      0.0
+     ],
+     [
+      -11,
+      0.0
+     ],
+     [
+      22,
+      0.0
+     ],
+     [
+      -22,
+      0.0
+     ],
+     [
+      33,
+      0.0
+     ],
+     [
+      -33,
+      0.0
+     ],
+     [
+      44,
+      0.0
+     ],
+     [
+      -44,
+      0.0
+     ],
+     [
+      5.5,
+      11.0
+     ],
+     [
+      -5.5,
+      11.0
+     ],
+     [
+      16.5,
+      11.0
+     ],
+     [
+      -16.5,
+      11.0
+     ],
+     [
+      27.5,
+      11.0
+     ],
+     [
+      -27.5,
+      11.0
+     ],
+     [
+      38.5,
+      11.0
+     ],
+     [
+      -38.5,
+      11.0
+     ],
+     [
+      0,
+      22.0
+     ],
+     [
+      11,
+      22.0
+     ],
+     [
+      -11,
+      22.0
+     ],
+     [
+      22,
+      22.0
+     ],
+     [
+      -22,
+      22.0
+     ],
+     [
+      33,
+      22.0
+     ],
+     [
+      -33,
+      22.0
+     ],
+     [
+      44,
+      22.0
+     ],
+     [
+      -44,
+      22.0
+     ],
+     [
+      5.5,
+      33.0
+     ],
+     [
+      -5.5,
+      33.0
+     ],
+     [
+      16.5,
+      33.0
+     ],
+     [
+      -16.5,
+      33.0
+     ],
+     [
+      27.5,
+      33.0
+     ],
+     [
+      -27.5,
+      33.0
+     ],
+     [
+      38.5,
+      33.0
+     ],
+     [
+      -38.5,
+      33.0
+     ]
+    ]
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 5,
+   "group": "grill"
+  },
+  {
+   "name": "cap_add_sled_pins",
+   "part": "cap_retired",
+   "op": "add",
+   "order": 60,
+   "applied": true,
+   "centre": [
+    0.0,
+    0.0,
+    3.65
+   ],
+   "world_bbox_min": [
+    -33.0,
+    -42.0,
+    1.9
+   ],
+   "world_bbox_max": [
+    32.0,
+    42.0,
+    5.4
+   ],
+   "spec": {
+    "d": 4.0,
+    "z0": 1.9,
+    "z1": 5.4,
+    "centres": [
+     [
+      30,
+      -40
+     ],
+     [
+      -31,
+      -40
+     ],
+     [
+      30,
+      40
+     ],
+     [
+      -31,
+      40
+     ]
+    ]
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 6,
+   "group": "sled",
+   "retired": "2026-10-18 free-standing pinned legs, no floor pegs"
+  },
+  {
+   "name": "dome_cut_screen_window",
+   "part": "dome",
+   "op": "cut",
+   "order": 10,
+   "applied": true,
+   "centre": [
+    0.0,
+    0.0,
+    58.0
+   ],
+   "world_bbox_min": [
+    -26.62,
+    -44.275,
+    50.0
+   ],
+   "world_bbox_max": [
+    26.62,
+    44.275,
+    66.0
+   ],
+   "spec": {
+    "w": 53.24,
+    "h": 88.55,
+    "r": 0.5,
+    "z0": 50,
+    "z1": 66,
+    "through": "top skin",
+    "centre_xy": [
+     0,
+     0
+    ]
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 1,
+   "group": "screen"
+  },
+  {
+   "name": "dome_add_corner_blocks",
+   "part": "dome",
+   "op": "add",
+   "order": 20,
+   "applied": true,
+   "centre": [
+    0.0,
+    0.0,
+    16.15
+   ],
+   "world_bbox_min": [
+    -98.79,
+    -98.72,
+    12.4
+   ],
+   "world_bbox_max": [
+    98.79,
+    98.72,
+    19.9
+   ],
+   "spec": {
+    "R": 7.3,
+    "centres": [
+     [
+      91.49,
+      91.42
+     ],
+     [
+      91.49,
+      -91.42
+     ],
+     [
+      -91.49,
+      91.42
+     ],
+     [
+      -91.49,
+      -91.42
+     ]
+    ],
+    "z0": 12.4,
+    "z1": 19.9,
+    "note": "solid rim-skirt fastener blocks; no bore; v2: cylinder intersected with the inset(0.05) outer envelope of the analytic form"
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 2,
+   "group": "corners"
+  },
+  {
+   "name": "dome_add_screen_boss_pegs",
+   "part": "dome",
+   "op": "add",
+   "order": 30,
+   "applied": true,
+   "centre": [
+    0.0,
+    0.0,
+    55.85
+   ],
+   "world_bbox_min": [
+    -36.25,
+    -50.35,
+    51.7
+   ],
+   "world_bbox_max": [
+    36.25,
+    46.15,
+    60.0
+   ],
+   "spec": {
+    "boss_od": 6.5,
+    "boss_z": [
+     55.7,
+     60.0
+    ],
+    "peg_d": 3.0,
+    "peg_z": [
+     51.7,
+     55.7
+    ],
+    "chamfer": 0.5,
+    "centres": [
+     [
+      33.0,
+      -47.1
+     ],
+     [
+      33.0,
+      42.9
+     ],
+     [
+      -33.0,
+      -47.1
+     ],
+     [
+      -33.0,
+      42.9
+     ]
+    ]
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 2,
+   "group": "screen"
+  },
+  {
+   "name": "dome_add_usbc_collar",
+   "part": "dome",
+   "op": "add",
+   "order": 40,
+   "applied": true,
+   "centre": [
+    -75.0,
+    97.3,
+    31.0
+   ],
+   "world_bbox_min": [
+    -85.15,
+    93.1,
+    20.85
+   ],
+   "world_bbox_max": [
+    -64.85,
+    101.5,
+    41.15
+   ],
+   "spec": {
+    "od": 20.3,
+    "id": 16.3,
+    "x": -75,
+    "z": 31,
+    "y0": 93.1,
+    "y1": 101.5
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 2,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_jacks_north",
+   "part": "dome",
+   "op": "cut",
+   "order": 51,
+   "applied": true,
+   "centre": [
+    0.0,
+    102.5,
+    31.0
+   ],
+   "world_bbox_min": [
+    -25.15,
+    99.0,
+    19.85
+   ],
+   "world_bbox_max": [
+    25.15,
+    106.0,
+    42.15
+   ],
+   "spec": {
+    "d": 8.3,
+    "xs": [
+     -21,
+     -7,
+     7,
+     21
+    ],
+    "zs": [
+     24,
+     38
+    ],
+    "pitch": 14,
+    "y0": 99,
+    "y1": 106,
+    "nut_across": 12
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 3,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_usbc_bore",
+   "part": "dome",
+   "op": "cut",
+   "order": 52,
+   "applied": true,
+   "centre": [
+    -75.0,
+    99.0,
+    31.0
+   ],
+   "world_bbox_min": [
+    -83.15,
+    92.0,
+    22.85
+   ],
+   "world_bbox_max": [
+    -66.85,
+    106.0,
+    39.15
+   ],
+   "spec": {
+    "d": 16.3,
+    "x": -75,
+    "z": 31,
+    "y0": 92,
+    "y1": 106
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 3,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_trs",
+   "part": "dome",
+   "op": "cut",
+   "order": 53,
+   "applied": true,
+   "centre": [
+    75.0,
+    102.5,
+    31.0
+   ],
+   "world_bbox_min": [
+    70.0,
+    99.0,
+    26.0
+   ],
+   "world_bbox_max": [
+    80.0,
+    106.0,
+    36.0
+   ],
+   "spec": {
+    "d": 10,
+    "x": 75,
+    "z": 31,
+    "y0": 99,
+    "y1": 106,
+    "nut_d": 14
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 3,
+   "group": "ports"
+  },
+  {
+   "name": "dome_add_hdmi_boss",
+   "part": "dome",
+   "op": "add",
+   "order": 45,
+   "applied": true,
+   "centre": [
+    -72.2,
+    -100.7,
+    31.0
+   ],
+   "world_bbox_min": [
+    -87.65,
+    -101.5,
+    15.55
+   ],
+   "world_bbox_max": [
+    -56.75,
+    -99.9,
+    46.45
+   ],
+   "spec": {
+    "d": 30.9,
+    "x": -72.2,
+    "z": 31,
+    "y0": -101.5,
+    "y1": -99.9,
+    "note": "disc 0.05 smaller radius than its spot-face cutter, top 0.3 beyond the seat plane so the spot-face cut trims it flat (no coplanar/coincident faces)",
+    "seat_plane_y": -100.2
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 4,
+   "group": "ports"
+  },
+  {
+   "name": "dome_add_eth_boss",
+   "part": "dome",
+   "op": "add",
+   "order": 46,
+   "applied": true,
+   "centre": [
+    72.9,
+    -100.80000000000001,
+    31.0
+   ],
+   "world_bbox_min": [
+    57.95,
+    -101.5,
+    16.05
+   ],
+   "world_bbox_max": [
+    87.85,
+    -100.1,
+    45.95
+   ],
+   "spec": {
+    "d": 29.9,
+    "x": 72.9,
+    "z": 31,
+    "y0": -101.5,
+    "y1": -100.10000000000001,
+    "note": "disc 0.05 smaller radius than its spot-face cutter, top 0.3 beyond the seat plane so the spot-face cut trims it flat (no coplanar/coincident faces)",
+    "seat_plane_y": -100.4
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 4,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_hdmi",
+   "part": "dome",
+   "op": "cut",
+   "order": 54,
+   "applied": true,
+   "centre": [
+    -72.2,
+    -103.0,
+    31.0
+   ],
+   "world_bbox_min": [
+    -82.95,
+    -107.0,
+    20.25
+   ],
+   "world_bbox_max": [
+    -61.45,
+    -99.0,
+    41.75
+   ],
+   "spec": {
+    "d": 21.5,
+    "x": -72.2,
+    "z": 31,
+    "y0": -107,
+    "y1": -99,
+    "nut_d": 30,
+    "side": "south-left"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 5,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_ethernet",
+   "part": "dome",
+   "op": "cut",
+   "order": 55,
+   "applied": true,
+   "centre": [
+    72.9,
+    -103.0,
+    31.7
+   ],
+   "world_bbox_min": [
+    60.8,
+    -107.0,
+    20.3
+   ],
+   "world_bbox_max": [
+    85.0,
+    -99.0,
+    43.1
+   ],
+   "spec": {
+    "d": 24.2,
+    "flat_below_centre": 10.7,
+    "x": 72.9,
+    "z": 31,
+    "y0": -107,
+    "y1": -99,
+    "nut_d": 29,
+    "side": "south-right",
+    "note": "v3 2026-10-17: D24.2, flat 10.7 below centre (PETG test print: M23 coupler did not fit D23.4/10.3)"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 5,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_usbA_L1",
+   "part": "dome",
+   "op": "cut",
+   "order": 56,
+   "applied": true,
+   "centre": [
+    -50.2,
+    -103.0,
+    31.0
+   ],
+   "world_bbox_min": [
+    -53.7,
+    -107.0,
+    16.75
+   ],
+   "world_bbox_max": [
+    -46.7,
+    -99.0,
+    45.25
+   ],
+   "spec": {
+    "opening": [
+     7,
+     15
+    ],
+    "screw_d": 3.5,
+    "screw_z": [
+     18.5,
+     43.5
+    ],
+    "x": -50.2,
+    "z": 31,
+    "y0": -107,
+    "y1": -99
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 5,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_usbA_L2",
+   "part": "dome",
+   "op": "cut",
+   "order": 57,
+   "applied": true,
+   "centre": [
+    -36.2,
+    -103.0,
+    31.0
+   ],
+   "world_bbox_min": [
+    -39.7,
+    -107.0,
+    16.75
+   ],
+   "world_bbox_max": [
+    -32.7,
+    -99.0,
+    45.25
+   ],
+   "spec": {
+    "opening": [
+     7,
+     15
+    ],
+    "screw_d": 3.5,
+    "screw_z": [
+     18.5,
+     43.5
+    ],
+    "x": -36.2,
+    "z": 31,
+    "y0": -107,
+    "y1": -99
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 5,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_usbA_R1",
+   "part": "dome",
+   "op": "cut",
+   "order": 58,
+   "applied": true,
+   "centre": [
+    51.4,
+    -103.0,
+    31.0
+   ],
+   "world_bbox_min": [
+    47.9,
+    -107.0,
+    16.75
+   ],
+   "world_bbox_max": [
+    54.9,
+    -99.0,
+    45.25
+   ],
+   "spec": {
+    "opening": [
+     7,
+     15
+    ],
+    "screw_d": 3.5,
+    "screw_z": [
+     18.5,
+     43.5
+    ],
+    "x": 51.4,
+    "z": 31,
+    "y0": -107,
+    "y1": -99
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 5,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_spotface_hdmi",
+   "part": "dome",
+   "op": "cut",
+   "order": 70,
+   "applied": true,
+   "centre": [
+    -72.2,
+    -95.1,
+    31.0
+   ],
+   "world_bbox_min": [
+    -87.7,
+    -100.2,
+    15.5
+   ],
+   "world_bbox_max": [
+    -56.7,
+    -90.0,
+    46.5
+   ],
+   "spec": {
+    "d": 31.0,
+    "x": -72.2,
+    "z": 31,
+    "y0": -100.2,
+    "y1": -90.0,
+    "nut_d": 30,
+    "note": "v2: seat plane moved in to y_s so the wall behind the seat is >=1.5"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 6,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_spotface_ethernet",
+   "part": "dome",
+   "op": "cut",
+   "order": 71,
+   "applied": true,
+   "centre": [
+    72.9,
+    -95.2,
+    31.0
+   ],
+   "world_bbox_min": [
+    57.9,
+    -100.4,
+    16.0
+   ],
+   "world_bbox_max": [
+    87.9,
+    -90.0,
+    46.0
+   ],
+   "spec": {
+    "d": 30.0,
+    "x": 72.9,
+    "z": 31,
+    "y0": -100.4,
+    "y1": -90.0,
+    "nut_d": 29,
+    "note": "v2: seat plane moved in to y_s"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 6,
+   "group": "ports"
+  },
+  {
+   "name": "dome_cut_btn_L1",
+   "part": "dome",
+   "op": "cut",
+   "order": 80,
+   "applied": true,
+   "centre": [
+    -44.0,
+    -0.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    -47.707,
+    -3.707,
+    57.0
+   ],
+   "world_bbox_max": [
+    -40.293,
+    3.707,
+    64.0
+   ],
+   "spec": {
+    "d": 7.4,
+    "x": -44,
+    "y": 0,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel pushbutton, D7.4 clearance, 2.4 mm flat panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 7,
+   "group": "buttons",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_btn_L2",
+   "part": "dome",
+   "op": "cut",
+   "order": 81,
+   "applied": true,
+   "centre": [
+    -55.0,
+    11.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    -58.707,
+    7.293,
+    57.0
+   ],
+   "world_bbox_max": [
+    -51.293,
+    14.707,
+    64.0
+   ],
+   "spec": {
+    "d": 7.4,
+    "x": -55,
+    "y": 11,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel pushbutton, D7.4 clearance, 2.4 mm flat panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 7,
+   "group": "buttons",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_btn_L3",
+   "part": "dome",
+   "op": "cut",
+   "order": 82,
+   "applied": true,
+   "centre": [
+    -55.0,
+    -11.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    -58.707,
+    -14.707,
+    57.0
+   ],
+   "world_bbox_max": [
+    -51.293,
+    -7.293,
+    64.0
+   ],
+   "spec": {
+    "d": 7.4,
+    "x": -55,
+    "y": -11,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel pushbutton, D7.4 clearance, 2.4 mm flat panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 7,
+   "group": "buttons",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_btn_L4",
+   "part": "dome",
+   "op": "cut",
+   "order": 83,
+   "applied": true,
+   "centre": [
+    -66.0,
+    -0.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    -69.707,
+    -3.707,
+    57.0
+   ],
+   "world_bbox_max": [
+    -62.293,
+    3.707,
+    64.0
+   ],
+   "spec": {
+    "d": 7.4,
+    "x": -66,
+    "y": 0,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel pushbutton, D7.4 clearance, 2.4 mm flat panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 7,
+   "group": "buttons",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_btn_R1",
+   "part": "dome",
+   "op": "cut",
+   "order": 84,
+   "applied": true,
+   "centre": [
+    44.0,
+    -0.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    40.293,
+    -3.707,
+    57.0
+   ],
+   "world_bbox_max": [
+    47.707,
+    3.707,
+    64.0
+   ],
+   "spec": {
+    "d": 7.4,
+    "x": 44,
+    "y": 0,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel pushbutton, D7.4 clearance, 2.4 mm flat panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 7,
+   "group": "buttons",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_btn_R2",
+   "part": "dome",
+   "op": "cut",
+   "order": 85,
+   "applied": true,
+   "centre": [
+    55.0,
+    11.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    51.293,
+    7.293,
+    57.0
+   ],
+   "world_bbox_max": [
+    58.707,
+    14.707,
+    64.0
+   ],
+   "spec": {
+    "d": 7.4,
+    "x": 55,
+    "y": 11,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel pushbutton, D7.4 clearance, 2.4 mm flat panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 7,
+   "group": "buttons",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_btn_R3",
+   "part": "dome",
+   "op": "cut",
+   "order": 86,
+   "applied": true,
+   "centre": [
+    55.0,
+    -11.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    51.293,
+    -14.707,
+    57.0
+   ],
+   "world_bbox_max": [
+    58.707,
+    -7.293,
+    64.0
+   ],
+   "spec": {
+    "d": 7.4,
+    "x": 55,
+    "y": -11,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel pushbutton, D7.4 clearance, 2.4 mm flat panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 7,
+   "group": "buttons",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_btn_R4",
+   "part": "dome",
+   "op": "cut",
+   "order": 87,
+   "applied": true,
+   "centre": [
+    66.0,
+    -0.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    62.293,
+    -3.707,
+    57.0
+   ],
+   "world_bbox_max": [
+    69.707,
+    3.707,
+    64.0
+   ],
+   "spec": {
+    "d": 7.4,
+    "x": 66,
+    "y": 0,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel pushbutton, D7.4 clearance, 2.4 mm flat panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 7,
+   "group": "buttons",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_enc_L2",
+   "part": "dome",
+   "op": "cut",
+   "order": 90,
+   "applied": true,
+   "centre": [
+    -85.4,
+    -65.4,
+    60.5
+   ],
+   "world_bbox_min": [
+    -89.158,
+    -69.158,
+    57.0
+   ],
+   "world_bbox_max": [
+    -81.642,
+    -61.642,
+    64.0
+   ],
+   "spec": {
+    "d": 7.5,
+    "x": -85.4,
+    "y": -65.4,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel rotary encoder, D7.5 bushing hole, 2.4 mm panel (<= usable thread), no anti-rotation tab in old cutters"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 8,
+   "group": "encoders",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_enc_L1",
+   "part": "dome",
+   "op": "cut",
+   "order": 91,
+   "applied": true,
+   "centre": [
+    -42.7,
+    -65.4,
+    60.5
+   ],
+   "world_bbox_min": [
+    -46.458,
+    -69.158,
+    57.0
+   ],
+   "world_bbox_max": [
+    -38.942,
+    -61.642,
+    64.0
+   ],
+   "spec": {
+    "d": 7.5,
+    "x": -42.7,
+    "y": -65.4,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel rotary encoder, D7.5 bushing hole, 2.4 mm panel (<= usable thread), no anti-rotation tab in old cutters"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 8,
+   "group": "encoders",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_enc_C",
+   "part": "dome",
+   "op": "cut",
+   "order": 92,
+   "applied": true,
+   "centre": [
+    -0.0,
+    -65.4,
+    60.5
+   ],
+   "world_bbox_min": [
+    -3.758,
+    -69.158,
+    57.0
+   ],
+   "world_bbox_max": [
+    3.758,
+    -61.642,
+    64.0
+   ],
+   "spec": {
+    "d": 7.5,
+    "x": 0,
+    "y": -65.4,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel rotary encoder, D7.5 bushing hole, 2.4 mm panel (<= usable thread), no anti-rotation tab in old cutters"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 8,
+   "group": "encoders",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_enc_R1",
+   "part": "dome",
+   "op": "cut",
+   "order": 93,
+   "applied": true,
+   "centre": [
+    42.7,
+    -65.4,
+    60.5
+   ],
+   "world_bbox_min": [
+    38.942,
+    -69.158,
+    57.0
+   ],
+   "world_bbox_max": [
+    46.458,
+    -61.642,
+    64.0
+   ],
+   "spec": {
+    "d": 7.5,
+    "x": 42.7,
+    "y": -65.4,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel rotary encoder, D7.5 bushing hole, 2.4 mm panel (<= usable thread), no anti-rotation tab in old cutters"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 8,
+   "group": "encoders",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_enc_R2",
+   "part": "dome",
+   "op": "cut",
+   "order": 94,
+   "applied": true,
+   "centre": [
+    85.4,
+    -65.4,
+    60.5
+   ],
+   "world_bbox_min": [
+    81.642,
+    -69.158,
+    57.0
+   ],
+   "world_bbox_max": [
+    89.158,
+    -61.642,
+    64.0
+   ],
+   "spec": {
+    "d": 7.5,
+    "x": 85.4,
+    "y": -65.4,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 0.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "panel rotary encoder, D7.5 bushing hole, 2.4 mm panel (<= usable thread), no anti-rotation tab in old cutters"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 8,
+   "group": "encoders",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_fsr_L",
+   "part": "dome",
+   "op": "cut",
+   "order": 100,
+   "applied": true,
+   "centre": [
+    -42.1,
+    -37.6,
+    60.5
+   ],
+   "world_bbox_min": [
+    -45.749,
+    -42.06,
+    57.0
+   ],
+   "world_bbox_max": [
+    -38.451,
+    -33.14,
+    64.0
+   ],
+   "spec": {
+    "w": 6.0,
+    "h": 8.0,
+    "rot_deg": -10.0,
+    "x": -42.1,
+    "y": -37.6,
+    "z0": 57.0,
+    "z1": 64.0,
+    "axis": "vertical",
+    "hardware": "FSR active-area slot 6x8, rotated 10 deg (old CUT_FSR_rotated_v3)"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 9,
+   "group": "fsr",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_fsr_R",
+   "part": "dome",
+   "op": "cut",
+   "order": 101,
+   "applied": true,
+   "centre": [
+    42.1,
+    -37.6,
+    60.5
+   ],
+   "world_bbox_min": [
+    38.451,
+    -42.06,
+    57.0
+   ],
+   "world_bbox_max": [
+    45.749,
+    -33.14,
+    64.0
+   ],
+   "spec": {
+    "w": 6.0,
+    "h": 8.0,
+    "rot_deg": 10.0,
+    "x": 42.1,
+    "y": -37.6,
+    "z0": 57.0,
+    "z1": 64.0,
+    "axis": "vertical",
+    "hardware": "FSR active-area slot 6x8, rotated 10 deg (old CUT_FSR_rotated_v3)"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 9,
+   "group": "fsr",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_joystick_hole",
+   "part": "dome",
+   "op": "cut",
+   "order": 110,
+   "applied": true,
+   "centre": [
+    -62.5,
+    42.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    -76.012,
+    28.488,
+    57.0
+   ],
+   "world_bbox_max": [
+    -48.988,
+    55.512,
+    64.0
+   ],
+   "spec": {
+    "d": 27.0,
+    "x": -62.5,
+    "y": 42.0,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 2.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "KY-023 joystick (plan.md: cap OD ~25, panel hole D27) over cap supports 20x26 posts; centre (-62.5,42) = old holes, between peg axis -62 and post-box centre -63"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 10,
+   "group": "joystick",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_lidar_L",
+   "part": "dome",
+   "op": "cut",
+   "order": 120,
+   "applied": true,
+   "centre": [
+    -25.7,
+    67.2,
+    60.5
+   ],
+   "world_bbox_min": [
+    -30.955,
+    61.945,
+    57.0
+   ],
+   "world_bbox_max": [
+    -20.445,
+    72.455,
+    64.0
+   ],
+   "spec": {
+    "d": 10.5,
+    "x": -25.7,
+    "y": 67.2,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 2.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "LiDAR sensor window D10.5, 2.4 mm panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 11,
+   "group": "lidar",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_lidar_R",
+   "part": "dome",
+   "op": "cut",
+   "order": 121,
+   "applied": true,
+   "centre": [
+    25.7,
+    67.2,
+    60.5
+   ],
+   "world_bbox_min": [
+    20.445,
+    61.945,
+    57.0
+   ],
+   "world_bbox_max": [
+    30.955,
+    72.455,
+    64.0
+   ],
+   "spec": {
+    "d": 10.5,
+    "x": 25.7,
+    "y": 67.2,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 2.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "LiDAR sensor window D10.5, 2.4 mm panel"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 11,
+   "group": "lidar",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_cut_arcade_hole",
+   "part": "dome",
+   "op": "cut",
+   "order": 130,
+   "applied": true,
+   "centre": [
+    62.5,
+    42.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    47.137,
+    26.637,
+    57.0
+   ],
+   "world_bbox_max": [
+    77.863,
+    57.363,
+    64.0
+   ],
+   "spec": {
+    "d": 30.7,
+    "x": 62.5,
+    "y": 42.0,
+    "z0": 57.0,
+    "z1": 64.0,
+    "phase_deg": 2.9,
+    "depth": "through top skin 59.6..62",
+    "axis": "vertical (top flat, tilt 0)",
+    "hardware": "30 mm snap-in arcade button (EG STARTS, BTN9); old Phase-4 dome hole D30.7 at (+62.5,42) (plan.md says D28.5 -> edit d here if the button is tight); ring/clip OD ~38, body ~30 deep: clear to z 20"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 12,
+   "group": "arcade",
+   "split_z": 50.0
+  },
+  {
+   "name": "dome_add_jack_seat",
+   "part": "dome",
+   "op": "add",
+   "order": 41,
+   "batch": 2,
+   "group": "ports",
+   "applied": true,
+   "centre": [
+    0.0,
+    100.735,
+    31.0
+   ],
+   "world_bbox_min": [
+    -27.55,
+    100.07,
+    17.5
+   ],
+   "world_bbox_max": [
+    27.55,
+    101.4,
+    44.5
+   ],
+   "spec": {
+    "kind": "flat nut seat",
+    "plane_y": 100.07,
+    "x": [
+     -27.55,
+     27.55
+    ],
+    "z": [
+     17.5,
+     44.5
+    ],
+    "why": "inner wall curves in 1.03 mm between z 31 and z 18/44, D12 jack nuts did not seat flat; pad fills wall to the plane, 0 thick where the wall is already inside it"
+   },
+   "collection": "FEATURES_4.2_ADD"
+  },
+  {
+   "name": "dome_add_usbA_seat_L1",
+   "part": "dome",
+   "op": "add",
+   "order": 47,
+   "batch": 4,
+   "group": "ports",
+   "applied": true,
+   "centre": [
+    -50.2,
+    -100.45,
+    31.0
+   ],
+   "world_bbox_min": [
+    -56.2,
+    -101.4,
+    15.5
+   ],
+   "world_bbox_max": [
+    -44.2,
+    -99.5,
+    46.5
+   ],
+   "spec": {
+    "kind": "flat flange seat",
+    "plane_y": -99.5,
+    "x": -50.2,
+    "half_width": 6,
+    "z": [
+     15.5,
+     46.5
+    ],
+    "why": "USB-A extension flange (ears 25 apart) sat on a barrel wall that curves in 1.7 mm by z 16/46; pad fills to the plane y=-99.5"
+   },
+   "collection": "FEATURES_4.2_ADD"
+  },
+  {
+   "name": "dome_add_usbA_seat_L2",
+   "part": "dome",
+   "op": "add",
+   "order": 48,
+   "batch": 4,
+   "group": "ports",
+   "applied": true,
+   "centre": [
+    -36.2,
+    -100.45,
+    31.0
+   ],
+   "world_bbox_min": [
+    -42.2,
+    -101.4,
+    15.5
+   ],
+   "world_bbox_max": [
+    -30.2,
+    -99.5,
+    46.5
+   ],
+   "spec": {
+    "kind": "flat flange seat",
+    "plane_y": -99.5,
+    "x": -36.2,
+    "half_width": 6,
+    "z": [
+     15.5,
+     46.5
+    ],
+    "why": "USB-A extension flange (ears 25 apart) sat on a barrel wall that curves in 1.7 mm by z 16/46; pad fills to the plane y=-99.5"
+   },
+   "collection": "FEATURES_4.2_ADD"
+  },
+  {
+   "name": "dome_add_usbA_seat_R1",
+   "part": "dome",
+   "op": "add",
+   "order": 49,
+   "batch": 4,
+   "group": "ports",
+   "applied": true,
+   "centre": [
+    51.4,
+    -100.45,
+    31.0
+   ],
+   "world_bbox_min": [
+    45.4,
+    -101.4,
+    15.5
+   ],
+   "world_bbox_max": [
+    57.4,
+    -99.5,
+    46.5
+   ],
+   "spec": {
+    "kind": "flat flange seat",
+    "plane_y": -99.5,
+    "x": 51.4,
+    "half_width": 6,
+    "z": [
+     15.5,
+     46.5
+    ],
+    "why": "USB-A extension flange (ears 25 apart) sat on a barrel wall that curves in 1.7 mm by z 16/46; pad fills to the plane y=-99.5"
+   },
+   "collection": "FEATURES_4.2_ADD"
+  },
+  {
+   "name": "dome_cut_led_dots",
+   "part": "dome",
+   "op": "cut",
+   "order": 140,
+   "batch": 13,
+   "group": "led",
+   "applied": true,
+   "centre": [
+    0.0,
+    0.0,
+    56.202
+   ],
+   "world_bbox_min": [
+    -115.922,
+    -95.376,
+    52.762
+   ],
+   "world_bbox_max": [
+    115.666,
+    95.379,
+    61.873
+   ],
+   "spec": {
+    "kind": "led_dots",
+    "n_led": 113,
+    "led_pitch_mm": 6.944444444444445,
+    "contour_pitch_mm": 6.944461769464881,
+    "zc_inner": 56.20219928026199,
+    "contour_len": 784.7241799495315,
+    "seed": 4242,
+    "k_per_led": 5,
+    "band_half": 3.8,
+    "d_choices": [
+     0.9,
+     1.3
+    ],
+    "gap_min": 1.7,
+    "rows": 3,
+    "row_pitch": 0.9,
+    "jit_s": 0.2,
+    "web_min": 0.6,
+    "web_target": 0.72,
+    "cut_in": 3.0,
+    "cut_out": 5.5,
+    "seg": 16,
+    "n_dots": 565,
+    "phase_fix": {
+     "215": 0.23997602512184005,
+     "544": 0.15033172352907678
+    },
+    "start": "contour point at +y (north centre), arclength increasing CCW seen from +z (ASSUMED pixel order)",
+    "axis": "local inner-surface normal",
+    "hardware": "WS2812B 5050 144/m strip, 10 wide, glued on inner shoulder, LEDs facing wall (ASSUMED mount)"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "split_z": 45.0
+  },
+  {
+   "name": "dome_cut_enc_L2N",
+   "part": "dome",
+   "op": "cut",
+   "order": 170,
+   "batch": 15,
+   "group": "encoders_n",
+   "applied": true,
+   "centre": [
+    -85.4,
+    75.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    -89.158,
+    71.242,
+    57.0
+   ],
+   "world_bbox_max": [
+    -81.642,
+    78.758,
+    64.0
+   ],
+   "spec": {
+    "d": 7.5,
+    "x": -85.4,
+    "y": 75.0,
+    "z0": 57.0,
+    "z1": 64.0,
+    "axis": "vertical",
+    "hardware": "KY-040 encoder bushing hole D7.5, ENC6/ENC7 (plan.md), restored from old Phase-4 dome (+-85.4,+75)"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "split_box": [
+    -93.4,
+    -77.4,
+    68.0,
+    82.0,
+    50.0
+   ]
+  },
+  {
+   "name": "dome_cut_enc_R2N",
+   "part": "dome",
+   "op": "cut",
+   "order": 171,
+   "batch": 16,
+   "group": "encoders_n",
+   "applied": true,
+   "centre": [
+    85.4,
+    75.0,
+    60.5
+   ],
+   "world_bbox_min": [
+    81.642,
+    71.242,
+    57.0
+   ],
+   "world_bbox_max": [
+    89.158,
+    78.758,
+    64.0
+   ],
+   "spec": {
+    "d": 7.5,
+    "x": 85.4,
+    "y": 75.0,
+    "z0": 57.0,
+    "z1": 64.0,
+    "axis": "vertical",
+    "hardware": "KY-040 encoder bushing hole D7.5, ENC6/ENC7 (plan.md), restored from old Phase-4 dome (+-85.4,+75)"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "split_box": [
+    77.4,
+    93.4,
+    68.0,
+    82.0,
+    50.0
+   ]
+  },
+  {
+   "name": "dome_cut_insert_pilot_NE",
+   "part": "dome",
+   "op": "cut",
+   "order": 200,
+   "applied": true,
+   "centre": [
+    89.75,
+    89.76,
+    14.55
+   ],
+   "world_bbox_min": [
+    86.898,
+    86.908,
+    11.9
+   ],
+   "world_bbox_max": [
+    92.602,
+    92.612,
+    17.2
+   ],
+   "spec": {
+    "d": 3.7,
+    "depth": 4.8,
+    "chamfer": 0.5,
+    "x": 89.75,
+    "y": 89.76,
+    "z_seam": 12.4,
+    "z0": 11.9,
+    "z1": 17.2,
+    "insert_od": 4.0,
+    "insert_len": 4.0,
+    "note": "M3 heat-set pilot from the seam face (dome side), D = insert OD - 0.3, depth = insert length + 0.8, 0.5x45 lead-in; coaxial with the cap fastener axis"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 17,
+   "group": "inserts",
+   "split_puck": [
+    89.75,
+    89.76,
+    3.4,
+    12.4,
+    19.0
+   ]
+  },
+  {
+   "name": "dome_cut_insert_pilot_NW",
+   "part": "dome",
+   "op": "cut",
+   "order": 201,
+   "applied": true,
+   "centre": [
+    -89.75,
+    89.76,
+    14.55
+   ],
+   "world_bbox_min": [
+    -92.602,
+    86.908,
+    11.9
+   ],
+   "world_bbox_max": [
+    -86.898,
+    92.612,
+    17.2
+   ],
+   "spec": {
+    "d": 3.7,
+    "depth": 4.8,
+    "chamfer": 0.5,
+    "x": -89.75,
+    "y": 89.76,
+    "z_seam": 12.4,
+    "z0": 11.9,
+    "z1": 17.2,
+    "insert_od": 4.0,
+    "insert_len": 4.0,
+    "note": "M3 heat-set pilot from the seam face (dome side), D = insert OD - 0.3, depth = insert length + 0.8, 0.5x45 lead-in; coaxial with the cap fastener axis"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 18,
+   "group": "inserts",
+   "split_puck": [
+    -89.75,
+    89.76,
+    3.4,
+    12.4,
+    19.0
+   ]
+  },
+  {
+   "name": "dome_cut_insert_pilot_SW",
+   "part": "dome",
+   "op": "cut",
+   "order": 202,
+   "applied": true,
+   "centre": [
+    -89.75,
+    -89.76,
+    14.55
+   ],
+   "world_bbox_min": [
+    -92.602,
+    -92.612,
+    11.9
+   ],
+   "world_bbox_max": [
+    -86.898,
+    -86.908,
+    17.2
+   ],
+   "spec": {
+    "d": 3.7,
+    "depth": 4.8,
+    "chamfer": 0.5,
+    "x": -89.75,
+    "y": -89.76,
+    "z_seam": 12.4,
+    "z0": 11.9,
+    "z1": 17.2,
+    "insert_od": 4.0,
+    "insert_len": 4.0,
+    "note": "M3 heat-set pilot from the seam face (dome side), D = insert OD - 0.3, depth = insert length + 0.8, 0.5x45 lead-in; coaxial with the cap fastener axis"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 19,
+   "group": "inserts",
+   "split_puck": [
+    -89.75,
+    -89.76,
+    3.4,
+    12.4,
+    19.0
+   ]
+  },
+  {
+   "name": "dome_cut_insert_pilot_SE",
+   "part": "dome",
+   "op": "cut",
+   "order": 203,
+   "applied": true,
+   "centre": [
+    89.75,
+    -89.76,
+    14.55
+   ],
+   "world_bbox_min": [
+    86.898,
+    -92.612,
+    11.9
+   ],
+   "world_bbox_max": [
+    92.602,
+    -86.908,
+    17.2
+   ],
+   "spec": {
+    "d": 3.7,
+    "depth": 4.8,
+    "chamfer": 0.5,
+    "x": 89.75,
+    "y": -89.76,
+    "z_seam": 12.4,
+    "z0": 11.9,
+    "z1": 17.2,
+    "insert_od": 4.0,
+    "insert_len": 4.0,
+    "note": "M3 heat-set pilot from the seam face (dome side), D = insert OD - 0.3, depth = insert length + 0.8, 0.5x45 lead-in; coaxial with the cap fastener axis"
+   },
+   "collection": "FEATURES_4.2_CUT",
+   "batch": 20,
+   "group": "inserts",
+   "split_puck": [
+    89.75,
+    -89.76,
+    3.4,
+    12.4,
+    19.0
+   ]
+  },
+  {
+   "name": "dome_add_lidar_seat_L",
+   "part": "dome",
+   "op": "add",
+   "order": 150,
+   "applied": true,
+   "centre": [
+    -25.9492,
+    67.2,
+    56.6167
+   ],
+   "world_bbox_min": [
+    -37.449,
+    59.8,
+    52.633
+   ],
+   "world_bbox_max": [
+    -14.45,
+    74.6,
+    60.6
+   ],
+   "spec": {
+    "kind": "lidar flat seat",
+    "side": "L",
+    "angle_deg": 15.0,
+    "axis": [
+     -0.258819,
+     0.0,
+     0.965926
+    ],
+    "pcb_long_axis": [
+     0.965926,
+     0.0,
+     0.258819
+    ],
+    "pcb_top_centre": [
+     -24.5094,
+     67.2,
+     56.3567
+    ],
+    "hole_mid": [
+     -25.7,
+     67.2,
+     60.8
+    ],
+    "ry_deg": -15.0,
+    "sensor_h": 1.9,
+    "pocket": [
+     20.4,
+     12.4,
+     0.8
+    ],
+    "pad_wall": 1.2,
+    "aperture": [
+     12.6,
+     8.6
+    ],
+    "clear_r": 5.65,
+    "pad_top_z": 60.6,
+    "open_end": "inboard",
+    "open_dir_u": 1.0,
+    "phase_deg": 7.3,
+    "hardware": "TOF400C VL53L1X 20x12 board, component side against the pocket floor (seat plane), glue/tape, no screws; sensor housing through the stadium aperture; connector side open"
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 14,
+   "group": "lidar_mount",
+   "split_box": [
+    -42.0,
+    42.0,
+    57.43,
+    77.07,
+    50.0
+   ]
+  },
+  {
+   "name": "dome_add_lidar_seat_R",
+   "part": "dome",
+   "op": "add",
+   "order": 151,
+   "applied": true,
+   "centre": [
+    25.9492,
+    67.2,
+    56.6167
+   ],
+   "world_bbox_min": [
+    14.45,
+    59.8,
+    52.633
+   ],
+   "world_bbox_max": [
+    37.449,
+    74.6,
+    60.6
+   ],
+   "spec": {
+    "kind": "lidar flat seat",
+    "side": "R",
+    "angle_deg": 15.0,
+    "axis": [
+     0.258819,
+     0.0,
+     0.965926
+    ],
+    "pcb_long_axis": [
+     0.965926,
+     0.0,
+     -0.258819
+    ],
+    "pcb_top_centre": [
+     24.5094,
+     67.2,
+     56.3567
+    ],
+    "hole_mid": [
+     25.7,
+     67.2,
+     60.8
+    ],
+    "ry_deg": 15.0,
+    "sensor_h": 1.9,
+    "pocket": [
+     20.4,
+     12.4,
+     0.8
+    ],
+    "pad_wall": 1.2,
+    "aperture": [
+     12.6,
+     8.6
+    ],
+    "clear_r": 5.65,
+    "pad_top_z": 60.6,
+    "open_end": "inboard",
+    "open_dir_u": -1.0,
+    "phase_deg": 7.3,
+    "hardware": "TOF400C VL53L1X 20x12 board, component side against the pocket floor (seat plane), glue/tape, no screws; sensor housing through the stadium aperture; connector side open"
+   },
+   "collection": "FEATURES_4.2_ADD",
+   "batch": 14,
+   "group": "lidar_mount",
+   "split_box": [
+    -42.0,
+    42.0,
+    57.43,
+    77.07,
+    50.0
+   ]
+  }
+ ],
+ "form": {
+  "params": "NEPTR_4.2_form_params.json",
+  "script": "NEPTR_4.2_form.py"
+ },
+ "pi_sled_fit": {
+  "object": "neptr_pi_sled_fit",
+  "script": "NEPTR_4.2_pi_sled.py",
+  "pi_bottom_z": 4.799999999999997,
+  "stack": {
+   "pi_pcb": 1.6,
+   "stack_above_pi_top": 35.0,
+   "gpio_riser": 14.0,
+   "riser_tall": 13.0,
+   "preload": 0.3
+  },
+  "hdmi_relief": true
+ }
+}

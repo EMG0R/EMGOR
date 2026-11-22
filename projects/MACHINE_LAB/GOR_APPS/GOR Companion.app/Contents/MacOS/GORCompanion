@@ -1,0 +1,6 @@
+#!/bin/bash
+# GOR Companion — mirrors the mini's live state. No terminal window. Runs from
+# ~/GOR_COMPANION (not the TCC-protected Desktop) so the .app launches cleanly.
+RT="$HOME/GOR_COMPANION"
+PY="/Library/Frameworks/Python.framework/Versions/3.14/bin/python3"
+exec "$PY" "$RT/gor_companion.py" >>"$RT/gor_companion.log" 2>&1

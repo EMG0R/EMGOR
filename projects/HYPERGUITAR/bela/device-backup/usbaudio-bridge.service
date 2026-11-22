@@ -1,0 +1,25 @@
+[Unit]
+Description=hyperGuitar USB audio bridge (non-realtime, feeds UAC2 gadget)
+After=sound.target bela_startup.service
+Wants=bela_startup.service
+# hyperGuitar recreates its shared-memory ring (shm_unlink + fresh
+# shm_open) every time it starts. This process only opens that ring
+# ONCE at its own startup - without this, restarting hyperGuitar alone
+# leaves the bridge mapped to the old, now-orphaned segment: the USB
+# gadget stays enumerated (that's independent of this), but no audio
+# actually flows until a full unplug/replug re-syncs both processes.
+# PartOf propagates hyperGuitar's stop/restart to this unit too, so a
+# code redeploy always re-opens a fresh mapping automatically.
+PartOf=bela_startup.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/usbaudio-bridge
+Restart=always
+RestartSec=2
+# Ordinary scheduling on purpose - this must NEVER compete with or block
+# the real-time audio thread in hyperGuitar6chPan.
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

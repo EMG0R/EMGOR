@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "name": "ofp_seq",
+  "title": "OP FREAK generative sequencer",
+  "version": "0.1",
+  "status": "experimental",
+  "status_note": "host-tested core, Blackfin-simulator tested glue; never run on a device",
+  "firmware": {
+    "R246": "c5315218f825f143b415ca554516541898abee843d3a236df0b54c04e1fb13a9"
+  },
+  "sdk": 1,
+  "prefix": ["os_", "osq_", "seq_"],
+  "summary": "Six generative modes (TURING, EUCLID, MARKOV, GAMELAN, CELLULAR, TOTAL) with scale lock, probability, ratchet, swing, octave spread and RESEED. Opens on the synth sequencer screen with tombola picked (orange push), plays TE's synth voice at TE's tempo.",
+  "license": "MIT",
+  "authors": ["Emory Smith (EMGOR)"],
+  "docs": "../../docs/SEQUENCER.md",
+  "sources": ["ofp_seq_glue.c", "seq_host.c", "seq_mode_turing.c", "seq_mode_euclid.c", "seq_mode_markov.c",
+              "seq_mode_gamelan.c", "seq_mode_cellular.c", "seq_mode_total.c"],
+  "libs": ["gfx"],
+  "cflags": ["-O2"],
+  "init": "osq_init",
+  "shared": [
+    {"point": "on_key", "fn": "os_key", "mode": "filter"},
+    {"point": "on_knob", "fn": "os_knob", "mode": "filter"},
+    {"point": "frame", "fn": "os_frame"},
+    {"point": "seq_tick", "fn": "osq_tick"},
+    {"point": "kb_note_on", "fn": "os_note_on", "mode": "observe"},
+    {"point": "kb_note_off", "fn": "os_note_off", "mode": "observe"}
+  ],
+  "hooks": {},
+  "controls": [
+    "synth playmode, sequencer key, tombola picked: orange push opens OP FREAK SEQ, shift + orange push closes",
+    "open: T1-T4 page group (same T flips sub-pages), turn = value (shift = coarse), push = page action, T4 orange push = RUN/STOP"
+  ],
+  "tests": ["test/test_seq.c"],
+  "depends": [],
+  "conflicts": [],
+  "claims": [
+    {"input": "orange_push", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": false},
+    {"input": "t1_press", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "t2_press", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "t3_press", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "t4_press", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "blue_push", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "green_push", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "white_push", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "blue_turn", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "green_turn", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "white_turn", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true},
+    {"input": "orange_turn", "shift": "any", "screen": "sequencer", "playmode": "synth", "modal": true}
+  ]
+}

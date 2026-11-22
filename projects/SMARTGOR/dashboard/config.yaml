@@ -1,0 +1,29 @@
+# smartGOR dashboard config
+mqtt:
+  host: localhost      # Pi: localhost once Mosquitto is up; Mac demo: leave as-is (falls back to demo mode)
+  port: 1883
+  keepalive: 30
+  client_id: smartgor-dashboard
+
+server:
+  host: 0.0.0.0
+  port: 8420
+
+# FCOB LED strip ESP32 — reachable now over HTTP; MQTT topics kept for the future broker path.
+strip:
+  http_url: http://fcob-strip.local   # mDNS name of the ESP32 (port 80).
+  # If mDNS fails on your network, substitute the raw IP, e.g. http://192.168.1.42
+  set_topic: lights/strip/set          # MQTT command topic (used when a broker is connected)
+  state_topic: lights/strip/state      # MQTT state topic (future broker path)
+  poll_interval: 3                     # seconds between GET /api/state polls
+
+# Active plant zones (1-8 wired, list the ones with plants in them)
+active_plant_zones: [1, 2, 3, 4, 5]
+
+# Generic smart-home toggles — add a line here, a card appears in the UI.
+# Commands publish to room/switch/<id>/set with payload "on"/"off".
+switches:
+  - id: desk_fan
+    name: Desk Fan
+  - id: salt_lamp
+    name: Salt Lamp

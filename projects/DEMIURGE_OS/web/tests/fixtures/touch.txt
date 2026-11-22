@@ -1,0 +1,1 @@
+touch=on|detected=yes|device=/dev/input/event4|name=ADS7846 Touchscreen|base=80|channel=16|slots=1

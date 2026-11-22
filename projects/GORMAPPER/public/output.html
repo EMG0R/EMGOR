@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GORMAPPER output</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  html, body { background: #000; overflow: hidden; cursor: none; }
+  #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas#gl { display: block; }
+  canvas#overlay { position: absolute; pointer-events: none; }
+  #hint {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    color: #9df; font: 13px/1.6 ui-monospace, monospace; background: rgba(0,0,0,.6);
+    padding: 10px 18px; border-radius: 8px; border: 1px solid #234;
+    transition: opacity 1.5s; white-space: nowrap; cursor: default;
+  }
+  #hint.gone { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <canvas id="overlay"></canvas>
+</div>
+<div id="hint">GORMAPPER output — <b>F</b> fullscreen · <b>C</b> capture screen · <b>E</b> edit outlines</div>
+
+<script type="module">
+import { createRenderer } from '/renderer.js';
+import { normalizeScene, makeDefaultScene, bbox } from '/scene.js';
+import { createSync, startActivePolling, subscribeEvents } from '/sync.js';
+
+const glCanvas = document.getElementById('gl');
+const overlay = document.getElementById('overlay');
+const octx = overlay.getContext('2d');
+const hint = document.getElementById('hint');
+
+// ?mode=overlay → Electron transparent click-through window over the real
+// desktop: transparent framebuffer, screen objects become see-through holes.
+const overlayMode = new URLSearchParams(location.search).get('mode') === 'overlay';
+if (overlayMode) {
+  document.documentElement.style.background = 'transparent';
+  document.body.style.background = 'transparent';
+  hint.textContent = 'GORMAPPER overlay — edit from the editor window';
+}
+
+const renderer = createRenderer(glCanvas, { overlay: overlayMode });
+console.log('[gormapper] output mode=' + (overlayMode ? 'overlay' : 'browser')
+  + ' contextAttributes=' + JSON.stringify(renderer.gl.getContextAttributes()));
+let scene = makeDefaultScene();
+let sceneName = 'default';
+let editMode = false;
+let selectedId = null;
+
+// ---- scene loading / sync ---------------------------------------------------
+
+function applyScene(name, s) {
+  sceneName = name || sceneName;
+  scene = normalizeScene(s);
+}
+window.__sceneDebug = () => scene;   // console introspection
+
+async function loadActive() {
+  try {
+    const r = await fetch('/api/scene/active');
+    if (r.ok) {
+      const data = await r.json();
+      applyScene(data.name, data.scene);
+    }
+  } catch (e) { /* server not up yet */ }
+}
+
+const sync = createSync({
+  onScene: (msg) => { applyScene(msg.name, msg.scene); editMode = !!msg.editMode; selectedId = msg.selectedId ?? null; },
+  onEdit: (msg) => { editMode = !!msg.editMode; selectedId = msg.selectedId ?? null; },
+  onActivate: () => loadActive(),
+});
+
+await renderer.patterns.init();
+await loadActive();
+if (sync.available) {
+  sync.sendHello();                       // ask a running editor for live state
+} else {
+  startActivePolling((data) => applyScene(data.name, data.scene), 2000);
+}
+
+// hot pattern reloads + terminal scene switches (compile errors are silent
+// here — the zone keeps its last working shader; the editor shows the log)
+subscribeEvents(async (msg) => {
+  if (msg.type === 'pattern') {
+    if (msg.exists) await renderer.patterns.reload(msg.id);
+    else await renderer.patterns.refreshList();
+  } else if (msg.type === 'active') {
+    loadActive();
+  } else if (msg.type === 'live' && msg.scene) {
+    // real-time editor state via the server — this is the overlay's (separate
+    // browser, no BroadcastChannel) live link, and a fallback for everyone else
+    applyScene(msg.name, msg.scene);
+    editMode = !!msg.editMode;
+    selectedId = msg.selectedId ?? null;
+  }
+});
+
+// pick up any live edit state newer than the saved active scene (e.g. the
+// overlay was started mid-editing-session)
+try {
+  const r = await fetch('/api/live');
+  if (r.ok) {
+    const live = await r.json();
+    if (live && live.scene) {
+      applyScene(live.name, live.scene);
+      editMode = !!live.editMode;
+      selectedId = live.selectedId ?? null;
+    }
+  }
+} catch (e) { /* none yet */ }
+
+// ---- screen capture ---------------------------------------------------------
+
+const captureVideo = document.createElement('video');
+captureVideo.muted = true;
+captureVideo.playsInline = true;
+
+async function startCapture() {
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 60 }, audio: false,
+    });
+    captureVideo.srcObject = stream;
+    await captureVideo.play();
+    renderer.setScreenVideo(captureVideo);
+    stream.getVideoTracks()[0].addEventListener('ended', () => {
+      renderer.setScreenVideo(null);
+    });
+  } catch (e) {
+    console.warn('capture cancelled/failed', e);
+  }
+}
+
+// ---- layout -----------------------------------------------------------------
+
+let lastFit = { w: 0, h: 0, scale: 1 };
+function fitCanvas() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const scale = Math.min(vw / scene.width, vh / scene.height);
+  const w = Math.round(scene.width * scale), h = Math.round(scene.height * scale);
+  if (w !== lastFit.w || h !== lastFit.h) {
+    glCanvas.style.width = w + 'px';
+    glCanvas.style.height = h + 'px';
+    overlay.style.width = w + 'px';
+    overlay.style.height = h + 'px';
+    overlay.width = w;
+    overlay.height = h;
+    lastFit = { w, h, scale };
+  }
+  return lastFit.scale;
+}
+window.addEventListener('resize', fitCanvas);
+
+// ---- edit overlay (mirrors editor state so you can align on the wall) -------
+
+function drawOverlay(scale) {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!editMode) return;
+  octx.save();
+  octx.scale(scale, scale);
+  octx.lineWidth = 2 / scale;
+  for (const layer of scene.layers) {
+    const pts = layer.points;
+    if (!pts || pts.length < 2) continue;
+    const sel = layer.id === selectedId;
+    const kind = (layer.content || {}).kind;
+    const color = kind === 'mask' ? '#f5427e' : kind === 'screen' ? '#42d7f5' : '#7ef542';
+    octx.strokeStyle = sel ? '#ffffff' : color;
+    octx.beginPath();
+    octx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) octx.lineTo(pts[i][0], pts[i][1]);
+    octx.closePath();
+    octx.stroke();
+    // numbered handles
+    for (let i = 0; i < pts.length; i++) {
+      const [x, y] = pts[i];
+      octx.fillStyle = sel ? '#ffffff' : color;
+      octx.beginPath();
+      octx.arc(x, y, 7 / scale, 0, Math.PI * 2);
+      octx.fill();
+      octx.fillStyle = '#000';
+      octx.font = `${10 / scale}px ui-monospace, monospace`;
+      octx.textAlign = 'center';
+      octx.textBaseline = 'middle';
+      octx.fillText(String(i + 1), x, y);
+    }
+    // layer label at bbox top-left
+    const bb = bbox(pts);
+    octx.fillStyle = sel ? '#ffffff' : color;
+    octx.font = `${13 / scale}px ui-monospace, monospace`;
+    octx.textAlign = 'left';
+    octx.textBaseline = 'bottom';
+    octx.fillText(layer.name || 'object', bb.x, bb.y - 6 / scale);
+  }
+  octx.restore();
+}
+
+// ---- hotkeys ----------------------------------------------------------------
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'f' || e.key === 'F') {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+  } else if (e.key === 'c' || e.key === 'C') {
+    startCapture();
+  } else if (e.key === 'e' || e.key === 'E') {
+    editMode = !editMode;
+  }
+});
+
+// hint fades after 6s, reappears on mouse move for a moment
+setTimeout(() => hint.classList.add('gone'), 6000);
+let hintTimer = null;
+window.addEventListener('mousemove', () => {
+  hint.classList.remove('gone');
+  document.body.style.cursor = 'default';
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => {
+    hint.classList.add('gone');
+    document.body.style.cursor = 'none';
+  }, 3000);
+});
+
+// ---- main loop --------------------------------------------------------------
+
+const t0 = performance.now();
+function frame() {
+  const scale = fitCanvas();
+  renderer.render(scene, (performance.now() - t0) / 1000);
+  drawOverlay(scale);
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>

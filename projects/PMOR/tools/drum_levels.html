@@ -1,0 +1,107 @@
+<title>PMOR Drum Levels</title>
+<style>
+  :root{ --bg:#0b0b10; --panel:#14141c; --line:#262633; --text:#ececf2; --dim:#8d8da0;
+         --cyan:#00E1FF; --pink:#FF5AC8; --yellow:#FFE13C; --mint:#28EBAA; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:16px}
+  h1{font-size:18px;margin:0 0 4px;letter-spacing:.04em}
+  .sub{color:var(--dim);font-size:12px;margin-bottom:14px}
+  .master{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:end;background:var(--panel);border:1px solid var(--line);padding:12px 14px;margin-bottom:16px}
+  .ctl{display:flex;flex-direction:column;gap:4px;min-width:180px}
+  .ctl label{font-size:11px;letter-spacing:.08em;color:var(--dim)}
+  .ctl output{font-variant-numeric:tabular-nums;font-size:13px}
+  input[type=range]{width:100%;accent-color:var(--cyan);height:28px;margin:0}
+  button{background:#1c1c27;color:var(--text);border:1px solid var(--line);padding:8px 12px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--cyan)} button:focus-visible{outline:2px solid var(--yellow)}
+  .groups{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media(max-width:1000px){.groups{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.groups{grid-template-columns:1fr}}
+  .grp{background:var(--panel);border:1px solid var(--line);padding:10px}
+  .grp h2{font-size:12px;letter-spacing:.12em;margin:0 0 8px}
+  .g0 h2{color:var(--pink)} .g1 h2{color:var(--yellow)} .g2 h2{color:var(--cyan)} .g3 h2{color:var(--mint)}
+  .row{display:grid;grid-template-columns:34px 52px 1fr 48px;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
+  .row .name{font-size:12px;font-weight:600}
+  .row .play{padding:4px 0;width:34px}
+  .row .play.hot{border-color:var(--yellow);color:var(--yellow)}
+  .row output{font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+  .g0 input{accent-color:var(--pink)} .g1 input{accent-color:var(--yellow)} .g3 input{accent-color:var(--mint)}
+  .meter{font-size:11px;color:var(--dim);min-height:16px;margin-top:8px}
+  .meter b{color:var(--yellow)}
+  .export{margin-top:16px;background:var(--panel);border:1px solid var(--line);padding:12px 14px}
+  textarea{width:100%;min-height:80px;background:#0e0e14;color:var(--text);border:1px solid var(--line);font:12px/1.4 ui-monospace,Menlo,monospace;margin-top:8px}
+</style>
+
+<h1>PMOR DRUM LEVELS</h1>
+<div class="sub">Each slider = that sound's volume (100 % = as it is in the firmware now). Everything runs through the real master fader and the FL soft clipper. EXPORT, paste the JSON to Claude.</div>
+
+<div class="master">
+  <div class="ctl"><label>MASTER FADER <output id="oMaster">100 %</output></label><input type="range" id="master" min="0" max="133" value="100"></div>
+  <div class="ctl"><label>LISTEN (headphones only, not in the math) <output id="oListen">3.0×</output></label><input type="range" id="listen" min="0" max="6" step="0.1" value="3"></div>
+  <div class="ctl" style="min-width:auto;flex-direction:row;gap:8px"><button id="loadAll">Load all</button><button id="loop">Loop kick/snare/hat</button><button id="stop">Stop</button></div>
+  <div class="meter" id="meter">—</div>
+</div>
+
+<div class="groups" id="groups"></div>
+
+<div class="export">
+  <button id="export">EXPORT</button> <button id="reset">RESET ALL TO 100 %</button>
+  <textarea id="json" readonly placeholder="EXPORT writes the JSON here (and copies it)"></textarea>
+</div>
+
+<script>
+const GROUPS = ['KICKS','SNARES','HATS','PERC'];
+const KEYS   = ['kick','snare','hat','perc'];
+const NAMES = [
+ ['KSUB','KCLUB','808','909','KCK1','KCK2','KCK3','K808','K909','KHARD','PHONE','SUB','BOOM','DIST','RUMBL','GLICH'],
+ ['SNP1','808','GATE','CLAP9','SNP2','SNRF','CHOP','CLAP','ESNR','RIM','909','CLAP8','TIGHT','MODAL','FM','ZAPN'],
+ ['HCL','CH808','CRASH','HOP','HMD','WASH','EHAT1','EHAT2','EHAT3','ECYM','OH808','CH909','OH909','RIDE','NOH','FMCYM'],
+ ['TOML','CHIRP','COWB','CLAVE','TOMM','TOMH','BELL','BLIP','LZTOM','FMBEL','MTL','COSMO','TOM9','CONGA','LASER','BONGO']];
+const file = (g,i) => `wav/${g}_${String(i).padStart(2,'0')}_${NAMES[g][i]}.wav`;
+
+let ctx = null; const bufs = {}; const vol = []; // vol[g][i] in percent
+for (let g=0; g<4; g++) vol.push(new Array(16).fill(100));
+try { const s = JSON.parse(localStorage.getItem('pmor_levels')||'null'); if (s && s.length===4) for (let g=0;g<4;g++) for (let i=0;i<16;i++) if (typeof s[g][i]==='number') vol[g][i]=s[g][i]; } catch(e){}
+const save = () => { try { localStorage.setItem('pmor_levels', JSON.stringify(vol)); } catch(e){} };
+
+const T = Math.pow(10, -4.4/20), INV4W = 1/(4*(1-T)), KNEE_END = 2-T, UNITY = 0.2848;
+function clip(x){ let u = Math.abs(x), y; if (u<=T) y=u; else if (u>=KNEE_END) y=1; else { const d=u-T; y=T+d-d*d*INV4W; } if (y>1) y=1; return x<0?-y:y; }
+function drive(){ const f = +document.getElementById('master').value/100; const pre=Math.min(f,1), over=Math.max(0,f-1); return pre*(1+over*3); }
+
+async function load(g,i){ const k=g+'_'+i; if (bufs[k]) return bufs[k]; if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)();
+  const r = await fetch(file(g,i)); const ab = await r.arrayBuffer(); const b = await ctx.decodeAudioData(ab); bufs[k]=b; return b; }
+
+async function play(g,i){ if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)(); if (ctx.state==='suspended') await ctx.resume();
+  const b = await load(g,i); const src = b.getChannelData(0); const out = ctx.createBuffer(1, b.length, b.sampleRate); const o = out.getChannelData(0);
+  const gain = vol[g][i]/100, d = drive(), listen = +document.getElementById('listen').value; let pk=0, pkc=0;
+  for (let n=0;n<src.length;n++){ const x = src[n]*2*gain*d; const a=Math.abs(x); if(a>pk)pk=a; const y=clip(x); if(Math.abs(y)>pkc)pkc=Math.abs(y); o[n]=y*UNITY*listen; }
+  const s = ctx.createBufferSource(); s.buffer=out; s.connect(ctx.destination); s.start();
+  const red = pk>0 ? 20*Math.log10(Math.max(pkc,1e-6)/pk) : 0;
+  document.getElementById('meter').innerHTML = `${NAMES[g][i]} — peak into clipper ${(20*Math.log10(Math.max(pk,1e-6)/T)).toFixed(1)} dB re knee, clipper took <b>${(-red).toFixed(1)} dB</b>${pk>T?' — CLIPPING':''}`;
+}
+
+// ---- build UI
+const root = document.getElementById('groups');
+for (let g=0; g<4; g++){ const div=document.createElement('div'); div.className='grp g'+g; div.innerHTML=`<h2>${GROUPS[g]}</h2>`;
+  for (let i=0;i<16;i++){ const row=document.createElement('div'); row.className='row';
+    row.innerHTML=`<button class="play" id="p${g}_${i}" title="play">▶</button><span class="name">${NAMES[g][i]}</span><input type="range" id="v${g}_${i}" min="0" max="250" value="${vol[g][i]}"><output id="o${g}_${i}">${vol[g][i]} %</output>`;
+    div.appendChild(row);
+    row.querySelector('button').addEventListener('click', ()=>play(g,i));
+    const inp=row.querySelector('input');
+    inp.addEventListener('input', ()=>{ vol[g][i]=+inp.value; document.getElementById(`o${g}_${i}`).textContent=vol[g][i]+' %'; save(); });
+    inp.addEventListener('change', ()=>play(g,i));   // hear it where you left it
+  }
+  root.appendChild(div); }
+
+document.getElementById('master').addEventListener('input', e=>{ document.getElementById('oMaster').textContent=e.target.value+' %'; });
+document.getElementById('listen').addEventListener('input', e=>{ document.getElementById('oListen').textContent=(+e.target.value).toFixed(1)+'×'; });
+document.getElementById('loadAll').addEventListener('click', async ()=>{ for(let g=0;g<4;g++) for(let i=0;i<16;i++) await load(g,i); document.getElementById('meter').textContent='all 64 loaded'; });
+document.getElementById('reset').addEventListener('click', ()=>{ for(let g=0;g<4;g++) for(let i=0;i<16;i++){ vol[g][i]=100; document.getElementById(`v${g}_${i}`).value=100; document.getElementById(`o${g}_${i}`).textContent='100 %'; } save(); });
+document.getElementById('export').addEventListener('click', ()=>{ const j={}; for(let g=0;g<4;g++) j[KEYS[g]]=vol[g].map(v=>+(v/100).toFixed(3)); j.master=+document.getElementById('master').value/100;
+  const t=JSON.stringify(j); document.getElementById('json').value=t; try{ navigator.clipboard.writeText(t); }catch(e){} });
+
+// ---- simple loop: kick 0 / snare 0 / hat 0 at 120 BPM, 16 steps
+let loopTimer=null, step=0;
+document.getElementById('loop').addEventListener('click', ()=>{ if(loopTimer) return; step=0;
+  loopTimer=setInterval(()=>{ if(step%4===0) play(0,0); if(step===4||step===12) play(1,0); if(step%2===0) play(2,0); if(step===14) play(3,0); step=(step+1)%16; },125); });
+document.getElementById('stop').addEventListener('click', ()=>{ clearInterval(loopTimer); loopTimer=null; });
+</script>

@@ -1,0 +1,1 @@
+demiurge-transport.h: copied from Pi ~/_______DEMIURGE/src (sha256 f1a640f9...). Shared with the Pi transport; if it changes there, re-vendor deliberately and re-run check.sh. Excluded from the pure-core include scan.

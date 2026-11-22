@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+# demiurge-stream-touch [/dev/input/eventN]
+#
+# Live touchscreen input reader. Meant to be run over SSH so you can verify a
+# Pi touch panel from a laptop:
+#
+#   ssh demiurge.local demiurge-stream-touch
+#
+# Auto-detects the touchscreen (the input device that reports absolute X/Y, i.e.
+# an EV_ABS device with ABS_X/ABS_Y or ABS_MT_POSITION). Prints a live, in-place
+# line: touch up/down and current X/Y, plus a tap counter. That makes it easy to
+# (a) confirm touches register across the whole panel and (b) spot phantom or
+# stuck touches from enclosure pressure (state stays DOWN, or X/Y pinned).
+#
+# Dependency-free: reads /dev/input/eventN directly via struct. No python-evdev,
+# no evtest, no sudo (the default user is in the `input` group).
+
+import glob
+import os
+import re
+import struct
+import sys
+import time
+
+# struct input_event on 64-bit Linux: time (long sec, long usec), u16 type,
+# u16 code, s32 value = 24 bytes.
+EV_FMT = "qqHHi"
+EV_SIZE = struct.calcsize(EV_FMT)
+
+EV_SYN, EV_KEY, EV_ABS = 0x00, 0x01, 0x03
+BTN_TOUCH = 0x14a
+ABS_X, ABS_Y = 0x00, 0x01
+ABS_MT_POSITION_X, ABS_MT_POSITION_Y = 0x35, 0x36
+ABS_MT_TRACKING_ID = 0x39
+
+
+def find_touch_device():
+    """Return /dev/input/eventN for the first device that looks like a touch
+    panel: an EV_ABS-capable device exposing absolute X/Y. Prefers names that
+    mention touch."""
+    candidates = []
+    block = {}
+    try:
+        with open("/proc/bus/input/devices") as f:
+            text = f.read()
+    except OSError:
+        return None
+    for chunk in text.strip().split("\n\n"):
+        name = ""
+        handlers = ""
+        ev = 0
+        absbits = 0
+        for line in chunk.splitlines():
+            if line.startswith("N:"):
+                m = re.search(r'Name="(.*)"', line)
+                name = m.group(1) if m else ""
+            elif line.startswith("H:"):
+                handlers = line
+            elif line.startswith("B: EV="):
+                ev = int(line.split("=", 1)[1], 16)
+            elif line.startswith("B: ABS="):
+                # may be multiple space-separated hex words; OR them together
+                for w in line.split("=", 1)[1].split():
+                    absbits |= int(w, 16)
+        m = re.search(r"(event\d+)", handlers)
+        if not m:
+            continue
+        evdev = "/dev/input/" + m.group(1)
+        has_abs = bool(ev & (1 << EV_ABS))
+        # ABS_X bit (0) or ABS_MT_POSITION_X bit (0x35)
+        has_xy = bool(absbits & (1 << ABS_X)) or bool(absbits & (1 << ABS_MT_POSITION_X))
+        if has_abs and has_xy:
+            score = 2 if re.search(r"touch", name, re.I) else 1
+            candidates.append((score, evdev, name))
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1], candidates[0][2]
+
+
+def main():
+    dev = sys.argv[1] if len(sys.argv) > 1 else None
+    name = ""
+    if dev is None:
+        found = find_touch_device()
+        if not found:
+            sys.stderr.write(
+                "demiurge-stream-touch: no touchscreen input device found.\n"
+                "  No EV_ABS touch device is present. For a USB touch panel "
+                "(e.g. MPI3508 HDMI),\n"
+                "  plug its USB touch lead into a Pi USB-A port — it needs no "
+                "driver, it just\n"
+                "  has to enumerate. Check with: lsusb  and  ls /dev/input/event*\n"
+            )
+            return 2
+        dev, name = found
+
+    try:
+        fd = open(dev, "rb")
+    except OSError as e:
+        sys.stderr.write("demiurge-stream-touch: cannot open %s: %s\n" % (dev, e))
+        return 1
+
+    sys.stderr.write("demiurge-stream-touch: reading %s  %s\n" % (dev, ("(%s)" % name) if name else ""))
+    sys.stderr.write("  press the screen — touch state + X/Y update live. Ctrl-C to stop.\n")
+
+    x = y = -1
+    touching = 0
+    taps = 0
+    mt_id = None
+    try:
+        while True:
+            data = fd.read(EV_SIZE)
+            if not data or len(data) < EV_SIZE:
+                break
+            _s, _u, etype, code, value = struct.unpack(EV_FMT, data)
+            if etype == EV_ABS:
+                if code in (ABS_X, ABS_MT_POSITION_X):
+                    x = value
+                elif code in (ABS_Y, ABS_MT_POSITION_Y):
+                    y = value
+                elif code == ABS_MT_TRACKING_ID:
+                    mt_id = value
+                    if value == -1:
+                        touching = 0
+                    else:
+                        if not touching:
+                            taps += 1
+                        touching = 1
+            elif etype == EV_KEY and code == BTN_TOUCH:
+                if value and not touching:
+                    taps += 1
+                touching = 1 if value else 0
+            elif etype == EV_SYN:
+                state = "DOWN" if touching else "up  "
+                sys.stdout.write(
+                    "\r[touch] state=%s  x=%-6s y=%-6s  taps=%-4d " % (state, x, y, taps)
+                )
+                sys.stdout.flush()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        fd.close()
+        sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,17 @@
+{
+  "name": "gormapper-overlay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Transparent click-through Electron overlay that draws GORMAPPER zones on top of the real projector desktop",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke",
+    "build-fence": "sh fence/build.sh",
+    "dist": "electron-packager . GORMAPPER --out=pack-out --overwrite && mkdir -p ../dist && rm -rf ../dist/GORMAPPER.app && mv pack-out/GORMAPPER-darwin-*/GORMAPPER.app ../dist/ && rm -rf pack-out && echo 'packaged: ../dist/GORMAPPER.app'"
+  },
+  "devDependencies": {
+    "@electron/packager": "18.3.6",
+    "electron": "33.2.0"
+  }
+}

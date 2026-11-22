@@ -1,0 +1,60 @@
+{
+  "name": "rain",
+  "master": {"brightness": 1.0, "tone_map": "clip"},
+  "layers": [
+    {
+      "type": "gradient",
+      "blend": "add",
+      "opacity": 0.25,
+      "palette": ["#001030", "#000208", "#000000", "#000000"],
+      "scale": 800,
+      "scroll_speed": 0
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "decay": 0.78,
+      "physics": {
+        "gravity": {"mode": "direction", "accel": -140},
+        "damping": 0.15,
+        "bounce": {"enabled": true, "restitution": 0.35}
+      },
+      "emitters": [
+        {
+          "pos": [770, 799],
+          "rate": 7,
+          "vel": -30,
+          "vel_jitter": 25,
+          "lifetime": 7,
+          "lifetime_jitter": 2,
+          "colors": ["#3060ff", "#4090ff", "#80c0ff"],
+          "size": 1.6,
+          "size_jitter": 0.5
+        }
+      ],
+      "render": {"falloff": "gaussian", "fade_out": true}
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "decay": 0.9,
+      "physics": {
+        "damping": 2.5,
+        "bounce": {"enabled": true, "restitution": 0.6}
+      },
+      "emitters": [
+        {
+          "pos": [0, 30],
+          "rate": 3,
+          "vel": 60,
+          "vel_jitter": 40,
+          "lifetime": 1.5,
+          "lifetime_jitter": 0.5,
+          "colors": ["#a0d0ff", "#ffffff"],
+          "size": 1.0
+        }
+      ],
+      "render": {"falloff": "gaussian", "fade_out": true}
+    }
+  ]
+}

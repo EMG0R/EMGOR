@@ -1,0 +1,18 @@
+# PROPOSED -- NOT INSTALLED (/etc/systemd/system/cardinal-guard.service). Watches csound6 ERR; acts only on Cardinal.
+[Unit]
+Description=Cardinal guard: demote/pause Cardinal if csound deadline misses rise
+After=cardinal.service
+# Independent of cardinal.service and demiurge.service: no Requires/PartOf in either direction.
+
+[Service]
+Type=simple
+User=gorpi7v5
+Environment=HOME=/home/gorpi7v5 XDG_RUNTIME_DIR=/run/user/1000 PYTHONUNBUFFERED=1
+ExecStart=/home/gorpi7v5/kivy-venv/bin/python -I /home/gorpi7v5/PRIME_RECOVERY/vcv/cardinal-guard.py
+CPUAffinity=0
+Nice=10
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

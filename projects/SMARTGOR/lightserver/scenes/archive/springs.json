@@ -1,0 +1,27 @@
+{
+  "name": "springs",
+  "master": {"brightness": 1.0, "tone_map": "clip"},
+  "layers": [
+    {
+      "type": "particles",
+      "blend": "add",
+      "decay": 0.82,
+      "physics": {
+        "damping": 0.05,
+        "bounce": {"enabled": true, "restitution": 0.9}
+      },
+      "particles": [
+        {"pos": 120, "vel": 0, "color": "#ff4060", "size": 2.2, "mass": 1.0},
+        {"pos": 400, "vel": 90, "color": "#40ff90", "size": 2.2, "mass": 1.5},
+        {"pos": 680, "vel": 0, "color": "#4090ff", "size": 2.2, "mass": 1.0}
+      ],
+      "springs": [
+        {"a": 0, "anchor": 200, "k": 14, "damping": 0.25},
+        {"a": 2, "anchor": 600, "k": 14, "damping": 0.25},
+        {"a": 0, "b": 1, "k": 6, "damping": 0.15, "rest": 260},
+        {"a": 1, "b": 2, "k": 6, "damping": 0.15, "rest": 260}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": false}
+    }
+  ]
+}

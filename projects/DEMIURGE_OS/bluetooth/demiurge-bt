@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+# demiurge-bt — Bluetooth output device manager for DEMIURGE.
+#
+# Pi → speaker (A2DP output only). Selects which Bluetooth speaker the Pi
+# should stream its main mix to, and remembers it for auto-connect on boot.
+#
+# Runs directly on the Pi or over SSH (use `ssh -t` so the picker can read your
+# keypress):
+#     demiurge-bt                   # scan, show a numbered list, pick one to connect
+#     demiurge-bt pick              # same as above (the default action)
+#     demiurge-bt scan              # just list nearby devices, no prompt
+#     demiurge-bt select <MAC>      # connect a specific MAC directly
+#     demiurge-bt connect           # connect the saved device now
+#     demiurge-bt status            # show saved + live connection state
+#     demiurge-bt forget            # clear only the saved auto-connect device
+#     demiurge-bt clear             # wipe ALL Bluetooth memory (every paired device)
+#
+# The saved device lives in ~/demiurge/bluetooth.conf. That file is the single
+# source of truth for "the auto-connect device"; the boot service and this tool
+# both read it. The DEMIURGE sync layer does NOT read it — it reacts purely to
+# whether a bluez_output node is present in PipeWire.
+
+set -u
+
+CONF="${DEMIURGE_BT_CONF:-$HOME/demiurge/bluetooth.conf}"
+SCAN_SECS="${DEMIURGE_BT_SCAN_SECS:-12}"
+
+die() { echo "demiurge-bt: $*" >&2; exit 1; }
+
+command -v bluetoothctl >/dev/null 2>&1 || die "bluetoothctl not found (install bluez)"
+
+ensure_powered() {
+    bluetoothctl show >/dev/null 2>&1 || die "no Bluetooth adapter found"
+    bluetoothctl power on >/dev/null 2>&1
+    # Agent on, so pairing without a separate agent works for most speakers.
+    bluetoothctl agent on >/dev/null 2>&1
+    bluetoothctl default-agent >/dev/null 2>&1
+}
+
+save_conf() {
+    local mac="$1" name="$2"
+    mkdir -p "$(dirname "$CONF")"
+    {
+        echo "# DEMIURGE Bluetooth auto-connect device — written by demiurge-bt"
+        echo "MAC=$mac"
+        # Quote NAME — speaker names contain spaces (e.g. "Bose Flex 2 SoundLink").
+        # Without quotes, sourcing this file would run the trailing words as a command.
+        echo "NAME=\"$name\""
+    } > "$CONF"
+    echo "demiurge-bt: saved auto-connect device $name ($mac) -> $CONF" >&2
+}
+
+read_conf_mac() {
+    [ -f "$CONF" ] || return 1
+    # shellcheck disable=SC1090
+    . "$CONF" 2>/dev/null
+    [ -n "${MAC:-}" ] || return 1
+    printf '%s' "$MAC"
+}
+
+is_connected() {
+    bluetoothctl info "$1" 2>/dev/null | grep -q "Connected: yes"
+}
+
+# Connect, robustly. An active BLE discovery scan aborts a classic (BR/EDR)
+# A2DP connection with `le-connection-abort-by-local`, so we ALWAYS stop
+# scanning first, then retry a few times — the first attempt after pairing or
+# scanning frequently aborts and the next one succeeds. This is the single most
+# important reliability fix for "connects then immediately drops".
+connect_robust() {
+    local mac="$1" attempt i
+    bluetoothctl scan off >/dev/null 2>&1
+    sleep 1
+    # PATIENT connect: fire connect ONCE, then wait up to ~12s for it to finish
+    # before considering another attempt. Hammering `connect` on a short timer
+    # piles up overlapping requests ("Operation already in progress") that make
+    # the speaker refuse the A2DP link and drop. One unhurried attempt is far
+    # more reliable; we allow only 3 well-spaced tries total.
+    for attempt in 1 2 3; do
+        is_connected "$mac" && return 0
+        bluetoothctl connect "$mac" >/dev/null 2>&1
+        for i in $(seq 1 12); do
+            is_connected "$mac" && return 0
+            sleep 1
+        done
+    done
+    is_connected "$mac"
+}
+
+# Run a discovery sweep, then emit "MAC<TAB>NAME" lines for every device found.
+discover() {
+    ensure_powered
+    echo "demiurge-bt: scanning ${SCAN_SECS}s for nearby devices…" >&2
+    bluetoothctl --timeout "$SCAN_SECS" scan on >/dev/null 2>&1
+    bluetoothctl scan off >/dev/null 2>&1   # ensure discovery is fully stopped before any connect
+    bluetoothctl devices 2>/dev/null \
+        | sed -n 's/^Device \([0-9A-F:]\{17\}\) \(.*\)$/\1\t\2/p'
+}
+
+# Pair + trust + connect a MAC, then save it as the auto-connect device.
+do_select() {
+    local mac="$1" name="$2"
+    mac="${mac^^}"
+    [ -n "$name" ] || name="$mac"
+    ensure_powered
+
+    echo "demiurge-bt: pairing $name ($mac)…" >&2
+    bluetoothctl scan off       >/dev/null 2>&1   # scanning blocks BR/EDR pair+connect
+    bluetoothctl pair "$mac"    >/dev/null 2>&1
+    # Trust enables bluez to auto-accept the link on future connects/boots.
+    bluetoothctl trust "$mac"   >/dev/null 2>&1
+    echo "demiurge-bt: connecting…" >&2
+    connect_robust "$mac"
+
+    if is_connected "$mac"; then
+        echo "demiurge-bt: connected." >&2
+    else
+        echo "demiurge-bt: WARNING — not connected yet. Saved anyway; will retry on boot." >&2
+        echo "demiurge-bt: make sure the speaker is on / in pairing mode, then: demiurge-bt connect" >&2
+    fi
+    save_conf "$mac" "$name"
+}
+
+cmd_scan() {
+    echo "demiurge-bt: discovered devices (use: demiurge-bt select <MAC>)" >&2
+    discover | sed 's/\t/  /'
+    echo "" >&2
+}
+
+cmd_pick() {
+    # Read the user's keypress from the terminal even when invoked over SSH.
+    local tty="/dev/tty"
+    [ -r "$tty" ] || tty="/dev/stdin"
+
+    local macs=() names=() line mac name
+    while IFS=$'\t' read -r mac name; do
+        [ -n "$mac" ] || continue
+        macs+=("$mac"); names+=("$name")
+    done < <(discover)
+
+    local n=${#macs[@]}
+    if [ "$n" -eq 0 ]; then
+        echo "demiurge-bt: no devices found. Put the speaker in pairing mode and retry." >&2
+        return 1
+    fi
+
+    echo "" >&2
+    echo "Nearby Bluetooth devices:" >&2
+    local i
+    for i in "${!macs[@]}"; do
+        printf "  %2d) %-22s %s\n" "$((i+1))" "${names[$i]}" "${macs[$i]}" >&2
+    done
+    echo "" >&2
+
+    local choice
+    printf "Enter number to connect (q to quit): " >&2
+    read -r choice < "$tty" || { echo >&2; return 1; }
+    case "$choice" in
+        q|Q|"") echo "demiurge-bt: cancelled." >&2; return 0 ;;
+    esac
+    [[ "$choice" =~ ^[0-9]+$ ]] || die "not a number: $choice"
+    [ "$choice" -ge 1 ] && [ "$choice" -le "$n" ] || die "out of range: $choice"
+
+    local idx=$((choice-1))
+    do_select "${macs[$idx]}" "${names[$idx]}"
+}
+
+cmd_select() {
+    local mac="${1:-}"
+    [ -n "$mac" ] || die "usage: demiurge-bt select <MAC>"
+    [[ "$mac" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || die "invalid MAC: $mac"
+    local name
+    name="$(bluetoothctl devices 2>/dev/null | sed -n "s/^Device ${mac^^} //p")"
+    do_select "$mac" "$name"
+}
+
+cmd_connect() {
+    local mac; mac="$(read_conf_mac)" || die "no saved device — run: demiurge-bt pick"
+    ensure_powered
+    if is_connected "$mac"; then
+        echo "demiurge-bt: already connected ($mac)"; return 0
+    fi
+    echo "demiurge-bt: connecting saved device $mac…" >&2
+    connect_robust "$mac"
+    is_connected "$mac" && echo "demiurge-bt: connected." || die "could not connect $mac"
+}
+
+cmd_status() {
+    local mac name=""
+    if mac="$(read_conf_mac)"; then
+        # shellcheck disable=SC1090
+        . "$CONF" 2>/dev/null; name="${NAME:-}"
+        echo "saved auto-connect device: ${name:-?} ($mac)"
+        if is_connected "$mac"; then echo "  state: CONNECTED"; else echo "  state: not connected"; fi
+        echo "  pipewire node: $(pw-link -i 2>/dev/null | grep -c '^bluez_output\.') bluez_output port(s) present"
+    else
+        echo "no saved auto-connect device (run: demiurge-bt pick)"
+    fi
+}
+
+cmd_forget() {
+    local mac
+    if mac="$(read_conf_mac)"; then
+        ensure_powered
+        bluetoothctl disconnect "$mac" >/dev/null 2>&1
+        bluetoothctl untrust "$mac"    >/dev/null 2>&1
+        rm -f "$CONF"
+        echo "demiurge-bt: forgot saved device $mac"
+    else
+        echo "demiurge-bt: nothing saved"
+    fi
+}
+
+cmd_clear() {
+    ensure_powered
+    echo "demiurge-bt: wiping ALL Bluetooth memory…" >&2
+    local mac
+    # `bluetoothctl devices` lists every known/paired device; remove each.
+    while read -r mac; do
+        [ -n "$mac" ] || continue
+        bluetoothctl disconnect "$mac" >/dev/null 2>&1
+        bluetoothctl remove "$mac"     >/dev/null 2>&1
+        echo "demiurge-bt: removed $mac" >&2
+    done < <(bluetoothctl devices 2>/dev/null | sed -n 's/^Device \([0-9A-F:]\{17\}\) .*$/\1/p')
+    rm -f "$CONF"
+    echo "demiurge-bt: cleared. No saved device, no paired devices." >&2
+}
+
+case "${1:-}" in
+    ""|pick) cmd_pick ;;
+    scan)    cmd_scan ;;
+    select)  shift; cmd_select "$@" ;;
+    connect) cmd_connect ;;
+    status)  cmd_status ;;
+    forget)  cmd_forget ;;
+    clear|reset) cmd_clear ;;
+    -h|--help|help)
+        sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
+        ;;
+    *) die "unknown command '$1' (try: pick|scan|select|connect|status|forget|clear)" ;;
+esac

@@ -1,0 +1,12 @@
+{
+  "controller_id": "neuralgrid",
+  "channels": [
+    { "name": "grid", "dims": 2, "kind": "discrete", "size": [8, 8] },
+    { "name": "softpot_n", "dims": 1, "kind": "continuous", "size": null },
+    { "name": "softpot_s", "dims": 1, "kind": "continuous", "size": null },
+    { "name": "softpot_e", "dims": 1, "kind": "continuous", "size": null },
+    { "name": "softpot_w", "dims": 1, "kind": "continuous", "size": null },
+    { "name": "lidar", "dims": 1, "kind": "continuous", "size": null },
+    { "name": "fsr", "dims": 1, "kind": "continuous", "count": 4 }
+  ]
+}

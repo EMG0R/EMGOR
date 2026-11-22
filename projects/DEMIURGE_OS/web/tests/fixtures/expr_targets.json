@@ -1,0 +1,11 @@
+{
+  "source_sha256_16": "testfixture0000",
+  "targets": [
+    {"id": 30, "label": "", "writes": ["gkMasterVol"], "body": "gkMasterVol = kNorm"},
+    {"id": 1, "label": "", "writes": ["gkVOLpedal"], "body": "gkVOLpedal = kNorm"},
+    {"id": 21, "label": "TAPE transport: heel = play, toe = stop",
+     "writes": ["gkTapeExpr"], "body": "gkTapeExpr = kNorm"},
+    {"id": 22, "label": "WAH pedal position", "writes": ["gkWAH_freq"],
+     "body": "gkWAH_freq = kNorm"}
+  ]
+}

@@ -1,0 +1,183 @@
+{
+ "AVERAGE": {
+  "heroes": [
+   "Number of frames",
+   "Brightness"
+  ],
+  "pedal": "Number of frames"
+ },
+ "BLUR": {
+  "heroes": [
+   "Blur amount",
+   "Blur variance",
+   "LFO rate"
+  ],
+  "pedal": "Blur amount"
+ },
+ "DRONE": {
+  "heroes": [
+   "Interpolation length",
+   "Interp length variance",
+   "Brightness"
+  ],
+  "pedal": "Interpolation length"
+ },
+ "FREEZE": {
+  "heroes": [
+   "Freeze factor",
+   "Threshold"
+  ],
+  "pedal": "Freeze factor"
+ },
+ "GATEHOLD": {
+  "heroes": [
+   "Threshold",
+   "Hold length",
+   "Decay factor"
+  ],
+  "pedal": "Threshold"
+ },
+ "WEAVE": {
+  "heroes": [
+   "Threshold",
+   "Thread life",
+   "Hold length"
+  ],
+  "pedal": "Threshold"
+ },
+ "SHIMMER": {
+  "heroes": [
+   "Jitter amount",
+   "High-frequency jitter",
+   "Delay variance"
+  ],
+  "pedal": "Jitter amount"
+ },
+ "SHUFFLE": {
+  "heroes": [
+   "Shuffle factor",
+   "Shuffle range",
+   "Bins per group"
+  ],
+  "pedal": "Shuffle factor"
+ },
+ "PULSING": {
+  "heroes": [
+   "On duration",
+   "Off duration",
+   "On multiplier freq"
+  ],
+  "pedal": "On duration"
+ },
+ "HARMONIZ": {
+  "heroes": [
+   "Interval 1",
+   "Interval 2",
+   "Wet/Dry Mix"
+  ],
+  "pedal": "Interval 1"
+ },
+ "BINSHIFT": {
+  "heroes": [
+   "Bins to Shift",
+   "Feedback",
+   "Shifted multiplier"
+  ],
+  "pedal": "Bins to Shift"
+ },
+ "PITCH": {
+  "heroes": [
+   "Pitch shift",
+   "Feedback"
+  ],
+  "pedal": "Pitch shift"
+ },
+ "STRETCH": {
+  "heroes": [
+   "Alpha stretch",
+   "Beta stretch",
+   "Beta stretch variance"
+  ],
+  "pedal": "Alpha stretch"
+ },
+ "TRACING": {
+  "heroes": [
+   "Number of bins 1",
+   "Tracing type",
+   "Threshold"
+  ],
+  "pedal": "Number of bins 1"
+ },
+ "FILTBANK": {
+  "heroes": [
+   "Base frequency",
+   "Interval",
+   "Number of filters"
+  ],
+  "pedal": "Base frequency"
+ },
+ "GLIDEFLT": {
+  "heroes": [
+   "Pitch glide per second",
+   "Number of filters",
+   "Filter width"
+  ],
+  "pedal": "Pitch glide per second"
+ },
+ "GRANUL": {
+  "heroes": [
+   "Grain length",
+   "Grain delay",
+   "Bin shift"
+  ],
+  "pedal": "Grain length"
+ },
+ "EMERGE": {
+  "heroes": [
+   "Fade in (windows)",
+   "Hold (windows)",
+   "Fuzziness"
+  ],
+  "pedal": "Fade in (windows)"
+ },
+ "PARTGLD": {
+  "heroes": [
+   "Pitch shift per second",
+   "Pitch shift variance",
+   "Mirror Bin"
+  ],
+  "pedal": "Pitch shift per second"
+ },
+ "CHORUS": {
+  "heroes": [
+   "Delay",
+   "Delay Variance",
+   "Feedback"
+  ],
+  "pedal": "Delay"
+ },
+ "GRAINSTR": {
+  "heroes": [
+   "Freeze probability",
+   "Grain repetitions",
+   "Grain length at start"
+  ],
+  "pedal": "Freeze probability"
+ },
+ "IDEEFIX": {
+  "heroes": [
+   "Grain duration",
+   "Grain spacing",
+   "Grain transposition"
+  ],
+  "pedal": "Grain duration"
+ },
+ "SUPERFB": {
+  "heroes": [
+   "Fundamental frequency",
+   "Number of filters",
+   "Bandwidth"
+  ],
+  "pedal": "Fundamental frequency"
+ }
+}

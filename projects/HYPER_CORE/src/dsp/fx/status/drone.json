@@ -1,0 +1,16 @@
+{
+"id": "drone",
+"file": "fx_drone.h",
+"roles": {
+"AMT": "MIX",
+"TIME": "INTERP",
+"TONE": "COMBLVL",
+"MOD": "FLAMT",
+"PITCH": "COMBFUND"
+},
+"actions": {},
+"params": "MIX INTERP INTVAR PEAKAMP GATE COMBLVL COMBFUND SCALE OCTAVES RESON FLAMT FLRATE FLDEPTH GAIN (Norris names; ranges/units guessed). Defaults: MIX 0.5, INTERP 2.06 s, INTVAR 3.38 %, PEAKAMP 0, GATE -72 dBFS, COMBLVL 40 %, COMBFUND 303.04 Hz, SCALE Overtone, OCTAVES 6, RESON 70 %, FLAMT 0, FLRATE 0.1 Hz, FLDEPTH 2 ms, GAIN 1.",
+"ops_per_sample": "Host (M4 Max) 10.8 ns/sample avg, 15.6 worst block; x100 = device ~5.2 % avg / ~7.5 % worst block of a 48-sample block. Flanger on adds ~+2.6 %. Stress (flanger, comb 100 %, peak amps, INTERP 0.1 s): ~8.5 % / ~15 %.",
+"memory_bytes": "hot ~39 KB (pool 16 x 224 floats, flanger/stereo lines 12 KB, Stft hot ~7 KB), cold ~11 KB; fits the glue arenas 62 KB / 28 KB.",
+"notes": "REBUILT 2026-11-17 (v3), old version sounded like a clicky freeze. STFT N=512 at 12 kHz (2048 @48k), hop N/4, ONE inverse FFT; snapshots A->B raised-cosine crossfade of magnitudes AND per-hop phase advance; every bin keeps one phasor that rotates by the true phase advance of its spectral peak (sine-window lobe: same phase, sign - outside the peak bin), never re-synced to the live input while sounding; comb resonance mask evaluated at the peak's true frequency; GATE judges the partial, not each skirt bin; feed-forward level from the pad RMS (-20 dBFS) + slow measured correction, applied per sample; 0.4 s fade-in; empty snapshots are rolled back (pad holds through silence). Tests: tests/test_fx_drone_v2.cpp (writes tools/drone_v2_demo.wav). Sources: michaelnorris.info/software/soundmagic-spectral/guide/ and /software/soundmagic-spectral."
+}

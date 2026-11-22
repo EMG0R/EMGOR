@@ -1,0 +1,16 @@
+[Unit]
+Description=NEPTR csound cycle-spike logger (UDP 9177 -> ~/PRIME_RECOVERY/logs/spikes.log)
+After=network.target
+
+[Service]
+Type=simple
+User=gorpi7v5
+Environment=HOME=/home/gorpi7v5
+ExecStart=/home/gorpi7v5/PRIME_RECOVERY/spike/spike_logger.py
+Restart=always
+RestartSec=2
+CPUAffinity=0-2
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

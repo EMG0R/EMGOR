@@ -1,0 +1,29 @@
+[Unit]
+Description=NEPTR Teensy serial → MIDI bridge
+After=sound.target user@1000.service
+Requires=user@1000.service
+# Wait for the Teensy USB device to appear
+ConditionPathExists=/dev/ttyACM0
+
+[Service]
+Type=simple
+# gorpi7 = (insert your name here, this is mine) — Pi user from Raspberry Pi
+# Imager. Replace below if yours is different.
+User=gorpi7
+Group=gorpi7
+Environment=HOME=/home/gorpi7
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/usr/bin/python3 /home/gorpi7/NEPTR_phase4/csound/serial_bridge.py /dev/ttyACM0
+# After the bridge's ALSA port appears: feed the bridge into Midi Through (14:0,
+# which csound subscribes to) AND remove the Teensy's DIRECT USB-MIDI feed
+# ("Teensy MIDI":0 -> 14:0). Both carry the same CCs; leaving both connected
+# double-feeds csound. The bridge is now the single source.
+ExecStartPost=/bin/sh -c 'sleep 1 && aconnect "NEPTR Serial Bridge":0 14:0 || true; aconnect -d "Teensy MIDI":0 14:0 || true'
+# On stop/restart: tear down the bridge feed and restore the Teensy's direct
+# USB-MIDI -> 14:0 connection so csound keeps receiving MIDI without the bridge.
+ExecStopPost=/bin/sh -c 'aconnect -d "NEPTR Serial Bridge":0 14:0 || true; aconnect "Teensy MIDI":0 14:0 || true'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

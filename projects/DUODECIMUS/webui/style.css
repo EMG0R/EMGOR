@@ -1,0 +1,431 @@
+/* DUODECIMUS bench monitor — committed dark instrument panel.
+   Single visual world on purpose: this runs on a bench in a dim room. */
+
+:root{
+  --ground:#0A0D0C;
+  --panel:#141A18;
+  --panel-2:#101614;
+  --edge:#26332F;
+  --edge-soft:#1C2523;
+  --ink:#DCE5E1;
+  --ink-dim:#9CADA7;
+  --ink-mute:#6E827B;
+  --amber:#FFA033;
+  --amber-dim:#8A5A1E;
+  --live:#38DDA0;
+  --live-dim:#1B6B50;
+  --mag:#FF4D7E;
+  --mag-dim:#7A2440;
+  --blue:#5FB8FF;
+
+  --f-chrome:"Barlow Condensed","Oswald","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Barlow","Helvetica Neue",Arial,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  --r:3px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, #131B18 0%, transparent 60%),
+    var(--ground);
+  color:var(--ink);
+  font-family:var(--f-body);
+  font-size:14px;
+  -webkit-font-smoothing:antialiased;
+}
+
+h2{
+  margin:0;
+  font-family:var(--f-chrome);
+  font-weight:600;
+  font-size:15px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ink-dim);
+}
+
+.lab{
+  font-family:var(--f-chrome);
+  font-size:11px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--ink-mute);
+}
+
+.hint{
+  font-family:var(--f-body);
+  font-size:12px;
+  color:var(--ink-mute);
+  line-height:1.35;
+}
+
+/* ── controls ─────────────────────────────────────────── */
+.ctl{
+  appearance:none;
+  background:var(--panel-2);
+  color:var(--ink);
+  border:1px solid var(--edge);
+  border-radius:var(--r);
+  padding:6px 10px;
+  font-family:var(--f-chrome);
+  font-size:13px;
+  letter-spacing:.06em;
+}
+.ctl-text{font-family:var(--f-num);font-size:12px;min-width:230px}
+select.ctl{padding-right:22px}
+.ctl:focus-visible,.btn:focus-visible,input:focus-visible,.cell:focus-visible{
+  outline:2px solid var(--amber);outline-offset:2px;
+}
+
+.btn{
+  background:linear-gradient(#1D2624,#151D1B);
+  color:var(--ink);
+  border:1px solid var(--edge);
+  border-radius:var(--r);
+  padding:6px 14px;
+  font-family:var(--f-chrome);
+  font-size:13px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+.btn:hover{border-color:#3A4B46;color:#fff}
+.btn-ghost{background:transparent;color:var(--ink-mute)}
+.btn-ghost:hover{color:var(--ink)}
+.btn.on{background:var(--amber);border-color:var(--amber);color:#150C02;font-weight:700}
+.btn-assign.on{background:var(--mag);border-color:var(--mag);color:#fff}
+.btn-sim.on{background:var(--blue);border-color:var(--blue);color:#031423}
+
+.switch{display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+  font-family:var(--f-chrome);font-size:12px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-mute)}
+.switch input{accent-color:var(--amber);width:14px;height:14px}
+.switch:hover{color:var(--ink-dim)}
+
+/* ── top rail ─────────────────────────────────────────── */
+.rail{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px 22px;
+  padding:10px 18px;
+  border-bottom:1px solid var(--edge);
+  background:linear-gradient(#161E1C,#0F1514);
+}
+.brand{display:flex;align-items:baseline;gap:7px}
+.brand-mark{font-family:var(--f-chrome);font-weight:700;font-size:24px;letter-spacing:.06em}
+.brand-ver{font-family:var(--f-num);font-size:12px;color:var(--amber);
+  border:1px solid var(--amber-dim);border-radius:2px;padding:0 4px}
+.brand-sub{font-family:var(--f-chrome);font-size:11px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--ink-mute);margin-left:4px}
+
+.rail-group{display:flex;align-items:center;gap:8px}
+.rail-right{margin-left:auto}
+
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--f-chrome);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  padding:3px 9px;border:1px solid var(--edge);border-radius:2px;color:var(--ink-dim);
+}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-mute)}
+.chip-off{color:var(--ink-mute)}
+.chip-live{color:var(--live);border-color:var(--live-dim)}
+.chip-live .dot{background:var(--live);box-shadow:0 0 8px var(--live)}
+.chip-sim{color:var(--blue);border-color:#26506E}
+.chip-sim .dot{background:var(--blue);box-shadow:0 0 8px var(--blue)}
+.chip-err{color:var(--mag);border-color:var(--mag-dim)}
+.chip-err .dot{background:var(--mag)}
+/* Relative is the resting state, so it stays quiet. Accumulator is the
+   unusual one and lights up. A forced choice reads as deliberately locked. */
+#modeChip{color:var(--ink-dim);border-color:var(--edge);cursor:help}
+#modeChip.chip-accum{color:var(--amber);border-color:var(--amber-dim)}
+#modeChip.chip-forced{border-style:dashed;color:var(--ink);border-color:var(--ink-mute)}
+#modeChip.chip-forced.chip-accum{color:var(--amber);border-color:var(--amber)}
+
+/* Static map reference — no pages any more, so this just states the contract
+   the page decodes against. */
+.map-read{display:flex;align-items:baseline;gap:9px}
+.map-ch{font-family:var(--f-num);font-weight:700;font-size:19px;line-height:1;
+  color:var(--amber);text-shadow:0 0 14px rgba(255,160,51,.3)}
+.map-cc{font-family:var(--f-num);font-size:10px;color:var(--ink-mute);
+  max-width:30ch;line-height:1.35}
+
+.banner{
+  margin:0;padding:11px 18px;
+  background:rgba(255,77,126,.1);
+  border-bottom:1px solid var(--mag-dim);
+  color:#FFC4D5;font-size:13px;line-height:1.5;
+}
+.banner b{color:#fff}
+.banner-ok{background:rgba(56,221,160,.09);border-bottom-color:var(--live-dim);color:#B9EFD9}
+.banner-ok b{color:var(--live)}
+.banner-warn{background:rgba(255,160,51,.09);border-bottom-color:var(--amber-dim);color:#F6DCBC}
+.banner-warn b{color:var(--amber)}
+
+/* RX counter — the first thing to look at when the panel seems dead.
+   Zero means nothing is arriving; climbing with dead tiles means decode. */
+.rx-read{display:flex;align-items:baseline;gap:7px}
+#rxCount{font-family:var(--f-num);font-weight:700;font-size:26px;line-height:1;
+  font-variant-numeric:tabular-nums;color:var(--ink)}
+.rx-sub{font-family:var(--f-num);font-size:10px;color:var(--ink-mute)}
+.rx-note{font-family:var(--f-chrome);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-mute);max-width:22ch;line-height:1.25}
+.rx-note.ok{color:var(--live)}
+.rx-note.warn{color:var(--amber)}
+
+/* ── stage ────────────────────────────────────────────── */
+.stage{
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(370px,.85fr);
+  grid-template-areas:
+    "left map"
+    "log  log";
+  gap:12px;
+  padding:12px 18px 22px;
+  align-items:start;
+}
+.col-left{grid-area:left;display:flex;flex-direction:column;gap:12px;min-width:0}
+.map-panel{grid-area:map}
+.log-panel{grid-area:log}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--edge);
+  border-radius:var(--r);
+  padding:12px 14px 14px;
+  min-width:0;
+}
+.panel-head{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding-bottom:9px;margin-bottom:12px;
+  border-bottom:1px solid var(--edge-soft);
+}
+.panel-head-sub{margin-top:18px}
+.head-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-left:auto}
+
+/* ── encoder rack ─────────────────────────────────────── */
+.rack{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.rack.phys{grid-template-columns:repeat(var(--cols,3),minmax(0,1fr))}
+
+.enc{
+  position:relative;
+  background:linear-gradient(#171F1D,#121917);
+  border:1px solid var(--edge);
+  border-radius:var(--r);
+  /* bottom padding permanently reserves the hold-badge strip, so a gesture
+     never covers the button pill and never shifts the layout */
+  padding:9px 10px 18px;
+  overflow:hidden;
+  min-width:0;
+}
+.enc::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:var(--amber);opacity:0;transition:opacity .28s linear;
+}
+.enc.hit::after{opacity:.13;transition:none}
+.enc.hit{border-color:var(--amber)}
+.enc.simhit::after{background:var(--blue)}
+.enc.simhit{border-color:var(--blue)}
+
+.enc-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.enc-idx{
+  font-family:var(--f-chrome);font-weight:700;font-size:13px;letter-spacing:.1em;
+  color:var(--ink-mute);
+}
+.enc-idx b{color:var(--ink);font-size:16px}
+.enc-cc{font-family:var(--f-num);font-size:10px;color:var(--ink-mute)}
+
+.enc-val{
+  display:flex;align-items:baseline;gap:8px;margin:2px 0 4px;
+}
+.enc-num{
+  font-family:var(--f-num);font-weight:700;font-size:38px;line-height:1.05;
+  font-variant-numeric:tabular-nums;color:var(--ink);
+}
+.enc.hit .enc-num{color:var(--amber)}
+.enc-dir{font-family:var(--f-num);font-size:15px;color:var(--ink-mute);min-width:1.4em}
+.enc-dir.cw{color:var(--live)}
+.enc-dir.ccw{color:var(--blue)}
+
+.enc-sub{font-family:var(--f-num);font-size:10px;color:var(--ink-mute);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.enc-bar{height:3px;background:var(--edge-soft);border-radius:2px;margin:6px 0 7px;overflow:hidden}
+.enc-bar i{display:block;height:100%;background:var(--amber);width:0}
+
+.enc-foot{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.btn-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:var(--f-chrome);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  border:1px solid var(--edge);border-radius:2px;padding:2px 7px;color:var(--ink-mute);
+}
+.btn-pill i{width:6px;height:6px;border-radius:50%;background:var(--edge)}
+.btn-pill.on{color:var(--live);border-color:var(--live-dim)}
+.btn-pill.on i{background:var(--live);box-shadow:0 0 7px var(--live)}
+/* Held past the release so a quick tap cannot fall between frames.
+   The pill is a momentary indicator — it never claims a latched selection. */
+.btn-pill.latched i{background:var(--live-dim);box-shadow:0 0 6px var(--live-dim)}
+.act{width:38px;height:3px;background:var(--edge-soft);border-radius:2px;overflow:hidden}
+.act i{display:block;height:100%;width:100%;background:var(--amber);
+  transform:scaleX(0);transform-origin:left}
+
+/* Press-and-hold gestures: 5 s capture, 8 s delete. Distinct from ordinary
+   traffic because they are deliberate and rare. */
+.hold-badge{
+  position:absolute;left:0;right:0;bottom:0;
+  font-family:var(--f-chrome);font-size:10px;letter-spacing:.2em;
+  text-transform:uppercase;text-align:center;padding:2px 0;color:#08100D;
+}
+.enc.hold-capture{border-color:var(--live);box-shadow:0 0 0 1px var(--live)}
+.enc.hold-capture .hold-badge{background:var(--live)}
+.enc.hold-delete{border-color:var(--mag);box-shadow:0 0 0 1px var(--mag)}
+.enc.hold-delete .hold-badge{background:var(--mag);color:#fff}
+
+.hold-read{
+  font-family:var(--f-num);font-size:11px;color:var(--ink-mute);
+  border:1px solid var(--edge);border-radius:2px;padding:4px 9px;
+  display:inline-flex;align-items:baseline;gap:2px;white-space:nowrap;
+}
+.hold-read b{font-family:var(--f-chrome);font-size:12px;letter-spacing:.16em;
+  text-transform:uppercase;font-weight:600}
+.hold-read span{color:var(--ink)}
+.hold-read i{font-style:normal;color:var(--ink-mute);font-size:10px}
+.hold-read.is-capture{border-color:var(--live-dim)}
+.hold-read.is-capture b{color:var(--live)}
+.hold-read.is-delete{border-color:var(--mag-dim)}
+.hold-read.is-delete b{color:var(--mag)}
+
+.enc-tag{
+  position:absolute;top:0;right:0;
+  font-family:var(--f-chrome);font-size:10px;letter-spacing:.12em;
+  background:var(--mag);color:#fff;padding:1px 6px;border-bottom-left-radius:3px;
+}
+.enc.simclick{cursor:pointer}
+.enc.simclick:hover{border-color:var(--blue)}
+
+/* ── pedals ───────────────────────────────────────────── */
+.pedals{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.pedal{background:var(--panel-2);border:1px solid var(--edge);border-radius:var(--r);padding:10px 12px 11px}
+.pedal-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.pedal-name{font-family:var(--f-chrome);font-size:14px;letter-spacing:.16em;text-transform:uppercase}
+.pedal-role{font-family:var(--f-chrome);font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-mute)}
+.pedal[data-role="exp"] .pedal-role{color:var(--amber)}
+.pedal[data-role="sw"]  .pedal-role{color:var(--live)}
+.pedal-cc{font-family:var(--f-num);font-size:10px;color:var(--ink-mute);margin-top:3px}
+/* Presentation follows whichever CC the jack is actually sending. */
+.pedal[data-role="none"] .pedal-exp,
+.pedal[data-role="none"] .pedal-sw,
+.pedal[data-role="exp"]  .pedal-sw,
+.pedal[data-role="sw"]   .pedal-exp{display:none}
+.pedal[data-role="none"] .pedal-val{color:var(--edge)}
+.pedal-val{font-family:var(--f-num);font-weight:700;font-size:34px;line-height:1.1;
+  font-variant-numeric:tabular-nums;margin:2px 0 6px}
+.pedal.live .pedal-val{color:var(--amber)}
+.meter{height:9px;background:var(--edge-soft);border-radius:2px;overflow:hidden}
+.meter-fill{height:100%;width:0;background:linear-gradient(90deg,var(--amber-dim),var(--amber))}
+.lamp{display:flex;align-items:center;gap:8px;height:9px;
+  font-family:var(--f-chrome);font-size:12px;letter-spacing:.16em;color:var(--ink-mute)}
+.lamp i{width:11px;height:11px;border-radius:50%;background:var(--edge);border:1px solid var(--edge)}
+.lamp.on{color:var(--live)}
+.lamp.on i{background:var(--live);box-shadow:0 0 12px var(--live)}
+/* Held past the release so a momentary stomp cannot pass between frames. */
+.lamp.latched i{background:var(--live-dim);box-shadow:0 0 10px var(--live-dim)}
+.pedal-foot{margin-top:9px;font-family:var(--f-num);font-size:10px;color:var(--ink-mute)}
+
+/* ── layout mapper ────────────────────────────────────── */
+.assign-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px}
+.assign-help{margin:0 0 12px;font-size:12.5px;line-height:1.45;color:var(--ink-mute)}
+.assign-help.armed{color:var(--mag)}
+
+.grid{display:grid;gap:8px;grid-template-columns:repeat(var(--cols,3),minmax(0,1fr))}
+.cell{
+  position:relative;
+  background:var(--panel-2);
+  border:1px solid var(--edge);
+  border-radius:var(--r);
+  padding:8px 8px 7px;
+  text-align:left;
+  cursor:default;
+  min-width:0;
+  color:inherit;
+  font:inherit;
+}
+.cell.clickable{cursor:pointer}
+.cell.clickable:hover{border-color:#3A4B46}
+.cell.armed{border-color:var(--mag);box-shadow:0 0 0 1px var(--mag),0 0 18px rgba(255,77,126,.25)}
+.cell.captured{animation:cap .5s ease-out}
+@keyframes cap{0%{background:var(--live);}100%{background:var(--panel-2)}}
+.cell.fired{border-color:var(--amber)}
+
+.cell-pos{font-family:var(--f-chrome);font-size:10px;letter-spacing:.16em;color:var(--ink-mute)}
+.cell-enc{font-family:var(--f-num);font-weight:700;font-size:22px;line-height:1.15;
+  font-variant-numeric:tabular-nums}
+.cell-enc.empty{color:var(--edge)}
+.cell-row{display:flex;align-items:center;gap:6px;margin-top:5px}
+.led-swatch,.cell-row label{
+  font-family:var(--f-chrome);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--amber);
+}
+.cell-row input{
+  width:100%;min-width:0;background:#0B100F;color:var(--ink);
+  border:1px solid var(--edge);border-radius:2px;padding:2px 5px;
+  font-family:var(--f-num);font-size:12px;
+}
+.cell-x{
+  position:absolute;top:3px;right:3px;
+  background:none;border:0;color:var(--edge);cursor:pointer;
+  font-family:var(--f-num);font-size:13px;line-height:1;padding:2px 4px;
+}
+.cell-x:hover{color:var(--mag)}
+
+.led-note{margin:14px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink-mute);
+  border-left:2px solid var(--amber-dim);padding-left:10px}
+.led-note strong{color:var(--ink-dim);font-weight:600}
+.led-swatch{border:1px solid var(--amber-dim);border-radius:2px;padding:0 4px}
+
+.export{
+  margin:0 0 9px;padding:10px 12px;
+  background:#080B0A;border:1px solid var(--edge);border-radius:var(--r);
+  font-family:var(--f-num);font-size:11.5px;line-height:1.55;color:var(--ink-dim);
+  max-height:280px;overflow:auto;white-space:pre;
+}
+.export .c{color:var(--ink-mute)}
+.export-msg{font-family:var(--f-chrome);font-size:12px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--live);min-height:16px}
+.export-msg.warn{color:var(--mag)}
+
+/* ── log ──────────────────────────────────────────────── */
+.log-head,.log-row{
+  display:grid;grid-template-columns:76px 42px 62px 56px minmax(0,1fr);
+  gap:10px;padding:2px 8px;
+}
+.log-head{
+  font-family:var(--f-chrome);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-mute);border-bottom:1px solid var(--edge-soft);padding-bottom:5px;
+}
+.log{
+  height:200px;overflow-y:auto;margin-top:4px;
+  font-family:var(--f-num);font-size:11.5px;font-variant-numeric:tabular-nums;
+}
+.log-row{color:var(--ink-dim);border-bottom:1px solid rgba(38,51,47,.35)}
+.log-row .t{color:var(--ink-mute)}
+.log-row .v{color:var(--ink)}
+.log-row .m{color:var(--ink-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-row.k-rot .m{color:var(--amber)}
+.log-row.k-btn .m{color:var(--live)}
+.log-row.k-ped .m{color:var(--blue)}
+.log-row.k-hold .m{color:var(--mag);font-weight:700}
+.log-row.k-other .m{color:var(--ink-mute)}
+.log-row.sim .t::before{content:"~";color:var(--blue)}
+.log-empty{padding:14px 8px;color:var(--ink-mute);font-family:var(--f-body);font-size:12.5px}
+
+@media (max-width:1080px){
+  .stage{grid-template-columns:minmax(0,1fr);
+    grid-template-areas:"left" "map" "log"}
+  .rack{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}

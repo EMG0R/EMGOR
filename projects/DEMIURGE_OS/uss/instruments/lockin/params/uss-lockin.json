@@ -1,0 +1,122 @@
+{
+  "stage": "uss-lockin",
+  "port": 9022,
+  "version": 1,
+  "params": [
+    {
+      "path": "/uss-lockin/density",
+      "label": "Density",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-lockin/tone",
+      "label": "Tone",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-lockin/length",
+      "label": "Length",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-lockin/space",
+      "label": "Space",
+      "default": 0.0,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-lockin/intensity",
+      "label": "Intensity",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-lockin/pitch",
+      "label": "Pitch",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-lockin/trig",
+      "label": "Trigger",
+      "default": 0.0,
+      "map": "hard",
+      "proto": "p"
+    }
+  ],
+  "hard_maps": [
+    {
+      "id": "uss-lockin-trig",
+      "source": "/hw/teensy/b1",
+      "target": {
+        "param": "/uss-lockin/trig"
+      },
+      "mode": "gate",
+      "arcade": "trig",
+      "arcade_hold_s": 8.0
+    },
+    {
+      "id": "uss-lockin-pitch",
+      "source": "/hw/teensy/jx",
+      "target": {
+        "param": "/uss-lockin/pitch"
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "uss-lockin-tone",
+      "source": "/hw/teensy/jy",
+      "target": {
+        "param": "/uss-lockin/tone"
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "uss-lockin-space",
+      "source": "/hw/teensy/tof1",
+      "target": {
+        "param": "/uss-lockin/space"
+      },
+      "mode": "continuous",
+      "outside": "hold"
+    },
+    {
+      "id": "uss-lockin-length",
+      "source": "/hw/teensy/tof2",
+      "target": {
+        "param": "/uss-lockin/length"
+      },
+      "mode": "continuous",
+      "outside": "hold"
+    },
+    {
+      "id": "uss-lockin-density",
+      "source": "/hw/teensy/fsr1",
+      "target": {
+        "param": "/uss-lockin/density"
+      },
+      "mode": "continuous",
+      "out_lo": 0.5,
+      "out_hi": 1.0
+    },
+    {
+      "id": "uss-lockin-intensity",
+      "source": "/hw/midi/1/29",
+      "target": {
+        "param": "/uss-lockin/intensity"
+      },
+      "mode": "continuous",
+      "out_lo": 0.3,
+      "out_hi": 1.0
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/test_ui.dir/link.d CMakeFiles/test_ui.dir/tests/test_ui.cpp.o CMakeFiles/test_ui.dir/ui/nav.cpp.o CMakeFiles/test_ui.dir/ui/input.cpp.o -o test_ui  libpmor_core.a

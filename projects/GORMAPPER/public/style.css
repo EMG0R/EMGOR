@@ -1,0 +1,167 @@
+/* GORMAPPER shared styles */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: #0b0d10;
+  color: #cfd8e3;
+  font: 14px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+a { color: #42d7f5; }
+
+button, select, input {
+  font: inherit;
+  color: inherit;
+  background: #161a20;
+  border: 1px solid #2a323d;
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+button { cursor: pointer; }
+button:hover { background: #1e242c; border-color: #3a4552; }
+button.primary { background: #123a33; border-color: #1f6b5c; color: #7ef5d2; }
+button.primary:hover { background: #17493f; }
+button.danger { color: #f58f8f; border-color: #5a2a2a; }
+input[type="range"] { padding: 0; }
+input[type="color"] { padding: 0; width: 34px; height: 24px; border-radius: 4px; }
+
+/* ---- editor layout ---- */
+
+#app {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  grid-template-rows: 44px 1fr;
+  height: 100vh;
+}
+
+#topbar {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  background: #10141a;
+  border-bottom: 1px solid #232a33;
+}
+#topbar .logo { color: #42d7f5; font-weight: bold; letter-spacing: 2px; }
+#topbar .spacer { flex: 1; }
+#topbar .hotkeys { color: #56637a; font-size: 12px; }
+#sceneName { width: 140px; }
+
+#viewportWrap {
+  position: relative;
+  overflow: hidden;
+  background: #06070a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#viewport {
+  position: relative;
+}
+#viewport canvas { display: block; position: absolute; top: 0; left: 0; }
+#glCanvas { z-index: 1; }
+#editCanvas { z-index: 2; cursor: crosshair; }
+
+#drawHint {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  background: rgba(10, 14, 18, 0.85);
+  border: 1px solid #2a5a4a;
+  color: #7ef5d2;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  display: none;
+  white-space: nowrap;
+}
+
+/* ---- sidebar ---- */
+
+#sidebar {
+  background: #10141a;
+  border-left: 1px solid #232a33;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+#sidebar section { padding: 10px 12px; border-bottom: 1px solid #1b212a; }
+#sidebar h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #56637a;
+  margin-bottom: 8px;
+}
+
+#layerList { display: flex; flex-direction: column; gap: 4px; }
+.layerRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+}
+.layerRow:hover { background: #161c24; }
+.layerRow.selected { background: #14202a; border-color: #2a5a6a; }
+.layerRow .swatch {
+  width: 10px; height: 10px; border-radius: 3px; flex: none;
+}
+.layerRow .lname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layerRow .vis { opacity: 0.6; background: none; border: none; padding: 2px; }
+.layerRow .vis:hover { opacity: 1; }
+
+.paramRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.paramRow label { width: 76px; flex: none; color: #8a97ab; font-size: 12px; }
+.paramRow input[type="range"] { flex: 1; }
+.paramRow .val { width: 38px; text-align: right; color: #56637a; font-size: 12px; }
+.paramRow select { flex: 1; }
+
+#zoneButtons { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.rowButtons { display: flex; gap: 6px; margin-top: 8px; }
+
+#status {
+  margin-top: auto;
+  padding: 8px 12px;
+  color: #56637a;
+  font-size: 12px;
+  border-top: 1px solid #1b212a;
+}
+#status .ok { color: #7ef5d2; }
+#status .err { color: #f58f8f; }
+
+/* ---- index page ---- */
+
+.landing {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+.landing h1 { color: #42d7f5; letter-spacing: 6px; font-size: 34px; }
+.landing p { color: #8a97ab; max-width: 480px; text-align: center; }
+.landing .links { display: flex; gap: 16px; }
+.landing .links a {
+  border: 1px solid #2a5a6a;
+  border-radius: 8px;
+  padding: 12px 28px;
+  text-decoration: none;
+  font-size: 16px;
+}
+.landing .links a:hover { background: #14202a; }

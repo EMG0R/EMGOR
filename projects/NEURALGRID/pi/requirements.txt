@@ -1,0 +1,13 @@
+pyserial>=3.5
+
+# Phase 3 (config codec) and Phase 4 (model layer / Interface-VAE): pure
+# numpy, no PyTorch/TensorFlow -- keeps everything running free on the Pi.
+numpy>=1.24
+
+# Phase 2 (live layer): MIDI IN (clock.py) and MIDI OUT (midiout.py). The
+# Pi image has python-rtmidi 1.5.8 installed already; pinned loosely here
+# so `pip install -r requirements.txt` works on a fresh setup too. Both
+# midiout.py and clock.py degrade to a graceful no-op with a log line if
+# this isn't installed or no MIDI backend/port is available (e.g. on a Mac
+# dev machine), so pi/run_live.py --selftest never needs it.
+python-rtmidi>=1.5

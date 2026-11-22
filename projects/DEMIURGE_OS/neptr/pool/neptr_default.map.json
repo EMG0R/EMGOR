@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "patch": "neptr_default",
+  "_comment": [
+    "NEPTR default patch map (docs/NEPTR_POOL_BENCH.md). Installed as ~/demiurge/patches/<patch>.map.json for every NEPTR patch.",
+    "It reproduces TODAY's non-encoder control behaviour exactly, through the pool:",
+    "  1. DUODECIMUS treadle  ->  the ONE expression pedal (ch1 CC29 /cc into csound, soft takeover and gkLastToggle29 routing stay in the engine).",
+    "     Source /hw/midi/1/29 is the LOGICAL pedal: demiurge-io --midi --midi-neptr rewrites ch7 CC14/15 -> ch1 CC29 and parks the body's own ch1 CC29 (same as midi_handler.orc).",
+    "  2. Arcade button b1    ->  tempo TAP to demiurge-clock (what serial_bridge.py did as ch16 CC113). 'arcade':'tap' = only while no USS instrument owns the button.",
+    "Deliberately NOT mapped (so nothing new reaches csound, exactly as today): joystick x/y/click, LiDAR 1/2, FSR 1/2, accel, mics, the onboard exp pedal, buttons b2-b9.",
+    "They are pool sources (/hw/teensy/<id>) ready for learn, the web UI or a USS hard map. Encoders and encoder buttons stay on MIDI with fixed menu roles."
+  ],
+  "maps": [
+    {
+      "id": "neptr-pedal-expr",
+      "source": "/hw/midi/1/29",
+      "target": {"param": "/csound/neptr/expr"},
+      "mode": "continuous"
+    },
+    {
+      "id": "neptr-arcade-tap",
+      "source": "/hw/teensy/b1",
+      "target": {"param": "/global/tap"},
+      "mode": "trigger",
+      "arcade": "tap"
+    }
+  ],
+  "values": {}
+}

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/test_sampler_ext.dir/link.d CMakeFiles/test_sampler_ext.dir/tests/test_sampler_ext.cpp.o -o test_sampler_ext  libpmor_core.a

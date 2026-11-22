@@ -1,0 +1,19 @@
+[Unit]
+Description=HAT watchdog v2: DMA state + loopback pilot (silent/misaligned) -> hat-reset, csound untouched
+After=demiurge.service
+# replaces hat-watchdog.service: `systemctl disable --now hat-watchdog` first
+Conflicts=hat-watchdog.service
+
+[Service]
+Type=simple
+User=gorpi7v5
+Environment=HOME=/home/gorpi7v5 XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/usr/bin/python3 /home/gorpi7v5/PRIME_RECOVERY/hat-robust/hat-watchdog-v2.py
+Restart=always
+RestartSec=2
+# never compete with the engine on core 3
+CPUAffinity=0-2
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

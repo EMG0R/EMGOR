@@ -1,0 +1,26 @@
+# DEMIURGE — restore the known-good audio config after a quantum experiment.
+#
+# Install to /etc/systemd/system/ and `systemctl enable` it. It is a NO-OP
+# unless ~/demiurge/backups/quantum-experiment/ACTIVE exists, so leaving it
+# enabled permanently costs nothing and is the intended state.
+#
+# Before=demiurge.service is the whole point. Lowering api.alsa.period-size can
+# livelock the RT thread, and systemd's hardware watchdog turns a livelock into
+# a hard reset — with the offending config still on disk. Restoring before the
+# audio engine starts is what stops that becoming a reboot loop.
+#
+# DefaultDependencies=no + After=local-fs.target so it runs early, but not
+# before the filesystem holding the backups is mounted.
+[Unit]
+Description=DEMIURGE — restore known-good audio config after a quantum experiment
+Before=demiurge.service
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/demiurge-qrestore
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,39 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "layers": [
+    {
+      "id": "ringtest",
+      "name": "Ring shell",
+      "visible": true,
+      "points": [
+        [
+          100,
+          100
+        ],
+        [
+          1820,
+          100
+        ],
+        [
+          1820,
+          700
+        ],
+        [
+          100,
+          700
+        ]
+      ],
+      "content": {
+        "kind": "ring",
+        "offset": 0,
+        "count": 1920,
+        "flip": false
+      },
+      "params": {
+        "brightness": 1,
+        "opacity": 1
+      }
+    }
+  ]
+}

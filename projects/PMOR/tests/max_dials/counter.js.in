@@ -1,0 +1,6 @@
+// counts the `set` messages a control would receive (test stand-in for a dial/umenu named p<id>)
+inlets = 1; outlets = 0;
+var path = "@LOG@", tag = jsarguments.length > 1 ? jsarguments[1] : "x";
+function w(s) { var f = new File(path, "write"); f.open(); f.position = f.eof; f.writestring(s + "\n"); f.close(); }
+function set() { w("SET " + tag + " " + arrayfromargs(arguments).join(" ")); }
+function anything() { }

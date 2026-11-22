@@ -1,0 +1,8 @@
+[Unit]
+Description=DEMIURGE thermal watchdog (oneshot, fired by .timer)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/demiurge-thermal-watchdog.sh
+StandardOutput=journal
+StandardError=journal

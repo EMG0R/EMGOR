@@ -1,0 +1,38 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+src/demiurge-launcher-rs/target/
+
+# NEPTR binary assets (111MB of wav): needed on disk by the standalone/plugin
+# and the Pi, but they never change and do not belong in git history.
+neptr/samples/drumloops/
+# neptr/csound/ir/ is NO LONGER IGNORED (2026-10-02).
+# These 25 impulse responses (15 MB) are a HARD dependency: csound aborts at
+# init with "soundin cannot open .../ir/11_spring_short_flat.wav" and the
+# instrument does not start. They existed only on this Mac -- not in git, not on
+# a remote, not in any backup -- which is the same exposure that cost a full
+# rebuild when the Pi's SD card died on 2026-10-01. The NAM profiles next door
+# are tracked at 7.1 MB, so there is no size argument for treating these
+# differently. Tracking them is what makes a rebuild self-contained.
+
+# Rig backup kit (setup-script/backup-rig.sh). latest/ is TRACKED on purpose:
+# it is the seed the installer restores from after a card death. The dated
+# tarballs duplicate it, so they stay out of git history.
+rig-backup/*/snapshots/
+rig-backup/snapshots/
+
+# MAME artwork only. Arcade ROMs are tracked (EMGOR approved, 2026-10-25,
+# private repo only).
+demiurge/games/system/mame/artwork/
+
+# --- sync / local split (demiurge/SYNC_LOCAL.md) -------------------------------
+# HARD RULE: demiurge/sync/** ships to every Pi; demiurge/local/** NEVER leaves
+# this box through THIS repo. Only the two placeholders are tracked so the
+# directories exist in a fresh clone. demiurge/local/ is the root of the node's
+# OWN separate git repo (setup-script/node-repo/), which is how local state is
+# versioned without ever touching the shared repo.
+demiurge/local/*
+!demiurge/local/.gitkeep
+!demiurge/local/README.md
+# (demiurge/sync/** is intentionally not listed: it is tracked.)

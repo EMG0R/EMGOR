@@ -1,0 +1,7 @@
+{
+  "controller_id": "web-trackpad",
+  "channels": [
+    { "name": "pad", "dims": 2, "kind": "continuous", "size": null },
+    { "name": "click", "dims": 1, "kind": "discrete", "size": [1] }
+  ]
+}

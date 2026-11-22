@@ -1,0 +1,105 @@
+% related_work.tex — Task 5.1. Referenced by \input{related_work} inside
+% \section{Related Work and Limitations} in septagraph.tex. Every \cite key
+% here is defined in septagraph.bib; every entry was web-verified (see
+% septagraph.bib header).
+
+\subsection{Perceptual control spaces}
+Wessel's timbre space~\cite{wessel1979}, built from the multidimensional
+scaling of instrument tones by Grey~\cite{grey1977}, first proposed that
+low-dimensional perceptual coordinates --- not instrument-specific
+parameters --- should drive musical control, with later tools such as the
+Timbre Toolbox~\cite{peeters2011} operationalising the descriptors those
+spaces are built from. Wessel's space is Septagraph's direct ancestor.
+The difference is architectural, not conceptual: Wessel's space configures
+a single synthesizer, while Septagraph is a versioned, protocol-level space
+shared across arbitrarily many heterogeneous renderers at once, and it
+carries distributions $\mu(t),\sigma(t)$ over time rather than fixed
+points, so a controller addresses a population of engines rather than
+tuning one.
+
+\subsection{Corpus-based and catalog rendering}
+Schwarz's CataRT~\cite{schwarz2006catart} and the corpus-based
+concatenative synthesis literature it surveys~\cite{schwarz2007corpus}
+render a target position in descriptor space by nearest-neighbour lookup
+into a corpus of recorded units --- the closest prior art to a Septagraph
+catalog renderer, and the template for treating discrete sound sources as
+points in a continuous space. Septagraph differs in where the catalog
+lives and who chooses within it: a CataRT corpus is local to one engine
+and queried by unit selection, whereas a Septagraph catalog is a
+\emph{renderer's own capability declaration} on a shared protocol,
+published to controllers that may be manifest-blind, with $\sigma$
+functioning as explicit orchestration freedom that lets the renderer, not
+the controller, pick among catalog points within tolerance.
+
+\subsection{Control protocols and capability negotiation}
+Open Sound Control~\cite{wrightfreed1997,wright2005} supplies transport
+and addressing, not vocabulary, and SpatDIF~\cite{spatdif2013} shows the
+pattern Septagraph follows: a domain-specific OSC sublanguage layered on
+that transport, there for spatial scene description, here for perceptual
+position. MIDI 2.0's Capability Inquiry and Property
+Exchange~\cite{midici} and MPE~\cite{mpe2018} are the closest analogues to
+Septagraph's \texttt{/manifest} plane and per-voice addressing
+respectively: MIDI-CI lets a device declare which features and properties
+it supports, and MPE gives each note its own channel for continuous
+expression. Septagraph's manifest declares something categorically
+different from a MIDI-CI property list: not supported messages or
+parameters, but a renderer's reachable region of \emph{perceptual space}
+--- a continuous bound or a measured catalog with per-point mechanical
+constraints --- so a controller can aim at what a renderer can actually
+sound like, not just what commands it accepts.
+
+\subsection{Mapping and interactive machine learning}
+Hunt and Wanderley's studies of performer-to-synthesis
+mapping~\cite{huntwanderley2002,huntwanderleyparadis2003} established that
+the mapping layer, not the interface or the sound engine alone, defines an
+electronic instrument's character; Fiebrink's
+Wekinator~\cite{fiebrink2009wekinator,fiebrink2011thesis} and the
+interactive machine learning tradition it anchors
+work~\cite{fiebrinkcaramiaux2018,caramiauxtanaka2013,francoise2014} put a
+trained model directly in that mapping layer, learned from human-supplied
+examples. Septagraph keeps this lineage's insight that mapping deserves
+first-class design attention but relocates any model out of the
+gesture-to-sound path entirely: a Septagraph model, when present, only
+repositions the deterministic window between gestures, so no inference
+latency can ever land inside a note.
+
+\subsection{Robotic musicianship}
+Kapur's survey of robotic musical instruments~\cite{kapur2005history} and
+ensembles such as LEMUR~\cite{singer2004lemur}, the KarmetiK Machine
+Orchestra~\cite{kapur2011machineorchestra}, and Weinberg and
+collaborators' Haile and Shimon
+platforms~\cite{weinbergdriscoll2006,hoffmanweinberg2010} demonstrate that
+heterogeneous mechanical ensembles can be played expressively, generally
+through instrument-specific control code or listening-based
+improvisation. Septagraph's robotic renderer is architecturally the same
+kind of catalog renderer as any synthesis engine on the protocol: the
+same coordinate stream that drives a DSP or neural voice also drives the
+Machine Lab ensemble, so a controller built with no knowledge of any
+particular robot can still address it correctly.
+
+\subsection{Generative audio renderers}
+Differentiable and neural synthesis engines such as
+DDSP~\cite{engel2020ddsp} and RAVE~\cite{caillonesling2021} expose
+continuous, learned control spaces (pitch/loudness, or a learned latent)
+that make them natural Septagraph renderers: DDSP's harmonic/noise split
+in particular maps directly onto the harmonicity axis. Septagraph treats
+such an engine's latent or parameter space as one more manifest to
+declare bounds for, rather than requiring the space itself to be
+perceptually grounded --- grounding is the controller's job, not every
+renderer's.
+
+\subsection{Limitations}
+Septagraph's perceptual grounding rests on a claim of independent
+steerability~\cite{shamma,mcdermott,wessel1979,grey1977}, not on a
+completed psychoacoustic theory; the axis set is deliberately
+versioned so it can be revised as that grounding is tested rather than
+frozen prematurely. The controller's model, when present, never hears
+audio and is aimed only by behaviour cloning of a performer's manual
+window choices --- a deaf-aiming strategy that this paper demonstrates
+rather than argues for in the abstract. That the same septagraph produces
+a different sound on each renderer is a deliberate design choice, not an
+oversight: MIDI's note numbers do the same across synthesizers, and
+underspecification is what let it outlive any one instrument. Finally,
+this paper reports a model-free system end to end; the predictive,
+manifest-blind controller model sketched in Section~\ref{sec:window} is
+future work, not a result claimed here.

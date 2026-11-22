@@ -1,0 +1,18 @@
+#!/bin/bash
+# demiurge-run-python <file.py> [extra python args...]
+# Prefers the DEMIURGE venv at /opt/demiurge/venv/bin/python (which
+# has mido, python-rtmidi, jack-client, numpy preinstalled) and falls
+# back to system python3.
+set -e
+source /opt/demiurge/lib/demiurge-env.sh 2>/dev/null || source "$(dirname "$0")/../lib/demiurge-env.sh"
+
+if [[ -z "$1" ]]; then
+    echo "usage: demiurge-run-python <file.py> [extra args...]" >&2
+    exit 1
+fi
+
+PYBIN="/opt/demiurge/venv/bin/python"
+[[ -x "$PYBIN" ]] || PYBIN="/usr/bin/python3"
+
+FILE="$1"; shift
+exec "$PYBIN" "$FILE" "$@"

@@ -1,0 +1,375 @@
+% SEPTAGRAPH — NIME draft v0.1
+% Compile: any modern LaTeX (Overleaf works; no local toolchain needed).
+% NOTE: written on plain two-column `article` so it compiles anywhere;
+% swap the preamble for the official NIME template class before submission —
+% section/figure content ports unchanged.
+
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,decorations.pathmorphing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage[hidelinks]{hyperref}
+
+\title{\textbf{Septagraph: A Perceptual Coordinate Protocol for Live
+Interaction with Interchangeable Sound Engines}}
+\author{Emory Smith \\ \small maintainer@example.invalid
+  \and Colton [SURNAME] \\ \small [email]}
+\date{}
+
+\begin{document}
+\maketitle
+
+% --- OLD ABSTRACT (superseded 2026-09-03; promised a neural-renderer
+%     demo and a completed listening experiment before either existed;
+%     kept for reference only) -----------------------------------------
+% We present Septagraph, a communication protocol in which controllers and
+% sound renderers share only a perceptual coordinate space: seven axes
+% grounded in auditory modulation representations. A fast plane carries raw
+% performance events at sub-10\,ms latency; a slow plane carries
+% \emph{septagraphs} --- trajectories of distributions $\mu(t), \sigma(t)$
+% over the space --- exchanged at detected gesture boundaries, so model
+% latency is structurally inaudible. The controller's model never perceives
+% audio: it predicts the performer, and its prediction uncertainty becomes
+% the renderer's explicit, performable freedom. Captured real-world sounds
+% become septagraph objects that can be geometrically mutated and
+% re-rendered by any engine speaking the protocol. We demonstrate Septagraph
+% with physical and digital grid controllers driving interchangeable
+% renderers --- deterministic DSP, neural synthesis, and a robotic
+% instrument ensemble rendered from a measured catalog --- and report on its
+% use in live performance.
+
+\begin{abstract}
+We present Septagraph, a communication protocol in which controllers and
+sound renderers share only a perceptual coordinate space: seven axes
+grounded in auditory modulation representations, exchanged as an OSC
+sublanguage on a fast plane (sub-10\,ms discrete events) and a slow plane
+(\emph{septagraphs} --- trajectories of distributions $\mu(t), \sigma(t)$
+over the space --- exchanged only at detected gesture boundaries, so
+model latency is structurally inaudible). We ship a zero-install
+browser controller/renderer pair on WebChucK that a reader can run
+without downloading anything; a Machine Lab renderer that speaks the
+protocol into a seven-robot ensemble from a manifest built on a measured
+catalog of each robot's reachable positions; and the neuralGrid, a
+physical grid, ribbon, and lidar controller. We report a latency
+evaluation of the fast plane and a listening experiment testing whether
+the seven axes are independently steerable and whether the same
+coordinate stream is recognizable across renderers. A neural renderer
+conditioned on the same axes is in progress with collaborators and is
+discussed as future work.
+\end{abstract}
+
+%--------------------------------------------------------------------
+\section{Introduction}
+% SKELETON — emgor writes prose. Beats:
+% 1. The dilemma: ML-in-the-loop instruments promise adaptivity but
+%    poison directness with latency.
+% 2. MIDI's lesson: radical underspecification, not rich description,
+%    is what makes a control standard universal. MIDI said which note,
+%    how hard, when — the instrument owned the sound.
+% 3. The gap: generative audio engines have no standard control
+%    vocabulary — text prompts and model-specific latents are not
+%    portable. Perceptual axes are.
+% 4. Thesis: we separate WHO PREDICTS THE HUMAN from WHO RENDERS THE
+%    SOUND; the sides meet only in a shared perceptual space —
+%    where, how tightly, when.
+% 5. Forecast the demos (controller/renderer interchangeability matrix).
+\input{intro}
+
+%--------------------------------------------------------------------
+\section{Origin: Playing a Robot Orchestra as One Instrument}
+\label{sec:origin}
+\input{origin}
+
+%--------------------------------------------------------------------
+\section{The Space}
+\label{sec:space}
+
+Septagraph's coordinate system comprises seven axes grounded in
+spectro-temporal modulation representations of auditory
+perception~\cite{shamma,mcdermott}: \textbf{frequency},
+\textbf{loudness}, \textbf{harmonicity} (tone--noise continuum),
+\textbf{rate} (temporal modulation), \textbf{scale} (spectral
+modulation), \textbf{space} (azimuth, spread, distance), and
+\textbf{time}, the trajectory parameter along which the other six
+evolve. The claim made for these axes is \emph{independent
+steerability} --- each can be varied audibly while the others hold ---
+not mathematical orthogonality. The axis set is schema-versioned;
+additions bump the version, and captured material remains valid under
+version tags.
+
+A sound is not a point in this space. A sound is a
+\emph{septagraph}: a trajectory of distributions $\mu(t), \sigma(t)$
+over axes 1--6 along normalized time, with a single duration
+parameter, so captured shapes stretch at render time
+(Fig.~\ref{fig:septagraph}).
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[scale=0.92]
+  % 7-axis radar: two example sounds
+  \foreach \a/\l in {90/frequency, 141.4/loudness, 192.8/harmonicity,
+                     244.3/rate, 295.7/scale, 347.1/space, 38.6/time}{
+    \draw[gray!60] (0,0) -- (\a:2.3);
+    \node[font=\scriptsize] at (\a:2.75) {\l};
+  }
+  \foreach \r in {0.575,1.15,1.725,2.3}
+    \draw[gray!25] (90:\r) \foreach \a in {141.4,192.8,244.3,295.7,347.1,38.6,90}{ -- (\a:\r)};
+  % Sound A: bowed string (harmonic, mid-bright, slow)
+  \draw[thick,blue!70!black,fill=blue!60!black,fill opacity=0.12]
+    (90:1.4) -- (141.4:1.8) -- (192.8:2.1) -- (244.3:0.7)
+    -- (295.7:1.2) -- (347.1:0.9) -- (38.6:1.9) -- cycle;
+  % Sound B: shaker (noisy, fast, dry)
+  \draw[thick,orange!85!black,fill=orange!80!black,fill opacity=0.12]
+    (90:1.7) -- (141.4:1.1) -- (192.8:0.4) -- (244.3:2.1)
+    -- (295.7:1.9) -- (347.1:0.6) -- (38.6:0.5) -- cycle;
+  \node[font=\scriptsize,blue!70!black]  at (-2.6,-2.1) {bowed string};
+  \node[font=\scriptsize,orange!85!black] at (2.4,-2.1) {shaker};
+\end{tikzpicture}
+\caption{The seven Septagraph axes. Two sounds shown as single points
+for illustration; in the protocol a sound is a trajectory of
+distributions over the axes (Fig.~\ref{fig:septagraph}).}
+\label{fig:axes}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=0.98\linewidth,height=4.4cm,
+  xlabel={normalized time $t$},ylabel={axis value},
+  xmin=0,xmax=1,ymin=0,ymax=1,
+  label style={font=\scriptsize},tick label style={font=\tiny},
+  legend style={font=\tiny,draw=none,fill=none,at={(0.98,0.95)},anchor=north east}]
+  % sigma band around mu (brightness-like axis of one note)
+  \addplot[name path=hi,draw=none,domain=0:1,samples=60]
+    {0.35+0.45*exp(-14*(x-0.12)^2)+0.18*exp(-6*(x-0.6)^2)+0.10};
+  \addplot[name path=lo,draw=none,domain=0:1,samples=60]
+    {0.35+0.45*exp(-14*(x-0.12)^2)+0.18*exp(-6*(x-0.6)^2)-0.10};
+  \addplot[blue!30] fill between[of=hi and lo];
+  \addplot[thick,blue!70!black,domain=0:1,samples=60]
+    {0.35+0.45*exp(-14*(x-0.12)^2)+0.18*exp(-6*(x-0.6)^2)};
+  \legend{,,$\mu(t)\pm\sigma(t)$,$\mu(t)$}
+\end{axis}
+\end{tikzpicture}
+\caption{A septagraph, shown on one axis: the mean trajectory
+$\mu(t)$ with spread $\sigma(t)$. Spread is the renderer's explicit
+liberty --- underspecification made performable.}
+\label{fig:septagraph}
+\end{figure}
+
+%--------------------------------------------------------------------
+\section{The Protocol}
+\label{sec:protocol}
+
+Septagraph defines four broadcast message types on three planes
+(Fig.~\ref{fig:arch}):
+
+\begin{itemize}
+\item \texttt{/manifest} (session plane): a renderer joining the
+session declares its reachable region --- a continuous bound for
+synthesis engines, or a \emph{measured catalog} for physical
+instruments, each catalog point carrying instrument identity, room
+position, and mechanical constraints (maximum re-strike rate, force
+range). This is the only renderer-to-controller channel; manifests
+may be re-announced when capability changes. Controllers mirror this
+with an \emph{input manifest} declaring each device's channels by
+geometry (1D/2D/3D, discrete/continuous, display capability), making
+the controller brain device-agnostic.
+\item \texttt{/shape} (slow plane): septagraphs and window
+configurations, applied only at \emph{detected gesture boundaries} ---
+moments of stillness in the interaction stream. The mapping never
+changes mid-gesture; a model authoring shapes may therefore be
+arbitrarily slow without its latency ever being audible. No global
+clock is assumed.
+\item \texttt{/hit} (fast plane): onset/release events with voice
+identity, velocity, and window-local coordinates, delivered sub-10\,ms
+with no model in the path.
+\item \texttt{/move} (fast plane): continuous channel streams
+(ribbon, pressure, height) at 50--100\,Hz, voice-bound when
+modulating a held note.
+\end{itemize}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\scriptsize,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt},
+  fast/.style={-{Stealth},very thick,red!70!black},
+  slow/.style={-{Stealth},thick,blue!70!black,dashed},
+  sess/.style={-{Stealth},thick,gray,dotted}]
+  \node[box,fill=gray!8,minimum width=2.6cm] (ctl) {controller\\(NeuralGrid, trackpad, \dots)};
+  \node[box,fill=gray!8,right=2.9cm of ctl,minimum width=2.5cm] (r1) {DSP renderer\\(Csound)};
+  \node[box,fill=gray!8,below=0.35cm of r1] (r2) {neural renderer\\(DDSP / RAVE-class)};
+  \node[box,fill=gray!8,below=0.35cm of r2] (r3) {robotic ensemble\\(measured catalog)};
+  \node[box,fill=blue!6,below=0.85cm of ctl,minimum width=2.6cm] (model)
+    {predictive model\\(deaf, manifest-blind)};
+  \draw[fast] (ctl.10) -- node[above]{\texttt{/hit /move}} (r1.170);
+  \draw[fast] (ctl.east) -- (r2.west);
+  \draw[fast] (ctl.-20) -- (r3.170);
+  \draw[slow] (ctl.-5) -- node[below,sloped]{\texttt{/shape}} (r2.190);
+  \draw[sess] (r3.south west) to[bend left=18]
+    node[below,sloped]{\texttt{/manifest}} (ctl.south east);
+  \draw[slow] (model) -- node[right]{staged config\\at boundaries} (ctl);
+  \draw[-{Stealth},gray] (ctl.west) to[bend right=40]
+    node[left]{interaction\\stream} (model.west);
+\end{tikzpicture}
+\caption{Architecture. Fast plane (solid red) is never touched by a
+model; the slow plane (dashed) lands only at gesture boundaries;
+the session plane (dotted) carries capability manifests --- the only
+renderer-to-controller channel.}
+\label{fig:arch}
+\end{figure}
+
+%--------------------------------------------------------------------
+\section{The Window}
+\label{sec:window}
+
+The controller's model never maps gestures to coordinates. A
+deterministic, axis-aligned \emph{window} --- center and extent per
+axis plus a discrete assignment map from device axes to space axes ---
+projects device space into the coordinate space instantly
+(Fig.~\ref{fig:window}). The model's sole authority is to move,
+resize, and reassign the window \emph{between} gestures. Extent (the
+playable range) and spread ($\sigma$, the renderer's liberty) are
+distinct quantities: the first is deterministic configuration, the
+second is model uncertainty.
+
+Renderer manifests are merged into a density field over the space;
+window cells snap to measured catalog points first, with continuous
+renderers filling the intervals. A configuration holds two windows:
+a \emph{play} layer and a \emph{loop} layer, the latter frozen by
+default so replayed material keeps its sound while the play window
+travels.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\scriptsize,scale=0.9]
+  % device grid
+  \draw[step=0.3,gray!40] (0,0) grid (2.4,2.4);
+  \draw[thick] (0,0) rectangle (2.4,2.4);
+  \node at (1.2,-0.4) {device space (8$\times$8 grid)};
+  \fill[red!70!black] (0.75,1.35) circle (2.2pt);
+  % space with window
+  \begin{scope}[shift={(4.6,0)}]
+    \draw[thick] (0,0) rectangle (3.2,2.4);
+    \node at (1.6,-0.4) {coordinate space (freq $\times$ scale slice)};
+    % catalog points
+    \foreach \p in {(0.5,0.4),(1.1,1.9),(2.0,0.9),(2.7,1.5),(1.6,0.3)}
+      \fill[orange!85!black] \p circle (2pt);
+    % window
+    \draw[very thick,blue!70!black,rounded corners=1pt] (0.8,0.6) rectangle (2.3,1.8);
+    \node[blue!70!black] at (1.55,2.0) {window (center, extent)};
+    \fill[red!70!black] (1.27,1.23) circle (2.2pt);
+  \end{scope}
+  \draw[-{Stealth},thick] (2.6,1.35) -- node[above]{affine} node[below]{projection} (4.4,1.35);
+\end{tikzpicture}
+\caption{Window projection: a pad press maps deterministically
+through the current window. Orange points are a physical ensemble's
+measured catalog; window cells snap to them first. The model only
+moves the window, and only between gestures.}
+\label{fig:window}
+\end{figure}
+
+%--------------------------------------------------------------------
+\section{Uncertainty as Vocabulary}
+% SKELETON: sigma sourced from mixture entropy of the predictive
+% model; tight = faithful rendering, wide = renderer roams; for the
+% robotic ensemble, wide sigma = freedom to choose among nearby
+% physical notes (orchestration freedom). Underspecification is the
+% expressive material — MIDI's lesson made explicit and performable.
+\input{uncertainty}
+
+%--------------------------------------------------------------------
+\section{The Deaf Controller}
+% SKELETON: one tiny causal sequence model (~10^5–10^6 params, MDN
+% head) trained self-supervised on next-action prediction + behavior
+% cloning of the player's manual configuration choices. It never
+% hears audio and never reads manifests: it understands only the
+% human's habits in the space. Cold start: system fully usable with
+% the model absent (manual -> log -> train -> enable). Looping is a
+% deterministic live-layer function; loop "effects" are geometric
+% transforms on septagraphs (stutter = chopped time axis, smear =
+% widened sigma).
+\input{deaf_controller}
+
+%--------------------------------------------------------------------
+\section{Shape Capture}
+% SKELETON: modulation filterbank + curve fit turns recorded audio
+% into septagraphs; capture -> geometric mutation -> re-render by any
+% engine. The robotic catalog is built the same way: every physical
+% note measured through the front-end becomes a point in the space —
+% the template for mapping any acoustic instrument into the format.
+\input{capture}
+
+%--------------------------------------------------------------------
+\section{Implementations and Evaluation}
+% SKELETON:
+% - Controllers: NeuralGrid (8x8 grid + 4 softpots + lidar, ESP32->Pi),
+%   digital controller (trackpad/web).
+% - Renderers: Csound (deterministic reference), DDSP (neural
+%   reference; harmonic/noise split maps directly onto harmonicity),
+%   collaborator RAVE-class engine, robotic ensemble via
+%   nearest-neighbor over the measured catalog; residual rendering =
+%   synthesis completes the ensemble between catalog points.
+% - THE MATRIX FIGURE: controllers x renderers, every cell a working
+%   demo (the central evidence).
+% - Latency table: hot path with model on vs off; boundary-swap
+%   timing.
+% - Performance reports / practice-based reflection.
+
+\begin{table}[h]\centering\scriptsize
+\begin{tabular}{lccc}
+\toprule
+ & Csound & DDSP/neural & robotic ensemble \\
+\midrule
+NeuralGrid (physical) & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+digital controller    & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+\bottomrule
+\end{tabular}
+\caption{Interchangeability matrix (target). Every cell: the same
+protocol stream, a working performance.}
+\end{table}
+
+%--------------------------------------------------------------------
+\section{Related Work and Limitations}
+% SKELETON — own the attacks before reviewers do:
+% - Adaptive mapping / IML lineage (Wekinator etc.): prior work puts
+%   the model in or near the control loop; here inference may never
+%   touch the hot path, and uncertainty is part of the vocabulary.
+% - MIDI/MPE/OSC: notes vs perceptual position; OSC is transport,
+%   not vocabulary.
+% - Perceptual grounding contestable: steerability claim + versioned
+%   schema, not a completed psychoacoustics.
+% - Deaf-aiming: grounded by behavior cloning of manual play;
+%   demonstrated, not argued.
+% - Same shape -> different renderers -> different sound: feature,
+%   not bug (the MIDI defense).
+
+\input{related_work}
+
+%--------------------------------------------------------------------
+\section{Conclusion}
+% SKELETON (emgor writes): one law restated — the model never touches
+% the hot path; it moves the instrument through sound space between
+% gestures. Sigma as the expressive material of the generative-audio
+% era. Future: more renderers, septagraph libraries from captured
+% sound, the space as a versioned standard. Close on the room-scale
+% vision: any controller, any engine, one coordinate system.
+
+% Superseded by septagraph.bib (Task 5.1) — kept commented, not deleted.
+% \begin{thebibliography}{9}\scriptsize
+% \bibitem{shamma} T. Chi, P. Ru, S. Shamma. Multiresolution
+% spectrotemporal analysis of complex sounds. \emph{JASA}, 2005.
+% \bibitem{mcdermott} J. McDermott, E. Simoncelli. Sound texture
+% perception via statistics of the auditory periphery. \emph{Neuron}, 2011.
+% % TODO: Fiebrink (Wekinator), Hunt & Wanderley (mapping), MIDI/MPE,
+% % OSC (Wright), DDSP (Engel et al.), RAVE (Caillon & Esling),
+% % NIME adaptive-interface lineage.
+% \end{thebibliography}
+
+\bibliographystyle{plain}
+\bibliography{septagraph}
+
+\end{document}

@@ -1,0 +1,24 @@
+[Unit]
+Description=DEMIURGE capture-DMA guard (revives a stalled ADC)
+# Starts alongside the engine rather than before it: with no engine there is
+# no capture to judge, and the guard idles harmlessly either way.
+After=demiurge.service
+Wants=demiurge.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/demiurge-capture-guard
+Restart=always
+RestartSec=5
+# Root: the recovery path unbinds/rebinds an i2c driver and drives both the
+# system engine unit and the user PipeWire stack.
+User=root
+# The guard must never compete with audio. It is a 2-second poll of one procfs
+# file, so it belongs on the housekeeping cores with the rest of the non-RT
+# work, at the lowest useful priority.
+CPUAffinity=0-2
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

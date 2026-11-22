@@ -1,0 +1,67 @@
+{
+  "version": "1.5",
+  "default_core_path": "/home/gorpi7/.config/retroarch/cores/fbneo_libretro.so",
+  "default_core_name": "FinalBurn Neo",
+  "label_display_mode": 0,
+  "right_thumbnail_mode": 0,
+  "left_thumbnail_mode": 0,
+  "sort_mode": 0,
+  "items": [
+    {
+      "path": "/home/gorpi7/demiurge/games/roms/galaga.zip",
+      "label": "Galaga",
+      "core_path": "/home/gorpi7/.config/retroarch/cores/fbneo_libretro.so",
+      "core_name": "FinalBurn Neo",
+      "crc32": "00000000|crc",
+      "db_name": "Demiurge.lpl"
+    },
+    {
+      "path": "/home/gorpi7/demiurge/games/roms/mspacman.zip",
+      "label": "Ms. Pac-Man",
+      "core_path": "/home/gorpi7/.config/retroarch/cores/fbneo_libretro.so",
+      "core_name": "FinalBurn Neo",
+      "crc32": "00000000|crc",
+      "db_name": "Demiurge.lpl"
+    },
+    {
+      "path": "/home/gorpi7/demiurge/games/roms/digdug.zip",
+      "label": "Dig Dug",
+      "core_path": "/home/gorpi7/.config/retroarch/cores/fbneo_libretro.so",
+      "core_name": "FinalBurn Neo",
+      "crc32": "00000000|crc",
+      "db_name": "Demiurge.lpl"
+    },
+    {
+      "path": "/home/gorpi7/demiurge/games/roms/digdug2.zip",
+      "label": "Dig Dug II",
+      "core_path": "/home/gorpi7/.config/retroarch/cores/fbneo_libretro.so",
+      "core_name": "FinalBurn Neo",
+      "crc32": "00000000|crc",
+      "db_name": "Demiurge.lpl"
+    },
+    {
+      "path": "/home/gorpi7/demiurge/games/roms/centiped.zip",
+      "label": "Centipede",
+      "core_path": "/home/gorpi7/.config/retroarch/cores/fbneo_libretro.so",
+      "core_name": "FinalBurn Neo",
+      "crc32": "00000000|crc",
+      "db_name": "Demiurge.lpl"
+    },
+    {
+      "path": "/home/gorpi7/demiurge/games/roms/spyhunt.zip",
+      "label": "Spy Hunter",
+      "core_path": "/home/gorpi7/.config/retroarch/cores/fbneo_libretro.so",
+      "core_name": "FinalBurn Neo",
+      "crc32": "00000000|crc",
+      "db_name": "Demiurge.lpl"
+    },
+    {
+      "path": "",
+      "label": "2048",
+      "core_path": "/home/gorpi7/.config/retroarch/cores/2048_libretro.so",
+      "core_name": "2048",
+      "crc32": "00000000|crc",
+      "db_name": "Demiurge.lpl"
+    }
+  ]
+}

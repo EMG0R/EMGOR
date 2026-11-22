@@ -1,0 +1,26 @@
+WARNING: [mcould not open library '/Library/Frameworks/CsoundLib64.framework/Versions/6.0/Resources/Opcodes64/librtjack.dylib' (-1)[m
+[mUnifiedCSD:  cpu_bench.csd
+Loading command-line libraries:
+  /Users/emgor/Library/CsoundPlugins/csound-nam.so
+rtmidi: PortMIDI module enabled
+[msetting dummy interface
+--Csound version 6.18 (double samples) Nov 24 2022
+[commit: a1580f9cdf331c35dceb486f4231871ce0b00266]
+[mlibsndfile-1.1.0
+[msr = 48000.0,[m kr = 375.000,[m ksmps = 128
+[m0dBFS level = 1.0,[m A4 tuning = 440.0
+[maudio buffered in 1024 sample-frame blocks
+[mrtaudio: dummy module enabled
+writing 2048 sample blks of 64-bit floats to dac
+SECTION 1:
+[m[NAMProcess] /Users/emgor/Documents/_EMGOR_SYNTH/______2026NEW/__PAPERS/Integrating Neural Amp Modeling Into Csound/cabbage-plugin/models (25 profiles)
+[NAMLoader] Loaded 11_ac30_jazz_clean (L+R, pad 0.0 dB, measured -15.8 dB, makeup +1.8 dB)
+[NAMLoader] Loaded 12_ac30_jazz_edge (L+R, pad 0.0 dB, measured -12.7 dB, makeup -1.3 dB)
+Score finished in csoundPerform().
+end of score.		   overall amps:[m  0.63534  0.63534
+	   overall samples out of range:[m        0[m        0[m
+0 errors in performance
+[m2907 2048 sample blks of 64-bit floats written to dac
+real 62.04
+user 8.35
+sys 0.19

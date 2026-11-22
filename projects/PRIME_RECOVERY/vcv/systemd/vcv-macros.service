@@ -1,0 +1,20 @@
+[Unit]
+Description=NEPTR body -> VCV Rack macros (private ALSA port "VCV Macros", ch9) + radio patch buttons
+After=neptr-bridge.service sound.target
+Wants=neptr-bridge.service
+
+[Service]
+Type=simple
+User=gorpi7v5
+Environment=HOME=/home/gorpi7v5 XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/home/gorpi7v5/PRIME_RECOVERY/vcv/vcv_macros.py
+Restart=always
+RestartSec=2
+# Patch switches (re)start Rack from here; KillMode=process keeps a running Rack
+# alive across a restart of this daemon (Rack is stopped by its own pgid).
+KillMode=process
+CPUAffinity=0
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

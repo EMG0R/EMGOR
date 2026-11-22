@@ -1,0 +1,61 @@
+TITLE
+
+[NAME]: A Perceptual Coordinate Protocol for Live Interaction with
+Interchangeable Sound Engines
+
+
+ABSTRACT
+
+We present [NAME], a communication protocol in which controllers and sound
+renderers share only a perceptual coordinate space: seven axes grounded in
+auditory modulation representations. A fast path carries raw performance
+events at sub-10 ms latency; a slow path carries "shapes" -- trajectories of
+distributions u(t), s(t) over the space -- exchanged on musical boundaries,
+so model latency is structurally inaudible. The controller's model never
+perceives audio: it predicts the performer, and its prediction uncertainty
+becomes the renderer's explicit, performable freedom. Captured real-world
+sounds become shape objects that can be geometrically mutated and
+re-rendered by any engine speaking the protocol. We demonstrate [NAME] with
+physical and digital grid controllers driving interchangeable renderers,
+from pure DSP to neural synthesis, and report on its use in live
+performance.
+
+
+INTRO PARAGRAPH (skeleton -- yours to write)
+
+- Open on the dilemma: ML-in-the-loop instruments promise adaptivity but
+  poison directness with latency.
+- MIDI's lesson: radical underspecification, not rich description, is what
+  makes a standard universal.
+- Thesis sentence: we separate WHO PREDICTS THE HUMAN from WHO RENDERS THE
+  SOUND, meeting only in a shared perceptual space -- where, how tightly,
+  when.
+- One sentence forecasting the demos.
+
+
+OUTRO (skeleton -- yours to write)
+
+- Restate the one law: the model never touches the hot path; it moves the
+  instrument through sound space between beats.
+- Underspecification (sigma) reframed as the expressive material of the
+  generative-audio era.
+- Future: more renderers speaking the protocol, shape libraries from
+  captured sound, the space itself as a versioned, evolving standard.
+- Close on the room-scale vision: any controller, any engine, one
+  coordinate system.
+
+
+BODY SECTION SHAPES (reference)
+
+1. Intro -- latency/adaptivity dilemma; MIDI's underspecification lesson.
+2. The space -- 7 axes (frequency, loudness, harmonicity, rate, scale,
+   space, time), perceptual grounding, independent steerability claim.
+3. The protocol -- /shape + /hit, clock-stamping, downbeat swap, versioning.
+4. Uncertainty as vocabulary -- sigma, prediction entropy, underspecification
+   made performable.
+5. The deaf controller -- prediction model, why never hearing is a design law.
+6. Shape capture -- analysis -> geometry -> re-render.
+7. Implementations -- grid controllers (physical + digital), Csound renderer,
+   neural renderer, measured latencies, interchangeability matrix.
+8. Related + limitations -- own the attacks (deaf-aiming, evaluation,
+   adaptive-mapping precedent) before reviewers do.

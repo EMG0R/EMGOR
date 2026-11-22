@@ -1,0 +1,17 @@
+{
+  "id": "looper",
+  "file": "fx_looper.h",
+  "roles": {
+    "AMT": "VOLUME",
+    "PITCH": "TRANSP"
+  },
+  "actions": {
+    "MAIN": "tap: record layer 1 / end it (sets length) / start overdub / punch out (overdub also ends after one loop)",
+    "ALT": "play/stop toggle",
+    "CLEAR": "clear all (fade, then lazy 4096-sample chunk clears)",
+    "HOLD": "stop"
+  },
+  "ops_per_sample": "Idle ~10. Playing L layers: shared Hermite weights ~14 + L x 8 (4 MAC) + limiter/mix ~12 -> ~58 at 4 layers; recording adds ~8. Integer-aligned rate-1 playback is 1 load per layer.",
+  "memory_bytes": 46080000,
+  "notes": "Mono layers, HX_LOOP_LAYERS (4) x HX_LOOP_SECONDS. Host tests + sim: 12 s = 9,216,000 B in the slot arena (runtime shrinks layers then length to fit). FIRMWARE (-DHX_LOOP_SECONDS=60, hx::g_loopPool bound): 4 x 60 s = 46,080,000 B from the dedicated 46 MB SDRAM looper pool (only one looper may exist; it owns the pool). Layer 1 sets loop length, others overdub the same length. 10 ms fades. DRYDUCK dry = 1 - layers/N. Playback head separate from record head (TRANSP/REVERSE only affect playback; reversal ramps through zero rate over 50 ms)."
+}

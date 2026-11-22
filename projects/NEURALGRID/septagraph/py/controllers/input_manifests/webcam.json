@@ -1,0 +1,7 @@
+{
+  "controller_id": "web-hand",
+  "channels": [
+    { "name": "hand", "dims": 3, "kind": "continuous", "size": null },
+    { "name": "pinch", "dims": 1, "kind": "continuous", "size": null }
+  ]
+}

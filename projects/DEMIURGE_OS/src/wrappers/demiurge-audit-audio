@@ -1,0 +1,305 @@
+#!/bin/bash
+# demiurge-audit-audio — one read-only report of every layer that can make the
+# rig sound crushed, so a single paste answers "which layer disagrees".
+#
+# WHY. The 2026-10-02 post-rebuild "bitcrush" was chased one layer at a time over
+# a whole session (rate, period, bit depth, mixer, ring, ksmps...), each checked in
+# isolation and each declared fine, while the real faults sat in layers nobody
+# looked at together (mixer gain lost with the card, state dir on SD, wrong set,
+# stock librtjack, a phantom second card). This prints them all at once, one
+# labelled line per fact: PASS / WARN where a rule exists, INFO where it is just a
+# number to read.
+#
+# SAFE: never plays audio, never restarts or writes anything, never takes a lock.
+# Every external call is bounded by `timeout`; a missing tool prints "n/a" and the
+# report goes on. Finishes in under ~15 s (the only wait is two pw-top samples 5 s
+# apart, so the ERR deltas mean something).
+#
+#   demiurge-audit-audio        # run it, paste the output
+#   DEMIURGE_REPO=/path/to/DEMIURGE_OS demiurge-audit-audio   # where to find config/csound/librtjack.so
+set -u
+
+LIVE="${DEMIURGE_LIVE_CONF:-$HOME/demiurge/live.conf}"
+DHOME="$(dirname "$LIVE")"
+HERE="$(dirname "$0")"
+have() { command -v "$1" >/dev/null 2>&1; }
+# Bounded call; falls back to unbounded only where `timeout` does not exist (the
+# Mac, never the Pi) so the script still runs there for testing.
+T() { local s="$1"; shift; if have timeout; then timeout "$s" "$@"; else "$@"; fi; }
+
+section() { printf '\n== %s\n' "$1"; }
+out() { printf '  %-5s %-26s %s\n' "$1" "$2" "$3"; }   # out TAG label value
+info() { out INFO "$1" "$2"; }
+pass() { out PASS "$1" "$2"; }
+warn() { out WARN "$1" "$2"; }
+
+read_key() {   # read_key <key> [default]
+    local v
+    v="$(grep -m1 -E "^[[:space:]]*$1[[:space:]]*=" "$LIVE" 2>/dev/null \
+         | sed 's/^[^=]*=[[:space:]]*//; s/#.*//; s/[[:space:]]*$//')"
+    [ -z "$v" ] && v="${2:-}"
+    printf '%s\n' "$v"
+}
+
+LIMITS=""
+for c in /opt/demiurge/bin/demiurge-quantum-limits "$HERE/demiurge-quantum-limits"; do
+    [ -x "$c" ] && { LIMITS="$c"; break; }
+done
+
+# ---- the card: the resolver's pick, else first non-HDMI/Loopback ------------
+CARD=""
+for c in /opt/demiurge/bin/demiurge-interface "$HERE/demiurge-interface"; do
+    [ -x "$c" ] || continue
+    CARD="$("$c" --list 2>/dev/null | awk -F'|' '$3 ~ /(^|,)active(,|$)/ { print $2; exit }')"
+    [ -n "$CARD" ] && break
+done
+if [ -z "$CARD" ] && have aplay; then
+    CARD="$(aplay -l 2>/dev/null | awk '/^card /{ id=$3; if (id !~ /^(vc4hdmi|Loopback|DemiurgeLoop)/) { print id; exit } }')"
+fi
+
+# ---- one pw-dump, parsed positionally (jq is not on the rig) ----------------
+# Keys within a node's props are alphabetical, so api.alsa.period-num/-size and
+# clock.name precede node.name; remember them and emit when node.name arrives.
+# Lines like "name":"api.alsa.period-size" (PropInfo) carry no `:<digits>` value.
+DUMP=""
+have pw-dump && DUMP="$(T 5 pw-dump 2>/dev/null | tr -d ' ')"
+nodes_table() {   # → "<node.name> <period-size> <period-num> <clock.name>"
+    [ -n "$DUMP" ] || return 0
+    awk -F'"' '
+        /"api\.alsa\.period-num":[0-9]+/  { split($0,a,":"); pn=a[2]+0 }
+        /"api\.alsa\.period-size":[0-9]+/ { split($0,a,":"); ps=a[2]+0 }
+        /"clock\.name":"/                 { cn=$4 }
+        /"node\.name":"/                  { if ($4 ~ /^alsa_/) print $4, (ps?ps:"-"), (pn?pn:"-"), (cn?cn:"-"); ps=0; pn=0; cn="" }
+    ' <<<"$DUMP"
+}
+NODES="$(nodes_table)"
+
+CS_PID=""; have pgrep && CS_PID="$(pgrep -x csound 2>/dev/null | head -1)"
+CS_CMD=""
+[ -n "$CS_PID" ] && [ -r "/proc/$CS_PID/cmdline" ] && CS_CMD="$(tr '\0' ' ' </proc/$CS_PID/cmdline 2>/dev/null)"
+cs_opt() { sed -n "s/.*[[:space:]]$1[[:space:]]*\\([0-9][0-9]*\\).*/\\1/p" <<<"$CS_CMD" | head -1; }
+
+MODE=on; case "$(read_key sync_layer on | tr '[:upper:]' '[:lower:]')" in off|0|no|false) MODE=off ;; esac
+LQ="$(read_key quantum 128)"; LR="$(read_key rate 48000)"
+
+printf 'demiurge-audit-audio  %s  card=%s  sync_layer=%s\n' "$(date '+%F %T')" "${CARD:-?}" "$MODE"
+
+# ============================================================ rate ============
+section rate
+info "live.conf rate" "$LR"
+FR=""; have pw-metadata && FR="$(T 3 pw-metadata -n settings 0 clock.force-rate 2>/dev/null | sed -n "s/.*value:'\\([0-9]*\\)'.*/\\1/p" | tail -1)"
+info "pw force-rate" "${FR:-n/a}"
+PWTOP1=""; have pw-top && PWTOP1="$(T 4 pw-top -b -n 1 2>/dev/null)"
+# pw-top columns: S ID QUANT RATE WAIT BUSY W/Q B/Q ERR [FORMAT] NAME
+TOPRATE="$(awk '$3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ && $3+0 > 0 { print $4 }' <<<"$PWTOP1" | sort -u | tr '\n' ' ')"
+info "pw-top RATE (nodes)" "${TOPRATE:-n/a}"
+HWR=""; [ -n "$CARD" ] && HWR="$(awk '/^rate:/{print $2; exit}' /proc/asound/$CARD/pcm0p/sub0/hw_params 2>/dev/null)"
+info "card hw_params rate" "${HWR:-closed/n.a.}"
+CSR="$(cs_opt -r)"; info "csound -r" "${CSR:-n/a (not running?)}"
+vals="$LR ${FR:-} ${HWR:-} ${CSR:-}"
+if [ "$(tr ' ' '\n' <<<"$vals" | sed '/^$/d' | sort -u | wc -l | tr -d ' ')" -le 1 ]; then
+    pass "rate agreement" "every layer that reported agrees on $LR"
+else
+    warn "rate agreement" "layers DISAGREE: live=$LR force=${FR:-?} card=${HWR:-?} csound=${CSR:-?} — a mismatch is silent resampling"
+fi
+
+# ========================================================== quantum ===========
+section quantum
+info "live.conf quantum" "$LQ"
+FQ=""; have pw-metadata && FQ="$(T 3 pw-metadata -n settings 0 clock.force-quantum 2>/dev/null | sed -n "s/.*value:'\\([0-9]*\\)'.*/\\1/p" | tail -1)"
+info "pw force-quantum" "${FQ:-n/a}"
+if [ -n "$NODES" ]; then
+    while read -r nm ps pn cn; do
+        case "$nm" in alsa_output.*) d=playback ;; alsa_input.*) d=capture ;; *) d=other ;; esac
+        if [ "$ps" != "-" ] && [ "$pn" != "-" ]; then
+            ring=$(( ps * pn )); need=$(( 4 * LQ ))
+            if [ "$ring" -ge "$need" ]; then pass "period $d" "$ps x $pn = $ring frames (>= 4q = $need)  $nm"
+            else warn "period $d" "$ps x $pn = $ring frames < 4q = $need — converter can run dry  $nm"; fi
+        else
+            info "period $d" "period-size/num not exposed  $nm"
+        fi
+    done <<<"$NODES"
+else
+    info "device period" "n/a (pw-dump unavailable)"
+fi
+KS=""; [ -n "$LIMITS" ] && KS="$("$LIMITS" ksmps --live "$LIVE" 2>/dev/null)"
+info "effective ksmps" "${KS:-unknown}"
+if [ -n "$KS" ] && [ "$KS" -gt 0 ] 2>/dev/null; then
+    if [ $(( LQ % KS )) -eq 0 ]; then pass "ksmps divides quantum" "$LQ % $KS == 0"
+    else warn "ksmps divides quantum" "$LQ is not a multiple of $KS"; fi
+fi
+CSb="$(cs_opt -b)"; CSB="$(cs_opt -B)"
+info "csound -b / -B" "${CSb:-n/a} / ${CSB:-n/a}"
+[ -n "$CSb" ] && { [ "$CSb" = "$LQ" ] && pass "csound -b == quantum" "$CSb" || warn "csound -b == quantum" "csound -b $CSb vs quantum $LQ"; }
+[ -n "$FQ" ] && { [ "$FQ" = "$LQ" ] && pass "force-quantum == live" "$FQ" || warn "force-quantum == live" "pw $FQ vs live.conf $LQ"; }
+
+# ================================================= channels / format / clock ==
+section "channels / format / clock"
+for d in pcm0p pcm0c; do
+    f="/proc/asound/$CARD/$d/sub0/hw_params"
+    if [ -n "$CARD" ] && [ -r "$f" ]; then
+        s="$(awk '/^(format|channels|rate|period_size|buffer_size):/{ printf "%s%s ", $1, $2 }' "$f" 2>/dev/null)"
+        [ "$(head -c6 "$f" 2>/dev/null)" = closed ] && s="closed (no stream open)"
+        info "$d hw_params" "$s"
+    else
+        info "$d hw_params" "n/a"
+    fi
+done
+PROF=""
+[ -n "$DUMP" ] && PROF="$(grep -o '"device.profile.name":"[^"]*"' <<<"$DUMP" | sed 's/.*:"//; s/"//' | sort -u | tr '\n' ' ')"
+[ -z "$PROF" ] && have pactl && PROF="$(T 3 pactl list cards 2>/dev/null | sed -n 's/^[[:space:]]*Active Profile: //p' | tr '\n' ' ')"
+info "card profile" "${PROF:-n/a}"
+if [ -n "$NODES" ]; then
+    CN="$(awk '{print $4}' <<<"$NODES" | sort -u | tr '\n' ' ')"
+    n="$(awk '{print $4}' <<<"$NODES" | sort -u | wc -l | tr -d ' ')"
+    [ "$n" -le 1 ] && pass "clock.name (alsa nodes)" "$CN" || info "clock.name (alsa nodes)" "$CN  (different clocks => resampling between nodes)"
+fi
+
+# ============================================================ csound ==========
+section csound
+if [ -n "$CS_PID" ]; then
+    info "pid" "$CS_PID"
+    have taskset && info "affinity" "$(taskset -pc "$CS_PID" 2>/dev/null | sed 's/.*: //')"
+    if have chrt && [ -d "/proc/$CS_PID/task" ]; then
+        nonfifo=""; fifo=0; total=0
+        for t in /proc/$CS_PID/task/*; do
+            tid="${t##*/}"; total=$((total+1))
+            pol="$(chrt -p "$tid" 2>/dev/null | sed -n 's/.*policy: //p')"
+            pri="$(chrt -p "$tid" 2>/dev/null | sed -n 's/.*priority: //p')"
+            nm="$(cat "$t/comm" 2>/dev/null)"
+            if [ "$pol" = SCHED_FIFO ]; then fifo=$((fifo+1)); info "thread $tid" "$nm  FIFO/$pri"
+            else nonfifo="$nonfifo $tid($nm:${pol:-?})"; fi
+        done
+        info "threads" "$total total, $fifo SCHED_FIFO"
+        [ -n "$nonfifo" ] && warn "non-FIFO threads" "$nonfifo" || pass "non-FIFO threads" "none"
+    else
+        info "thread policies" "n/a (chrt or /proc task missing)"
+    fi
+    SD="$(sed -n 's/.*STATE_DIR=\([^ ]*\).*/\1/p' <<<"$CS_CMD")"
+    if [ -n "$SD" ]; then
+        FS="$(stat -f -c %T "$SD" 2>/dev/null)"
+        [ -z "$FS" ] && FS="$(df -T "$SD" 2>/dev/null | awk 'NR==2{print $2}')"
+        if [ "$FS" = tmpfs ] || [ "$FS" = ramfs ]; then pass "STATE_DIR" "$SD ($FS) — settings writes stay off the SD"
+        else warn "STATE_DIR" "$SD (fs=${FS:-?}) — NOT tmpfs: instr 97 writes the settings table to SD on the audio thread every 2 s (2.3-8 ms vs a 1.33 ms period)"; fi
+    else
+        info "STATE_DIR" "not on csound's command line"
+    fi
+else
+    info "csound" "not running"
+fi
+info "csound_extra (live.conf)" "$(read_key csound_extra "(none)")"
+pb="$(read_key csound_extra "" | sed -n 's/.*PRESET_BANK=\([0-9]*\).*/\1/p')"
+info "PRESET_BANK" "${pb:-unset (patch default)}"
+
+# ========================================================== librtjack =========
+section librtjack
+INST=/usr/lib/aarch64-linux-gnu/csound/plugins64-6.0/librtjack.so
+sha() { if have sha256sum; then sha256sum "$1" 2>/dev/null | cut -d' ' -f1; elif have shasum; then shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1; fi; }
+REPO_SO=""
+for r in "${DEMIURGE_REPO:-}" "$HOME/_______DEMIURGE" "$HOME/DEMIURGE_OS" "$HERE/../.."; do
+    [ -n "$r" ] && [ -f "$r/config/csound/librtjack.so" ] && { REPO_SO="$r/config/csound/librtjack.so"; break; }
+done
+if [ -f "$INST" ]; then
+    si="$(sha "$INST")"; info "installed sha256" "${si:-?}"
+    if [ -n "$REPO_SO" ]; then
+        sr="$(sha "$REPO_SO")"; info "repo sha256" "$sr  ($REPO_SO)"
+        [ "$si" = "$sr" ] && pass "patched librtjack" "installed == repo (long-port-name stack-smash fix present)" \
+                          || warn "patched librtjack" "installed is NOT the repo build — stock lib smashes the stack on JACK port names > 63 chars (pro-audio names qualify)"
+    else
+        info "repo librtjack" "not found (set DEMIURGE_REPO)"
+    fi
+else
+    info "installed librtjack" "not at $INST"
+fi
+
+# ============================================================== cards =========
+section cards
+have aplay && aplay -l 2>/dev/null | grep '^card' | while IFS= read -r l; do info "card" "$l"; done
+if [ -n "$NODES" ]; then
+    awk '{print $1}' <<<"$NODES" | sort -u | while IFS= read -r nm; do info "alsa node" "$nm"; done
+    ex="$(awk '{print $1}' <<<"$NODES" | sort -u | grep -ciE 'bela|hdmi|loop|aloop')"
+    [ "${ex:-0}" -gt 0 ] && warn "extra alsa_* nodes" "$ex Bela/HDMI/Loopback node(s) present — can steal direct mode / add a hop"
+fi
+GL=""
+have journalctl && GL="$(T 4 journalctl -q --no-pager -u demiurge -n 600 2>/dev/null | grep 'graph:' | tail -1)"
+info "launcher graph:" "${GL:-n/a (no journal access or no graph: line)}"
+case "$GL" in *[Dd]irect*) pass "direct output" "engaged" ;; "") : ;; *) warn "direct output" "last graph: line does not say direct — a loopback hop may be in the path" ;; esac
+
+# ============================================================== mixer =========
+section mixer
+if have amixer && [ -n "$CARD" ]; then
+    names="$(amixer -c "$CARD" scontrols 2>/dev/null | sed -n "s/^Simple mixer control '\\(.*\\)',0\$/\\1/p" | grep -E 'PGA|ADC .*Input|Digital|Deemphasis|DSP Program|Analogue')"
+    if [ -n "$names" ]; then
+        while IFS= read -r nm; do
+            v="$(amixer -c "$CARD" sget "$nm" 2>/dev/null | grep -E '\[|Item0' | sed 's/^[[:space:]]*//' | tr '\n' ';')"
+            info "$nm" "$v"
+        done <<<"$names"
+    else
+        info "controls" "no PGA/ADC-input/Digital/Deemphasis/DSP/Analogue controls on this card"
+    fi
+else
+    info "mixer" "n/a (amixer or card missing)"
+fi
+
+# ============================================================== errors ========
+section errors
+if have pw-top; then
+    sleep 5
+    PWTOP2="$(T 4 pw-top -b -n 1 2>/dev/null)"
+    # ERR is column 9 in both samples; NAME is the last field.
+    err_of() { awk '$3 ~ /^[0-9]+$/ && $9 ~ /^[0-9]+$/ { print $NF, $9 }' <<<"$1"; }
+    e1="$(err_of "$PWTOP1")"; e2="$(err_of "$PWTOP2")"
+    if [ -n "$e2" ]; then
+        any=0
+        while read -r nm c2; do
+            c1="$(awk -v n="$nm" '$1==n{print $2; exit}' <<<"$e1")"
+            [ -z "$c1" ] && c1=0
+            d=$(( c2 - c1 )); [ "$c2" -gt 0 ] || [ "$d" -ne 0 ] || continue
+            any=1
+            [ "$d" -gt 0 ] && warn "ERR $nm" "+$d in 5 s (total $c2)" || info "ERR $nm" "+0 in 5 s (total $c2)"
+        done <<<"$e2"
+        [ "$any" = 0 ] && pass "pw-top ERR" "all nodes 0"
+    else
+        info "pw-top ERR" "no parsable rows"
+    fi
+else
+    info "pw-top" "n/a"
+fi
+if have journalctl; then
+    J="$(T 5 journalctl -q --no-pager --since '10 min ago' _COMM=pipewire + _COMM=wireplumber + _SYSTEMD_UNIT=demiurge.service 2>/dev/null)"
+    for pat in "follower delay" "resync" "xrun" "Broken pipe"; do
+        n="$(grep -ciE "$pat" <<<"$J")"; n="${n:-0}"
+        [ "$n" -gt 0 ] && warn "journal 10min '$pat'" "$n" || pass "journal 10min '$pat'" "0"
+    done
+else
+    info "journal" "n/a"
+fi
+
+# =============================================================== units ========
+section units
+if have systemctl; then
+    for u in demiurge demiurge-capture-guard demiurge-state-flush.timer demiurge-quantum-restore demiurge-audio-irq-rt; do
+        info "$u" "enabled=$(systemctl is-enabled "$u" 2>/dev/null || echo ?)  active=$(systemctl is-active "$u" 2>/dev/null || echo ?)"
+    done
+else
+    info "systemd" "n/a"
+fi
+CL="$(cat /proc/cmdline 2>/dev/null)"
+info "cmdline isolcpus" "$(grep -o 'isolcpus=[^ ]*' <<<"$CL" || echo none)"
+info "cmdline threadirqs" "$(grep -q threadirqs <<<"$CL" && echo yes || echo no)"
+GOV="$(cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null | sort | uniq -c | tr -s ' ' | tr '\n' ';')"
+info "cpu governor" "${GOV:-n/a}"
+
+# =============================================================== files ========
+section files
+for f in "$DHOME/live.conf" "$DHOME/presets" "$DHOME/state" "$DHOME/asound.state" "$DHOME/interface.conf" \
+         "$HOME/.config/wireplumber/wireplumber.conf.d/60-demiurge-period.conf" \
+         "$HOME/.config/wireplumber/wireplumber.conf.d/61-demiurge-rate.conf" \
+         "$HOME/.config/pipewire/pipewire.conf.d/99-demiurge-lowlatency.conf"; do
+    [ -e "$f" ] && pass "present" "$f" || warn "MISSING" "$f"
+done
+n="$(ls "$DHOME"/sets/*.conf 2>/dev/null | wc -l | tr -d ' ')"
+[ "${n:-0}" -gt 0 ] && pass "sets/*.conf" "$n file(s): $(ls "$DHOME"/sets/*.conf 2>/dev/null | xargs -n1 basename 2>/dev/null | tr '\n' ' ')" \
+                    || warn "sets/*.conf" "none — the active set (e.g. neptr_gorcore) is not on this rig"
+info "sync_layer" "$MODE"
+exit 0

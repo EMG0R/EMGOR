@@ -1,0 +1,153 @@
+#!/bin/zsh
+# NEPTR standalone launcher — stable entry point.
+#   ./vst/neptr               launch the app
+#   ./vst/neptr --reset-audio launch and re-seed default devices
+#
+# The app runs the SAME csd as the VST3 (vst/NEPTR_VST.csd) — identical to
+# loading NEPTR in Ableton. The one thing this wrapper guarantees on every
+# launch is that Cabbage's "mute input to avoid feedback" is forced OFF (its
+# default-on is what silences the app). Device choice is yours: pick it once
+# in the app's Audio/MIDI Settings dialog and it's remembered. No device is
+# force-selected, so moving machines / swapping interfaces never breaks it.
+set -e
+
+APP="$HOME/Applications/NEPTR.app"
+SETTINGS="$HOME/Library/Application Support/NEPTR.settings"
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+TEMPLATE="/Applications/Cabbage.app/Contents/CabbagePlugin.app"
+
+# ---- rebuild the app bundle if it is missing --------------------------------
+if [[ ! -d "$APP" ]]; then
+  echo "NEPTR.app missing — rebuilding from Cabbage template"
+  mkdir -p "$HOME/Applications"
+  cp -R "$TEMPLATE" "$APP"
+  mv "$APP/Contents/MacOS/CabbagePluginEffect" "$APP/Contents/MacOS/NEPTR"
+  plutil -replace CFBundleDisplayName -string NEPTR "$APP/Contents/Info.plist"
+  plutil -replace CFBundleExecutable -string NEPTR "$APP/Contents/Info.plist"
+  plutil -replace CFBundleName -string NEPTR "$APP/Contents/Info.plist"
+  plutil -replace CFBundleIdentifier -string com.CabbageAudio.NEPTRStandalone \
+      "$APP/Contents/Info.plist"
+  cp "$REPO/vst/NEPTR_VST.csd" "$APP/Contents/NEPTR.csd"   # plain VST = same as Ableton
+  mkdir -p "$APP/Contents/Resources"
+  cp "$REPO/vst/NEPTR.icns" "$APP/Contents/Resources/NEPTR.icns"
+  plutil -replace CFBundleIconFile -string NEPTR "$APP/Contents/Info.plist"
+  codesign --force --deep -s - "$APP"
+fi
+
+# ---- keep the bundled csd CURRENT ------------------------------------------
+# This used to happen ONLY inside the "app is missing" branch above, so once
+# the bundle existed it kept whatever csd it was built with forever. Found
+# 2026-09-24 running a csd from 2026-07-27 - two months of DSP fixes the
+# standalone silently did not have. Copying every launch is one file copy and
+# makes "the app is stale" unrepresentable.
+if [[ -f "$REPO/vst/NEPTR_VST.csd" ]]; then
+  cp "$REPO/vst/NEPTR_VST.csd" "$APP/Contents/NEPTR.csd"
+fi
+
+# ---- audio settings ---------------------------------------------------------
+# ONLY hard rule: feedback-mute OFF, every launch. Device selection is left to
+# you (the Audio/MIDI Settings dialog remembers it). With --reset-audio, seed a
+# safe output (built-in speakers) and leave the input unset so the app grabs a
+# valid default instead of a device that may not exist here.
+RESET=0
+[[ "$1" == "--reset-audio" ]] && RESET=1
+# CoreAudio's current device list, so we can prefer the instrument's own
+# interface instead of whatever happened to be used last.
+# CoreAudio device lists, SPLIT BY DIRECTION. This matters: hyperGuitar is an
+# INPUT-ONLY device (2 in, no outs), so selecting it for output leaves nothing
+# to play through - which is exactly how this broke on 2026-09-24 (test tone
+# audible only because Cabbage fell back, mic path dead).
+AUDIO_RAW="$(system_profiler SPAudioDataType 2>/dev/null)"
+DEVICES_IN="$(printf '%s' "$AUDIO_RAW" | grep -E '^        [A-Za-z].*:$|Input Channels' | sed 's/^ *//' | awk '/:$/{d=$0} /Input Channels/{sub(/:$/,"",d); print d}')"
+DEVICES_OUT="$(printf '%s' "$AUDIO_RAW" | grep -E '^        [A-Za-z].*:$|Output Channels' | sed 's/^ *//' | awk '/:$/{d=$0} /Output Channels/{sub(/:$/,"",d); print d}')"
+
+/usr/bin/python3 - "$SETTINGS" "$RESET" "$DEVICES_IN" "$DEVICES_OUT" <<'PYEOF'
+import os, sys, xml.etree.ElementTree as ET
+path, reset = sys.argv[1], sys.argv[2] == "1"
+def _lst(i):
+    return [d.strip() for d in (sys.argv[i] if len(sys.argv) > i else "").splitlines() if d.strip()]
+dev_in, dev_out = _lst(3), _lst(4)
+# PREFERRED = the instrument's own interface. Present -> select it on both
+# sides every launch, which is the 'it should already be on my hyperGuitar
+# when I open it' behaviour. Absent -> leave the existing choice alone rather
+# than forcing a device that does not exist.
+PREFERRED = "hyperGuitar"
+try:
+    root = ET.parse(path).getroot()
+except Exception:
+    root = ET.Element("PROPERTIES")
+
+def value(name):
+    v = next((v for v in root.findall("VALUE") if v.get("name") == name), None)
+    if v is None:
+        v = ET.SubElement(root, "VALUE", name=name)
+    return v
+
+v = value("audioSetup")
+has_out = (v.find("DEVICESETUP") is not None
+           and v.find("DEVICESETUP").get("audioOutputDeviceName"))
+
+if not reset:
+    d = v.find("DEVICESETUP")
+    if d is None:
+        d = ET.SubElement(v, "DEVICESETUP", {"deviceType": "CoreAudio"})
+
+    # INPUT: the instrument, when it is plugged in.
+    if PREFERRED in dev_in:
+        if d.get("audioInputDeviceName") != PREFERRED:
+            d.set("audioInputDeviceName", PREFERRED)
+            print("audio: input -> %s" % PREFERRED)
+        else:
+            print("audio: input already %s" % PREFERRED)
+    else:
+        print("audio: %s not connected - leaving input as %s"
+              % (PREFERRED, d.get("audioInputDeviceName")))
+
+    # OUTPUT: must be a device that HAS outputs. Keep the current one when it
+    # is still valid, otherwise fall back to the built-in speakers. Never
+    # leave an input-only device selected here.
+    out = d.get("audioOutputDeviceName")
+    if out not in dev_out:
+        fallback = "MacBook Pro Speakers" if "MacBook Pro Speakers" in dev_out else (dev_out[0] if dev_out else None)
+        if fallback:
+            d.set("audioOutputDeviceName", fallback)
+            print("audio: output %r has no output channels -> %s" % (out, fallback))
+    else:
+        print("audio: output stays %s" % out)
+
+    value("shouldMuteInput").set("val", "0")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ET.ElementTree(root).write(path, encoding="UTF-8", xml_declaration=True)
+    raise SystemExit
+if reset or not has_out:
+    v.attrib.pop("val", None)
+    for child in list(v):
+        v.remove(child)
+    # output only; no forced input -> app uses a valid default, you pick in dialog
+    ET.SubElement(v, "DEVICESETUP", {
+        "deviceType": "CoreAudio",
+        "audioOutputDeviceName": "MacBook Pro Speakers"})
+    print("audio: seeded output=MacBook Pro Speakers; pick your input in the dialog")
+else:
+    d = v.find("DEVICESETUP")
+    print(f"audio: keeping your devices (out={d.get('audioOutputDeviceName')}, "
+          f"in={d.get('audioInputDeviceName')}); ./vst/neptr --reset-audio to re-seed")
+value("shouldMuteInput").set("val", "0")   # THE non-negotiable
+os.makedirs(os.path.dirname(path), exist_ok=True)
+ET.ElementTree(root).write(path, encoding="UTF-8", xml_declaration=True)
+PYEOF
+
+# ---- microphone permission -------------------------------------------------
+# The app MUST declare NSMicrophoneUsageDescription or macOS silently denies
+# audio input (THE "no input on my own launch" bug). Ensure it's present.
+plutil -replace NSMicrophoneUsageDescription \
+  -string "NEPTR needs your audio input (guitar/instrument) to process it." \
+  "$APP/Contents/Info.plist" 2>/dev/null
+codesign --force --deep -s - "$APP" 2>/dev/null
+
+# Launch the BINARY DIRECTLY (not `open`), so the app inherits THIS terminal's
+# microphone permission instead of getting its own empty TCC context. This is
+# why running from a terminal always had audio while double-clicking didn't.
+nohup "$APP/Contents/MacOS/NEPTR" >/dev/null 2>&1 &
+disown 2>/dev/null || true
+echo "NEPTR launched. If macOS asks to allow the microphone, click Allow."

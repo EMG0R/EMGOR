@@ -1,0 +1,19 @@
+{
+  "id": "grain",
+  "file": "fx_grain.h",
+  "roles": {
+    "AMT": "MIX",
+    "TIME": "GSIZE2",
+    "TONE": "FILT",
+    "MOD": "DELAY",
+    "PITCH": "TRANSP"
+  },
+  "actions": {
+    "MAIN": "next grain window (Hann, half-sine, decay, decay-exp, gate)",
+    "ALT": "next delay distribution (exp, lin, log)",
+    "CLEAR": "clear buffer and kill grains"
+  },
+  "ops_per_sample": "~35 flops per active voice (2 linear reads, 2 one-pole LP, window lerp, 2 pan MACs, pointer updates) x up to 24 voices (HX_GRAIN_VOICES) = ~850 at the cap, plus ~2 amortised spawn cost (450 spawns/s x ~200 incl. powf/expf/exp2f). Density is capped so voices stay <= 85 % of the pool; amplitude is normalised by 3/sqrt(overlap).",
+  "memory_bytes": 1070576,
+  "notes": "Re-implementation of McCurdy DelayGrain.csd (CC BY-NC-SA 4.0). Stereo 2^17-sample rings (2.7 s, usable delay path <= ~2.7 s), 5 x 1025 window tables in the object. v1 preset default (GSize 14.8-84.8 ms, dens 500/s capped to ~240-430/s by the 24-voice cap, delay 19.4 ms..1.012 s exp, pan 1, amp spread 0.8, rev 0.7, filt 0.5, decay 0.536) + OCTUP 0.06. Window/distribution are action-selected, not params (12-param limit). Voice cap is the CPU lever."
+}

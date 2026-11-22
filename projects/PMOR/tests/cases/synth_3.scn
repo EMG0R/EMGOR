@@ -1,0 +1,8 @@
+seconds 2.0
+set syn.algo 3
+at 0.0 synth_on 0 0.9
+at 0.0 synth_on 4 0.8
+at 0.0 synth_on 9 0.7
+at 1.0 synth_off 0
+at 1.0 synth_off 4
+at 1.0 synth_off 9

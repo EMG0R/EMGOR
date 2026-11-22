@@ -1,0 +1,193 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "layers": [
+    {
+      "id": "screen1",
+      "name": "Screen",
+      "visible": true,
+      "points": [
+        [
+          560,
+          340
+        ],
+        [
+          1360,
+          320
+        ],
+        [
+          1400,
+          780
+        ],
+        [
+          520,
+          760
+        ]
+      ],
+      "content": {
+        "kind": "screen",
+        "pattern": null,
+        "url": null
+      },
+      "params": {
+        "speed": 1,
+        "color1": "#2ee6c8",
+        "color2": "#3d4bff",
+        "brightness": 1,
+        "opacity": 1
+      }
+    },
+    {
+      "id": "zone-aurora",
+      "name": "Aurora arch",
+      "visible": true,
+      "points": [
+        [
+          120,
+          260
+        ],
+        [
+          420,
+          90
+        ],
+        [
+          900,
+          40
+        ],
+        [
+          1500,
+          80
+        ],
+        [
+          1800,
+          250
+        ],
+        [
+          1620,
+          240
+        ],
+        [
+          960,
+          150
+        ],
+        [
+          300,
+          250
+        ]
+      ],
+      "content": {
+        "kind": "pattern",
+        "pattern": "aurora",
+        "url": null
+      },
+      "params": {
+        "speed": 1,
+        "color1": "#2ee6c8",
+        "color2": "#7a3dff",
+        "brightness": 1.2,
+        "opacity": 1
+      }
+    },
+    {
+      "id": "zone-lava",
+      "name": "Lava column",
+      "visible": true,
+      "points": [
+        [
+          1620,
+          380
+        ],
+        [
+          1860,
+          400
+        ],
+        [
+          1840,
+          1020
+        ],
+        [
+          1600,
+          1000
+        ]
+      ],
+      "content": {
+        "kind": "pattern",
+        "pattern": "lava",
+        "url": null
+      },
+      "params": {
+        "speed": 0.8,
+        "color1": "#ff5a1f",
+        "color2": "#ffd23d",
+        "brightness": 1,
+        "opacity": 1
+      }
+    },
+    {
+      "id": "zone-fireflies",
+      "name": "Firefly meadow",
+      "visible": true,
+      "points": [
+        [
+          80,
+          820
+        ],
+        [
+          460,
+          780
+        ],
+        [
+          470,
+          1040
+        ],
+        [
+          70,
+          1050
+        ]
+      ],
+      "content": {
+        "kind": "pattern",
+        "pattern": "fireflies",
+        "url": null
+      },
+      "params": {
+        "speed": 1,
+        "color1": "#1a3a2a",
+        "color2": "#c8ff5e",
+        "brightness": 1.1,
+        "opacity": 1
+      }
+    },
+    {
+      "id": "mask-corner",
+      "name": "Corner mask",
+      "visible": true,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          130,
+          0
+        ],
+        [
+          0,
+          130
+        ]
+      ],
+      "content": {
+        "kind": "mask",
+        "pattern": null,
+        "url": null
+      },
+      "params": {
+        "speed": 1,
+        "color1": "#000000",
+        "color2": "#000000",
+        "brightness": 1,
+        "opacity": 1
+      }
+    }
+  ]
+}

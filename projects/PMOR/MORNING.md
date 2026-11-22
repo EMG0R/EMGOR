@@ -1,0 +1,47 @@
+# MORNING - PMOR STUDIO (twink/pmor-studio)
+
+## Flashed now
+`fcee1b1` (latest gated flash, 2026-11-07 17:07; includes builder 2's user-preset UI). Earlier text below describes 4b6e5e3, still true for the checklist.
+(previous: `4b6e5e3` (gated: check.sh ALL PASS incl. fwcheck, stamp matched, HEAD pushed). Rollbacks in `~/pmor-flash` (`PMOR_V3_56d9a07_rebuild_ROLLBACK.bin`, `PMOR_V3_ff86e4c_twink_gcc10.3_2026-11-07.bin`, 722a311 KNOWN_GOOD). Flash log: `docs/FLASH_LOG.md`.
+HELLO/STATUS on the device: `boot=2/2` (bootguard state ok / boot count), `stack_free=13880 B` (minimum untouched stack since boot), `store=2/0/0/0/0/64/0` (done, 0 pending, 0 exported/written/verified, 64 skipped = second boot wrote nothing), `audio_overruns=0`, `cpu_max=25 %`.
+
+## Why f7a6fe1 and 4052811 never enumerated (mechanism, measured from the ELF)
+* **f7a6fe1:** two things, either fatal. (a) `_GLOBAL__sub_I_DRUM_SOUND_NAMES`, a static constructor run by `__libc_init_array` before `main()`, stores float constants to 0xC0000000 (the `SoundDef SDRAM_BSS s_ovr[4][16]` override table has default member initialisers): the SDRAM controller is only started by `hw.Init()` inside `main`, so the access bus-faults and libDaisy's HardFault handler spins forever, before `tusb_init`. (b) `patchFromBlob`'s two 7.5 KB function statics sat in DTCM, leaving 3068 B for stack and heap (56d9a07 had 18052 B).
+* **4052811:** DTCM headroom was fixed (18084 B) but (a) was still there: same pre-main SDRAM store -> HardFault -> endless spin -> no USB. That is why headroom alone did not bring it back.
+* **Fix:** the table is raw bytes (no constructor). `tools/fwcheck.sh` (in check.sh, gates the flash) models the Daisy: region budget, worst-case stack from the disassembly call graph, SDRAM references in any static-constructor call tree, FatFS/storage reachable before `tud_connect`. Results: 56d9a07 PASS; f7a6fe1 FAIL checks 1 (headroom 3068 < 16384), 2 (stack need 4692 > 3068), 3 (SDRAM ctor); 4052811 FAIL check 3 only; 4b6e5e3 PASS (headroom 18068 B).
+* **Made impossible by design:** IWDG 16 s watchdog (kicked from the USB service and the main loop); persistent boot flag (DTCM `.dtcmram_bss`, survives resets): a boot that finds the previous boot never finished storage skips migration/PRESETS/pool until a power cycle; strong `HardFault_Handler` that resets instead of spinning (reset loop = the bootloader window keeps recurring); USB comes up in `hwBoot` before any storage; storage runs from `patchTick`, one bounded step per pass.
+
+## On-device checklist (4b6e5e3)
+1. Boot migration completes: first boot `store=2/0/22/108/42/0` (done, 22 patches exported, 108 verified, 42 skipped, 0 errors), pool 60 samples. 
+2. 12 PRESETS files written (R00..R11, sizes e.g. 15858 B and 896 B), `PMOR3/MANIFEST.TXT` 2931 B, 22 `PATCHES/Pnn.TXT`; second boot: `exported/written/verified = 0`, 64 skipped.
+3. Legacy files byte-identical: 63 of 63 sha256 equal between `~/pmor-backups/sd-20261107-0710-pre-migration/files` and a fresh read-only dump after migration (`sd-*-post-migration2`, which also holds the new tree).
+4. Drum triggers and synth notes fire over MIDI: AUDITION D 0/10 -> ch1 notes 36, 46 with note-offs; AUDITION S 3/9 -> ch2 notes 76, 58 with note-offs; 0 MIDI drops, 0 event drops.
+5. SAVE_SCRATCH round trip on empty slot 40: legacy `P40.PMR` 7540 B (v8) crc 2144df1c; `PATCHES/P40.TXT` `src_pmr 7540 0 2144df1c` matches; counters exported/written/verified = 1/1/1; second SAVE_SCRATCH 40 refused (occupied). NOTE: slot 40 now holds a copy of the live patch; additive, delete it from the UI if unwanted.
+6. `svc_gap_ms=261` is a boot artefact: the first STATUS after a reset includes the longest loop gap since boot (hwBoot stages). Steady state is 2-7 ms (readings 7, 6, 2 ms), the CLOCKMODE card-file save costs 3 ms; the storage job is already one bounded step per pass.
+
+## Follower (measured)
+* Sender = the Pi's NEPTR hub clock (a real source, ~13k ticks, 124 BPM): `ferr_us` mean 312 / p99 1020 / max 20916 over 256 corrections (the max is the first acquisition after Start). That meets the flagship target (phase well under +-1 ms mean; p99 ~1 ms).
+* Sender = ALSA test clock: tempo lock 0.13-0.9 s, but this sender bunches ticks (tick intervals 0.04..29 ms) so the long-run phase error there was mean 6-12 ms; a tempo estimator that survives bunching (median of elapsed-window estimates) and a one-way-delay phase filter are in. Not re-measured against Ableton.
+* The original follower had a sign bug (positive feedback); fixed in 355d107.
+
+## Open / needs EMGOR
+1. Listen test of the drum + synth engines on the bench (events verified over MIDI, not by ear).
+2. One unexplained USB disconnect/re-enumerate during a long PULL_FILE dump (no MCU reset: boot counter unchanged); the retry completed all 63 files. Watch for it.
+3. Follow quality against real Ableton.
+4. Slot 40 scratch patch (see above).
+5. Still not done from the brief: Max device, GET_PATCH over the new TXT format for hosts, a CDC command to retry storage after a skip boot (today: power-cycle).
+
+## Phase 5 status (fcee1b1) - what is verified, what is not
+* **STORE_RETRY** implemented (CDC command + `patchStoreRetry()` hook, docs/PROTOCOL.md section 14). Not exercised on hardware yet (no skip boot happened). The menu entry is NOT wired: ui/ belongs to builder 2.
+* **Pull rate** (same 328 908-byte .AUD file, byte-identical every time): 9.5 KB/s (192 B chunks, 4052811-era) -> 80 KB/s (1 KB chunks + read-ahead) -> ~130 KB/s end to end now (fast SD SPI + open handle: raw SPI per 512 B sector 2.5 ms -> 0.74 ms, i.e. ~690 KB/s on the wire side of the card). Target 200 KB/s NOT reached: FatFS still reads ~4-5 extra sectors per chunk (a per-call overhead of the size of an f_open; the open-handle reuse in `patchFileRead` does not seem to be effective, the cause is not found). Ideal sector count would give ~230 KB/s. Next step: count `f_open`s (STATUS counter) while pulling.
+* **USB dropout during the long dump: NOT root-caused, NOT reproduced.** Facts: one disconnect + re-enumerate (no bootloader stage, `boot` counter unchanged, so not the IWDG and not a fault reset); the identical dump repeated 3 more times without recurrence; IWDG (16 s) cannot fire during a 1 KB f_read; the TX path now writes+flushes per fill and services USB between chunks. The 10-minute loop test and a power-draw look were not done (twink rebooted, PMOR currently unplugged).
+* **User-preset hold-save timing (builder estimate ~0.5 s) and SYNTH/DRUMS user-row browsing: not measured**, needs hands on the instrument (and a STATUS read of `audio_overruns` before/after).
+* Not flashable until `PMOR` is back on USB; nothing else queued on the device.
+
+## Phase 6 (2026-11-10): automatic clock role, link problems, pull rate
+* **Automatic clock role (flashed, 8ccd283+):** PMOR is master by default with a CONTINUOUS 0xF8 stream (measured: 349 ticks in 7 s, 124.04 BPM, interval std 0.8 ms; CC116=1/CC117 announcements; SPP every bar). It follows a bus clock only while one arrives and returns to master ~2 s after it stops; the old hand-over-to-Pi rules (silent / looper held) are removed. The persisted clock mode is read as AUTO unless the user picked one (STATUS `cm=<setting>/<policy>`, 0/0 on the device now). STATUS in NEPTR mode: `clk=master running=1`. Relay: `journalctl -u pmor-clock-relay` shows `/clk/bpm 124.0229 (hat 47999.149 Hz, 993 ticks)` = tempo lock and /clk/bpm to csound. Start/Continue (FA/FB) only follow the sounding state (PMOR was already running); Emory needs to press Start/play on PMOR to see a fresh Start.
+* **ROOT CAUSE of the weeks of flaky CDC (found today): `demiurge_io` (the NEPTR sensor service, `/opt/demiurge/src/demiurge-io`, config `~/demiurge/sensors.json`) opens `/dev/ttyACM0`, which is now PMOR instead of the NEPTR body Teensy.** It steals/injects bytes on PMOR's protocol port: garbled frames, lost replies, 25/47 suite failures. With it paused (SIGSTOP) the suite is 45/47 and dumps are CRC-exact. It was paused only for my tests and resumed (SIGCONT). FIX NEEDED by the NEPTR owner: reference serial devices by `/dev/serial/by-id/...` (PMOR is `usb-EMGOR_SYNTH_Pocket_OpGorator_004700493333511832383435-if02`) and make sure PMOR's port is not in sensors.json / not auto-grabbed. I did not touch /opt/demiurge or sensors.json.
+* **The earlier "USB dropout during the long dump" is very likely the same thing** (a second process on the port), not firmware. Not reproduced since; the 10-minute loop was not run with demiurge_io paused.
+* **Pull rate:** 328 908-byte .AUD (crc32 29565315, identical every time): 9.5 KB/s (192 B chunks) -> ~130 KB/s at fcee1b1 -> 7 KB/s after the kept-open-handle experiment/regression -> 16 KB/s now (0436fc1, per-call open + 16 KB read-ahead, 16 ms burst). The 200 KB/s target is NOT met. Kept-open FatFS handles were reverted. The firmware emits chunks from the read-ahead cache instantly, so the limit is the CDC drain: roughly one 64 B packet per 1.7 ms during the burst. Worth testing: a FIFO-fill loop that keeps `tud_task` spinning until the CDC FIFO is empty, and checking whether the Pi's xHCI really schedules one FS bulk IN per frame.
+* **Save timing / overruns:** SAVE_SCRATCH 41: one 95 ms main-loop gap, 0 audio overruns, cpu_max 47 %. STORE_RETRY: OK, re-queues everything (store counters: 128 skipped = 64 + 64, 0 errors).
+* **Not done:** 10-min PULL_FILE loop (with demiurge_io paused), user-preset hold-save timing and browsing (needs hands).

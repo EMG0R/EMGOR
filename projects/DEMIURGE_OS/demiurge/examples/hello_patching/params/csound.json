@@ -1,0 +1,20 @@
+{
+  "stage": "csound",
+  "port": 9006,
+  "version": 1,
+  "params": [
+    {
+      "path": "/csound/reverb",
+      "label": "Reverb wet",
+      "default": 0.25,
+      "map": "hard",
+      "proto": "p",
+      "native": {
+        "min": 0,
+        "max": 0.9,
+        "curve": "lin",
+        "unit": "mix"
+      }
+    }
+  ]
+}

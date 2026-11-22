@@ -1,0 +1,38 @@
+# DEMIURGE M8 — Pi 5 kernel cmdline additions
+#
+# /boot/firmware/cmdline.txt is a SINGLE LINE. Append these tokens to the end
+# of the existing line — do NOT add newlines. Order does not matter.
+#
+#   threadirqs                 Run IRQ handlers in kernel threads so the audio
+#                              process scheduler can preempt them.
+#   usbcore.autosuspend=-1     Never suspend USB devices (stops USB audio /
+#                              MIDI interfaces from dropping mid-performance).
+#   isolcpus=3                 Keep CPU 3 off the scheduler's normal pool.
+#                              The launcher will later pin the audio-critical
+#                              programs onto this core.
+#   nohz_full=3                INERT on the stock Raspberry Pi OS kernel — the
+#                              kernel logs "Housekeeping: nohz unsupported.
+#                              Build with CONFIG_NO_HZ_FULL" and
+#                              /sys/devices/system/cpu/nohz_full never appears.
+#   rcu_nocbs=3                INERT for the same reason — the kernel logs it
+#                              under "Unknown kernel command line parameters".
+#
+#   Both are kept only for forward compatibility with a custom kernel built
+#   with CONFIG_NO_HZ_FULL. Do NOT describe the isolation as depending on
+#   them: what actually works is isolcpus + the per-process RT pin +
+#   demiurge-irq-isolate.sh + the performance governor.
+#
+# Fast-boot tokens (safe, no audio impact):
+#   quiet                      Skip kernel's verbose boot messages.
+#   loglevel=3                 Only warnings and above during init.
+#   fastboot                   Skip extra init-time checks.
+#   fsck.mode=skip             Don't fsck on boot (weekly maintenance reboot still sweeps it).
+#   systemd.show_status=false  Don't print per-unit status lines.
+#
+# Example final line (yours will differ — keep your console= and root= bits):
+#   console=serial0,115200 console=tty1 root=PARTUUID=... rootfstype=ext4 fsck.repair=yes rootwait threadirqs usbcore.autosuspend=-1 isolcpus=3 nohz_full=3 rcu_nocbs=3 quiet loglevel=3 fastboot fsck.mode=skip systemd.show_status=false
+#
+# After editing, reboot. Verify:
+#   cat /sys/devices/system/cpu/isolated    # → 3
+#   cat /proc/cmdline                        # → shows the new tokens
+#   dmesg | grep -i housekeeping             # → nohz unsupported (expected)

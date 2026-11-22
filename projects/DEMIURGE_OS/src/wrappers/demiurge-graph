@@ -1,0 +1,561 @@
+#!/bin/bash
+# demiurge-graph — see and re-patch the audio graph.
+#
+# In sync mode the audio path is not a setting, it is a set of LINKS between
+# ports: the engine's inputs, the engine's outputs, the interface's capture and
+# playback ports, and the loopback nodes in between. Nothing surfaced that
+# anywhere, which is how the engine's input sat connected to NOTHING for an
+# unknown length of time — instrument in, silence through, no UI the wiser.
+# This tool is that missing window, and the single write path onto the graph:
+# no UI may call pw-link itself (same doctrine as demiurge-interface /
+# demiurge-audio / demiurge-touch).
+#
+# Usage:
+#   demiurge-graph                    human-readable picture of the audio path
+#   demiurge-graph --list             machine lines for UIs (format below)
+#   demiurge-graph --status-machine   one line: mode|in_path|out_path|dangling|links
+#
+#   demiurge-graph connect    <src> <dst>   link two ports
+#   demiurge-graph disconnect <src> <dst>   unlink two ports
+#   demiurge-graph reset                    back to the launcher's intended graph
+#
+#   <src>/<dst> are full PipeWire port names ("csound6:input1"). Ports are
+#   listed by --list; connect refuses a name that isn't currently a port, so a
+#   typo can't silently do nothing.
+#
+# ── the fact this exists to surface: DIRECT vs LOOPBACK ──────────────────────
+# A path from the interface to the engine (or engine to interface) is either
+#   DIRECT    port to port, nothing in between. One quantum less latency.
+#   LOOPBACK  via demiurge-sink / demiurge-source. Needed when several
+#             interfaces are aggregated, or for the aloop virtual clock, or
+#             Bluetooth — it is the mixing point. Costs a quantum each way.
+# The launcher picks per run (see the launcher's graph/aggregate modules); this
+# tool reports which one is live right now, per direction, because that IS the
+# latency-relevant fact and no other UI showed it.
+#
+# ── what "dangling" means ────────────────────────────────────────────────────
+# An engine port with zero links is silence, not a warning: an unconnected
+# engine INPUT means the instrument never reaches the engine, an unconnected
+# engine OUTPUT means nothing reaches the interface. Both are reported as
+# warn| lines by --list and shouted about in the human output.
+#
+# ── who owns a link ──────────────────────────────────────────────────────────
+# The launcher POLICES some destinations: every input port of a chain program,
+# every hardware playback port, and the loopback sink's playbacks. On its next
+# graph event (a device appearing, a stage dying, live.conf changing, drift
+# caught by the heartbeat) it deletes every incoming link to those ports that
+# is not in the graph it means to have — that scrub is what stops WirePlumber
+# speculatively wiring feedback loops, so it is not going away.
+#
+# A link this tool makes to a policed destination is therefore live NOW but not
+# guaranteed to survive the next event. To make one stick, connect also records
+# it in ~/demiurge/graph.conf (`connect = <src> -> <dst>`, one per line), which
+# is the agreed handoff for the launcher to merge into its desired set. Until
+# the launcher reads that file, connect says plainly that the link may be
+# reverted rather than pretending it is permanent.
+#
+# ── reset ────────────────────────────────────────────────────────────────────
+# `reset` drops every user override in graph.conf and asks the LAUNCHER to
+# re-assert its own graph — it does not re-derive the intended wiring here,
+# because the launcher already owns that knowledge and two implementations of
+# "what the graph should be" is exactly the trap this codebase avoids. The ask
+# is an mtime touch on live.conf: the launcher's watcher reloads, reconciles
+# (identical session, so nothing restarts, no audio drop) and re-applies the
+# graph. No service restart, no content change.
+#
+# ── bypass mode ──────────────────────────────────────────────────────────────
+# With sync_layer = off there is no graph: the chain program owns the interface
+# directly and there are no links to see or change. Every subcommand says so in
+# one sentence and exits 3, so UIs can tell "nothing to show" apart from a real
+# failure. Same when PipeWire simply isn't running.
+
+set -u
+
+# PipeWire is reached through the user's runtime socket, located via
+# XDG_RUNTIME_DIR. A service unit that doesn't inherit a login environment has
+# none (demiurge-web's does not), and pw-link then finds nothing — which this
+# tool would honestly but WRONGLY report as "there is no graph", i.e. exactly
+# the invisible-state failure it exists to prevent. Derive it rather than make
+# every caller remember to set it.
+: "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
+export XDG_RUNTIME_DIR
+
+LIVE="${DEMIURGE_LIVE_CONF:-$HOME/demiurge/live.conf}"
+OVERRIDES="${DEMIURGE_GRAPH_CONF:-$HOME/demiurge/graph.conf}"
+
+# Exit code for "the graph does not exist right now" — a state, not a failure.
+E_NOGRAPH=3
+
+read_key() {   # read_key <key> [default]
+    local v
+    v="$(grep -m1 -E "^[[:space:]]*$1[[:space:]]*=" "$LIVE" 2>/dev/null \
+         | sed 's/^[^=]*=[[:space:]]*//; s/#.*//; s/[[:space:]]*$//')"
+    [[ -z "$v" ]] && v="${2:-}"
+    printf '%s\n' "$v"
+}
+
+cur_mode() {
+    local sl; sl="$(read_key sync_layer on)"
+    case "$(tr '[:upper:]' '[:lower:]' <<<"$sl")" in
+        off|0|no|false) echo bypass ;;
+        *)              echo sync ;;
+    esac
+}
+
+# Why there is no graph, or empty if there is one.
+no_graph_reason() {
+    [[ "$(cur_mode)" == bypass ]] && { echo "bypass"; return; }
+    command -v pw-link >/dev/null 2>&1 || { echo "nopipewire"; return; }
+    pw-link -o >/dev/null 2>&1 || { echo "nopipewire"; return; }
+    echo ""
+}
+
+no_graph_message() {  # no_graph_message <reason>
+    case "$1" in
+        bypass)     echo "Sync layer is off — the graph only exists in sync mode. The chain program owns the interface directly, so there are no links to show or change. Turn it on with: demiurge-audio mode sync" ;;
+        nopipewire) echo "Sync layer is off — the graph only exists in sync mode. PipeWire is not running, so there is no graph right now." ;;
+        *)          echo "No graph." ;;
+    esac
+}
+
+# ── classification ───────────────────────────────────────────────────────────
+# Node kinds, from the node name alone. Deliberately generic: no interface
+# brand or product name ever appears in this tool's output.
+#   interface  hardware capture / playback  (alsa_input.* / alsa_output.*)
+#   loopback   the demiurge-sink / demiurge-source virtual pair
+#   midi       the shared MIDI bus
+#   engine     everything else — the chain programs' JACK clients
+node_kind() {  # node_kind <node name>
+    case "$1" in
+        alsa_input.*|alsa_output.*)          echo interface ;;
+        demiurge-sink*|demiurge-source*)     echo loopback ;;
+        Midi-Bridge*|bluez_midi*)            echo midi ;;
+        *[Mm]idi\ [Tt]hrough*|*Midi-Through*) echo midi ;;
+        *)                                   echo engine ;;
+    esac
+}
+
+# MIDI ports must never be counted as audio. Getting this wrong is not
+# cosmetic: an unconnected MIDI port is completely normal, and reporting a
+# dozen of them as "connected to nothing" would bury the ONE audio port that
+# actually means silence — which is the entire point of this tool.
+#
+# Two rules, because one is not enough on a real device: the node itself is a
+# MIDI bridge (Midi-Bridge, bluez_midi, the Midi Through pool), OR the port
+# carries PipeWire's parenthesised MIDI direction suffix
+# ("Midi Through Port-0 (capture)"). Audio ports never have one.
+midi_port() {  # midi_port <full port name>
+    local n p; n="${1%%:*}"; p="${1#*:}"
+    [[ "$(node_kind "$n")" == midi ]] && return 0
+    [[ "$p" == *"(capture)" || "$p" == *"(playback)" ]] && return 0
+    return 1
+}
+
+node_display() {  # node_display <node name>
+    local n="$1"
+    case "$(node_kind "$n")" in
+        interface)
+            case "$n" in
+                alsa_input.*)  echo "Interface in" ;;
+                *)             echo "Interface out" ;;
+            esac ;;
+        loopback)
+            case "$n" in
+                demiurge-sink-output*) echo "Loopback tail" ;;
+                demiurge-sink*)        echo "Loopback sink" ;;
+                *)                     echo "Loopback source" ;;
+            esac ;;
+        midi)   echo "MIDI bus" ;;
+        *)      echo "$n" ;;
+    esac
+}
+
+# Short label for the port half of a full name, sized for a 480px panel.
+# Every branch must produce SOMETHING: a blank label is a row a user cannot
+# identify, and an unlabelled row in a patchbay is worse than a long one.
+chan_label() {  # chan_label <channel suffix>
+    case "$1" in
+        FL)   echo "L" ;;
+        FR)   echo "R" ;;
+        MONO) echo "M" ;;
+        *)    echo "$1" ;;
+    esac
+}
+
+port_display() {  # port_display <port suffix>
+    local p="$1"
+    case "$p" in
+        capture_*)  echo "CAP $(chan_label "${p#capture_}")";   return ;;
+        playback_*) echo "PLAY $(chan_label "${p#playback_}")"; return ;;
+        monitor_*)  echo "MON $(chan_label "${p#monitor_}")";   return ;;
+        input_*)    echo "IN $(chan_label "${p#input_}")";      return ;;
+        output_*)   echo "OUT $(chan_label "${p#output_}")";    return ;;
+        in_*)       echo "IN $(chan_label "${p#in_}")";         return ;;
+        out_*)      echo "OUT $(chan_label "${p#out_}")";       return ;;
+        midiin*)    echo "MIDI IN";  return ;;
+        midiout*)   echo "MIDI OUT"; return ;;
+    esac
+    # Underscore-less numbered forms: csound6 uses output1/input2, RNBO out1/in2.
+    if [[ "$p" =~ ^(input|in)([0-9]+)$ ]];   then echo "IN ${BASH_REMATCH[2]}";  return; fi
+    if [[ "$p" =~ ^(output|out)([0-9]+)$ ]]; then echo "OUT ${BASH_REMATCH[2]}"; return; fi
+    tr '[:lower:]' '[:upper:]' <<<"$p"
+}
+
+# What a UI should treat this port as. Same as its node's kind, except MIDI
+# wins: a MIDI port on an audio-looking node is still MIDI.
+port_kind() {  # port_kind <full port name>
+    midi_port "$1" && { echo midi; return; }
+    node_kind "${1%%:*}"
+}
+
+node_of() { printf '%s\n' "${1%%:*}"; }
+port_of() { printf '%s\n' "${1#*:}"; }
+
+# A link's path class, from the kinds of its two ends.
+#   direct    engine <-> interface with nothing in between (the fast path)
+#   loopback  either end is a demiurge-sink / demiurge-source virtual node
+#   internal  anything else (engine to engine, MIDI)
+link_path() {  # link_path <src> <dst>
+    local ks kd
+    ks="$(node_kind "$(node_of "$1")")"
+    kd="$(node_kind "$(node_of "$2")")"
+    if [[ "$ks" == loopback || "$kd" == loopback ]]; then echo loopback; return; fi
+    if [[ "$ks" == interface && "$kd" == engine ]] || [[ "$ks" == engine && "$kd" == interface ]]; then
+        echo direct; return
+    fi
+    echo internal
+}
+
+# Is this destination one the launcher polices (and will therefore re-scrub)?
+# Mirrors the launcher's scrubbers: every chain-program input port, every
+# hardware playback port, and the loopback sink's playbacks.
+policed_dst() {  # policed_dst <dst port>
+    local n p; n="$(node_of "$1")"; p="$(port_of "$1")"
+    case "$(node_kind "$n")" in
+        engine)    return 0 ;;
+        interface) [[ "$p" == playback_* ]] && return 0 ;;
+        loopback)  [[ "$n" == demiurge-sink && "$p" == playback_* ]] && return 0 ;;
+    esac
+    return 1
+}
+
+# ── graph capture ────────────────────────────────────────────────────────────
+# Filled by load_graph: OUT_PORTS / IN_PORTS (full names) and LINKS ("src>dst").
+OUT_PORTS=(); IN_PORTS=(); LINKS=()
+
+load_graph() {
+    # No mapfile: this has to run under the bash 3.2 on a dev Mac too.
+    OUT_PORTS=(); IN_PORTS=()
+    while IFS= read -r p; do [[ -n "$p" ]] && OUT_PORTS+=("$p"); done \
+        < <(pw-link -o 2>/dev/null | sed 's/[[:space:]]*$//')
+    while IFS= read -r p; do [[ -n "$p" ]] && IN_PORTS+=("$p"); done \
+        < <(pw-link -i 2>/dev/null | sed 's/[[:space:]]*$//')
+    # `pw-link -l` prints each port then its links, indented, as "|-> dst"
+    # (outgoing) or "|<- src" (incoming). Reading only the outgoing arrows
+    # visits every link exactly once.
+    local cur="" line src
+    LINKS=()
+    while IFS= read -r line; do
+        if [[ "$line" != [[:space:]]* && "$line" == *:* ]]; then
+            cur="${line%"${line##*[![:space:]]}"}"
+            continue
+        fi
+        src="$(sed 's/^[[:space:]]*//' <<<"$line")"
+        [[ "$src" == '|-> '* ]] || continue
+        src="${src#'|-> '}"
+        src="$(sed 's/^[[:space:]]*//; s/[[:space:]]*$//' <<<"$src")"
+        [[ -n "$cur" && -n "$src" ]] && LINKS+=("$cur>$src")
+    done < <(pw-link -l 2>/dev/null)
+}
+
+port_exists() {  # port_exists <full name>
+    local p
+    for p in ${OUT_PORTS[@]+"${OUT_PORTS[@]}"} ${IN_PORTS[@]+"${IN_PORTS[@]}"}; do [[ "$p" == "$1" ]] && return 0; done
+    return 1
+}
+
+is_out_port() { local p; for p in ${OUT_PORTS[@]+"${OUT_PORTS[@]}"}; do [[ "$p" == "$1" ]] && return 0; done; return 1; }
+is_in_port()  { local p; for p in ${IN_PORTS[@]+"${IN_PORTS[@]}"};  do [[ "$p" == "$1" ]] && return 0; done; return 1; }
+
+link_exists() {  # link_exists <src> <dst>
+    local l; for l in ${LINKS[@]+"${LINKS[@]}"}; do [[ "$l" == "$1>$2" ]] && return 0; done; return 1
+}
+
+n_links_for() {  # n_links_for <full port name>
+    local l n=0
+    for l in ${LINKS[@]+"${LINKS[@]}"}; do
+        [[ "${l%%>*}" == "$1" || "${l#*>}" == "$1" ]] && n=$((n + 1))
+    done
+    echo "$n"
+}
+
+# Every distinct node, in first-seen order.
+all_nodes() {
+    { printf '%s\n' ${OUT_PORTS[@]+"${OUT_PORTS[@]}"} ${IN_PORTS[@]+"${IN_PORTS[@]}"}; } \
+        | sed 's/:.*//' | grep -v '^$' | awk '!seen[$0]++'
+}
+
+# Path class in one direction, across every engine port of that direction:
+# direct if any direct link, else loopback if any, else "none" (silence).
+dir_path() {  # dir_path in|out
+    local want="$1" l src dst ks kd found=none
+    for l in ${LINKS[@]+"${LINKS[@]}"}; do
+        src="${l%%>*}"; dst="${l#*>}"
+        midi_port "$src" && continue
+        midi_port "$dst" && continue
+        ks="$(node_kind "$(node_of "$src")")"; kd="$(node_kind "$(node_of "$dst")")"
+        if [[ "$want" == in ]]; then
+            [[ "$kd" == engine ]] || continue
+            [[ "$ks" == engine ]] && continue
+        else
+            [[ "$ks" == engine ]] || continue
+            [[ "$kd" == engine ]] && continue
+        fi
+        case "$(link_path "$src" "$dst")" in
+            direct)   echo direct; return ;;
+            loopback) found=loopback ;;
+        esac
+    done
+    echo "$found"
+}
+
+# Engine ports with no links at all — each one is silence in that direction.
+dangling_ports() {
+    local p
+    for p in ${OUT_PORTS[@]+"${OUT_PORTS[@]}"} ${IN_PORTS[@]+"${IN_PORTS[@]}"}; do
+        [[ "$(node_kind "$(node_of "$p")")" == engine ]] || continue
+        midi_port "$p" && continue
+        [[ "$(n_links_for "$p")" == 0 ]] && echo "$p"
+    done
+}
+
+# ── overrides ────────────────────────────────────────────────────────────────
+record_override() {  # record_override <src> <dst>
+    mkdir -p "$(dirname "$OVERRIDES")"
+    if [[ ! -s "$OVERRIDES" ]]; then
+        {
+            echo "# DEMIURGE user graph overrides — written by demiurge-graph."
+            echo "# Links the user made by hand, for the launcher to keep alive"
+            echo "# across graph re-applies. Cleared by \`demiurge-graph reset\`."
+        } > "$OVERRIDES"
+    fi
+    grep -qxF "connect = $1 -> $2" "$OVERRIDES" 2>/dev/null && return 0
+    echo "connect = $1 -> $2" >> "$OVERRIDES"
+}
+
+forget_override() {  # forget_override <src> <dst>
+    [[ -f "$OVERRIDES" ]] || return 0
+    local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/demiurge-graph.XXXXXX")" || return 1
+    grep -vxF "connect = $1 -> $2" "$OVERRIDES" > "$tmp" 2>/dev/null
+    cat "$tmp" > "$OVERRIDES"; rm -f "$tmp"
+}
+
+# ── output ───────────────────────────────────────────────────────────────────
+emit_list() {
+    local mode; mode="$(cur_mode)"
+    printf 'mode|%s\n' "$mode"
+
+    local n k
+    while IFS= read -r n; do
+        [[ -z "$n" ]] && continue
+        k="$(node_kind "$n")"
+        printf 'node|%s|%s|%s\n' "$n" "$k" "$(node_display "$n")"
+    done < <(all_nodes)
+
+    local p dir
+    for p in ${OUT_PORTS[@]+"${OUT_PORTS[@]}"}; do
+        printf 'port|%s|%s|out|%s|%s|%s\n' \
+            "$p" "$(node_of "$p")" "$(port_kind "$p")" \
+            "$(port_display "$(port_of "$p")")" "$(n_links_for "$p")"
+    done
+    for p in ${IN_PORTS[@]+"${IN_PORTS[@]}"}; do
+        printf 'port|%s|%s|in|%s|%s|%s\n' \
+            "$p" "$(node_of "$p")" "$(port_kind "$p")" \
+            "$(port_display "$(port_of "$p")")" "$(n_links_for "$p")"
+    done
+
+    local l src dst flags
+    for l in ${LINKS[@]+"${LINKS[@]}"}; do
+        src="${l%%>*}"; dst="${l#*>}"
+        flags=()
+        [[ "$(node_kind "$(node_of "$dst")")" == engine ]] && flags+=(engine-in)
+        [[ "$(node_kind "$(node_of "$src")")" == engine ]] && flags+=(engine-out)
+        policed_dst "$dst" && flags+=(managed)
+        printf 'link|%s|%s|%s|%s\n' "$src" "$dst" "$(link_path "$src" "$dst")" "$(IFS=,; echo "${flags[*]:-}")"
+    done
+
+    local ip op
+    ip="$(dir_path in)"; op="$(dir_path out)"
+    [[ "$ip" == none ]] && printf 'warn|no-input|The engine has no input — nothing you play reaches it.\n'
+    [[ "$op" == none ]] && printf 'warn|no-output|The engine output reaches nothing — silence.\n'
+    while IFS= read -r p; do
+        [[ -z "$p" ]] && continue
+        dir=input; is_out_port "$p" && dir=output
+        printf 'warn|dangling|%s is connected to nothing (engine %s).\n' "$p" "$dir"
+    done < <(dangling_ports)
+    printf 'path|%s|%s\n' "$ip" "$op"
+}
+
+emit_human() {
+    local ip op
+    ip="$(dir_path in)"; op="$(dir_path out)"
+
+    echo "Audio path:"
+    case "$ip" in
+        direct)   echo "  interface  ──DIRECT──▶  engine        (fastest input)" ;;
+        loopback) echo "  interface  ─LOOPBACK─▶  engine        (one quantum of extra input latency)" ;;
+        none)     echo "  interface  ──── ✗ ────  engine        NOTHING YOU PLAY REACHES THE ENGINE" ;;
+    esac
+    case "$op" in
+        direct)   echo "  engine     ──DIRECT──▶  interface     (fastest output)" ;;
+        loopback) echo "  engine     ─LOOPBACK─▶  interface     (one quantum of extra output latency)" ;;
+        none)     echo "  engine     ──── ✗ ────  interface     SILENCE — the engine reaches nothing" ;;
+    esac
+    echo ""
+
+    local any=0 l src dst
+    echo "Links:"
+    for l in ${LINKS[@]+"${LINKS[@]}"}; do
+        src="${l%%>*}"; dst="${l#*>}"
+        midi_port "$src" && continue
+        midi_port "$dst" && continue
+        any=1
+        printf '  %-9s %s → %s\n' "$(tr '[:lower:]' '[:upper:]' <<<"$(link_path "$src" "$dst")")" "$src" "$dst"
+    done
+    [[ "$any" == 0 ]] && echo "  (none)"
+
+    local d p dir
+    d="$(dangling_ports)"
+    if [[ -n "$d" ]]; then
+        echo ""
+        echo "!! Unconnected engine ports — each one is silence:"
+        while IFS= read -r p; do
+            [[ -z "$p" ]] && continue
+            dir=input; is_out_port "$p" && dir=output
+            printf '  !! %s  (engine %s, connected to nothing)\n' "$p" "$dir"
+        done <<<"$d"
+        echo ""
+        echo "  Put it back with: demiurge-graph reset"
+    fi
+
+    if [[ -s "$OVERRIDES" ]]; then
+        echo ""
+        echo "Your overrides ($OVERRIDES):"
+        grep -E '^connect[[:space:]]*=' "$OVERRIDES" | sed 's/^connect[[:space:]]*=[[:space:]]*/  /'
+    fi
+}
+
+# ── reset ────────────────────────────────────────────────────────────────────
+do_reset() {
+    rm -f "$OVERRIDES"
+    if [[ ! -f "$LIVE" ]]; then
+        echo "demiurge-graph: no live.conf at $LIVE — cannot ask the launcher to re-apply." >&2
+        return 1
+    fi
+    # mtime only: the launcher's watcher reloads the SAME content, reconciles
+    # (nothing restarts) and re-applies its graph. No restart, no edit.
+    touch "$LIVE" || return 1
+    echo "demiurge-graph: overrides cleared, launcher asked to re-apply its graph."
+    echo "demiurge-graph: give it a second, then run demiurge-graph to check."
+}
+
+# ── dispatch ─────────────────────────────────────────────────────────────────
+CMD="${1:---human}"
+
+case "$CMD" in
+    -h|--help)
+        sed -n '2,60p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0
+        ;;
+esac
+
+REASON="$(no_graph_reason)"
+if [[ -n "$REASON" ]]; then
+    case "$CMD" in
+        --list)           printf 'mode|%s\n' "$([[ "$REASON" == bypass ]] && echo bypass || echo nopipewire)" ;;
+        --status-machine) printf '%s|-|-|-|-\n' "$([[ "$REASON" == bypass ]] && echo bypass || echo nopipewire)" ;;
+        *)                no_graph_message "$REASON" ;;
+    esac
+    exit "$E_NOGRAPH"
+fi
+
+load_graph
+
+case "$CMD" in
+    --human|"")
+        emit_human
+        exit 0
+        ;;
+    --list)
+        emit_list
+        exit 0
+        ;;
+    --status-machine)
+        printf 'sync|%s|%s|%s|%s\n' \
+            "$(dir_path in)" "$(dir_path out)" \
+            "$(dangling_ports | grep -c . )" "${#LINKS[@]}"
+        exit 0
+        ;;
+    connect|disconnect)
+        SRC="${2:-}"; DST="${3:-}"
+        if [[ -z "$SRC" || -z "$DST" ]]; then
+            echo "demiurge-graph: $CMD needs a source and a destination port (see demiurge-graph --list)" >&2
+            exit 1
+        fi
+        if ! port_exists "$SRC"; then
+            echo "demiurge-graph: '$SRC' is not a port right now" >&2; exit 1
+        fi
+        if ! port_exists "$DST"; then
+            echo "demiurge-graph: '$DST' is not a port right now" >&2; exit 1
+        fi
+        if ! is_out_port "$SRC"; then
+            echo "demiurge-graph: '$SRC' is an input — the source must be an output port" >&2; exit 1
+        fi
+        if ! is_in_port "$DST"; then
+            echo "demiurge-graph: '$DST' is an output — the destination must be an input port" >&2; exit 1
+        fi
+
+        if [[ "$CMD" == connect ]]; then
+            if link_exists "$SRC" "$DST"; then
+                echo "demiurge-graph: already connected"
+                exit 0
+            fi
+            if ! pw-link "$SRC" "$DST" >/dev/null 2>&1; then
+                echo "demiurge-graph: could not connect $SRC → $DST" >&2; exit 1
+            fi
+            record_override "$SRC" "$DST"
+            echo "demiurge-graph: connected $SRC → $DST ($(link_path "$SRC" "$DST"))"
+            if policed_dst "$DST"; then
+                echo "demiurge-graph: the launcher polices this destination — it may drop this link on its next graph event. Recorded in $OVERRIDES so it can be kept."
+            fi
+            exit 0
+        fi
+
+        if ! link_exists "$SRC" "$DST"; then
+            echo "demiurge-graph: not connected"
+            exit 0
+        fi
+        # Say the consequence out loud. Confirmation belongs to the UIs, which
+        # arm-then-confirm; a CLI caller gets the warning and the way back.
+        if [[ "$(node_kind "$(node_of "$SRC")")" == engine ]] && [[ "$(n_links_for "$SRC")" == 1 ]]; then
+            echo "demiurge-graph: WARNING — that was the last link on engine output $SRC. This is silence." >&2
+        fi
+        if [[ "$(node_kind "$(node_of "$DST")")" == engine ]] && [[ "$(n_links_for "$DST")" == 1 ]]; then
+            echo "demiurge-graph: WARNING — that was the last link on engine input $DST. Nothing you play will reach the engine." >&2
+        fi
+        if ! pw-link -d "$SRC" "$DST" >/dev/null 2>&1; then
+            echo "demiurge-graph: could not disconnect $SRC → $DST" >&2; exit 1
+        fi
+        forget_override "$SRC" "$DST"
+        echo "demiurge-graph: disconnected $SRC → $DST"
+        echo "demiurge-graph: undo everything with: demiurge-graph reset"
+        exit 0
+        ;;
+    reset)
+        do_reset
+        ;;
+    *)
+        echo "demiurge-graph: unknown argument '$CMD' (expected: connect, disconnect, reset, --list, --status-machine, or nothing)" >&2
+        exit 1
+        ;;
+esac

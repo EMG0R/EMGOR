@@ -1,0 +1,14 @@
+[Unit]
+Description=PRIME: fsync engine state files to SD (power-cut safety)
+
+[Service]
+User=gorpi7v5
+ExecStart=/home/gorpi7v5/NEPTR_phase4/scripts/prime-state-sync.sh
+Restart=always
+CPUAffinity=0
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

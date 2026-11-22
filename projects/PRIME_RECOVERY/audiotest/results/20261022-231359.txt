@@ -1,0 +1,12 @@
+PRIME audio test  2026-10-22 23:13:36  tag=post-event
+quantum/state: {'quantum': '128', 'force_quantum': '512', 'rate': '48000'}
+
+== path: hw  (rec 12.68 s)
+latency vs reference: median 23.828 ms (min 23.828, max 23.828), jitter 0.0 smp, corr [0.953, 0.953, 0.953]
+1 kHz: -20.69 dBFS peak (gain vs ref -0.69 dB), THD+N -56.76 dB (0.14524 %), THD -57.11 dB, SNR 67.9 dB
+noise 20-20k: total -91.6 dBFS, robust -109.07 dBFS; silence rms -90.0 dBFS
+glitch-free 7.7 s: THD+N -56.76 dB (0.14524 %), THD -57.11 dB, SNR 67.9 dB, noise -91.6 dBFS; spurs: 1500.0 Hz -71.25 dBc; 60.0 Hz -88.82 dBc; 11000.0 Hz -90.33 dBc; 13000.0 Hz -96.51 dBc; 179.9 Hz -97.69 dBc; 15000.0 Hz -101.44 dBc; 12000.0 Hz -102.21 dBc; 17000.0 Hz -106.39 dBc
+spurs: 1500.0 Hz -71.25 dBc; 60.0 Hz -88.82 dBc; 11000.0 Hz -90.33 dBc; 13000.0 Hz -96.51 dBc; 179.9 Hz -97.69 dBc; 15000.0 Hz -101.44 dBc; 12000.0 Hz -102.21 dBc; 17000.0 Hz -106.39 dBc
+artifacts: 0 (e_sigma 2.06e-05, thr 2.06e-04), amp p2p 0.008 dB
+xrun delta (hat_out, hat_in, csound6): {'hat_out': 0, 'hat_in': 0, 'csound6': 0}
+channel alignment ok=True: {"in1": {"f1_dbfs": -134.1, "f2_dbfs": -132.5}, "in2": {"f1_dbfs": -132.2, "f2_dbfs": -132.0}, "in3": {"f1_dbfs": -138.2, "f2_dbfs": -138.0}, "in4": {"f1_dbfs": -143.2, "f2_dbfs": -141.2}, "in5": {"f1_dbfs": -141.6, "f2_dbfs": -137.7}, "in6": {"f1_dbfs": -141.1, "f2_dbfs": -138.2}, "in7": {"f1_dbfs": -23.7, "f2_dbfs": -91.9}, "in8": {"f1_dbfs": -93.6, "f2_dbfs": -24.2}}

@@ -1,0 +1,14 @@
+{
+  "stage": "faust",
+  "port": 9004,
+  "version": 1,
+  "params": [
+    {
+      "path": "/faust/feedback",
+      "label": "Delay feedback",
+      "default": 0.5,
+      "map": "hard",
+      "address": "/faust_delay/feedback"
+    }
+  ]
+}

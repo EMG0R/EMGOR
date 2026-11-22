@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# ui-restore — restart the face UI after RetroArch closes; it re-takes the panel.
+# Inverse of ui-release. The caller (supervisor) closes RetroArch BEFORE this so
+# the CRTC is free for the UI to become DRM master again. See ui-release header.
+#
+# DRM-master release race (the bug this guards against):
+#   RetroArch exiting (especially when SIGKILLed) does NOT instantly drop DRM
+#   master / close its /dev/dri/card1 fd — the kernel reaps the fd slightly after
+#   the process is gone. If neptr-ui (SDL2-KMSDRM) tries to grab the panel in that
+#   window it dies with `pygame.error: kmsdrm not available` and (without restart
+#   tuning) crash-loops until systemd's StartLimit gives up, leaving the Linux
+#   terminal on screen. So before starting the UI we POLL until the screen is
+#   actually free:
+#     1) no `retroarch` process remains, AND
+#     2) card1 has no DRM master held by anyone else (best-effort via debugfs).
+#   Both with a short timeout, then start anyway (fail-open) — the restart-tuning
+#   drop-in makes neptr-ui keep retrying KMSDRM if we lost the race.
+#
+# Needs root (system unit). Try direct, then sudo -n.
+set -uo pipefail
+UNIT="neptr-ui.service"
+CARD=1                       # HDMI panel = /dev/dri/card1 (Pi 5 vc4-kms)
+TIMEOUT=8                    # seconds to wait for the screen to free
+SLEEP=0.25
+
+log() { echo "[ui-restore] $*"; }
+
+# True (0) while the screen is still busy: retroarch alive OR card1 has a master.
+screen_busy() {
+  # 1) any retroarch process still around?
+  if pgrep -x retroarch >/dev/null 2>&1; then
+    return 0
+  fi
+  # 2) does card1 still have a DRM master? debugfs `clients` marks master with 'y'
+  #    in the `master` column. Read it best-effort (user first, then sudo -n).
+  local clients=""
+  clients="$(cat /sys/kernel/debug/dri/$CARD/clients 2>/dev/null)" \
+    || clients="$(sudo -n cat /sys/kernel/debug/dri/$CARD/clients 2>/dev/null)" \
+    || clients=""            # unreadable -> can't tell -> treat as free (fail-open)
+  if [ -n "$clients" ]; then
+    # data rows look like:  command tgid dev master a uid magic name id
+    # master == 'y' in column 4 means someone holds DRM master.
+    if echo "$clients" | awk 'NR>1 && $4=="y" {found=1} END{exit !found}'; then
+      return 0
+    fi
+  fi
+  return 1                   # screen is free
+}
+
+# ── wait for the screen to actually be free (bounded) ──
+deadline=$(( $(date +%s) + TIMEOUT ))
+waited=0
+while screen_busy; do
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    log "WARN: screen still busy after ${TIMEOUT}s — starting anyway (UI will retry)"
+    break
+  fi
+  waited=1
+  sleep "$SLEEP"
+done
+[ "$waited" = 1 ] && log "screen free — proceeding"
+
+if systemctl start "$UNIT" 2>/dev/null || sudo -n systemctl start "$UNIT" 2>/dev/null; then
+  log "$UNIT started (screen re-taken)"
+else
+  log "FAILED to start $UNIT (need root / NOPASSWD)" >&2
+  exit 1
+fi

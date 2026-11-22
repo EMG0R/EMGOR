@@ -1,0 +1,850 @@
+#!/bin/bash
+# demiurge-quantum-limits — the ONE place that knows what makes a `quantum`
+# legal on this rig, and the only thing allowed to move the one limit that can
+# be moved.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# Three independent constraints govern the graph period, they live in three
+# different files, and until 2026-08-10 NOTHING checked them together. Setting
+# `quantum = 32` wrote cleanly to live.conf, csound then exited during init, its
+# JACK ports vanished, every link died, and the UI reported "the patcher
+# disconnected from the I/O" — a true statement about a consequence, with no
+# hint of the cause. The user is then left with a rig that has no audio and a
+# config file that looks fine.
+#
+# The three constraints:
+#
+#   1. ksmps divides quantum.  csound's `-b` (software period) must be an
+#      integer multiple of the orchestra's ksmps. It does NOT error on a
+#      mismatch in the way you would hope: it rounds -b UP to the next ksmps
+#      multiple, so the period you asked for is silently not the period you
+#      get — and when the requested -b is BELOW ksmps the JACK backend cannot
+#      reconcile the two and the process dies during init.
+#      NEPTR is ksmps 64 by default, overridable per-set with
+#      `csound_extra = --omacro:KSMPS=N`. Both are read here; neither is
+#      hardcoded.
+#
+#   2. api.alsa.period-size constrains how low quantum can go.  This is the
+#      constraint that is invisible from live.conf — it lives in WirePlumber's
+#      config and varies by BUS (USB cards run 256, the platform/I2S card 128).
+#
+#      THE EXACT RELATION IS EMPIRICAL, and the two clean measurements on this
+#      rig are:
+#           period-size 128, quantum 64   WORKS   (what it runs today)
+#           period-size 256, quantum 64   FAILS   (csound xrun-storms, dies)
+#      so the rule encoded here is `period-size <= 2 * quantum`.
+#
+#      An earlier note called period-size a hard FLOOR on quantum (q >= ps).
+#      That is wrong, and provably so: the rig has been running quantum 64 at
+#      period-size 128 with zero xruns. Encoding the floor version would have
+#      made this tool refuse the configuration it is running on.
+#
+#      A third data point once seemed to support a stricter rule — "period-size
+#      64 x 4, quantum 32, csound dies". That test was CONFOUNDED: the patch was
+#      ksmps 64 at the time, so quantum 32 violated constraint 1 and could never
+#      have started whatever the period-size was. It says nothing about
+#      period-size and is not used here.
+#
+#      Two points do not pin down a law, so this errs toward what is measured:
+#      ratio 2 is known-good, ratio 4 is known-bad, and the tool refuses to
+#      assume anything is safe in between. A false refusal costs the user a
+#      message; a false permission costs them the show.
+#
+#      2026-08-11: period-size is now known NOT to be the binding constraint at
+#      quantum 64 on the platform/I2S card, and this rule accidentally gets the
+#      right answer for the wrong reason. See constraint 4.
+#
+#   4. THE CAPTURE FOLLOWER'S DELAY MUST FIT IN 2.5 x QUANTUM. This is the one
+#      that actually stops quantum 64 on the HiFiBerry, and it is not visible
+#      from any config file — only from PipeWire's own journal:
+#
+#        spa.alsa: hw:2c: follower delay:224 target:96 thr:64 resample:1, resync
+#
+#      The ACP profile presents a duplex I2S card as two INDEPENDENT nodes, so
+#      PipeWire makes the capture node a follower of the playback node, targets
+#      a follower delay of 1.5 x quantum, and RESYNCS whenever it drifts by more
+#      than one quantum — i.e. above 2.5 x quantum. Each resync is a
+#      discontinuity, counted as an ERR on both device nodes, and it drags the
+#      engine's client node with it.
+#
+#      2026-08-11 CORRECTION: the capture delay IS a function of period-size,
+#      and the earlier note here saying it is not was wrong. Measured at
+#      quantum 128 on this card, journal-observed:
+#
+#        period-size  64  ->  delay 224        threshold 288   clean
+#        period-size 128  ->  delay 321-334    threshold 288   resyncs ~1/min
+#
+#      which fits delay ~ 1.5 x period-size + quantum. The earlier reading was
+#      taken at quantum 64, where target and threshold are half as large, and
+#      was generalised across period-sizes it had not actually varied.
+#
+#      This is why apply-period writes SEPARATE period-sizes for playback and
+#      capture. They want opposite things and one number cannot serve both:
+#
+#        playback  wants a DEEP ring -- period-size x period-num below 4 quanta
+#                  lets the converter run dry and drop a whole quantum, with no
+#                  xrun recorded anywhere (see the ring-depth check below).
+#        capture   wants a SHALLOW period -- the follower delay above is
+#                  1.5 x period-size + quantum, and it must stay under the
+#                  2.25 x quantum resync threshold.
+#
+#      Measured at quantum 128, per minute of idle running:
+#
+#        playback 64  / capture 64    3.2 drops,  0 resyncs   <- crackled
+#        playback 128 / capture 128   0 drops,   12 resyncs
+#        playback 128 / capture 64    0 drops,    0 resyncs   <- shipped
+#
+#      Solving 1.5 x ps + q < 2.25 x q gives ps < 0.83 x quantum, so half the
+#      quantum is the safe power-of-two answer for the capture side.
+#
+#      The threshold arithmetic below still holds at the shipped period-size:
+#
+#        quantum 128  ->  resync above 320  >  224   clean
+#        quantum  64  ->  resync above 160  <  224   permanent resync
+#        quantum  32  ->  resync above  80  <  224   hopeless
+#
+#      That is why the shipped quantum 128 is clean: by accident of that
+#      inequality, not by design. It also means NO amount of ring tuning
+#      reaches quantum 64 while the capture node is in the graph and the card
+#      is on an ACP profile. The lever that could change it is the card's ALSA
+#      PROFILE (Pro Audio opens raw PCMs and does not create the follower
+#      relationship at all) — not any number in this file.
+#
+#      Setting an identical `clock.name` on both nodes was tried and does part
+#      of the job: the journal goes resample:1 -> resample:0, so the adaptive
+#      resampler is genuinely removed. The RESYNC continues regardless, because
+#      the delay/threshold test does not care whether resampling is on.
+#
+#      This constraint is deliberately NOT encoded as a refusal here. It is
+#      card-specific, it needs a live journal to observe, and `legal` already
+#      reports 64 as reachable on rigs where it is. Encoding a guess about
+#      someone else's interface is how this file gets things wrong.
+#
+#   3. quantum is a power of two, 32..2048, and >= the safety floor below.
+#
+# Only constraint 2 is movable, and only downwards, and only so far —
+# see SAFE_PERIOD_FLOOR.
+#
+# THE SAFETY FLOOR IS NOT A STYLE PREFERENCE
+# ------------------------------------------
+# api.alsa.period-size 64 with period-num 2 (a 128-frame TOTAL ring) HARD-LOCKED
+# this Pi. systemd runs RuntimeWatchdogUSec=1min against the BCM2835 hardware
+# watchdog, so an RT thread livelocking the box does not degrade — it REBOOTS
+# the board mid-set. That is the worst failure this instrument can have, and it
+# is reachable purely by lowering a number in a config file. So:
+#
+#   * period-size is never taken below SAFE_PERIOD_FLOOR by this tool.
+#   * period-num is never taken below 4, whatever the period-size.
+#
+# Raising the floor is a code change with a measurement behind it, deliberately:
+# it should not be reachable from a UI, a CLI flag, or an env var.
+#
+# USAGE
+#   demiurge-quantum-limits check [N]       human verdict for N (default: the
+#                                           quantum currently in live.conf)
+#   demiurge-quantum-limits check N --machine
+#                                           state|quantum|ksmps|period|nearest|period_target|message
+#                                           state ∈ ok | period | bad | unknown
+#                                           period_target is the api.alsa.period-size
+#                                           to apply when state = period
+#   demiurge-quantum-limits legal           comma-joined quanta that are
+#                                           reachable right now (including those
+#                                           that need a safe period-size change)
+#   demiurge-quantum-limits ksmps           effective ksmps, or empty if unknown
+#   demiurge-quantum-limits period          binding api.alsa.period-size, or empty
+#   demiurge-quantum-limits apply-period N  manual experiment: write the period
+#                                           fragment at N (refuses below the floor),
+#                                           restart WirePlumber. lockstep overwrites it.
+#   demiurge-quantum-limits lockstep [--dry-run] [--write-only]
+#                                           THE ONE KNOB: regenerate every device-side
+#                                           rate/period/clock number from live.conf
+#                                           `rate =` / `quantum =` into the USER config
+#                                           dirs (no sudo). Run as ExecStartPre of
+#                                           demiurge.service and by demiurge-audio.
+#                                           Restarts wireplumber/pipewire only if a file
+#                                           changed, pins force-rate/force-quantum, never
+#                                           fails (always exits 0). --dry-run prints the
+#                                           files; --write-only touches no service.
+#
+#   --live PATH   operate on a live.conf other than ~/demiurge/live.conf
+#
+# EXIT CODES:  0 legal (state ok/period/unknown)   2 illegal (state bad)
+#              3 usage / internal error
+#
+# CALLERS: demiurge-audio (refuses an illegal write), the Rust launcher
+# (validates at load and after every live.conf reload, and falls back to the
+# last known-good quantum rather than restart-looping with no audio). Adding a
+# fourth constraint means editing THIS file and nothing else.
+
+set -u
+
+LIVE="${DEMIURGE_LIVE_CONF:-$HOME/demiurge/live.conf}"
+
+# The lowest api.alsa.period-size this tool will ever configure. See the block
+# comment above — below this the box is one livelock away from a hardware
+# watchdog reboot. period-num is separately floored at 4.
+SAFE_PERIOD_FLOOR=64
+# 8, not 4. With the device period now set EQUAL to the quantum (rather than
+# double it), 4 periods is exactly the 4-x-quantum starvation floor — no slack
+# at all. 8 is what was measured clean at quantum 64 / period 64: zero new
+# device errors over 30 s and csound peaking at 0.71 of its deadline. Ring
+# depth is slack against xruns, not delay: 64 x 8 measured 6.458 ms round-trip,
+# so the deeper ring costs nothing in latency.
+SAFE_PERIOD_NUM=8
+
+# How many graph cycles the DMA ring (period-size x period-num) must hold. At 2
+# the converter feeding the card runs dry every ~20 s and drops a whole quantum
+# -- silently, since no xrun counter anywhere records it. At 4 the same rig
+# measured zero drops and 33 dB better THD+N. See the ring-depth check in
+# classify() for the measurements.
+RING_MIN_QUANTA=4
+
+QUANTUM_LADDER="32 64 128 256 512 1024 2048"
+
+# ---------------------------------------------------------------- live.conf --
+read_key() {   # read_key <key> [default]
+    local v
+    v="$(grep -m1 -E "^[[:space:]]*$1[[:space:]]*=" "$LIVE" 2>/dev/null \
+         | sed 's/^[^=]*=[[:space:]]*//; s/#.*//; s/[[:space:]]*$//')"
+    [[ -z "$v" ]] && v="${2:-}"
+    printf '%s\n' "$v"
+}
+
+cur_mode() {
+    case "$(tr '[:upper:]' '[:lower:]' <<<"$(read_key sync_layer on)")" in
+        off|0|no|false) echo bypass ;;
+        *)              echo sync ;;
+    esac
+}
+
+# First .csd stage in the `chain =` block. The block is indented continuation
+# lines, so this is a plain scan for a line whose only token ends in .csd —
+# good enough to locate the patch directory, which is all we need it for.
+chain_csd() {
+    local p
+    p="$(grep -oE '[^[:space:]]+\.csd' "$LIVE" 2>/dev/null | head -1)"
+    [[ -z "$p" ]] && return
+    printf '%s\n' "${p/#\~/$HOME}"
+}
+
+# ------------------------------------------------------------------- ksmps --
+# Two sources, in precedence order — the same order csound itself resolves them:
+#   1. --omacro:KSMPS=N in live.conf's `csound_extra` (the per-set override; the
+#      wrapper passes csound_extra through verbatim, so an omacro here really
+#      does win).
+#   2. the `#define KSMPS #N#` default inside the patch's globals.orc, which
+#      sits behind an `#ifndef KSMPS` guard precisely so (1) can override it.
+# Deliberately NOT hardcoded to 64: sets differ, and a wrong assumption here
+# turns a safety check into a source of false refusals.
+effective_ksmps() {
+    local extra k csd dir
+    extra="$(read_key csound_extra "")"
+    k="$(grep -oE -- '--omacro:KSMPS=[0-9]+' <<<"$extra" | head -1 | grep -oE '[0-9]+')"
+    if [[ -n "$k" ]]; then printf '%s\n' "$k"; return; fi
+
+    csd="$(chain_csd)"
+    [[ -z "$csd" ]] && return
+    dir="$(dirname "$csd")"
+    # globals.orc is the conventional home of the guard, but accept any orc in
+    # the patch dir that defines it rather than depending on the filename.
+    k="$(grep -hoE '^[[:space:]]*#define[[:space:]]+KSMPS[[:space:]]+#[0-9]+#' \
+            "$dir"/globals.orc "$dir"/*.orc 2>/dev/null \
+         | head -1 | grep -oE '[0-9]+')"
+    printf '%s\n' "$k"
+}
+
+# ------------------------------------------------------------- period-size --
+# The binding api.alsa.period-size, read from the LIVE graph rather than from
+# the config — the config has one rule per bus and only the device actually in
+# the path constrains anything.
+#
+# jq is not installed on the rig, so this parses pw-dump positionally: within a
+# node's properties object the keys are alphabetical, so `api.alsa.period-size`
+# always precedes `node.name`. Lines like `"name":"api.alsa.period-size"` (from
+# PropInfo params) carry no value and are skipped by requiring `:<digits>`.
+#
+# snd_aloop is excluded unless it is the only ALSA device present. It is the
+# always-on virtual clock fallback and deliberately runs a deep 1024 ring; if it
+# is merely PRESENT alongside a real interface it constrains nothing, and
+# counting it would refuse quantum 64 on a rig where 64 demonstrably works.
+#
+# THE TIMEOUT IS NOT OPTIONAL. `pw-dump` blocks forever when PipeWire's main
+# loop is alive but not answering — which is a state this rig reaches (a capture
+# node stuck in a resync loop, 2026-08-11). The launcher calls period_size() on
+# its STARTUP path, so an unbounded pw-dump here does not degrade a diagnostic:
+# it stops the engine from ever launching, and the log's last line is "loading
+# live config" with nothing naming the cause. That cost nine minutes of silence.
+# A missing period-size is already a supported outcome — every caller handles
+# the empty return by proceeding unchecked — so failing fast is strictly better
+# than hanging. Never call a graph-introspection tool from this file without a
+# bound on how long it may take.
+period_size() {
+    local dump pairs
+    dump="$(timeout 5 pw-dump 2>/dev/null | tr -d ' ')" || return
+    [[ -z "$dump" ]] && return
+    pairs="$(awk -F'"' '
+        /"api\.alsa\.period-size":[0-9]+/ { split($0, a, ":"); ps = a[2] + 0 }
+        /"node\.name":"/                  { if (ps > 0) { print $4, ps; ps = 0 } }
+    ' <<<"$dump")"
+    [[ -z "$pairs" ]] && return
+
+    local real
+    real="$(grep -E '^alsa_(output|input)\.' <<<"$pairs" | grep -v 'snd_aloop')"
+    [[ -z "$real" ]] && real="$(grep -E '^alsa_(output|input)\.' <<<"$pairs")"
+    [[ -z "$real" ]] && return
+    awk '{ if ($2 > m) m = $2 } END { if (m > 0) print m }' <<<"$real"
+}
+
+# ------------------------------------------------------------- the verdict --
+is_pow2_in_range() {
+    local n="${1:-}"
+    [[ "$n" =~ ^[0-9]+$ ]] || return 1
+    (( n >= 32 && n <= 2048 )) || return 1
+    (( (n & (n - 1)) == 0 ))
+}
+
+# classify <quantum> <ksmps|""> <period|""> <mode>
+#   → echoes "state|period_target|reason"
+#
+# Returns everything through stdout rather than a global, because every caller
+# uses it inside a command substitution — i.e. a SUBSHELL — where an assignment
+# to a global is discarded. (It was written with a global first, and the result
+# was a tool that printed correct verdicts with blank explanations.)
+#
+#   ok       runs as-is
+#   period   runs, but only after lowering api.alsa.period-size to
+#            period_target, which is safe here (still >= SAFE_PERIOD_FLOOR)
+#   bad      cannot be made to work without a change this tool must not make
+#   unknown  a constraint could not be read; treated as legal (fail-open) but
+#            reported, because refusing on missing information would brick the
+#            CLI on any rig whose graph is momentarily down
+classify() {
+    local q="$1" ks="$2" ps="$3" mode="$4"
+
+    if ! is_pow2_in_range "$q"; then
+        echo "bad||quantum must be a power of two from 32 to 2048"; return
+    fi
+
+    # Constraint 1 — ksmps divides quantum. Applies in BOTH modes: bypass runs
+    # csound straight on ALSA but -b is still rounded up to a ksmps multiple.
+    if [[ -n "$ks" ]] && (( q % ks != 0 )); then
+        if (( q < ks )); then
+            echo "bad||quantum $q is below the patch's ksmps ($ks) — csound cannot run a period smaller than one control block. Set 'csound_extra = --omacro:KSMPS=$q' (or lower) first, or raise the quantum"
+        else
+            echo "bad||quantum $q is not a multiple of the patch's ksmps ($ks) — csound would silently round its period up"
+        fi
+        return
+    fi
+
+    # Constraint 2 — period-size. Bypass owns the card directly, so
+    # WirePlumber's ALSA rings are not in the path and this does not apply.
+    if [[ "$mode" == sync ]]; then
+        if [[ -z "$ps" ]]; then
+            echo "unknown||could not read api.alsa.period-size from the graph (is PipeWire running?) — the period-size constraint was NOT checked"
+            return
+        fi
+        # TARGET THE QUANTUM ITSELF, NOT THE 2x CEILING. `q * 2` is the largest
+        # period that is merely LEGAL, and handing that to apply-period is what
+        # made every attempt at quantum 64 fail:
+        #
+        #   demiurge-audio quantum 64  ->  period-size 128, quantum 64
+        #
+        # a device period twice the graph quantum. The device then wakes half as
+        # often as the graph runs, which crackles (the output node's error
+        # counter climbs continuously at idle) AND pins latency to the larger
+        # period, so the whole point of asking for 64 is lost. Measured on this
+        # card, physical loopback round-trip:
+        #
+        #   quantum 128, playback 128, capture  64   10.458 ms
+        #   quantum  64, playback  64, capture  64    6.458 ms   <- matched
+        #
+        # 4 ms, purely from making the device period equal the quantum instead
+        # of double it. csound holds 0.26-0.71 of its deadline at 64/64 and both
+        # error counters stop moving, so the DSP was never what failed at 64 —
+        # the mismatch was. The 2x ratio stays as the legality CEILING below
+        # (`ps > want` is still the rejection test); it is just no longer what
+        # we aim for.
+        local ceiling=$(( q * 2 ))
+        local want=$q
+        (( want < SAFE_PERIOD_FLOOR )) && want=$SAFE_PERIOD_FLOOR
+        if (( ps > ceiling || ps != want )); then
+            if (( want >= SAFE_PERIOD_FLOOR )); then
+                echo "period|$want|quantum $q wants api.alsa.period-size = $want (currently $ps) — a device period equal to the graph quantum is the lowest-latency legal choice"
+            else
+                echo "bad||quantum $q needs api.alsa.period-size <= $want (currently $ps), and $want is below the ${SAFE_PERIOD_FLOOR}-frame safety floor — a period that small hard-locked this Pi into a watchdog reboot"
+            fi
+            return
+        fi
+
+        # The OTHER side of the same constraint, and the one that bit us.
+        # period-size * period-num is the DMA ring, and the ring has to hold
+        # several graph cycles or the converter feeding the card periodically
+        # runs out of buffers and drops a whole quantum. That drop is not an
+        # xrun: csound delivered its block on time and every xrun counter in
+        # the rig stays at zero, which is exactly why it went unexplained for
+        # so long. It is audible as a click, and under any extra graph load it
+        # escalates into a storm that EPIPEs the card and removes the device
+        # node -- the "engine alive, nothing in the jacks" failure.
+        #
+        # Measured on the HiFiBerry at quantum 128:
+        #   period-size  64 x 4 = 256 frames = 2 quanta   3.2 drops/min, THD+N -38.7 dB
+        #   period-size 128 x 4 = 512 frames = 4 quanta   0 drops, THD+N -72.2 dB
+        # and quantum 64 at period-size 128 (8 quanta deep) has always been clean.
+        # So the rule is a ring depth of at least RING_MIN_QUANTA graph cycles.
+        #
+        # Checking only the upper bound is what let this through: lowering the
+        # quantum lowers the period in lockstep, but raising the quantum back
+        # never raised the period again, so an abandoned quantum-64 experiment
+        # left a 64-frame period under a 128-frame graph and crackled for days.
+        local ring=$(( ps * SAFE_PERIOD_NUM ))
+        local need=$(( q * RING_MIN_QUANTA ))
+        if (( ring < need )); then
+            echo "period|$q|quantum $q needs a DMA ring of at least $need frames for $RING_MIN_QUANTA graph cycles (currently ${ring}: period-size $ps x $SAFE_PERIOD_NUM); raising period-size to $q gives $(( q * SAFE_PERIOD_NUM )) frames"
+            return
+        fi
+    fi
+
+    echo "ok||quantum $q is legal as configured"
+}
+
+# state_of <classify-output> — first field only, for the loops that only care
+# whether a candidate is reachable.
+state_of() { cut -d'|' -f1 <<<"$1"; }
+
+# Nearest reachable quantum to $1 — smallest legal value at or above it, else
+# the largest legal value below it. "Reachable" includes `period`, because
+# lowering the period-size in lockstep is something this tool will do for you.
+nearest_legal() {
+    local want="$1" ks="$2" ps="$3" mode="$4" q best_up="" best_dn=""
+    [[ "$want" =~ ^[0-9]+$ ]] || want=0
+    for q in $QUANTUM_LADDER; do
+        [[ "$(state_of "$(classify "$q" "$ks" "$ps" "$mode")")" == bad ]] && continue
+        if (( q >= want )); then [[ -z "$best_up" ]] && best_up="$q"
+        else best_dn="$q"; fi
+    done
+    if [[ -n "$best_up" ]]; then printf '%s\n' "$best_up"
+    elif [[ -n "$best_dn" ]]; then printf '%s\n' "$best_dn"
+    fi
+}
+
+legal_list() {
+    local ks="$1" ps="$2" mode="$3" q out=""
+    for q in $QUANTUM_LADDER; do
+        [[ "$(state_of "$(classify "$q" "$ks" "$ps" "$mode")")" == bad ]] && continue
+        out="${out:+$out,}$q"
+    done
+    printf '%s\n' "$out"
+}
+
+# ------------------------------------------- lockstep: ONE knob → the device --
+# live.conf `rate =` and `quantum =` are the ONLY numbers a human edits. Before
+# 2026-10-02 the device side followed them by hand: the period came from a
+# drop-in that only `demiurge-audio quantum` ever wrote (so a hand-edit of
+# live.conf moved the graph and left the card on whatever the static
+# 50-demiurge.conf said, and a fresh install never had the drop-in at all —
+# the 2026-10-01 card death rebuilt the rig at 128x4 instead of the verified
+# 64x8), and the rate pins in 50-demiurge.conf / 99-demiurge-lowlatency.conf were
+# literal 48000 that never followed `rate =` (a non-48k rate would have silently
+# resampled — the "bitcrush that survives restart" class, gotchas Q7c).
+#
+# `lockstep` regenerates every device-side number from live.conf. It runs as an
+# ExecStartPre of demiurge.service (nothing is playing yet, so restarting
+# WirePlumber costs no audio) and from demiurge-audio (which restarts the engine
+# anyway). Output goes to the USER config dirs, which WirePlumber/PipeWire (both
+# user services) read after /etc and which SHADOW same-named /etc files — so no
+# sudo, and a rig that has never run it still boots on the static seeds.
+#
+# It must never block or fail the service: every path below exits 0 and says
+# loudly what it skipped. A rig that plays on the seed is better than one that
+# does not start because a helper tripped.
+
+# The real user's home. This runs as the service user (HOME correct), but it is
+# also reachable via `sudo`, where HOME may be root's — derive from SUDO_USER,
+# then the Pi OS convention that the first real user is UID 1000 (the same
+# assumption demiurge-qrestore makes). Never a username literal.
+user_home() {
+    local u h
+    if [ "$(id -u)" = 0 ]; then
+        u="${SUDO_USER:-}"
+        [ -z "$u" ] && u="$(getent passwd 1000 2>/dev/null | cut -d: -f1)"
+        h="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
+        [ -n "$h" ] && { printf '%s\n' "$h"; return; }
+    fi
+    printf '%s\n' "$HOME"
+}
+USER_HOME="$(user_home)"
+WP_DIR="$USER_HOME/.config/wireplumber/wireplumber.conf.d"
+PW_DIR="$USER_HOME/.config/pipewire/pipewire.conf.d"
+DROPIN="$WP_DIR/60-demiurge-period.conf"
+RATE_FRAG="$WP_DIR/61-demiurge-rate.conf"
+# SAME NAME as /etc/pipewire/pipewire.conf.d/99-demiurge-lowlatency.conf on
+# purpose: PipeWire merges conf.d by filename across dirs and the later dir
+# (the user's) replaces the earlier one, so the static seed is shadowed whole.
+PW_FRAG="$PW_DIR/99-demiurge-lowlatency.conf"
+# The sink/source loopbacks (installed to /etc from config/pipewire/demiurge-virtual.conf)
+# pin `audio.rate = 48000` on both sides. Left literal, a live.conf `rate = 44100`
+# would make PipeWire resample at every loopback. Same name as the /etc copy so
+# the user-dir copy shadows it; generated FROM the /etc copy (the template) with
+# only the audio.rate values replaced. node.latency (256/48000) is left as-is.
+VIRT_SRC="${DEMIURGE_VIRTUAL_SRC:-/etc/pipewire/pipewire.conf.d/demiurge-virtual.conf}"
+VIRT_FRAG="$PW_DIR/demiurge-virtual.conf"
+
+# Who owns the user session. As the service user that is us.
+run_user() {
+    local ruser ruid
+    if [ "$(id -u)" = 0 ]; then
+        ruser="${SUDO_USER:-$(getent passwd 1000 2>/dev/null | cut -d: -f1)}"
+        ruid="$(id -u "$ruser" 2>/dev/null || echo 1000)"
+        if command -v runuser >/dev/null 2>&1; then
+            runuser -u "$ruser" -- env XDG_RUNTIME_DIR="/run/user/$ruid" "$@"
+        else
+            su - "$ruser" -c "XDG_RUNTIME_DIR=/run/user/$ruid $*"
+        fi
+    else
+        XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" "$@"
+    fi
+}
+
+# period_plan <quantum> → "period-size period-num"
+# SYMMETRIC (both directions identical, see the measurement in apply_period's
+# history): period-size = quantum, never below SAFE_PERIOD_FLOOR; period-num
+# never below SAFE_PERIOD_NUM (8 >= the hard minimum of 4); and the ring
+# (size x num) is raised via period-NUM, never period-size, until it holds
+# RING_MIN_QUANTA graph cycles. period-size stays <= 2 x quantum by
+# construction, the measured upper bound.
+period_plan() {
+    local q="$1" ps num
+    ps=$q
+    (( ps < SAFE_PERIOD_FLOOR )) && ps=$SAFE_PERIOD_FLOOR
+    num=$SAFE_PERIOD_NUM
+    while (( ps * num < RING_MIN_QUANTA * q )); do num=$(( num * 2 )); done
+    printf '%s %s\n' "$ps" "$num"
+}
+
+gen_period() {   # gen_period <period-size> <period-num>
+    local n="$1" num="$2"
+    cat <<EOF2
+# DEMIURGE — ALSA period-size, GENERATED by \`demiurge-quantum-limits lockstep\`
+# from ~/demiurge/live.conf. Do not edit: it is rewritten on every engine start.
+# Change \`quantum =\` in live.conf instead — that is the one knob.
+#
+# period-size is bounded on BOTH sides by the graph quantum, and both bounds
+# are load-bearing:
+#
+#   upper  period-size <= 2 x quantum. Too large and csound xrun-storms at low
+#          quanta.
+#   lower  period-size x period-num >= 4 x quantum. The product is the DMA
+#          ring, and a ring shallower than four graph cycles lets the converter
+#          feeding the card run dry, dropping a whole quantum with no xrun
+#          recorded anywhere (a click every ~20 s, a storm under load).
+#
+# period-size is never below $SAFE_PERIOD_FLOOR and period-num never below 4
+# (a 64x2 ring hard-locked this board into a watchdog reboot). Both
+# directions are identical: on the pro-audio profile there is no capture
+# follower, and 64x8 both ways measured 6.458 ms round-trip, clean.
+#
+# Lives in the USER config dir so it shadows nothing it should not and needs no
+# sudo; sorts after /etc/.../50-demiurge.conf so the last write wins. Only the
+# two period keys are set — the HDMI demotion and USB driver priorities in
+# 50-demiurge.conf are untouched.
+monitor.alsa.rules = [
+    {
+        matches = [
+            { node.name = "~alsa_output\\\\.usb-.*" }
+            { node.name = "~alsa_output\\\\.platform-soc_.*_sound\\\\..*" }
+        ]
+        actions = {
+            update-props = {
+                api.alsa.period-size = $n
+                api.alsa.period-num  = $num
+            }
+        }
+    }
+    {
+        matches = [
+            { node.name = "~alsa_input\\\\.usb-.*"  }
+            { node.name = "~alsa_input\\\\.platform-soc_.*_sound\\\\..*"  }
+        ]
+        actions = {
+            update-props = {
+                api.alsa.period-size = $n
+                api.alsa.period-num  = $num
+            }
+        }
+    }
+]
+EOF2
+}
+
+gen_rate() {   # gen_rate <rate>
+    local r="$1"
+    cat <<EOF2
+# DEMIURGE — device sample rate, GENERATED by \`demiurge-quantum-limits lockstep\`
+# from ~/demiurge/live.conf \`rate =\`. Do not edit.
+#
+# Pins EVERY ALSA node (USB, I2S HAT, HDMI, the aloop fallback, hot-plugged
+# extras) to the one graph rate with no alternates. Without it a device opens
+# at whatever rate it last used, the graph switches rate, and PipeWire
+# resamples forever — audible as bit-crushing that survives restarts
+# (gotchas Q7c). 50-demiurge.conf pins 48000 as a boot seed; this file follows
+# live.conf instead, so changing \`rate =\` can no longer leave a stale pin.
+monitor.alsa.rules = [
+    {
+        matches = [
+            { node.name = "~alsa_output\\\\..*" }
+            { node.name = "~alsa_input\\\\..*"  }
+        ]
+        actions = {
+            update-props = {
+                audio.rate          = $r
+                audio.allowed-rates = [ $r ]
+            }
+        }
+    }
+]
+EOF2
+}
+
+gen_pw() {   # gen_pw <rate> <quantum>
+    local r="$1" q="$2"
+    cat <<EOF2
+# DEMIURGE — PipeWire clock, GENERATED by \`demiurge-quantum-limits lockstep\`
+# from ~/demiurge/live.conf (\`rate =\`, \`quantum =\`). Do not edit.
+# Shadows /etc/pipewire/pipewire.conf.d/99-demiurge-lowlatency.conf (same
+# name, user dir wins), which stays as the 48000/128 boot seed.
+#
+# force-rate / force-quantum are NOT honoured from a config file alone (see the
+# seed's header); lockstep also pins them live via pw-metadata. They are listed
+# so pw-top / pw-metadata read consistent numbers before that happens.
+# max-quantum is a fixed ceiling so no live.conf quantum is ever clamped.
+context.properties = {
+    default.clock.rate           = $r
+    default.clock.allowed-rates  = [ $r ]
+    default.clock.force-rate     = $r
+    default.clock.quantum        = $q
+    default.clock.min-quantum    = 32
+    default.clock.max-quantum    = 2048
+    default.clock.force-quantum  = $q
+}
+EOF2
+}
+
+gen_virtual() {   # gen_virtual <rate> — template on stdout; fails if no template
+    [ -r "$VIRT_SRC" ] || return 1
+    # Both the loopback rate AND the node.latency denominator (256/<rate>)
+    # follow live.conf — a latency quoted against the wrong rate is a wrong
+    # buffer size, which is the silent-client failure gotchas Q7a describes.
+    sed -E -e "s/(audio\\.rate[[:space:]]*=[[:space:]]*)[0-9]+/\\1$1/" \
+           -e "s#(node\\.latency[[:space:]]*=[[:space:]]*[0-9]+)/[0-9]+#\\1/$1#" "$VIRT_SRC"
+}
+
+# publish <dest> <generated-text-file> → sets LS_CHANGED=1 when it differs.
+# Content-compared (cmp) so an unchanged file is never rewritten and — more to
+# the point — never triggers a WirePlumber/PipeWire restart.
+publish() {
+    local dest="$1" tmp="$2"
+    if [ -f "$dest" ] && cmp -s "$dest" "$tmp"; then
+        echo "lockstep: unchanged  $dest"; rm -f "$tmp"; return 0
+    fi
+    mkdir -p "$(dirname "$dest")" 2>/dev/null \
+        && cp "$tmp" "$dest" && chmod 0644 "$dest" || {
+        echo "lockstep: COULD NOT WRITE $dest — device config NOT updated (engine will use the previous/seed values)" >&2
+        rm -f "$tmp"; return 1; }
+    # Written as root (manual sudo)? Hand it back, or the user session cannot rewrite it.
+    if [ "$(id -u)" = 0 ]; then
+        local ow; ow="$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || stat -f '%u:%g' "$USER_HOME" 2>/dev/null)"
+        [ -n "$ow" ] && chown "$ow" "$dest" 2>/dev/null
+    fi
+    rm -f "$tmp"
+    echo "lockstep: WROTE      $dest"
+    LS_CHANGED=1
+    return 0
+}
+
+# lockstep [--dry-run] [--write-only]
+#   --dry-run     print the three files and exit; touches nothing (Mac-testable).
+#   --write-only  write the files, never touch a service. For callers that
+#                 restart the engine themselves (demiurge-audio), where a second
+#                 WirePlumber bounce first would only glitch a running graph.
+lockstep() {
+    local dry=0 wonly=0 a
+    for a in "$@"; do
+        case "$a" in
+            --dry-run)    dry=1 ;;
+            --write-only) wonly=1 ;;
+        esac
+    done
+
+    local q r ps num
+    q="$(read_key quantum 128)"
+    r="$(read_key rate 48000)"
+    if ! is_pow2_in_range "$q"; then
+        echo "lockstep: live.conf quantum '$q' is not a power of two 32..2048 — using 128" >&2; q=128
+    fi
+    if ! [[ "$r" =~ ^[0-9]+$ ]] || (( r < 8000 || r > 192000 )); then
+        echo "lockstep: live.conf rate '$r' is not a sane sample rate — using 48000" >&2; r=48000
+    fi
+    read -r ps num <<<"$(period_plan "$q")"
+
+    # Loud-but-nonfatal: the launcher vets this authoritatively (and falls back to
+    # the last good quantum); here it only has to be visible in the journal.
+    local ks; ks="$(effective_ksmps)"
+    if [[ -n "$ks" ]] && (( q % ks != 0 )); then
+        echo "lockstep: WARNING quantum $q is not a multiple of ksmps $ks — csound will round -b up or die" >&2
+    fi
+
+    if (( dry )); then
+        echo "# lockstep --dry-run  mode=$MODE rate=$r quantum=$q period=${ps}x${num} (ring $(( ps * num )) frames, need $(( RING_MIN_QUANTA * q )))"
+        echo "# ===== $DROPIN"; gen_period "$ps" "$num"
+        echo "# ===== $RATE_FRAG"; gen_rate "$r"
+        echo "# ===== $PW_FRAG"; gen_pw "$r" "$q"
+        echo "# ===== $VIRT_FRAG"
+        gen_virtual "$r" || echo "# (skipped: no template at $VIRT_SRC)"
+        echo "# bypass (sync_layer=off): files are written, PipeWire is not touched"
+        echo "# sync: restart wireplumber (and pipewire for the clock fragment) only if a file changed,"
+        echo "#       wait <=15 s for pw-cli, then pw-metadata force-rate $r / force-quantum $q"
+        return 0
+    fi
+
+    LS_CHANGED=0
+    local t
+    t="$(mktemp)" && gen_period "$ps" "$num" >"$t" && { publish "$DROPIN" "$t"; [ "$LS_CHANGED" = 1 ] && WP_CHG=1; }
+    t="$(mktemp)" && gen_rate "$r" >"$t" && { publish "$RATE_FRAG" "$t"; [ "$LS_CHANGED" = 1 ] && WP_CHG=1; }
+    LS_CHANGED=0
+    t="$(mktemp)" && gen_pw "$r" "$q" >"$t" && { publish "$PW_FRAG" "$t"; [ "$LS_CHANGED" = 1 ] && PW_CHG=1; }
+    LS_CHANGED=0
+    t="$(mktemp)"
+    if gen_virtual "$r" >"$t" 2>/dev/null; then
+        publish "$VIRT_FRAG" "$t"; [ "$LS_CHANGED" = 1 ] && PW_CHG=1
+    else
+        rm -f "$t"; echo "lockstep: no $VIRT_SRC — loopback rate pins NOT regenerated (skipped)"
+    fi
+
+    echo "lockstep: rate $r  quantum $q  device period ${ps}x${num} both directions (ring $(( ps * num )) frames)"
+
+    if (( wonly )); then echo "lockstep: --write-only, services untouched"; return 0; fi
+    if [[ "$MODE" == bypass ]]; then
+        echo "lockstep: sync_layer = off — the engine owns the card directly; PipeWire left alone"
+        return 0
+    fi
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo "lockstep: no systemctl here — files written, nothing restarted"; return 0
+    fi
+
+    # Only when something actually changed, and only here, where the engine is
+    # not running yet (ExecStartPre) or is about to be restarted by the caller.
+    if [ "${PW_CHG:-0}" = 1 ]; then
+        echo "lockstep: clock fragment changed — restarting pipewire + wireplumber"
+        run_user systemctl --user restart pipewire.service wireplumber.service 2>/dev/null \
+            || echo "lockstep: could not restart pipewire — new clock applies on next login/boot" >&2
+    elif [ "${WP_CHG:-0}" = 1 ]; then
+        echo "lockstep: period/rate fragment changed — restarting wireplumber"
+        run_user systemctl --user restart wireplumber.service 2>/dev/null \
+            || echo "lockstep: could not restart wireplumber — new period applies on next login/boot" >&2
+    fi
+
+    # Wait for the graph, then pin the live clock. force-rate/force-quantum are
+    # runtime metadata, not config, so this is what actually makes the graph run
+    # at live.conf's numbers before csound registers (the launcher re-pins on
+    # hot-reload; this closes the window before it exists).
+    local i up=0
+    for (( i = 0; i < 15; i++ )); do
+        run_user timeout 3 pw-cli info 0 >/dev/null 2>&1 && { up=1; break; }
+        sleep 1
+    done
+    if (( ! up )); then
+        echo "lockstep: PipeWire did not answer within 15 s — clock NOT pinned (launcher will pin it)" >&2
+        return 0
+    fi
+    run_user timeout 3 pw-metadata -n settings 0 clock.force-rate "$r" >/dev/null 2>&1 \
+        && run_user timeout 3 pw-metadata -n settings 0 clock.force-quantum "$q" >/dev/null 2>&1 \
+        && echo "lockstep: pinned clock.force-rate $r / clock.force-quantum $q" \
+        || echo "lockstep: pw-metadata pin failed — launcher will pin it" >&2
+    return 0
+}
+
+# apply-period N — manual one-off: write ONLY the period fragment at an explicit
+# size (no sudo now: it is a user-dir file). lockstep overwrites it from
+# live.conf on the next engine start, so this is for experiments, not for
+# staying. Restarts WirePlumber as the session user.
+apply_period() {
+    local n="$1"
+    is_pow2_in_range "$n" || { echo "demiurge-quantum-limits: period-size must be a power of two from 32 to 2048" >&2; return 3; }
+    if (( n < SAFE_PERIOD_FLOOR )); then
+        echo "demiurge-quantum-limits: refusing period-size $n — the floor is $SAFE_PERIOD_FLOOR." >&2
+        echo "  A 64x2 (128-frame) ring hard-locked this Pi, and systemd's hardware watchdog turned" >&2
+        echo "  the lockup into a reboot. Lowering this floor is a code change with a measurement" >&2
+        echo "  behind it, not a runtime option." >&2
+        return 2
+    fi
+    LS_CHANGED=0
+    local t; t="$(mktemp)" || return 3
+    gen_period "$n" "$SAFE_PERIOD_NUM" >"$t"
+    publish "$DROPIN" "$t" || return 3
+    echo "demiurge-quantum-limits: api.alsa.period-size = $n x $SAFE_PERIOD_NUM both directions (ring $(( n * SAFE_PERIOD_NUM )) frames) → $DROPIN"
+    echo "  NOTE: lockstep rewrites this from live.conf's quantum on the next engine start."
+    if run_user systemctl --user restart wireplumber 2>/dev/null; then
+        echo "demiurge-quantum-limits: wireplumber reloaded"
+        echo "  Restart the engine to re-open the card: sudo systemctl restart demiurge"
+    else
+        echo "demiurge-quantum-limits: could not restart wireplumber — the new period-size applies on next start" >&2
+    fi
+    return 0
+}
+
+# ------------------------------------------------------------------- main --
+MACHINE=0
+ARGS=()
+while (( $# )); do
+    case "$1" in
+        --machine) MACHINE=1; shift ;;
+        --live)    LIVE="$2"; shift 2 ;;
+        -h|--help) sed -n '2,178p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *)         ARGS+=("$1"); shift ;;
+    esac
+done
+set -- ${ARGS[@]+"${ARGS[@]}"}
+
+CMD="${1:-check}"
+MODE="$(cur_mode)"
+KS="$(effective_ksmps)"
+PS=""
+# lockstep never reads the live graph (it is about to REWRITE it, and a pw-dump
+# against a half-up PipeWire is exactly the unbounded wait the note above warns of).
+[[ "$MODE" == sync && "$CMD" != lockstep ]] && PS="$(period_size)"
+WP_CHG=0; PW_CHG=0; LS_CHANGED=0
+
+case "$CMD" in
+ksmps)   printf '%s\n' "$KS"; exit 0 ;;
+period)  printf '%s\n' "$PS"; exit 0 ;;
+legal)   legal_list "$KS" "$PS" "$MODE"; exit 0 ;;
+apply-period)
+    apply_period "${2:-}"; exit $? ;;
+lockstep)
+    # NEVER fail the service that runs us as ExecStartPre: any error was already
+    # reported loudly above, and a rig on the boot seeds beats a rig that won't start.
+    shift
+    lockstep "$@" || echo "lockstep: finished with errors (see above) — continuing anyway" >&2
+    exit 0 ;;
+check)
+    Q="${2:-$(read_key quantum 128)}"
+    IFS='|' read -r STATE PTARGET REASON <<<"$(classify "$Q" "$KS" "$PS" "$MODE")"
+    NEAR="$(nearest_legal "$Q" "$KS" "$PS" "$MODE")"
+    if (( MACHINE )); then
+        printf '%s|%s|%s|%s|%s|%s|%s\n' "$STATE" "$Q" "$KS" "$PS" "$NEAR" "$PTARGET" "$REASON"
+    else
+        case "$STATE" in
+            ok)      echo "quantum $Q: OK — $REASON" ;;
+            period)  echo "quantum $Q: reachable — $REASON" ;;
+            unknown) echo "quantum $Q: unverified — $REASON" ;;
+            bad)     echo "quantum $Q: WILL NOT WORK — $REASON"
+                     [[ -n "$NEAR" ]] && echo "  nearest workable quantum: $NEAR" ;;
+        esac
+        echo "  ksmps ${KS:-unknown}   api.alsa.period-size ${PS:-n/a}   mode $MODE"
+    fi
+    [[ "$STATE" == bad ]] && exit 2
+    exit 0 ;;
+*)
+    echo "demiurge-quantum-limits: unknown command '$CMD' (try --help)" >&2; exit 3 ;;
+esac

@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "name": "fcob-strip",
+      "host": "fcob-strip.local",
+      "ip": "192.168.8.168",
+      "pixel_count": 800,
+      "enabled": true
+    },
+    {
+      "name": "fcob-strip2",
+      "host": "fcob-strip2.local",
+      "ip": null,
+      "pixel_count": 480,
+      "enabled": true
+    },
+    {
+      "name": "fcob-strip3",
+      "host": "fcob-strip3.local",
+      "ip": null,
+      "pixel_count": 640,
+      "enabled": true
+    },
+    {
+      "_comment": "satellite 'dot' node — see satellites.json for anchor/mode",
+      "name": "dot1",
+      "host": "dot1.local",
+      "ip": null,
+      "pixel_count": 7,
+      "enabled": true
+    },
+    {
+      "_comment": "satellite 'dot' node — see satellites.json for anchor/mode",
+      "name": "dot2",
+      "host": "dot2.local",
+      "ip": null,
+      "pixel_count": 7,
+      "enabled": true
+    }
+  ]
+}

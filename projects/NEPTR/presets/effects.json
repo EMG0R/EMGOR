@@ -1,0 +1,2284 @@
+{
+ "version": 1,
+ "step_types": {
+  "effect": 1,
+  "vocal": 2,
+  "nam": 3
+ },
+ "nam_rows": [
+  "AC30",
+  "DELUXE",
+  "FENDER",
+  "TWEED",
+  "CRUNCH"
+ ],
+ "effects": [
+  {
+   "id": 1,
+   "name": "VOLUME",
+   "menu": "VOLUME",
+   "var": "gkVOLpedalBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkVOLpedal",
+     "index": 1,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "ATTACK",
+   "menu": "VOLUME",
+   "var": "gkATTK_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkATTK_atkMs",
+     "index": 4,
+     "min": 10.0,
+     "max": 2000.0,
+     "log": true
+    },
+    {
+     "name": "gkATTK_sens",
+     "index": 5,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkATTK_shape",
+     "index": 6,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkATTK_range",
+     "index": 7,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkATTK_retrigMs",
+     "index": 8,
+     "min": 20.0,
+     "max": 150.0,
+     "log": false
+    },
+    {
+     "name": "gkATTK_mix",
+     "index": 3,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "OLD PITCH SHIFT",
+   "menu": "PITCH",
+   "var": "gkBypassPS",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkSemi",
+     "index": 43,
+     "min": -12.0,
+     "max": 12.0,
+     "log": false
+    },
+    {
+     "name": "gkDryPctPS",
+     "index": 42,
+     "min": 0.0,
+     "max": 100.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "GPS",
+   "menu": "PITCH",
+   "var": "gkBypassGPS",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkGPSsemis",
+     "index": 46,
+     "min": -12.0,
+     "max": 12.0,
+     "log": false
+    },
+    {
+     "name": "gkGPSfback",
+     "index": 47,
+     "min": 0.0,
+     "max": 0.99,
+     "log": false
+    },
+    {
+     "name": "gkGPSmix",
+     "index": 45,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkGPSdly",
+     "index": 48,
+     "min": 0.0,
+     "max": 0.1,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "name": "FORMANT",
+   "menu": "SPECTRAL",
+   "var": "gkFormantBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkFormantShift",
+     "index": 24,
+     "min": -12.0,
+     "max": 12.0,
+     "log": false
+    },
+    {
+     "name": "gkFormantMix",
+     "index": 23,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "name": "VIBRATO",
+   "menu": "MOD",
+   "var": "gkVIB_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkVIB_freq",
+     "index": 73,
+     "min": 0.05,
+     "max": 12.0,
+     "log": true
+    },
+    {
+     "name": "gkVIB_fback",
+     "index": 74,
+     "min": 0.0,
+     "max": 0.7,
+     "log": false
+    },
+    {
+     "name": "gkVIB_depth",
+     "index": 72,
+     "min": 0.0,
+     "max": 0.005,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "name": "CHORUS",
+   "menu": "MOD",
+   "var": "gkBypassChorus",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkChorusRate",
+     "index": 77,
+     "min": 0.05,
+     "max": 8.0,
+     "log": true
+    },
+    {
+     "name": "gkChorusDepth",
+     "index": 78,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkChorusMix",
+     "index": 76,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "PHASER",
+   "menu": "MOD",
+   "var": "gkPHA_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkPHA_rate",
+     "index": 81,
+     "min": 0.05,
+     "max": 12.0,
+     "log": true
+    },
+    {
+     "name": "gkPHA_stages",
+     "index": 83,
+     "min": 1.0,
+     "max": 24.0,
+     "log": false
+    },
+    {
+     "name": "gkPHA_depth",
+     "index": 80,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkPHA_fback",
+     "index": 82,
+     "min": 0.0,
+     "max": 0.9,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "name": "FLANGER",
+   "menu": "MOD",
+   "var": "gkFLA_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkFLA_rate",
+     "index": 90,
+     "min": 0.05,
+     "max": 12.0,
+     "log": true
+    },
+    {
+     "name": "gkFLA_fback",
+     "index": 91,
+     "min": -1.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkFLA_depth",
+     "index": 89,
+     "min": 0.0,
+     "max": 0.01,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "name": "LESLIE",
+   "menu": "VOLUME",
+   "var": "gkLeslieBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkLeslieSpeed",
+     "index": 10,
+     "min": 0.1,
+     "max": 10.0,
+     "log": true
+    },
+    {
+     "name": "gkLeslieDepth",
+     "index": 11,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "name": "RING MOD",
+   "menu": "VOLUME",
+   "var": "gkBypassRM",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkARModDepth",
+     "index": 13,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "name": "AUTOMOOG",
+   "menu": "FILTERING",
+   "var": "gkAUTOMOOG_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkAUTOMOOG_res",
+     "index": 68,
+     "min": 0.0,
+     "max": 0.95,
+     "log": false
+    },
+    {
+     "name": "gkAUTOMOOG_type",
+     "index": 69,
+     "min": 1.0,
+     "max": 4.0,
+     "log": false
+    },
+    {
+     "name": "gkAUTOMOOG_sens",
+     "index": 67,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkAUTOMOOG_level",
+     "index": 70,
+     "min": 0.0,
+     "max": 2.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "name": "DELAY",
+   "menu": "DELAY",
+   "var": "gkBypassDelay",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkDelayMS",
+     "index": 134,
+     "min": 0.0,
+     "max": 700000.0,
+     "log": false
+    },
+    {
+     "name": "gkFeedback",
+     "index": 135,
+     "min": 0.0,
+     "max": 1.2,
+     "log": false
+    },
+    {
+     "name": "gkDelMix",
+     "index": 133,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkDlyMode",
+     "index": 137,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkSemiDel",
+     "index": 136,
+     "min": -5.0,
+     "max": 12.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "name": "SPECTRAL DELAY",
+   "menu": "DELAY",
+   "var": "gkSpecDelBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkSpecDelMaxDel",
+     "index": 27,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkSpecDelFB",
+     "index": 28,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkSpecDelMix",
+     "index": 26,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 17,
+   "name": "MOOD",
+   "menu": "GRANULAR",
+   "var": "gkMOOD_Bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkMOOD_Clock",
+     "index": 179,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMOOD_Dens",
+     "index": 180,
+     "min": 0.0,
+     "max": 1400.0,
+     "log": false
+    },
+    {
+     "name": "gkMOOD_Dly",
+     "index": 181,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMOOD_Mix",
+     "index": 178,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 18,
+   "name": "GRANULAR",
+   "menu": "GRANULAR",
+   "var": "gkGranBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkGranDens",
+     "index": 174,
+     "min": 10.0,
+     "max": 400.0,
+     "log": false
+    },
+    {
+     "name": "gkGranSize",
+     "index": 175,
+     "min": 0.05,
+     "max": 1.2,
+     "log": false
+    },
+    {
+     "name": "gkGranMix",
+     "index": 173,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkGranPitch",
+     "index": 176,
+     "min": 0.0,
+     "max": 24.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 19,
+   "name": "REVERB",
+   "menu": "DIGIVERB",
+   "var": "gkverbBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkReverbFB",
+     "index": 170,
+     "min": 0.0,
+     "max": 0.999,
+     "log": false
+    },
+    {
+     "name": "gkReverbDamp",
+     "index": 171,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkverbMix",
+     "index": 169,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 20,
+   "name": "BBCUT",
+   "menu": "GLITCH",
+   "var": "gkBBcut_bypass",
+   "generative": true,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkBBcut_prob",
+     "index": 256,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkBBcut_fltMix",
+     "index": 257,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkBBcut_drywet",
+     "index": 255,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 21,
+   "name": "TAPE",
+   "menu": "VOLUME",
+   "var": "gkTapeBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkTapeFail",
+     "index": 17,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTapeModel",
+     "index": 18,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTapeAmount",
+     "index": 16,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 22,
+   "name": "WAH",
+   "menu": "FILTERING",
+   "var": "gkWAH_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkWAH_res",
+     "index": 65,
+     "min": 0.5,
+     "max": 0.97,
+     "log": false
+    },
+    {
+     "name": "gkWAH_freq",
+     "index": 64,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 23,
+   "name": "REPEAT",
+   "menu": "GLITCH",
+   "var": "gkWGuide_bypass",
+   "generative": true,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkRPT_prob",
+     "index": 260,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRPT_char",
+     "index": 261,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRPT_len",
+     "index": 262,
+     "min": 0.0,
+     "max": 2.0,
+     "log": false
+    },
+    {
+     "name": "gkWGuide_drywet",
+     "index": 259,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 24,
+   "name": "CHOP",
+   "menu": "GLITCH",
+   "var": "gkSqMod_bypass",
+   "generative": true,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkCHP_prob",
+     "index": 265,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkCHP_rate",
+     "index": 266,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkCHP_shape",
+     "index": 267,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkSqMod_drywet",
+     "index": 264,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 25,
+   "name": "RVRS",
+   "menu": "GLITCH",
+   "var": "gkFShift_bypass",
+   "generative": true,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkRVS_prob",
+     "index": 270,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRVS_len",
+     "index": 271,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkFShift_drywet",
+     "index": 269,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 26,
+   "name": "H90 PITCH",
+   "menu": "PITCH",
+   "var": "gkBypassH90",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkSemiH90",
+     "index": 40,
+     "min": -12.0,
+     "max": 12.0,
+     "log": false
+    },
+    {
+     "name": "gkH90mix",
+     "index": 39,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 27,
+   "name": "PITCH FORK",
+   "menu": "PITCH",
+   "var": "gkBypassPF",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkSemiPF",
+     "index": 51,
+     "min": -12.0,
+     "max": 12.0,
+     "log": false
+    },
+    {
+     "name": "gkPFmix",
+     "index": 50,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 28,
+   "name": "FORMS",
+   "menu": "SPECTRAL",
+   "var": "gkFormsBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkFormsShift",
+     "index": 21,
+     "min": -12.0,
+     "max": 12.0,
+     "log": false
+    },
+    {
+     "name": "gkFormsMix",
+     "index": 20,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 31,
+   "name": "OVERDRIVE",
+   "menu": "DRIVE",
+   "var": "gkOD_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkOD_wc1",
+     "index": 95,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkOD_wc2",
+     "index": 96,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkOD_drive",
+     "index": 93,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkOD_tone",
+     "index": 94,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 32,
+   "name": "MARSHALL",
+   "menu": "DRIVE",
+   "var": "gkMAR_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkMAR_wc1",
+     "index": 100,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMAR_wc2",
+     "index": 101,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMAR_drive",
+     "index": 98,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMAR_tone",
+     "index": 99,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 33,
+   "name": "DS-1K",
+   "menu": "DRIVE",
+   "var": "gkDHG_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkDHG_wc1",
+     "index": 110,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkDHG_wc2",
+     "index": 111,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkDHG_drive",
+     "index": 108,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkDHG_tone",
+     "index": 109,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 34,
+   "name": "RAT-MZ",
+   "menu": "DRIVE",
+   "var": "gkRMZ_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkRMZ_wc1",
+     "index": 105,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRMZ_wc2",
+     "index": 106,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRMZ_drive",
+     "index": 103,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRMZ_tone",
+     "index": 104,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 35,
+   "name": "BIG MUFF",
+   "menu": "DRIVE",
+   "var": "gkMUF_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkMUF_wc1",
+     "index": 115,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMUF_wc2",
+     "index": 116,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMUF_tone",
+     "index": 114,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMUF_drive",
+     "index": 113,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 36,
+   "name": "HABIT",
+   "menu": "CHASE BLISS",
+   "var": "gkHabitBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkHabitSize",
+     "index": 240,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkHabitRepeats",
+     "index": 241,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkHabitMix",
+     "index": 239,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkHabitBlend",
+     "index": 242,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 38,
+   "name": "BIN REDUCTION",
+   "menu": "SPECTRAL",
+   "var": "gkBinBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkBinPedal",
+     "index": 30,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 39,
+   "name": "MAIN PREAMP",
+   "menu": "PREAMP",
+   "var": "gkPreamp_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 40,
+   "name": "BASS PRE L",
+   "menu": "BASS",
+   "var": "gkBPL_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkBPL_drive",
+     "index": 119,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 41,
+   "name": "BASS PRE H",
+   "menu": "BASS",
+   "var": "gkBPH_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkBPH_drive",
+     "index": 121,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 42,
+   "name": "BASS DIST",
+   "menu": "PREAMP",
+   "var": "gkBDS_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkBDS_drive",
+     "index": 123,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 43,
+   "name": "TREMOLO",
+   "menu": "MOD",
+   "var": "gkTremBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkTremRate",
+     "index": 87,
+     "min": 0.5,
+     "max": 20.0,
+     "log": true
+    },
+    {
+     "name": "gkTremDepth",
+     "index": 85,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 44,
+   "name": "BINCRUSHER",
+   "menu": "SPECTRAL",
+   "var": "gkBcBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkBcPedal",
+     "index": 32,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 45,
+   "name": "ONWARD",
+   "menu": "CHASE BLISS",
+   "var": "gkONW_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkONW_blend",
+     "index": 232,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkONW_size",
+     "index": 233,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkONW_follow",
+     "index": 234,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkONW_mix",
+     "index": 231,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkONW_density",
+     "index": 235,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkONW_err",
+     "index": 236,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkONW_oct",
+     "index": 237,
+     "min": -1.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 46,
+   "name": "LOSSY",
+   "menu": "FILTERING",
+   "var": "gkLsyBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkLSY_loss",
+     "index": 54,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkLSY_bw",
+     "index": 55,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkLSY_mix",
+     "index": 53,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkLSY_pkt",
+     "index": 56,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 47,
+   "name": "RESONATOR",
+   "menu": "FILTERING",
+   "var": "gkRES_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkRES_onset",
+     "index": 59,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRES_fb",
+     "index": 60,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRES_mix",
+     "index": 58,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRES_frz",
+     "index": 62,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkRES_oct",
+     "index": 61,
+     "min": -1.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 48,
+   "name": "IMPULSE",
+   "menu": "GLITCH",
+   "var": "gkIMP_bypass",
+   "generative": true,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkIMP_prob",
+     "index": 251,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkIMP_dec",
+     "index": 252,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkIMP_mix",
+     "index": 250,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkIMP_tone",
+     "index": 253,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 49,
+   "name": "IR SPRING",
+   "menu": "IR VERB",
+   "var": "gkIRBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": []
+  },
+  {
+   "id": 50,
+   "name": "IR PLATE",
+   "menu": "IR VERB",
+   "var": "gkIRBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": []
+  },
+  {
+   "id": 51,
+   "name": "IR HALL",
+   "menu": "IR VERB",
+   "var": "gkIRBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": []
+  },
+  {
+   "id": 52,
+   "name": "IR CHAMBER",
+   "menu": "IR VERB",
+   "var": "gkIRBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": []
+  },
+  {
+   "id": 53,
+   "name": "IR WOOD RM",
+   "menu": "IR VERB",
+   "var": "gkIRBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": []
+  },
+  {
+   "id": 54,
+   "name": "OCTAVER",
+   "menu": "BASS",
+   "var": "gkOCT_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkOCT_tone",
+     "index": 184,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkOCT_char",
+     "index": 185,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkOCT_sub",
+     "index": 183,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 55,
+   "name": "ENV FILTER",
+   "menu": "BASS",
+   "var": "gkENV_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkENV_sens",
+     "index": 188,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkENV_mode",
+     "index": 189,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkENV_dec",
+     "index": 191,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkENV_att",
+     "index": 190,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkENV_wet",
+     "index": 187,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 56,
+   "name": "BLOOPER",
+   "menu": "CHASE BLISS",
+   "var": "gkBLP_bypass",
+   "generative": true,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkBLP_Motion",
+     "index": 226,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkBLP_Scat",
+     "index": 227,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkBLP_Size",
+     "index": 228,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkBLP_Char",
+     "index": 229,
+     "min": 0.0,
+     "max": 2.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 57,
+   "name": "COMPRESSOR",
+   "menu": "PREAMP",
+   "var": "gkCMP_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkCMP_speed",
+     "index": 128,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkCMP_makeup",
+     "index": 129,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkCMP_blend",
+     "index": 130,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkCMP_gate",
+     "index": 131,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkCMP_amt",
+     "index": 127,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 58,
+   "name": "TONE EQ",
+   "menu": "SYNTH",
+   "var": "gkTEQ_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkTEQ_freq",
+     "index": 206,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTEQ_tilt",
+     "index": 207,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTEQ_low",
+     "index": 208,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTEQ_high",
+     "index": 209,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTEQ_mid",
+     "index": 205,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 60,
+   "name": "CHAIN FB",
+   "menu": "AIR",
+   "var": "gkCFB_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkCFB_gain",
+     "index": 222,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkCFB_tone",
+     "index": 223,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkCFB_ceil",
+     "index": 224,
+     "min": 0.1,
+     "max": 0.95,
+     "log": false
+    },
+    {
+     "name": "gkCFB_ret",
+     "index": 221,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 61,
+   "name": "TRACK SYNTH",
+   "menu": "SYNTH",
+   "var": "gkTSY_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkTSY_cut",
+     "index": 194,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTSY_res",
+     "index": 195,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTSY_mix",
+     "index": 193,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTSY_glide",
+     "index": 196,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTSY_sub",
+     "index": 197,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkTSY_det",
+     "index": 198,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 62,
+   "name": "PLL FUZZ",
+   "menu": "SYNTH",
+   "var": "gkPLL_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkPLL_intv",
+     "index": 201,
+     "min": 0.0,
+     "max": 4.0,
+     "log": false
+    },
+    {
+     "name": "gkPLL_lock",
+     "index": 202,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkPLL_vmix",
+     "index": 203,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkPLL_mix",
+     "index": 200,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 63,
+   "name": "FEEDBACKER",
+   "menu": "AIR",
+   "var": "gkFBK_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkFBK_harm",
+     "index": 212,
+     "min": 0.0,
+     "max": 0.75,
+     "log": false
+    },
+    {
+     "name": "gkFBK_bloom",
+     "index": 213,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkFBK_level",
+     "index": 211,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkFBK_vib",
+     "index": 214,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 64,
+   "name": "DIFFUSION",
+   "menu": "AIR",
+   "var": "gkDIF_bypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkDIF_depth",
+     "index": 217,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkDIF_rate",
+     "index": 218,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkDIF_duck",
+     "index": 219,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkDIF_wet",
+     "index": 216,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 66,
+   "name": "MOOD II",
+   "menu": "CHASE BLISS",
+   "var": "gkMD2_bypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkMD2_Clock",
+     "index": 246,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMD2_Length",
+     "index": 247,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMD2_Gen",
+     "index": 248,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMD2_Mix",
+     "index": 245,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 67,
+   "name": "BINSCATTER",
+   "menu": "SPECTRAL",
+   "var": "gkBscBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkBscScatter",
+     "index": 35,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkBscFB",
+     "index": 36,
+     "min": 0.5,
+     "max": 1.1,
+     "log": false
+    },
+    {
+     "name": "gkBscMaxDel",
+     "index": 37,
+     "min": 0.02,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkBscMix",
+     "index": 34,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 68,
+   "name": "TAPE DELAY",
+   "menu": "DELAY",
+   "var": "gkTdlBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkTdlTimeMs",
+     "index": 140,
+     "min": 60.0,
+     "max": 1200.0,
+     "log": false
+    },
+    {
+     "name": "gkTdlFeedback",
+     "index": 141,
+     "min": 0.0,
+     "max": 1.15,
+     "log": false
+    },
+    {
+     "name": "gkTdlFiltCtr",
+     "index": 142,
+     "min": 250.0,
+     "max": 5000.0,
+     "log": true
+    },
+    {
+     "name": "gkTdlFiltQ",
+     "index": 143,
+     "min": 0.5,
+     "max": 6.0,
+     "log": false
+    },
+    {
+     "name": "gkTdlHeadMode",
+     "index": 144,
+     "min": 1.0,
+     "max": 7.0,
+     "log": false
+    },
+    {
+     "name": "gkTdlMix",
+     "index": 139,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 69,
+   "name": "MOVE DELAY",
+   "menu": "DELAY",
+   "var": "gkMvdBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkMvdNumL",
+     "index": 146,
+     "min": 1.0,
+     "max": 16.0,
+     "log": false
+    },
+    {
+     "name": "gkMvdDenL",
+     "index": 147,
+     "min": 1.0,
+     "max": 16.0,
+     "log": false
+    },
+    {
+     "name": "gkMvdNumR",
+     "index": 148,
+     "min": 1.0,
+     "max": 16.0,
+     "log": false
+    },
+    {
+     "name": "gkMvdDenR",
+     "index": 149,
+     "min": 1.0,
+     "max": 16.0,
+     "log": false
+    },
+    {
+     "name": "gkMvdAtt",
+     "index": 151,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkMvdDec",
+     "index": 307,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 70,
+   "name": "NEBULA",
+   "menu": "DIGIVERB",
+   "var": "gkNebBypass",
+   "generative": false,
+   "claims_pedal": true,
+   "params": [
+    {
+     "name": "gkNebDensity",
+     "index": 154,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkNebSize",
+     "index": 155,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkNebMix",
+     "index": 153,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 71,
+   "name": "SHIMMER",
+   "menu": "DIGIVERB",
+   "var": "gkShmBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkShmInterval",
+     "index": 158,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkShmFbAmt",
+     "index": 159,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkShmMix",
+     "index": 157,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 72,
+   "name": "FREEZE",
+   "menu": "DIGIVERB",
+   "var": "gkFrzBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkFrzDamp",
+     "index": 162,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkFrzListenGain",
+     "index": 163,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkFrzBedLevel",
+     "index": 161,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 73,
+   "name": "GRAINVERB",
+   "menu": "DIGIVERB",
+   "var": "gkGvbBypass",
+   "generative": false,
+   "claims_pedal": false,
+   "params": [
+    {
+     "name": "gkGvbSpacing",
+     "index": 166,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkGvbDecay",
+     "index": 167,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    },
+    {
+     "name": "gkGvbMix",
+     "index": 165,
+     "min": 0.0,
+     "max": 1.0,
+     "log": false
+    }
+   ]
+  },
+  {
+   "id": 75,
+   "name": "SM AVERAGE",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 76,
+   "name": "SM BLUR",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 77,
+   "name": "SM DRONE",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 78,
+   "name": "SM FREEZE",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 79,
+   "name": "SM GATEHOLD",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 80,
+   "name": "SM WEAVE",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 81,
+   "name": "SM SHIMMER",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 82,
+   "name": "SM SHUFFLE",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 83,
+   "name": "SM PULSING",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 84,
+   "name": "SM HARMONIZ",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 85,
+   "name": "SM BINSHIFT",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 86,
+   "name": "SM PITCH",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 87,
+   "name": "SM STRETCH",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 88,
+   "name": "SM TRACING",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 89,
+   "name": "SM FILTBANK",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 90,
+   "name": "SM GLIDEFLT",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 91,
+   "name": "SM GRANUL",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 92,
+   "name": "SM EMERGE",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  },
+  {
+   "id": 93,
+   "name": "SM PARTGLD",
+   "menu": "SOUNDMAGIC",
+   "var": null,
+   "generative": false,
+   "claims_pedal": true,
+   "params": []
+  }
+ ]
+}

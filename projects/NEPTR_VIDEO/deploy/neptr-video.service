@@ -1,0 +1,75 @@
+[Unit]
+Description=NEPTR VIDEO — fractal/feedback video synthesis engine (direct KMS scanout)
+After=multi-user.target systemd-user-sessions.service
+# The engine takes DRM MASTER, and KMS allows exactly one master at a time.
+#
+# There is deliberately NO `Conflicts=neptr-ui.service` any more. With HOME this
+# process IS the mode selector: it drops DRM master and STARTS neptr-ui itself
+# when you choose AUDIO (deploy/mode-audio.sh). A Conflicts= would have systemd
+# stop the selector the instant it launched the mode it was asked for. The
+# handoff is now explicit and one-directional instead of a rule that fires both
+# ways.
+# Deliberately NO ConditionPathExists=/dev/dri/cardN. systemd evaluates a
+# condition exactly once, so on a boot where vc4 probes late it would skip the
+# unit permanently -- the bug neptr-ui needed a drop-in to undo. The wait lives
+# in ExecStartPre instead, where it can retry.
+
+[Service]
+Type=simple
+# gorpi7 = the Pi user set in Raspberry Pi Imager. Replace every gorpi7 below
+# if yours is different.
+User=gorpi7
+Group=gorpi7
+# video/render: open /dev/dri/* for KMS + GBM + EGL.
+# input: read /dev/input/event* for the touchscreen (platform/evdev_touch.cpp).
+SupplementaryGroups=video render input
+
+Environment=HOME=/home/gorpi7
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+# The engine's own OSC ingress. NOT 8002: that is demiurge-io's telemetry
+# destination for the web UI, single-owner and no SO_REUSEPORT, so binding it
+# second receives nothing at all. 8004 is this engine's allocation.
+Environment=NV_OSC_PORT=8004
+
+# PANEL ROTATION, in DEGREES CLOCKWISE. This panel is mounted 90 degrees
+# COUNTER-clockwise, which is 270 clockwise -- the same turn the audio UI applies
+# (NEPTR_ROT=270) and the same one retroarch.cfg applies (video_rotation="3").
+#
+# It lives HERE, in the deployment unit, rather than in the engine's defaults,
+# because it describes how THIS panel is bolted down and would be wrong on any
+# other machine. Pi 5's vc4 cannot rotate a 90/270 KMS plane in hardware, so
+# every client on this rig turns its own image and there is no system-wide
+# setting to inherit. If one ever arrives, set this back to 0 or the picture
+# gets rotated twice.
+Environment=NV_ROTATE=0
+
+WorkingDirectory=/home/gorpi7/NEPTR_VIDEO
+# Wait (bounded ~30s) for the DRM device, then fail-open: the engine prints its
+# own specific diagnostic if there is genuinely no display, which is more use
+# than the unit refusing to start.
+ExecStartPre=/bin/sh -c "for i in $(seq 1 60); do if [ -e /dev/dri/card0 ] || [ -e /dev/dri/card1 ]; then exit 0; fi; sleep 0.5; done; exit 0"
+# stdbuf -oL: stdout is a PIPE to the journal, so libc block-buffers it and the
+# engine's own diagnostics ([home] AUDIO:, [ctrl] listening on, [home] ->
+# VIDEO) sit in a 4K buffer instead of reaching `journalctl`. Line-buffering
+# costs nothing at this message rate and is the difference between a unit you
+# can debug from the log and one whose only visible output is stderr.
+ExecStart=/usr/bin/stdbuf -oL -eL /home/gorpi7/NEPTR_VIDEO/build/neptr-video
+
+# on-failure, not always: a clean exit means it was asked to stop (or ran a
+# scripted NV_SHOT / NV_SELFTEST), and restarting that is a loop.
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+# WITH HOME THIS BECOMES A BOOT SERVICE, reversing what used to be written here.
+# There was no [Install] section before, because booting into video mode would
+# steal the display from the audio UI on every power-on. That is no longer what
+# starting it means: it boots into the MODE SELECTOR, and the audio instrument
+# is one press away and started by the selector itself.
+#
+# The other half of this is in live.conf: `ui = off`, so neptr-ui does not also
+# autostart. Leave both on and the two race for drmSetMaster at boot. See
+# deploy/README.md -- neither change is made for you.
+WantedBy=multi-user.target

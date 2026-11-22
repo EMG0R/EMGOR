@@ -1,0 +1,16 @@
+[Unit]
+Description=hyperGuitar supervisor (relaunch loop for hyperGuitar6chPan)
+After=network.target sound.target
+# bela_startup.service must stay DISABLED: it fights this loop for the
+# audio device and produces 1/s crash storms (2026-11-01 incident).
+Conflicts=bela_startup.service
+
+[Service]
+Type=simple
+ExecStart=/root/hyperGuitar-supervisor.sh
+Restart=always
+RestartSec=2
+WorkingDirectory=/root/Bela/projects/hyperGuitar6chPan
+
+[Install]
+WantedBy=multi-user.target

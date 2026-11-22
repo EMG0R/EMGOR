@@ -1,0 +1,5 @@
+# /usr/bin/time -p output for the 62 s realtime cpu run (nam_bench.csd, 60 s segment, stereo, 48 kHz, apple m4 max)
+# banner lines with local paths removed; timing values verbatim
+real 62.04
+user 8.35
+sys 0.19

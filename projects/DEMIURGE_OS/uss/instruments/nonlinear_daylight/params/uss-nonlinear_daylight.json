@@ -1,0 +1,121 @@
+{
+  "stage": "uss-nonlinear_daylight",
+  "port": 9020,
+  "version": 1,
+  "params": [
+    {
+      "path": "/uss-nonlinear_daylight/density",
+      "label": "Density",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-nonlinear_daylight/tone",
+      "label": "Tone",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-nonlinear_daylight/length",
+      "label": "Length",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-nonlinear_daylight/space",
+      "label": "Space",
+      "default": 0.75,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-nonlinear_daylight/intensity",
+      "label": "Intensity",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-nonlinear_daylight/pitch",
+      "label": "Pitch",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/uss-nonlinear_daylight/trig",
+      "label": "Trigger",
+      "default": 0.0,
+      "map": "hard",
+      "proto": "p"
+    }
+  ],
+  "hard_maps": [
+    {
+      "id": "uss-nld-trig",
+      "source": "/hw/teensy/b1",
+      "target": {
+        "param": "/uss-nonlinear_daylight/trig"
+      },
+      "mode": "gate",
+      "arcade": "trig"
+    },
+    {
+      "id": "uss-nld-pitch",
+      "source": "/hw/teensy/jx",
+      "target": {
+        "param": "/uss-nonlinear_daylight/pitch"
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "uss-nld-tone",
+      "source": "/hw/teensy/jy",
+      "target": {
+        "param": "/uss-nonlinear_daylight/tone"
+      },
+      "mode": "continuous"
+    },
+    {
+      "id": "uss-nld-space",
+      "source": "/hw/teensy/tof1",
+      "target": {
+        "param": "/uss-nonlinear_daylight/space"
+      },
+      "mode": "continuous",
+      "outside": "hold"
+    },
+    {
+      "id": "uss-nld-length",
+      "source": "/hw/teensy/tof2",
+      "target": {
+        "param": "/uss-nonlinear_daylight/length"
+      },
+      "mode": "continuous",
+      "outside": "hold"
+    },
+    {
+      "id": "uss-nld-density",
+      "source": "/hw/teensy/fsr1",
+      "target": {
+        "param": "/uss-nonlinear_daylight/density"
+      },
+      "mode": "continuous",
+      "out_lo": 0.5,
+      "out_hi": 1.0
+    },
+    {
+      "id": "uss-nld-intensity",
+      "source": "/hw/midi/1/29",
+      "target": {
+        "param": "/uss-nonlinear_daylight/intensity"
+      },
+      "mode": "continuous",
+      "out_lo": 0.3,
+      "out_hi": 1.0
+    }
+  ]
+}

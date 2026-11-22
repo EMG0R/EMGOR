@@ -1,0 +1,40 @@
+# DEMIURGE M8 — Pi 5 performance block for /boot/firmware/config.txt
+#
+# Append to the [all] section. REQUIRES:
+#   - Official 5V / 5A USB-C PSU (not a 3A phone charger)
+#   - Active cooling (official Pi 5 Active Cooler or equivalent)
+#   - Thermal watchdog installed (see demiurge-thermal-watchdog.*)
+#
+# Stay under thermal throttle: vcgencmd measure_temp should stay < 80C at load.
+# If temps climb toward 85C drop arm_freq 100 MHz at a time.
+
+[all]
+# --- Safe edge overclock ---
+# Stock Pi 5 = 2400 MHz. 2800 MHz is the commonly-validated safe ceiling with
+# active cooling + good PSU. Do not exceed 2900 without instrumentation.
+arm_freq=2800
+over_voltage_delta=50000
+
+# Governor stays in control so thermal protection still works
+force_turbo=0
+
+# GPU/core held modest — audio doesn't need it, and lower core_freq frees
+# thermal headroom for arm_freq
+gpu_freq=500
+
+# Prefer performance ondemand transition thresholds
+arm_boost=1
+
+# --- Fast boot ---
+# Skip the rainbow splash and kernel boot delay — shaves ~1.5s off boot.
+disable_splash=1
+boot_delay=0
+
+# --- USB current ceiling ---
+# Default Pi 5 caps all USB ports at 600 mA TOTAL. One bus-powered audio
+# interface (~400 mA) fits; a second will silently fail to enumerate with
+# almost no log output — the symptom is "works on other Pis / my laptop,
+# not this one." Raising the cap is safe ONLY with the official 5V/5A PSU
+# required above. With that PSU, each port goes up to ~1.6 A and total to
+# ~5 A, enough for two bus-powered audio interfaces plus a USB MIDI controller.
+usb_max_current_enable=1

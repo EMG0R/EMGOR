@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/pmorctl.dir/link.d CMakeFiles/pmorctl.dir/tools/pmorctl.cpp.o -o pmorctl  libpmor_core.a

@@ -1,0 +1,16 @@
+// DEMIURGE: this box has no desktop session. demiurge-web (systemd service,
+// User=gorpi7, no seat) and demiurge-wifi over ssh both drive NetworkManager
+// as an ordinary user with no active local logind session. The stock NM
+// policy (org.freedesktop.NetworkManager.rules, shipped by the OS) only
+// grants network-control to netdev/sudo when `subject.local && subject.active`
+// — which is never true here — so every join/forget/scan silently failed with
+// "Not authorized to control networking" and the web UI's network picker
+// looked unresponsive. Grant netdev-group members full NM control
+// unconditionally; this box's only users are the ones already trusted with
+// sudo on it.
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0 &&
+        (subject.isInGroup("sudo") || subject.isInGroup("netdev"))) {
+        return polkit.Result.YES;
+    }
+});

@@ -1,0 +1,15 @@
+[Unit]
+Description=DEMIURGE network guard timer (every 20s)
+
+[Timer]
+# 45s after boot: long enough for NetworkManager's own autoconnect to have
+# had a fair try, short enough that a failed boot-time join is fixed before
+# anyone notices. 20s cadence => a dead link is bounced within ~40s and the
+# radio is cycled within ~2min.
+OnBootSec=45s
+OnUnitActiveSec=20s
+AccuracySec=2s
+Unit=demiurge-netguard.service
+
+[Install]
+WantedBy=timers.target

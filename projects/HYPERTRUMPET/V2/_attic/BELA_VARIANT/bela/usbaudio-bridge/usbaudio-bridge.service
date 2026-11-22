@@ -1,0 +1,23 @@
+[Unit]
+Description=hyperTrumpet USB audio bridge (non-realtime, feeds UAC2 gadget)
+# bela-usb-gadgets is the Gem image's gadget unit (enabled by the image builder).
+# Ordering is soft: the bridge also retries snd_pcm_open every 2 s until the
+# UAC2Gadget card exists.
+After=sound.target bela-usb-gadgets.service
+# NO Wants=/PartOf=bela_startup.service. hyperGuitar hit a start-limit loop
+# (2026-09-01) because those bindings dragged bela_startup up and propagated
+# its stop back. The stale-shm problem (the instrument recreates its ring per
+# start; the bridge maps once) is handled by the supervisor, which runs
+# `systemctl try-restart usbaudio-bridge` on every instrument (re)launch.
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/hypertrumpet
+ExecStart=/usr/bin/usbaudio-bridge
+Restart=always
+RestartSec=2
+# Ordinary scheduling on purpose: must never compete with the RT audio thread.
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

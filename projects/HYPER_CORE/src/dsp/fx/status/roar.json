@@ -1,0 +1,6 @@
+{"id":"roar","file":"fx_roar.h",
+ "roles":{"AMT":"DRIVE","TONE":"TONE","MOD":"FOLD","FB":"BIAS"},
+ "actions":{"MAIN":"unused","ALT":"unused","CLEAR":"unused","HOLD":"unused"},
+ "ops_per_sample":"per channel: 2 Svf (2x~12) + drive/bias/fold (~15 incl. sinPar when FOLD>0) + 2x up FIR 8 MAC + 2 shapers (~12 each) + 15-tap decimate FIR (15 MAC) + DC block (4) + post tilt/filter/gain (~12) = ~110 flops/sample/channel. ~145 cycles ~ 7 Mcycles/s = ~1.5% of M7 per channel.",
+ "memory_bytes":0,
+ "notes":"No arena use; ~1 KB of state in the object (stereo-capable, 2 channels). Host ns/sample: 37 mono, 69 stereo. TYPE enum SOFT/ASYM/FOLD/CRUSH. 2x oversampling by 15-tap Blackman halfband FIR (measured alias -95 dBc on 5 kHz sine at max drive); latency 7 samples, dry path delayed 7 so MIX=0 is the input delayed by 7 (exactly verified). Auto-gain = v1 law 0.3+0.7*(1-DRIVE)^2 times OUTPUT dB. THD 1 kHz @0.3: 0.7% / 6.7% / 29% / 44% at DRIVE 0 / .3 / .6 / 1. Serial dual-band option not implemented."}

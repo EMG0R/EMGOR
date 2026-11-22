@@ -1,0 +1,20 @@
+[Unit]
+Description=VCV Rack beside csound (headless, core 1, async JACK node) -- last-used patch
+After=demiurge.service vcv-macros.service
+Wants=vcv-macros.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=gorpi7v5
+Environment=HOME=/home/gorpi7v5 XDG_RUNTIME_DIR=/run/user/1000
+# wait for csound to be linked to the HAT, and for the macros port, before Rack opens JACK
+ExecStartPre=/bin/bash /home/gorpi7v5/PRIME_RECOVERY/vcv/cardinal-wait-engine.sh
+ExecStartPre=/bin/bash -c 'for i in $(seq 1 30); do aconnect -l | grep -q "VCV Macros" && exit 0; sleep 1; done; exit 1'
+ExecStart=/bin/bash /home/gorpi7v5/PRIME_RECOVERY/vcv/rack-try.sh start
+ExecStop=/bin/bash /home/gorpi7v5/PRIME_RECOVERY/vcv/rack-try.sh stop
+KillMode=none
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

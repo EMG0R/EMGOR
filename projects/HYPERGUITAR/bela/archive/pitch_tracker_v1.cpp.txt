@@ -1,0 +1,328 @@
+/*
+ * pitch_tracker.cpp - NSDF-based per-string pitch tracker, split out of
+ * the former monolithic render.cpp.
+ *
+ * ================= AMORTIZATION REVERTED (2026-08-14) =================
+ *
+ * This file briefly carried an AMORTIZED coarse sweep: the NSDF for hop
+ * N+1 was accumulated in 32 slices spread across hop N, called once per
+ * audio sample from voiceProcess(). Its only purpose was to flatten the
+ * hop-boundary spike so the audio BLOCK SIZE could be cut to 16 or below.
+ * We are staying at block 64, so that benefit was never taken - and the
+ * cost was severe, because flattening the spike meant giving up every
+ * early-out the burst had:
+ *
+ *   * The burst sweeps the COARSE GRID ONLY (lag += 2) and then spends
+ *     ~7 data-dependent full-window nsdfAt() calls on the refine, the
+ *     half-lag octave guard and the parabolic neighbours. The amortizer
+ *     could not predict which 7, so it pre-swept ALL lags - 2x the
+ *     correlation work, every hop, forever.
+ *   * The burst returns before touching a single lag when the string is
+ *     SILENT (energy gate), when the note is being released/muted
+ *     (releaseBlank), or when the frame is aperiodic. Five of six strings
+ *     are usually in one of those states. The amortizer had already done
+ *     the whole sweep by the time any of those tests could run.
+ *   * The burst correlates a flat, contiguous stack copy of the window
+ *     (recent[i] / lagged[i]). The amortizer read the ring directly with
+ *     `& DBUF_MASK` on every element, which saves a 2KB copy per hop but
+ *     costs two extra AND+address ops per element and defeats vectorising
+ *     the inner loop - on an in-order Cortex-A53 that is the difference
+ *     between a NEON reduction and a scalar one.
+ *
+ * MEASURED, full-chain host bench, 6 strings, inharmonic jittery material,
+ * FORMANT-only scene, per audio sample summed over all six strings:
+ *     amortized:  928 correlation-loop iterations/sample (ring-indexed)
+ *     burst:      456 correlation-loop iterations/sample (contiguous)
+ * i.e. the amortizer cost 2.04x the arithmetic on the single hottest loop
+ * in the whole instrument, and made each iteration more expensive too.
+ * That is the crackle: it is not in any effect, it is in here, and it is
+ * paid whether or not any effect is switched on.
+ *
+ * WHAT WAS KEPT: the silence gate ordering. The window ENERGY pass runs
+ * first and the lag sweep only runs if the gate lets the frame through,
+ * so a silent or near-silent string never computes corrWin*nL products in
+ * order to multiply them by zero. (That was the genuinely valuable half
+ * of the amortization work and it is inherent to this structure.)
+ *
+ * PEAK COST CONSEQUENCE, for when block 32/16 is revisited: the sweep is
+ * once again a burst at the hop boundary - worst case corrWin*(nL/2) MACs
+ * (~11.4k for the low E) plus the data-dependent tail, in one sample. The
+ * six strings' hops are staggered by HOP/6 = 21 samples, so a 64-sample
+ * block can contain at most 3 of them; that is what the archived v5 build
+ * ran at block 64 for months without an underrun. Below block 32 the
+ * amortizer (or a cheaper equivalent: sweep only the coarse grid, and arm
+ * it only for strings that passed last hop's gate) would be needed again.
+ */
+#include "hyperguitar.h"
+#include <cmath>
+
+/*
+ * One swept lag over the flat window copy. Contiguous streams, no ring
+ * masking - this is the loop the whole instrument's CPU budget lives in.
+ */
+static inline float nsdfAt(const Voice *v, const float *recent, float e0, int lag)
+{
+	float acf = 0.0f, el = 0.0f;
+	const float *lagged = recent - lag;
+	for(int i = 0; i < v->corrWin; i++) {
+		acf += recent[i] * lagged[i];
+		el += lagged[i] * lagged[i];
+	}
+	return acf / sqrtf(e0 * el + 1e-12f);
+}
+
+void trackPitch(Voice *v, int s)
+{
+	/*
+	 * NOTE-OFF EDGE DETECTOR: releasing a fretting finger (or palm-
+	 * muting) damps the string almost instantly - MUCH faster than a
+	 * freely ringing string could ever decay on its own. See git log
+	 * for the full rationale (unchanged, moved verbatim).
+	 */
+	{
+		float envOld = v->envHist[v->envHistIdx];
+		v->envHist[v->envHistIdx] = v->env;
+		v->envHistIdx = (v->envHistIdx + 1) & 3;
+		if(v->attackBlank == 0) {
+			/* 8 hops (23ms), not 12: the DRIFT fallback leash is
+			 * noLockHops > 10, so a SINGLE spurious trip (plain-string
+			 * beating can notch env 2:1 inside a hop on the top two
+			 * strings) used to blank 12 hops of conf and push the mode
+			 * machine into the period-looping splicer all by itself. A
+			 * real note-off keeps re-tripping while the string damps, so
+			 * genuine releases still blank continuously. */
+			if(envOld > 0.003f && v->env < 0.35f * envOld)
+				v->releaseBlank = 8;
+			if(v->envLastHop > 0.003f && v->env < 0.5f * v->envLastHop)
+				v->releaseBlank = 8;
+		}
+		v->envLastHop = v->env;
+	}
+	v->dbgGate = 0;
+	if(v->releaseBlank > 0) {
+		v->releaseBlank--;
+		v->pitchConf = 0.0f;
+		v->dbgGate = 1;
+		return;                       // EARLY-OUT: no correlation at all
+	}
+
+	float x[DBUF_SIZE];
+	int need = v->corrWin + v->lagMax + 1;
+	for(int i = 0; i < need; i++)
+		x[i] = v->dbuf[(v->dwritePos - need + i) & DBUF_MASK];
+	float *recent = x + need - v->corrWin;
+
+	/*
+	 * SILENCE GATE FIRST. The window-energy pass is corrWin adds; the lag
+	 * sweep below is corrWin * (nL/2) MACs. Testing the gate between them
+	 * is what stops a silent or damped string - usually five of the six -
+	 * from paying for a sweep whose result is discarded.
+	 */
+	float e0 = 0.0f;
+	for(int i = 0; i < v->corrWin; i++)
+		e0 += recent[i] * recent[i];
+	v->dbgE0 = e0 / (float)v->corrWin;
+	/*
+	 * THE SUSTAIN GATE (2026-09-09, "open..5th fret on the top two
+	 * strings sounds like looping"). GATE_RMS is ABSOLUTE, and the real
+	 * instrument's thin strings ring right AT it: the device trace
+	 * caught this gate firing mid-note at E=8.1e-08 against the 9e-08
+	 * bar. Every firing slams conf to 0 on a still-ringing note, the
+	 * mode machine falls to the DRIFT splicer - which repeats whole
+	 * periods, i.e. audibly LOOPS - then relocks, then falls again.
+	 * Low frets on the top strings are the quietest pickup output,
+	 * which is why the artifact lived below ~the 5th fret and stopped
+	 * above it.
+	 *
+	 * Fix is HYSTERESIS, not a lower bar: while last hop was
+	 * confidently periodic, keep tracking down to 1/3 the entry RMS
+	 * (9x less energy). The strict bar still gates IDLE strings, so
+	 * the silent-string early-out - the CPU budget this file lives on -
+	 * is untouched. A tail that sinks below the sustain bar closes the
+	 * gate, conf goes 0, and the gate needs the full entry bar to
+	 * reopen: stable in both directions, no flap.
+	 */
+	float gateRms = v->pitchConf > NSDF_CONF ? GATE_RMS * (1.0f / 3.0f)
+	                                         : GATE_RMS;
+	if(e0 < gateRms * gateRms * (float)v->corrWin) {
+		v->pitchConf = 0.0f;   // silence: definitely not a pitched note
+		v->dbgGate = 2;
+		return;
+	}
+
+	float coarse[256];
+	int nC = 0;
+	float best = -2.0f;
+	for(int lag = v->lagMin; lag <= v->lagMax; lag += 2) {
+		float val = nsdfAt(v, recent, e0, lag);
+		coarse[nC++] = val;
+		if(val > best) best = val;
+	}
+	if(best < NSDF_CONF) {
+		v->pitchConf = best;   // aperiodic (tap/noise): record the low score
+		v->dbgGate = 3;
+		return;
+	}
+
+	int bestLag = -1;
+	float bar = FIRST_PEAK * best;
+	for(int i = 1; i < nC - 1; i++) {
+		if(coarse[i] >= bar && coarse[i] >= coarse[i - 1] && coarse[i] >= coarse[i + 1]) {
+			bestLag = v->lagMin + 2 * i;
+			best = coarse[i];
+			break;
+		}
+	}
+	if(bestLag < 0) {
+		v->pitchConf = 0.0f;
+		v->dbgGate = 4;
+		return;
+	}
+	for(int lag = bestLag - 1; lag <= bestLag + 1; lag += 2) {
+		if(lag < v->lagMin || lag > v->lagMax)
+			continue;
+		float val = nsdfAt(v, recent, e0, lag);
+		if(val > best) { best = val; bestLag = lag; }
+	}
+
+	/*
+	 * Anti-octave-low guard: high on the neck the short true-period
+	 * peak is under-sampled by the coarse grid and can lose to the
+	 * 2P peak. If half this lag correlates nearly as well, the note
+	 * is actually an octave HIGHER - take the half lag.
+	 */
+	int half = bestLag / 2;
+	if(half >= v->lagMin) {
+		float hv = -2.0f;
+		int hb = half;
+		for(int k = half - 1; k <= half + 1; k++) {
+			if(k < v->lagMin || k > v->lagMax)
+				continue;
+			float val = nsdfAt(v, recent, e0, k);
+			if(val > hv) { hv = val; hb = k; }
+		}
+		if(hv > 0.92f * best) {
+			bestLag = hb;
+			best = hv;
+		}
+	}
+
+	float lagF = (float)bestLag;
+	if(bestLag > v->lagMin && bestLag < v->lagMax) {
+		float ym = nsdfAt(v, recent, e0, bestLag - 1);
+		float yp = nsdfAt(v, recent, e0, bestLag + 1);
+		float denom = ym - 2.0f * best + yp;
+		if(fabsf(denom) > 1e-9f)
+			lagF += 0.5f * (ym - yp) / denom;
+	}
+
+	float p = lagF * (float)DECIM;
+	float pMin = v->p0 / MAX_FRET_RATIO;
+	float pMax = v->p0 * TUNE_MARGIN;
+	if(p < pMin) p = pMin;
+	if(p > pMax) p = pMax;
+
+	/*
+	 * ATTACK REJECTION + CONFIDENCE GATE.
+	 */
+	v->pitchConf = best;
+	if(v->attackBlank > 0) {
+		v->attackBlank--;
+		return;                       // still inside the transient - ignore
+	}
+	if(best < PITCH_CONF_MIN)
+		return;                       // not confident: keep the last period
+
+	/*
+	 * FULL-RATE REFINEMENT.
+	 */
+	{
+		int ip = (int)roundf(p);
+		int win = (int)(1.2f * p);
+		if(win > 620) win = 620;
+		const float *b = v->buf;
+		unsigned int wp = v->writePos;
+		float re0 = 0.0f;
+		for(int i = 0; i < win; i++) {
+			float sm = b[(wp - 1 - i) & BUF_MASK];
+			re0 += sm * sm;
+		}
+		float vals[7];
+		int bi = -1;
+		float bv = -2.0f;
+		for(int j = 0; j < 7; j++) {
+			int l = ip - 3 + j;
+			float acf = 0.0f, el = 0.0f;
+			for(int i = 0; i < win; i++) {
+				float sa = b[(wp - 1 - i) & BUF_MASK];
+				float sb = b[(wp - 1 - i - l) & BUF_MASK];
+				acf += sa * sb;
+				el += sb * sb;
+			}
+			vals[j] = acf / sqrtf(re0 * el + 1e-12f);
+			if(vals[j] > bv) { bv = vals[j]; bi = j; }
+		}
+		if(bi >= 1 && bi <= 5 && bv > 0.5f) {
+			float ym = vals[bi - 1], yp = vals[bi + 1];
+			float denom = ym - 2.0f * bv + yp;
+			float off = 0.0f;
+			if(fabsf(denom) > 1e-9f) {
+				off = 0.5f * (ym - yp) / denom;
+				if(off > 0.5f) off = 0.5f;
+				if(off < -0.5f) off = -0.5f;
+			}
+			float pf = (float)(ip - 3 + bi) + off;
+			if(pf > 0.8f * p && pf < 1.2f * p)
+				p = pf;
+		}
+	}
+
+	/*
+	 * HEX BLEED VETO: a quiet string reading exactly 2x the period of a
+	 * LOUD physical neighbour is almost certainly pickup crosstalk
+	 * hearing the neighbour's fundamental as its own octave-low. Real
+	 * playing essentially never has this string this quiet while the
+	 * read is this marginal - keep the last good period instead of
+	 * feeding the shifter bleed.
+	 */
+	for(int o = s - 1; o <= s + 1; o += 2) {
+		if(o < 0 || o >= NUM_STRINGS)
+			continue;
+		Voice *w = &gV[o];
+		if(w->env > 3.0f * v->env && best < 0.96f
+		   && fabsf(p - 2.0f * w->period) < 0.04f * w->period)
+			return;
+	}
+
+	v->periodGood = p;
+
+	/*
+	 * DECAY-TAIL FREEZE.
+	 */
+	if(v->env < 0.25f * v->envPrev) {
+		v->candidateAgree = 0;
+		return;                       // decaying tail: hold, don't chase noise
+	}
+
+	/*
+	 * NOTE-CHANGE SNAP vs BEND GLIDE, with RE-ACQUISITION CONSENSUS.
+	 */
+	{
+		float devN = fabsf(p - v->period) / (v->period + 1e-9f);
+		if(devN > 0.03f) {
+			float agreeDev = fabsf(p - v->periodCandidate) / (p + 1e-9f);
+			if(v->candidateAgree > 0 && agreeDev < 0.015f) {
+				if(++v->candidateAgree >= 2) {
+					v->period = p;   // new note, CONFIRMED: arrive NOW
+					v->candidateAgree = 0;
+				}
+			} else {
+				v->candidateAgree = 1;
+			}
+			v->periodCandidate = p;
+		} else {
+			v->candidateAgree = 0;
+			v->period = 0.75f * v->period + 0.25f * p;   // bend: glide
+		}
+	}
+}

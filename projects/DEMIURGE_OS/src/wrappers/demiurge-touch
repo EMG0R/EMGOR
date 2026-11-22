@@ -1,0 +1,636 @@
+#!/usr/bin/env python3
+# demiurge-touch — touchscreen -> MIDI CC daemon + user-facing CLI.
+#
+#   demiurge-touch                 human status (key value, device, service)
+#   demiurge-touch on|off          write `touch =` in live.conf + bounce service
+#   demiurge-touch --status-machine  one parseable line for UIs
+#   demiurge-touch --daemon        run the daemon (what demiurge-touch.service does)
+#
+# The daemon reads the touchscreen evdev device directly (dependency-free
+# struct reads, same approach as demiurge-stream-touch) and emits MIDI CC into
+# the shared "Midi Through" pool (client 14:0) on the clock/utility channel —
+# MIDI channel 16, the same channel every clock-domain CC already uses
+# (CC116-119, see demiurge/docs/clock.md). Output goes through a virtual
+# ALSA-seq port ("DEMIURGE Touch", via mido/rtmidi — the same stack the arcade
+# supervisor's MidiEmitter uses) which the daemon aconnects into 14:0 itself.
+#
+# CC map (defaults; overridable in live.conf — see docs/config-reference.md):
+#   per slot i (0-3), base = touch_cc_base (default 80), channel 16:
+#     CC base+i*3     = X position, 0-127 scaled from the panel range
+#     CC base+i*3 + 1 = Y position, 0-127
+#     CC base+i*3 + 2 = pressure, 0-127 (0 if the panel has no pressure axis)
+#     CC base+12+i    = touch state: 127 on touch-down, 0 on release
+#   default block: CC80-95 on ch16 — verified collision-free against the Teensy
+#   map (ch1 CC20-36/60-79) and the clock block (ch16 CC116-119).
+#
+# Multi-touch: full evdev MT protocol B (ABS_MT_SLOT / TRACKING_ID / POSITION),
+# up to 4 slots, AND plain single-touch devices (ABS_X/ABS_Y + BTN_TOUCH ->
+# slot 0). `touch_slots` (default 1) limits how many slots emit MIDI: the
+# current panel is a resistive XPT2046 — single-touch hardware that produces
+# phantom midpoints with two fingers — so only slot 0 emits by default. Set
+# touch_slots = 4 to light up all slots on a future capacitive screen.
+#
+# Jitter: resistive panels wobble. A ±1-CC deadband is applied per axis — a
+# scaled value must move by >=2 CC steps (or hit 0/127) before it re-emits —
+# plus change-only emission, so the utility channel is not spammed.
+#
+# live.conf keys (all optional):
+#   touch         = on|off   master gate (default off; daemon exits cleanly)
+#   touch_cc_base = 80       first CC of the 16-CC block
+#   touch_channel = 16       MIDI channel, 1-indexed
+#   touch_slots   = 1        how many MT slots emit MIDI (1-4)
+#
+# Calibration: if ~/demiurge/touch-cal.conf exists (written by the
+# demiurge-touch-test calibrator, only on a completed+confirmed run), the
+# daemon applies its raw→screen affine mapping (axis swap / inversion /
+# per-axis offset+scale) BEFORE scaling to CC values. Absent file = previous
+# behavior (kernel-advertised axis range). The file is re-checked by mtime
+# every ~2 s while running (and on SIGHUP), so a fresh calibration is picked
+# up without a service restart. Format: see docs/config-reference.md.
+
+import glob
+import os
+import re
+import signal
+import struct
+import subprocess
+import sys
+import time
+
+# ---------------------------------------------------------------- evdev bits
+EV_FMT = "qqHHi"          # struct input_event, 64-bit
+EV_SIZE = struct.calcsize(EV_FMT)
+
+EV_SYN, EV_KEY, EV_ABS = 0x00, 0x01, 0x03
+SYN_REPORT = 0x00
+BTN_TOUCH = 0x14A
+ABS_X, ABS_Y, ABS_PRESSURE = 0x00, 0x01, 0x18
+ABS_MT_SLOT = 0x2F
+ABS_MT_POSITION_X, ABS_MT_POSITION_Y = 0x35, 0x36
+ABS_MT_TRACKING_ID = 0x39
+ABS_MT_PRESSURE = 0x3A
+
+MAX_SLOTS = 4
+DEFAULT_BASE = 80
+DEFAULT_CHANNEL = 16      # 1-indexed; the clock/utility channel
+DEFAULT_SLOTS = 1
+
+PORT_NAME = "DEMIURGE Touch"
+
+
+def find_touch_device():
+    """Return (/dev/input/eventN, name) for the first device that looks like a
+    touch panel (EV_ABS with absolute X/Y). Same approach as
+    demiurge-stream-touch: prefers names mentioning touch."""
+    candidates = []
+    try:
+        with open("/proc/bus/input/devices") as f:
+            text = f.read()
+    except OSError:
+        return None
+    for chunk in text.strip().split("\n\n"):
+        name = ""
+        handlers = ""
+        ev = 0
+        absbits = 0
+        for line in chunk.splitlines():
+            if line.startswith("N:"):
+                m = re.search(r'Name="(.*)"', line)
+                name = m.group(1) if m else ""
+            elif line.startswith("H:"):
+                handlers = line
+            elif line.startswith("B: EV="):
+                ev = int(line.split("=", 1)[1], 16)
+            elif line.startswith("B: ABS="):
+                for w in line.split("=", 1)[1].split():
+                    absbits = (absbits << 64) | int(w, 16)
+        m = re.search(r"(event\d+)", handlers)
+        if not m:
+            continue
+        evdev = "/dev/input/" + m.group(1)
+        has_abs = bool(ev & (1 << EV_ABS))
+        has_xy = bool(absbits & (1 << ABS_X)) or bool(absbits & (1 << ABS_MT_POSITION_X))
+        if has_abs and has_xy:
+            score = 2 if re.search(r"touch", name, re.I) else 1
+            candidates.append((score, evdev, name))
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1], candidates[0][2]
+
+
+def read_absinfo(fd, code):
+    """EVIOCGABS: (min, max) for an ABS axis, or None."""
+    import fcntl
+    # struct input_absinfo: value, minimum, maximum, fuzz, flat, resolution
+    buf = bytearray(24)
+    # _IOR('E', 0x40 + code, struct input_absinfo)
+    req = (2 << 30) | (24 << 16) | (0x45 << 8) | (0x40 + code)
+    try:
+        fcntl.ioctl(fd, req, buf)
+    except OSError:
+        return None
+    _v, mn, mx, _f, _fl, _r = struct.unpack("iiiiii", buf)
+    if mx <= mn:
+        return None
+    return mn, mx
+
+
+# ---------------------------------------------------------------- live.conf
+def resolve_liveconf():
+    """Same resolution order as demiurge-ui-launch.sh: /boot/firmware/
+    demiurge.conf `launch =`, else the first /home/*/demiurge/live.conf."""
+    boot = "/boot/firmware/demiurge.conf"
+    if os.path.isfile(boot):
+        try:
+            with open(boot) as f:
+                for line in f:
+                    m = re.match(r"^\s*launch\s*=\s*(.+)", line)
+                    if m:
+                        p = m.group(1).split("#")[0].strip()
+                        if p and os.path.isfile(p):
+                            return p
+        except OSError:
+            pass
+    home = os.environ.get("HOME", "")
+    for p in ([os.path.join(home, "demiurge/live.conf")] if home else []) + \
+            sorted(glob.glob("/home/*/demiurge/live.conf")) + ["/root/demiurge/live.conf"]:
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def read_key(path, key, default=""):
+    if not path:
+        return default
+    try:
+        with open(path) as f:
+            for line in f:
+                m = re.match(r"^\s*%s\s*=\s*(.*)" % re.escape(key), line)
+                if m:
+                    return m.group(1).split("#")[0].strip() or default
+    except OSError:
+        pass
+    return default
+
+
+def read_int_key(path, key, default, lo, hi):
+    v = read_key(path, key, "")
+    try:
+        n = int(v)
+    except ValueError:
+        return default
+    return max(lo, min(hi, n))
+
+
+def touch_config():
+    live = resolve_liveconf()
+    on = read_key(live, "touch", "off").lower() in ("on", "1", "yes", "true")
+    base = read_int_key(live, "touch_cc_base", DEFAULT_BASE, 0, 111)
+    chan = read_int_key(live, "touch_channel", DEFAULT_CHANNEL, 1, 16)
+    slots = read_int_key(live, "touch_slots", DEFAULT_SLOTS, 1, MAX_SLOTS)
+    return live, on, base, chan, slots
+
+
+# ---------------------------------------------------------------- calibration
+def resolve_calpath():
+    """touch-cal.conf lives next to live.conf (same resolution order)."""
+    live = resolve_liveconf()
+    if live:
+        return os.path.join(os.path.dirname(live), "touch-cal.conf")
+    home = os.environ.get("HOME", "")
+    for p in ([os.path.join(home, "demiurge/touch-cal.conf")] if home else []) + \
+            sorted(glob.glob("/home/*/demiurge/touch-cal.conf")):
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+class TouchCal:
+    """Raw→screen affine mapping from touch-cal.conf (written only by the
+    demiurge-touch-test calibrator on a confirmed run): optional axis swap,
+    then per-axis linear map given by the RAW values at the two screen edges
+    (inversion = min > max)."""
+
+    def __init__(self, swap_xy, rx0, rx1, ry0, ry1):
+        self.swap_xy = bool(swap_xy)
+        self.rx0, self.rx1 = float(rx0), float(rx1)
+        self.ry0, self.ry1 = float(ry0), float(ry1)
+
+    def apply_norm(self, rawx, rawy):
+        """(rawx, rawy) -> (nx, ny) in 0..1, clamped."""
+        if self.swap_xy:
+            rawx, rawy = rawy, rawx
+        nx = (rawx - self.rx0) / (self.rx1 - self.rx0)
+        ny = (rawy - self.ry0) / (self.ry1 - self.ry0)
+        return max(0.0, min(1.0, nx)), max(0.0, min(1.0, ny))
+
+    @classmethod
+    def load(cls, path):
+        if not path:
+            return None
+        try:
+            with open(path) as f:
+                text = f.read()
+        except OSError:
+            return None
+        kv = {}
+        for line in text.splitlines():
+            m = re.match(r"^\s*([a-z_]+)\s*=\s*([^#]*)", line)
+            if m:
+                kv[m.group(1)] = m.group(2).strip()
+        try:
+            cal = cls(int(kv.get("swap_xy", 0)),
+                      float(kv["raw_x_min"]), float(kv["raw_x_max"]),
+                      float(kv["raw_y_min"]), float(kv["raw_y_max"]))
+        except (KeyError, ValueError):
+            return None
+        if cal.rx0 == cal.rx1 or cal.ry0 == cal.ry1:
+            return None
+        return cal
+
+
+# ---------------------------------------------------------------- MIDI out
+class MidiOut:
+    """Virtual ALSA-seq output port, aconnect'ed into Midi Through 14:0 —
+    the same mechanism the arcade MidiEmitter uses (mido/rtmidi, installed
+    by setup-demiurge.sh)."""
+
+    def __init__(self, channel0):
+        import mido  # python3-mido + python3-rtmidi, present on the Pi
+        self._mido = mido
+        self.channel = channel0
+        self.out = mido.open_output(PORT_NAME, virtual=True)
+        self._connect_pool()
+
+    def _connect_pool(self):
+        """aconnect our virtual port -> Midi Through 14:0 (retry briefly;
+        non-fatal — the launcher's aconnect pass can also pick us up)."""
+        for _ in range(10):
+            client = self._own_client()
+            if client is not None:
+                r = subprocess.run(["aconnect", "%d:0" % client, "14:0"],
+                                   capture_output=True)
+                if r.returncode == 0 or b"already" in r.stderr.lower():
+                    print("[touch] aconnect %d:0 -> 14:0 (Midi Through)"
+                          % client, flush=True)
+                    return
+            time.sleep(0.3)
+        print("[touch] WARNING: could not aconnect to Midi Through 14:0",
+              flush=True)
+
+    def _own_client(self):
+        try:
+            out = subprocess.run(["aconnect", "-l"], capture_output=True,
+                                 text=True).stdout
+        except OSError:
+            return None
+        client = None
+        for line in out.splitlines():
+            m = re.match(r"client (\d+):", line)
+            if m:
+                client = int(m.group(1))
+            if PORT_NAME in line and client is not None and client != 14:
+                return client
+        return None
+
+    def cc(self, control, value):
+        self.out.send(self._mido.Message(
+            "control_change", channel=self.channel,
+            control=control, value=max(0, min(127, value))))
+
+
+# ---------------------------------------------------------------- daemon
+class Slot:
+    __slots__ = ("down", "rx", "ry", "rp", "dirty", "sent")
+
+    def __init__(self):
+        self.down = False
+        self.rx = self.ry = self.rp = -1   # RAW evdev values
+        self.dirty = False
+        self.sent = {}      # cc -> last emitted value
+
+
+class TouchDaemon:
+    def __init__(self, base, channel1, nslots):
+        self.base = base
+        self.channel1 = channel1
+        self.nslots = nslots
+        self.midi = MidiOut(channel1 - 1)
+        self.slots = [Slot() for _ in range(MAX_SLOTS)]
+        self.cur = 0                     # current MT slot (protocol B)
+        self.ranges = {}                 # axis code -> (min, max)
+        self.events = 0
+        self.xc, self.yc, self.pc = ABS_X, ABS_Y, ABS_PRESSURE
+        # calibration (touch-cal.conf), hot-reloaded on mtime change / SIGHUP
+        self.calpath = resolve_calpath()
+        self.cal = None
+        self.cal_mtime = None
+        self.cal_next_check = 0.0
+        self.cal_force = False
+        self.reload_cal(startup=True)
+
+    # ---- calibration hot-reload ---------------------------------------
+    def reload_cal(self, startup=False):
+        try:
+            mtime = os.stat(self.calpath).st_mtime if self.calpath else None
+        except OSError:
+            mtime = None
+        if not startup and mtime == self.cal_mtime and not self.cal_force:
+            return
+        self.cal_force = False
+        self.cal_mtime = mtime
+        cal = TouchCal.load(self.calpath) if mtime is not None else None
+        if (cal is None) != (self.cal is None) or not startup or cal is not None:
+            if cal is not None:
+                print("[touch] calibration %s: swap=%d x %.0f->%.0f y %.0f->%.0f"
+                      % (self.calpath, 1 if cal.swap_xy else 0,
+                         cal.rx0, cal.rx1, cal.ry0, cal.ry1), flush=True)
+            elif not startup or self.cal is not None:
+                print("[touch] calibration absent/invalid -> raw kernel range",
+                      flush=True)
+        self.cal = cal
+
+    def maybe_reload_cal(self):
+        """Cheap periodic check (~2 s) — called from the event loop."""
+        now = time.monotonic()
+        if now < self.cal_next_check and not self.cal_force:
+            return
+        self.cal_next_check = now + 2.0
+        self.reload_cal()
+
+    # ---- scaling / deadband -------------------------------------------
+    def scale(self, code, raw):
+        rng = self.ranges.get(code)
+        if not rng:
+            rng = (0, 4095)
+        mn, mx = rng
+        v = (raw - mn) * 127 // max(1, (mx - mn))
+        return max(0, min(127, v))
+
+    def scale_xy(self, s):
+        """Slot raw -> (ccx, ccy), -1 = don't emit. With a calibration both
+        axes are mapped together (swap/inversion need the pair); without one,
+        the previous per-axis kernel-range scaling applies."""
+        if self.cal is not None:
+            if s.rx >= 0 and s.ry >= 0:
+                nx, ny = self.cal.apply_norm(s.rx, s.ry)
+                return int(round(nx * 127)), int(round(ny * 127))
+            return -1, -1
+        cx = self.scale(self.xc, s.rx) if s.rx >= 0 else -1
+        cy = self.scale(self.yc, s.ry) if s.ry >= 0 else -1
+        return cx, cy
+
+    def emit(self, slot, cc, val, deadband=True):
+        """Change-only + ±1-CC deadband: re-emit only when the value moves by
+        >=2 CC steps or hits an endpoint (0/127)."""
+        last = slot.sent.get(cc)
+        if last is not None and deadband:
+            if val == last:
+                return
+            if abs(val - last) < 2 and val not in (0, 127):
+                return
+        elif last == val:
+            return
+        slot.sent[cc] = val
+        self.midi.cc(cc, val)
+
+    # ---- per-slot MIDI ------------------------------------------------
+    def flush_slot(self, i):
+        s = self.slots[i]
+        if i >= self.nslots or not s.dirty:
+            s.dirty = False
+            return
+        s.dirty = False
+        b = self.base + i * 3
+        state_cc = self.base + 12 + i
+        if s.down:
+            first = state_cc not in s.sent or s.sent.get(state_cc) != 127
+            cx, cy = self.scale_xy(s)
+            if cx >= 0:
+                self.emit(s, b, cx, deadband=not first)
+            if cy >= 0:
+                self.emit(s, b + 1, cy, deadband=not first)
+            self.emit(s, b + 2,
+                      self.scale(self.pc, s.rp) if s.rp >= 0 else 0,
+                      deadband=not first)
+            if first:
+                s.sent[state_cc] = 127
+                self.midi.cc(state_cc, 127)
+        else:
+            if s.sent.get(state_cc) != 0:
+                s.sent[state_cc] = 0
+                self.midi.cc(state_cc, 0)
+
+    def all_up(self):
+        for i in range(min(self.nslots, MAX_SLOTS)):
+            s = self.slots[i]
+            if s.down:
+                s.down = False
+                s.dirty = True
+                self.flush_slot(i)
+
+    # ---- event decoding -----------------------------------------------
+    def handle(self, etype, code, value, is_mt):
+        if etype == EV_ABS:
+            if code == ABS_MT_SLOT:
+                self.cur = value if 0 <= value < MAX_SLOTS else MAX_SLOTS - 1
+            elif code == ABS_MT_TRACKING_ID:
+                s = self.slots[self.cur]
+                s.down = value != -1
+                s.dirty = True
+            elif code == ABS_MT_POSITION_X:
+                s = self.slots[self.cur]
+                s.rx = value
+                s.dirty = True
+            elif code == ABS_MT_POSITION_Y:
+                s = self.slots[self.cur]
+                s.ry = value
+                s.dirty = True
+            elif code == ABS_MT_PRESSURE:
+                s = self.slots[self.cur]
+                s.rp = value
+                s.dirty = True
+            elif not is_mt:
+                # single-touch device -> slot 0
+                s = self.slots[0]
+                if code == ABS_X:
+                    s.rx = value
+                    s.dirty = True
+                elif code == ABS_Y:
+                    s.ry = value
+                    s.dirty = True
+                elif code == ABS_PRESSURE:
+                    s.rp = value
+                    s.dirty = True
+        elif etype == EV_KEY and code == BTN_TOUCH and not is_mt:
+            s = self.slots[0]
+            s.down = bool(value)
+            s.dirty = True
+        elif etype == EV_SYN and code == SYN_REPORT:
+            for i in range(MAX_SLOTS):
+                self.flush_slot(i)
+
+    # ---- main loop -----------------------------------------------------
+    def run(self):
+        stop = {"flag": False}
+
+        def _term(_sig, _frm):
+            stop["flag"] = True
+
+        def _hup(_sig, _frm):
+            self.cal_force = True     # SIGHUP -> re-read touch-cal.conf now
+
+        signal.signal(signal.SIGTERM, _term)
+        signal.signal(signal.SIGINT, _term)
+        signal.signal(signal.SIGHUP, _hup)
+
+        while not stop["flag"]:
+            found = find_touch_device()
+            if not found:
+                time.sleep(5)
+                continue
+            dev, name = found
+            try:
+                fd = open(dev, "rb", buffering=0)
+            except OSError as e:
+                print("[touch] cannot open %s: %s" % (dev, e), flush=True)
+                time.sleep(5)
+                continue
+
+            # axis ranges for scaling
+            self.ranges = {}
+            for code in (ABS_X, ABS_Y, ABS_PRESSURE,
+                         ABS_MT_POSITION_X, ABS_MT_POSITION_Y, ABS_MT_PRESSURE):
+                r = read_absinfo(fd, code)
+                if r:
+                    self.ranges[code] = r
+            is_mt = ABS_MT_POSITION_X in self.ranges
+            self.xc = ABS_MT_POSITION_X if is_mt else ABS_X
+            self.yc = ABS_MT_POSITION_Y if is_mt else ABS_Y
+            self.pc = ABS_MT_PRESSURE if ABS_MT_PRESSURE in self.ranges \
+                else ABS_PRESSURE
+            print("[touch] reading %s (%s)  mode=%s  slots=%d  ch%d CC%d-%d"
+                  % (dev, name, "MT-B" if is_mt else "single-touch",
+                     self.nslots, self.channel1, self.base, self.base + 15),
+                  flush=True)
+
+            import select as _select
+            try:
+                while not stop["flag"]:
+                    r, _, _ = _select.select([fd], [], [], 0.5)
+                    self.maybe_reload_cal()
+                    if not r:
+                        continue
+                    data = fd.read(EV_SIZE)
+                    if not data or len(data) < EV_SIZE:
+                        raise OSError("device gone")
+                    _s, _u, etype, code, value = struct.unpack(EV_FMT, data)
+                    self.events += 1
+                    self.handle(etype, code, value, is_mt)
+            except OSError:
+                print("[touch] device lost, re-detecting", flush=True)
+            finally:
+                try:
+                    fd.close()
+                except OSError:
+                    pass
+            self.all_up()
+            time.sleep(1)
+        self.all_up()
+        print("[touch] stopped", flush=True)
+
+
+def run_daemon():
+    live, on, base, chan, slots = touch_config()
+    if not on:
+        print("[touch] touch = off in %s -> nothing to do (exit 0)"
+              % (live or "live.conf"), flush=True)
+        return 0
+    TouchDaemon(base, chan, slots).run()
+    return 0
+
+
+# ---------------------------------------------------------------- CLI
+def write_touch_key(live, value):
+    """Set `touch = on|off` in live.conf. Quick read-modify-write (other
+    writers exist); appends a documented block if the key is missing."""
+    with open(live) as f:
+        text = f.read()
+    if re.search(r"(?m)^\s*touch\s*=", text):
+        new = re.sub(r"(?m)^(\s*touch\s*=\s*)\S+", r"\g<1>%s" % value, text, count=1)
+    else:
+        block = (
+            "\n# ---------- touch ----------\n"
+            "# Touchscreen -> MIDI CC (demiurge-touch.service). See\n"
+            "# demiurge/docs/config-reference.md for the CC map.\n"
+            "touch = %s\n" % value
+        )
+        new = text.rstrip("\n") + "\n" + block
+    tmp = live + ".tmp.touch"
+    with open(tmp, "w") as f:
+        f.write(new)
+    os.replace(tmp, live)
+
+
+def restart_service():
+    r = subprocess.run(["sudo", "-n", "systemctl", "restart", "demiurge-touch"],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        print("could not restart demiurge-touch (%s) — takes effect on next "
+              "restart/reboot" % (r.stderr.strip() or "sudo unavailable"))
+        return False
+    return True
+
+
+def status(machine=False):
+    live, on, base, chan, slots = touch_config()
+    found = find_touch_device()
+    dev, name = found if found else ("", "")
+    calpath = resolve_calpath()
+    cal = TouchCal.load(calpath)
+    if machine:
+        print("touch=%s|detected=%s|device=%s|name=%s|base=%d|channel=%d|slots=%d|cal=%s"
+              % ("on" if on else "off", "yes" if found else "no",
+                 dev, name, base, chan, slots, "yes" if cal else "no"))
+        return 0
+    print("touch      : %s   (%s)" % ("on" if on else "off", live or "no live.conf"))
+    print("device     : %s" % (("%s (%s)" % (dev, name)) if found else
+                               "none detected (touchscreen absent or overlay not loaded)"))
+    print("cal        : %s" % (("%s (swap=%d x %.0f→%.0f y %.0f→%.0f)"
+                                % (calpath, 1 if cal.swap_xy else 0, cal.rx0,
+                                   cal.rx1, cal.ry0, cal.ry1)) if cal else
+                               "none — raw kernel range (run demiurge-touch-test to calibrate)"))
+    print("midi       : ch%d, CC%d-%d (X/Y/pressure per slot + touch state), slots=%d"
+          % (chan, base, base + 15, slots))
+    r = subprocess.run(["systemctl", "is-active", "demiurge-touch"],
+                       capture_output=True, text=True)
+    print("service    : demiurge-touch %s" % (r.stdout.strip() or "unknown"))
+    return 0
+
+
+def main():
+    args = sys.argv[1:]
+    if not args:
+        return status()
+    a = args[0]
+    if a == "--daemon":
+        return run_daemon()
+    if a == "--status-machine":
+        return status(machine=True)
+    if a in ("on", "off"):
+        live = resolve_liveconf()
+        if not live:
+            print("no live.conf found", file=sys.stderr)
+            return 1
+        write_touch_key(live, a)
+        print("touch = %s written to %s" % (a, live))
+        restart_service()
+        return 0
+    print("usage: demiurge-touch [on|off|--daemon|--status-machine]",
+          file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

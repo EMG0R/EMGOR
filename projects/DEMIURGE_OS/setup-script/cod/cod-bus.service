@@ -1,0 +1,16 @@
+[Unit]
+Description=COD tank bus listener (cod listen). Delivers bus messages into the agent tmux session as INPUT.
+After=network-online.target
+
+# Demiurge-side fallback: used only when the COD repo does not ship its own
+# cod-bus.service. DORMANT by default: never enabled until the node joins a tank,
+# and guarded by 10-dormant-guard.conf (no ~/.cod-bus.conf => unit is skipped, no
+# connection attempt, no retry loop).
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/cod listen
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

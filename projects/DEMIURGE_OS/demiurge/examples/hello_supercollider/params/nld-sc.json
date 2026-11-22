@@ -1,0 +1,28 @@
+{
+  "stage": "nld-sc",
+  "port": 9000,
+  "version": 1,
+  "params": [
+    {
+      "path": "/nld-sc/density",
+      "label": "Density",
+      "default": 0.3,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-sc/tone",
+      "label": "Tone",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-sc/length",
+      "label": "Length",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+[package]
+name = "omniplex-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "omniplex_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "omniplex"
+path = "src/main.rs"
+
+[features]
+# "wiring" gates everything that touches omniplex-mux/omniplex-session (the session
+# facade + channel muxer, both under active parallel development). With it
+# off, the crate still builds and every pure-logic module (audio_core,
+# video, osc routing, serial pumps, ui/stats formatting, the bench math)
+# compiles and its unit tests run: `cargo test -p omniplex-cli --no-default-features`.
+# Normal `cargo build`/`cargo run` need it on (the default) to get a working
+# `omniplex run`/`omniplex bench`.
+default = ["wiring"]
+wiring = ["dep:omniplex-mux", "dep:omniplex-session"]
+
+[dependencies]
+omniplex-wire = { workspace = true }
+omniplex-transport = { workspace = true }
+omniplex-discovery = { workspace = true }
+omniplex-clock = { workspace = true }
+omniplex-mux = { workspace = true, optional = true }
+omniplex-metrics = { workspace = true }
+omniplex-session = { workspace = true, optional = true }
+
+tokio = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+midir = { workspace = true }
+cpal = { workspace = true }
+rtrb = { workspace = true }
+rubato = { workspace = true }
+serialport = { workspace = true }
+rand = { workspace = true }
+
+# Real screen-capture backend (bridge::screen_capture): Linux-only, since
+# this bridges a Raspberry Pi's own display. Kept out of the default
+# dependency graph so `cargo build`/`cargo test` on other platforms (this
+# crate is developed/tested on macOS) never even resolve these.
+[target.'cfg(target_os = "linux")'.dependencies]
+# Full-screen/region capture: XCB + MIT-SHM `GetImage`, in-tree Linux X11
+# backend. Last released 2021 and lightly maintained upstream, but it's the
+# standard lightweight choice for this (also the base rustdesk forked from)
+# and its X11 capture path is small enough to read/audit in full.
+scrap = "0.5"
+# Single-window capture: XComposite redirection + window enumeration. Pure
+# Rust, actively maintained, no libX11/libxcb C dependency.
+x11rb = { version = "0.14", features = ["composite"] }

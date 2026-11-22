@@ -1,0 +1,85 @@
+// PocketPassthru — Pocket OpGorator
+// Raw audio passthrough (no DSP), OLED hello world, and BUTTONLESS USB reflash.
+//
+// Buttonless flashing:
+//   Send MIDI CC 119 value 127 to the board (USB MIDI device "Daisy Seed").
+//   System::ResetToBootloader(STM) drives PG3 -> BOOT0 high, then resets, so the
+//   STM32H7 ROM DFU bootloader comes up with NO button press. Reflash, done.
+//
+// Synthesis is intentionally commented out — input goes straight to output.
+
+#include "daisy_seed.h"
+#include "dev/oled_ssd130x.h"
+#include "hid/midi.h"
+
+using namespace daisy;
+
+using MyOled = OledDisplay<SSD130x4WireSpi128x64Driver>;
+
+DaisySeed      hw;
+MyOled         display;
+MidiUsbHandler midi;
+
+// ================================================================
+// AUDIO — RAW PASSTHROUGH (no DSP)
+// ================================================================
+void AudioCallback(AudioHandle::InputBuffer  in,
+                   AudioHandle::OutputBuffer out,
+                   size_t                    size)
+{
+    for(size_t i = 0; i < size; i++)
+    {
+        out[0][i] = in[0][i]; // L: input straight to output
+        out[1][i] = in[1][i]; // R: input straight to output
+    }
+
+    // --- SYNTHESIS DISABLED ---
+    // for(size_t i = 0; i < size; i++)
+    // {
+    //     float sig = osc.Process();   // oscillator / sample playback / effects
+    //     out[0][i] = sig;
+    //     out[1][i] = sig;
+    // }
+}
+
+int main(void)
+{
+    hw.Init();
+    hw.SetAudioBlockSize(48);
+
+    // ---- USB MIDI (internal peripheral) — carries reboot-to-DFU command ----
+    MidiUsbHandler::Config mcfg;
+    mcfg.transport_config.periph = MidiUsbTransport::Config::INTERNAL;
+    midi.Init(mcfg);
+
+    // ---- OLED (SPI1: DC=D3, RST=D4, CS=D7, SCK=D8, MOSI=D10) ----
+    MyOled::Config oc;
+    oc.driver_config.transport_config.pin_config.dc    = hw.GetPin(3);
+    oc.driver_config.transport_config.pin_config.reset = hw.GetPin(4);
+    display.Init(oc);
+    display.Fill(false);
+    display.SetCursor(20, 16); display.WriteString("HELLO", Font_11x18, true);
+    display.SetCursor(20, 38); display.WriteString("EMORY", Font_11x18, true);
+    display.Update();
+
+    hw.StartAudio(AudioCallback);
+    midi.StartReceive();
+
+    while(1)
+    {
+        midi.Listen();
+        while(midi.HasEvents())
+        {
+            MidiEvent ev = midi.PopEvent();
+            if(ev.type == ControlChange)
+            {
+                ControlChangeEvent cc = ev.AsControlChange();
+                if(cc.control_number == 119 && cc.value == 127)
+                {
+                    // Buttonless DFU: PG3 -> BOOT0 high + system reset -> ROM DFU
+                    System::ResetToBootloader(System::BootloaderMode::STM);
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,38 @@
+% uncertainty.tex — "Uncertainty as Vocabulary", \input from septagraph.tex.
+
+Every coordinate on the wire carries a $\sigma$ alongside its $\mu$
+(Sec.~\ref{sec:space}), and $\sigma$ is not measurement noise to be
+minimized: it is the renderer's declared liberty to deviate from the
+requested point, and a controller sets it on purpose. In v1, $\sigma$
+is authored --- fixed by a manifest point's measurement uncertainty, or
+set explicitly by a controller preset; a future controller model could
+instead derive it from the entropy of its own predictive mixture over
+where the player is heading, wide when unsure, narrow when confident,
+but that derivation is design, not something this paper builds or
+measures.
+
+What $\sigma$ licenses depends on the renderer. A continuous synthesis
+engine draws once per hit from within $\mu \pm \sigma$ on each axis ---
+the reference ChucK renderer samples a single point per onset rather
+than wandering continuously mid-note, so a wide $\sigma$ is heard as
+hit-to-hit variation, not vibrato. A catalog renderer instead treats
+$\sigma$ as \emph{orchestration freedom}: given $\sigma > 0$ it may
+realize the hit at any catalog point within $\sigma$ per axis rather
+than the nearest one, and with $\sigma = 0$ it always picks nearest ---
+this is implemented, not proposed (\texttt{within\_sigma} selection over
+the measured catalog). Concretely, $\sigma = 1$ on an axis tells a
+renderer ``your choice on this axis,'' the same abdication a
+controller makes implicitly whenever MIDI leaves an instrument's timbre
+unspecified; Septagraph just gives that abdication a number instead of
+leaving it silent.
+
+$\sigma$ (spread) is not extent (Sec.~\ref{sec:window}): extent is the
+controller's playable range and never leaves the controller, while
+$\sigma$ travels with the coordinate and is the renderer's business.
+The two combine, not compete, when a shape rides a hit: a knot's own
+spread and the triggering hit's spread add in quadrature,
+\begin{equation}
+\sigma_{\mathrm{eff}} = \sqrt{\sigma_{\mathrm{hit}}^2 + \sigma_{\mathrm{knot}}^2},
+\end{equation}
+so a precise hit under a loose shape, or a loose hit under a precise
+shape, both still yield one well-defined liberty at render time.

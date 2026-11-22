@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# demiurge-thaw — resume the stage-level freeze; synth continues on the exact
+# sample. Inverse of demiurge-freeze. SIGCONT is a harmless no-op on processes
+# that were never stopped, so we just CONT every proc in the cgroup. Runs as
+# gorpi7 (owns the procs) — no sudo.
+#
+# Usage: demiurge-thaw [unit]   (default: demiurge.service)
+set -uo pipefail
+UNIT="${1:-demiurge.service}"
+CG="$(systemctl show "$UNIT" -p ControlGroup --value 2>/dev/null)"
+F="/sys/fs/cgroup${CG}/cgroup.procs"
+if [ -z "$CG" ] || [ ! -r "$F" ]; then
+  echo "[thaw] no readable cgroup for $UNIT — nothing to resume"; exit 0
+fi
+
+n=0
+for pid in $(cat "$F" 2>/dev/null); do
+  kill -CONT "$pid" 2>/dev/null && n=$((n + 1))
+done
+echo "[thaw] sent SIGCONT to $n process(es) in $UNIT"

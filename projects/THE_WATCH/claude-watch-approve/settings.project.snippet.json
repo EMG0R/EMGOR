@@ -1,0 +1,23 @@
+{
+  "//": "==================================================================",
+  "//1": "PROJECT form -> <your-project>/.claude/settings.json (checked in or",
+  "//2": ".local). Same as the global form but you can use $CLAUDE_PROJECT_DIR",
+  "//3": "if you copy the hook into the project. Here we still point at the one",
+  "//4": "canonical hook via absolute path so parallel sessions share one cache.",
+  "//5": "MERGE the 'hooks' key into the project's existing settings.json.",
+  "//6": "==================================================================",
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit|WebFetch|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/emgor/Documents/_EMGOR_SYNTH/______2026NEW/the_watch/claude-watch-approve/watch_approve_hook.py"
+          }
+        ]
+      }
+    ]
+  }
+}

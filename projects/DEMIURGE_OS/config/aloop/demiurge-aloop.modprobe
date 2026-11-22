@@ -1,0 +1,2 @@
+# DEMIURGE virtual interface: fixed card index, stable id, 2 substreams.
+options snd-aloop index=10 id=DemiurgeLoop pcm_substreams=2

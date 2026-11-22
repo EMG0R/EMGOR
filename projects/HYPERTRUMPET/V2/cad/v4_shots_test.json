@@ -1,0 +1,7 @@
+[
+ {"name":"c_wrap.png","loc":[1080,700,230],"tgt":[1100,545,100],"lens":55},
+ {"name":"c_under.png","loc":[1100,430,50],"tgt":[1100,545,100],"lens":55,"hide":["REF_HORN"]},
+ {"name":"c_mic.png","loc":[1290,640,240],"tgt":[1175,560,150],"lens":55},
+ {"name":"c_bottom.png","loc":[853,520,-300],"tgt":[853,535,-20],"lens":45,"hide":["REF_HORN"]},
+ {"name":"c_mouth.png","loc":[560,555,-5],"tgt":[790,550,10],"lens":45}
+]

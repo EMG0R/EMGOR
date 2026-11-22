@@ -1,0 +1,178 @@
+{
+ "v1_main_mm3": 268248.25,
+ "v3_mm3": 278396.75,
+ "rail_mm3": 14360.625,
+ "changes": [
+  {
+   "removed_mm3": 1342.8,
+   "centre": [
+    775.1,
+    502.7,
+    25.4
+   ],
+   "bbox_lo": [
+    751.0,
+    497.0,
+    23.5
+   ],
+   "bbox_hi": [
+    800.5,
+    507.0,
+    27.5
+   ],
+   "nearest_horn_item": "slide3_leg0"
+  },
+  {
+   "removed_mm3": 863.1,
+   "centre": [
+    759.2,
+    501.7,
+    39.8
+   ],
+   "bbox_lo": [
+    747.0,
+    496.5,
+    36.5
+   ],
+   "bbox_hi": [
+    791.0,
+    507.0,
+    43.0
+   ],
+   "nearest_horn_item": "slide3_crown"
+  },
+  {
+   "removed_mm3": 435.4,
+   "centre": [
+    891.2,
+    512.7,
+    27.4
+   ],
+   "bbox_lo": [
+    888.0,
+    505.5,
+    21.5
+   ],
+   "bbox_hi": [
+    895.0,
+    516.5,
+    35.0
+   ],
+   "nearest_horn_item": "slide1_leg0"
+  },
+  {
+   "removed_mm3": 406.9,
+   "centre": [
+    891.3,
+    513.1,
+    46.9
+   ],
+   "bbox_lo": [
+    888.0,
+    509.5,
+    40.0
+   ],
+   "bbox_hi": [
+    894.5,
+    516.5,
+    53.5
+   ],
+   "nearest_horn_item": "slide1_leg1"
+  },
+  {
+   "removed_mm3": 289.9,
+   "centre": [
+    831.8,
+    518.6,
+    54.0
+   ],
+   "bbox_lo": [
+    827.5,
+    518.0,
+    24.5
+   ],
+   "bbox_hi": [
+    835.5,
+    519.0,
+    79.5
+   ],
+   "nearest_horn_item": "casing1"
+  },
+  {
+   "removed_mm3": 140.0,
+   "centre": [
+    853.2,
+    518.9,
+    56.0
+   ],
+   "bbox_lo": [
+    850.0,
+    518.5,
+    33.0
+   ],
+   "bbox_hi": [
+    856.0,
+    519.0,
+    82.5
+   ],
+   "nearest_horn_item": "casing2"
+  },
+  {
+   "removed_mm3": 87.0,
+   "centre": [
+    906.6,
+    494.6,
+    122.0
+   ],
+   "bbox_lo": [
+    903.5,
+    492.0,
+    120.0
+   ],
+   "bbox_hi": [
+    910.5,
+    497.0,
+    123.5
+   ],
+   "nearest_horn_item": "saddle_hook"
+  },
+  {
+   "removed_mm3": 36.8,
+   "centre": [
+    816.2,
+    500.6,
+    21.8
+   ],
+   "bbox_lo": [
+    812.5,
+    496.5,
+    21.5
+   ],
+   "bbox_hi": [
+    821.0,
+    504.0,
+    22.5
+   ],
+   "nearest_horn_item": "slide3_leg0"
+  },
+  {
+   "removed_mm3": 14.6,
+   "centre": [
+    874.4,
+    519.0,
+    38.2
+   ],
+   "bbox_lo": [
+    873.0,
+    519.0,
+    34.0
+   ],
+   "bbox_hi": [
+    877.0,
+    519.0,
+    45.5
+   ],
+   "nearest_horn_item": "casing3"
+  }
+ ]
+}

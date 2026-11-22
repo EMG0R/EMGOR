@@ -1,0 +1,30 @@
+1) try the portal first: https://cmt3.research.microsoft.com/CSOUND2026
+   if it still accepts submissions, upload paper/nam-csound-icsc.pdf and stop here.
+
+2) if the portal is closed, email the chairs NOW (attach paper/nam-csound-icsc.pdf):
+
+To: icsc2026@constp.it
+Subject: ICSC 2026 paper submission — a few hours past the deadline
+
+Dear ICSC 2026 organizers,
+
+I completed a paper submission for ICSC 2026, "Integrating Neural Amp
+Modeling into Csound," but missed tonight's 23:59 deadline by a few
+hours. I sincerely apologize for the lateness.
+
+The manuscript is finished and attached (llncs template, 4 pages plus a
+references-only fifth page, anonymized per the double-blind
+instructions). If it is still possible to include it in the review, I
+would be very grateful — I am also happy to upload it through CMT if
+the track can be reopened briefly.
+
+The paper presents a Csound opcode for real-time Neural Amp Modeler
+inference — to my knowledge the first neural network inference
+integrated into Csound — with a Cabbage plugin and a Raspberry Pi
+guitar pedal deployment.
+
+Thank you for considering it, and thank you for organizing the
+conference.
+
+Best regards,
+[YOUR NAME]

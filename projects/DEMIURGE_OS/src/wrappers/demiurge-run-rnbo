@@ -1,0 +1,100 @@
+#!/bin/bash
+# demiurge-run-rnbo <patchname.rnbo>
+#
+# DEMIURGE stage wrapper for an RNBO patch. Unlike the other languages,
+# RNBO patches are NOT compiled or hosted per-stage: they live in the
+# always-on `rnbo-runner.service` (a compile-enabled rnbo.oscquery.runner
+# built from source, running as a pipewire-jack client). Max pushes a
+# patcher to that runner over the network; the runner compiles it on-device
+# and stores it by name.
+#
+# This wrapper LOADS the named patcher into runner instance slot 0 via OSC,
+# then stays alive POLLING for new pushes. Loading the patcher makes the
+# runner register a JACK client "<patchname>-0" whose audio outs the
+# launcher's graph applier wires into the chain.
+#
+# AUTO-RELOAD ON PUSH: when you re-export the SAME patcher name from Max, the
+# always-on runner compiles a fresh .so and bumps the patcher's `created_at`.
+# The loaded instance in slot 0 does NOT switch on its own. So we poll
+# created_at and, when it changes, unload+reload slot 0 (stop + rerun the
+# instance with the new code). The launcher detects the new "<patchname>-0"
+# JACK client and re-wires it into the chain automatically — no other action
+# needed. Tune the poll with RNBO_RELOAD_POLL (seconds, default 2); set it to
+# 0 to disable auto-reload and just block.
+#
+# The patcher name is the file basename without extension:
+#   untitled.rnbo  ->  patcher "untitled"  ->  JACK client "untitled-0"
+# The token does not need to exist as a file on disk; the patcher lives in
+# the runner's store. Rename the live.conf token to match whatever you
+# named the patch when you exported it from Max.
+set -u
+source /opt/demiurge/lib/demiurge-env.sh 2>/dev/null || source "$(dirname "$0")/../lib/demiurge-env.sh"
+
+ARG="${1:-}"
+if [[ -z "$ARG" ]]; then
+    echo "usage: demiurge-run-rnbo <patchname.rnbo>" >&2
+    exit 1
+fi
+
+base="$(basename "$ARG")"
+PATCHER="${base%.*}"            # strip extension -> patcher name
+OSC_PORT="${RNBO_OSC_PORT:-1234}"
+HTTP_PORT="${RNBO_HTTP_PORT:-5678}"
+SLOT=0
+
+cleanup() {
+    # Best-effort unload so a removed rnbo stage doesn't linger in the runner.
+    oscsend localhost "$OSC_PORT" /rnbo/inst/control/unload i "$SLOT" 2>/dev/null || true
+    exit 0
+}
+trap cleanup TERM INT
+
+# Wait (up to ~30s) for the always-on runner's OSCQuery HTTP to answer.
+ready=0
+for _ in $(seq 1 60); do
+    if curl -sf -o /dev/null "http://localhost:${HTTP_PORT}/rnbo/info/version"; then
+        ready=1; break
+    fi
+    sleep 0.5
+done
+if [[ "$ready" -ne 1 ]]; then
+    echo "demiurge-run-rnbo: rnbo-runner not reachable on :${HTTP_PORT} — is rnbo-runner.service up?" >&2
+fi
+
+load_slot() {
+    oscsend localhost "$OSC_PORT" /rnbo/inst/control/load is "$SLOT" "$PATCHER"
+}
+
+# created_at is the patcher's last-compile timestamp; it changes on every push
+# but NOT on a plain reload, so our own reloads never retrigger the loop.
+marker() {
+    curl -sf --max-time 2 "http://localhost:${HTTP_PORT}/rnbo/patchers/${PATCHER}/created_at" 2>/dev/null \
+        | sed -n 's/.*"VALUE":"\([^"]*\)".*/\1/p'
+}
+
+echo "demiurge-run-rnbo: loading patcher '$PATCHER' into slot $SLOT" >&2
+load_slot
+
+POLL="${RNBO_RELOAD_POLL:-2}"
+if [[ "$POLL" == "0" ]]; then
+    # Auto-reload disabled: just block until the launcher sends SIGTERM.
+    while true; do sleep 3600 & wait $!; done
+fi
+
+# Establish the baseline marker (retry briefly so a slow runner doesn't make
+# us mistake "not answered yet" for a new compile).
+last=""
+for _ in $(seq 1 5); do last="$(marker)"; [[ -n "$last" ]] && break; sleep 1; done
+
+# Poll for new pushes. `sleep & wait` keeps SIGTERM responsive (trap fires).
+while true; do
+    sleep "$POLL" & wait $!
+    cur="$(marker)"
+    if [[ -n "$cur" && "$cur" != "$last" ]]; then
+        echo "demiurge-run-rnbo: new compile of '$PATCHER' detected ($last -> $cur); reloading slot $SLOT" >&2
+        oscsend localhost "$OSC_PORT" /rnbo/inst/control/unload i "$SLOT" 2>/dev/null || true
+        sleep 1
+        load_slot
+        last="$cur"
+    fi
+done

@@ -1,0 +1,4 @@
+seconds 1.5
+set drums.pad.0.sound 18
+at 0.0 drum 0 1.0
+at 0.7 drum 0 0.8

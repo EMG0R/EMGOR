@@ -1,0 +1,15 @@
+{
+ "notch_x": [
+  805.9,
+  894.1
+ ],
+ "notch_y": [
+  519.0,
+  548.0
+ ],
+ "notch_z_from": 116.4,
+ "volume_before_cm3": 250.92,
+ "volume_after_cm3": 250.71,
+ "removed_cm3": 0.21,
+ "bodies_after": 1
+}

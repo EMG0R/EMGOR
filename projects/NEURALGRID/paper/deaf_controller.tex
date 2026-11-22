@@ -1,0 +1,35 @@
+% deaf_controller.tex — "The Deaf Controller", \input from septagraph.tex.
+
+The architecture commits to a separation stronger than convenience: the
+controller side never hears audio, and the renderer side never sees
+the player. Neither side models the other directly; they meet only in
+the shared coordinate space, through messages that carry a position
+and a liberty and nothing about who sent them or why. This is what
+keeps a synthesis engine, a physical instrument, and eventually a
+predictive model interchangeable on either side of the protocol ---
+none of them needs to know what the others are.
+
+The window (Sec.~\ref{sec:window}) is the only mapping mechanism
+between a gesture and a coordinate, and it is deterministic and
+inspectable: center, extent, and an assignment table, applied by fixed
+arithmetic with no model in the loop. Any intelligence placed on the
+controller side is restricted to one authority --- moving, resizing,
+and reassigning the window \emph{between} gestures, on the slow plane
+--- and is categorically forbidden from touching \texttt{/hit} or
+\texttt{/move}: those two message types are emitted by the window
+projection alone, every time, regardless of what does or does not sit
+behind it.
+
+That restriction is also a cold-start law: the system is fully usable
+with no model present, because a model was never load-bearing for
+basic operation, only for automating window placement a player would
+otherwise do by hand. Every demo in this paper --- every renderer,
+every controller geometry, the latency measurement in
+Sec.~\ref{sec:eval} --- runs exactly this way, model-free. The
+predictive, deaf-aimed sequence model sketched for the window is future
+work; this paper evaluates the protocol and the window on their own
+merits and does not claim a working predictive model. That claim is
+not a hedge so much as a structural guarantee: because the fast plane
+is pure arithmetic with no branch for ``is a model attached,'' the
+latency measurement in Sec.~\ref{sec:eval} is what model-on looks like
+too --- there is no separate code path for the model to slow down.

@@ -18,7 +18,7 @@
 const { getStore, connectLambda } = require('@netlify/blobs');
 
 const IDS = ['digital-luthier', 'neptr-performance-system', 'neuralgrid', 'demiurgeos',
-    'thesis', 'nam-csound', 'bouba', 'omniplex', 'open-pedal'];
+    'thesis', 'nam-csound', 'bouba', 'omniplex', 'open-pedal', 'reckless-lutherie'];
 const MAX_BODY = 500 * 1024;
 
 function json(statusCode, obj) {

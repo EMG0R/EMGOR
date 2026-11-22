@@ -1,0 +1,12 @@
+#!/bin/bash
+# demiurge-set — DEPRECATED ALIAS for demiurge-patch. No logic lives here.
+# Kept so demiurge_web.py (actions.patch), the TUI companion and NEPTR's
+# NEPTR_PATCH_CMD ("demiurge-set {name}") keep working unchanged.
+# Same args, same behaviour: demiurge-set [<name>]  ==  demiurge-patch [<name>]
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+for p in "$here/demiurge-patch" /opt/demiurge/bin/demiurge-patch /usr/local/bin/demiurge-patch; do
+    [ -x "$p" ] && exec "$p" "$@"
+done
+if command -v demiurge-patch >/dev/null 2>&1; then exec demiurge-patch "$@"; fi
+echo "demiurge-set: demiurge-patch not found (install it beside demiurge-set)" >&2
+exit 1

@@ -1,0 +1,852 @@
+{
+ "parts": {
+  "battery_drawer": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 25.45,
+   "bbox_mm": [
+    80.1,
+    47.7,
+    24.3
+   ],
+   "fits_bed": true
+  },
+  "coupon_grip_ring_c02": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 3.04,
+   "bbox_mm": [
+    24.8,
+    24.8,
+    14.0
+   ],
+   "fits_bed": true
+  },
+  "coupon_grip_ring_c04": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 3.09,
+   "bbox_mm": [
+    25.2,
+    25.2,
+    14.0
+   ],
+   "fits_bed": true
+  },
+  "coupon_grip_ring_c06": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 3.15,
+   "bbox_mm": [
+    25.6,
+    25.6,
+    14.0
+   ],
+   "fits_bed": true
+  },
+  "coupon_spiral_segment": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 8.2,
+   "bbox_mm": [
+    43.8,
+    47.8,
+    54.4
+   ],
+   "fits_bed": true
+  },
+  "elec_bay_cap": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 7.97,
+   "bbox_mm": [
+    12.9,
+    30.0,
+    30.3
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 43.96,
+   "closest_horn_item": "botcap1",
+   "horn_clear_items": {
+    "botcap1": 43.96,
+    "casing1": 49.78,
+    "botcap2": 57.79,
+    "casing2": 62.54,
+    "slide3_leg0": 62.58,
+    "slide3_crown": 68.5
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 51.56,
+    "slide1_travel": 94.84,
+    "ring3_finger": 65.12,
+    "saddle_thumb": 159.04,
+    "hall_rail_zone": 135.79,
+    "button_fingers": 147.76,
+    "waterkey3_assumed": 56.05,
+    "waterkey_tuning_assumed": 245.63
+   }
+  },
+  "hall_rail_49E": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 3.97,
+   "bbox_mm": [
+    68.7,
+    24.6,
+    8.4
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 0.25,
+   "closest_horn_item": "cap2",
+   "horn_clear_items": {
+    "cap2": 0.25,
+    "cap1": 0.25,
+    "cap3": 0.27,
+    "stem2": 1.25,
+    "stem1": 1.25,
+    "stem3": 1.3
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 52.35,
+    "slide1_travel": 52.35,
+    "ring3_finger": 21.49,
+    "saddle_thumb": 5.45,
+    "hall_rail_zone": -6.75,
+    "button_fingers": 1.55,
+    "waterkey3_assumed": 95.05,
+    "waterkey_tuning_assumed": 150.75
+   }
+  },
+  "mic_angle_insert_00deg": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 8.69,
+   "bbox_mm": [
+    22.0,
+    22.0,
+    28.5
+   ],
+   "fits_bed": true
+  },
+  "mic_angle_insert_10deg": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 8.64,
+   "bbox_mm": [
+    24.3,
+    22.0,
+    30.2
+   ],
+   "fits_bed": true
+  },
+  "mic_angle_insert_20deg": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 8.53,
+   "bbox_mm": [
+    25.8,
+    22.0,
+    31.4
+   ],
+   "fits_bed": true
+  },
+  "mic_angle_insert_30deg": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 8.4,
+   "bbox_mm": [
+    27.3,
+    22.0,
+    32.1
+   ],
+   "fits_bed": true
+  },
+  "mount_arms_plate": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 272.03,
+   "bbox_mm": [
+    217.5,
+    61.9,
+    147.5
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 1.24,
+   "closest_horn_item": "casing3",
+   "horn_clear_items": {
+    "casing3": 1.24,
+    "casing2": 1.24,
+    "casing1": 1.24,
+    "botcap1": 2.41,
+    "botcap3": 2.81,
+    "bell": 2.95
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 0.34,
+    "slide1_travel": 0.33,
+    "ring3_finger": 0.09,
+    "saddle_thumb": 0.14,
+    "hall_rail_zone": 0.71,
+    "button_fingers": 0.48,
+    "waterkey3_assumed": 0.79,
+    "waterkey_tuning_assumed": 94.21
+   },
+   "min_clear_to_model_tubes_shell_mm": 1.36
+  },
+  "palm_rest_dome": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 214.52,
+   "bbox_mm": [
+    112.0,
+    86.9,
+    50.0
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 9.6,
+   "closest_horn_item": "botcap3",
+   "horn_clear_items": {
+    "botcap3": 9.6,
+    "botcap2": 9.6,
+    "botcap1": 9.6,
+    "casing3": 18.6,
+    "casing1": 18.6,
+    "casing2": 18.6
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 29.4,
+    "slide1_travel": 29.4,
+    "ring3_finger": 55.14,
+    "saddle_thumb": 107.76,
+    "hall_rail_zone": 121.6,
+    "button_fingers": 135.1,
+    "waterkey3_assumed": 44.19,
+    "waterkey_tuning_assumed": 140.21
+   }
+  },
+  "pod_face_panel": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 77.27,
+   "bbox_mm": [
+    121.6,
+    17.6,
+    134.8
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 8.22,
+   "closest_horn_item": "bell",
+   "horn_clear_items": {
+    "bell": 8.22,
+    "cap3": 15.2,
+    "botcap3": 15.95,
+    "casing3": 16.7,
+    "cap2": 18.91,
+    "slide1_leg0": 19.4
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 28.9,
+    "slide1_travel": 13.4,
+    "ring3_finger": 10.2,
+    "saddle_thumb": 4.75,
+    "hall_rail_zone": 10.7,
+    "button_fingers": 5.81,
+    "waterkey3_assumed": 58.97,
+    "waterkey_tuning_assumed": 100.3
+   }
+  },
+  "spiral_diffuser": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 6.24,
+   "bbox_mm": [
+    117.6,
+    69.9,
+    69.1
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 4.69,
+   "closest_horn_item": "bell",
+   "horn_clear_items": {
+    "bell": 4.69,
+    "leadpipe": 6.56,
+    "brace": 19.97,
+    "slide1_crown": 35.18,
+    "slide1_leg1": 37.13,
+    "slide1_leg0": 51.97
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 176.62,
+    "slide1_travel": 8.92,
+    "ring3_finger": 161.75,
+    "saddle_thumb": 71.73,
+    "hall_rail_zone": 120.14,
+    "button_fingers": 117.07,
+    "waterkey3_assumed": 245.85,
+    "waterkey_tuning_assumed": 13.05
+   }
+  },
+  "spiral_ribbon_mic_arm": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 47.48,
+   "bbox_mm": [
+    173.4,
+    71.3,
+    134.4
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 1.44,
+   "closest_horn_item": "bell",
+   "horn_clear_items": {
+    "bell": 1.44,
+    "leadpipe": 8.06,
+    "brace": 19.48,
+    "slide1_crown": 28.67,
+    "slide1_leg1": 28.91,
+    "slide1_leg0": 47.09
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 170.24,
+    "slide1_travel": 7.66,
+    "ring3_finger": 156.36,
+    "saddle_thumb": 69.18,
+    "hall_rail_zone": 116.66,
+    "button_fingers": 114.53,
+    "waterkey3_assumed": 238.63,
+    "waterkey_tuning_assumed": 12.25
+   }
+  },
+  "tpu_pad_01": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.91,
+   "bbox_mm": [
+    30.0,
+    8.0,
+    15.6
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 8.72,
+   "closest_horn_item": "casing2",
+   "horn_clear_items": {
+    "casing2": 8.72,
+    "casing1": 10.37,
+    "casing3": 10.4,
+    "cap2": 10.68,
+    "cap3": 11.5,
+    "cap1": 11.83
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 34.51,
+    "slide1_travel": 34.81,
+    "ring3_finger": 15.82,
+    "saddle_thumb": 25.02,
+    "hall_rail_zone": 5.74,
+    "button_fingers": 16.14,
+    "waterkey3_assumed": 96.18,
+    "waterkey_tuning_assumed": 165.78
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "tpu_pad_02": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.83,
+   "bbox_mm": [
+    29.9,
+    5.0,
+    17.7
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 1.19,
+   "closest_horn_item": "bell",
+   "horn_clear_items": {
+    "bell": 1.19,
+    "cap3": 22.21,
+    "casing3": 23.36,
+    "leadpipe": 29.62,
+    "stem3": 32.58,
+    "saddle_hook": 33.5
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 74.4,
+    "slide1_travel": 31.21,
+    "ring3_finger": 65.74,
+    "saddle_thumb": -1.21,
+    "hall_rail_zone": 12.21,
+    "button_fingers": 16.69,
+    "waterkey3_assumed": 146.31,
+    "waterkey_tuning_assumed": 109.52
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "tpu_pad_03": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.91,
+   "bbox_mm": [
+    30.3,
+    7.0,
+    16.4
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 9.33,
+   "closest_horn_item": "casing3",
+   "horn_clear_items": {
+    "casing3": 9.33,
+    "cap3": 10.66,
+    "casing2": 16.14,
+    "cap2": 16.41,
+    "stem3": 21.96,
+    "stem2": 27.25
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 49.55,
+    "slide1_travel": 31.28,
+    "ring3_finger": 39.96,
+    "saddle_thumb": -1.17,
+    "hall_rail_zone": 6.0,
+    "button_fingers": 15.76,
+    "waterkey3_assumed": 120.07,
+    "waterkey_tuning_assumed": 136.73
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "tpu_pad_04": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.87,
+   "bbox_mm": [
+    30.0,
+    8.4,
+    15.6
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 7.82,
+   "closest_horn_item": "casing1",
+   "horn_clear_items": {
+    "casing1": 7.82,
+    "cap1": 10.27,
+    "casing2": 13.15,
+    "cap2": 14.61,
+    "stem1": 21.61,
+    "stem2": 25.57
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 33.82,
+    "slide1_travel": 54.49,
+    "ring3_finger": -0.71,
+    "saddle_thumb": 54.46,
+    "hall_rail_zone": 5.32,
+    "button_fingers": 16.12,
+    "waterkey3_assumed": 77.61,
+    "waterkey_tuning_assumed": 194.72
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "tpu_pad_05": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.69,
+   "bbox_mm": [
+    14.7,
+    4.0,
+    29.4
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": -0.29,
+   "closest_horn_item": "casing2",
+   "horn_clear_items": {
+    "casing2": -0.29,
+    "casing1": 6.42,
+    "casing3": 7.09,
+    "cap2": 19.78,
+    "leadpipe": 21.1,
+    "slide1_leg1": 21.78
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 11.69,
+    "slide1_travel": 23.48,
+    "ring3_finger": 14.28,
+    "saddle_thumb": 41.25,
+    "hall_rail_zone": 18.78,
+    "button_fingers": 32.28,
+    "waterkey3_assumed": 83.07,
+    "waterkey_tuning_assumed": 169.84
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.29
+  },
+  "tpu_pad_06": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.94,
+   "bbox_mm": [
+    30.3,
+    4.0,
+    30.6
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": -0.3,
+   "closest_horn_item": "casing2",
+   "horn_clear_items": {
+    "casing2": -0.3,
+    "casing3": -0.2,
+    "casing1": 1.65,
+    "slide1_leg1": 9.75,
+    "slide1_leg0": 10.42,
+    "slide3_leg0": 18.08
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 6.55,
+    "slide1_travel": 13.88,
+    "ring3_finger": 15.11,
+    "saddle_thumb": 50.34,
+    "hall_rail_zone": 47.72,
+    "button_fingers": 61.22,
+    "waterkey3_assumed": 69.43,
+    "waterkey_tuning_assumed": 160.44
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.29
+  },
+  "tpu_pad_07": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.82,
+   "bbox_mm": [
+    20.4,
+    4.5,
+    30.6
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": -0.33,
+   "closest_horn_item": "casing1",
+   "horn_clear_items": {
+    "casing1": -0.33,
+    "casing2": 6.41,
+    "slide3_leg1": 9.2,
+    "slide3_leg0": 10.66,
+    "ring3": 19.34,
+    "botcap1": 24.79
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 2.99,
+    "slide1_travel": 44.32,
+    "ring3_finger": -0.87,
+    "saddle_thumb": 72.73,
+    "hall_rail_zone": 47.65,
+    "button_fingers": 61.15,
+    "waterkey3_assumed": 49.79,
+    "waterkey_tuning_assumed": 190.61
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.33
+  },
+  "tpu_pad_08": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.5,
+   "bbox_mm": [
+    11.7,
+    2.5,
+    28.8
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": -0.25,
+   "closest_horn_item": "casing3",
+   "horn_clear_items": {
+    "casing3": -0.25,
+    "casing2": 8.7,
+    "slide1_leg1": 9.5,
+    "cap3": 20.42,
+    "leadpipe": 21.34,
+    "cap2": 22.69
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 35.27,
+    "slide1_travel": 3.46,
+    "ring3_finger": 35.68,
+    "saddle_thumb": 23.36,
+    "hall_rail_zone": 19.42,
+    "button_fingers": 32.92,
+    "waterkey3_assumed": 105.16,
+    "waterkey_tuning_assumed": 149.91
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "tpu_pad_09": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.49,
+   "bbox_mm": [
+    29.9,
+    7.4,
+    8.4
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 5.81,
+   "closest_horn_item": "slide3_leg0",
+   "horn_clear_items": {
+    "slide3_leg0": 5.81,
+    "slide3_crown": 6.42,
+    "slide3_leg1": 17.2,
+    "ring3": 31.64,
+    "casing1": 43.41,
+    "botcap1": 46.39
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": -0.97,
+    "slide1_travel": 104.28,
+    "ring3_finger": 14.91,
+    "saddle_thumb": 138.28,
+    "hall_rail_zone": 85.94,
+    "button_fingers": 97.27,
+    "waterkey3_assumed": -1.08,
+    "waterkey_tuning_assumed": 251.86
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "tpu_pad_10": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.66,
+   "bbox_mm": [
+    13.7,
+    13.3,
+    31.3
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": -0.3,
+   "closest_horn_item": "casing1",
+   "horn_clear_items": {
+    "casing1": -0.3,
+    "casing2": 6.42,
+    "slide3_leg1": 17.21,
+    "cap1": 17.96,
+    "ring3": 20.58,
+    "leadpipe": 20.58
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 4.87,
+    "slide1_travel": 44.45,
+    "ring3_finger": -0.85,
+    "saddle_thumb": 58.41,
+    "hall_rail_zone": 16.91,
+    "button_fingers": 30.41,
+    "waterkey3_assumed": 68.44,
+    "waterkey_tuning_assumed": 190.63
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.29
+  },
+  "tpu_pad_11": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.45,
+   "bbox_mm": [
+    25.5,
+    7.4,
+    8.4
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 9.63,
+   "closest_horn_item": "slide3_crown",
+   "horn_clear_items": {
+    "slide3_crown": 9.63,
+    "slide3_leg0": 12.55,
+    "slide3_leg1": 21.11,
+    "ring3": 48.95,
+    "leadpipe": 67.87,
+    "casing1": 72.85
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": -0.98,
+    "slide1_travel": 133.75,
+    "ring3_finger": 32.66,
+    "saddle_thumb": 164.39,
+    "hall_rail_zone": 102.84,
+    "button_fingers": 111.82,
+    "waterkey3_assumed": -1.02,
+    "waterkey_tuning_assumed": 281.4
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "tpu_pad_12": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.57,
+   "bbox_mm": [
+    11.6,
+    2.9,
+    30.3
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": -0.24,
+   "closest_horn_item": "casing3",
+   "horn_clear_items": {
+    "casing3": -0.24,
+    "slide1_leg1": 1.67,
+    "slide1_leg0": 1.95,
+    "casing2": 9.19,
+    "botcap3": 24.47,
+    "botcap2": 26.5
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 35.22,
+    "slide1_travel": 2.62,
+    "ring3_finger": 36.24,
+    "saddle_thumb": 44.11,
+    "hall_rail_zone": 48.26,
+    "button_fingers": 61.76,
+    "waterkey3_assumed": 98.76,
+    "waterkey_tuning_assumed": 149.44
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.24
+  },
+  "tpu_pad_13": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.4,
+   "bbox_mm": [
+    23.0,
+    7.4,
+    8.3
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 5.8,
+   "closest_horn_item": "slide3_leg0",
+   "horn_clear_items": {
+    "slide3_leg0": 5.8,
+    "slide3_crown": 14.81,
+    "slide3_leg1": 17.49,
+    "casing1": 20.68,
+    "botcap1": 27.45,
+    "ring3": 27.96
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": -0.97,
+    "slide1_travel": 81.28,
+    "ring3_finger": 10.53,
+    "saddle_thumb": 120.93,
+    "hall_rail_zone": 79.78,
+    "button_fingers": 92.55,
+    "waterkey3_assumed": 10.03,
+    "waterkey_tuning_assumed": 229.36
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "tpu_pad_14": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.7,
+   "bbox_mm": [
+    30.4,
+    4.9,
+    14.0
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 27.53,
+   "closest_horn_item": "leadpipe",
+   "horn_clear_items": {
+    "leadpipe": 27.53,
+    "slide3_crown": 47.74,
+    "slide3_leg1": 48.05,
+    "ring3": 48.87,
+    "slide3_leg0": 64.15,
+    "cap1": 74.28
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 35.64,
+    "slide1_travel": 138.35,
+    "ring3_finger": 26.08,
+    "saddle_thumb": 143.94,
+    "hall_rail_zone": 68.11,
+    "button_fingers": 67.66,
+    "waterkey3_assumed": 60.9,
+    "waterkey_tuning_assumed": 283.3
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "tpu_pad_15": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.5,
+   "bbox_mm": [
+    30.0,
+    5.4,
+    14.6
+   ],
+   "fits_bed": true,
+   "min_clear_to_horn_mm": 19.84,
+   "closest_horn_item": "cap1",
+   "horn_clear_items": {
+    "cap1": 19.84,
+    "casing1": 20.85,
+    "leadpipe": 28.08,
+    "stem1": 30.48,
+    "ring3": 31.36,
+    "button1": 36.33
+   },
+   "keepout_signed_dist_mm": {
+    "slide3_travel": 35.74,
+    "slide1_travel": 81.5,
+    "ring3_finger": -1.14,
+    "saddle_thumb": 84.22,
+    "hall_rail_zone": 9.82,
+    "button_fingers": 17.42,
+    "waterkey3_assumed": 64.12,
+    "waterkey_tuning_assumed": 224.45
+   },
+   "min_clear_to_model_tubes_shell_mm": -0.25
+  },
+  "valve_cap_magnet_carrier": {
+   "watertight": true,
+   "bodies": 1,
+   "volume_cm3": 0.66,
+   "bbox_mm": [
+    14.7,
+    18.7,
+    4.0
+   ],
+   "fits_bed": true
+  }
+ },
+ "bed": 256.0,
+ "assembly_intersections_mm3": {
+  "palm_rest_dome x elec_bay_cap": 0.0,
+  "spiral_ribbon_mic_arm x spiral_diffuser": 0.0
+ },
+ "panel_checks": {
+  "panel_thickness_mm": 2.0,
+  "face_y": 553.0,
+  "cavity_depth_mm": 8.0,
+  "KY-040 encoder M7 bushing 7.0 mm [G]": {
+   "through_panel": 2.0,
+   "proud_for_nut_knob": 5.0,
+   "nut_ok_3mm": true,
+   "hole": 7.2
+  },
+  "B10K 16 mm pot M7 bushing 6-7.5 mm [G]": {
+   "proud_min": 4.0,
+   "nut_ok_2p5mm": true,
+   "hole": 7.2
+  },
+  "KY-023 stick (no thread; cap clears 20 mm hole) [G]": {
+   "stick_above_pcb": 17.0,
+   "pcb_to_panel_back": 6.5,
+   "cap_proud_of_face": 8.5
+  },
+  "uxcell 45 mm fader [G]": {
+   "slot": [
+    47.0,
+    3.4
+   ],
+   "handle_through_slot": true,
+   "body_height_under_panel_max": 7.5
+  },
+  "NeoTrellis 4x4 [G]": {
+   "pcb_back_y": 544.1,
+   "keys_top_y": 553.9,
+   "keys_proud_of_face": 0.9,
+   "window": 13.6
+  }
+ }
+}

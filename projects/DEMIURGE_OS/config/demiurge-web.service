@@ -1,0 +1,16 @@
+[Unit]
+Description=Demiurge web UI (status daemon + browser mirror)
+After=network.target
+
+[Service]
+Type=simple
+User=gorpi7
+ExecStart=/usr/bin/python3 /opt/demiurge/web/demiurge_web.py --port 8080
+Environment=DEMIURGE_POWER_CMD=demiurge-power
+CPUAffinity=0-2
+Nice=10
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

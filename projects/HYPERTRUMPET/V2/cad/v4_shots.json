@@ -1,0 +1,307 @@
+[
+ {
+  "name": "v5_front.png",
+  "loc": [
+   850,
+   900,
+   70
+  ],
+  "tgt": [
+   850,
+   560,
+   70
+  ],
+  "lens": 50,
+  "hide": []
+ },
+ {
+  "name": "v5_back.png",
+  "loc": [
+   850,
+   200,
+   70
+  ],
+  "tgt": [
+   850,
+   540,
+   70
+  ],
+  "lens": 50
+ },
+ {
+  "name": "v5_left_mouthpiece_side.png",
+  "loc": [
+   300,
+   555,
+   40
+  ],
+  "tgt": [
+   760,
+   555,
+   40
+  ],
+  "lens": 60
+ },
+ {
+  "name": "v5_right_bell_side.png",
+  "loc": [
+   1400,
+   555,
+   40
+  ],
+  "tgt": [
+   900,
+   555,
+   40
+  ],
+  "lens": 60
+ },
+ {
+  "name": "v5_top.png",
+  "loc": [
+   850,
+   545,
+   600
+  ],
+  "tgt": [
+   850,
+   545,
+   50
+  ],
+  "lens": 50
+ },
+ {
+  "name": "v5_bottom.png",
+  "loc": [
+   850,
+   545,
+   -600
+  ],
+  "tgt": [
+   850,
+   545,
+   50
+  ],
+  "lens": 50
+ },
+ {
+  "name": "v5_three_quarter.png",
+  "loc": [
+   1150,
+   860,
+   300
+  ],
+  "tgt": [
+   840,
+   550,
+   60
+  ],
+  "lens": 42
+ },
+ {
+  "name": "v5_handrest_3q_end.png",
+  "loc": [
+   1010,
+   660,
+   -90
+  ],
+  "tgt": [
+   890,
+   568,
+   -25
+  ],
+  "lens": 50
+ },
+ {
+  "name": "v5_handrest_3q_end_b.png",
+  "loc": [
+   700,
+   680,
+   -95
+  ],
+  "tgt": [
+   790,
+   568,
+   -25
+  ],
+  "lens": 50
+ },
+ {
+  "name": "v5_handrest_side.png",
+  "loc": [
+   1300,
+   570,
+   -26
+  ],
+  "tgt": [
+   835,
+   570,
+   -26
+  ],
+  "lens": 45
+ },
+ {
+  "name": "v5_hall_rail_closeup.png",
+  "loc": [
+   850,
+   440,
+   180
+  ],
+  "tgt": [
+   850,
+   525,
+   122
+  ],
+  "lens": 60
+ },
+ {
+  "name": "v5_battery_housing_bottom_door.png",
+  "loc": [
+   840,
+   531,
+   -300
+  ],
+  "tgt": [
+   840,
+   531,
+   -50
+  ],
+  "lens": 50,
+  "labels": [
+   [
+    "door: hook (-x), flex latch (+x), thumb lip",
+    [
+     897,
+     531.7,
+     -52
+    ],
+    [
+     40,
+     -120
+    ]
+   ]
+  ]
+ },
+ {
+  "name": "v5_logo_straight.png",
+  "loc": [
+   776,
+   700,
+   22
+  ],
+  "tgt": [
+   776,
+   568,
+   22
+  ],
+  "lens": 120
+ },
+ {
+  "name": "v5_logo_raking.png",
+  "loc": [
+   640,
+   640,
+   70
+  ],
+  "tgt": [
+   776,
+   568,
+   22
+  ],
+  "lens": 90
+ },
+ {
+  "name": "v5_switch_face_minus_x.png",
+  "loc": [
+   560,
+   531.7,
+   -34
+  ],
+  "tgt": [
+   772,
+   531.7,
+   -34
+  ],
+  "lens": 70,
+  "labels": [
+   [
+    "MTS-102 hole 6.3 mm, 12 mm land",
+    [
+     771,
+     531.7,
+     -34
+    ],
+    [
+     -30,
+     -170
+    ]
+   ]
+  ]
+ },
+ {
+  "name": "v5_top_down.png",
+  "loc": [
+   840,
+   550,
+   600
+  ],
+  "tgt": [
+   840,
+   550,
+   100
+  ],
+  "lens": 45
+ },
+ {
+  "name": "v5_palm_dip_3q.png",
+  "loc": [
+   1010,
+   720,
+   -20
+  ],
+  "tgt": [
+   837,
+   575,
+   -30
+  ],
+  "lens": 45
+ },
+ {
+  "name": "v5_door_alone.png",
+  "loc": [
+   600,
+   330,
+   -190
+  ],
+  "tgt": [
+   838,
+   531,
+   -45
+  ],
+  "lens": 45,
+  "hide": [
+   "SHELL_POD",
+   "MOUNT_ARMS",
+   "VALVE_CAPS"
+  ]
+ },
+ {
+  "name": "v5_housing_without_door.png",
+  "loc": [
+   600,
+   330,
+   -190
+  ],
+  "tgt": [
+   838,
+   531,
+   -45
+  ],
+  "lens": 45,
+  "hide": [
+   "BATTERY_DOOR",
+   "MOUNT_ARMS",
+   "VALVE_CAPS"
+  ]
+ }
+]

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/hostclient_hw.dir/link.d CMakeFiles/hostclient_hw.dir/tools/hostclient_hw.cpp.o -o hostclient_hw  libpmor_core.a

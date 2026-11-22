@@ -1,0 +1,27 @@
+seconds 6.0
+bpm 133
+set clk.swing 0.4
+set seq.0.mode 1
+set seq.1.mode 1
+set seq.2.mode 1
+smp_fill 0 40000
+set smp.slot.0.cutoff 1
+seq_step 0 0 0x1000
+seq_step 0 4 0x1000
+seq_step 0 8 0x1000
+seq_step 0 12 0x1000
+seq_step 0 4 0x4000
+seq_step 0 12 0x4000
+seq_step 0 0 0x4
+seq_step 0 2 0x4
+seq_step 0 4 0x4
+seq_step 0 6 0x4
+seq_step 0 8 0x4
+seq_step 0 10 0x4
+seq_step 0 12 0x4
+seq_step 0 14 0x4
+seq_step 1 0 0x1
+seq_step 1 6 0x40
+seq_step 1 10 0x8
+seq_step 2 2 0x1
+seq_step 2 9 0x1

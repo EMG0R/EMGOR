@@ -1,0 +1,153 @@
+diff --git a/src/class/midi/midi_device.c b/src/class/midi/midi_device.c
+index 8a122215d..675012deb 100644
+--- a/src/class/midi/midi_device.c
++++ b/src/class/midi/midi_device.c
+@@ -24,6 +24,23 @@ TU_ATTR_WEAK void tud_midi_rx_cb(uint8_t itf) {
+   (void)itf;
+ }
+ 
++// Pocket OpGorator instrumentation hook (2026-08-11, not upstream TinyUSB):
++// fires once per successful TX endpoint transfer completion, with the
++// literal byte count the hardware actually put on the wire. This is a
++// ground-truth counter -- unlike counting at the call site of
++// tud_midi_stream_write()/tud_midi_packet_write() (which only proves the
++// application asked TinyUSB to send something), this proves data actually
++// left the USB core. See clock_engine.c's "diag" CDC command / README
++// "measured tick-rate bug" for why a ground-truth TX counter was needed:
++// hardware measurement showed the host receiving ~2.3% MORE MIDI Clock
++// bytes than the firmware's own emission-call-site counter recorded, and
++// this hook is what would prove or disprove TinyUSB's TX path itself as
++// the source of that gap (vs. e.g. a host-side or CIN-framing issue).
++TU_ATTR_WEAK void tud_midi_tx_complete_cb(uint8_t itf, uint32_t xferred_bytes) {
++  (void)itf;
++  (void)xferred_bytes;
++}
++
+ //--------------------------------------------------------------------+
+ // MACRO CONSTANT TYPEDEF
+ //--------------------------------------------------------------------+
+@@ -537,6 +554,10 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
+     }
+     tu_edpt_stream_read_xfer(ep_st_rx);         // prepare for next data
+   } else if (ep_addr == ep_st_tx->ep_addr && result == XFER_RESULT_SUCCESS) {
++    // sent complete: instrumentation hook (see tud_midi_tx_complete_cb
++    // above) -- ground-truth count of bytes that actually left the wire
++    // for this completed transfer, BEFORE we try to queue more.
++    tud_midi_tx_complete_cb(idx, xferred_bytes);
+     // sent complete: try to send more if possible
+     if (0 == tu_edpt_stream_write_xfer(ep_st_tx)) {
+       // If there is no data left, a ZLP should be sent if needed
+diff --git a/src/class/midi/midi_device.h b/src/class/midi/midi_device.h
+index 733bc7f75..5b53780bf 100644
+--- a/src/class/midi/midi_device.h
++++ b/src/class/midi/midi_device.h
+@@ -40,6 +40,12 @@ extern "C" {
+ //--------------------------------------------------------------------+
+ void tud_midi_rx_cb(uint8_t itf);
+ 
++// Pocket OpGorator instrumentation hook (2026-08-11, not upstream TinyUSB)
++// -- see the TU_ATTR_WEAK definition in midi_device.c for why this exists.
++// Weak no-op by default; override strongly to observe ground-truth TX
++// completion (itf, bytes actually transferred this completion).
++void tud_midi_tx_complete_cb(uint8_t itf, uint32_t xferred_bytes);
++
+ //--------------------------------------------------------------------+
+ // Application API (Multiple Interfaces)
+ // CFG_TUD_MIDI > 1
+diff --git a/src/portable/synopsys/dwc2/dcd_dwc2.c b/src/portable/synopsys/dwc2/dcd_dwc2.c
+index 86aa54510..e6a4a41ea 100644
+--- a/src/portable/synopsys/dwc2/dcd_dwc2.c
++++ b/src/portable/synopsys/dwc2/dcd_dwc2.c
+@@ -24,6 +24,27 @@
+ #include "device/usbd_pvt.h"
+ #include "dwc2_common.h"
+ 
++//--------------------------------------------------------------------+
++// Pocket OpGorator instrumentation (2026-08-12, not upstream TinyUSB)
++//--------------------------------------------------------------------+
++// Ground truth for the "duplicate 0xF8" investigation (see README's
++// "Measured tick-rate bug" section), one layer BELOW midid_xfer_cb's
++// tud_midi_tx_complete_cb hook (usbd.c/midi_device.c) -- this counts
++// activity on the USB-MIDI IN endpoint (0x82, EPNUM_MIDI|0x80 from
++// usb_descriptors.h) at the point this DWC2 driver itself (a) schedules
++// ("kicks") a transfer and (b) physically pushes bytes into the hardware
++// TX FIFO for it. If the midid_xfer_cb-level counters ever read
++// suspiciously low/zero relative to these, that localizes the gap to the
++// usbd.c dispatch layer; if THESE counters themselves show more bytes
++// pushed than kicked (or more kicked than clock_engine.c ever asked for),
++// that localizes it to this driver's slave-mode FIFO transfer scheduling
++// (dcd_edpt_xfer_fifo() / epin_write_tx_fifo() below) instead.
++#define POCKET_OPGORATOR_MIDI_IN_EPNUM 2u // EPNUM_MIDI from usb_descriptors.h
++volatile uint32_t g_dwc2_midi_in_kicks       = 0; // dcd_edpt_xfer_fifo() calls for this EP
++volatile uint32_t g_dwc2_midi_in_kick_bytes  = 0; // ...and the total_bytes each one requested
++volatile uint32_t g_dwc2_midi_in_fifo_pushes = 0; // epin_write_tx_fifo() calls for this EP
++volatile uint32_t g_dwc2_midi_in_fifo_bytes  = 0; // ...and the bytes each one actually wrote
++
+ //--------------------------------------------------------------------+
+ // MACRO TYPEDEF CONSTANT ENUM
+ //--------------------------------------------------------------------+
+@@ -85,6 +106,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool edpt_is_enabled(dwc2_dep_t* dep) {
+ }
+ 
+   #if CFG_TUD_DWC2_SLAVE_ENABLE
++// PMOR: IRQ-time hook for "an OUT transfer finished on endpoint epnum" (weak no-op; usb/clock_engine.c stamps MIDI RX with it)
++TU_ATTR_WEAK void dcd_rx_complete_hook(uint8_t epnum) { (void)epnum; }
++
+ static uint16_t epin_write_tx_fifo(dwc2_regs_t *dwc2, uint8_t epnum);
+   #endif
+ 
+@@ -682,6 +706,16 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
+     xfer->total_len = total_bytes;
+     xfer->iso_retry = xfer->interval; // Reset ISO retry counter to interval value
+ 
++    // Pocket OpGorator instrumentation -- see the counter block near the
++    // top of this file. Counts every "kick" of a transfer on the
++    // USB-MIDI IN endpoint, whatever total_bytes was requested for it,
++    // BEFORE any hardware scheduling happens below (so it counts intent,
++    // not outcome).
++    if (dir == TUSB_DIR_IN && epnum == POCKET_OPGORATOR_MIDI_IN_EPNUM) {
++      g_dwc2_midi_in_kicks++;
++      g_dwc2_midi_in_kick_bytes += total_bytes;
++    }
++
+     // Schedule packets to be sent within interrupt
+     // TODO xfer fifo may only available for slave mode
+     edpt_schedule_packets(rhport, epnum, dir);
+@@ -863,6 +897,21 @@ static uint16_t epin_write_tx_fifo(dwc2_regs_t *dwc2, uint8_t epnum) {
+       total_bytes_written += xact_bytes;
+     }
+   }
++
++  // Pocket OpGorator instrumentation -- see the counter block near the
++  // top of this file. This function can run from TWO call sites for the
++  // SAME xfer (edpt_schedule_packets() at kick time, and again from
++  // handle_epin_slave()'s TXFE-interrupt path if the whole xfer didn't
++  // fit in one push) -- counting every CALL here (not just every kick,
++  // see dcd_edpt_xfer_fifo() above) is deliberate: if fifo_bytes ever
++  // exceeds kick_bytes by more than the expected multi-call-same-xfer
++  // accounting, that's this function double-pushing bytes from the ring
++  // buffer, not merely a re-armed transfer.
++  if (epnum == POCKET_OPGORATOR_MIDI_IN_EPNUM && total_bytes_written > 0) {
++    g_dwc2_midi_in_fifo_pushes++;
++    g_dwc2_midi_in_fifo_bytes += total_bytes_written;
++  }
++
+   return total_bytes_written;
+ }
+ 
+@@ -958,6 +1007,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
+         // EP0 can only handle one packet, schedule another packet to be received.
+         edpt_schedule_packets(rhport, 0, TUSB_DIR_OUT);
+       } else {
++        dcd_rx_complete_hook((uint8_t)epnum);
+         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
+       }
+       break;
+@@ -1062,6 +1112,7 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
+         }
+ 
+         dcd_dcache_invalidate(xfer->buffer, inval_len);
++        dcd_rx_complete_hook((uint8_t)epnum);
+         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
+       }
+     }

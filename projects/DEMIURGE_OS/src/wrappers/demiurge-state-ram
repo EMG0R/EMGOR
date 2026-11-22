@@ -1,0 +1,45 @@
+#!/bin/sh
+# demiurge-state-ram — keep csound's live settings file on tmpfs, mirror to SD.
+#
+# WHY: state_persist.orc calls ftsavek on the AUDIO THREAD every 2 s while a
+# knob is moving. Measured on the rig (2026-09-25): a buffered 20 KB write to
+# the SD-backed state dir takes 2.3 ms average, 8 ms worst — against a
+# 1.33 ms k-period. Every autosave therefore stalled audio for 2-6 blocks,
+# heard as a click every couple of seconds while tweaking, worst with a
+# reverb tail to expose the gap. tmpfs writes are microseconds. Persistence
+# is preserved by mirroring RAM -> SD from OUTSIDE the audio process.
+#
+#   seed   copy SD -> RAM if RAM is empty (ExecStartPre, after every boot)
+#   flush  copy RAM -> SD for files whose content changed (timer + ExecStopPost)
+#
+# The SD side is derived, never a username literal: systemd sets $HOME for a
+# User= service, which is how demiurge.service runs this. If HOME is unset or
+# is root's (manual sudo), fall back to the Pi OS convention that the first real
+# user is UID 1000 (what demiurge-qrestore assumes too). The rebuilt rig's user
+# is not the one the old card had, which is exactly how a hardcoded path rots.
+_home="$HOME"
+if [ -z "$_home" ] || [ "$_home" = "/root" ]; then
+  _home="$(getent passwd 1000 2>/dev/null | cut -d: -f6)"
+fi
+SD="${DEMIURGE_STATE_SD:-$_home/demiurge/state}"
+RAM="${DEMIURGE_STATE_RAM:-/dev/shm/neptr-state}"
+case "$1" in
+  seed)
+    mkdir -p "$RAM" "$SD"
+    for f in neptr_settings.ftab neptr_settings.b.ftab; do
+      [ -e "$RAM/$f" ] && continue
+      [ -e "$SD/$f" ] && cp -p "$SD/$f" "$RAM/$f"
+    done
+    ;;
+  flush)
+    mkdir -p "$SD"
+    for f in "$RAM"/*; do
+      [ -f "$f" ] || continue
+      b=$(basename "$f")
+      cmp -s "$f" "$SD/$b" && continue
+      cp -p "$f" "$SD/$b.tmp" && mv -f "$SD/$b.tmp" "$SD/$b"
+    done
+    sync
+    ;;
+  *) echo "usage: demiurge-state-ram seed|flush" >&2; exit 2 ;;
+esac

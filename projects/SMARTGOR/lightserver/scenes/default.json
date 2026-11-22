@@ -1,0 +1,68 @@
+{
+  "name": "default",
+  "_comment": [
+    "THE boot-default standing scene for the 1920px closed ring.",
+    "Bed: old lava-lamp purple ambient — layered dark purple/blue/violet",
+    "blobs drifting slowly (like the fcob firmware's onboard generative",
+    "nebula), wrap-seamless (gradient scale = ring length; blob particles",
+    "use physics wrap so they cross the seam).",
+    "Orb: ~20 LEDs long, soft gaussian edges (sigma 5 -> visible ~+-10px),",
+    "blend 'boost' = relative brightening of whatever bed is underneath",
+    "(a glowing lens that takes on the local hue). opacity 1.4 -> x2.4 in",
+    "linear light -> ~+50% brighter AS DISPLAYED (after gamma 2.2).",
+    "Motion: physics.drive — top speed 128 px/s (one lap / 15s), speed",
+    "wanders organically down to 42.7 px/s (one lap / 45s) and back, and",
+    "direction reverses smoothly ~1.5 times per minute (decelerate, flip,",
+    "accelerate — never teleports)."
+  ],
+  "master": {"brightness": 0.9, "tone_map": "reinhard"},
+  "layers": [
+    {
+      "type": "gradient",
+      "blend": "add",
+      "palette": ["#170529", "#1d0837", "#130524", "#1b0731", "#150a3a"],
+      "scale": 1920,
+      "scroll_speed": 3,
+      "brightness": 0.6
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "opacity": 0.9,
+      "physics": {
+        "wrap": true,
+        "bounce": {"enabled": false},
+        "damping": 0.25,
+        "turbulence": {"accel": 4.0, "scale": 640.0, "speed": 0.05}
+      },
+      "particles": [
+        {"pos": 0,    "vel": 4,  "color": "#2a0a52", "size": 70, "lifetime": null},
+        {"pos": 260,  "vel": -3, "color": "#151b6e", "size": 55, "lifetime": null},
+        {"pos": 520,  "vel": 5,  "color": "#3a1270", "size": 80, "lifetime": null},
+        {"pos": 780,  "vel": -4, "color": "#1b1060", "size": 48, "lifetime": null},
+        {"pos": 1040, "vel": 3,  "color": "#41156e", "size": 75, "lifetime": null},
+        {"pos": 1300, "vel": -5, "color": "#2c0e5e", "size": 60, "lifetime": null},
+        {"pos": 1560, "vel": 4,  "color": "#101050", "size": 65, "lifetime": null},
+        {"pos": 1780, "vel": -3, "color": "#30105c", "size": 52, "lifetime": null}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": false}
+    },
+    {
+      "type": "particles",
+      "blend": "boost",
+      "opacity": 1.4,
+      "physics": {
+        "wrap": true,
+        "bounce": {"enabled": false},
+        "drive": {"top_speed": 128, "min_speed": 42.7,
+                  "reverses_per_min": 1.5, "smooth_s": 2.5,
+                  "mod_period_s": 37, "mod_period2_s": 23}
+      },
+      "particles": [
+        {"pos": 0, "vel": 128, "color": "#ffffff", "size": 5.0,
+         "lifetime": null}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": false}
+    }
+  ]
+}

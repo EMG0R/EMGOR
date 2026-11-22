@@ -1,0 +1,25 @@
+# DEMIURGE — Bluetooth auto-connect on boot (systemd --user oneshot)
+#
+# Install (no sudo):
+#     install -m 755 demiurge-bt-autoconnect.sh ~/.local/bin/demiurge-bt-autoconnect.sh
+#     install -m 644 demiurge-bt-autoconnect.service ~/.config/systemd/user/
+#     systemctl --user daemon-reload
+#     systemctl --user enable demiurge-bt-autoconnect.service
+#
+# Runs ONCE at boot as the gorpi7 user (shares the bluez session with
+# bluetoothctl), connects the saved speaker, then exits — no ongoing process.
+# The DEMIURGE launcher then picks the bluez_output node up as the front output.
+
+[Unit]
+Description=DEMIURGE Bluetooth auto-connect saved speaker on boot
+After=bluetooth.target
+Wants=bluetooth.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/demiurge-bt-autoconnect.sh
+# No Restart: this is a one-time boot connect. The script handles its own
+# retries internally and always exits 0, so systemd won't loop it.
+
+[Install]
+WantedBy=default.target

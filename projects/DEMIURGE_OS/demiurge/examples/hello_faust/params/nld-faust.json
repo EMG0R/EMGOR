@@ -1,0 +1,28 @@
+{
+  "stage": "nld-faust",
+  "port": 9000,
+  "version": 1,
+  "params": [
+    {
+      "path": "/nld-faust/density",
+      "label": "Density",
+      "default": 0.3,
+      "map": "hard",
+      "address": "/nld/density"
+    },
+    {
+      "path": "/nld-faust/tone",
+      "label": "Tone",
+      "default": 0.5,
+      "map": "hard",
+      "address": "/nld/tone"
+    },
+    {
+      "path": "/nld-faust/length",
+      "label": "Length",
+      "default": 0.5,
+      "map": "hard",
+      "address": "/nld/length"
+    }
+  ]
+}

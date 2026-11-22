@@ -1,0 +1,14 @@
+numpy
+scipy
+sounddevice
+soundfile
+rich
+librosa
+pyworld
+mido
+pronouncing
+g2p_en
+pytest
+llama-cpp-python
+faster-whisper
+openwakeword

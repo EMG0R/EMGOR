@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# demiurge-meter — live input level from the ADC the engine is actually
+# listening to. Play your guitar and watch. This answers one question and
+# answers it without anybody having to guess whether a capture was taken at
+# the right moment: if the bar moves when you play, the analog path and the
+# converter are fine and the problem is downstream. If it never moves while
+# you are audibly playing, the signal is not reaching the converter.
+#
+# Usage:  demiurge-meter [seconds]     (default 30)
+set -u
+SECS="${1:-30}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+# Same rule as demiurge-ringtest: never guess the port by name, take whatever
+# is feeding the engine right now. Three different nodes publish capture_FL
+# and two of them are silent in direct mode.
+SRC=$(pw-link -l 2>/dev/null | python3 -c '
+import sys
+cur, feeds = None, {}
+for ln in sys.stdin:
+    if not ln.startswith((" ", "\t")):
+        cur = ln.strip()
+    elif "|->" in ln and cur:
+        feeds.setdefault(ln.split("|->")[1].strip(), []).append(cur)
+for k, v in feeds.items():
+    if k.startswith("csound6:input1"):
+        print(v[0]); break')
+
+if [ -z "${SRC:-}" ]; then
+    SRC=$(pw-link -o 2>/dev/null | grep -m1 "^alsa_input\.platform-soc.*:capture_FL")
+    echo "engine not linked; falling back to the card directly"
+fi
+[ -z "${SRC:-}" ] && { echo "no capture port found" >&2; exit 1; }
+echo "listening on: $SRC"
+echo "PLAY NOW — ${SECS}s"
+
+WAV=/tmp/demiurge-meter.wav
+rm -f "$WAV"
+PIPEWIRE_PROPS='{ node.autoconnect = false, node.name = "demiurge-meter" }' \
+  timeout "$SECS" pw-record --rate 48000 --channels 2 --format s32 "$WAV" >/dev/null 2>&1 &
+REC=$!
+for _ in $(seq 1 40); do
+    pw-link -i 2>/dev/null | grep -q "^demiurge-meter:input_FL" && break
+    sleep 0.1
+done
+pw-link "$SRC" demiurge-meter:input_FL 2>/dev/null
+pw-link "${SRC/_FL/_FR}" demiurge-meter:input_FR 2>/dev/null
+if [ "$(pw-link -l 2>/dev/null | grep -c demiurge-meter)" -eq 0 ]; then
+    echo "FAILED to link the meter — result would be meaningless" >&2; kill $REC 2>/dev/null; exit 1
+fi
+wait $REC 2>/dev/null
+
+python3 - "$WAV" <<'PY'
+import sys, wave, numpy as np
+w = wave.open(sys.argv[1])
+d = np.frombuffer(w.readframes(w.getnframes()), dtype="<i4")
+d = d.reshape(-1, w.getnchannels()).astype(float) / 2**31
+if not len(d):
+    print("nothing recorded"); raise SystemExit
+x = d[:, 0]
+print("\ncaptured %.1fs" % (len(d)/48000))
+# 200 ms blocks, drawn as a bar so movement is obvious at a glance.
+blk = 9600
+rows = [x[i:i+blk] for i in range(0, len(x) - blk, blk)]
+peak_all = 0.0
+for i, b in enumerate(rows):
+    pk = np.abs(b).max()
+    peak_all = max(peak_all, pk)
+    db = 20*np.log10(pk + 1e-12)
+    n = max(0, min(50, int((db + 90) / 90 * 50)))
+    print("%5.1fs %7.1f dBFS |%s" % (i*0.2, db, "#"*n))
+db = 20*np.log10(peak_all + 1e-12)
+print("\npeak over the whole run: %.1f dBFS" % db)
+if peak_all == 0:
+    print("VERDICT: not one non-zero sample. The converter is delivering")
+    print("         literal digital silence — signal is not reaching it.")
+elif db < -70:
+    print("VERDICT: only noise-floor flicker. If you were playing, the guitar")
+    print("         is not reaching this input.")
+else:
+    print("VERDICT: real signal is arriving. The capture path is FINE and the")
+    print("         problem is downstream, in the DSP or the output.")
+PY

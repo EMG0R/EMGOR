@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "name": "ofp_gain",
+  "title": "OP FREAK master gain (-100..+100)",
+  "version": "0.1",
+  "status": "experimental",
+  "status_note": "host-tested DSP; hooks and word format never run on a device",
+  "firmware": {
+    "R246": "c5315218f825f143b415ca554516541898abee843d3a236df0b54c04e1fb13a9"
+  },
+  "sdk": 1,
+  "prefix": "ofp_",
+  "summary": "TE's volume pinned to maximum; the volume knob becomes a bipolar gain trim: -100 silence, 0 unity, +100 analog-style saturation crossfading into a soft clipper; DC blocker, hard ceiling -0.5 dBFS, fixed CPU.",
+  "license": "MIT",
+  "authors": [
+    "Emory Smith (EMGOR)"
+  ],
+  "docs": "README.md",
+  "sources": [
+    "ofp_gain.c",
+    "ofp_gain_dsp.c",
+    "ofp_gain_tab.c"
+  ],
+  "libs": [],
+  "hooks": {
+    "entry_hooks": [
+      {
+        "func": "0x01a10de4",
+        "expect": "09e1a462",
+        "c": "ofp_vol_pin",
+        "what": "volume knob byte -> output ramp: remember the byte, give TE a constant top value"
+      }
+    ],
+    "patches": [
+      {
+        "addr": "0x018b62a4",
+        "expect": "ff",
+        "bytes": "00",
+        "what": "knob byte starts at 0 (silent until the first TWI reading)"
+      }
+    ]
+  },
+  "controls": [
+    "volume knob: -100 .. +100 gain (centre = unity)"
+  ],
+  "tests": [
+    "test_gain.c"
+  ],
+  "depends": [
+    "ofp_audio"
+  ],
+  "conflicts": [],
+  "claims": []
+}

@@ -1,0 +1,44 @@
+{
+  "//": "===================================================================",
+  "//1": "claude-watch-approve config. Edit this file to tune behavior.",
+  "//2": "All fields optional; sane defaults are baked into the hook too.",
+  "//3": "===================================================================",
+
+  "bridge_port": 8765,
+  "//port": "Port of the Mac companion HTTP bridge (localhost only).",
+
+  "bridge_host": "127.0.0.1",
+
+  "health_timeout_sec": 0.75,
+  "//health": "Connect timeout for GET /health. Kept short so an offline bridge falls back to the terminal prompt FAST.",
+
+  "request_timeout_sec": 65,
+  "//req": "Overall timeout for the blocking POST /permission. Should be >= the bridge's own ~60s watch timeout so we let the watch win the race.",
+
+  "//routing": "===================== ROUTING RULES =====================",
+  "//routing2": "Decision order for every tool call: (1) if the tool is NOT in route_tools -> auto-allow, skip watch. (2) else if it matches an auto_allow rule -> auto-allow, skip watch. (3) else -> send to watch.",
+
+  "route_tools": ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch"],
+  "//route_tools": "Only these tools are ever routed to the watch. Everything else (Read, Grep, Glob, LS, TodoWrite, Task, etc.) auto-allows without buzzing. Note: the settings.json matcher should mirror this list so the hook is not even invoked for other tools.",
+
+  "auto_allow": {
+    "//": "Tools/commands that skip the watch even though they are in route_tools.",
+    "bash_command_prefixes": [
+      "ls", "cat", "pwd", "echo", "which", "type",
+      "git status", "git diff", "git log", "git show", "git branch",
+      "grep", "rg", "find", "head", "tail", "wc", "file", "stat",
+      "node --version", "python3 --version", "npm ls"
+    ],
+    "//bash": "If a Bash command's normalized text STARTS WITH any of these prefixes (token-aware), it auto-allows. Keep these read-only / non-destructive. Matching is prefix-on-token-boundary so 'catalog' does NOT match 'cat'.",
+
+    "tool_names": [],
+    "//tool_names": "Any tool name listed here always auto-allows even if in route_tools."
+  },
+
+  "log_file": "~/.claude/claude-watch-approve.log",
+  "cache_file": "~/.claude/claude-watch-approve-cache.json",
+  "//cache": "Where 'don't ask again' (scope:always) approval rules persist. Delete this file to clear all remembered approvals.",
+
+  "fail_open_on_bridge_down": false,
+  "//failopen": "false (recommended) => when bridge/watch is unreachable, return 'ask' (fall back to terminal prompt). true => return 'allow' (dangerous; never auto-approve on infra failure). Leave false."
+}

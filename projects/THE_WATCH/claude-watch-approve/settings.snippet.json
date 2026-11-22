@@ -1,0 +1,28 @@
+{
+  "//": "==================================================================",
+  "//1": "Register the PreToolUse hook. DO NOT paste this whole file over your",
+  "//2": "settings.json -- MERGE the 'hooks' key into your existing settings.",
+  "//3": "",
+  "//4": "The matcher 'Bash|Write|Edit|MultiEdit|NotebookEdit|WebFetch|WebSearch'",
+  "//5": "mirrors route_tools in config.json so the hook is only invoked for",
+  "//6": "tools that might be routed to the watch. Read/Grep/Glob/etc never even",
+  "//7": "call the hook. If you edit route_tools, edit this matcher to match.",
+  "//8": "",
+  "//9": "GLOBAL form -> ~/.claude/settings.json. Uses an absolute path so every",
+  "//10": "Claude Code session (any project, any window) uses the same hook.",
+  "//11": "==================================================================",
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit|WebFetch|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/emgor/Documents/_EMGOR_SYNTH/______2026NEW/the_watch/claude-watch-approve/watch_approve_hook.py"
+          }
+        ]
+      }
+    ]
+  }
+}

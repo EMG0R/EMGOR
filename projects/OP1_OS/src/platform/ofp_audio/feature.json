@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "name": "ofp_audio",
+  "title": "OP FREAK audio callback layer",
+  "version": "0.1",
+  "status": "experimental",
+  "status_note": "built only; never run on a device",
+  "firmware": {
+    "R246": "c5315218f825f143b415ca554516541898abee843d3a236df0b54c04e1fb13a9"
+  },
+  "sdk": 1,
+  "prefix": "ofp_",
+  "summary": "Wraps TE's audio render callback (the original is always called) and lets other OP FREAK platform features hook the output block (master gain) and read per-block measurements (probe) through optional functions.",
+  "license": "MIT",
+  "authors": ["Emory Smith (EMGOR)"],
+  "docs": "ofp_audio.h",
+  "sources": ["ofp_audio.c"],
+  "libs": [],
+  "shared": [
+    {"point": "boot_done", "fn": "ofp_boot"}
+  ],
+  "hooks": {
+    "entry_hooks": [
+      {"func": "0x0191a7cc", "expect": "09e16c03", "c": "ofp_setcb", "filter": true,
+       "what": "audio::set_callback: keep our wrapper in front of the render callback"}
+    ]
+  },
+  "controls": ["none"],
+  "tests": [],
+  "depends": [],
+  "conflicts": [],
+  "claims": []
+}

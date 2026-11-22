@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "patch": "hello_softmap",
+  "maps": [
+    {
+      "id": "tof1-cutoff",
+      "source": "/hw/teensy/tof1",
+      "target": {
+        "param": "/csound/cutoff"
+      },
+      "zone_lo": 0.1,
+      "zone_hi": 0.9,
+      "invert": false,
+      "curve": "lin",
+      "mode": "continuous",
+      "combine": "replace"
+    },
+    {
+      "id": "knob2-rate",
+      "source": "/hw/teensy/knob2",
+      "target": {
+        "param": "/csound/rate"
+      },
+      "zone_lo": 0.0,
+      "zone_hi": 1.0,
+      "invert": false,
+      "curve": "lin",
+      "mode": "continuous",
+      "combine": "replace"
+    }
+  ],
+  "values": {
+    "/csound/detune": 0.3
+  }
+}

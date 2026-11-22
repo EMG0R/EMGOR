@@ -1,0 +1,26 @@
+--- usb/clock_engine.c	2026-11-09 17:04:17
++++ /private/tmp/claude-501/-Users-emgor-Documents--EMGOR-SYNTH-----EMGOR-ONLINE-EMGOR/ba5d61ab-d262-441e-831a-d8c5dd301dd8/scratchpad/fsim/clock_engine_patched.c	2026-11-09 21:30:12
+@@ -1233,13 +1233,17 @@
+         // The true tick time is therefore the lower envelope of (stamp - k*period): a sliding minimum over ~2 beats.
+         {
+           if (!s_ph_have) { s_ph_t0 = now; s_ph_k = 0; s_ph_n = 0; s_ph_have = true; }
+-          double per = (60.0 * (double) AUDIO_SAMPLE_RATE) / ((double) MIDI_PPQN * (double) g_bpm);   // samples per tick (PLL tempo)
+-          double ideal = (double) s_ph_k * per;
+-          s_ph_x[s_ph_n % PH_WIN] = (int32_t) ((double) (int32_t) (now - s_ph_t0) - ideal);
++          static uint32_t s_ph_kk[PH_WIN];
++          double per = (60.0 * (double) AUDIO_SAMPLE_RATE) / ((double) MIDI_PPQN * (double) g_bpm);
++          uint32_t idx = s_ph_n % PH_WIN;
++          s_ph_x[idx] = (int32_t) (now - s_ph_t0); s_ph_kk[idx] = s_ph_k;
++          uint32_t kcur = s_ph_k;
+           s_ph_n++; s_ph_k++;
+-          int32_t mn = s_ph_x[0]; uint32_t cnt = s_ph_n < PH_WIN ? s_ph_n : PH_WIN;
+-          for (uint32_t i = 1; i < cnt; i++) if (s_ph_x[i] < mn) mn = s_ph_x[i];
+-          s_ph_est_now = s_ph_t0 + (uint32_t) (int32_t) (ideal + (double) (mn)) ;
++          uint32_t cnt = s_ph_n < PH_WIN ? s_ph_n : PH_WIN;
++          uint32_t ref = (s_ph_n - cnt) % PH_WIN;
++          double mn = 1e18;
++          for (uint32_t i = 0; i < cnt; i++) { double xi = (double) (s_ph_x[i] - s_ph_x[ref]) - (double) (s_ph_kk[i] - s_ph_kk[ref]) * per; if (xi < mn) mn = xi; }
++          s_ph_est_now = s_ph_t0 + (uint32_t) (int32_t) ((double) s_ph_x[ref] + (double) (kcur - s_ph_kk[ref]) * per + mn);
+           s_ph_ok = (cnt >= 12);
+         }
+         if ((s_follower_tick_count % MIDI_TICKS_PER_16TH) == 0) {

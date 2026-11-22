@@ -1,0 +1,14 @@
+{
+  "stage": "strudel",
+  "port": 9000,
+  "version": 1,
+  "params": [
+    {
+      "path": "/strudel/density",
+      "label": "Note density",
+      "default": 0.7,
+      "map": "hard",
+      "proto": "p"
+    }
+  ]
+}

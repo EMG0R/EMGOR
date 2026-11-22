@@ -1,0 +1,26 @@
+# lightserver — LED render engine for the FCOB strip
+# Example unit for the Pi (gorcave). NOT installed by any tooling — copy by hand:
+#   sudo cp systemd/lightserver.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now lightserver
+# Adjust User/paths to wherever the repo lands on the Pi.
+
+[Unit]
+Description=lightserver LED render engine (1920px FCOB ring)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/smartGOR/lightserver
+# ring.json present -> one RingEngine drives the whole closed loop.
+# --scene scenes/default.json is the BOOT DEFAULT (fallback); a
+# persisted user scene in state.json overrides it until changed.
+ExecStart=/home/pi/smartGOR/lightserver/.venv/bin/python -m lightserver --api --api-port 8800 --scene scenes/default.json
+Restart=on-failure
+RestartSec=3
+# engine is real-time-ish; keep it off swap and give it a slight priority bump
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

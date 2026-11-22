@@ -1,0 +1,4 @@
+{"id":"pitchtrack","file":"fx_pitchtrack.h","roles":{},"actions":{},
+"ops_per_sample":"front end ~5/sample (one-pole LP + boxcar accumulate). YIN hop every 512 input samples: 192-sample window x lags 8..143, early-out after first dip below 0.15 -> 330 Hz ~34 ops/sample, 165 Hz ~60, worst case unvoiced/noise ~160. Host measured ~9 ns/sample incl. test-signal copy (steady horn).",
+"memory_bytes":3200,
+"notes":"Not an Fx; shared analysis used by fx_engine. YIN on 12 kHz decimated signal, parabolic interpolation, median-3 + two-hop confirmation for >23% jumps, 2 unvoiced hops to drop to 0. Tests: horn+sine 165..1050 Hz 100% within 1%, 3 s sweep 100% within 2% (vs truth 10 ms earlier), vibrato+noise 0 jumps, white noise 0 false voiced. Latency ~21 ms window + 10.7 ms hop. Monophonic only."}

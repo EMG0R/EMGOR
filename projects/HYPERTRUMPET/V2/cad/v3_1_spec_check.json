@@ -1,0 +1,30 @@
+{
+ "fader_outer_span_mm": 26.0,
+ "fader_pitch_mm": [
+  11.0,
+  10.8
+ ],
+ "fader_slot_size_mm": [
+  4.0,
+  38.4
+ ],
+ "lidar_size_mm": [
+  10.8,
+  8.0
+ ],
+ "lidar_centre": [
+  852.6,
+  57.0
+ ],
+ "lidar_upper_edge_z": 61.0,
+ "knob_lower_face_top_z": 36.0,
+ "lidar_upper_edge_spec_z": 61.0,
+ "knob_to_lidar_far_edge_mm": 25.0,
+ "web_lidar_to_trellis_mm": 1.05,
+ "web_slot_top_to_lidar_bottom_mm": 10.5,
+ "seed_zone_min_clear_depth_mm": 22.0,
+ "joystick_zone_min_clear_depth_mm": 18.93,
+ "joystick_required_depth_mm": 18.9,
+ "seed_required_depth_mm": 22.0,
+ "face_swell_vs_v3_max_mm": 6.72
+}

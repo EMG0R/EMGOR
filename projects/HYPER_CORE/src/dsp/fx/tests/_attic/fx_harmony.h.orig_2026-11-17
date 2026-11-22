@@ -1,0 +1,51 @@
+// fx_harmony.h -- HARMONY page voices for HYPERTRUMPET V2: up to 3 pitch-shifted voices on top of the dry signal, built on the shared ShifterCore / ShVoice (fx_shifter_core.h, the
+// same pitch-synchronous dual-delay-line shifter as the harmonizer and MOOD). Intervals are semitones ABOVE the input (set per slot by the pad logic: setSlot(k, semis), 0 = off).
+// Each slot fades in / out in about 20 ms; changing a slot's interval fades it out, switches the ratio at zero gain, fades it in. Dry stays at unity on both channels; the wet voices
+// are added mono to L and R times MIX (encoder in harmony mode) times VOICE (per-voice level, default 0.6 as v1 voice A).
+// Latency: mean read delay DMIN + G/2 = 10..13 ms at 48 kHz (ShifterCore header; measured on the host in tests/fx_quality.cpp). Cost: one write + up to 3 voices x ~70 flops/sample.
+// Algorithm choice (trumpet: monophonic, strongly harmonic): period-synchronous time-domain shifting keeps the formant-free attack and has the lowest latency/cost of the options
+// in this tree (the FFT shifters need 20+ ms and 4x the CPU); its weak spot is polyphonic or noisy input, which a trumpet is not.
+#pragma once
+#include "fx_common.h"
+#include "fx_shifter_core.h"
+namespace hx {
+struct FxHarmony : Fx {
+    enum { P_MIX, P_VOICE, P_TONE };
+    static const int NV = 3;
+    ShifterCore core; ShVoice vc[NV];
+    volatile int tgt[NV] = {0, 0, 0};                 // requested interval per slot (semitones, 0 = off)
+    int cur[NV] = {0, 0, 0}; float g[NV] = {0.f, 0.f, 0.f}, lp[NV] = {0.f, 0.f, 0.f}; float mixCur = 0.f; bool primed = false;
+    FxHarmony(Arena& a, float s) {
+        name = "HARMONY"; sr = s;
+        P(P_MIX, "MIX", 0.f, 1.f, 0.7f, 0.f, PF_PERCENT);          // harmony mix (encoder in harmony mode)
+        P(P_VOICE, "VOICE", 0.f, 1.f, 0.6f, 0.f, PF_PERCENT);      // level of each voice
+        P(P_TONE, "TONE", 0.f, 1.f, 1.f, 0.f, PF_PERCENT);         // 0 = dark (one-pole at 2 kHz), 1 = open
+        setRole(R_AMT, P_MIX); setRole(R_TONE, P_TONE);
+        ok = core.init(a); for (int k = 0; k < NV; k++) vc[k].reset();
+    }
+    void setSlot(int k, int semis) { if (k >= 0 && k < NV) tgt[k] = semis; }
+    void reset() override { for (int k = 0; k < NV; k++) { vc[k].reset(); g[k] = 0.f; lp[k] = 0.f; cur[k] = 0; } }
+    bool process(const FxCtx& c, float* HX_RESTRICT L, float* HX_RESTRICT R, int n, bool stereoIn) override {
+        if (!ok) return stereoIn;
+        if (!stereoIn) memcpy(R, L, (size_t)n * sizeof(float));
+        core.setPitch(c.f0, c.conf, c.sr > 0.f ? c.sr : sr, c.valvePitchHz);
+        const float fstep = 1.f / (0.02f * sr), voiceG = sm[P_VOICE], tone = sm[P_TONE], la = 1.f - expf(-kTwoPi * (2000.f + 14000.f * tone) / sr);
+        const float mt = sm[P_MIX]; if (!primed) { mixCur = mt; primed = true; }
+        const float minc = (mt - mixCur) / (float)n; float m = mixCur;
+        float ratio[NV]; bool act = false;
+        for (int k = 0; k < NV; k++) { ratio[k] = exp2f((float)cur[k] * (1.f / 12.f)); if (cur[k] != 0 || tgt[k] != 0 || g[k] > 0.f) act = true; }
+        for (int i = 0; i < n; i++) {
+            core.write(0.5f * (L[i] + R[i])); float w = 0.f;
+            for (int k = 0; k < NV; k++) {
+                const int t = tgt[k];
+                if (t != cur[k]) { g[k] -= fstep; if (g[k] <= 0.f) { g[k] = 0.f; cur[k] = t; ratio[k] = exp2f((float)t * (1.f / 12.f)); vc[k].reset(core.Gt); } }       // fade out, switch at zero
+                else if (t != 0 && g[k] < 1.f) { g[k] += fstep; if (g[k] > 1.f) g[k] = 1.f; }
+                if (cur[k] != 0 && g[k] > 0.f) { float y = vc[k].tick(core, ratio[k]); lp[k] += (y - lp[k]) * la; w += lp[k] * g[k]; }
+            }
+            const float o = w * voiceG * m; L[i] += o; R[i] += o; m += minc;
+        }
+        mixCur = mt; (void)act; return true;
+    }
+};
+inline Fx* fx_create_harmony(Arena& a, float sr) { void* m = a.allocBytes(sizeof(FxHarmony)); return m ? new (m) FxHarmony(a, sr) : nullptr; }
+}

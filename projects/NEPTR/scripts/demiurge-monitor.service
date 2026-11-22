@@ -1,0 +1,38 @@
+# demiurge-monitor.service — universal control-surface monitor (UI-independent).
+# Publishes live control telemetry to a file for the terminal companion and any
+# other consumer. Reads MIDI (ALSA-seq, multi-subscriber) — never the serial
+# port — so it never contends with Csound / the arcade supervisor / the UI, and
+# it keeps running whether or not a face UI is up.
+#
+#   INSTALL ON THE PI:
+#     sudo install -m0755 demiurge-monitor /usr/local/bin/demiurge-monitor
+#     cp demiurge-monitor.conf ~/demiurge/monitor.conf
+#     sed -e "s/^User=.*/User=$USER/" -e "s/^Group=.*/Group=$(id -gn)/" \
+#         -e "s#^Environment=HOME=.*#Environment=HOME=$HOME#" \
+#         demiurge-monitor.service | sudo tee /etc/systemd/system/demiurge-monitor.service >/dev/null
+#     sudo systemctl daemon-reload && sudo systemctl enable --now demiurge-monitor
+#
+#   (The gorpi7/1000 below are a documented placeholder, same convention as
+#   demiurge.service — the sed above renders them for whoever runs this.)
+#
+# Needs python3 with mido + rtmidi (apt python3-mido / python3-rtmidi) and the
+# `audio` group for ALSA-seq access. Independent of demiurge.service / neptr-ui.
+
+[Unit]
+Description=DEMIURGE control monitor (universal telemetry publisher)
+After=multi-user.target sound.target
+Wants=multi-user.target
+
+[Service]
+Type=simple
+User=gorpi7
+Group=gorpi7
+SupplementaryGroups=audio
+Environment=HOME=/home/gorpi7
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/usr/local/bin/demiurge-monitor
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

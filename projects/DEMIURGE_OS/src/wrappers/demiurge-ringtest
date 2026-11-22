@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# demiurge-ringtest — capture the guitar input and the engine output at the
+# SAME instant, then say which one the ring is in.
+#
+# The whole point is the comparison. A ring present on the input is analog or
+# acoustic and no amount of DSP work will touch it; a clean input under a
+# ringing output is generated inside the chain, and its frequency says where.
+#
+# Usage:  demiurge-ringtest [seconds]      (default 20)
+#   Run it WHILE the ring is audible. Play first, get it ringing, then run.
+set -u
+SECS="${1:-20}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+OUT=/tmp/ringtest
+mkdir -p "$OUT"; rm -f "$OUT"/in.wav "$OUT"/out.wav
+
+IN_NODE=$(pw-dump 2>/dev/null | python3 -c '
+import json,sys
+for o in json.load(sys.stdin):
+    p=(o.get("info") or {}).get("props") or {}
+    if p.get("node.name","").startswith("alsa_input."): print(o["id"]); break')
+if [ -z "${IN_NODE:-}" ]; then echo "no ALSA input node found" >&2; exit 1; fi
+
+# The output monitor is whatever pw-record grabs by default, so that one is
+# easy. The INPUT is the fiddly half: pw-record autoconnects to the default
+# source (which is the output monitor), so autoconnect is turned OFF and the
+# capture ports are linked by hand. Without this the "input" file is a second
+# copy of the output — silently, which is how the first attempt wasted a take.
+PIPEWIRE_PROPS='{ node.autoconnect = false, node.name = "ringtest-in" }' \
+  timeout "$SECS" pw-record --rate 48000 --channels 2 --format s32 "$OUT/in.wav" >/dev/null 2>&1 &
+PID_IN=$!
+timeout "$SECS" pw-record --rate 48000 --channels 2 --format s32 "$OUT/out.wav" >/dev/null 2>&1 &
+PID_OUT=$!
+
+# Wait for the manual-link target's ports to exist, then wire them.
+for _ in $(seq 1 40); do
+    pw-link -o 2>/dev/null | grep -q "^ringtest-in:input_FL" && break
+    sleep 0.1
+done
+# Do NOT guess the source by name. There are three plausible capture_FL ports
+# (the card, `demiurge-source`'s loopback, the snd_aloop virtual clock) and
+# two of them are silent in direct mode — linking to one of those produces a
+# quiet "input" that would wrongly exonerate the DSP. The only port that
+# cannot be wrong is whichever one is actually feeding the engine right now,
+# so read that off the live graph.
+read -r SRC SRC2 <<EOF
+$(pw-link -l 2>/dev/null | python3 -c '
+import re,sys
+cur, feeds = None, {}
+for ln in sys.stdin:
+    if not ln.startswith((" ","\t")):
+        cur = ln.strip()
+    elif "|->" in ln and cur:
+        feeds.setdefault(ln.split("|->")[1].strip(), []).append(cur)
+def pick(port):
+    for k, v in feeds.items():
+        if k.startswith(port):
+            return v[0]
+    return ""
+l, r = pick("csound6:input1"), pick("csound6:input2")
+if l and not r: r = l.replace("_FL", "_FR")
+print(l, r)')
+EOF
+if [ -z "${SRC:-}" ]; then echo "engine input is not linked to anything" >&2; fi
+pw-link "$SRC"  ringtest-in:input_FL 2>/dev/null
+pw-link "$SRC2" ringtest-in:input_FR 2>/dev/null
+
+LINKED=$(pw-link -l 2>/dev/null | grep -c "ringtest-in:input_F")
+if [ "$LINKED" -eq 0 ]; then
+    echo "WARNING: input capture did not link — the input file is not trustworthy" >&2
+else
+    echo "input linked ($SRC)"
+fi
+echo "recording ${SECS}s — keep it ringing…"
+wait $PID_IN $PID_OUT 2>/dev/null
+
+python3 - "$OUT/in.wav" "$OUT/out.wav" <<'PY'
+import sys, wave, numpy as np
+
+def load(p):
+    w = wave.open(p)
+    d = np.frombuffer(w.readframes(w.getnframes()), dtype="<i4")
+    return d.reshape(-1, w.getnchannels()).astype(float) / 2**31
+
+def describe(tag, path):
+    d = load(path); x = d[:, 0]
+    nz = np.count_nonzero(x)
+    pk = 20*np.log10(np.abs(x).max() + 1e-12)
+    rms = 20*np.log10(np.sqrt((x**2).mean()) + 1e-12)
+    print("=" * 64); print("%s   %.1fs" % (tag, len(d)/48000))
+    print("  peak %7.1f dBFS   rms %7.1f dBFS   nonzero %d" % (pk, rms, nz))
+    if nz == 0:
+        print("  DIGITAL SILENCE — nothing was captured here."); return None
+    seg = np.array_split(x, 10)
+    print("  rms over time:", " ".join("%.0f" % (20*np.log10(np.sqrt((s**2).mean())+1e-12)) for s in seg))
+    X = np.abs(np.fft.rfft(x * np.hanning(len(x))))
+    f = np.fft.rfftfreq(len(x), 1/48000)
+    band = f > 15
+    Xb, fb = X[band], f[band]
+    peak_f = fb[np.argmax(Xb)]
+    top = np.argsort(Xb)[::-1]
+    picked, seen = [], []
+    for t in top:                      # distinct peaks, not one lobe resampled
+        if all(abs(fb[t] - s) > 8 for s in seen):
+            picked.append(t); seen.append(fb[t])
+        if len(picked) == 6: break
+    print("  dominant %.1f Hz" % peak_f)
+    print("  peaks:", ", ".join("%.1fHz %.0fdB" % (fb[t], 20*np.log10(Xb[t]/Xb.max())) for t in picked))
+    return peak_f
+
+fi = describe("INPUT  (guitar → ADC)", sys.argv[1])
+fo = describe("OUTPUT (engine → DAC)", sys.argv[2])
+
+print("=" * 64)
+# Block-rate artefacts land on exact submultiples of the sample rate; a ring
+# sitting on one of those is a timing/buffer discontinuity, not an effect.
+if fo:
+    for name, n in (("quantum 128", 128), ("quantum 64", 64), ("ksmps 64", 64), ("ksmps 32", 32)):
+        r = 48000.0 / n
+        for h in (1, 2, 3):
+            if abs(fo - r*h) < max(3.0, r*h*0.02):
+                print("NOTE: output ring %.0f Hz sits on %s block rate (%.0f Hz x%d)"
+                      % (fo, name, r, h))
+if fi is None and fo:
+    print("VERDICT: ring is in the OUTPUT with no input captured — rerun; the")
+    print("         input half failed to link, so this take cannot separate them.")
+elif fi and fo:
+    print("VERDICT: input dominant %.1f Hz, output dominant %.1f Hz" % (fi, fo))
+    print("         same frequency  -> the ring is ARRIVING on the input")
+    print("                            (analog / acoustic feedback, not DSP)")
+    print("         different / input quiet -> the chain is GENERATING it")
+PY

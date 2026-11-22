@@ -1,0 +1,45 @@
+[Unit]
+Description=NEPTR Phase 4 UI (config-driven via live.conf ui=/ui_cmd=/ui_also=)
+After=multi-user.target systemd-user-sessions.service demiurge.service
+# Couple to the audio stack: a `systemctl restart demiurge` relaunches the UI
+# (and every ui_also aux command) too. PartOf propagates stop/restart only;
+# the UI still autostarts on its own at boot via WantedBy=multi-user.target.
+PartOf=demiurge.service
+# Depends on the DRM device being up. On Pi 5 this appears very early but
+# we gate on it so the service doesn't flap if vc4 is slow.
+ConditionPathExists=/dev/dri/card0
+
+[Service]
+Type=simple
+# gorpi7 = (insert your name here, this is mine) — the Pi user set in
+# Raspberry Pi Imager. Replace every gorpi7 below if yours is different.
+User=gorpi7
+Group=gorpi7
+# Needed to open /dev/dri/* for KMSDRM and read /dev/input/* if we ever add touch.
+SupplementaryGroups=video render input
+
+Environment=HOME=/home/gorpi7
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+# Panel rotation. 270 is the code's default; this rig's 480x800 Waveshare panel
+# wants 0 (set 2026-10-02 after the rebuild came up rotated). The UI
+# applies the INVERSE of this same value to the touch digitizer, so display and
+# touch cannot disagree -- change it here only, never in two places.
+Environment=NEPTR_ROT=0
+Environment=SDL_VIDEODRIVER=kmsdrm
+Environment=SDL_AUDIODRIVER=dummy
+
+WorkingDirectory=/home/gorpi7/NEPTR_phase4
+# The program(s) are NOT hard-coded here anymore — the launcher reads live.conf
+# (ui / ui_cmd / ui_also). On `ui = off` it exits 0 and the service goes inactive.
+ExecStart=/usr/local/bin/demiurge-ui-launch.sh
+
+# Tear down the UI AND every ui_also aux child together on stop/restart.
+KillMode=control-group
+Restart=on-failure
+RestartSec=3
+# Send stdout/stderr to the journal so `journalctl -u neptr-ui -f` shows the UI log.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

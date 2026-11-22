@@ -1,0 +1,15 @@
+#N canvas 0 0 500 300 10;
+#X obj 20 20 inlet;
+#X obj 20 50 change;
+#X obj 20 80 list prepend \$1;
+#X obj 20 110 oscformat pout;
+#X obj 20 140 s demiurge-param-tx;
+#X obj 200 20 loadbang;
+#X msg 200 50 format sf;
+#X text 20 180 [dpout /path] - float in -> /pout /path val to the pool (only when it changes).;
+#X connect 0 0 1 0;
+#X connect 1 0 2 0;
+#X connect 2 0 3 0;
+#X connect 3 0 4 0;
+#X connect 5 0 6 0;
+#X connect 6 0 3 0;

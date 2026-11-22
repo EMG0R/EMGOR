@@ -1,0 +1,24 @@
+#!/bin/bash
+# demiurge-run-faust <compiled-binary>
+# Runs a pre-compiled Faust JACK console binary. Does NOT compile
+# .dsp sources — compile once with `faust2jackconsole foo.dsp` and
+# point the session file at the binary, not the source.
+#
+# stdin is redirected from /dev/null to prevent faust2jackconsole
+# binaries from exiting on stdin read attempts under systemd.
+set -e
+source /opt/demiurge/lib/demiurge-env.sh 2>/dev/null || source "$(dirname "$0")/../lib/demiurge-env.sh"
+
+if [[ -z "$1" ]]; then
+    echo "usage: demiurge-run-faust <compiled-binary>" >&2
+    exit 1
+fi
+
+BIN="$1"; shift
+if [[ ! -x "$BIN" ]]; then
+    echo "demiurge-run-faust: not executable: $BIN" >&2
+    echo "  compile .dsp first with: faust2jackconsole <file.dsp>" >&2
+    exit 2
+fi
+
+exec "$BIN" "$@" < /dev/null

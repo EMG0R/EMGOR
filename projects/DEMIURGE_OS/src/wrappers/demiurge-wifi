@@ -1,0 +1,390 @@
+#!/bin/bash
+# demiurge-wifi — view and change the Wi-Fi network DEMIURGE is on.
+#
+# Usage:
+#   demiurge-wifi                    human-readable status + visible networks
+#   demiurge-wifi --status-machine   one parseable line for UIs:
+#                                      state|ssid|signal|security|ip|iface
+#                                    state = connected|connecting|disconnected|nowifi
+#   demiurge-wifi --list             machine lines, strongest first:
+#                                      ssid|signal|security|flags
+#                                    signal   = 0-100
+#                                    security = open|wpa|wep|enterprise
+#                                    flags (comma-joined): active = joined right now
+#                                                          saved  = profile exists
+#   demiurge-wifi --scan             force a fresh AP scan, then --list
+#   demiurge-wifi join <ssid>        join a SAVED or OPEN network (no password)
+#   demiurge-wifi join <ssid> --password-stdin
+#                                    join with a password read from STDIN
+#   demiurge-wifi forget <ssid>      delete the saved profile
+#   demiurge-wifi ip                 just the current IPv4 address
+#
+# ── Why the password comes in on STDIN ───────────────────────────────────────
+# A password passed as an argument is visible to every user on the box in
+# `ps auxww` for as long as the command runs, and it lands in shell history.
+# This tool never accepts one as an argument and never puts one on any child
+# process's command line: the secret is read from stdin, written straight into
+# a NetworkManager keyfile with mode 600, and that file is installed root-owned
+# into /etc/NetworkManager/system-connections/ before `nmcli con load` is told
+# about it. nmcli itself never sees the secret. The staging temp file is
+# created under a 077 umask and removed on every exit path (EXIT trap).
+#
+# ── Autoconnect priority (do not break the home network) ─────────────────────
+# The home network is deliberately pinned at autoconnect-priority 30 with
+# powersave disabled. New networks joined through this tool are created at
+# JOIN_PRIORITY (20) with powersave disabled to match the existing profiles —
+# high enough to beat an untouched default-0 profile, low enough that the home
+# network still wins whenever it is in range. Existing profiles are NEVER
+# re-prioritised by this tool; `join` on a saved network only brings it up.
+#
+# See docs/config-reference.md. Wi-Fi state lives in NetworkManager, not in
+# live.conf — there is no DEMIURGE config key for it and this is the single
+# write path every UI must use.
+
+set -u
+
+NMCLI="${DEMIURGE_NMCLI:-nmcli}"
+SYSCONN_DIR="${DEMIURGE_NM_SYSCONN_DIR:-/etc/NetworkManager/system-connections}"
+JOIN_PRIORITY="${DEMIURGE_WIFI_PRIORITY:-20}"
+
+have_nm() { command -v "$NMCLI" >/dev/null 2>&1; }
+
+# nmcli -t escapes ':' and '\' inside fields as '\:' / '\\'. Undo that.
+unesc() { sed 's/\\:/\x01/g; s/\\\\/\\/g; s/\x01/:/g'; }
+
+wifi_dev() {
+    "$NMCLI" -t -f DEVICE,TYPE dev 2>/dev/null \
+        | awk -F: '$2=="wifi"{print $1; exit}'
+}
+
+# security token from nmcli's SECURITY field ("WPA2", "WPA2 WPA3", "802.1X", "")
+sec_token() {
+    local s; s="$(tr '[:upper:]' '[:lower:]' <<<"${1:-}")"
+    case "$s" in
+        *802.1x*|*enterprise*) echo enterprise ;;
+        *wpa*|*rsn*|*sae*)     echo wpa ;;
+        *wep*)                 echo wep ;;
+        "")                    echo open ;;
+        *)                     echo wpa ;;
+    esac
+}
+
+saved_profiles() {
+    "$NMCLI" -t -f NAME,TYPE con show 2>/dev/null | unesc \
+        | awk -F: '$NF ~ /wireless/ {NF--; print}' OFS=:
+}
+
+# The SSID of the network we are actually on. Taken from the ACTIVE connection,
+# not from the AP scan: the scan can be stale (or empty right after a rescan)
+# and an SSID may itself contain ':', so `$1=""` style field surgery is wrong —
+# substr past the known-fixed "yes:" prefix keeps the SSID byte-exact.
+active_ssid() {
+    "$NMCLI" -t -f ACTIVE,SSID dev wifi list --rescan no 2>/dev/null | unesc \
+        | awk '/^yes:/ { print substr($0, 5); exit }'
+}
+
+current_ip() {
+    local dev; dev="$(wifi_dev)"
+    [[ -z "$dev" ]] && return 0
+    "$NMCLI" -t -f IP4.ADDRESS dev show "$dev" 2>/dev/null \
+        | sed -n 's|^IP4.ADDRESS\[1\]:||p' | cut -d/ -f1 | head -1
+}
+
+# Visible APs, deduplicated by SSID keeping the strongest, sorted desc.
+# Emits: ssid|signal|security|flags
+#
+# `--rescan no` is deliberate and load-bearing: a bare `nmcli dev wifi list`
+# may trigger a fresh scan and block for tens of seconds, which would make
+# every UI that polls this feel hung. Listing always reads NetworkManager's
+# cache (it re-scans on its own schedule); an explicit refresh is `--scan`.
+scan_list() {
+    local active saved rescan="${1:-no}"
+    active="$(active_ssid)"
+    saved="$(saved_profiles)"
+    "$NMCLI" -t -f SSID,SIGNAL,SECURITY dev wifi list --rescan "$rescan" 2>/dev/null | unesc \
+    | awk -F: -v active="$active" -v saved="$saved" '
+        BEGIN {
+            n = split(saved, sv, "\n")
+            for (i = 1; i <= n; i++) if (sv[i] != "") issaved[sv[i]] = 1
+        }
+        {
+            # SSID may itself contain ":" once unescaped, so take the LAST two
+            # fields as signal+security and rejoin the rest as the SSID.
+            sec = $NF; sig = $(NF-1)
+            ssid = $1
+            for (i = 2; i <= NF-2; i++) ssid = ssid ":" $i
+            if (ssid == "") next                       # hidden AP, unjoinable by name
+            if (!(ssid in best) || sig+0 > best[ssid]+0) { best[ssid] = sig+0; secof[ssid] = sec }
+        }
+        END {
+            for (s in best) {
+                f = ""
+                if (s == active)  f = "active"
+                if (s in issaved) f = (f == "" ? "saved" : f ",saved")
+                printf "%d\t%s|%d|%s|%s\n", best[s], s, best[s], secof[s], f
+            }
+        }' \
+    | sort -rn -k1,1 | cut -f2- \
+    | while IFS='|' read -r ssid sig sec flags; do
+          printf '%s|%s|%s|%s\n' "$ssid" "$sig" "$(sec_token "$sec")" "$flags"
+      done
+}
+
+state_word() {
+    local dev; dev="$(wifi_dev)"
+    [[ -z "$dev" ]] && { echo nowifi; return; }
+    local st
+    st="$("$NMCLI" -t -f DEVICE,STATE dev 2>/dev/null \
+          | awk -F: -v d="$dev" '$1==d{print $2; exit}')"
+    case "$st" in
+        connected*)  echo connected ;;
+        connecting*|config*|ip*) echo connecting ;;
+        *)           echo disconnected ;;
+    esac
+}
+
+# ─────────────────────────────────────────────────────────── joining
+
+is_saved() {
+    local want="$1" name
+    while IFS= read -r name; do
+        [[ "$name" == "$want" ]] && return 0
+    done < <(saved_profiles)
+    return 1
+}
+
+# Everything NetworkManager's keyfile format takes verbatim. Anything else
+# (non-ASCII, control chars) would need the ssid=<hex> form; rather than write
+# a subtly-wrong profile we refuse and say why.
+ssid_is_plain() {
+    [[ "$1" =~ ^[[:print:]]+$ ]] && [[ "$1" != *$'\n'* ]] && [[ ${#1} -le 32 ]]
+}
+
+profile_path() { printf '%s/%s.nmconnection\n' "$SYSCONN_DIR" "$1"; }
+
+# write_profile <ssid> <psk-or-empty> — root-owned 600 keyfile, no argv secret.
+write_profile() {
+    local ssid="$1" psk="$2" tmp uuid path
+    uuid="$(cat /proc/sys/kernel/random/uuid 2>/dev/null)"
+    [[ -z "$uuid" ]] && uuid="$(python3 -c 'import uuid;print(uuid.uuid4())')"
+    path="$(profile_path "$ssid")"
+
+    umask 077
+    tmp="$(mktemp "${TMPDIR:-/tmp}/demiurge-wifi.XXXXXX")" || return 1
+    trap 'rm -f "$tmp"' EXIT
+
+    {
+        printf '[connection]\nid=%s\nuuid=%s\ntype=wifi\nautoconnect=true\n' \
+               "$ssid" "$uuid"
+        printf 'autoconnect-priority=%s\n\n' "$JOIN_PRIORITY"
+        printf '[wifi]\nmode=infrastructure\nssid=%s\npowersave=2\n\n' "$ssid"
+        if [[ -n "$psk" ]]; then
+            printf '[wifi-security]\nkey-mgmt=wpa-psk\npsk=%s\n\n' "$psk"
+        fi
+        printf '[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\naddr-gen-mode=default\n\n'
+        printf '[proxy]\n'
+    } > "$tmp"
+
+    sudo -n install -m 600 -o root -g root "$tmp" "$path" || return 1
+    rm -f "$tmp"; trap - EXIT
+    sudo -n "$NMCLI" con load "$path" >/dev/null 2>&1
+    return 0
+}
+
+do_join() {
+    local ssid="$1" want_stdin="$2" psk=""
+    if [[ -z "$ssid" ]]; then
+        echo "demiurge-wifi: join needs an SSID" >&2; return 2
+    fi
+    # Already on it — do nothing. A redundant `join` on an already-active
+    # SSID otherwise forces a full deactivate/reactivate cycle on a link
+    # that was fine, which is exactly what made a stable connection look
+    # like it was randomly dropping. No password path reaches here anyway
+    # (a caller resending a password to an already-joined network gets the
+    # same short-circuit — there is nothing to rewrite).
+    if [[ "$ssid" == "$(active_ssid)" ]]; then
+        echo "demiurge-wifi: already on '$ssid' — $(current_ip)"
+        return 0
+    fi
+    if [[ "$want_stdin" == 1 ]]; then
+        IFS= read -r psk || true
+        psk="${psk%$'\r'}"
+        if [[ ${#psk} -lt 8 || ${#psk} -gt 63 ]]; then
+            echo "demiurge-wifi: WPA password must be 8-63 characters" >&2
+            return 2
+        fi
+    fi
+
+    if [[ -n "$psk" ]]; then
+        ssid_is_plain "$ssid" || {
+            echo "demiurge-wifi: SSID has characters this tool can't write safely — join it once with nmcli, then it is 'saved' here" >&2
+            return 2
+        }
+        echo "demiurge-wifi: saving '$ssid' (priority $JOIN_PRIORITY, powersave off)..."
+        write_profile "$ssid" "$psk" || {
+            echo "demiurge-wifi: could not write the network profile" >&2; return 1
+        }
+    elif ! is_saved "$ssid"; then
+        # No password given and nothing saved — only legal for an open network.
+        local sec
+        sec="$(scan_list | awk -F'|' -v s="$ssid" '$1==s{print $3; exit}')"
+        if [[ -z "$sec" ]]; then
+            echo "demiurge-wifi: '$ssid' is not visible and not saved" >&2; return 1
+        fi
+        if [[ "$sec" != open ]]; then
+            echo "demiurge-wifi: '$ssid' needs a password — use: demiurge-wifi join '$ssid' --password-stdin" >&2
+            return 2
+        fi
+        ssid_is_plain "$ssid" || { echo "demiurge-wifi: SSID not writable by this tool" >&2; return 2; }
+        write_profile "$ssid" "" || return 1
+    fi
+
+    echo "demiurge-wifi: joining '$ssid'..."
+    local out rc
+    # -w bounds how long nmcli itself will sit inside NM's activation retry
+    # loop. Without it, a slow/flaky AP can leave nmcli blocking for 60-90s+
+    # (NM retries need-auth internally on its own schedule) — well past the
+    # 30s timeout both UIs give up at client-side. When that happens the CLI
+    # process gets killed, but NOTHING tells NetworkManager to abandon the
+    # activation, so it keeps running orphaned in the background and the
+    # NEXT command (a retry, a disconnect) queues behind a zombie attempt —
+    # that is the actual mechanism behind "it just hangs". 18s keeps nmcli
+    # comfortably inside every caller's own timeout so it always returns
+    # control on its own terms, never by being killed.
+    out="$("$NMCLI" -w 18 con up id "$ssid" 2>&1)"; rc=$?
+    if [[ $rc -ne 0 && "$out" == *ssid-not-found* ]]; then
+        # NM's scan cache can go stale by the time we get here — 5GHz beacons
+        # in particular age out faster than 2.4GHz ones, so a network that
+        # was visible seconds ago in --list can already be gone from NM's
+        # internal BSS table. One forced rescan + retry fixes exactly that
+        # without silently masking a real "AP isn't there" failure — this
+        # branch only fires when NM's own error says ssid-not-found.
+        echo "demiurge-wifi: '$ssid' not in NM's scan cache — rescanning..."
+        "$NMCLI" dev wifi rescan >/dev/null 2>&1
+        sleep 2
+        out="$("$NMCLI" -w 18 con up id "$ssid" 2>&1)"; rc=$?
+    fi
+    if [[ $rc -ne 0 ]]; then
+        # Force NM to actually give up rather than keep retrying this
+        # activation in the background after we've already told the user
+        # it failed — guarantees wlan0 is left idle, not mid-attempt, so the
+        # very next command (another join, a disconnect) never has to queue
+        # behind this one.
+        "$NMCLI" con down id "$ssid" >/dev/null 2>&1
+        echo "demiurge-wifi: could not join '$ssid'" >&2
+        echo "  $out" >&2
+        return 1
+    fi
+    echo "demiurge-wifi: on '$ssid' — $(current_ip)"
+}
+
+do_forget() {
+    local ssid="$1"
+    [[ -z "$ssid" ]] && { echo "demiurge-wifi: forget needs an SSID" >&2; return 2; }
+    if [[ "$ssid" == "$(active_ssid)" ]]; then
+        echo "demiurge-wifi: '$ssid' is the network you are on — not deleting it" >&2
+        return 2
+    fi
+    is_saved "$ssid" || { echo "demiurge-wifi: no saved network '$ssid'" >&2; return 1; }
+    sudo -n "$NMCLI" con delete id "$ssid" >/dev/null 2>&1 \
+        || "$NMCLI" con delete id "$ssid" >/dev/null 2>&1 \
+        || { echo "demiurge-wifi: could not delete '$ssid'" >&2; return 1; }
+    echo "demiurge-wifi: forgot '$ssid'"
+}
+
+# ─────────────────────────────────────────────────────────── entry point
+
+have_nm || {
+    case "${1:-}" in
+        --list) exit 0 ;;
+        --status-machine) echo "nowifi||||"; exit 0 ;;
+        *) echo "demiurge-wifi: NetworkManager (nmcli) not available here" >&2; exit 1 ;;
+    esac
+}
+
+case "${1:-}" in
+    --list) scan_list; exit 0 ;;
+    --scan)
+        "$NMCLI" dev wifi rescan >/dev/null 2>&1
+        scan_list yes; exit 0 ;;
+    --status-machine)
+        ssid="$(active_ssid)"
+        line="$(scan_list | awk -F'|' -v s="$ssid" '$1==s{print; exit}')"
+        printf '%s|%s|%s|%s|%s|%s\n' "$(state_word)" "$ssid" \
+               "$(cut -d'|' -f2 <<<"$line")" "$(cut -d'|' -f3 <<<"$line")" \
+               "$(current_ip)" "$(wifi_dev)"
+        exit 0 ;;
+    ip) current_ip; exit 0 ;;
+    join)   shift
+            ssid="${1:-}"; shift || true
+            stdin=0
+            for a in "$@"; do
+                case "$a" in
+                    --password-stdin) stdin=1 ;;
+                    --password|--password=*)
+                        echo "demiurge-wifi: passwords are never taken as arguments — pipe it in with --password-stdin" >&2
+                        exit 2 ;;
+                esac
+            done
+            do_join "$ssid" "$stdin"; exit $? ;;
+    forget) shift; do_forget "${1:-}"; exit $? ;;
+    disconnect)
+            # Deliberately does NOT touch autoconnect flags on any profile —
+            # it just drops the current link. Whether something reconnects
+            # afterward is entirely down to each profile's own autoconnect
+            # setting, which is a separate, explicit choice (see `radio off`
+            # for "stay off, no exceptions").
+            dev="$(wifi_dev)"
+            [[ -z "$dev" ]] && { echo "demiurge-wifi: no wifi adapter" >&2; exit 1; }
+            # `timeout` as a hard outer bound — belt-and-suspenders on top of
+            # -w, since this is the exact command that must never itself be
+            # the thing that hangs.
+            timeout 10 "$NMCLI" -w 8 dev disconnect "$dev" >/dev/null 2>&1 \
+                && echo "demiurge-wifi: disconnected" \
+                || { echo "demiurge-wifi: already disconnected" ; }
+            exit 0 ;;
+    radio)  shift
+            case "${1:-}" in
+                on)  "$NMCLI" radio wifi on >/dev/null 2>&1
+                     echo "demiurge-wifi: radio on" ;;
+                off) # Full hard-off: no scanning, no autoconnect of any kind,
+                     # until explicitly turned back on. This is the "actually
+                     # leave it alone" button — disconnect alone can't give
+                     # that guarantee because a profile with autoconnect=yes
+                     # would just reassociate on its own.
+                     "$NMCLI" radio wifi off >/dev/null 2>&1
+                     echo "demiurge-wifi: radio off" ;;
+                *)   echo "demiurge-wifi: radio needs 'on' or 'off'" >&2; exit 2 ;;
+            esac
+            exit 0 ;;
+    -h|--help) sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    "") : ;;
+    *)  echo "demiurge-wifi: unknown command '$1' (try --help)" >&2; exit 2 ;;
+esac
+
+# ── human status ──
+ssid="$(active_ssid)"
+state="$(state_word)"
+if [[ "$state" == nowifi ]]; then
+    echo "No Wi-Fi adapter."
+    exit 0
+fi
+if [[ -n "$ssid" ]]; then
+    echo "On:  $ssid"
+else
+    echo "On:  (not connected)"
+fi
+ip="$(current_ip)"
+[[ -n "$ip" ]] && echo "IP:  $ip"
+echo ""
+echo "Visible networks:"
+scan_list | while IFS='|' read -r s sig sec flags; do
+    mark=" "
+    [[ ",$flags," == *,active,* ]] && mark="*"
+    extra=""
+    [[ ",$flags," == *,saved,*  ]] && extra=" (saved)"
+    [[ "$sec" == open ]] && extra+=" [open]"
+    printf '  %s %-28s %3s%%%s\n' "$mark" "$s" "$sig" "$extra"
+done
+echo ""
+echo "* = joined.  Join a new one:  demiurge-wifi join 'SSID' --password-stdin"

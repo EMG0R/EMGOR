@@ -1,0 +1,22 @@
+mode|sync
+node|alsa_input.plat|interface|Interface in
+node|csound6|engine|csound6
+node|demiurge-source-input|loopback|Loopback source
+node|alsa_output.plat|interface|Interface out
+port|alsa_input.plat:capture_FL|alsa_input.plat|out|interface|CAP L|2
+port|alsa_input.plat:capture_FR|alsa_input.plat|out|interface|CAP R|2
+port|csound6:output1|csound6|out|engine|OUT 1|1
+port|csound6:output2|csound6|out|engine|OUT 2|1
+port|demiurge-source-input:input_FL|demiurge-source-input|in|loopback|IN L|1
+port|demiurge-source-input:input_FR|demiurge-source-input|in|loopback|IN R|1
+port|alsa_output.plat:playback_FL|alsa_output.plat|in|interface|PLAY L|1
+port|alsa_output.plat:playback_FR|alsa_output.plat|in|interface|PLAY R|1
+port|csound6:input1|csound6|in|engine|IN 1|1
+port|csound6:input2|csound6|in|engine|IN 2|1
+link|alsa_input.plat:capture_FL|demiurge-source-input:input_FL|loopback|
+link|alsa_input.plat:capture_FL|csound6:input1|direct|engine-in,managed
+link|alsa_input.plat:capture_FR|demiurge-source-input:input_FR|loopback|
+link|alsa_input.plat:capture_FR|csound6:input2|direct|engine-in,managed
+link|csound6:output1|alsa_output.plat:playback_FL|direct|engine-out,managed
+link|csound6:output2|alsa_output.plat:playback_FR|direct|engine-out,managed
+path|direct|direct

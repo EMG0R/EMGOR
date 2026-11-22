@@ -1,0 +1,56 @@
+# neptr-video preset
+version 1
+mode PARTICLES
+kernel burningship
+kernel_b mandelbrot
+color 4
+trap 0
+palette_a SPECTRUM
+palette_b ULTRAVIOLET
+fx feedback on
+fx kaleido off
+fx saturate on
+fx levels on
+fx grain on
+p g.speed 1
+p g.zoom 3.5
+p g.rotation 0
+p g.center_x 0
+p g.center_y 0
+p g.detail 211
+p g.render_scale 1
+p g.morph 0.6
+p g.palette_mix 0
+p g.palette_shift 0
+p g.palette_sat 1
+p g.palette_spread 1
+p g.stripe_freq 6
+p g.prism 0.05
+p g.fractal_level 1
+p p.count 0.5
+p p.size 3
+p p.speed 1
+p p.gravity -2.25
+p p.swirl 1
+p p.motion 0.15
+p p.damping 0.94
+p p.life 6
+p p.bright 1
+p p.field_color 0
+p p.cohesion 0.42
+p p.carry 1
+p d.size 0.04
+p d.flow 0.6
+p d.soft 0.6
+p d.fade 0
+p d.field_color 1
+p fx0.amount 0.5
+p fx0.zoom 0.01
+p fx0.rotate 0.00999999
+p fx0.decay 0.96
+p fx1.slices 6
+p fx1.spin 0
+p fx2.amount 1
+p fx3.contrast 1
+p fx3.bright 0
+p fx4.amount 0.06

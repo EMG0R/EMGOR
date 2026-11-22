@@ -1,0 +1,4 @@
+stage,p50_ms,p95_ms,max_ms,n,host
+controller,0.022667,0.024010449999999996,0.075208,200,Emorys-MBP.lan
+wire,0.067438,0.07808925,0.159583,200,Emorys-MBP.lan
+renderer,0.108375,0.15146184999999998,0.290542,200,Emorys-MBP.lan

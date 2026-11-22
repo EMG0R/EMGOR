@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ===== Bluetooth ===== -->
+    <!-- Android 12+ (API 31) runtime BLE permissions. neverForLocation tells the
+         OS we do not derive physical location from BLE scans, so the SCAN
+         permission does not force the user to also grant location for scanning. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <!-- Legacy Bluetooth for API <= 30 -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+
+    <!-- ===== Location =====
+         Needed for BLE scanning on API <= 30, AND for the "weather from phone
+         location" feature on all versions. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- ===== Notifications ===== -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ===== Foreground service (persistent BLE link) ===== -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
+        tools:targetApi="34" />
+    <!-- NOTE: no FOREGROUND_SERVICE_CAMERA/MICROPHONE. On Android 14 CAMERA is a
+         "while-in-use" permission, so a camera-typed FGS cannot capture from the
+         background — the capture happens in the VISIBLE CameraActivity instead. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- ===== Networking (Open-Meteo weather) ===== -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- ===== Find-phone ringing ===== -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- ===== Next calendar event ===== -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+
+    <!-- ===== Watch-triggered camera (CameraX, app-hosted) ===== -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Saving to the gallery via MediaStore on Android <= 9 needs legacy storage. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <!-- "Display over other apps": grants a reliable background-activity-launch
+         exemption so the camera Activity can come to the foreground when the phone
+         is idle/backgrounded and the watch sends {"t":"camera","n":"open"}. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Full-screen intent: lets a watch shutter tap launch the camera via a
+         high-importance notification even when the phone is idle/backgrounded
+         (the reliable background-activity-launch path alongside overlay). -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!-- Bluetooth LE is required hardware. -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+    <!-- Camera is used but optional (feature, not a hard requirement). -->
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <application
+        android:name=".TheWatchApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.TheWatch">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.TheWatch">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- App-hosted VISIBLE CameraX capture screen, driven by watch BLE commands.
+             This is the ONLY place capture happens on Android 14 (CAMERA is a
+             while-in-use permission). singleTask so repeated launches (capture/
+             mode) route to the live instance via onNewIntent instead of stacking.
+             showWhenLocked/turnScreenOn let it appear over the lock screen when the
+             phone is idle; it is launched from the background via SYSTEM_ALERT_WINDOW. -->
+        <activity
+            android:name=".camera.CameraActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.TheWatch" />
+
+        <!-- Persistent foreground service that owns the GATT connection. -->
+        <service
+            android:name=".service.WatchService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <!-- System-bound notification listener; forwards notifications to watch. -->
+        <service
+            android:name=".service.WatchNotificationListener"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Re-launch the link after reboot. -->
+        <receiver
+            android:name=".service.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

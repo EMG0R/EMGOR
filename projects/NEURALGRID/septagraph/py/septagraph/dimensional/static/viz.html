@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>neuralGrid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/viz.css">
+</head>
+<body>
+  <canvas id="field"></canvas>
+  <div id="setup">
+    <button data-act="rotate">turn ¼</button>
+    <button data-act="flipx">mirror ↔</button>
+    <button data-act="flipy">mirror ↕</button>
+    <span class="sep"></span>
+    <span class="hint" id="riblive">touch a ribbon →</span>
+    <button data-ribbon="top">top</button>
+    <button data-ribbon="right">right</button>
+    <button data-ribbon="bottom">bottom</button>
+    <button data-ribbon="left">left</button>
+    <span class="sep"></span>
+    <span class="hint">reverse</span>
+    <button data-invert="top">↕t</button>
+    <button data-invert="right">↕r</button>
+    <button data-invert="bottom">↕b</button>
+    <button data-invert="left">↕l</button>
+  </div>
+  <div id="raws" aria-label="raw sensors"></div>
+  <pre id="monitor" aria-label="encoder output"></pre>
+  <section id="rawviz" aria-label="raw sensors over time">
+    <div id="rawviz-grid"></div>
+  </section>
+  <script src="/static/viz.js"></script>
+</body>
+</html>

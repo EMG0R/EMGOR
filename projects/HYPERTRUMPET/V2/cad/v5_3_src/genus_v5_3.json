@@ -1,0 +1,8 @@
+{
+ "mesh_genus": 34.0,
+ "voxel_genus_0p5mm": 62,
+ "after_plugging_25_face_openings": 37,
+ "after_plugging_open_back": 35,
+ "after_plugging_3_hall_holes": 32,
+ "remaining_expected_openings": "USB-C, jack, switch, battery bay, dovetail channel = 5 -> genus 4"
+}

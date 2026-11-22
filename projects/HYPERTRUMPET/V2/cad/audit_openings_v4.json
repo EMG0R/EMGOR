@@ -1,0 +1,478 @@
+{
+ "shell_pebble_v4": {
+  "genus_per_body": [
+   33
+  ]
+ },
+ "battery_door_v4": {
+  "genus_per_body": [
+   0
+  ]
+ },
+ "valve_cap_v4": {
+  "genus_per_body": [
+   0
+  ]
+ },
+ "mount_original_arms_plate_v4": {
+  "genus_per_body": [
+   0
+  ]
+ },
+ "shell_axis_scans": {
+  "from_top_(-z)": [
+   {
+    "at": [
+     821.5,
+     543.9,
+     null
+    ],
+    "extent_mm": [
+     178.0,
+     89.0
+    ],
+    "depth_mm": 186.1
+   },
+   {
+    "at": [
+     835.5,
+     583.7,
+     null
+    ],
+    "extent_mm": [
+     35.0,
+     1.0
+    ],
+    "depth_mm": null
+   },
+   {
+    "at": [
+     853.0,
+     539.7,
+     null
+    ],
+    "extent_mm": [
+     68.0,
+     3.0
+    ],
+    "depth_mm": 38.2
+   },
+   {
+    "at": [
+     894.0,
+     579.5,
+     null
+    ],
+    "extent_mm": [
+     35.0,
+     18.0
+    ],
+    "depth_mm": 500.0
+   }
+  ],
+  "from_bottom_(+z)": [
+   {
+    "at": [
+     811.1,
+     550.1,
+     null
+    ],
+    "extent_mm": [
+     178.0,
+     89.0
+    ],
+    "depth_mm": 59.9
+   },
+   {
+    "at": [
+     843.2,
+     535.7,
+     null
+    ],
+    "extent_mm": [
+     112.0,
+     53.0
+    ],
+    "depth_mm": 68.1
+   }
+  ],
+  "from_mouthpiece_side_(+x)": [
+   {
+    "at": [
+     null,
+     550.3,
+     40.0
+    ],
+    "extent_mm": [
+     89.0,
+     197.0
+    ],
+    "depth_mm": 500.0
+   },
+   {
+    "at": [
+     null,
+     531.7,
+     -33.9
+    ],
+    "extent_mm": [
+     7.0,
+     6.0
+    ],
+    "depth_mm": 194.9
+   },
+   {
+    "at": [
+     null,
+     555.1,
+     6.2
+    ],
+    "extent_mm": [
+     8.0,
+     14.0
+    ],
+    "depth_mm": 197.5
+   }
+  ],
+  "from_bell_side_(-x)": [
+   {
+    "at": [
+     null,
+     549.4,
+     34.6
+    ],
+    "extent_mm": [
+     89.0,
+     197.0
+    ],
+    "depth_mm": 500.0
+   },
+   {
+    "at": [
+     null,
+     555.2,
+     6.2
+    ],
+    "extent_mm": [
+     6.0,
+     6.0
+    ],
+    "depth_mm": null
+   }
+  ],
+  "from_front_(-y)": [
+   {
+    "at": [
+     822.8,
+     null,
+     42.3
+    ],
+    "extent_mm": [
+     178.0,
+     197.0
+    ],
+    "depth_mm": 68.3
+   },
+   {
+    "at": [
+     753.8,
+     null,
+     41.9
+    ],
+    "extent_mm": [
+     9.0,
+     9.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     753.7,
+     null,
+     101.3
+    ],
+    "extent_mm": [
+     9.0,
+     8.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     780.6,
+     null,
+     72.3
+    ],
+    "extent_mm": [
+     29.0,
+     28.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     810.7,
+     null,
+     51.3
+    ],
+    "extent_mm": [
+     9.0,
+     8.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     810.7,
+     null,
+     95.2
+    ],
+    "extent_mm": [
+     9.0,
+     8.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     830.5,
+     null,
+     67.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     830.5,
+     null,
+     82.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     830.5,
+     null,
+     97.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     830.5,
+     null,
+     112.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     830.0,
+     null,
+     12.1
+    ],
+    "extent_mm": [
+     6.0,
+     41.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     845.5,
+     null,
+     67.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     845.5,
+     null,
+     82.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     845.5,
+     null,
+     97.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     845.5,
+     null,
+     112.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     852.6,
+     null,
+     47.2
+    ],
+    "extent_mm": [
+     11.0,
+     8.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     852.9,
+     null,
+     11.6
+    ],
+    "extent_mm": [
+     6.0,
+     41.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     860.5,
+     null,
+     67.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 63.4
+   },
+   {
+    "at": [
+     860.5,
+     null,
+     82.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 63.4
+   },
+   {
+    "at": [
+     860.5,
+     null,
+     97.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 63.4
+   },
+   {
+    "at": [
+     860.5,
+     null,
+     112.6
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     875.5,
+     null,
+     67.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 63.4
+   },
+   {
+    "at": [
+     875.5,
+     null,
+     82.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 63.4
+   },
+   {
+    "at": [
+     875.5,
+     null,
+     97.7
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 63.4
+   },
+   {
+    "at": [
+     875.5,
+     null,
+     112.6
+    ],
+    "extent_mm": [
+     11.0,
+     11.0
+    ],
+    "depth_mm": 70.3
+   },
+   {
+    "at": [
+     875.5,
+     null,
+     12.1
+    ],
+    "extent_mm": [
+     5.0,
+     41.0
+    ],
+    "depth_mm": 63.4
+   }
+  ]
+ }
+}

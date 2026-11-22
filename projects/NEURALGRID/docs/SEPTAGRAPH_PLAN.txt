@@ -1,0 +1,189 @@
+SEPTAGRAPH — OFFICIAL PLAN v2 (2026-08-29)
+Supersedes everything in legacy-planning/ (kept as foundation).
+Name locked: SEPTAGRAPH (the protocol); a captured/authored shape =
+"a septagraph"; adjective "septagraphic". Controller implementation
+keeps the name NeuralGrid. Audio-Pi reference renderer: PRISM
+(provisional — one box that splits coordinates into sound).
+
+====================================================================
+1. THESIS
+====================================================================
+Total separation of predicting-the-human from rendering-the-sound.
+Controller and renderers share only a perceptual coordinate space.
+The controller's model never hears; renderers never see the player.
+Fast events are never touched by any model; slow reconfiguration
+lands only at detected gesture boundaries, so model latency is
+structurally inaudible.
+
+====================================================================
+2. THE SPACE (v1, versioned schema)
+====================================================================
+Axes: 1 frequency, 2 loudness, 3 harmonicity (tone<->noise),
+4 rate (temporal modulation), 5 scale (spectral modulation),
+6 space (azimuth/spread/distance), 7 time (trajectory parameter).
+- A sound = a SEPTAGRAPH: trajectory of distributions over axes 1-6
+  along 7. Time inside a septagraph is NORMALIZED 0..1 plus one
+  duration parameter (so shapes stretch at render, capture stays
+  duration-independent).  [weakness fix]
+- Claim: independent steerability, not orthogonality.
+- Axis additions = schema version bump.
+
+====================================================================
+3. THE PROTOCOL (4 message types, broadcast one-to-many)
+====================================================================
+Session plane (only place renderers may talk back):
+- /manifest : renderer declares reachable region. Machine Lab:
+  measured catalog (each point tagged instrument + room position +
+  MECHANICAL CONSTRAINTS: max re-strike rate, min/max force —
+  [weakness fix: robots have physical limits; controller must know
+  them or it will ask for impossible rolls]). Synth: continuous
+  bounds. Re-announce on change (instrument offline/retuned).
+  Input mirror: INPUT MANIFEST file per controller device declares
+  channels by geometry (1D/2D/3D, discrete/continuous, display
+  capability). Brain is device-agnostic.
+
+Slow plane (boundary-swapped, clockless):
+- /shape : septagraphs + window configs. Applied by renderers on
+  receipt; controller only SENDS at detected boundaries.
+
+Fast plane (sub-10ms, model never touches it):
+- /hit  : onset/release + VOICE ID + velocity + window-local coords.
+  [weakness fix: without voice ids, releases and per-note modulation
+  can't bind to notes; polyphony breaks]
+- /move : continuous channel stream (ribbon/pressure/lidar) at
+  50-100Hz, tagged with voice id when bound to a held note, else
+  global. [weakness fix: fast plane previously only had discrete
+  hits; continuous expression had no path]
+
+====================================================================
+4. THE WINDOW  [weakness fixes throughout]
+====================================================================
+- v1 windows are AXIS-ALIGNED only: center + extent per axis + a
+  discrete assignment map (which device axis drives which space
+  axis). No rotations/general affine — unlearnable, uninspectable,
+  and nobody can perform on a rotated basis. Revisit only if v1
+  feels limiting.
+- TWO DISTINCT QUANTITIES, previously conflated:
+  * EXTENT (w): deterministic playable range per axis — what the
+    player can reach. Lives in the window config.
+  * SPREAD (sigma): renderer liberty per axis — how loosely a
+    requested point may be realized. Lives in /shape messages,
+    sourced from model uncertainty.
+- LAYERS: a config holds N windows. v1: exactly 2 — PLAY layer
+  (live input) + LOOP layer (replaying captures), each with its own
+  region and renderer weights. [weakness fix: looping over the same
+  single window would retune loops every swap]
+  Loop layer default: FROZEN window (loops keep their sound while
+  the play window travels). Unfreezing the loop window = a
+  performable act (the loop migrates).
+- Live layer merges manifests into a density field; window cells
+  snap to catalog points first, continuum fills between; optional
+  gravity term on window placement.
+
+====================================================================
+5. CONTROLLER MODEL (one model, deaf, manifest-blind)
+====================================================================
+- Tiny causal sequence model (GRU or TCN, ~100k-1M params) over
+  channel features; MDN head emits next staged config (windows +
+  assignments + looper ops). sigma = mixture entropy.
+- Training: self-supervised next-action prediction + behavior
+  cloning of manual config choices.
+- COLD START [weakness fix, explicit]: the system is 100% usable
+  with the model absent. Order is always: manual mode -> logs ->
+  train -> enable. Web UI stages windows by hand until then.
+  --brain off remains the default and the safety floor.
+- Looping = deterministic live-layer capture/replay; loop effects =
+  geometric transforms on septagraphs (stutter = chop time axis,
+  displace = translate frequency, smear = widen sigma, reverse =
+  flip time). Model may operate the looper via config; never
+  implements it.
+
+====================================================================
+6. RENDERERS
+====================================================================
+- Csound (PRISM v0): continuous, deterministic reference. No model.
+- DDSP (PRISM v1): neural reference; harmonic/noise split maps
+  literally to the harmonicity axis. RAVE-class = Colton's engine.
+- Machine Lab: one renderer, one manifest, measured catalog of all
+  6-7 instruments (points tagged instrument/position/constraints);
+  nearest-neighbor over k-d tree. Per-instrument renderers allowed
+  later if independent shapes per instrument are wanted.
+- RESIDUAL RULE [decided]: residual rendering is a per-config flag.
+  When on, the synth renderer receives the Machine Lab manifest,
+  and for each hit renders (requested - nearest_catalog) energy;
+  within a snap radius r of a catalog point the synth fully defers
+  (silence) so exact robot notes stay pure. Crossfade linear over r.
+- Capture front-end (not a model): modulation filterbank + curve
+  fit -> septagraphs from real audio.
+
+====================================================================
+7. INSTRUMENTS / MODES / UI
+====================================================================
+- "Instrument" = saved config (windows + assignments + snapping +
+  renderer weights + speed).
+- Stable instrument = speed 0. Machine-Lab-frozen preset on PRISM =
+  the mimic.
+- Speed slider = cap on window velocity per boundary = model
+  authority. Web UI only.
+- Web UI (session plane): presets save/recall, speed, renderer
+  weights, residual flag, layer freeze, mode select, manifest view.
+- Physical UI (performance plane): playing only.
+- SHIPPED PRESETS v0 [decided]: (1) LAB DIRECT — frozen on catalog,
+  snap 100%, no synth; (2) CONTINUUM — DDSP full-range, no snap;
+  (3) HYBRID — catalog snap + residual synth on; (4) MIRROR — model
+  on, low speed, gravity mid. These four ARE the demo script.
+
+====================================================================
+8. ARTISTIC DEFAULTS (decided — change by playing, not debating)
+====================================================================
+- Grid axis assignment: x -> frequency (low left, high right),
+  y -> scale/texture (clean front, dense back). Velocity -> loudness.
+- Softpots as live per-note/global offsets on one axis each:
+  N = rate, E = loudness/dynamics, S = space, W = harmonicity.
+  "Touched-last" rule retired for menus; softpots are now pure
+  performance modulators (menus moved to web UI).
+- Lidar: hand height -> space axis (height = spread/distance);
+  approach velocity feeds the feature stream (anticipation signal).
+- LED language: warm white = catalog (physical) points; hue-mapped
+  blue-green = continuum cells (hue follows y/scale); dim violet
+  pulse = model's predicted-next ghosts; amber sweep = loop
+  playhead. Window swap animates as a ~150ms LED crossfade so
+  reconfiguration is always visible, never a jump-cut.
+- A hit on a catalog pad flashes that pad AND (if residual off)
+  nothing else lights — physicality reads as physical.
+
+====================================================================
+9. BUILD ORDER (milestones)
+====================================================================
+M0  DIRECT LAB SCRIPT (locked, early): standalone script, no model,
+    no window — grid cells hand-mapped to the 6-7 Machine Lab
+    instruments, hits -> OSC/MIDI to lab server. The gig tool + the
+    end-to-end hardware proof. Lab setup itself stays untouched.
+M1  CATALOG MEASUREMENT: record + analyze every lab note through
+    the front-end -> manifest v1. (Reuses M0 to trigger notes.)
+M2  WINDOW ENGINE: projection math, axis-aligned windows, snapping,
+    manual staging via web UI, Csound PRISM v0. Manual instrument
+    fully playable here.
+M3  BOUNDARY DETECTOR + config staging (clockless swap), layers
+    (play + frozen loop), capture front-end + looper + transforms.
+M4  MODEL: logging format, collect manual sessions, train MDN-GRU,
+    enable --brain model, speed slider live.
+M5  MULTI-RENDER: DDSP PRISM v1, residual rendering, Colton
+    integration, the interchangeability matrix on video,
+    performances.
+M6  PAPER: draft (docs/PAPER_DRAFT_v1.txt) -> full text, latency
+    table, matrix figure, related work first.
+
+====================================================================
+10. REMAINING OPEN ITEMS (genuinely open — everything else decided)
+====================================================================
+1. Window math details: exact projection formula incl. discrete
+   grids vs continuous channels; write before M2 code.
+2. Boundary detector thresholds (no touches + low energy + N ms
+   hold — tune on hardware).
+3. Wire encodings in bytes (/shape, /manifest) — freeze with Colton;
+   this is the collaborator contract.
+4. Space validation round-trip (informal, few sound families)
+   before M5 locks renderer calibration.
+5. NIME logistics: deadline, page limit, demo video shot list.
+6. PRISM name: confirm or rename with Colton.

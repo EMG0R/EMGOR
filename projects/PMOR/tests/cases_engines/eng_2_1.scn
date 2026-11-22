@@ -1,0 +1,4 @@
+seconds 1.2
+set drums.eng.2.1 0.7
+set drums.pad.2.sound 2
+at 0.0 drum 2 1.0

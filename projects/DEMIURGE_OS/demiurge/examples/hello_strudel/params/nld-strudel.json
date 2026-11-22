@@ -1,0 +1,28 @@
+{
+  "stage": "nld-strudel",
+  "port": 9000,
+  "version": 1,
+  "params": [
+    {
+      "path": "/nld-strudel/density",
+      "label": "Density",
+      "default": 0.35,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-strudel/tone",
+      "label": "Tone",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    },
+    {
+      "path": "/nld-strudel/length",
+      "label": "Length",
+      "default": 0.5,
+      "map": "hard",
+      "proto": "p"
+    }
+  ]
+}

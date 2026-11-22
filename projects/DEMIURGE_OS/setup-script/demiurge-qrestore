@@ -1,0 +1,71 @@
+#!/bin/bash
+# demiurge-qrestore — crash-safe undo for audio-config experiments.
+#
+# Installed at /usr/local/sbin/demiurge-qrestore and wired to
+# demiurge-quantum-restore.service, a oneshot ordered Before=demiurge.service
+# and enabled at boot. It is a NO-OP unless an experiment marker exists, so
+# leaving it enabled costs nothing.
+#
+# WHY IT EXISTS
+# -------------
+# Lowering api.alsa.period-size is the one audio setting on this rig whose
+# failure mode is not "no sound" but "the board reboots". A 64 x 2 (128-frame)
+# ring livelocked the RT thread, and systemd's RuntimeWatchdogUSec=1min against
+# the BCM2835 hardware watchdog turned that livelock into a hard reset.
+#
+# The dangerous part is not the reset — it is that the configuration which
+# caused it is still on disk afterwards. Without this unit, an aggressive
+# period-size produces a REBOOT LOOP: boot, livelock, watchdog, boot. Restoring
+# the known-good config BEFORE demiurge.service starts is what breaks that loop.
+#
+# HOW TO USE IT
+#   mkdir -p ~/demiurge/backups/quantum-experiment
+#   cp ~/demiurge/live.conf ~/demiurge/backups/quantum-experiment/live.conf.good
+#   touch ~/demiurge/backups/quantum-experiment/ACTIVE      # arm
+#   sudo systemd-run --on-active=240 --unit=demiurge-qrestore-timer \
+#        /usr/local/sbin/demiurge-qrestore                  # dead-man's switch
+#   ...make the aggressive change, measure...
+#   sudo systemctl stop demiurge-qrestore-timer.timer       # cancel if happy
+#   sudo /usr/local/sbin/demiurge-qrestore                  # or restore now
+#
+# Backups live in ~/demiurge/backups/, deliberately NOT /tmp: a watchdog reboot
+# clears /tmp, which would destroy the very thing needed to recover.
+#
+# Runs in two contexts and is correct in both:
+#   1. as the timer during an experiment — restores files AND bounces services.
+#   2. as the boot oneshot after a watchdog reset — restores files so the box
+#      does not come back up into the config that just locked it. Service
+#      bouncing is unnecessary there and is allowed to fail.
+set -u
+# Runs as root (boot oneshot or manual sudo) so $HOME is root's — derive the
+# actual Pi user from whoever invoked sudo, falling back to the Pi OS
+# convention that the first/only real user is UID 1000 (setup-demiurge.sh's
+# "1000" sed substitutions make the same assumption).
+PI_USER="${PI_USER:-${SUDO_USER:-$(getent passwd 1000 | cut -d: -f1)}}"
+PI_UID="$(id -u "$PI_USER" 2>/dev/null || echo 1000)"
+# The user's real home (not /home/<name>: a renamed user or a non-default home
+# would miss), derived from passwd.
+PI_HOME="$(getent passwd "$PI_USER" 2>/dev/null | cut -d: -f6)"
+PI_HOME="${PI_HOME:-/home/$PI_USER}"
+DIR="$PI_HOME/demiurge/backups/quantum-experiment"
+MARKER=$DIR/ACTIVE
+# demiurge-quantum-limits lockstep now generates the period fragment in the
+# USER config dir (no sudo); the old /etc location is removed too in case a
+# pre-lockstep rig still has it.
+DROPIN="$PI_HOME/.config/wireplumber/wireplumber.conf.d/60-demiurge-period.conf"
+OLD_DROPIN=/etc/wireplumber/wireplumber.conf.d/60-demiurge-period.conf
+
+[[ -f "$MARKER" ]] || { echo "qrestore: no active experiment, nothing to do"; exit 0; }
+
+echo "qrestore: ACTIVE marker found — restoring known-good audio config"
+[[ -f "$DIR/live.conf.good" ]] && install -m0644 -o "$PI_USER" -g "$PI_USER" "$DIR/live.conf.good" "$PI_HOME/demiurge/live.conf" \
+    && echo "qrestore: live.conf restored"
+rm -f "$DROPIN" "$OLD_DROPIN" && echo "qrestore: period-size drop-in removed (lockstep regenerates it from the restored live.conf at engine start)"
+rm -f "$MARKER"
+
+# Best-effort service bounce. At boot this is unnecessary (nothing has started
+# yet) and may fail; that is fine, the files are what matter.
+runuser -u "$PI_USER" -- env XDG_RUNTIME_DIR="/run/user/$PI_UID" systemctl --user restart wireplumber 2>/dev/null \
+    && echo "qrestore: wireplumber restarted"
+systemctl restart demiurge 2>/dev/null && echo "qrestore: demiurge restarted"
+echo "qrestore: done — rig is back on the known-good config"

@@ -1,0 +1,14 @@
+PRIME audio test  2026-10-22 23:08:24  tag=smoke
+quantum/state: {'quantum': '128', 'force_quantum': '512', 'rate': '48000'}
+
+== path: hw  (rec 12.52 s)
+latency vs reference: median 23.828 ms (min 23.828, max 23.828), jitter 0.0 smp, corr [0.953, 0.953, 0.953]
+1 kHz: -20.69 dBFS peak (gain vs ref -0.69 dB), THD+N -30.7 dB (2.91599 %), THD -56.47 dB, SNR 30.72 dB
+noise 20-20k: total -54.42 dBFS, robust -78.23 dBFS; silence rms -85.7 dBFS
+spurs: 
+artifacts: 3 (e_sigma 2.03e-05, thr 2.03e-04), amp p2p 7.217 dB
+   t=6.341s sample=368999 len=91 peak=-27.5 dBFS slip=0.12 zero_run=0
+   t=6.346s sample=369258 len=35 peak=-27.9 dBFS slip=-2.1 zero_run=0
+   t=6.351s sample=369512 len=31 peak=-33.0 dBFS slip=-0.11 zero_run=0
+xrun delta (hat_out, hat_in, csound6): {'hat_out': 1, 'hat_in': 0, 'csound6': 0}
+channel alignment ok=True: {"in1": {"f1_dbfs": -136.2, "f2_dbfs": -132.3}, "in2": {"f1_dbfs": -132.1, "f2_dbfs": -131.4}, "in3": {"f1_dbfs": -139.8, "f2_dbfs": -136.9}, "in4": {"f1_dbfs": -141.6, "f2_dbfs": -140.2}, "in5": {"f1_dbfs": -137.7, "f2_dbfs": -138.2}, "in6": {"f1_dbfs": -141.9, "f2_dbfs": -140.5}, "in7": {"f1_dbfs": -23.7, "f2_dbfs": -87.5}, "in8": {"f1_dbfs": -93.6, "f2_dbfs": -24.2}}

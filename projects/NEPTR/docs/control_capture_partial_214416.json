@@ -1,0 +1,401 @@
+[
+ {
+  "step": "encoder top left: turn CLOCKWISE (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #26": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #21": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    127
+   ]
+  }
+ },
+ {
+  "step": "encoder top left: turn COUNTER-clockwise (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #26": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    127
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #21": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    127
+   ]
+  }
+ },
+ {
+  "step": "encoder top left: CLICK (press)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #76": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #71": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder top right: turn CLOCKWISE (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #24": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #23": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127
+   ]
+  }
+ },
+ {
+  "step": "encoder top right: turn COUNTER-clockwise (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #24": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #23": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder top right: CLICK (press)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #74": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #73": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 1: turn CLOCKWISE (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #25": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #24": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 1: turn COUNTER-clockwise (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #25": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    127
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #24": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 1: CLICK (press)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #75": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #74": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 2: turn CLOCKWISE (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #21": [
+    127,
+    127,
+    127,
+    127,
+    127
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #20": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 2: turn COUNTER-clockwise (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #21": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #20": [
+    127,
+    127,
+    127,
+    127,
+    127
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 2: CLICK (press)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #71": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #70": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 3: turn CLOCKWISE (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #22": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #22": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 3: turn COUNTER-clockwise (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #22": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #22": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 3: CLICK (press)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #72": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #72": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 4: turn CLOCKWISE (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #23": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #25": [
+    127,
+    127,
+    127,
+    127,
+    127,
+    127
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 4: turn COUNTER-clockwise (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #23": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #25": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 4: CLICK (press)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #73": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #75": [
+    127,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 5: turn CLOCKWISE (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #20": [
+    127,
+    127,
+    127,
+    127
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #26": [
+    127,
+    127,
+    127,
+    127
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 5: turn COUNTER-clockwise (a few clicks)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #20": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #26": [
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ {
+  "step": "encoder bottom 5: CLICK (press)",
+  "events": {
+   "Teensy MIDI | control_change ch1 #70": [
+    127,
+    0
+   ],
+   "NEPTR Serial Bridge | control_change ch1 #76": [
+    127,
+    0
+   ]
+  }
+ }
+]

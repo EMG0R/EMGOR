@@ -1,0 +1,27 @@
+{
+  "name": "paint-demo",
+  "master": {"brightness": 1.0, "tone_map": "clip"},
+  "layers": [
+    {
+      "type": "paint",
+      "blend": "alpha",
+      "background": "#000000",
+      "pixels": {
+        "0": "#ff0000",
+        "1": "#ff7f00",
+        "2": "#ffff00",
+        "3": "#00ff00",
+        "4": "#0000ff",
+        "5": "#8b00ff",
+        "100": "#ffffff",
+        "200": "#ff0080",
+        "300": "#00ffcc",
+        "400": "#a1b2c3",
+        "500": "#123456",
+        "600": "#fedcba",
+        "700": "#40e0d0",
+        "799": "#ff00ff"
+      }
+    }
+  ]
+}

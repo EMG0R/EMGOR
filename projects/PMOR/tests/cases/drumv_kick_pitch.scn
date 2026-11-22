@@ -1,0 +1,4 @@
+seconds 1.2
+set drums.pad.8.pitch 0.7
+set drums.pad.8.tone 0.9
+at 0 drum 8 0.8

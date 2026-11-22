@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 920" width="1200" height="920" style="font-family: -apple-system, 'Helvetica Neue', sans-serif;">
+  <rect width="1200" height="920" fill="#181818"/>
+
+  <defs>
+    <radialGradient id="abalone" cx="35%" cy="35%" r="65%">
+      <stop offset="0%"  stop-color="#a8e0e8"/>
+      <stop offset="30%" stop-color="#5a9bb8"/>
+      <stop offset="60%" stop-color="#7b569a"/>
+      <stop offset="85%" stop-color="#3a2a52"/>
+      <stop offset="100%" stop-color="#1c1024"/>
+    </radialGradient>
+
+    <linearGradient id="wenge" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#4d2f1d"/>
+      <stop offset="50%" stop-color="#3a2415"/>
+      <stop offset="100%" stop-color="#241408"/>
+    </linearGradient>
+
+    <linearGradient id="wengeStrip" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"  stop-color="#3a2415"/>
+      <stop offset="20%" stop-color="#4a2c1c"/>
+      <stop offset="50%" stop-color="#3d2818"/>
+      <stop offset="80%" stop-color="#4a2c1c"/>
+      <stop offset="100%" stop-color="#2d1810"/>
+    </linearGradient>
+
+    <linearGradient id="maple" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#f4dcb0"/>
+      <stop offset="50%" stop-color="#e2c88e"/>
+      <stop offset="100%" stop-color="#c8a868"/>
+    </linearGradient>
+
+    <linearGradient id="ebony" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#2a2522"/>
+      <stop offset="50%" stop-color="#161312"/>
+      <stop offset="100%" stop-color="#080605"/>
+    </linearGradient>
+
+    <linearGradient id="metal" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#e8e8ee"/>
+      <stop offset="50%" stop-color="#8a8a92"/>
+      <stop offset="100%" stop-color="#3e3e46"/>
+    </linearGradient>
+
+    <linearGradient id="metalSide" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"  stop-color="#7a7a82"/>
+      <stop offset="50%" stop-color="#d0d0d8"/>
+      <stop offset="100%" stop-color="#6a6a72"/>
+    </linearGradient>
+  </defs>
+
+  <!-- TITLE -->
+  <text x="600" y="42" font-size="22" font-weight="700" fill="#e8d4a8" text-anchor="middle">hyperGuitar — Configured Neck Reference</text>
+  <text x="600" y="64" font-size="11" fill="#888" text-anchor="middle">Halo Custom · Headless Single Scale · 25.5" · 7-piece Wenge/Maple · Ebony · Abalone Center Dots · Stainless Jumbo · $559</text>
+
+  <!-- ============================== VIEW 1 — TOP ============================== -->
+  <text x="120" y="108" font-size="13" font-weight="700" fill="#aaa">① TOP — Fretboard surface</text>
+  <text x="120" y="124" font-size="10" fill="#666">ebony slab · 24 stainless frets · abalone center dots · locking nut clamp at left · standard 4-bolt heel at right</text>
+
+  <!-- Locking nut clamp -->
+  <rect x="70" y="135" width="50" height="62" fill="url(#metal)" stroke="#000" stroke-width="0.5"/>
+  <rect x="78" y="142" width="34" height="3" fill="#1a1a22"/>
+  <rect x="78" y="186" width="34" height="3" fill="#1a1a22"/>
+  <text x="95" y="217" font-size="9" fill="#888" text-anchor="middle">Locking nut</text>
+
+  <!-- Fretboard (slight taper from 62 to 70 px wide) -->
+  <path d="M 120 135 L 800 132 L 800 200 L 120 197 Z" fill="url(#ebony)" stroke="#000" stroke-width="0.5"/>
+
+  <!-- Heel block -->
+  <rect x="800" y="130" width="120" height="72" fill="url(#wengeStrip)" stroke="#000" stroke-width="0.5"/>
+  <circle cx="826" cy="148" r="3" fill="#000" stroke="#2a2a2a" stroke-width="0.4"/>
+  <circle cx="894" cy="148" r="3" fill="#000" stroke="#2a2a2a" stroke-width="0.4"/>
+  <circle cx="826" cy="184" r="3" fill="#000" stroke="#2a2a2a" stroke-width="0.4"/>
+  <circle cx="894" cy="184" r="3" fill="#000" stroke="#2a2a2a" stroke-width="0.4"/>
+  <text x="860" y="219" font-size="9" fill="#888" text-anchor="middle">Heel · 56×88mm · 4-bolt Strat</text>
+
+  <!-- Frets 1-24 at calculated 25.5" scale positions on a 680px fretboard -->
+  <g stroke="url(#metal)" stroke-width="1.6">
+    <line x1="158" y1="135" x2="158" y2="197"/>
+    <line x1="194" y1="135" x2="194" y2="197"/>
+    <line x1="228" y1="135" x2="228" y2="197"/>
+    <line x1="260" y1="135" x2="260" y2="197"/>
+    <line x1="291" y1="135" x2="291" y2="197"/>
+    <line x1="319" y1="135" x2="319" y2="197"/>
+    <line x1="346" y1="135" x2="346" y2="197"/>
+    <line x1="372" y1="135" x2="372" y2="197"/>
+    <line x1="396" y1="135" x2="396" y2="197"/>
+    <line x1="418" y1="135" x2="418" y2="197"/>
+    <line x1="440" y1="135" x2="440" y2="197"/>
+    <line x1="460" y1="135" x2="460" y2="197"/>
+    <line x1="479" y1="135" x2="479" y2="197"/>
+    <line x1="497" y1="135" x2="497" y2="197"/>
+    <line x1="514" y1="135" x2="514" y2="197"/>
+    <line x1="530" y1="135" x2="530" y2="197"/>
+    <line x1="545" y1="135" x2="545" y2="197"/>
+    <line x1="560" y1="135" x2="560" y2="197"/>
+    <line x1="573" y1="135" x2="573" y2="197"/>
+    <line x1="586" y1="135" x2="586" y2="197"/>
+    <line x1="598" y1="135" x2="598" y2="197"/>
+    <line x1="609" y1="135" x2="609" y2="197"/>
+    <line x1="620" y1="135" x2="620" y2="197"/>
+    <line x1="630" y1="135" x2="630" y2="197"/>
+  </g>
+
+  <!-- Abalone center dots at frets 3, 5, 7, 9, 12(×2), 15, 17, 19, 21 -->
+  <g stroke="#0a0808" stroke-width="0.4">
+    <circle cx="211" cy="166" r="5.5" fill="url(#abalone)"/>
+    <circle cx="275" cy="166" r="5.5" fill="url(#abalone)"/>
+    <circle cx="332" cy="166" r="5.5" fill="url(#abalone)"/>
+    <circle cx="384" cy="166" r="5.5" fill="url(#abalone)"/>
+    <circle cx="450" cy="151" r="5.5" fill="url(#abalone)"/>
+    <circle cx="450" cy="181" r="5.5" fill="url(#abalone)"/>
+    <circle cx="505" cy="166" r="5.5" fill="url(#abalone)"/>
+    <circle cx="538" cy="166" r="5.5" fill="url(#abalone)"/>
+    <circle cx="566" cy="166" r="5.5" fill="url(#abalone)"/>
+    <circle cx="592" cy="166" r="5.5" fill="url(#abalone)"/>
+  </g>
+
+  <!-- Fret number labels -->
+  <g font-size="8" fill="#666" text-anchor="middle">
+    <text x="211" y="213">3</text>
+    <text x="275" y="213">5</text>
+    <text x="332" y="213">7</text>
+    <text x="384" y="213">9</text>
+    <text x="450" y="213" fill="#a8b8c8" font-weight="700">12</text>
+    <text x="505" y="213">15</text>
+    <text x="538" y="213">17</text>
+    <text x="566" y="213">19</text>
+    <text x="592" y="213">21</text>
+    <text x="630" y="213">24</text>
+  </g>
+
+  <!-- ============================== VIEW 2 — BACK ============================== -->
+  <text x="120" y="280" font-size="13" font-weight="700" fill="#aaa">② BACK — Neck lamination</text>
+  <text x="120" y="296" font-size="10" fill="#666">7-piece laminated wenge + maple stripes running lengthwise · Thin C profile · bare wood (tru-oil during assembly)</text>
+
+  <!-- Locking nut clamp side -->
+  <rect x="70" y="310" width="50" height="62" fill="url(#metal)" stroke="#000" stroke-width="0.5"/>
+
+  <!-- 7-piece lamination — stripes run along the length, stacked across the width -->
+  <!-- W M W M W M W -->
+  <rect x="120" y="310" width="680" height="14" fill="url(#wengeStrip)"/>
+  <rect x="120" y="324" width="680" height="3"  fill="url(#maple)"/>
+  <rect x="120" y="327" width="680" height="12" fill="url(#wengeStrip)"/>
+  <rect x="120" y="339" width="680" height="3"  fill="url(#maple)"/>
+  <rect x="120" y="342" width="680" height="12" fill="url(#wengeStrip)"/>
+  <rect x="120" y="354" width="680" height="3"  fill="url(#maple)"/>
+  <rect x="120" y="357" width="680" height="15" fill="url(#wengeStrip)"/>
+  <path d="M 120 310 L 800 310 L 800 372 L 120 372 Z" fill="none" stroke="#000" stroke-width="0.5"/>
+
+  <!-- Heel block -->
+  <rect x="800" y="305" width="120" height="72" fill="url(#wengeStrip)" stroke="#000" stroke-width="0.5"/>
+  <circle cx="826" cy="323" r="3" fill="#000" stroke="#2a2a2a" stroke-width="0.4"/>
+  <circle cx="894" cy="323" r="3" fill="#000" stroke="#2a2a2a" stroke-width="0.4"/>
+  <circle cx="826" cy="359" r="3" fill="#000" stroke="#2a2a2a" stroke-width="0.4"/>
+  <circle cx="894" cy="359" r="3" fill="#000" stroke="#2a2a2a" stroke-width="0.4"/>
+
+  <!-- Annotation arrows -->
+  <line x1="720" y1="325.5" x2="760" y2="280" stroke="#888" stroke-width="0.5"/>
+  <line x1="720" y1="340.5" x2="775" y2="280" stroke="#888" stroke-width="0.5"/>
+  <line x1="720" y1="355.5" x2="790" y2="280" stroke="#888" stroke-width="0.5"/>
+  <text x="790" y="275" font-size="9" fill="#888">3 maple stripes</text>
+
+  <line x1="460" y1="372" x2="460" y2="400" stroke="#888" stroke-width="0.5"/>
+  <text x="460" y="413" font-size="9" fill="#888" text-anchor="middle">4 wenge pieces — dark chocolate, open-pore grain</text>
+
+  <!-- ============================== VIEW 3 — SIDE ============================== -->
+  <text x="120" y="465" font-size="13" font-weight="700" fill="#aaa">③ SIDE — Profile</text>
+  <text x="120" y="481" font-size="10" fill="#666">Thin C neck profile · clean headless termination · fretboard above (ebony+frets), wenge/maple back curving below, heel block at right</text>
+
+  <!-- Locking nut clamp -->
+  <rect x="70" y="500" width="50" height="22" fill="url(#metalSide)" stroke="#000" stroke-width="0.5"/>
+
+  <!-- Fretboard side view (ebony strip on top) -->
+  <path d="M 120 500 L 800 498 L 800 514 L 120 516 Z" fill="url(#ebony)" stroke="#000" stroke-width="0.5"/>
+
+  <!-- A few frets sticking up at select positions -->
+  <g stroke="url(#metal)" stroke-width="1.5">
+    <line x1="158" y1="498" x2="158" y2="495"/>
+    <line x1="228" y1="498" x2="228" y2="495"/>
+    <line x1="319" y1="498" x2="319" y2="495"/>
+    <line x1="396" y1="498" x2="396" y2="495"/>
+    <line x1="460" y1="498" x2="460" y2="495"/>
+    <line x1="514" y1="498" x2="514" y2="495"/>
+    <line x1="560" y1="498" x2="560" y2="495"/>
+    <line x1="598" y1="498" x2="598" y2="495"/>
+    <line x1="630" y1="498" x2="630" y2="495"/>
+  </g>
+
+  <!-- Neck back curve (Thin C) — wenge -->
+  <path d="M 120 516 L 800 514 L 800 528 Q 460 552 120 528 Z" fill="url(#wenge)" stroke="#000" stroke-width="0.5"/>
+
+  <!-- Heel block side -->
+  <rect x="800" y="495" width="120" height="38" fill="url(#wengeStrip)" stroke="#000" stroke-width="0.5"/>
+
+  <!-- Annotations -->
+  <text x="95" y="542" font-size="9" fill="#888" text-anchor="middle">Locking nut</text>
+  <text x="240" y="488" font-size="9" fill="#888" text-anchor="middle">Ebony fretboard + stainless frets</text>
+  <text x="460" y="566" font-size="9" fill="#888" text-anchor="middle">Wenge/maple neck back · Thin C profile · ~20mm</text>
+  <text x="860" y="486" font-size="9" fill="#888" text-anchor="middle">Heel block</text>
+
+  <!-- Showing the clean termination -->
+  <line x1="120" y1="490" x2="120" y2="555" stroke="#a8b8c8" stroke-width="0.5" stroke-dasharray="3,2"/>
+  <text x="120" y="580" font-size="9" fill="#a8b8c8" text-anchor="middle" font-weight="700">↑ Headless (clean) — wood ends at clamp</text>
+
+  <!-- ============================== LEGEND ============================== -->
+  <text x="120" y="635" font-size="13" font-weight="700" fill="#aaa">LEGEND · MATERIALS</text>
+
+  <g transform="translate(120, 650)" font-size="11" fill="#ccc">
+    <rect x="0" y="0" width="30" height="20" fill="url(#wengeStrip)" stroke="#000" stroke-width="0.3"/>
+    <text x="40" y="14">Wenge — dark chocolate, open-pore feel</text>
+
+    <rect x="320" y="0" width="30" height="20" fill="url(#maple)" stroke="#000" stroke-width="0.3"/>
+    <text x="360" y="14">Maple stripes — laminate stability</text>
+
+    <rect x="640" y="0" width="30" height="20" fill="url(#ebony)" stroke="#000" stroke-width="0.3"/>
+    <text x="680" y="14">Ebony — jet-black fretboard</text>
+
+    <rect x="0" y="32" width="30" height="20" fill="url(#abalone)" stroke="#000" stroke-width="0.3"/>
+    <text x="40" y="46">Abalone — iridescent dot inlays</text>
+
+    <rect x="320" y="32" width="30" height="20" fill="url(#metal)" stroke="#000" stroke-width="0.3"/>
+    <text x="360" y="46">Stainless — frets &amp; locking nut clamp</text>
+
+    <rect x="640" y="32" width="30" height="20" fill="#181818" stroke="#666" stroke-width="0.5"/>
+    <text x="680" y="46">Bare wood — tru-oil applied at assembly</text>
+  </g>
+
+  <!-- ============================== KEY SPECS ============================== -->
+  <text x="120" y="760" font-size="13" font-weight="700" fill="#aaa">KEY SPECS</text>
+
+  <g font-size="10" fill="#aaa">
+    <text x="120" y="782">Scale: 25.5" (Fender)</text>
+    <text x="120" y="800">Nut width: 1-11/16" (43 mm)</text>
+    <text x="120" y="818">Frets: 24 · Stainless · Jumbo</text>
+    <text x="120" y="836">Radius: 14" flat</text>
+
+    <text x="430" y="782">Neck profile: Thin C</text>
+    <text x="430" y="800">Headstock: Headless (clean)</text>
+    <text x="430" y="818">Heel: Standard 4-bolt Strat (56 × 88 mm)</text>
+    <text x="430" y="836">Strings: 6 · B standard · .012–.060</text>
+
+    <text x="780" y="782">Body: Pango HBE-033 (burl/epoxy/gold)</text>
+    <text x="780" y="800">Source: Halo Custom Guitars</text>
+    <text x="780" y="818">Lead time: 3–4+ months</text>
+    <text x="780" y="836" font-weight="700" fill="#e8d4a8">Total neck: $559.00</text>
+  </g>
+
+  <!-- Footer -->
+  <text x="600" y="895" font-size="9" fill="#555" text-anchor="middle">Reference visualization · proportions approximate · fret positions calculated to 25.5" scale (12-TET)</text>
+</svg>

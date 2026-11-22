@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "Physical ring: the 3 FCOB strips form one closed 1920px loop.",
+    "beginning of board1 touches end of board3; beginning of board3 touches",
+    "end of board2; beginning of board2 touches end of board1.",
+    "Walking forward: fcob-strip 0..799 -> fcob-strip2 0..479 ->",
+    "fcob-strip3 0..639 -> back to fcob-strip 0.",
+    "ring_offset is optional (derived from order) but checked if present;",
+    "length must match pixel_count in nodes.json; total ring length is",
+    "derived. To add a 4th board: add it to nodes.json, append a segment",
+    "here at the position where it sits in the loop."
+  ],
+  "segments": [
+    {"node": "fcob-strip", "ring_offset": 0, "length": 800, "reversed": false},
+    {"node": "fcob-strip2", "ring_offset": 800, "length": 480, "reversed": false},
+    {"node": "fcob-strip3", "ring_offset": 1280, "length": 640, "reversed": false}
+  ]
+}

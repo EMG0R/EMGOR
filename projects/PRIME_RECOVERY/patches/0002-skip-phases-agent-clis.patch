@@ -1,0 +1,23 @@
+--- a/setup-script/setup-demiurge.sh	2026-10-22 01:39:30.639077788 -0700
++++ b/setup-script/setup-demiurge.sh	2026-10-22 01:39:30.838200940 -0700
+@@ -53,7 +53,8 @@
+ if [ -d "$SCRIPT_DIR/../neptr" ]; then HAVE_NEPTR=1; fi
+ 
+ FROM_PHASE="${1:-1}"
+-skip() { [[ "$FROM_PHASE" -gt "$1" ]]; }
++# DEMIURGE_SKIP_PHASES="10 11": skip individual phases (e.g. RNBO on a rig that does not use it).
++skip() { [[ "$FROM_PHASE" -gt "$1" ]] || [[ " ${DEMIURGE_SKIP_PHASES:-} " == *" $1 "* ]]; }
+ 
+ echo "========================================"
+ echo "  DEMIURGE Setup"
+@@ -1666,8 +1667,10 @@
+ 
+ # The three backends. Each is independent — a failure to fetch one must not
+ # abort the phase, so they are attempted separately and reported individually.
++# DEMIURGE_AGENT_CLIS="claude": install only the named agent CLIs (default: all three).
+ for pkg in "@anthropic-ai/claude-code:claude" "@google/gemini-cli:gemini" "@openai/codex:codex"; do
+     name="${pkg%%:*}"; bin="${pkg##*:}"
++    case " ${DEMIURGE_AGENT_CLIS:-claude gemini codex} " in *" $bin "*) ;; *) echo "  $bin skipped (DEMIURGE_AGENT_CLIS)"; continue ;; esac
+     if command -v "$bin" >/dev/null 2>&1; then
+         echo "  $bin already installed ($(command -v "$bin"))"
+     elif npm install -g --silent "$name" >/dev/null 2>&1; then

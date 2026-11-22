@@ -1,0 +1,51 @@
+# DEMIURGE — Pi 5 LAPTOP / WEAK-SUPPLY block for /boot/firmware/config.txt
+#
+# Use this INSTEAD OF config.txt.snippet (the M8 overclock block) when the Pi is
+# powered FROM a MacBook / laptop USB-C port instead of the official 5V/5A PSU.
+#
+# WHY THIS EXISTS — the brownout physics:
+#   A laptop USB-C *host* port supplies 5V and ~15W ceiling (no PD 5A/25W
+#   contract). The Pi 5 trips undervolt around ~4.65-4.8V at the connector;
+#   from a 5.0V source your entire margin is ~0.3V, eaten by cable IR drop.
+#   The killer is the TRANSIENT, not steady state: four cores ramping with
+#   over_voltage is a fast di/dt spike the port can't hold voltage through.
+#   So the guarantee is a STATIC low ceiling + NO over-voltage, not a reactive
+#   governor (which reacts only AFTER the sag).
+#
+# This block + `power = laptop` in live.conf are the two halves. This half is
+# boot-only (needs a reboot). The live.conf half pins the runtime freq flat.
+#
+# Belt-and-suspenders the config alone can't give you (powered from the port):
+#   - short, thick USB-C cable (minimise IR drop)
+#   - a bulk cap / power-bank passthrough on 5V to absorb the di/dt
+#   - BEST: power the Pi from its own 5V/5A PSU, data-only to the laptop.
+#   - watch it: journalctl -u demiurge-thermal-watchdog — the undervolt bit in
+#     `vcgencmd get_throttled` must stay 0x0 under a full-load test.
+
+[all]
+# --- NO overclock, NO over-voltage ---
+# Stock Pi 5 max is 2400 MHz. We hold the ceiling LOW so peak draw stays inside
+# the laptop port's budget. over_voltage_delta is DELIBERATELY ABSENT — adding
+# it is the single biggest brownout amplifier on a weak supply.
+arm_freq=1500
+arm_boost=0
+
+# Governor stays in control (the runtime layer pins it flat via live.conf).
+force_turbo=0
+
+# GPU/core held low — audio doesn't need it; frees power budget.
+gpu_freq=400
+
+# --- USB current ceiling: ALWAYS RAISED (user-locked 2026-09-01) ---
+# Deliberate exception to the weak-supply philosophy: the Teensy controller must
+# always get its full inrush/current budget, so this stays ON even on laptop
+# power. The brownout guarantee is carried by the frequency ceiling + no
+# over-voltage above; keep USB device count minimal when on a laptop port.
+usb_max_current_enable=1
+
+# --- Fast boot (safe, no audio/power impact) ---
+disable_splash=1
+boot_delay=0
+
+# TO SWITCH BACK to PSU/max performance: remove this block, restore
+# config.txt.snippet, set `power = max` (or normal) in live.conf, and reboot.

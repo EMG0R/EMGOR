@@ -1,0 +1,74 @@
+#!/bin/bash
+# demiurge-ui-ensure — boot backstop that GUARANTEES the panel has a UI on it.
+#
+# "A UI" is either the mode selector (neptr-video / HOME) or the audio face UI
+# (neptr-ui), whichever this rig is configured to boot into. It was written
+# when neptr-ui was the only answer; it now prefers HOME and keeps neptr-ui as
+# the fallback, because both cannot run at once (one DRM master).
+#
+#   INSTALL ON THE PI:  sudo install -m0755 demiurge-ui-ensure /usr/local/bin/demiurge-ui-ensure
+#                       (paired with demiurge-ui-ensure.service)
+#
+# neptr-ui.service can intermittently get condition-SKIPPED at boot (a one-shot
+# DRM race / stale unit), and a skip is Result=success so Restart= never retries
+# — leaving the panel on a bare Linux terminal. This is a ONESHOT that runs ONCE,
+# LATE in boot, and — only if the UI didn't come up on its own — starts it. It is
+# NOT a watchdog: it never runs again after boot, and it never restarts a healthy
+# UI (it no-ops when neptr-ui is already active). Respects live.conf ui=on/off via
+# neptr-ui.service -> demiurge-ui-launch.sh.
+set -u
+
+# Give neptr-ui's own boot attempt + DRM bring-up a moment to settle.
+sleep 8
+
+# GAME GUARD: if a game (RetroArch) is already running, the UI is SUPPOSED to be
+# down (the supervisor stopped it to give the game the panel). Do NOT start the
+# UI and steal the panel from a game. (Covers the rare case where a game is
+# launched within the first seconds of boot.)
+if pgrep -x retroarch >/dev/null 2>&1; then
+  echo "[ui-ensure] a game (retroarch) is running — leaving the UI down, not starting it"
+  exit 0
+fi
+
+# HOME GUARD + HOME BACKSTOP.
+#
+# On a rig that boots to the mode selector, neptr-video owns the panel and
+# neptr-ui is deliberately NOT autostarted (HOME starts it when you choose
+# AUDIO). The thing this script guarantees is "the panel is not a bare
+# terminal" — which HOME satisfies, so a running neptr-video means there is
+# nothing to do, and starting neptr-ui on top of it would fight it for DRM
+# master and one of them would lose.
+#
+# If HOME is enabled but did NOT come up, give it one push first: it is the
+# configured owner of the display, and it is what gets you to every mode. Only
+# if it still will not run do we fall through to the audio UI — better a rig
+# stuck in AUDIO than a rig showing a login prompt with no way in.
+if systemctl is-active --quiet neptr-video 2>/dev/null; then
+  echo "[ui-ensure] neptr-video (HOME) is active — the panel is owned, nothing to do"
+  exit 0
+fi
+if systemctl is-enabled --quiet neptr-video 2>/dev/null; then
+  echo "[ui-ensure] neptr-video (HOME) is enabled but not running -> starting it once"
+  systemctl reset-failed neptr-video 2>/dev/null || true
+  systemctl start neptr-video
+  sleep 4
+  if systemctl is-active --quiet neptr-video 2>/dev/null; then
+    echo "[ui-ensure] neptr-video now active — HOME is up"
+    exit 0
+  fi
+  echo "[ui-ensure] neptr-video would NOT start — falling back to the audio UI"
+fi
+
+state="$(systemctl is-active neptr-ui 2>/dev/null)"
+case "$state" in
+  active|activating)
+    echo "[ui-ensure] neptr-ui is '$state' — nothing to do (never restart a healthy UI)"
+    ;;
+  *)
+    echo "[ui-ensure] neptr-ui is '$state' + no game -> starting it once (boot backstop)"
+    systemctl reset-failed neptr-ui 2>/dev/null || true
+    systemctl start neptr-ui
+    sleep 3
+    echo "[ui-ensure] neptr-ui now: $(systemctl is-active neptr-ui 2>/dev/null)"
+    ;;
+esac

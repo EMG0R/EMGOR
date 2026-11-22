@@ -1,0 +1,21 @@
+# Daisy Bell — HAL 9000 style.
+#
+# A .song file has two header lines and then a lyrics block.
+#   midi:      relative path to a MIDI melody file
+#   transpose: semitones to shift (negative = lower)
+#   intro:     optional spoken intro in S&S mix voice
+#   lyrics:    whitespace-separated syllables, one per MIDI note
+#
+# Any MIDI + any syllable list works. This is the reusable format.
+
+midi: daisy.mid
+transpose: -12
+intro: HELLO WORLD
+
+lyrics:
+  DAI SY DAI SY  GIVE ME YOUR AN SWER DO
+  IM HALF CRA ZY  ALL FOR THE LOVE OF YOU
+  IT WONT BE A STY LISH MAR RIAGE
+  I CANT AF FORD A CAR RIAGE
+  BUT YOULL LOOK SWEET U PON THE SEAT
+  OF A BI CY CLE BUILT FOR TWO

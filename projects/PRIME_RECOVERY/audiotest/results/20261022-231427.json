@@ -1,0 +1,302 @@
+{
+ "when": "2026-10-22 23:14:06",
+ "tag": "after-dmabug",
+ "env": {
+  "quantum": "128",
+  "force_quantum": "512",
+  "rate": "48000"
+ },
+ "runs": [
+  {
+   "path": "hw",
+   "rec_seconds": 12.71,
+   "latency": {
+    "onset_sample": 70274,
+    "lag_samples": [
+     17424.27,
+     20344.87,
+     1144.87
+    ],
+    "lag_ms_median": 363.006,
+    "lag_ms_min": 23.851,
+    "lag_ms_max": 423.851,
+    "jitter_samples": 19200.0,
+    "corr_coef": [
+     -0.013,
+     -0.014,
+     -0.014
+    ]
+   },
+   "tone_window": [
+    152498,
+    522098
+   ],
+   "tone": {
+    "fund_peak_dbfs": -20.7,
+    "rms_dbfs": -23.71,
+    "thd_n_db": -29.83,
+    "thd_n_pct": 3.22501,
+    "thd_db": -55.56,
+    "thd_pct": 0.16669,
+    "noise_total_dbfs_20_20k": -53.55,
+    "noise_robust_dbfs_20_20k": -72.07,
+    "snr_db": 29.84,
+    "spurs": [],
+    "gain_vs_ref_db": -1.53
+   },
+   "silence_rms_dbfs": -87.3,
+   "artifacts": {
+    "e_sigma": 1.8067697070941888e-05,
+    "threshold": 0.0002,
+    "events": [
+     {
+      "sample": 207733,
+      "t_s": 4.3278,
+      "len": 9,
+      "peak_dbfs": -46.9,
+      "phase_slip_samples": 11.46,
+      "zero_run": 0,
+      "t_stim_s": 2.864
+     },
+     {
+      "sample": 325736,
+      "t_s": 6.7862,
+      "len": 44,
+      "peak_dbfs": -32.4,
+      "phase_slip_samples": 0.0,
+      "zero_run": 0,
+      "t_stim_s": 5.322
+     },
+     {
+      "sample": 331882,
+      "t_s": 6.9142,
+      "len": 33,
+      "peak_dbfs": -26.8,
+      "phase_slip_samples": 0.0,
+      "zero_run": 0,
+      "t_stim_s": 5.45
+     },
+     {
+      "sample": 343913,
+      "t_s": 7.1649,
+      "len": 25,
+      "peak_dbfs": -25.3,
+      "phase_slip_samples": 0.0,
+      "zero_run": 0,
+      "t_stim_s": 5.701
+     }
+    ],
+    "count": 4,
+    "amp_db_p2p": 143.437,
+    "amp_min_dbfs": -163.88
+   },
+   "tone_clean": {
+    "fund_peak_dbfs": -20.69,
+    "rms_dbfs": -23.7,
+    "thd_n_db": -56.88,
+    "thd_n_pct": 0.14326,
+    "thd_db": -57.51,
+    "thd_pct": 0.13321,
+    "noise_total_dbfs_20_20k": -89.26,
+    "noise_robust_dbfs_20_20k": -109.08,
+    "snr_db": 65.56,
+    "spurs": [
+     {
+      "hz": 1499.9,
+      "dbc": -72.06,
+      "dbfs_rms": -95.76
+     },
+     {
+      "hz": 997.9,
+      "dbc": -81.65,
+      "dbfs_rms": -105.35
+     },
+     {
+      "hz": 1002.0,
+      "dbc": -82.14,
+      "dbfs_rms": -105.84
+     },
+     {
+      "hz": 60.1,
+      "dbc": -88.84,
+      "dbfs_rms": -112.54
+     },
+     {
+      "hz": 10999.9,
+      "dbc": -90.66,
+      "dbfs_rms": -114.36
+     },
+     {
+      "hz": 13000.1,
+      "dbc": -96.45,
+      "dbfs_rms": -120.15
+     },
+     {
+      "hz": 180.0,
+      "dbc": -97.35,
+      "dbfs_rms": -121.05
+     },
+     {
+      "hz": 15000.0,
+      "dbc": -100.71,
+      "dbfs_rms": -124.41
+     }
+    ],
+    "window_s": 3.61
+   },
+   "alignment": {
+    "per_channel": {
+     "in1": {
+      "f1_dbfs": -134.7,
+      "f2_dbfs": -132.7
+     },
+     "in2": {
+      "f1_dbfs": -131.9,
+      "f2_dbfs": -131.8
+     },
+     "in3": {
+      "f1_dbfs": -137.9,
+      "f2_dbfs": -138.0
+     },
+     "in4": {
+      "f1_dbfs": -143.5,
+      "f2_dbfs": -140.7
+     },
+     "in5": {
+      "f1_dbfs": -139.4,
+      "f2_dbfs": -137.8
+     },
+     "in6": {
+      "f1_dbfs": -139.5,
+      "f2_dbfs": -139.9
+     },
+     "in7": {
+      "f1_dbfs": -23.7,
+      "f2_dbfs": -84.2
+     },
+     "in8": {
+      "f1_dbfs": -93.6,
+      "f2_dbfs": -24.2
+     }
+    },
+    "aligned": true
+   },
+   "xrun_delta": {
+    "hat_out": 2,
+    "hat_in": 0,
+    "csound6": 0
+   },
+   "xrun_series_t_vs_link": [
+    [
+     0.01,
+     0,
+     0,
+     0
+    ],
+    [
+     0.01,
+     264,
+     0,
+     683
+    ],
+    [
+     0.01,
+     264,
+     0,
+     683
+    ],
+    [
+     0.01,
+     264,
+     0,
+     683
+    ],
+    [
+     0.01,
+     264,
+     0,
+     683
+    ],
+    [
+     0.01,
+     264,
+     0,
+     683
+    ],
+    [
+     0.01,
+     264,
+     0,
+     683
+    ],
+    [
+     2.23,
+     264,
+     0,
+     683
+    ],
+    [
+     2.23,
+     264,
+     0,
+     683
+    ],
+    [
+     2.23,
+     264,
+     0,
+     683
+    ],
+    [
+     2.23,
+     264,
+     0,
+     683
+    ],
+    [
+     2.23,
+     264,
+     0,
+     683
+    ],
+    [
+     2.23,
+     264,
+     0,
+     683
+    ],
+    [
+     2.23,
+     264,
+     0,
+     683
+    ],
+    [
+     5.23,
+     265,
+     0,
+     683
+    ],
+    [
+     5.23,
+     265,
+     0,
+     683
+    ],
+    [
+     5.23,
+     265,
+     0,
+     683
+    ],
+    [
+     5.23,
+     265,
+     0,
+     683
+    ]
+   ],
+   "aborted": false
+  }
+ ]
+}

@@ -1,0 +1,6 @@
+seconds 1.2
+set drums.pad.2.pitch -0.6
+set drums.pad.2.tone 0.1
+set drums.pad.2.vol 1.7
+at 0 drum 2 1.0
+at 0.2 drum 2 0.5

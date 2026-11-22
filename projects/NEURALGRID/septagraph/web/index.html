@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>septagraph — laptop pair</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #111317;
+    --panel: #181b21;
+    --border: #2a2e37;
+    --text: #dfe3ea;
+    --muted: #8a90a0;
+    --accent: #6fb6ff;
+    --good: #7fdb7f;
+    --bad: #ff8080;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1rem; margin: 0; margin-right: 1rem; font-weight: 600; }
+  header label { color: var(--muted); font-size: 0.85rem; }
+  select, input[type=text], button {
+    background: #0f1115;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.35rem 0.6rem;
+    font: inherit;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.8rem;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .pill.ok { color: var(--good); border-color: #2a4a2a; }
+  .pill.ok .dot { background: var(--good); }
+  .pill.bad { color: var(--bad); border-color: #4a2a2a; }
+  .pill.bad .dot { background: var(--bad); }
+  main {
+    display: grid;
+    grid-template-columns: minmax(320px, 42vw) 1fr;
+    gap: 1rem;
+    padding: 1rem;
+    align-items: start;
+  }
+  .col { display: flex; flex-direction: column; gap: 0.75rem; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem;
+  }
+  .panel h2 { margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  #pad {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: radial-gradient(circle at 50% 50%, #1b2028, #0e1014);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    touch-action: none;
+    cursor: crosshair;
+    position: relative;
+  }
+  #pad .axis-label {
+    position: absolute; color: var(--muted); font-size: 0.72rem; pointer-events: none;
+  }
+  #handOverlay {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .checklist-hint { font-size: 0.72rem; color: var(--muted); margin-top: 0.25rem; }
+  #hexdump {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--accent);
+    min-height: 2.4em;
+  }
+  #hexaddr { color: var(--muted); margin-top: 0.25rem; font-size: 0.8rem; }
+  #vizCanvas { width: 100%; height: 60vh; display: block; border: 1px solid var(--border); border-radius: 10px; background: #0e1014; }
+  #log {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    max-height: 8em;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+  .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .checklist { font-size: 0.8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>septagraph — laptop pair</h1>
+  <label>controller
+    <select id="controllerSel">
+      <option value="trackpad">trackpad</option>
+      <option value="webcam">webcam</option>
+    </select>
+  </label>
+  <span class="pill" id="rendererPill"><span class="dot"></span><span id="rendererPillText">renderer: not started</span></span>
+  <button id="startAudioBtn">Start Audio</button>
+  <span class="pill" id="webcamPill"><span class="dot"></span><span id="webcamPillText">webcam: off</span></span>
+  <span class="pill" id="latencyPill"><span class="dot"></span><span id="latencyPillText">latency: -- ms p50</span></span>
+  <span style="flex:1"></span>
+  <label>bridge
+    <input type="text" id="bridgeUrl" value="ws://localhost:8766" size="22" />
+  </label>
+  <button id="bridgeConnectBtn">Connect</button>
+  <span class="pill" id="bridgePill"><span class="dot"></span><span id="bridgePillText">bridge: disconnected</span></span>
+</header>
+
+<main>
+  <div class="col">
+    <div class="panel">
+      <h2>device space</h2>
+      <div id="pad">
+        <canvas id="handOverlay"></canvas>
+      </div>
+      <div class="checklist-hint" id="controllerHint">trackpad: click/drag/wheel on the pad above</div>
+    </div>
+    <div class="panel">
+      <h2>last packet</h2>
+      <div id="hexdump">(none yet)</div>
+      <div id="hexaddr"></div>
+    </div>
+    <div class="panel">
+      <h2>log</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel">
+      <h2>7-axis visualizer</h2>
+      <canvas id="vizCanvas"></canvas>
+    </div>
+  </div>
+</main>
+
+<!-- osc.js UMD build: pinned jsDelivr version, matches web/js/sept_codec.js
+     and web/test/codec.test.html. Guard against the unguarded
+     `require("slip")` call some builds of osc-browser.min.js make (fine in
+     a real browser -- there is no `require` global -- but shim it away
+     defensively so a future osc.js bump can't silently break this page). -->
+<script>
+  if (typeof window.require === "undefined") {
+    window.require = function () { return {}; };
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/osc@2.4.5/dist/osc-browser.min.js"></script>
+
+<script type="module">
+import { decode, Decoder, encodeHit } from "./js/sept_codec.js";
+import { attach as attachTrackpad } from "./js/trackpad_ctl.js";
+import { attach as attachWebcam } from "./js/webcam_ctl.js";
+import { startRenderer } from "./js/webchuck_render.js";
+import { connect as connectBridge } from "./js/bridge_client.js";
+import { makeViz } from "./js/viz.js";
+
+const $ = (id) => document.getElementById(id);
+const logEl = $("log");
+const hexdumpEl = $("hexdump");
+const hexaddrEl = $("hexaddr");
+const rendererPill = $("rendererPill");
+const rendererPillText = $("rendererPillText");
+const bridgePill = $("bridgePill");
+const bridgePillText = $("bridgePillText");
+const webcamPill = $("webcamPill");
+const webcamPillText = $("webcamPillText");
+const latencyPill = $("latencyPill");
+const latencyPillText = $("latencyPillText");
+const controllerHint = $("controllerHint");
+
+const SELFTEST = new URLSearchParams(location.search).get("selftest") === "1";
+
+function log(line) {
+  console.log(line);
+  const div = document.createElement("div");
+  div.textContent = line;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setRendererStatus(ok, text) {
+  rendererPill.classList.toggle("ok", ok === true);
+  rendererPill.classList.toggle("bad", ok === false);
+  rendererPillText.textContent = text;
+}
+
+function setBridgeStatus(state) {
+  const ok = state === "open";
+  bridgePill.classList.toggle("ok", ok);
+  bridgePill.classList.toggle("bad", state === "closed");
+  bridgePillText.textContent = `bridge: ${state}`;
+}
+
+function setWebcamStatus(text, level) {
+  webcamPill.classList.toggle("ok", level === "ok");
+  webcamPill.classList.toggle("bad", level === "error");
+  webcamPillText.textContent = text;
+  log(`[sept] ${text}`);
+}
+
+function setLatency(p50Ms, n) {
+  latencyPillText.textContent = `latency: ${p50Ms.toFixed(1)} ms p50 (n=${n})`;
+}
+
+function hex(bytes, n = 16) {
+  return Array.from(bytes.slice(0, n))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join(" ");
+}
+
+function decodedAddressOf(bytes) {
+  // Best-effort: OSC messages start with the address as a NUL-padded
+  // string; bundles start with "#bundle". Just for the human-readable
+  // readout under the hex dump.
+  const s = new TextDecoder().decode(bytes.slice(0, 32));
+  const nul = s.indexOf("\0");
+  return nul >= 0 ? s.slice(0, nul) : s;
+}
+
+// --- viz -----------------------------------------------------------------
+const canvas = $("vizCanvas");
+const viz = makeViz(canvas);
+const vizDecoder = new Decoder();
+
+function feedViz(bytes) {
+  let msgs = [];
+  try {
+    msgs = vizDecoder.feed(bytes);
+  } catch (e) {
+    console.error("[sept] viz decode error", e);
+    return;
+  }
+  for (const m of msgs) {
+    viz.onPacket(m);
+    if (m.type === "manifest") {
+      // rebuild the full manifest list the viz cares about
+      viz.setManifests(collectManifests());
+    }
+  }
+}
+
+const manifestsById = new Map();
+function collectManifests() {
+  return Array.from(manifestsById.values());
+}
+
+// --- pad axis labels (matches trackpad_ctl.js's DEFAULT_WINDOW: x -> freq,
+// y -> scale, wheel -> harm) -------------------------------------------------
+(function addAxisLabels() {
+  const mk = (text, style) => {
+    const d = document.createElement("div");
+    d.className = "axis-label";
+    d.textContent = text;
+    Object.assign(d.style, style);
+    return d;
+  };
+  const pad = document.getElementById("pad");
+  pad.appendChild(mk("x → freq", { left: "8px", bottom: "6px" }));
+  pad.appendChild(mk("y → scale", { left: "8px", top: "6px" }));
+  pad.appendChild(mk("wheel → harm ±0.05", { right: "8px", bottom: "6px" }));
+})();
+
+// --- last-packet hex dump -------------------------------------------------
+function onAnyPacketSent(bytes) {
+  hexdumpEl.textContent = hex(bytes);
+  hexaddrEl.textContent = `address: ${decodedAddressOf(bytes)}  (${bytes.length} bytes)`;
+  feedViz(bytes);
+}
+
+// --- renderer (WebChucK) --------------------------------------------------
+let renderer = null;
+
+async function startAudio() {
+  $("startAudioBtn").disabled = true;
+  setRendererStatus(null, "renderer: loading WebChucK…");
+  try {
+    renderer = await startRenderer("../chuck/sept_render_core.ck", {
+      onLog: (line) => log(`[chuck] ${line}`),
+    });
+    setRendererStatus(true, "renderer: WebChucK ready");
+    log("[sept] WebChucK loaded");
+    trackpad.setSinks([renderer, bridge]);
+    if (SELFTEST) runSelftest();
+  } catch (e) {
+    setRendererStatus(false, "renderer: failed to start");
+    log(`[sept] ERROR starting WebChucK: ${e}`);
+    console.error(e);
+  } finally {
+    $("startAudioBtn").disabled = false;
+  }
+}
+
+$("startAudioBtn").addEventListener("click", startAudio);
+
+// --- bridge ----------------------------------------------------------------
+let bridge = { feed: undefined, send: () => false }; // no-op sink until connected
+let bridgeConn = null;
+
+function connectBridgeNow() {
+  const url = $("bridgeUrl").value.trim();
+  if (!url) return;
+  bridgeConn = connectBridge(url);
+  bridgeConn.onState((state) => {
+    setBridgeStatus(state);
+    log(`[sept] bridge ${state}: ${url}`);
+  });
+  bridgeConn.onPacket((bytes) => {
+    // manifests (and, with --tap, other controllers' traffic) relayed back
+    // from the bridge -- feed straight into the visualizer AND track
+    // manifests so catalog dots render.
+    let msgs = [];
+    try {
+      msgs = vizDecoder.feed(bytes);
+    } catch (e) {
+      return;
+    }
+    for (const m of msgs) {
+      viz.onPacket(m);
+      if (m.type === "manifest") {
+        manifestsById.set(m.rendererId, m);
+        viz.setManifests(collectManifests());
+      }
+    }
+  });
+  bridge = bridgeConn;
+  trackpad.setSinks([renderer || {}, bridge]);
+}
+
+$("bridgeConnectBtn").addEventListener("click", connectBridgeNow);
+
+// --- trackpad controller ---------------------------------------------------
+// `attach()` reads `opts.sinks` once into a local `const sinks` binding and
+// iterates it on every dispatch, so pass one array object here and mutate
+// its *contents* (not reassign the variable) whenever the renderer/bridge
+// become available -- that's what setSinks() below does.
+const padEl = $("pad");
+const liveSinks = [];
+const trackpad = attachTrackpad(padEl, { sinks: liveSinks, onPacket: onAnyPacketSent });
+trackpad.setSinks = (list) => {
+  liveSinks.length = 0;
+  liveSinks.push(...list.filter((s) => s && (s.feed || s.send)));
+};
+
+// --- webcam controller (Task 4.3) ------------------------------------------
+// Shares the same dual-sink array as the trackpad (renderer + bridge, once
+// available) -- both controllers speak the same wire grammar, so the
+// renderer/visualizer never know which one produced a packet.
+const handOverlay = $("handOverlay");
+function resizeOverlay() {
+  const rect = padEl.getBoundingClientRect();
+  handOverlay.width = Math.max(1, Math.round(rect.width));
+  handOverlay.height = Math.max(1, Math.round(rect.height));
+}
+resizeOverlay();
+window.addEventListener("resize", resizeOverlay);
+
+const webcam = attachWebcam(handOverlay, {
+  sinks: liveSinks,
+  onPacket: onAnyPacketSent,
+  onStatus: setWebcamStatus,
+  onLatency: setLatency,
+});
+
+$("controllerSel").addEventListener("change", async (ev) => {
+  const mode = ev.target.value;
+  if (mode === "webcam") {
+    padEl.style.pointerEvents = "none";
+    controllerHint.textContent = "webcam: hold SPACE to sound the tracked hand; pinch -> tone/noise, forward/back -> wet/dry";
+    try {
+      await webcam.start();
+    } catch (e) {
+      // Permission denied / no camera / model load failure: fall back to
+      // trackpad so the page stays usable.
+      console.error("[sept] webcam start failed", e);
+      ev.target.value = "trackpad";
+      padEl.style.pointerEvents = "auto";
+      controllerHint.textContent = "trackpad: click/drag/wheel on the pad above";
+    }
+  } else {
+    webcam.stop();
+    padEl.style.pointerEvents = "auto";
+    controllerHint.textContent = "trackpad: click/drag/wheel on the pad above";
+  }
+});
+
+// --- selftest --------------------------------------------------------------
+async function runSelftest() {
+  try {
+    const res = await fetch("../golden/hit_basic.osc");
+    const buf = new Uint8Array(await res.arrayBuffer());
+    log(`[sept] selftest: fetched golden/hit_basic.osc (${buf.length} bytes)`);
+    if (renderer) renderer.feed(buf);
+    onAnyPacketSent(buf);
+    const decoded = decode(buf);
+    const hit = decoded.find((m) => m.type === "hit");
+    if (hit) {
+      log(
+        `[sept] selftest: voice=${hit.voiceId} onset=${hit.onset} velocity=${hit.velocity} ` +
+        `mu=[${hit.mu.map((x) => x.toFixed(2)).join(",")}]`
+      );
+    } else {
+      log("[sept] selftest: ERROR -- golden packet did not decode to a hit");
+    }
+  } catch (e) {
+    log(`[sept] selftest ERROR: ${e}`);
+    console.error(e);
+  }
+}
+
+log(`[sept] page loaded${SELFTEST ? " (selftest=1)" : ""}`);
+</script>
+</body>
+</html>

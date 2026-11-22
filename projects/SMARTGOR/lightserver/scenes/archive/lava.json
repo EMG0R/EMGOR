@@ -1,0 +1,41 @@
+{
+  "name": "lava",
+  "master": {"brightness": 1.0, "blur": 1.2, "tone_map": "reinhard"},
+  "layers": [
+    {
+      "type": "noise",
+      "blend": "add",
+      "scale": 55,
+      "speed": 0.18,
+      "drift": 6,
+      "octaves": 4,
+      "contrast": 1.6,
+      "palette": ["#180000", "#7a1000", "#ff4000", "#ff9010", "#ffd860"],
+      "brightness": 1.1
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "decay": 0.7,
+      "physics": {
+        "turbulence": {"accel": 220, "scale": 40, "speed": 0.8},
+        "damping": 1.2,
+        "bounce": {"enabled": true, "restitution": 0.5}
+      },
+      "emitters": [
+        {
+          "pos": [0, 799],
+          "rate": 4,
+          "vel": 0,
+          "vel_jitter": 30,
+          "lifetime": 2.5,
+          "lifetime_jitter": 1.0,
+          "colors": ["#ffc040", "#ff8000", "#ffffa0"],
+          "size": 0.9,
+          "size_jitter": 0.3
+        }
+      ],
+      "render": {"falloff": "gaussian", "fade_out": true}
+    }
+  ]
+}

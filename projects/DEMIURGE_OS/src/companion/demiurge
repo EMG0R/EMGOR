@@ -1,0 +1,558 @@
+#!/bin/bash
+# demiurge — DEMIURGE terminal companion (MASTER UI).
+#
+# Full-window dashboard for the Pi over SSH: bar-graph status (temp/freq/
+# load/mem), full thermal throttle decode (all 8 bits, like
+# demiurge-thermal-watchdog.sh), power + audio control, dynamic PATCH
+# switching, and a signal-flow viz. Sizes itself to the terminal window — make
+# the window ~1/4 of your screen and it fills it. `demiurge --once` prints one
+# frame.
+#
+# Keys:  1-9 patch   l/m/h power   s start  x stop   t telemetry   i interface   y sync/clock   r refresh   q quit
+
+# Pi rig user@host: single source is pi-rig.conf at the repo root. Override
+# with PI_USER / PI_HOST env vars for a one-off, or edit pi-rig.conf to
+# rename the rig for good.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[[ -f "$SCRIPT_DIR/../../pi-rig.conf" ]] && source "$SCRIPT_DIR/../../pi-rig.conf"
+PI="${PI_USER:-${PI_USER_DEFAULT:-gorpi7}}@${PI_HOST:-${PI_HOST_DEFAULT:-demiurge.local}}"
+CM="$HOME/.ssh/cm-demiurge-%r@%h:%p"
+SSH=(ssh -o ControlMaster=auto -o "ControlPath=$CM" -o ControlPersist=300 -o ConnectTimeout=3 -o ServerAliveInterval=2 -o ServerAliveCountMax=2 -o BatchMode=yes)
+REFRESH=2          # poll cadence (s) when connected — light on CPU
+REFRESH_DOWN=1     # faster poll while disconnected, to catch reconnect quickly
+POLL=$REFRESH      # current loop timeout; render() sets it from connection state
+
+# ---- PATCHES = one unified list, discovered live from ~/demiurge/sets/*.conf
+#      on the Pi every refresh — the same directory + `demiurge-set` mechanism
+#      the on-device NEPTR pygame UI's own PATCH screen already uses (see
+#      actions.py there). Nothing is hardcoded here; drop a file on the Pi and
+#      it just shows up, in both UIs. Digit keys 1-9. Populated by render()
+#      from the status() round-trip. Power auto-applies from each patch's
+#      `# power:` tag on switch (car_mode=low, everything else=high), matching
+#      the on-device NEPTR UI. ----
+PATCH_NAME=(); PATCH_TAG=(); PATCH_POWER=(); PATCH_ACTIVE=""
+
+# ---- INTERFACES = discovered live from `demiurge-interface --list` on the Pi
+#      every refresh. Selection writes the global choice on the Pi
+#      (~/demiurge/interface.conf) and restarts demiurge. Names are product
+#      names ("Volt 2") — never hw:N, never hardcoded. ----
+IF_NAME=(); IF_ID=(); IF_FLAGS=(); IF_DISP=()
+
+# ---- colors ----
+E=$'\033'; R="${E}[0m"; B="${E}[1m"; D="${E}[2m"
+CY="${E}[36m"; MG="${E}[35m"; GR="${E}[32m"; YL="${E}[33m"; RD="${E}[31m"; WH="${E}[97m"
+
+cleanup(){ printf "%s[?25h%s\n" "$E" "$R"; }
+trap cleanup EXIT INT TERM
+
+# ---- remote status (one round-trip) ----
+status(){
+"${SSH[@]}" "$PI" bash 2>/dev/null <<'REMOTE'
+P0=/sys/devices/system/cpu/cpu0/cpufreq
+t=$(vcgencmd measure_temp 2>/dev/null); t=${t#temp=}; t=${t%\'C}
+thr=$(vcgencmd get_throttled 2>/dev/null); thr=${thr#throttled=}
+vv=$(vcgencmd measure_volts 2>/dev/null); vv=${vv#volt=}; vv=${vv%V}
+cf=$(cat $P0/scaling_cur_freq 2>/dev/null); mf=$(cat $P0/scaling_max_freq 2>/dev/null); nf=$(cat $P0/cpuinfo_min_freq 2>/dev/null)
+echo "temp=$t"
+echo "throttled=$thr"
+echo "volt=$vv"
+echo "cores=$(cat /sys/devices/system/cpu/online 2>/dev/null)"
+echo "ncores=$(nproc 2>/dev/null)"
+echo "freq=$(( ${cf:-0} / 1000 ))"
+echo "maxf=$(( ${mf:-0} / 1000 ))"
+echo "minf=$(( ${nf:-0} / 1000 ))"
+echo "gov=$(cat $P0/scaling_governor 2>/dev/null)"
+echo "load=$(cut -d' ' -f1 /proc/loadavg 2>/dev/null)"
+echo "memtotal=$(awk '/^MemTotal/{print $2}' /proc/meminfo 2>/dev/null)"
+echo "memavail=$(awk '/^MemAvailable/{print $2}' /proc/meminfo 2>/dev/null)"
+echo "uptime=$(cut -d' ' -f1 /proc/uptime 2>/dev/null | cut -d. -f1)"
+echo "audio=$(systemctl is-active demiurge 2>/dev/null)"
+echo "ui=$(systemctl is-active neptr-ui 2>/dev/null)"
+echo "telem=$(cat /tmp/neptr_companion_telemetry 2>/dev/null | head -1)"
+patchtag=$(sed -n 's/^# patch: *//p' ~/demiurge/live.conf 2>/dev/null | head -1)
+[ -z "$patchtag" ] && patchtag=$(sed -n 's/^# set: *//p' ~/demiurge/live.conf 2>/dev/null | head -1)
+echo "patch=$patchtag"
+echo "sync=$(sed -n 's/^[[:space:]]*sync_layer[[:space:]]*=[[:space:]]*//p' ~/demiurge/live.conf 2>/dev/null | sed 's/#.*//' | tr -d '[:space:]' | head -1)"
+# Audio interfaces — same demiurge-interface CLI the on-device UI + web UI use.
+# ifline=name|card_id|flags|display (flags: active,chosen,inuse; display =
+# optional prettified 4th field); iface= active display name (falls back to raw).
+demiurge-interface --list 2>/dev/null | while IFS= read -r il; do echo "ifline=$il"; done
+echo "iface=$(demiurge-interface --list 2>/dev/null | awk -F'|' '$3 ~ /active/ {print ($4 != "" ? $4 : $1); exit}')"
+# Sync/clock role — demiurge-sync --list -> role|bpm|source_alive (one line).
+echo "syncline=$(demiurge-sync --list 2>/dev/null | head -1)"
+# Engine settings — demiurge-audio --status-machine -> mode|rate|quantum|bits|latency_ms.
+# Same CLI the web + on-device UIs use; this companion only DISPLAYS them
+# (change them with `demiurge-audio <key> <value>` over ssh).
+echo "audioline=$(demiurge-audio --status-machine 2>/dev/null | head -1)"
+# Audio graph — demiurge-graph --status-machine ->
+#   mode|in_path|out_path|dangling|links   (paths: direct|loopback|none)
+# READ ONLY here: the graph is re-patched from the on-device PATCHER or the
+# web UI, both of which go through the same demiurge-graph CLI. The exit code
+# is deliberately ignored — the CLI exits 3 for "no graph right now" (bypass
+# mode) and still prints an honest line.
+echo "graphline=$(demiurge-graph --status-machine 2>/dev/null | head -1)"
+# Network — demiurge-wifi --status-machine -> state|ssid|signal|security|ip|iface.
+echo "wifiline=$(demiurge-wifi --status-machine 2>/dev/null | head -1)"
+for f in ~/demiurge/sets/*.conf; do
+  [ -f "$f" ] || continue
+  nm=$(basename "$f" .conf)
+  [ "$nm" = "nam" ] && continue
+  tag=$(sed -n 's/^# set: *//p' "$f" | head -1); tag=${tag:-$nm}
+  pw=$(sed -n 's/^# power: *//p' "$f" | head -1); pw=${pw:-high}
+  echo "pfile=${nm}|${tag}|${pw}"
+done
+awk '
+  /^[[:space:]]*chain[[:space:]]*=/ {
+    if (have) print "signal=" buf
+    have=1; buf=""
+    v=$0; sub(/^[^=]*=[[:space:]]*/,"",v); sub(/[[:space:]]*#.*/,"",v)
+    if (v!="") buf=v
+    next
+  }
+  have==1 {
+    if ($0 ~ /^[[:space:]]*$/) next
+    if ($0 ~ /^[[:space:]]*#/) next
+    if ($0 ~ /^[[:space:]]+[^[:space:]]/) {
+      s=$0; sub(/^[[:space:]]+/,"",s); sub(/[[:space:]]*#.*/,"",s)
+      if (s!="") buf=(buf=="" ? s : buf "|" s)
+      next
+    }
+    print "signal=" buf; have=0; buf=""
+  }
+  END { if (have) print "signal=" buf }
+' ~/demiurge/live.conf 2>/dev/null
+REMOTE
+}
+
+DATA=""
+get(){ printf '%s\n' "$DATA" | sed -n "s/^$1=//p" | head -1; }
+get_all(){ printf '%s\n' "$DATA" | sed -n "s/^$1=//p"; }
+
+plabel(){ local m=${1:-0}; if [ "$m" -le 1600 ]; then echo LOW; elif [ "$m" -le 2400 ]; then echo MED; else echo HIGH; fi; }
+repeat(){ local n="${1:-0}" c="$2" s=""; while [ "$n" -gt 0 ]; do s="$s$c"; n=$((n-1)); done; printf '%s' "$s"; }
+
+# bar <value> <max> <width> <color>  →  ████░░░░ (filled colored, empty dim)
+bar(){ local v="${1:-0}" max="${2:-1}" w="${3:-10}" col="$4" f e
+  [ "$max" -le 0 ] && max=1
+  f=$(( v * w / max )); [ "$f" -gt "$w" ] && f=$w; [ "$f" -lt 0 ] && f=0; e=$(( w - f ))
+  printf "%s%s%s%s%s" "$col" "$(repeat "$f" '█')" "$D" "$(repeat "$e" '░')" "$R"
+}
+
+# flag <label> <bit> <thr_numeric> <color>  → colored if bit set, dim otherwise
+flag(){ if [ $(( $3 & $2 )) -ne 0 ]; then printf "%s%s%s" "$4$B" "$1" "$R"; else printf "%s%s%s" "$D" "$1" "$R"; fi; }
+
+fmt_uptime(){ local s=${1:-0} d h m; d=$((s/86400)); h=$(((s%86400)/3600)); m=$(((s%3600)/60))
+  if [ $d -gt 0 ]; then printf '%dd%dh' $d $h; elif [ $h -gt 0 ]; then printf '%dh%dm' $h $m; else printf '%dm' $m; fi; }
+
+# fmt_signal <tok1|tok2|...> <sync>  →  IN ─▶ stage ─▶ stage ─▶ OUT
+fmt_signal(){
+  local raw="$1" sync="$2" in=0 out="" first=1 t b
+  local oldifs="$IFS"; IFS='|'; set -- $raw; IFS="$oldifs"
+  [ "$sync" = off ] && in=1
+  for t in "$@"; do
+    t="${t%%->*}"; t="$(printf '%s' "$t" | tr -d '[:space:]')"
+    [ -z "$t" ] && continue
+    case "$t" in in1|in2) in=1; continue ;; esac
+    b="${t##*/}"
+    case "$b" in *.rnbo) b="rnbo:${b%.rnbo}" ;; *.*) b="${b%.*}" ;; esac
+    if [ $first = 1 ]; then out="$b"; first=0; else out="$out ─▶ $b"; fi
+  done
+  [ -z "$out" ] && return 1
+  [ "$in" = 1 ] && out="IN ─▶ $out"
+  printf '%s ─▶ OUT' "$out"
+}
+
+# frame buffer (so we can pad to fill the window)
+BUF=""; N=0
+o(){ BUF="$BUF$1"$'\n'; N=$((N+1)); }
+
+# Full-screen DISCONNECTED state — shown when the Pi/SSH is unreachable. Clears
+# the screen (no stale data) and centers a clear message; the main loop keeps
+# polling faster and render() auto-resumes the dashboard the moment it returns.
+render_disconnected(){
+  local WIDTH LINESN
+  WIDTH=$(tput cols 2>/dev/null || echo 80);  [ "${WIDTH:-0}" -lt 30 ] && WIDTH=30
+  LINESN=$(tput lines 2>/dev/null || echo 24); [ "${LINESN:-0}" -lt 10 ] && LINESN=10
+  printf "%s[2J%s[H" "$E" "$E"
+  local m0="▞▚▞ DEMIURGE" m1="⚠  DISCONNECTED FROM DEMIURGE" m2="${PI} unreachable — retrying…"
+  local top=$(( LINESN/2 - 2 )); [ "$top" -lt 0 ] && top=0
+  local i=0; while [ "$i" -lt "$top" ]; do printf '\n'; i=$((i+1)); done
+  printf "%*s%s%s%s%s\n\n" $(( (WIDTH-11)/2 )) "" "$MG" "$B" "$m0" "$R"
+  printf "%*s%s%s%s%s\n"   $(( (WIDTH-28)/2 )) "" "$RD" "$B" "$m1" "$R"
+  printf "%*s%s%s%s\n"     $(( (WIDTH-${#m2})/2 )) "" "$D" "$m2" "$R"
+}
+
+# Rebuild PATCH_* arrays from the latest status() DATA. Called every render()
+# so a file dropped on the Pi appears on the very next refresh.
+load_dynamic_lists(){
+  PATCH_NAME=(); PATCH_TAG=(); PATCH_POWER=()
+  local nm tag pw
+  while IFS='|' read -r nm tag pw; do
+    [ -z "$nm" ] && continue
+    PATCH_NAME+=("$nm"); PATCH_TAG+=("$tag"); PATCH_POWER+=("${pw:-high}")
+  done < <(get_all pfile)
+  IF_NAME=(); IF_ID=(); IF_FLAGS=(); IF_DISP=()
+  local inm iid ifl idsp
+  while IFS='|' read -r inm iid ifl idsp; do
+    [ -z "$inm" ] && continue
+    IF_NAME+=("$inm"); IF_ID+=("$iid"); IF_FLAGS+=("$ifl"); IF_DISP+=("${idsp:-$inm}")
+  done < <(get_all ifline)
+}
+
+render(){
+  DATA="$(status)"
+  # Empty status == SSH/Pi unreachable. Show the clean disconnected screen and
+  # poll faster so reconnect is caught quickly (no stale dashboard left up).
+  if [ -z "$DATA" ]; then
+    render_disconnected
+    POLL=$REFRESH_DOWN
+    return
+  fi
+  POLL=$REFRESH
+  load_dynamic_lists
+  local temp thr volt cores nc freq maxf minf gov load memt mema up audio ui patch sync telem
+  temp=$(get temp); thr=$(get throttled); volt=$(get volt); cores=$(get cores); nc=$(get ncores)
+  freq=$(get freq); maxf=$(get maxf); minf=$(get minf); gov=$(get gov); load=$(get load)
+  memt=$(get memtotal); mema=$(get memavail); up=$(get uptime)
+  audio=$(get audio); ui=$(get ui); patch=$(get patch); sync=$(get sync); telem=$(get telem)
+
+  local WIDTH LINESN BARW RULE
+  WIDTH=$(tput cols 2>/dev/null || echo 80);  [ "${WIDTH:-0}" -lt 50 ] && WIDTH=50
+  LINESN=$(tput lines 2>/dev/null || echo 24); [ "${LINESN:-0}" -lt 20 ] && LINESN=20
+  BARW=$(( WIDTH - 30 )); [ "$BARW" -lt 8 ] && BARW=8
+  RULE="$D$(repeat $((WIDTH-4)) '─')$R"
+
+  BUF=""; N=0
+  o "  ${MG}${B}▞▚▞ DEMIURGE${R} ${D}· ${PI} · up $(fmt_uptime "${up:-0}")${R}"
+  o "  $RULE"
+
+  if [ -z "$temp$freq$gov" ]; then
+    o "  ${RD}⚠ no response from ${PI} (on / reachable?)${R}"
+  else
+    local ti tcol; ti=${temp%.*}; ti=${ti:-0}
+    if [ "$ti" -ge 80 ]; then tcol=$RD; elif [ "$ti" -ge 70 ]; then tcol=$YL; else tcol=$GR; fi
+    o "$(printf "  ${B}TEMP${R} %5s°C %s ${D}warn80 crit85${R}" "${temp:-?}" "$(bar "$ti" 85 "$BARW" "$tcol")")"
+
+    local frange fval; frange=$(( ${maxf:-1} - ${minf:-0} )); [ "$frange" -le 0 ] && frange=1
+    fval=$(( ${freq:-0} - ${minf:-0} )); [ "$fval" -lt 0 ] && fval=0
+    o "$(printf "  ${B}FREQ${R} %5s  %s ${D}%s-%s${R}" "${freq:-?}" "$(bar "$fval" "$frange" "$BARW" "$CY")" "${minf:-?}" "${maxf:-?}")"
+
+    local lp lmax lcol; lp=$(awk "BEGIN{printf \"%d\", ${load:-0}*100}" 2>/dev/null); lmax=$(( ${nc:-1} * 100 )); [ "$lmax" -le 0 ] && lmax=100
+    if [ "${lp:-0}" -ge "$lmax" ]; then lcol=$RD; elif [ "${lp:-0}" -ge $((lmax*7/10)) ]; then lcol=$YL; else lcol=$GR; fi
+    o "$(printf "  ${B}LOAD${R} %5s  %s ${D}%s cores${R}" "${load:-?}" "$(bar "${lp:-0}" "$lmax" "$BARW" "$lcol")" "${nc:-?}")"
+
+    local mu mp mcol; mu=$(( ${memt:-0} - ${mema:-0} )); if [ "${memt:-0}" -gt 0 ]; then mp=$(( mu*100/memt )); else mp=0; fi
+    if [ "$mp" -ge 90 ]; then mcol=$RD; elif [ "$mp" -ge 70 ]; then mcol=$YL; else mcol=$GR; fi
+    o "$(printf "  ${B}MEM ${R} %4sM  %s ${D}/%sM${R}" "$(( mu/1024 ))" "$(bar "$mu" "${memt:-1}" "$BARW" "$mcol")" "$(( ${memt:-0}/1024 ))")"
+  fi
+
+  o "  $RULE"
+  local tn=0; case "$thr" in 0x*|[0-9]*) tn=$((thr)) ;; esac
+  local thx; if [ "${thr:-0x0}" = "0x0" ]; then thx="${GR}0x0 clear${R}"; else thx="${RD}${B}${thr}${R}"; fi
+  o "  ${B}THROTTLE${R} $thx"
+  o "    ${D}now ${R} $(flag UNDERVOLT 1 "$tn" "$RD") $(flag ARM-CAP 2 "$tn" "$RD") $(flag THROTTLE 4 "$tn" "$RD") $(flag TEMP-LIM 8 "$tn" "$RD")"
+  o "    ${D}past${R} $(flag UNDERVOLT 65536 "$tn" "$YL") $(flag ARM-CAP 131072 "$tn" "$YL") $(flag THROTTLE 262144 "$tn" "$YL") $(flag TEMP-LIM 524288 "$tn" "$YL")"
+  o "$(printf "  ${B}VOLT${R} %sV   ${B}CORES${R} %s (%s)   ${B}GOV${R} %s" "${volt:-?}" "${cores:-?}" "${nc:-?}" "${gov:-?}")"
+
+  local taudio tui tiface iface
+  iface=$(get iface)
+  if [ "$audio" = active ]; then taudio="${GR}● active${R}"; else taudio="${D}○ ${audio:-down}${R}"; fi
+  if [ "$ui" = active ]; then tui="${GR}✓ on${R}"; else tui="${D}✗ ${ui:-off}${R}"; fi
+  if [ -n "$iface" ]; then tiface="${CY}${iface}${R}"; else tiface="${RD}none${R}"; fi
+  o "  ${B}AUDIO${R} $taudio   ${B}IF${R} $tiface   ${B}UI${R} $tui   ${B}PWR${R} ${YL}${B}$(plabel "${maxf:-0}")${R}"
+
+  local syncline syncrole syncbpm syncalive tclk
+  syncline=$(get syncline)
+  IFS='|' read -r syncrole syncbpm syncalive <<EOF
+$syncline
+EOF
+  if [ -n "$syncrole" ]; then
+    tclk="${CY}${B}$(printf '%s' "$syncrole" | tr '[:lower:]' '[:upper:]')${R} ${D}${syncbpm:-?}bpm${R}"
+  else
+    tclk="${D}—${R}"
+  fi
+  o "  ${B}CLK${R} $tclk"
+
+  # ENGINE — the live.conf audio settings, straight from `demiurge-audio`.
+  # LAT is shown ONLY in sync mode: in bypass the buffer size does not steer
+  # latency at all (csound's ALSA backend pins a 1024-frame ring), so printing
+  # a number next to the buffer size there would be a lie. Bypass prints the
+  # pinned figure explicitly labelled as pinned.
+  local audioline amode arate aquantum abits alat tlat
+  audioline=$(get audioline)
+  IFS='|' read -r amode arate aquantum abits alat <<EOF
+$audioline
+EOF
+  if [ -n "$amode" ]; then
+    if [ "$amode" = bypass ]; then
+      tlat="${D}lat ${alat}ms pinned${R}"
+    else
+      tlat="${D}lat ${alat}ms${R}"
+    fi
+    o "$(printf "  ${B}ENG${R} ${CY}%s${R}   ${B}BUF${R} %s   ${B}RATE${R} %s   ${B}FMT${R} %s   %s" \
+        "$(printf '%s' "$amode" | tr '[:lower:]' '[:upper:]')" \
+        "${aquantum:-?}" "${arate:-?}" "${abits:-?}" "$tlat")"
+  fi
+
+  # PATH — how the engine is actually WIRED, which is not the same question
+  # as which interface is selected. DIRECT means port-to-port; LOOPBACK means
+  # via demiurge-sink, which costs a buffer each way. A direction reading
+  # NONE is silence: on 2026-08-09 the engine's inputs were connected to
+  # nothing at all and no UI anywhere could say so. Read-only from here —
+  # re-patch on the device (AUDIO ▸ PATCHER) or in the web UI.
+  local graphline gmode gin gout gdangle glinks tin tout tdangle
+  graphline=$(get graphline)
+  IFS='|' read -r gmode gin gout gdangle glinks <<EOF
+$graphline
+EOF
+  if [ "$gmode" = sync ]; then
+    case "$gin" in
+      direct)   tin="${GR}DIRECT${R}" ;;
+      loopback) tin="${YL}LOOPBACK${R}" ;;
+      *)        tin="${RD}${B}NOTHING${R}" ;;
+    esac
+    case "$gout" in
+      direct)   tout="${GR}DIRECT${R}" ;;
+      loopback) tout="${YL}LOOPBACK${R}" ;;
+      *)        tout="${RD}${B}NOTHING${R}" ;;
+    esac
+    tdangle=""
+    [ "${gdangle:-0}" != 0 ] && tdangle="   ${RD}${B}${gdangle} PORT(S) CONNECTED TO NOTHING${R}"
+    o "  ${B}PATH${R} ${D}in${R} $tin   ${D}out${R} $tout   ${D}${glinks} links${R}$tdangle"
+  elif [ -n "$gmode" ]; then
+    o "  ${B}PATH${R} ${D}no graph — sync layer is off${R}"
+  fi
+
+  # NET — SSID + IP, so the box can be found on the network at a glance.
+  local wifiline wstate wssid wsig wsec wip wdev tnet
+  wifiline=$(get wifiline)
+  IFS='|' read -r wstate wssid wsig wsec wip wdev <<EOF
+$wifiline
+EOF
+  if [ -n "$wstate" ]; then
+    if [ "$wstate" = connected ]; then
+      tnet="${GR}● ${wssid}${R} ${D}${wsig:+${wsig}%}${R}   ${B}IP${R} ${CY}${wip:-?}${R}"
+    else
+      tnet="${YL}○ ${wstate}${R}"
+    fi
+    o "  ${B}NET${R} $tnet"
+  fi
+
+  o "  $RULE"
+  o "  ${B}PATCH${R} ${CY}${B}${patch:-<none>}${R}"
+  PATCH_ACTIVE="$patch"        # switch_patch reads it to refuse a no-op reload
+  local sig flow label="SIGNAL"
+  while IFS= read -r sig; do
+    [ -z "$sig" ] && continue
+    flow=$(fmt_signal "$sig" "$sync") || continue
+    o "  ${B}${label}${R} ${GR}${flow}${R}"
+    label="      "
+  done <<EOF
+$(printf '%s\n' "$DATA" | sed -n 's/^signal=//p')
+EOF
+
+  o "  $RULE"
+  o "  ${CY}${B}PATCHES${R} ${D}(~/demiurge/sets)${R}"
+  local i n key mark
+  n=${#PATCH_NAME[@]}
+  if [ "$n" -eq 0 ]; then
+    o "  ${D}(none found)${R}"
+  else
+    for ((i=0; i<n; i++)); do
+      if [ "$i" -lt 9 ]; then key=$((i+1)); else key="-"; fi
+      if [ "${PATCH_TAG[$i]}" = "$patch" ]; then mark="${GR}${B}▸${R}"; else mark=" "; fi
+      o "$(printf "   ${B}%s${R} %b %-16s ${YL}%s${R}" "$key" "$mark" "${PATCH_TAG[$i]}" "${PATCH_POWER[$i]}")"
+    done
+  fi
+
+  o "  $RULE"
+  # Live sensor line, mirrored from demiurge-monitor's published telemetry
+  # (/tmp/neptr_companion_telemetry, config-driven from ~/demiurge/monitor.conf
+  # on the Pi — whatever channels it publishes show up here, nothing hardcoded).
+  # Wrapped at word boundaries to the window.
+  if [ -n "$telem" ]; then
+    o "  ${B}SENSORS${R} ${D}· live · demiurge-monitor${R}"
+    local wl
+    while IFS= read -r wl; do o "  ${GR}${wl}${R}"; done < <(printf '%s' "$telem" | fold -s -w $((WIDTH-4)))
+  else
+    o "  ${B}SENSORS${R} ${D}· (no telemetry — demiurge-monitor not publishing)${R}"
+  fi
+
+  o "  $RULE"
+  o "  ${B}1-9${R} patch    ${B}l${R} low ${B}m${R} med ${B}h${R} high    ${B}s${R} start ${B}x${R} stop    ${B}t${R} telemetry    ${B}i${R} interface    ${B}y${R} sync/clock    ${B}r${R} refresh ${B}q${R} quit"
+
+  printf "%s[2J%s[H" "$E" "$E"
+  printf '%s' "$BUF"
+  local pad=$(( LINESN - N - 1 )); while [ "$pad" -gt 0 ]; do printf '\n'; pad=$((pad-1)); done
+}
+
+flash(){ printf "   %s%s%s\n" "$YL" "$1" "$R"; }
+
+# Same mechanism the on-device NEPTR pygame UI's own PATCH screen uses
+# (actions.py Activator -> `demiurge-set <name>`): cp the config over
+# live.conf + restart, on the Pi. Power auto-applies from the patch's
+# `# power:` tag (see actions.patch_power on-device) — power FIRST, then the
+# switch, so the governor is already at the target level before the audio
+# engine restarts on it (matters most for car_mode's brownout-safe low power).
+#
+# Switching is CONFIRMED, never instant. A patch switch rewrites live.conf,
+# moves the power governor and restarts the audio engine — one mistyped digit
+# should not do all that (digit 1 is car_mode, at LOW power). Same two-step
+# arm the web UI's confirm sheet and the on-device PATCHES screen use.
+switch_patch(){
+  local i="$1" name pw ans
+  name="${PATCH_NAME[$i]}"; pw="${PATCH_POWER[$i]:-high}"
+  [ -z "$name" ] && return
+  if [ "${PATCH_TAG[$i]:-$name}" = "$PATCH_ACTIVE" ] || [ "$name" = "$PATCH_ACTIVE" ]; then
+    flash "already on ${PATCH_TAG[$i]:-$name}"; sleep 0.7; return
+  fi
+  printf "   %sswitch to %s%s%s (power: %s) — restarts audio. [y/N] %s" \
+    "$YL" "$B" "${PATCH_TAG[$i]:-$name}" "$R$YL" "$pw" "$R"
+  read -rsn1 ans; printf "\n"
+  case "$ans" in y|Y) ;; *) flash "cancelled"; sleep 0.5; return ;; esac
+  flash "⏳ ${PATCH_TAG[$i]:-$name} (power: $pw) ..."
+  demiurge-power-remote "$pw" >/dev/null 2>&1
+  "${SSH[@]}" "$PI" "demiurge-set $name" >/dev/null 2>&1
+}
+power(){ flash "⏳ power → $1 ..."; demiurge-power-remote "$1" >/dev/null 2>&1; }
+audio(){ flash "⏳ audio → $1 ..."; "${SSH[@]}" "$PI" "sudo systemctl $1 demiurge" >/dev/null 2>&1; }
+
+# Live control-surface monitor: streams the Teensy's USB-MIDI (ALSA seq, a
+# multi-subscriber fan-out — does NOT touch /dev/ttyACM0, so it never contends
+# with csound / the serial bridge) and renders control state from the NEPTR CC
+# map. Ctrl-C returns to the dashboard.
+telemetry(){
+  flash "⏳ telemetry: locating Teensy MIDI ..."
+  local client ln
+  client=$("${SSH[@]}" "$PI" "aconnect -l 2>/dev/null | sed -n \"s/^client \\([0-9]*\\): 'Teensy MIDI'.*/\\1/p\" | head -1")
+  ln="$D$(repeat 60 '─')$R"
+  printf "%s[2J%s[H" "$E" "$E"
+  if [ -z "$client" ]; then
+    printf "  %sno 'Teensy MIDI' ALSA port (aconnect -l) — is the Teensy plugged in?%s\n\n  press any key ..." "$RD" "$R"
+    read -rsn1 _; return
+  fi
+  printf "  %s▞▚▞ DEMIURGE · TELEMETRY (live MIDI)%s\n  %swaiting for control input on Teensy MIDI %s:0 — move a knob/button ... Ctrl-C to return%s\n" "$MG$B" "$R" "$D" "$client" "$R"
+  ssh -t -o ControlMaster=auto -o "ControlPath=$CM" -o ControlPersist=300 -o ConnectTimeout=6 "$PI" "aseqdump -p ${client}:0" 2>/dev/null | awk \
+    -v esc="$E" -v r="$R" -v b="$B" -v d="$D" -v gr="$GR" -v yl="$YL" -v mg="$MG" -v line="$ln" '
+    function on(cc){ return ((cc in v)&&v[cc]==127)? gr "●" r : d "○" r }
+    function val(cc){ return (cc in v)? v[cc] : "·" }
+    function rot(cc){ if(!(cc in v)) return d "·" r; return (v[cc]>=64)? gr "⟳" r : yl "⟲" r }
+    /Control change/{
+      c=$0; sub(/.*controller /,"",c); sub(/,.*/,"",c)
+      x=$0; sub(/.*value /,"",x); sub(/[^0-9].*/,"",x)
+      v[c+0]=x+0; n++
+      printf "%s[2J%s[H", esc, esc
+      printf "  %s▞▚▞ DEMIURGE · TELEMETRY (live MIDI)%s   %sCtrl-C to return%s\n", mg b, r, d, r
+      print "  " line
+      printf "  %sENC TURN%s ", b, r; for(i=1;i<=7;i++) printf " E%d %s", i, rot(19+i); print ""
+      printf "  %sENC BTN %s ", b, r; for(i=1;i<=7;i++) printf " E%d %s", i, on(69+i); print ""
+      printf "  %sFOOTSW  %s ", b, r; for(i=1;i<=9;i++) printf " %d %s", i, on(59+i); print ""
+      print "  " line
+      printf "  %sJOY%s x=%s y=%s btn %s    %sPEDAL%s %s\n", b,r, val(27), val(28), on(77), b,r, val(29)
+      printf "  %sFSR%s 1=%s 2=%s    %sMIC%s L=%s R=%s\n", b,r, val(34), val(35), b,r, val(78), val(79)
+      printf "  %sLiDAR%s 1=%s 2=%s    %sACCEL%s x=%s y=%s z=%s\n", b,r, val(30), val(36), b,r, val(31), val(32), val(33)
+      print "  " line
+      printf "  %sevents %d · CC ch1 · idle = no events (event-driven)%s\n", d, n, r
+      fflush()
+    }'
+}
+
+# Full-screen audio-interface page. Lists attached interfaces (by product
+# name, from the same demiurge-interface CLI every UI uses), digit selects →
+# writes the global choice on the Pi and restarts demiurge. Any other key
+# returns to the dashboard.
+interface_page(){
+  local ln n i key mark extra
+  ln="$D$(repeat 60 '─')$R"
+  printf "%s[2J%s[H" "$E" "$E"
+  printf "  %s▞▚▞ DEMIURGE · AUDIO INTERFACE%s\n  %s\n" "$MG$B" "$R" "$ln"
+  n=${#IF_NAME[@]}
+  if [ "$n" -eq 0 ]; then
+    printf "  %sno audio interface attached to the Pi%s\n" "$RD" "$R"
+  else
+    for ((i=0; i<n; i++)); do
+      key=$((i+1)); [ "$i" -ge 9 ] && key="-"
+      mark=" "; extra=""
+      case ",${IF_FLAGS[$i]}," in *,active,*) mark="${GR}${B}▸${R}" ;; esac
+      case ",${IF_FLAGS[$i]}," in *,chosen,*) extra="${YL} chosen${R}" ;; esac
+      case ",${IF_FLAGS[$i]}," in *,inuse,*)  extra="$extra${GR} [in use]${R}" ;; esac
+      printf "   %s%s%s %b %-24s%b\n" "$B" "$key" "$R" "$mark" "${IF_DISP[$i]:-${IF_NAME[$i]}}" "$extra"
+    done
+    printf "  %s\n  %s▸ = where DEMIURGE runs · digit = choose (restarts audio)%s\n" "$ln" "$D" "$R"
+  fi
+  printf "  %sany other key to return%s\n" "$D" "$R"
+  read -rsn1 key
+  case "$key" in
+    [1-9])
+      local idx=$((key-1))
+      if [ "$idx" -lt "$n" ]; then
+        flash "⏳ interface → ${IF_NAME[$idx]} ..."
+        "${SSH[@]}" "$PI" "demiurge-interface ${IF_NAME[$idx]}" >/dev/null 2>&1
+      fi
+      ;;
+  esac
+}
+
+# Full-screen sync/clock page. Shows the current master role (opgorator or
+# demiurge) + live BPM + whether the tick source is alive, from
+# `demiurge-sync --list` (role|bpm|source_alive). Digit 1/2 flips master role
+# live via `demiurge-sync <role>` on the Pi — no restart needed (unlike patch/
+# interface switches). Any other key returns to the dashboard.
+sync_page(){
+  local ln syncline syncrole syncbpm syncalive
+  ln="$D$(repeat 60 '─')$R"
+  printf "%s[2J%s[H" "$E" "$E"
+  printf "  %s▞▚▞ DEMIURGE · SYNC / CLOCK%s\n  %s\n" "$MG$B" "$R" "$ln"
+  syncline=$(get syncline)
+  IFS='|' read -r syncrole syncbpm syncalive <<EOF
+$syncline
+EOF
+  if [ -z "$syncrole" ]; then
+    printf "  %sno sync status (demiurge-sync not available on the Pi)%s\n" "$RD" "$R"
+  else
+    local talive
+    if [ "$syncalive" = 1 ]; then talive="${GR}● live${R}"; else talive="${D}○ idle${R}"; fi
+    printf "  %sMASTER%s %s%s%s   %sBPM%s %s   %sSOURCE%s %s\n" \
+      "$B" "$R" "$CY$B" "$(printf '%s' "$syncrole" | tr '[:lower:]' '[:upper:]')" "$R" \
+      "$B" "$R" "${syncbpm:-?}" "$B" "$R" "$talive"
+    printf "  %s\n" "$ln"
+    local roles=(opgorator demiurge) i r mark
+    for i in 0 1; do
+      r="${roles[$i]}"
+      if [ "$r" = "$syncrole" ]; then mark="${GR}${B}▸${R}"; else mark=" "; fi
+      printf "   %s%s%s %b %-16s\n" "$B" "$((i+1))" "$R" "$mark" \
+        "$(printf '%s' "$r" | tr '[:lower:]' '[:upper:]')"
+    done
+    printf "  %s\n  %s▸ = current master · digit = flip (live, no restart)%s\n" "$ln" "$D" "$R"
+  fi
+  printf "  %sany other key to return%s\n" "$D" "$R"
+  read -rsn1 key
+  case "$key" in
+    1) flash "⏳ sync master → OPGORATOR ..."
+       "${SSH[@]}" "$PI" "demiurge-sync opgorator" >/dev/null 2>&1 ;;
+    2) flash "⏳ sync master → DEMIURGE ..."
+       "${SSH[@]}" "$PI" "demiurge-sync demiurge" >/dev/null 2>&1 ;;
+  esac
+}
+
+if [ "${1:-}" = "--once" ]; then render; exit 0; fi
+
+printf "%s[?25l" "$E"
+while :; do
+  render
+  key=""
+  read -rsn1 -t "$POLL" key
+  case "$key" in
+    1|2|3|4|5|6|7|8|9)
+      idx=$((key-1))
+      [ "$idx" -lt "${#PATCH_NAME[@]}" ] && switch_patch "$idx"
+      ;;
+    l|L) power low ;; m|M) power medium ;; h|H) power high ;;
+    s|S) audio start ;; x|X) audio stop ;;
+    t|T) telemetry ;;
+    i|I) interface_page ;;
+    y|Y) sync_page ;;
+    r|R|"") : ;;
+    q|Q) break ;;
+  esac
+done

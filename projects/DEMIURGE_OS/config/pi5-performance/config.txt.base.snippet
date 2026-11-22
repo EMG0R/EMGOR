@@ -1,0 +1,26 @@
+# DEMIURGE — Pi 5 BASE block for /boot/firmware/config.txt
+#
+# ALWAYS APPLIED. No overclock here, nothing that needs a 5 V/5 A PSU to be
+# safe at idle, so setup does not gate this behind a prompt. The overclock
+# lives in config.txt.snippet and is opt-in.
+
+[all]
+# --- Fast boot ---
+# Skip the rainbow splash and kernel boot delay — shaves ~1.5s off boot.
+disable_splash=1
+boot_delay=0
+
+# --- USB current ceiling ---
+# EMGOR, 2026-10-21: "yes add the max current usb for sure by default".
+# This is a standing rule, not a per-install choice.
+#
+# Default Pi 5 caps all USB ports at 600 mA TOTAL. One bus-powered audio
+# interface (~400 mA) fits; a second will silently fail to enumerate with
+# almost no log output — the symptom is "works on other Pis / my laptop, not
+# this one." With the official 5 V/5 A PSU each port goes to ~1.6 A and total
+# to ~5 A, enough for two bus-powered interfaces plus a USB MIDI controller.
+#
+# NOTE, honestly: this raises a CEILING, it does not draw current. On a weak
+# 3 A supply it does not hurt an idle rig, but it does let peripherals pull
+# enough to brown out under load. On the 5 A PSU it is simply correct.
+usb_max_current_enable=1

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O2 -Wl,--dependency-file=CMakeFiles/test_schema.dir/link.d CMakeFiles/test_schema.dir/tests/test_schema.cpp.o -o test_schema  libpmor_core.a

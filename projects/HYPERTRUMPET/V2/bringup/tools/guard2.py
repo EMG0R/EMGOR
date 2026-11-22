@@ -1,0 +1,16 @@
+import sys,time; sys.path.insert(0,'bringup/tools')
+from dev import Dev
+d=Dev(); time.sleep(1.2)
+def st(): return [m['pads'] for m in d.fr if 'pads' in m][-1]
+def w(t): time.sleep(t)
+d.send('nosave off'); d.send('sim off'); w(0.3); d.send('preset reset'); w(3.5); d.send('nosave on')
+for c in ['ogain 0','sim fader 1 0','sim tone 440 -45']: d.send(c); w(0.2)
+w(1.0)
+if not st()['hm']: d.send('sim encpress'); w(0.6)
+i=d.mark(); d.send('sim padhold 5'); w(1.5); hw=[m['hw'] for m in d.fr[i:] if 'hw' in m]; v=max(x[0] for x in hw[-5:])/10; print('harmony voice wet %.1f dBFS rms = %.1f dB re dry'%(v,v+48.0)); d.send('sim padrel 5'); w(0.5); d.send('sim encpress'); w(0.5)
+d.send('sim pad 4'); w(0.6); d.send('sim pad 16'); w(0.8); print('stack on: on mask',st()['on'])
+d.send('sim admit 20'); w(0.3); rf0=st()['rf']; d.send('sim pad 3'); w(1.0); p=st(); print('admit limit 20%%: wah on=%s refusals %d->%d why=%s'%((p['on']>>2)&1,rf0,p['rf'],p.get('why')))
+d.send('sim admit 70'); w(0.3)
+d.send('sim shed'); w(1.0); p=st(); print('forced shed: shed=%s why=%s on mask %d'%(p['shed'],p.get('why'),p['on']))
+d.send('sim shed'); w(1.0); p=st(); print('2nd shed: shed=%s why=%s on mask %d'%(p['shed'],p.get('why'),p['on']))
+d.send('sim off'); d.send('nosave off'); w(0.5); d.close()

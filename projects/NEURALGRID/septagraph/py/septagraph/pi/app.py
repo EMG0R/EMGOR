@@ -1,0 +1,1303 @@
+#!/usr/bin/env python3
+"""neuralGrid Pi application -- one process, one hardware link, three modes,
+a step sequencer, a browser UI.
+
+    python -m septagraph.pi.app --port 8767 --lab HOST:PORT --map lab_map.json [--fake-grid] [--renderers host:7700,...]
+
+On the Pi this owns the ESP32 serial link (via LidarGridLink) exactly like
+pi/tools/monitor.py does -- the two CANNOT run at the same time (see
+neuralgrid-app.service's Conflicts= and README.md). On the Mac (no
+hardware), pass --fake-grid: same callback shape, no serial, so every mode
+and the whole UI can be built/demoed without a Pi.
+
+Fast-path rule (Global Constraint): on_key/on_analog/on_lidar dispatch to
+the active mode's handler, which does its own encode+sendto with no
+blocking I/O and no lock held across the send. LED frame refresh after a
+key event is a serial write and is intentionally the *only* thing allowed
+to add latency here, same as monitor.py's own key-press feedback.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import math
+import os
+import sys
+import threading
+import time
+from pathlib import Path
+from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "pi"))  # neuralGrid/pi -> neuralgrid package
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))          # septagraph/py -> controllers package
+
+from neuralgrid import codec_lidar  # noqa: E402 -- pure module, no pyserial dep, safe to import eagerly
+
+from septagraph.manifest import ManifestStore
+from septagraph.net import CTL_PORT, RENDER_PORT, Receiver, Sender
+from septagraph.types import vec
+from septagraph.window import Window
+
+from controllers.grid_ctl import GridController
+
+from . import leds, orientation, webui
+from .blank import BlankMode
+from .encoder_mode import EncoderMode
+from .menu import MENU_SLOTS, CornerWatch, MenuMode
+from .modes import DirectLabMode, MidiMode, SeptagraphMode, layout_mode_from_state
+from .monome import MonomeMode, MonomeServer
+from .netmidi import NetworkMidiServer
+from .osc import OscMode, OscServer
+from ..axes import K
+
+log = logging.getLogger("septagraph.pi.app")
+
+#: Menu destinations that are a LAYOUT of another mode rather than their
+#: own engine. They are separate names because they are separate places
+#: to the player, and the same object underneath because they are one
+#: engine to the machine.
+MODE_ALIASES = {"modulettes": "direct_lab"}
+
+
+def resolve_mode(name: str) -> str:
+    return MODE_ALIASES.get(name, name)
+
+STATE_DIR = Path.home() / ".neuralgrid"
+STATE_PATH = STATE_DIR / "app_state.json"
+DEFAULT_LAB_MAP = Path(__file__).resolve().parents[2] / "renderers" / "lab_map.json"
+N_PATTERN_SLOTS = 8
+
+# Orientation gesture (see septagraph/pi/orientation.py): hold both hw
+# corners of one edge for this long to make that edge the new logical top.
+ORIENTATION_HOLD_S = 0.8
+
+#: How often the whole frame is re-sent even when nothing has changed.
+#:
+#: We normally send only what changed, and send nothing at all when
+#: nothing did -- right for the serial budget, wrong on its own for
+#: reliability. A partial update that is lost or garbled leaves that pad
+#: showing the old colour FOREVER: the app believes it already sent the
+#: correct thing, and nothing about that pad will change again until it
+#: is next pressed. It showed up on hardware as pads staying lit after
+#: release (2026-09-17). One full frame every couple of seconds costs
+#: nothing on an idle link and makes the display reconverge on its own.
+LED_RESYNC_S = 2.0
+ORIENTATION_PULSE_HZ = 4.0  # corner-pad "hold in progress" pulse rate
+
+
+# ---------------------------------------------------------------------------
+# FakeGrid -- same callback shape as LidarGridLink, no serial, for Mac dev
+# ---------------------------------------------------------------------------
+
+
+class FakeGrid:
+    """Stand-in for LidarGridLink on a machine with no hardware attached.
+
+    Same public surface the app/controllers touch: settable on_key /
+    on_analog / on_lidar callbacks, and send_leds_full/partial/brightness
+    (here, just recorded so the UI's live-mirror + tests can see them).
+    Also exposes simulate_key/simulate_analog/simulate_lidar so the web UI
+    (or a test) can drive the app exactly as real hardware would.
+    """
+
+    def __init__(self):
+        self.on_hello = None
+        self.on_key = None
+        self.on_analog = None
+        self.on_lidar = None
+        self.on_lidardiag = None
+        self.last_frame = leds.blank()
+        self.brightness = 120
+
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    def send_leds_full(self, rgb_list) -> None:
+        self.last_frame = list(rgb_list)
+
+    def send_leds_partial(self, updates) -> None:
+        for x, y, r, g, b in updates:
+            self.last_frame[y * 8 + x] = (r, g, b)
+
+    def send_brightness(self, level: int) -> None:
+        self.brightness = level
+
+    def send_clear(self) -> None:
+        self.last_frame = leds.blank()
+
+    def send_ping(self) -> None:
+        pass
+
+    # -- simulation entry points (fake hardware "input") ------------------
+
+    def simulate_key(self, x: int, y: int, edge: int) -> None:
+        if self.on_key:
+            self.on_key(x, y, edge)
+
+    def simulate_analog(self, raw4) -> None:
+        if self.on_analog:
+            self.on_analog(raw4)
+
+    def simulate_lidar(self, mm4) -> None:
+        if self.on_lidar:
+            self.on_lidar(mm4)
+
+    def simulate_hello(self, proto_ver=1, grid_w=8, grid_h=8, n_analog=8, fw_ver=6) -> None:
+        if self.on_hello:
+            self.on_hello(_FakeHello(proto_ver, grid_w, grid_h, n_analog, fw_ver))
+
+    def simulate_lidardiag(self, **kwargs) -> None:
+        if self.on_lidardiag:
+            self.on_lidardiag(codec_lidar.LidarDiag(**kwargs))
+
+
+class _FakeHello:
+    """Plain stand-in for codec.Hello -- FakeGrid.simulate_hello's argument,
+    same field names real hardware's HELLO dataclass exposes (see
+    pi/tools/monitor.py's on_hello)."""
+
+    def __init__(self, proto_ver, grid_w, grid_h, n_analog, fw_ver):
+        self.proto_ver = proto_ver
+        self.grid_w = grid_w
+        self.grid_h = grid_h
+        self.n_analog = n_analog
+        self.fw_ver = fw_ver
+
+
+def open_real_link(port: Optional[str]):
+    # Imported lazily: pyserial + the hardware may not be present on the Mac.
+    from neuralgrid.link_lidar import LidarGridLink  # type: ignore
+    import glob
+
+    if port is None:
+        candidates = (
+            sorted(glob.glob("/dev/serial/by-id/usb-Silicon_Labs_CP2102*"))
+            + sorted(glob.glob("/dev/serial/by-id/*"))
+            + sorted(glob.glob("/dev/ttyUSB*"))
+        )
+        if not candidates:
+            raise RuntimeError("no serial port found; pass --port or use --fake-grid")
+        port = candidates[0]
+    link = LidarGridLink(port)
+    link.start()
+    _hard_reset_to_run(link)
+    link.send_ping()
+    return link
+
+
+def _hard_reset_to_run(link) -> None:
+    """Force the ESP32 into a clean app boot after opening the port (same
+    sequence as pi/tools/monitor.py). DTR/RTS glitches from opens/closes --
+    especially a service restart -- can strand an auto-program dev board in
+    the silent ROM download mode: port present, no HELLO ever. Toggle EN
+    (RTS) low->high with IO0 (DTR) released so it always reboots into the
+    application. The PING watchdog then picks up the HELLO."""
+    try:
+        s = link._serial
+        s.dtr = False          # IO0 released (high) -> run mode
+        s.rts = True           # EN low: hold in reset
+        time.sleep(0.1)
+        s.rts = False          # EN high: boot the app
+        time.sleep(0.2)
+        s.reset_input_buffer()  # drop boot-loader/boot-log garbage
+    except Exception:
+        log.exception("hard_reset_to_run failed")
+
+
+def _parse_host_port(s: str, default_port: int) -> tuple[str, int]:
+    if ":" in s:
+        host, port_s = s.rsplit(":", 1)
+        return host, int(port_s)
+    return s, default_port
+
+
+def _parse_renderer_list(s: Optional[str]) -> list[tuple[str, int]]:
+    if not s:
+        return []
+    return [_parse_host_port(part, RENDER_PORT) for part in s.split(",") if part]
+
+
+class _DryRunLabSender:
+    """Prints instead of sending -- required by the DEPLOY runbook so dev
+    on the Pi never leaks stray traffic to the Machine Lab's network."""
+
+    def __init__(self, target):
+        self.target = target
+
+    def send(self, packet: bytes) -> None:
+        print(f"[dry-run-lab] -> {self.target[0]}:{self.target[1]} ({len(packet)} bytes)")
+
+
+#: Modes allowed to reach the Machine Lab over the network. Every other mode
+#: (blank, menu, encoder, monome, midi, osc, septagraph) keeps the lab gate
+#: shut, so nothing leaves for the lab's network unless lab mode is chosen.
+LAB_MODES = frozenset({"direct_lab"})
+
+
+class _GatedLabSender:
+    """Wraps the lab sender with an on/off gate (2026-10-08).
+
+    Closed: send() drops the packet and try_recv() reports nothing, so the
+    /ping liveness thread idles and lab_reachable decays on its own. Open:
+    pass-through. The LabRenderer itself stays constructed either way, so
+    modes keep its map/manifest; only the network edge is switched.
+    try_recv is exposed only when the wrapped sender has it, so a dry-run
+    sender still makes start_liveness() a no-op, as before.
+    """
+
+    def __init__(self, inner, is_open: bool = False):
+        self._inner = inner
+        self.is_open = is_open
+        if hasattr(inner, "try_recv"):
+            self.try_recv = self._try_recv
+
+    def send(self, packet: bytes) -> None:
+        if self.is_open:
+            self._inner.send(packet)
+
+    def _try_recv(self):
+        return self._inner.try_recv() if self.is_open else None
+
+
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
+
+
+class App:
+    def __init__(self, args):
+        self.args = args
+        self.link = FakeGrid() if args.fake_grid else open_real_link(args.port)
+
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        self.saved_state = self._load_state()
+        # -- orientation layer (see septagraph/pi/orientation.py) -----------
+        # Applied at boot from persisted state; modes never see this -- see
+        # _on_key/_on_analog/_on_lidar (hw->logical) and
+        # _current_display_hw_frame_locked (logical->hw) below.
+        self.orientation = orientation.Orientation(
+            rot=int((self.saved_state.get("orientation") or {}).get("rot", 0))
+        )
+        self._gesture_lock = threading.Lock()
+        self._corner_held: dict = {}  # hw (x, y) -> time.monotonic() of press, corner pads only
+        self._gesture_armed = True  # False right after a commit, until all corners release (debounce)
+        self.pattern_slots: dict = self.saved_state.get("pattern_slots", {})
+        self._last_fsr_raw = (0, 0, 0, 0)  # for the web UI's FSR meters (task 4)
+        # -- raw sensor panel state (web UI SENSORS section) -----------------
+        self._last_analog_raw = (0,) * 8  # softpots N/S/E/W [0:4] + FSR0-3 [4:8]
+        self._lidar_mm = [None, None, None, None]           # last raw reading per channel, N/S/E/W
+        self._lidar_last_valid_mono = [None, None, None, None]  # monotonic time of last non-invalid reading
+        self._lidar_diag: Optional[dict] = None              # last TYPE_LIDARDIAG summary, if any
+        self._hello: Optional[dict] = None
+        self._hello_mono: Optional[float] = None
+        self._key_events = 0
+        self._key_trace: list = []  # last 16 HARDWARE (x, y, edge, t) -- debugging pad/board tiling
+        # Global NeoTrellis brightness (0-255). Persisted state wins over
+        # NEURALGRID_BRIGHTNESS wins over the 40 default; sent to the link
+        # in start() and live-adjustable via POST /api/brightness.
+        self.brightness = int(
+            self.saved_state.get("brightness", os.environ.get("NEURALGRID_BRIGHTNESS", "120"))
+        )
+
+        # -- Septagraph plumbing shared by Direct + Septagraph modes -------
+        self.manifest_store = ManifestStore()
+        self.window = Window(
+            center=vec(*([0.5] * K)),
+            extent=vec(*([0.5] * K)),
+            assign={"grid": (0, 4)},
+        )
+        renderer_targets = _parse_renderer_list(args.renderers)
+        self.sender = Sender(targets=renderer_targets, broadcast=False) if renderer_targets else Sender(targets=[])
+
+        self.lab_renderer = None
+        self.lab_receiver = None
+        self.lab_gate = None
+        self.args_lab_gate = getattr(args, "lab_gate", "mode")
+        self.args_encoder_always = getattr(args, "encoder_always", True)
+        if args.lab:
+            lab_target = _parse_host_port(args.lab, 8001)
+            lab_sender = _DryRunLabSender(lab_target) if args.dry_run_lab else Sender(targets=[lab_target])
+            # Shut at boot (boot mode is blank); switch_mode opens it only
+            # for LAB_MODES unless --lab-gate always.
+            self.lab_gate = _GatedLabSender(lab_sender, is_open=(self.args_lab_gate == "always"))
+            lab_sender = self.lab_gate
+            from septagraph.renderers.lab import LabRenderer  # type: ignore
+            self.lab_renderer = LabRenderer(
+                args.map, lab_sender, ctl_targets=[("127.0.0.1", CTL_PORT)],
+                vel_mode=args.vel_mode, vel_random=tuple(args.vel_random),
+            )
+            self.lab_renderer.announce()
+            # GOR python-server contract: /ping liveness is always on, no
+            # mode switch -- no-ops on its own when lab_sender is a
+            # _DryRunLabSender (dry-run-lab has no try_recv).
+            self.lab_renderer.start_liveness()
+            # In-process: listen on 7700 for /sept/v1/* so SeptagraphMode's
+            # own /hit /move traffic (loopback or LAN) also reaches the lab.
+            self.lab_receiver = Receiver(RENDER_PORT, self.lab_renderer.on_message)
+            self.lab_receiver.start()
+
+        self.grid_controller = GridController(
+            link=None, sender=self.sender, window=self.window,
+            manifests=self.manifest_store, leds=lambda b: None,
+        )
+        self.manifest_receiver = Receiver(CTL_PORT, lambda m: self.grid_controller.on_manifest(m))
+        self.manifest_receiver.start()
+
+        lab_local_targets = [("127.0.0.1", RENDER_PORT)] if self.lab_renderer else []
+        self.modes = {
+            "direct_lab": DirectLabMode(args.map, lab_target=None, dry_run=True, lab_renderer=self.lab_renderer),
+            "septagraph": SeptagraphMode(
+                self.grid_controller, self.manifest_store,
+                lab_renderer=self.lab_renderer,
+                lab_local_targets=lab_local_targets,
+                external_targets=renderer_targets,
+            ),
+            "midi": self._make_midi_mode(),
+        }
+
+        # -- the modes reached from the menu (2026-09-17) ------------------
+        # BLANK is the default: the grid boots as a plain MIDI controller
+        # with no instrument's colours on it. Everything else is chosen
+        # deliberately, by holding all four corners.
+        self.netmidi = NetworkMidiServer(name=args.midi_name)
+        self.netmidi.start()
+        self.modes["blank"] = BlankMode(self.netmidi.out)
+
+        # A monome 64 over ethernet: serialosc discovery + the grid's own
+        # OSC endpoint, so anything that talks to a grid talks to this.
+        monome_mode = MonomeMode(send=lambda a, args: self.monome.send_key(a, args))
+        self.monome = MonomeServer(monome_mode, device_port=args.monome_port)
+        self.monome.start()
+        self.modes["monome"] = monome_mode
+
+        # Generic OSC: the same instrument, for anything that speaks OSC.
+        # The monome path deliberately sends only pads; this one carries
+        # the force sensors and the lidar too.
+        osc_mode = OscMode(send=lambda a, args: None)
+        self.osc = OscServer(osc_mode, port=args.osc_port)
+        self.osc.start()
+        self.modes["osc"] = osc_mode
+
+        # The dimensional encoder, hosted here rather than as a second
+        # process fighting this one for /dev/ttyUSB0.
+        self.modes["encoder"] = self._make_encoder_mode(args)
+
+        # The menu itself is a mode, so it crossfades in and out like any
+        # other and cannot be "on" while something else is also on.
+        self.modes["menu"] = MenuMode(self._menu_choice)
+        self._corners = CornerWatch()
+
+        # -- FSR global config (task 4): one gamma/floor pair, shared by all
+        # three modes + GridController, editable live from the web UI.
+        fsr_cfg = self.saved_state.get("fsr", {})
+        self.set_fsr_config(fsr_cfg.get("gamma"), fsr_cfg.get("floor"))
+        # Direct Lab layout mode: keep the persisted value if present,
+        # otherwise default to FULL (all 64 pads play). A pre-MODULETTES
+        # save only ever has the legacy boolean "split" -- migrated by
+        # layout_mode_from_state (never resolves to "modulettes" from an
+        # old save, since that layout didn't exist yet).
+        direct_saved = self.saved_state.get("direct", {}) or {}
+        self.modes["direct_lab"].set_layout_mode(layout_mode_from_state(direct_saved))
+        # What DIRECT_LAB returns to when you leave MODULETTES.
+        saved_layout = layout_mode_from_state(direct_saved)
+        self._lab_layout = "full" if saved_layout == "modulettes" else saved_layout
+        if "vel_base" in direct_saved:
+            self.modes["direct_lab"].vel_base = float(direct_saved["vel_base"])
+        # direct_lab strikes through the shared in-process LabRenderer when
+        # given (dry_run=True above just means "don't also build a private
+        # fallback UDP sender" -- direct_strike still goes out for real via
+        # lab_renderer.direct_strike when self.lab_renderer is not None).
+        # Always boot BLANK. The saved mode is deliberately NOT restored:
+        # coming up in the Machine Lab meant the instrument was committed
+        # to one room's worth of robots before anyone touched it, and a
+        # mode that reaches out over the network is not something to
+        # resume unasked. `mode` is still persisted for the UI's benefit.
+        self.active_name = "blank"
+        self._saved_mode = self.saved_state.get("mode", "blank")
+
+        self._crossfader = leds.Crossfader()
+        self._crossfader.start(leds.blank(), self.modes[self.active_name].led_frame())
+        # Separate crossfader for orientation-rotation transitions (see
+        # _commit_orientation): kept apart from self._crossfader because it
+        # blends HARDWARE-space frames (two different physical layouts of
+        # the same logical content), whereas self._crossfader blends
+        # LOGICAL-space frames (mode/window swaps) -- mixing the two spaces
+        # in one Crossfader would corrupt whichever swap fires second.
+        self._orientation_crossfader = leds.Crossfader()
+
+        self.link.on_key = self._on_key
+        self.link.on_analog = self._on_analog
+        self.link.on_lidar = self._on_lidar
+        self.link.on_hello = self._on_hello
+        self.link.on_lidardiag = self._on_lidardiag
+
+        # -- LED transport state --------------------------------------------
+        # _render_lock guards every read/mutation of self._crossfader AND the
+        # decide-and-send step below as one atomic unit. Without it,
+        # _led_loop (its own thread) and _on_key (called from the serial
+        # reader thread on every keypress) can interleave a Crossfader.start()
+        # (mutates _from/_to/_t0/_active, 4 separate attribute writes) with a
+        # concurrent .current() read on another thread -- a torn read that
+        # can compute a frame from a stale/mismatched _from+_to+_t0 and ship
+        # it straight onto the wire as an extra, uncoordinated LEDS_FULL send.
+        # That was the flicker root cause: a wrong-colored frame landing on
+        # the grid for one tick, immediately clobbered by the next correct
+        # one. Fixed by serializing every crossfader touch + send through
+        # this one lock (see _render_leds_once / _led_loop / switch_mode).
+        #
+        # 2026-09-08 addendum -- the crossfader was ALSO being restarted on
+        # every single led_frame() change (see the old _led_loop: "if frame
+        # != last_target: crossfader.start(...)"), not just on a real
+        # switch_mode() swap. Since Direct Lab's led_frame() changes on
+        # basically every tick (press flashes, sequencer playhead, FSR
+        # touches), that meant EVERY visual update -- including a keypress's
+        # leds.FLASH_S=120ms white flash -- got smeared across a fresh
+        # CROSSFADE_S=150ms fade toward a perpetually-moving target, so
+        # current() never actually reached white before the flash's own
+        # target expired: this is why "no white flash" was reported even
+        # though DirectLabMode._press_times/led_frame() were wired up
+        # correctly. Fixed: the crossfader is now driven ONLY by
+        # switch_mode() (a real mode/window swap, which is what
+        # leds.py's own module docstring says it's for); ordinary per-tick
+        # content is sent live via _current_display_frame_locked(), which
+        # only defers to the crossfader while one is still mid-flight from a
+        # switch_mode() call (and keeps its target fresh without resetting
+        # the timer, so a busy mode's own animation doesn't freeze mid-fade).
+        self._render_lock = threading.Lock()
+        self._last_sent_frame: Optional[list] = None  # last frame actually written to the wire
+        self._last_full_at = time.monotonic()          # see LED_RESYNC_S
+        self._frames_sent = 0
+        self._frames_sent_t0 = time.monotonic()
+        self._stop = threading.Event()
+        self._led_thread = threading.Thread(target=self._led_loop, daemon=True)
+
+        for mode in self.modes.values():
+            mode.sequencer.start() if hasattr(mode, "sequencer") else None
+
+    def _make_midi_mode(self) -> MidiMode:
+        from neuralgrid.midiout import MidiOut  # type: ignore
+        midi_cfg = self.saved_state.get("midi", {})
+        midiout = MidiOut()
+        port = midi_cfg.get("port")
+        if port:
+            midiout.select_port(port)
+        return MidiMode(
+            midiout,
+            base_note=midi_cfg.get("base_note", 36),
+            scale=midi_cfg.get("scale", [0, 2, 4, 5, 7, 9, 11]),
+            channel=midi_cfg.get("channel", 0),
+            fsr_notes=midi_cfg.get("fsr_notes"),
+            fsr_aftertouch=midi_cfg.get("fsr_aftertouch", False),
+        )
+
+    def set_fsr_config(self, gamma: Optional[float] = None, floor: Optional[float] = None) -> None:
+        """Global FSR gamma/floor (task 4): applied to every mode's FsrConfig
+        plus GridController's -- one setting, live-tunable from the web UI's
+        FSR settings panel, same shape as pi/tools/monitor.py's own
+        GET /fsr?gamma=&floor= live-tune endpoint."""
+        for mode in self.modes.values():
+            cfg = getattr(mode, "fsr_config", None)
+            if cfg is not None:
+                cfg.update(gamma=gamma, floor=floor)
+        self.grid_controller.fsr_config.update(gamma=gamma, floor=floor)
+
+    @property
+    def active_mode(self):
+        return self.modes[resolve_mode(self.active_name)]
+
+    # -- persistence ------------------------------------------------------
+
+    def _load_state(self) -> dict:
+        try:
+            return json.loads(STATE_PATH.read_text())
+        except Exception:
+            return {}
+
+    def save_state(self) -> None:
+        data = {
+            "mode": self.active_name,
+            "pattern_slots": self.pattern_slots,
+            "direct": {
+                "layout_mode": self.modes["direct_lab"].layout_mode,
+                "split": self.modes["direct_lab"].split,  # legacy field, kept for older readers
+                "track_assignment": self.modes["direct_lab"].track_assignment,
+                "vel_base": self.modes["direct_lab"].vel_base,
+            },
+            "midi": {
+                "base_note": self.modes["midi"].base_note,
+                "scale": self.modes["midi"].scale,
+                "channel": self.modes["midi"].channel,
+                "port": getattr(self.modes["midi"].midiout, "port_name", None),
+                "fsr_notes": self.modes["midi"].fsr_notes,
+                "fsr_aftertouch": self.modes["midi"].fsr_aftertouch,
+            },
+            "fsr": self.grid_controller.fsr_config.to_json(),
+            "brightness": self.brightness,
+            "orientation": {"rot": self.orientation.rot},
+        }
+        STATE_PATH.write_text(json.dumps(data))
+
+    # -- hardware dispatch (fast path) ------------------------------------
+
+    def _on_key(self, x, y=None, edge=None) -> None:
+        # Real hardware (GridLink._dispatch) calls on_key(codec.Key) -- ONE
+        # dataclass argument; FakeGrid/tests call on_key(x, y, edge). Accept
+        # both, exactly like _on_analog/_on_lidar. (Before this, every real
+        # key press raised TypeError inside the serial reader thread and was
+        # silently dropped: key_events stayed 0 and no pad ever flashed.)
+        if y is None and edge is None and hasattr(x, "x"):
+            x, y, edge = x.x, x.y, x.edge
+        self._key_events += 1
+        self._key_trace.append((int(x), int(y), int(edge), round(time.monotonic(), 2)))
+        del self._key_trace[:-16]
+        # Orientation gesture tracking happens on HARDWARE coordinates,
+        # BEFORE the hw->logical conversion below -- see orientation.py's
+        # module docstring. Corner presses still reach the mode's on_key
+        # normally (a corner press always triggers its usual strike; only
+        # a >=0.8s HOLD additionally rotates -- there is no way to know at
+        # press time whether a press will resolve into a hold, so it is
+        # never suppressed).
+        self._update_orientation_gesture(x, y, edge)
+        x, y = orientation.hw_to_logical(x, y, self.orientation.rot)
+        # on_key() first -- for DirectLabMode a press records
+        # _press_times[(x, y)] = now, which direct_led_frame() turns into
+        # leds.FLASH_WHITE for exactly leds.FLASH_S (120ms). _render_leds_once()
+        # right after synchronously recomputes active_mode.led_frame() (now
+        # including that flash pixel) and diffs+sends it -- one small
+        # LEDS_PARTIAL write, from inside this same call, on the serial
+        # reader thread, no crossfade detour (see _current_display_frame_locked).
+        # That IS the fast path this module's docstring promises: the flash
+        # is on the wire before _on_key returns. The 20fps _led_loop then
+        # naturally restores the real colour ~120ms later the same way, once
+        # led_frame() stops returning white for this pad.
+        self.active_mode.on_key(x, y, edge)
+        self._feed_encoder_bg("on_key", x, y, edge)
+        self._render_leds_once()
+
+    def _on_analog(self, a) -> None:
+        # Real hardware calls this with a codec.Analog dataclass (single
+        # `.values` field); FakeGrid/tests call it with a plain tuple --
+        # accept either so the fast path never breaks on either caller.
+        raw = a.values if hasattr(a, "values") else tuple(a)
+        self._last_fsr_raw = raw[4:4 + 4] if len(raw) >= 8 else (0, 0, 0, 0)
+        # Web UI SENSORS panel: keep the full 8-channel frame (softpots
+        # N/S/E/W + FSR0-3), zero-padded if an older firmware sends fewer.
+        # This is always HARDWARE-truth (unrotated) -- the SENSORS panel is
+        # a wiring diagnostic, deliberately not rotated by orientation.
+        self._last_analog_raw = tuple(raw[:8]) + (0,) * max(0, 8 - len(raw))
+        # Modes get the LOGICAL reordering (orientation.py) -- they stay
+        # unaware of any rotation, exactly like on_key's x/y.
+        logical = orientation.analog_hw_to_logical(raw, self.orientation.rot)
+        self.active_mode.on_analog(logical)
+        self._feed_encoder_bg("on_analog", logical)
+
+    def _on_lidar(self, lidar) -> None:
+        # Real hardware calls this with a codec_lidar.Lidar dataclass
+        # (`.ranges`, 4 x u16 mm, 0xFFFF = invalid); FakeGrid/tests call it
+        # with a plain 4-tuple/list of mm ints -- accept either, same
+        # defensive pattern as _on_analog above.
+        mm4 = list(lidar.ranges) if hasattr(lidar, "ranges") else list(lidar)
+        now = time.monotonic()
+        for i, mm in enumerate(mm4[:4]):
+            if i < len(self._lidar_mm):
+                self._lidar_mm[i] = mm
+                if mm != codec_lidar.LIDAR_INVALID:
+                    self._lidar_last_valid_mono[i] = now
+        # self._lidar_mm above stays HARDWARE-truth (SENSORS panel); the
+        # mode gets the LOGICAL reordering, same rationale as _on_analog.
+        logical = orientation.lidar_hw_to_logical(mm4, self.orientation.rot)
+        self.active_mode.on_lidar(logical)
+        self._feed_encoder_bg("on_lidar", logical)
+
+    def _on_hello(self, h) -> None:
+        self._hello = {
+            "proto_ver": getattr(h, "proto_ver", None),
+            "grid_w": getattr(h, "grid_w", None),
+            "grid_h": getattr(h, "grid_h", None),
+            "n_analog": getattr(h, "n_analog", None),
+            "fw_ver": getattr(h, "fw_ver", None),
+        }
+        self._hello_mono = time.monotonic()
+
+    def _on_lidardiag(self, d) -> None:
+        self._lidar_diag = {
+            "responded_alone": list(d.responded_alone),
+            "zombie": d.zombie,
+            "ack_addrs": [f"0x{a:02X}" for a in d.ack_addrs],
+            "fail_stage": (
+                [codec_lidar.FAIL_STAGE_NAMES.get(x, f"stage {x}") for x in d.fail_stage]
+                if d.fail_stage is not None else None
+            ),
+        }
+
+    # -- LEDs -----------------------------------------------------------
+    #
+    # Transport only (colour decisions live entirely in modes.py/leds.py's
+    # colour tables): de-flicker fix is diff-against-last-sent + skip when
+    # unchanged + LEDS_PARTIAL for small deltas, all serialized through
+    # _render_lock so _led_loop's 20fps tick and _on_key's fast-path nudge
+    # can never race each other onto the wire (see the comment on
+    # _render_lock in __init__ for the bug this replaced).
+
+    def _send_frame_locked(self, frame) -> None:
+        """Caller must hold _render_lock. `frame` must already be in
+        HARDWARE order (orientation.rotate_frame()'d if orientation.rot !=
+        0 -- see _current_display_hw_frame_locked, the only caller).
+        Sends `frame` only if it differs
+        from the last frame actually written to the wire; uses LEDS_PARTIAL
+        when <= leds.PARTIAL_MAX_PIXELS pixels changed, LEDS_FULL otherwise.
+        fw6 already dedupes identical pixels on its own shadow framebuffer
+        (grid_link_lidar.ino applyLedsFull/applyLedsPartial), but doing it
+        here too removes the wasted COBS-encode+serial-write on every idle
+        20fps tick and is what makes the lock above sufficient: only one
+        frame per state-change ever gets sent, instead of two racing sends
+        per keypress."""
+        now = time.monotonic()
+        # Due a full re-send? See LED_RESYNC_S: this is the only thing
+        # that corrects a pixel whose update was lost on the wire, so it
+        # has to happen even when we believe nothing changed.
+        resync_due = (now - self._last_full_at) >= LED_RESYNC_S
+        if frame == self._last_sent_frame and not resync_due:
+            return
+        if self._last_sent_frame is None or resync_due:
+            self.link.send_leds_full(frame)
+            self._last_full_at = now
+        else:
+            updates = leds.diff(self._last_sent_frame, frame)
+            if not updates:
+                self._last_sent_frame = list(frame)
+                return
+            if len(updates) <= leds.PARTIAL_MAX_PIXELS:
+                self.link.send_leds_partial(updates)
+            else:
+                self.link.send_leds_full(frame)
+                self._last_full_at = now
+        self._last_sent_frame = list(frame)
+        self._frames_sent += 1
+
+    def led_frames_sent_rate(self) -> float:
+        """Frames/sec actually written to the wire since the last call --
+        for measuring the de-flicker fix (see HANDOFF.md)."""
+        with self._render_lock:
+            now = time.monotonic()
+            dt = now - self._frames_sent_t0
+            rate = self._frames_sent / dt if dt > 0 else 0.0
+            self._frames_sent = 0
+            self._frames_sent_t0 = now
+            return rate
+
+    def get_leds(self) -> dict:
+        """Debug endpoint (GET /api/leds): the last frame actually written
+        to the wire, so the physical grid can be compared to the UI without
+        eyes -- `curl .../api/leds | jq` vs `curl .../api/state | jq .grid`."""
+        with self._render_lock:
+            frame = list(self._last_sent_frame) if self._last_sent_frame is not None else leds.blank()
+        hex_str = "".join(f"{r:02x}{g:02x}{b:02x}" for r, g, b in frame)
+        return {"n": len(frame), "hex": hex_str, "frame": [list(c) for c in frame]}
+
+    def _current_display_hw_frame_locked(self):
+        """Caller must hold _render_lock. What should be on the wire right
+        now, in HARDWARE order. Two independent crossfaders can be in
+        flight, each in its own coordinate space (see the
+        _orientation_crossfader comment in __init__ for why they must stay
+        separate):
+
+        - self._crossfader blends two LOGICAL frames (switch_mode()'s
+          mode/window swap) -- the active mode's LIVE led_frame() (so a
+          just-set _press_times entry -- i.e. leds.FLASH_WHITE -- is
+          visible the instant it's computed) is used as-is otherwise.
+          Ordinary per-tick content changes (press flashes, sequencer
+          steps, FSR touches) are NOT crossfaded here -- an instant flash
+          should look instant, not get smeared across CROSSFADE_S -- see
+          the _render_lock comment in __init__ for why this replaced the
+          old "crossfade on every diff" _led_loop.
+        - self._orientation_crossfader blends two HARDWARE frames
+          (_commit_orientation's rotation swap) and, when active, takes
+          priority: it already contains the fully-rotated old/new frames,
+          so the logical crossfade + logical->hw rotation step is skipped
+          entirely for that ~150ms.
+
+        Either way, the final result gets orientation.rotate_frame()'d
+        (if not already done by the orientation crossfader) and the
+        rotation-gesture corner-pulse overlay applied last.
+        """
+        if self._orientation_crossfader.active:
+            # Keep the fade's destination fresh (mode content can still be
+            # changing mid-rotation-fade), same idea as the logical
+            # crossfader below, just pre-rotated to hw.
+            fresh_hw = orientation.rotate_frame(self.active_mode.led_frame(), self.orientation.rot)
+            self._orientation_crossfader._to = fresh_hw
+            hw_frame = self._orientation_crossfader.current()
+        else:
+            frame = self.active_mode.led_frame()
+            if self._crossfader.active:
+                self._crossfader._to = list(frame)
+                frame = self._crossfader.current()
+            hw_frame = orientation.rotate_frame(frame, self.orientation.rot)
+        return self._overlay_gesture_pulse_locked(hw_frame)
+
+    def _overlay_gesture_pulse_locked(self, hw_frame):
+        """Caller must hold _render_lock. While both hw corners of one edge
+        are held (rotation gesture in progress, whether or not it has
+        already committed -- see _update_orientation_gesture), pulse those
+        two corner pads white, bypassing the active mode's own led_frame()
+        entirely (immediate physical feedback that a hold is registered).
+        A no-op (returns hw_frame unchanged) otherwise."""
+        with self._gesture_lock:
+            held = dict(self._corner_held)
+        edge = None
+        for name, (c1, c2) in orientation.EDGE_CORNERS.items():
+            if c1 in held and c2 in held:
+                edge = name
+                break
+        if edge is None:
+            return hw_frame
+        level = int(128 + 127 * abs(math.sin(time.monotonic() * ORIENTATION_PULSE_HZ * math.pi)))
+        pulse = (level, level, level)
+        frame = list(hw_frame)
+        for cx, cy in orientation.EDGE_CORNERS[edge]:
+            frame[cy * 8 + cx] = pulse
+        return frame
+
+    def _render_leds_once(self) -> None:
+        with self._render_lock:
+            self._send_frame_locked(self._current_display_hw_frame_locked())
+
+    def _led_loop(self) -> None:
+        while not self._stop.is_set():
+            with self._render_lock:
+                self._send_frame_locked(self._current_display_hw_frame_locked())
+            self._check_menu_gesture()
+            self._check_orientation_gesture()
+            time.sleep(1.0 / 20.0)
+
+    def _make_encoder_mode(self, args):
+        """The dimensional encoder, sharing this process's serial link.
+
+        Its own web UI keeps its port so the field view stays where it
+        was bookmarked -- but it is only opened once you actually enter
+        the mode, so a grid sitting in BLANK is not holding a port it
+        has no use for.
+        """
+        from ..dimensional.app import DimensionalApp
+        from ..dimensional.service import DEFAULT_CALIBRATION
+
+        os.makedirs(os.path.dirname(os.path.abspath(DEFAULT_CALIBRATION)), exist_ok=True)
+        self._encoder_http = None
+        self._encoder_port = int(args.encoder_port)
+        dim = DimensionalApp(calibration_path=DEFAULT_CALIBRATION)
+        return EncoderMode(dim, http_port=self._encoder_port)
+
+    def _feed_encoder_bg(self, hook: str, *a) -> None:
+        """Keep the encoder's 3D field view live in EVERY mode.
+
+        The encoder is transport-free and only computes the dimensional
+        frame, so feeding it while another mode is active costs little and
+        stops the field view freezing on its last frame after a menu switch.
+        It is only fed while RUNNING: in calibrate/fsr setup a press means
+        something to the setup flow, so those are left to the active mode.
+        """
+        if not self.args_encoder_always or self.active_name == "encoder":
+            return
+        enc = self.modes.get("encoder")
+        if enc is None or getattr(enc.dim, "mode", None) != "run":
+            return
+        try:
+            getattr(enc, hook)(*a)
+        except Exception as e:  # never let the view break the playing mode
+            log.debug("encoder bg feed %s failed: %s", hook, e)
+
+    def _ensure_encoder_http(self) -> None:
+        """Open the encoder's web UI the first time the mode is entered."""
+        if self._encoder_http is not None or self._encoder_port <= 0:
+            return
+        from http.server import ThreadingHTTPServer
+
+        from ..dimensional.service import make_handler
+        try:
+            srv = ThreadingHTTPServer(("0.0.0.0", self._encoder_port),
+                                      make_handler(self.modes["encoder"].dim, None))
+        except OSError as e:
+            # A stale neuralgrid-dimensional still holding the port must
+            # not stop you entering the mode.
+            log.warning("encoder UI port %s unavailable: %s", self._encoder_port, e)
+            return
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self._encoder_http = srv
+
+    # -- the menu ---------------------------------------------------------
+
+    def _menu_choice(self, target: str) -> None:
+        """A pad in the menu was pressed."""
+        self.switch_mode(target)
+
+    def _check_menu_gesture(self) -> None:
+        """Holding all four corners opens the menu.
+
+        Polled (from _led_loop) as well as pushed (from _on_key), because
+        holding four pads perfectly still produces no further key events
+        and an event-driven check would never see the hold complete.
+        """
+        if self._corners.menu_ready(time.monotonic()):
+            self._corners.consume()
+            if self.active_name != "menu":
+                self.switch_mode("menu")
+
+    def _apply_lab_gate(self) -> None:
+        if self.lab_gate is None or self.args_lab_gate == "always":
+            return
+        want = resolve_mode(self.active_name) in LAB_MODES
+        if want != self.lab_gate.is_open:
+            self.lab_gate.is_open = want
+            logging.info("lab gate %s (mode=%s)", "OPEN" if want else "shut", self.active_name)
+
+    def switch_mode(self, name: str) -> bool:
+        # MODULETTES is a layout of the Machine Lab mode, not a separate
+        # engine -- but it is its own destination in the menu, so it is
+        # its own name here and the layout follows the name.
+        layout = None
+        if name in ("modulettes", "direct_lab"):
+            layout = "modulettes" if name == "modulettes" else self._lab_layout
+            self.modes["direct_lab"].set_layout_mode(layout)
+            if name == "direct_lab":
+                self._lab_layout = layout
+        if resolve_mode(name) not in self.modes:
+            return False
+        old_frame = self.active_mode.led_frame()
+        self.active_mode.panic()          # gate still in the old state, so lab note-offs get out
+        self.active_name = name
+        self._apply_lab_gate()
+        if resolve_mode(name) == "encoder":
+            self._ensure_encoder_http()
+        with self._render_lock:
+            self._crossfader.start(old_frame, self.active_mode.led_frame())
+        self.save_state()
+        return True
+
+    # -- orientation gesture (hold both hw corners of an edge ~0.8s) ----
+
+    def _update_orientation_gesture(self, x: int, y: int, edge: int) -> None:
+        """Called from _on_key with HARDWARE (x, y), before hw->logical
+        conversion. Tracks which corner pads are currently held; the
+        actual 0.8s-hold check happens in _check_orientation_gesture
+        (called here too, for immediate response, and again every
+        _led_loop tick since holding still pads generates no further key
+        events to re-trigger this check from)."""
+        coord = (x, y)
+        if coord not in orientation.CORNER_COORDS:
+            return
+        with self._gesture_lock:
+            if edge:
+                self._corner_held[coord] = time.monotonic()
+            else:
+                self._corner_held.pop(coord, None)
+                if not self._corner_held:
+                    # Debounce: re-arm only once every corner pad is up.
+                    self._gesture_armed = True
+        # The four-corner menu gesture watches the same presses. It is
+        # fed here, in HARDWARE coordinates, because the corners of the
+        # physical grid are the corners whatever the rotation.
+        now = time.monotonic()
+        if coord in self._corners.CORNERS:
+            if edge:
+                self._corners.press(coord, now)
+            else:
+                self._corners.release(coord)
+        self._check_menu_gesture()
+        self._check_orientation_gesture()
+
+    def _check_orientation_gesture(self) -> None:
+        with self._gesture_lock:
+            held = dict(self._corner_held)
+            armed = self._gesture_armed
+        if not armed:
+            return
+        # Three corners already contains an edge pair, so a hand on its
+        # way to the fourth would otherwise spin the grid out from under
+        # the menu it was reaching for.
+        if self._corners.blocks_rotation():
+            return
+        now = time.monotonic()
+        for edge_name, (c1, c2) in orientation.EDGE_CORNERS.items():
+            if c1 in held and c2 in held:
+                t_start = max(held[c1], held[c2])
+                if now - t_start >= ORIENTATION_HOLD_S:
+                    self._commit_orientation(orientation.EDGE_TO_ROT[edge_name])
+                    with self._gesture_lock:
+                        self._gesture_armed = False
+                return  # at most one edge can have both its corners held
+
+    def _commit_orientation(self, rot: int) -> None:
+        """Rotate the logical frame so the currently-held edge becomes
+        top: sets self.orientation.rot, persists it, and starts a quick
+        150ms hw-space crossfade from the old physical layout to the new
+        one (reusing leds.Crossfader exactly like switch_mode() does, just
+        in hw space via self._orientation_crossfader -- see that
+        attribute's __init__ comment)."""
+        if rot == self.orientation.rot:
+            return
+        with self._render_lock:
+            old_hw = orientation.rotate_frame(self.active_mode.led_frame(), self.orientation.rot)
+            self.orientation.rot = rot
+            new_hw = orientation.rotate_frame(self.active_mode.led_frame(), self.orientation.rot)
+            self._orientation_crossfader.start(old_hw, new_hw)
+        self.save_state()
+
+    def set_orientation(self, rot: int) -> bool:
+        """POST /api/orientation {rot}: manual override, same commit path
+        the gesture uses (crossfade + persist)."""
+        if rot not in (0, 90, 180, 270):
+            return False
+        self._commit_orientation(rot)
+        return True
+
+    def panic(self) -> None:
+        for mode in self.modes.values():
+            mode.panic()
+
+    def start(self) -> None:
+        self.link.start()
+        # Global NeoTrellis brightness. Low by default: 64 RGB pads at the
+        # firmware's boot brightness sag the 5V rail and visibly flicker.
+        # Override with NEURALGRID_BRIGHTNESS=0..255, or live via
+        # POST /api/brightness (see set_brightness()).
+        self.set_brightness(self.brightness)
+        self._led_thread.start()
+        if self.args_encoder_always:
+            self._ensure_encoder_http()   # 3D field view up from boot
+        # PING watchdog. The ESP32 streams NOTHING until it receives a PING,
+        # and opening the serial port can hard-reset it, so the single PING in
+        # open_real_link() is often lost during boot. Re-ping every 3 s until
+        # a HELLO arrives, and again whenever HELLO goes stale (>12 s) --
+        # same recovery the monitor service does. Re-send brightness on each
+        # (re)connect so a rebooted ESP32 doesn't come back at full power.
+        threading.Thread(target=self._ping_watchdog, name="ping-watchdog", daemon=True).start()
+
+    def _ping_watchdog(self) -> None:
+        last_seen = None
+        while not self._stop.is_set():
+            hello_age = None if self._hello_mono is None else time.monotonic() - self._hello_mono
+            if hello_age is None or hello_age > 12.0:
+                try:
+                    self.link.send_ping()
+                except Exception:
+                    log.exception("send_ping failed")
+            elif last_seen is None or self._hello_mono != last_seen:
+                # fresh HELLO since last check -> (re)connected: re-apply brightness
+                last_seen = self._hello_mono
+                try:
+                    self.link.send_brightness(self.brightness)
+                except Exception:
+                    log.exception("send_brightness failed")
+            self._stop.wait(3.0)
+
+    def set_brightness(self, level: int) -> None:
+        self.brightness = max(0, min(255, int(level)))
+        try:
+            self.link.send_brightness(self.brightness)
+        except Exception:
+            log.exception("send_brightness failed")
+
+    def stop(self) -> None:
+        self._stop.set()
+        for mode in self.modes.values():
+            if hasattr(mode, "sequencer"):
+                mode.sequencer.stop()
+        self.link.stop()
+        if self.manifest_receiver:
+            self.manifest_receiver.stop()
+        if self.lab_receiver:
+            self.lab_receiver.stop()
+        if self.lab_renderer:
+            self.lab_renderer.stop_liveness()
+
+    # -- web UI plumbing ------------------------------------------------
+
+    def get_state(self) -> dict:
+        from .fsr import fsr_pressure
+        cfg = self.grid_controller.fsr_config
+        return {
+            "mode": self.active_name,
+            "modes": list(self.modes.keys()) + list(MODE_ALIASES.keys()),
+            "menu": {f"{x},{y}": n for (x, y), n in MENU_SLOTS.items()},
+            # Who, if anyone, is actually listening on the network ends.
+            "netmidi": self.netmidi.state(),
+            "monome": self.monome.state(),
+            "osc": self.osc.state(),
+            "grid": [list(c) for c in self.active_mode.led_frame()],
+            "state": {name: m.state() for name, m in self.modes.items()},
+            "pattern_slots": sorted(self.pattern_slots.keys()),
+            "lab_connected": self.lab_renderer is not None,
+            "lab_gate_open": bool(self.lab_gate and self.lab_gate.is_open),
+            "lab_reachable": bool(self.lab_renderer.lab_reachable) if self.lab_renderer else False,
+            "lab_uptime": self.lab_renderer.lab_uptime if self.lab_renderer else None,
+            "last_pong_age_s": (
+                round(self.lab_renderer.last_pong_age_s, 1)
+                if self.lab_renderer and self.lab_renderer.last_pong_age_s is not None
+                else None
+            ),
+            "fake_grid": isinstance(self.link, FakeGrid),
+            "led_frames_sent_per_s": round(self.led_frames_sent_rate(), 2),
+            "brightness": self.brightness,
+            "fsr": {
+                "gamma": cfg.gamma,
+                "floor": cfg.floor,
+                "raw": list(self._last_fsr_raw),
+                "pressure": [round(fsr_pressure(v, cfg.gamma, cfg.floor), 4) for v in self._last_fsr_raw],
+            },
+            "sensors": self.get_sensors_state(),
+            "orientation": {"rot": self.orientation.rot, "top_edge": self.orientation.top_edge},
+        }
+
+    def get_sensors_state(self) -> dict:
+        """Raw-sensor panel snapshot for the web UI's SENSORS section --
+        so hardware can be sanity-checked without switching to
+        pi/tools/monitor.py. Same underlying data monitor.py's own UI
+        shows (raw analog, FSR curve, LIDAR mm + validity), reshaped to
+        fit this app's single /api/state + SSE stream."""
+        from .fsr import fsr_pressure, FSR_NAMES
+        cfg = self.grid_controller.fsr_config
+        raw = self._last_analog_raw
+        softpots = [
+            {"name": name, "raw": raw[i]}
+            for i, name in enumerate(("N", "S", "E", "W"))
+        ]
+        fsr_raw = raw[4:8]
+        fsrs = []
+        for i, name in enumerate(FSR_NAMES):
+            v = fsr_raw[i] if i < len(fsr_raw) else 0
+            p = fsr_pressure(v, cfg.gamma, cfg.floor)
+            fsrs.append({
+                "name": name,
+                "raw": v,
+                "value": round(p, 4),
+                "pressed": p >= cfg.onset,
+            })
+        now = time.monotonic()
+        lidars = []
+        for i, name in enumerate(("N", "S", "E", "W")):
+            mm = self._lidar_mm[i]
+            ok = mm is not None and mm != codec_lidar.LIDAR_INVALID
+            last_valid = self._lidar_last_valid_mono[i]
+            lidars.append({
+                "name": name,
+                "mm": mm if ok else None,
+                "ok": ok,
+                "age_s": round(now - last_valid, 1) if last_valid is not None else None,
+            })
+        return {
+            "softpots": softpots,
+            "fsrs": fsrs,
+            "lidars": lidars,
+            "lidar_diag": self._lidar_diag,
+            "hello": self._hello,
+            "hello_age_s": round(now - self._hello_mono, 1) if self._hello_mono is not None else None,
+            "link_connected": True,  # this process owns the link the whole time it's up; see HANDOFF.md
+            "key_events": self._key_events,
+            "key_trace_hw": list(self._key_trace),
+        }
+
+    def dispatch(self, action: str, payload: dict) -> dict:
+        if action == "mode/switch":
+            ok = self.switch_mode(payload["mode"])
+            return {"ok": ok}
+        if action == "panic":
+            self.panic()
+            return {"ok": True}
+        if action == "fake/key":
+            if isinstance(self.link, FakeGrid):
+                # The UI's grid mirror shows the LOGICAL frame (data.grid,
+                # see get_state()), so a tap's (x, y) is a logical position
+                # -- convert to hw before feeding it through simulate_key,
+                # which re-enters via the normal hw->logical _on_key path
+                # exactly like real hardware would.
+                hx, hy = orientation.logical_to_hw(payload["x"], payload["y"], self.orientation.rot)
+                self.link.simulate_key(hx, hy, payload["edge"])
+            return {"ok": True}
+        if action == "orientation":
+            try:
+                rot = int(payload["rot"])
+            except (KeyError, TypeError, ValueError):
+                return {"error": "rot (0/90/180/270) required"}
+            ok = self.set_orientation(rot)
+            if not ok:
+                return {"error": "rot must be one of 0, 90, 180, 270"}
+            return {"ok": True, "rot": self.orientation.rot}
+
+        if action == "direct/strike":
+            mode = self.modes["direct_lab"]
+            return {"ok": mode.direct_strike(payload["point_id"], payload.get("velocity"))}
+        if action == "direct/set_pad":
+            self.modes["direct_lab"].set_pad(payload["x"], payload["y"], payload.get("point_id"))
+            return {"ok": True}
+        if action == "direct/assign_track":
+            self.modes["direct_lab"].assign_track(payload["track"], payload["point_id"])
+            return {"ok": True}
+        if action == "direct/set_split":
+            # back-compat: true -> split, false -> full (never modulettes)
+            self.modes["direct_lab"].set_split(bool(payload["split"]))
+            self.save_state()
+            return {"ok": True}
+        if action == "direct/set_layout":
+            try:
+                self.modes["direct_lab"].set_layout_mode(payload["mode"])
+            except (KeyError, ValueError) as exc:
+                return {"error": str(exc)}
+            self.save_state()
+            return {"ok": True}
+        if action == "direct/set_row_instrument":
+            self.modes["direct_lab"].set_row_instrument(int(payload["row"]), payload["instrument"])
+            return {"ok": True}
+        if action == "direct/page":
+            self.modes["direct_lab"].page(int(payload["row"]), int(payload["delta"]))
+            return {"ok": True}
+        if action == "direct/set_row_segments":
+            try:
+                self.modes["direct_lab"].set_row_segments(int(payload["row"]), payload["segments"])
+            except ValueError as exc:
+                return {"error": str(exc)}
+            return {"ok": True}
+        if action == "direct/segment_page":
+            self.modes["direct_lab"].segment_page(int(payload["row"]), int(payload["seg"]), int(payload["delta"]))
+            return {"ok": True}
+        if action == "direct/assign_fsr":
+            self.modes["direct_lab"].assign_fsr(int(payload["index"]), payload.get("point_id"))
+            return {"ok": True}
+
+        if action.startswith("sequencer/"):
+            return self._dispatch_sequencer(action[len("sequencer/"):], payload)
+
+        if action == "septagraph/preset":
+            ok = self.modes["septagraph"].set_preset(payload["preset"])
+            return {"ok": ok}
+        if action == "septagraph/window":
+            self.modes["septagraph"].set_window(payload.get("center"), payload.get("extent"))
+            return {"ok": True}
+        if action == "septagraph/manifest_request":
+            from septagraph.codec import encode_manifest_request
+            self.sender.send(encode_manifest_request())
+            return {"ok": True}
+
+        if action == "midi/config":
+            mode = self.modes["midi"]
+            if "base_note" in payload:
+                mode.base_note = int(payload["base_note"])
+            if "scale" in payload:
+                mode.scale = list(payload["scale"])
+            if "channel" in payload:
+                mode.channel = int(payload["channel"])
+            if "fsr_notes" in payload:
+                mode.fsr_notes = list(payload["fsr_notes"])
+            if "fsr_aftertouch" in payload:
+                mode.fsr_aftertouch = bool(payload["fsr_aftertouch"])
+            self.save_state()
+            return {"ok": True}
+        if action == "midi/list_ports":
+            return {"ports": self.modes["midi"].list_ports()}
+        if action == "midi/select_port":
+            ok = self.modes["midi"].select_port(payload["port"])
+            if ok:
+                self.save_state()
+            return {"ok": ok}
+
+        if action == "fsr/config":
+            self.set_fsr_config(payload.get("gamma"), payload.get("floor"))
+            self.save_state()
+            return {"ok": True}
+
+        if action == "brightness":
+            self.set_brightness(payload["level"])
+            self.save_state()
+            return {"ok": True, "brightness": self.brightness}
+
+        return {"error": f"unknown action {action!r}"}
+
+    def _dispatch_sequencer(self, sub: str, payload: dict) -> dict:
+        mode_name = payload.get("mode", self.active_name)
+        mode = self.modes.get(mode_name)
+        if mode is None or not hasattr(mode, "sequencer"):
+            return {"error": f"mode {mode_name!r} has no sequencer"}
+        seq = mode.sequencer
+        if sub == "toggle":
+            seq.toggle_step(payload["track"], payload["step"])
+        elif sub == "cycle":
+            seq.cycle_step_velocity(payload["track"], payload["step"])
+        elif sub == "play":
+            seq.play()
+        elif sub == "stop":
+            seq.stop_transport()
+        elif sub == "tempo":
+            seq.tempo_bpm = payload["bpm"]
+        elif sub == "swing":
+            seq.swing_pct = payload["pct"]
+        elif sub == "steps_per_beat":
+            seq.steps_per_beat = payload["n"]
+        elif sub == "save_slot":
+            slot = str(payload["slot"])
+            self.pattern_slots.setdefault(mode_name, {})[slot] = seq.to_json()
+            self.save_state()
+        elif sub == "load_slot":
+            slot = str(payload["slot"])
+            data = self.pattern_slots.get(mode_name, {}).get(slot)
+            if data is None:
+                return {"error": "empty slot"}
+            seq.from_json(data)
+        else:
+            return {"error": f"unknown sequencer action {sub!r}"}
+        return {"ok": True}
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="neuralGrid Pi application")
+    p.add_argument("--port", default=None, help="serial port (autodetected if omitted)")
+    p.add_argument("--http-port", type=int, default=8767)
+    p.add_argument("--midi-name", default="neuralGrid",
+                   help="RTP-MIDI session name as it appears on the laptop")
+    p.add_argument("--osc-port", type=int, default=7710,
+                   help="UDP port for the generic OSC mode")
+    p.add_argument("--monome-port", type=int, default=15000,
+                   help="OSC port the emulated monome grid listens on")
+    p.add_argument("--encoder-port", type=int, default=8770,
+                   help="web UI port for the dimensional encoder mode")
+    p.add_argument("--http-host", default="0.0.0.0")
+    p.add_argument("--lab", default=None, help="HOST:PORT of the Machine Lab's OSC listener")
+    p.add_argument("--map", default=str(DEFAULT_LAB_MAP), help="path to lab_map.json")
+    p.add_argument("--fake-grid", action="store_true", help="no serial/hardware; for Mac dev")
+    p.add_argument("--renderers", default=None, help="comma-separated HOST:PORT septagraph renderer targets")
+    p.add_argument("--dry-run-lab", action="store_true", help="print lab messages instead of sending (Pi dev, lab network isolation)")
+    p.add_argument("--no-encoder-always", dest="encoder_always", action="store_false",
+                   help="only feed/serve the encoder field view while in encoder mode")
+    p.add_argument("--lab-gate", choices=["mode", "always"], default="mode",
+                   help="'mode' (default): lab network traffic only while in the Machine Lab mode; "
+                        "'always': old behaviour, open from boot")
+    p.add_argument(
+        "--vel-mode", choices=["random", "hit"], default="random",
+        help="LabRenderer velocity policy: 'random' (default) sends rng.randint(*--vel-random) "
+             "regardless of hit velocity; 'hit' scales the hit's own velocity (old behaviour)",
+    )
+    p.add_argument(
+        "--vel-random", type=int, nargs=2, default=(70, 110), metavar=("LO", "HI"),
+        help="inclusive randint range for --vel-mode random (default: 70 110)",
+    )
+    return p
+
+
+def main(argv=None) -> None:
+    logging.basicConfig(level=logging.INFO)
+    args = build_arg_parser().parse_args(argv)
+    app = App(args)
+    app.start()
+    static_dir = Path(__file__).resolve().parent / "static"
+    try:
+        webui.serve_forever(app.get_state, app.dispatch, static_dir, args.http_host, args.http_port, get_leds=app.get_leds)
+    finally:
+        app.save_state()
+        app.stop()
+
+
+if __name__ == "__main__":
+    main()

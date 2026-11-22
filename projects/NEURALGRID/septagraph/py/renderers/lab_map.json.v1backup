@@ -1,0 +1,7703 @@
+{
+ "renderer_id": "lab",
+ "name": "CalArts Machine Lab",
+ "kind": "catalog",
+ "target": "192.168.0.103:8001",
+ "points": [
+  {
+   "point_id": 0,
+   "instrument": "breakBot",
+   "element": "Kick",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=0",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.15500000000000003,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127,
+   "sort_key": 0
+  },
+  {
+   "point_id": 1,
+   "instrument": "breakBot",
+   "element": "Kick 1.2",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=1",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.17583333333333337,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "sort_key": 0,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 96,
+   "instrument": "breakBot",
+   "element": "beater_2",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=2",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.19666666666666668,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 97,
+   "instrument": "breakBot",
+   "element": "beater_3",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=3",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.21750000000000003,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 98,
+   "instrument": "breakBot",
+   "element": "beater_4",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=4",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.23833333333333334,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 2,
+   "instrument": "breakBot",
+   "element": "Snare",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=5",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.25916666666666666,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127,
+   "sort_key": 1
+  },
+  {
+   "point_id": 99,
+   "instrument": "breakBot",
+   "element": "Ride 1.1",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=6",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.28,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "sort_key": 2,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 3,
+   "instrument": "breakBot",
+   "element": "beater_7",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=7",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.30083333333333334,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 100,
+   "instrument": "breakBot",
+   "element": "Ride 1.3",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=8",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.32166666666666666,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "sort_key": 4,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 101,
+   "instrument": "breakBot",
+   "element": "beater_9",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=9",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.3425,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 102,
+   "instrument": "breakBot",
+   "element": "beater_10",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=10",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.36333333333333334,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 4,
+   "instrument": "breakBot",
+   "element": "Cymbal (alt 11/12)",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=11",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.38416666666666666,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127,
+   "sort_key": 2,
+   "note_cycle": [
+    11,
+    12
+   ]
+  },
+  {
+   "point_id": 5,
+   "instrument": "breakBot",
+   "element": "Crash 1.2",
+   "osc": {
+    "address": "/breakBot",
+    "args": [
+     "i:note=12",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.405,
+    0.75,
+    0.15,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 16.7,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "vel_fixed": 127,
+   "sort_key": 5,
+   "note": "not in the 3-pad kit (user 2026-09-09)"
+  },
+  {
+   "point_id": 6,
+   "instrument": "ganaPati",
+   "element": "Drum 4",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=1",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.195,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "sort_key": 2
+  },
+  {
+   "point_id": 7,
+   "instrument": "ganaPati",
+   "element": "Drum 3.1",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=2",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.21772727272727274,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in the 5-pad set 8,3,1,13,11 (user 2026-09-09)"
+  },
+  {
+   "point_id": 8,
+   "instrument": "ganaPati",
+   "element": "Drum 3.2",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=3",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.24045454545454548,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "sort_key": 1
+  },
+  {
+   "point_id": 9,
+   "instrument": "ganaPati",
+   "element": "Drum 1.1",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=6",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.2631818181818182,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in the 5-pad set 8,3,1,13,11 (user 2026-09-09)"
+  },
+  {
+   "point_id": 10,
+   "instrument": "ganaPati",
+   "element": "Drum 1.2",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=7",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.2859090909090909,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in the 5-pad set 8,3,1,13,11 (user 2026-09-09)"
+  },
+  {
+   "point_id": 11,
+   "instrument": "ganaPati",
+   "element": "Drum 1.3",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=8",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.30863636363636365,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "sort_key": 0
+  },
+  {
+   "point_id": 103,
+   "instrument": "ganaPati",
+   "element": "beater_9",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=9",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.33136363636363636,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in the 5-pad set 8,3,1,13,11 (user 2026-09-09)"
+  },
+  {
+   "point_id": 104,
+   "instrument": "ganaPati",
+   "element": "beater_10",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=10",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.3540909090909091,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in the 5-pad set 8,3,1,13,11 (user 2026-09-09)"
+  },
+  {
+   "point_id": 12,
+   "instrument": "ganaPati",
+   "element": "beater_11",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=11",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.37681818181818183,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "sort_key": 4
+  },
+  {
+   "point_id": 13,
+   "instrument": "ganaPati",
+   "element": "beater_12",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=12",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.39954545454545454,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in the 5-pad set 8,3,1,13,11 (user 2026-09-09)"
+  },
+  {
+   "point_id": 14,
+   "instrument": "ganaPati",
+   "element": "beater_13",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=13",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.4222727272727273,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "sort_key": 3
+  },
+  {
+   "point_id": 15,
+   "instrument": "ganaPati",
+   "element": "beater_14",
+   "osc": {
+    "address": "/ganaPati",
+    "args": [
+     "i:note=14",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.445,
+    0.72,
+    0.18,
+    0.02,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 7.1,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in the 5-pad set 8,3,1,13,11 (user 2026-09-09)"
+  },
+  {
+   "point_id": 16,
+   "instrument": "tammy",
+   "element": "beater_1",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=1",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.12,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 17,
+   "instrument": "tammy",
+   "element": "beater_2",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=2",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.12833333333333333,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 18,
+   "instrument": "tammy",
+   "element": "beater_3",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=3",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.13666666666666666,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 19,
+   "instrument": "tammy",
+   "element": "beater_4",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=4",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.145,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 20,
+   "instrument": "tammy",
+   "element": "beater_5",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=5",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.15333333333333332,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 21,
+   "instrument": "tammy",
+   "element": "beater_6",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=6",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.16166666666666665,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 22,
+   "instrument": "tammy",
+   "element": "beater_7",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=7",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.16999999999999998,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 23,
+   "instrument": "tammy",
+   "element": "beater_8",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=8",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.17833333333333334,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 105,
+   "instrument": "tammy",
+   "element": "beater_9",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=9",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.18666666666666665,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 106,
+   "instrument": "tammy",
+   "element": "beater_10",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=10",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.195,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 24,
+   "instrument": "tammy",
+   "element": "beater_11",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=11",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.2033333333333333,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 25,
+   "instrument": "tammy",
+   "element": "beater_12",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=12",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.21166666666666667,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 26,
+   "instrument": "tammy",
+   "element": "beater_13",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=13",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.22,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 107,
+   "instrument": "tammy",
+   "element": "beater_14",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=14",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.22833333333333333,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 108,
+   "instrument": "tammy",
+   "element": "beater_15",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=15",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.23666666666666666,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 109,
+   "instrument": "tammy",
+   "element": "beater_16",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=16",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.245,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 110,
+   "instrument": "tammy",
+   "element": "beater_17",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=17",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.2533333333333333,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 111,
+   "instrument": "tammy",
+   "element": "beater_18",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=18",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.26166666666666666,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 112,
+   "instrument": "tammy",
+   "element": "beater_19",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=19",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.27,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 113,
+   "instrument": "tammy",
+   "element": "beater_20",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=20",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.2783333333333333,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 114,
+   "instrument": "tammy",
+   "element": "beater_21",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=21",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.2866666666666666,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 115,
+   "instrument": "tammy",
+   "element": "beater_22",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=22",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.295,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 116,
+   "instrument": "tammy",
+   "element": "beater_23",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=23",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.30333333333333334,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 117,
+   "instrument": "tammy",
+   "element": "beater_24",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=24",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.31166666666666665,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 27,
+   "instrument": "tammy",
+   "element": "beater_25",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=25",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.32,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 28,
+   "instrument": "lydia",
+   "element": "beater_62",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=62",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.30000000000000004,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 29,
+   "instrument": "lydia",
+   "element": "beater_63",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=63",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.31428571428571433,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 30,
+   "instrument": "lydia",
+   "element": "beater_64",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=64",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.3285714285714286,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 31,
+   "instrument": "lydia",
+   "element": "beater_65",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=65",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.34285714285714286,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 118,
+   "instrument": "lydia",
+   "element": "beater_66",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=66",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.35714285714285715,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 32,
+   "instrument": "lydia",
+   "element": "beater_67",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=67",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.37142857142857144,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 33,
+   "instrument": "lydia",
+   "element": "beater_68",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=68",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.38571428571428573,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 34,
+   "instrument": "lydia",
+   "element": "beater_69",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=69",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.4,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 35,
+   "instrument": "lydia",
+   "element": "beater_70",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=70",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.4142857142857143,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 36,
+   "instrument": "lydia",
+   "element": "beater_71",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=71",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.4285714285714286,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 37,
+   "instrument": "lydia",
+   "element": "beater_72",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=72",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.44285714285714284,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 38,
+   "instrument": "lydia",
+   "element": "beater_73",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=73",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.4571428571428572,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 39,
+   "instrument": "lydia",
+   "element": "beater_74",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=74",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.4714285714285714,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 40,
+   "instrument": "lydia",
+   "element": "beater_75",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=75",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.4857142857142857,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 41,
+   "instrument": "lydia",
+   "element": "beater_76",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=76",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.5,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 42,
+   "instrument": "marimbot",
+   "element": "bar_45",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=45",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.24678756316474795,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 43,
+   "instrument": "marimbot",
+   "element": "bar_47",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=47",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.26351145181274693,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 44,
+   "instrument": "marimbot",
+   "element": "bar_48",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=48",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.2718733961367464,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 45,
+   "instrument": "marimbot",
+   "element": "bar_50",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=50",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.2885972847847454,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 46,
+   "instrument": "marimbot",
+   "element": "bar_52",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=52",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.3053211734327443,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 47,
+   "instrument": "marimbot",
+   "element": "bar_53",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=53",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.3136831177567438,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 48,
+   "instrument": "marimbot",
+   "element": "bar_54",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=54",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.3220450620807433,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 49,
+   "instrument": "marimbot",
+   "element": "bar_55",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=55",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.3304070064047427,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 50,
+   "instrument": "marimbot",
+   "element": "bar_57",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=57",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.3471308950527417,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 51,
+   "instrument": "marimbot",
+   "element": "bar_59",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=59",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.36385478370074065,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 52,
+   "instrument": "marimbot",
+   "element": "bar_60",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=60",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.37221672802474015,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 53,
+   "instrument": "marimbot",
+   "element": "bar_62",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=62",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.3889406166727391,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 54,
+   "instrument": "marimbot",
+   "element": "bar_64",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=64",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.405664505320738,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 55,
+   "instrument": "marimbot",
+   "element": "bar_65",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=65",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.4140264496447375,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 56,
+   "instrument": "marimbot",
+   "element": "bar_66",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=66",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.42238839396873695,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 57,
+   "instrument": "marimbot",
+   "element": "bar_67",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=67",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.43075033829273646,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 58,
+   "instrument": "marimbot",
+   "element": "bar_69",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=69",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.44747422694073546,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 59,
+   "instrument": "marimbot",
+   "element": "bar_71",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=71",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.4641981155887344,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 60,
+   "instrument": "marimbot",
+   "element": "bar_72",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=72",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.4725600599127338,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 61,
+   "instrument": "marimbot",
+   "element": "bar_73",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=73",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.4809220042367333,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in server scl \u2014 dropped by server"
+  },
+  {
+   "point_id": 62,
+   "instrument": "marimbot",
+   "element": "bar_74",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=74",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.4892839485607328,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 63,
+   "instrument": "marimbot",
+   "element": "bar_77",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=77",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5143697815327313,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 64,
+   "instrument": "marimbot",
+   "element": "bar_79",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=79",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5310936701807302,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 65,
+   "instrument": "marimbot",
+   "element": "bar_81",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=81",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5478175588287292,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 66,
+   "instrument": "marimbot",
+   "element": "bar_83",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=83",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5645414474767282,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 67,
+   "instrument": "marimbot",
+   "element": "bar_84",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=84",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5729033918007276,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 68,
+   "instrument": "marimbot",
+   "element": "bar_86",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=86",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5896272804487266,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 69,
+   "instrument": "marimbot",
+   "element": "bar_89",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=89",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.614713113420725,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 70,
+   "instrument": "marimbot",
+   "element": "bar_90",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=90",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.6230750577447245,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 71,
+   "instrument": "marimbot",
+   "element": "bar_92",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=92",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.6397989463927235,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in server scl \u2014 dropped by server"
+  },
+  {
+   "point_id": 72,
+   "instrument": "marimbot",
+   "element": "bar_94",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=94",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.6565228350407223,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": false,
+   "note": "not in server scl \u2014 dropped by server"
+  },
+  {
+   "point_id": 73,
+   "instrument": "marimbot",
+   "element": "bar_93",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=93",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.648160890716723,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 74,
+   "instrument": "modulettes",
+   "element": "beater_0",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=0",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.4,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 75,
+   "instrument": "modulettes",
+   "element": "beater_1",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=1",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.42,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 76,
+   "instrument": "modulettes",
+   "element": "beater_2",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=2",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.44,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 77,
+   "instrument": "modulettes",
+   "element": "beater_3",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=3",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.45999999999999996,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 78,
+   "instrument": "modulettes",
+   "element": "beater_4",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=4",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.48,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 79,
+   "instrument": "modulettes",
+   "element": "beater_5",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=5",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 80,
+   "instrument": "modulettes",
+   "element": "beater_6",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=6",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.52,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 81,
+   "instrument": "modulettes",
+   "element": "beater_7",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=7",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.54,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 82,
+   "instrument": "modulettes",
+   "element": "beater_8",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=8",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.56,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 83,
+   "instrument": "modulettes",
+   "element": "beater_9",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=9",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5800000000000001,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 84,
+   "instrument": "modulettes",
+   "element": "beater_10",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=10",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.6,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 85,
+   "instrument": "rattleTron",
+   "element": "beater_0",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=0",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.4,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 86,
+   "instrument": "rattleTron",
+   "element": "beater_1",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=1",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.42,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 87,
+   "instrument": "rattleTron",
+   "element": "beater_2",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=2",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.44,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 88,
+   "instrument": "rattleTron",
+   "element": "beater_3",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=3",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.45999999999999996,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 89,
+   "instrument": "rattleTron",
+   "element": "beater_4",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=4",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.48,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 90,
+   "instrument": "rattleTron",
+   "element": "beater_5",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=5",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 91,
+   "instrument": "rattleTron",
+   "element": "beater_6",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=6",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.52,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 92,
+   "instrument": "rattleTron",
+   "element": "beater_7",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=7",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.54,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 93,
+   "instrument": "rattleTron",
+   "element": "beater_8",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=8",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.56,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 94,
+   "instrument": "rattleTron",
+   "element": "beater_9",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=9",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5800000000000001,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 95,
+   "instrument": "rattleTron",
+   "element": "beater_10",
+   "osc": {
+    "address": "/rattleTron",
+    "args": [
+     "i:note=10",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.6,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 119,
+   "instrument": "tammy",
+   "element": "beater_0",
+   "osc": {
+    "address": "/tammy",
+    "args": [
+     "i:note=0",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    1,
+    127
+   ],
+   "mu": [
+    0.11166666666666666,
+    0.7,
+    0.15,
+    0.02,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.0,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 120,
+   "instrument": "lydia",
+   "element": "beater_60",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=60",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.2714285714285714,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 121,
+   "instrument": "lydia",
+   "element": "beater_61",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=61",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.2857142857142857,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 122,
+   "instrument": "lydia",
+   "element": "beater_77",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=77",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.5142857142857142,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 123,
+   "instrument": "lydia",
+   "element": "beater_78",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=78",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.5285714285714286,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 124,
+   "instrument": "lydia",
+   "element": "beater_79",
+   "osc": {
+    "address": "/trimpbeat",
+    "args": [
+     "i:note=79",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    65,
+    127
+   ],
+   "mu": [
+    0.5428571428571429,
+    0.68,
+    0.3,
+    0.05,
+    0.55,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.15,
+    0.05,
+    0.1,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.5118110236220472,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true,
+   "vel_fixed": 127
+  },
+  {
+   "point_id": 125,
+   "instrument": "marimbot",
+   "element": "bar_76",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=76",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5060078372087318,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 126,
+   "instrument": "marimbot",
+   "element": "bar_78",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=78",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.5227317258567307,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 127,
+   "instrument": "marimbot",
+   "element": "bar_88",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=88",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.6063511690967255,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 128,
+   "instrument": "marimbot",
+   "element": "bar_91",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=91",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.631437002068724,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 129,
+   "instrument": "marimbot",
+   "element": "bar_95",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=95",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.6648847793647218,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 130,
+   "instrument": "marimbot",
+   "element": "bar_96",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=96",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.6732467236887213,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 131,
+   "instrument": "marimbot",
+   "element": "bar_97",
+   "osc": {
+    "address": "/marimba",
+    "args": [
+     "i:note=97",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.6816086680127208,
+    0.65,
+    0.9,
+    0.05,
+    0.35,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.02,
+    0.1,
+    0.05,
+    0.05,
+    0.2,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 132,
+   "instrument": "modulettes",
+   "element": "solenoid_11",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=11",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.57,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 133,
+   "instrument": "modulettes",
+   "element": "solenoid_12",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=12",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.59,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 134,
+   "instrument": "modulettes",
+   "element": "solenoid_13",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=13",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.61,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 135,
+   "instrument": "modulettes",
+   "element": "solenoid_14",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=14",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.63,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 136,
+   "instrument": "modulettes",
+   "element": "solenoid_15",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=15",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.65,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 137,
+   "instrument": "modulettes",
+   "element": "solenoid_16",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=16",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.3,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 138,
+   "instrument": "modulettes",
+   "element": "solenoid_17",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=17",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.308511,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 139,
+   "instrument": "modulettes",
+   "element": "solenoid_18",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=18",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.317021,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 140,
+   "instrument": "modulettes",
+   "element": "solenoid_19",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=19",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.325532,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 141,
+   "instrument": "modulettes",
+   "element": "solenoid_20",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=20",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.334043,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 142,
+   "instrument": "modulettes",
+   "element": "solenoid_21",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=21",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.342553,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 143,
+   "instrument": "modulettes",
+   "element": "solenoid_22",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=22",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.351064,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 144,
+   "instrument": "modulettes",
+   "element": "solenoid_23",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=23",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.359574,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 145,
+   "instrument": "modulettes",
+   "element": "solenoid_24",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=24",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.368085,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 146,
+   "instrument": "modulettes",
+   "element": "solenoid_25",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=25",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.376596,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 147,
+   "instrument": "modulettes",
+   "element": "solenoid_26",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=26",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.385106,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 148,
+   "instrument": "modulettes",
+   "element": "solenoid_27",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=27",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.393617,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 149,
+   "instrument": "modulettes",
+   "element": "solenoid_28",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=28",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.402128,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 150,
+   "instrument": "modulettes",
+   "element": "solenoid_29",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=29",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.410638,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 151,
+   "instrument": "modulettes",
+   "element": "solenoid_30",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=30",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.419149,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 152,
+   "instrument": "modulettes",
+   "element": "solenoid_31",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=31",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.42766,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 153,
+   "instrument": "modulettes",
+   "element": "solenoid_32",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=32",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.43617,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 154,
+   "instrument": "modulettes",
+   "element": "solenoid_33",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=33",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.444681,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 155,
+   "instrument": "modulettes",
+   "element": "solenoid_34",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=34",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.453191,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 156,
+   "instrument": "modulettes",
+   "element": "solenoid_35",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=35",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.461702,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 157,
+   "instrument": "modulettes",
+   "element": "solenoid_36",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=36",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.470213,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 158,
+   "instrument": "modulettes",
+   "element": "solenoid_37",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=37",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.478723,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 159,
+   "instrument": "modulettes",
+   "element": "solenoid_38",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=38",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.487234,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 160,
+   "instrument": "modulettes",
+   "element": "solenoid_39",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=39",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.495745,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 161,
+   "instrument": "modulettes",
+   "element": "solenoid_40",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=40",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.504255,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 162,
+   "instrument": "modulettes",
+   "element": "solenoid_41",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=41",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.512766,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 163,
+   "instrument": "modulettes",
+   "element": "solenoid_42",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=42",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.521277,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 164,
+   "instrument": "modulettes",
+   "element": "solenoid_43",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=43",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.529787,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 165,
+   "instrument": "modulettes",
+   "element": "solenoid_44",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=44",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.538298,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 166,
+   "instrument": "modulettes",
+   "element": "solenoid_45",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=45",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.546809,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 167,
+   "instrument": "modulettes",
+   "element": "solenoid_46",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=46",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.555319,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 168,
+   "instrument": "modulettes",
+   "element": "solenoid_47",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=47",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.56383,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 169,
+   "instrument": "modulettes",
+   "element": "solenoid_48",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=48",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.57234,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 170,
+   "instrument": "modulettes",
+   "element": "solenoid_49",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=49",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.580851,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 171,
+   "instrument": "modulettes",
+   "element": "solenoid_50",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=50",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.589362,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 172,
+   "instrument": "modulettes",
+   "element": "solenoid_51",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=51",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.597872,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 173,
+   "instrument": "modulettes",
+   "element": "solenoid_52",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=52",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.606383,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 174,
+   "instrument": "modulettes",
+   "element": "solenoid_53",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=53",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.614894,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 175,
+   "instrument": "modulettes",
+   "element": "solenoid_54",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=54",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.623404,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 176,
+   "instrument": "modulettes",
+   "element": "solenoid_55",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=55",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.631915,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 177,
+   "instrument": "modulettes",
+   "element": "solenoid_56",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=56",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.640426,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 178,
+   "instrument": "modulettes",
+   "element": "solenoid_57",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=57",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.648936,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 179,
+   "instrument": "modulettes",
+   "element": "solenoid_58",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=58",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.657447,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 180,
+   "instrument": "modulettes",
+   "element": "solenoid_59",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=59",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.665957,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 181,
+   "instrument": "modulettes",
+   "element": "solenoid_60",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=60",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.674468,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 182,
+   "instrument": "modulettes",
+   "element": "solenoid_61",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=61",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.682979,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 183,
+   "instrument": "modulettes",
+   "element": "solenoid_62",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=62",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.691489,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 184,
+   "instrument": "modulettes",
+   "element": "solenoid_63",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=63",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.7,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  },
+  {
+   "point_id": 185,
+   "instrument": "modulettes",
+   "element": "solenoid_64",
+   "osc": {
+    "address": "/modulettes",
+    "args": [
+     "i:note=64",
+     "i:vel"
+    ]
+   },
+   "vel_range": [
+    0,
+    127
+   ],
+   "mu": [
+    0.7,
+    0.55,
+    0.1,
+    0.6,
+    0.6,
+    0.5,
+    0.05,
+    0.4
+   ],
+   "sigma": [
+    0.1,
+    0.1,
+    0.1,
+    0.15,
+    0.15,
+    0.3,
+    0.0,
+    0.2
+   ],
+   "max_rate_hz": 20,
+   "vel_min": 0.0,
+   "vel_max": 1.0,
+   "source": "estimated",
+   "enabled": true
+  }
+ ]
+}

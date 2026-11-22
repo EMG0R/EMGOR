@@ -1,0 +1,31 @@
+#!/bin/bash
+# demiurge-run-chuck <file.ck> [extra chuck args...]
+# Reads DEMIURGE_RATE and DEMIURGE_QUANTUM (set by the demiurge-launcher from
+# live.conf `rate =` / `quantum =`, defaults 48000 / 128). --bufsize MUST equal
+# the pipewire system clock.force-quantum or pipewire-jack delivers silence
+# with no error.
+set -e
+source /opt/demiurge/lib/demiurge-env.sh 2>/dev/null || source "$(dirname "$0")/../lib/demiurge-env.sh"
+
+if [[ -z "$1" ]]; then
+    echo "usage: demiurge-run-chuck <file.ck> [extra args...]" >&2
+    exit 1
+fi
+
+R="${DEMIURGE_RATE:-48000}"
+Q="${DEMIURGE_QUANTUM:-128}"
+FILE="$1"; shift
+
+# USS instruments (stage program id `uss-<name>`, see uss/README.md): a guest next to
+# the live NEPTR Csound, never a competitor. NEPTR's csound is pinned to the isolated
+# RT core (DEMIURGE_RT_PIN, SCHED_FIFO 74); a USS stage must NEVER share that core, so
+# it is pinned to the housekeeping cores and made nice. (pipewire-jack still raises its
+# own callback thread; being on cores 0-2 it cannot preempt csound on core 3.)
+# Detected over ALL args because the launcher puts the pool hook ahead of the file.
+PIN=""
+for a in "$FILE" "$@"; do
+    case "$(basename "$a")" in
+        uss-*) PIN="taskset -c ${DEMIURGE_USS_CPUS:-0-2} nice -n ${DEMIURGE_USS_NICE:-5}"; break ;;
+    esac
+done
+exec $PIN chuck --driver:jack --out:2 --in:2 --srate:$R --bufsize:$Q "$FILE" "$@"

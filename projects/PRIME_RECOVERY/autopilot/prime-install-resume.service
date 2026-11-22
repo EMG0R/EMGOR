@@ -1,0 +1,14 @@
+[Unit]
+Description=PRIME: finish Demiurge install after the Phase 8 reboot (one-shot, disables itself)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=gorpi7v5
+Environment=HOME=/home/gorpi7v5
+ExecStart=/bin/bash /home/gorpi7v5/PRIME_RECOVERY/autopilot/autopilot.sh stageB
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target

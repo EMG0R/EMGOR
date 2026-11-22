@@ -1,0 +1,83 @@
+#!/bin/bash
+# demiurge-patch [<name>] — THE one patch switcher. (demiurge-set is an alias.)
+#
+#   INSTALL ON THE PI:  sudo install -m0755 demiurge-patch /usr/local/bin/demiurge-patch
+#                       (and /opt/demiurge/bin/demiurge-patch beside demiurge-set)
+#
+#   demiurge-patch            list patches + the active one
+#   demiurge-patch <name>     activate: copy the patch conf over ~/demiurge/live.conf
+#
+# Canonical root: ~/demiurge/patches/   (override: DEMIURGE_PATCH_DIR)
+# Lookup order for <name> (first hit wins):
+#   1. patches/<name>/<name>.conf     patch FOLDER   (docs/patch-folders.md)
+#   2. patches/<name>.conf            flat patch
+#   3. sets/<name>.conf               legacy alias   (override: DEMIURGE_SETS_DIR)
+# The active patch is, as ever, the `# set:` header inside live.conf.
+#
+# The launcher hot-reloads live.conf within ~1 s. This script also applies the
+# patch's power level and restarts demiurge (sync_layer=off exec()s the launcher
+# away, so a restart is always needed). Runs as the desktop user, passwordless
+# sudo only for systemctl.
+set -u
+
+ROOT="${DEMIURGE_PATCH_DIR:-$HOME/demiurge/patches}"
+SETS="${DEMIURGE_SETS_DIR:-$HOME/demiurge/sets}"
+LIVE="${DEMIURGE_LIVE:-$HOME/demiurge/live.conf}"
+
+# resolve <name> -> prints path, returns 0 if found
+resolve() {
+    local n="$1" f
+    for f in "$ROOT/$n/$n.conf" "$ROOT/$n.conf" "$SETS/$n.conf"; do
+        [ -f "$f" ] && { printf '%s\n' "$f"; return 0; }
+    done
+    return 1
+}
+
+active() { grep -m1 '^# set:' "$LIVE" 2>/dev/null | sed 's/# set: *//'; }
+
+if [ -z "${1:-}" ]; then
+    echo "Available patches:"
+    declare -A seen=()
+    list_one() {   # $1 = conf path, $2 = name, $3 = kind
+        [ -f "$1" ] || return 0
+        [ -n "${seen[$2]:-}" ] && return 0
+        seen[$2]=1
+        local tag; tag="$(grep -m1 '^# set:' "$1" 2>/dev/null | sed 's/# set: *//')"
+        echo "  $2${tag:+ ($tag)} [$3]"
+    }
+    for d in "$ROOT"/*/; do
+        [ -d "$d" ] || continue
+        n="$(basename "$d")"; list_one "$d$n.conf" "$n" folder
+    done
+    for f in "$ROOT"/*.conf; do [ -f "$f" ] && list_one "$f" "$(basename "$f" .conf)" flat; done
+    for f in "$SETS"/*.conf; do [ -f "$f" ] && list_one "$f" "$(basename "$f" .conf)" sets; done
+    echo ""
+    echo "Active: $(active)"
+    exit 0
+fi
+
+NAME="$1"
+case "$NAME" in
+    */*|.*|*..*) echo "demiurge-patch: bad patch name '$NAME'" >&2; exit 1 ;;
+esac
+
+PATCH="$(resolve "$NAME")" || {
+    echo "demiurge-patch: no patch '$NAME'" >&2
+    echo "  looked for: $ROOT/$NAME/$NAME.conf, $ROOT/$NAME.conf, $SETS/$NAME.conf" >&2
+    exit 1
+}
+
+cp "$PATCH" "$LIVE" || { echo "demiurge-patch: cannot write $LIVE" >&2; exit 1; }
+
+# Apply the patch's power NOW (not next boot). One mechanism: the root oneshot
+# demiurge-power.service reads live.conf (`power =` key or `# power:` tag).
+# If that unit is unavailable, fall back to the demiurge-power CLI with the tag.
+pw=$(sed -n 's/^#[[:space:]]*power:[[:space:]]*//p' "$LIVE" | head -1 | tr -d '[:space:]')
+case "$pw" in med|MED|Med) pw=medium ;; esac
+if ! sudo -n systemctl restart demiurge-power.service 2>/dev/null; then
+    case "$pw" in low|medium|high) demiurge-power "$pw" >/dev/null 2>&1 || true ;; esac
+fi
+
+echo "demiurge-patch: '$NAME' ($PATCH) → switching..."
+sudo -n systemctl restart demiurge
+echo "demiurge-patch: done (power=${pw:-unchanged}) — persisted to live.conf"

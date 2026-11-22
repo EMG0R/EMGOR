@@ -1,0 +1,32 @@
+% capture.tex — "Shape Capture", \input from septagraph.tex.
+
+A recorded sound becomes a septagraph by the same route the axes were
+grounded in: a modulation-filterbank analysis front end, run frame by
+frame, converts a waveform into a trajectory over the six perceptual
+axes~\cite{shamma,mcdermott}. We measure spectral centroid for
+\texttt{freq}, RMS energy for \texttt{loud}, one minus spectral
+flatness for \texttt{harm}, the dominant peak of each frame's envelope
+modulation spectrum for \texttt{rate}, and the ripple density of the
+log-magnitude spectrum for \texttt{scale}, mirroring the descriptor
+families surveyed by the Timbre Toolbox~\cite{peeters2011}; each axis's
+$\mu(t)$ is the frame-wise value and its $\sigma(t)$ is the frame-wise
+standard deviation over a short analysis window, so a source that
+wavers on an axis reports its own wavering rather than a false point
+estimate. This front end is general: it is the same procedure by which
+the Machine Lab catalog is populated, one measured strike per
+manifest point, and it is offered as the template for bringing any
+acoustic instrument --- not only the seven robots --- into the format.
+
+Capture is only half the vocabulary; the other half is what a looper
+does to a captured septagraph, and every operation we define is a
+geometric transform on the trajectory rather than a new audio effect
+per renderer. \emph{Stutter} chops the time axis, repeating a sub-span
+of knots; \emph{smear} widens $\sigma(t)$ uniformly, trading definition
+for renderer liberty without moving $\mu$; \emph{displace} translates
+the \texttt{freq} trajectory by a constant offset; \emph{reverse} flips
+the knot order in $t$. Because these act on the septagraph itself and
+not on any one renderer's audio, the same stutter or smear replays
+correctly whether the loop layer (Sec.~\ref{sec:window}) is driving the
+DSP reference renderer, a neural voice, or the robotic ensemble ---
+one looping vocabulary, defined once in coordinate space, inherited by
+every engine that speaks the protocol.

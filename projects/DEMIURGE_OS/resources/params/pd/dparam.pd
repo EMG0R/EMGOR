@@ -1,0 +1,15 @@
+#N canvas 0 0 500 300 10;
+#X obj 20 20 r demiurge-param-rx;
+#X obj 20 50 list trim;
+#X obj 20 80 route \$1;
+#X obj 20 110 clip 0 1;
+#X obj 20 140 outlet;
+#X obj 200 20 loadbang;
+#X obj 200 50 f \$2;
+#X text 20 180 [dparam /path default] - outlet = 0..1 float. Needs one [dparam_rx] in the patch.;
+#X connect 0 0 1 0;
+#X connect 1 0 2 0;
+#X connect 2 0 3 0;
+#X connect 3 0 4 0;
+#X connect 5 0 6 0;
+#X connect 6 0 3 0;

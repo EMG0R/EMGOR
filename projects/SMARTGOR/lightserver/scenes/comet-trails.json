@@ -1,0 +1,74 @@
+{
+  "name": "comet-trails",
+  "_comment": [
+    "Showcase: multi-color generative comets on the 1920px closed ring.",
+    "Each comet is its own 'particles' layer sharing one warm->cool",
+    "palette; color_mode 'index' gives every comet a fixed-but-random",
+    "hue off that palette (multi-color, not one flat comet color), and",
+    "each layer's own 'trail' (decay+blur) leaves a soft fading tail that",
+    "wraps the 0/1919 seam correctly (circular blur, ring-safe).",
+    "physics.wrap + drive: constant orbiting motion, no walls."
+  ],
+  "master": {"brightness": 1.0, "tone_map": "reinhard"},
+  "layers": [
+    {
+      "type": "gradient",
+      "blend": "add",
+      "palette": ["#05030f", "#0a0518", "#040210"],
+      "palette_speed": 0.015,
+      "scale": 1920,
+      "brightness": 0.5
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "trail": {"decay": 0.93, "blur": 2.5},
+      "palette": ["#ff2d55", "#ff9500", "#ffe94a", "#37ff8b", "#33c6ff"],
+      "physics": {
+        "wrap": true,
+        "bounce": {"enabled": false},
+        "drive": {"top_speed": 140, "min_speed": 90, "reverses_per_min": 0,
+                  "smooth_s": 3.0}
+      },
+      "particles": [
+        {"pos": 100, "vel": 140, "size": 3.0, "color": "#ffffff",
+         "color_mode": "index", "lifetime": null}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": false}
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "trail": {"decay": 0.9, "blur": 3.0},
+      "palette": ["#ff2d55", "#ff9500", "#ffe94a", "#37ff8b", "#33c6ff"],
+      "physics": {
+        "wrap": true,
+        "bounce": {"enabled": false},
+        "drive": {"top_speed": -110, "min_speed": -70, "reverses_per_min": 0,
+                  "smooth_s": 3.0}
+      },
+      "particles": [
+        {"pos": 900, "vel": -110, "size": 2.5, "color": "#ffffff",
+         "color_mode": "index", "lifetime": null}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": false}
+    },
+    {
+      "type": "particles",
+      "blend": "add",
+      "trail": {"decay": 0.95, "blur": 2.0},
+      "palette": ["#ff2d55", "#ff9500", "#ffe94a", "#37ff8b", "#33c6ff"],
+      "physics": {
+        "wrap": true,
+        "bounce": {"enabled": false},
+        "drive": {"top_speed": 175, "min_speed": 120, "reverses_per_min": 0,
+                  "smooth_s": 3.0}
+      },
+      "particles": [
+        {"pos": 1500, "vel": 175, "size": 2.0, "color": "#ffffff",
+         "color_mode": "velocity", "hue_drift": 0.03, "lifetime": null}
+      ],
+      "render": {"falloff": "gaussian", "fade_out": false}
+    }
+  ]
+}

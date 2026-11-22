@@ -1,0 +1,17 @@
+{
+  "id": "chorus",
+  "file": "fx_chorus.h",
+  "roles": {
+    "AMT": "DEPTH",
+    "TIME": "RATE",
+    "TONE": "LP",
+    "MOD": "WIDTH",
+    "FB": "FB"
+  },
+  "actions": {
+    "CLEAR": "clear delay line"
+  },
+  "ops_per_sample": "~140 flops: 3 Hermite reads (~60), 3 sinPar (~36), pan/sum (~12), fb write, HP + LP on 2 channels (~16), gain/mix ramps (~10). Mono-in = stereo-in cost.",
+  "memory_bytes": 17408,
+  "notes": "Mono delay ring (stereo in summed for the wet path), 3 taps at 0.8/1.0/1.2 x DELAY ms, phases 0/120/240 deg, depth = DEPTH*0.45*base, panned L/C/R by WIDTH. Defaults = v1 (rate 0.9 Hz, mod 0.3, +3 dB, mix 100 %). Output always stereo."
+}

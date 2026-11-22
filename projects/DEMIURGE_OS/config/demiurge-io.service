@@ -1,0 +1,51 @@
+[Unit]
+# Sensor -> parameter control plane. Reads the Teensy's 100 Hz NEPTR2 serial
+# frame at FULL resolution (raw mm / raw ADC / raw int16), conditions and routes
+# it through ~/demiurge/sensors.json, and writes the result to the NEPTR engine
+# as OSC /p on 7770.
+#
+# OWNERSHIP — READ BEFORE ENABLING
+# --------------------------------
+# 1. This REPLACES neptr-bridge.service. Both read /dev/ttyACM0 and only one
+#    process can own a CDC ACM port. Disable the bridge first:
+#        sudo systemctl disable --now neptr-bridge
+#    Nothing is lost: the bridge existed so analog calibration could be retuned
+#    without reflashing the Teensy, and sensors.json now does that job better
+#    (live, hot-reloaded, editable from the phone).
+#
+# 2. The Teensy's DIRECT USB-MIDI feed into csound MUST STAY CONNECTED. It is
+#    what carries encoders and buttons, and it is deliberately NOT duplicated
+#    here (--forward-control is off by default; turning it on would make every
+#    encoder click register twice). Confirm after the bridge is stopped:
+#        aconnect -l | grep -i teensy
+#        aconnect "Teensy MIDI":0 14:0      # if the bridge's ExecStopPost missed it
+#    Consequence, by design: if this daemon dies mid-set the instrument keeps
+#    playing on encoders, toggles and the expression pedal exactly as before.
+#    Sensors are purely additive.
+#
+# 3. csound must be running with the OSC listener (giCtlOSC OSCinit 7770 in
+#    midi_handler.orc). Sending to a dead port is silently harmless.
+Description=Demiurge sensor -> parameter control plane (demiurge-io)
+After=network.target sound.target
+# Only meaningful once the Teensy is attached; the daemon tolerates it appearing
+# late, but there is no point starting before the device node exists at boot.
+ConditionPathExists=/dev/ttyACM0
+
+[Service]
+Type=simple
+User=gorpi7
+ExecStart=/usr/bin/python3 -m demiurge_io --config /home/gorpi7/demiurge/sensors.json
+WorkingDirectory=/opt/demiurge/src/demiurge-io
+Environment=PYTHONUNBUFFERED=1
+# Same CPU budget as the web UI: this is control-rate work (100 Hz x a dozen
+# floats), NOT audio. Keep it off the cores csound's SCHED_FIFO thread uses —
+# see the CPUAffinity in demiurge.service.
+CPUAffinity=0-2
+Nice=5
+# A wedged source thread must never take the instrument down with it, and the
+# daemon is cheap to restart — it holds no state that is not in sensors.json.
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

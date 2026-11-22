@@ -1,0 +1,264 @@
+{
+ "version": 1,
+ "menus": [
+  {
+   "id": 0,
+   "name": "PRESETS",
+   "slots": [
+    "sld",
+    "hvy",
+    "pha",
+    "trm",
+    "amb"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 1,
+   "name": "VOLUME",
+   "slots": [
+    "tape",
+    "atk",
+    "les",
+    "rm",
+    "vol"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 2,
+   "name": "SPECTRAL",
+   "slots": [
+    "bc",
+    "bin",
+    "bsc",
+    "fmt",
+    "fms"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 3,
+   "name": "PITCH",
+   "slots": [
+    "\u2014",
+    "pf",
+    "gps",
+    "ps",
+    "h90"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 4,
+   "name": "FILTERING",
+   "slots": [
+    "\u2014",
+    "mog",
+    "wah",
+    "res",
+    "lsy"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 5,
+   "name": "MOD",
+   "slots": [
+    "fla",
+    "trm",
+    "pha",
+    "cho",
+    "vib"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 6,
+   "name": "DRIVE",
+   "slots": [
+    "muf",
+    "dhg",
+    "rmz",
+    "mar",
+    "od"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 7,
+   "name": "PREAMP",
+   "slots": [
+    "pre",
+    "bpl",
+    "bph",
+    "bds",
+    "cmp"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 8,
+   "name": "GRANULAR",
+   "slots": [
+    "mod",
+    "grn",
+    "\u2014",
+    "\u2014",
+    "\u2014"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 9,
+   "name": "DIGIVERB",
+   "slots": [
+    "neb",
+    "shm",
+    "frz",
+    "gvb",
+    "vrb"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 10,
+   "name": "DELAY",
+   "slots": [
+    "tdl",
+    "sdl",
+    "mvd",
+    "\u2014",
+    "dly"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 11,
+   "name": "BASS",
+   "slots": [
+    "env",
+    "oct",
+    "bds",
+    "bph",
+    "bpl"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 12,
+   "name": "SYNTH",
+   "slots": [
+    "\u2014",
+    "\u2014",
+    "teq",
+    "pll",
+    "tsy"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 13,
+   "name": "AIR",
+   "slots": [
+    "cfb",
+    "\u2014",
+    "\u2014",
+    "dif",
+    "fbk"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 19,
+   "name": "UTILITY",
+   "slots": [
+    "\u2014",
+    "\u2014",
+    "\u2014",
+    "\u2014",
+    "\u2014"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 20,
+   "name": "NORRIS",
+   "slots": [
+    "\u2014",
+    "\u2014",
+    "\u2014",
+    "\u2014",
+    "\u2014"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 15,
+   "name": "CHASE BLISS",
+   "slots": [
+    "\u2014",
+    "md2",
+    "hab",
+    "onw",
+    "blp"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 14,
+   "name": "LOOPER",
+   "slots": [
+    "lp0",
+    "lp1",
+    "lp2",
+    "lp3",
+    "lp4"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 16,
+   "name": "GLITCH",
+   "slots": [
+    "rvs",
+    "chp",
+    "rpt",
+    "bbc",
+    "imp"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 17,
+   "name": "NAM",
+   "slots": [
+    "nam0",
+    "nam1",
+    "nam2",
+    "nam3",
+    "nam4"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 18,
+   "name": "IR VERB",
+   "slots": [
+    "ir4",
+    "ir3",
+    "ir2",
+    "ir1",
+    "ir0"
+   ],
+   "hidden": false
+  },
+  {
+   "id": 21,
+   "name": "HYPERGUITAR",
+   "slots": [],
+   "conditional": true,
+   "hidden": false
+  }
+ ]
+}

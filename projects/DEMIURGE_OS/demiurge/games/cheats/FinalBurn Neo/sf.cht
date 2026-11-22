@@ -1,0 +1,72 @@
+# RetroArch .cht cheat file for STREET FIGHTER (FBNeo core, rom: sf.zip)
+# Format: RetroArch native .cht (key = value), one block per cheat index.
+# Infinite-health and infinite-time cheats are ENABLED by default.
+#
+# Memory model: original Street Fighter runs on CPS-1 hardware; player energy
+# and the round timer live in 68000 work RAM. Addresses below are from the
+# MAME/FBNeo cheat record for the parent set "[sf] Street Fighter (World,
+# Analog buttons)". The FBNeo libretro core exposes that work RAM as a flat
+# byte space to the RetroArch cheat engine (1-byte writes, every frame).
+#
+# cheat_handler = "emu"  -> let the core resolve the address in emulated RAM.
+# cheat_*_repeat_count = 1 -> single byte (no run of bytes).
+# cheat_*_value with cheat_*_cheat_type = 1 -> write this value continuously.
+
+cheats = 3
+
+cheat0_desc = "P1 Infinite Energy (Health)"
+cheat0_handler = "emu"
+cheat0_memory_search_size = "3"
+cheat0_cheat_type = "1"
+cheat0_value = "144"
+cheat0_address = "16745961"
+cheat0_address_bit_position = "0"
+cheat0_rumble_type = "0"
+cheat0_rumble_value = "0"
+cheat0_rumble_prim_strength = "0"
+cheat0_rumble_sec_strength = "0"
+cheat0_rumble_port = "0"
+cheat0_repeat_count = "1"
+cheat0_repeat_add_to_value = "0"
+cheat0_repeat_add_to_address = "1"
+cheat0_code = "16745961=144"
+cheat0_big_endian = "false"
+cheat0_enable = "true"
+
+cheat1_desc = "P2 Infinite Energy (Health)"
+cheat1_handler = "emu"
+cheat1_memory_search_size = "3"
+cheat1_cheat_type = "1"
+cheat1_value = "144"
+cheat1_address = "16746363"
+cheat1_address_bit_position = "0"
+cheat1_rumble_type = "0"
+cheat1_rumble_value = "0"
+cheat1_rumble_prim_strength = "0"
+cheat1_rumble_sec_strength = "0"
+cheat1_rumble_port = "0"
+cheat1_repeat_count = "1"
+cheat1_repeat_add_to_value = "0"
+cheat1_repeat_add_to_address = "1"
+cheat1_code = "16746363=144"
+cheat1_big_endian = "false"
+cheat1_enable = "true"
+
+cheat2_desc = "Infinite Time (Round Timer Frozen)"
+cheat2_handler = "emu"
+cheat2_memory_search_size = "3"
+cheat2_cheat_type = "1"
+cheat2_value = "153"
+cheat2_address = "16745670"
+cheat2_address_bit_position = "0"
+cheat2_rumble_type = "0"
+cheat2_rumble_value = "0"
+cheat2_rumble_prim_strength = "0"
+cheat2_rumble_sec_strength = "0"
+cheat2_rumble_port = "0"
+cheat2_repeat_count = "1"
+cheat2_repeat_add_to_value = "0"
+cheat2_repeat_add_to_address = "1"
+cheat2_code = "16745670=153"
+cheat2_big_endian = "false"
+cheat2_enable = "true"

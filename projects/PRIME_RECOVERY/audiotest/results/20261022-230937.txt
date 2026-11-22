@@ -1,0 +1,24 @@
+PRIME audio test  2026-10-22 23:08:54  tag=q128-force512
+quantum/state: {'quantum': '128', 'force_quantum': '512', 'rate': '48000'}
+
+== path: hw  (rec 12.56 s)
+latency vs reference: median 341.763 ms (min 253.988, max 375.133), jitter 5815.0 smp, corr [-0.005, -0.004, -0.004]
+1 kHz: -138.32 dBFS peak (gain vs ref -65.67 dB), THD+N 37.04 dB (7112.82855 %), THD 3.09 dB, SNR -37.04 dB
+noise 20-20k: total -104.29 dBFS, robust -109.41 dBFS; silence rms -82.5 dBFS
+glitch-free 7.7 s: THD+N 37.04 dB (7112.82855 %), THD 3.09 dB, SNR -37.04 dB, noise -104.29 dBFS; spurs: 60.0 Hz 29.11 dBc; 180.0 Hz 20.77 dBc; 660.0 Hz 10.58 dBc; 420.0 Hz 9.97 dBc; 900.0 Hz 8.36 dBc; 540.0 Hz 7.76 dBc; 147.8 Hz 4.24 dBc; 300.0 Hz 3.79 dBc
+spurs: 60.0 Hz 29.11 dBc; 180.0 Hz 20.77 dBc; 660.0 Hz 10.58 dBc; 420.0 Hz 9.97 dBc; 900.0 Hz 8.36 dBc; 540.0 Hz 7.76 dBc; 147.8 Hz 4.24 dBc; 300.0 Hz 3.79 dBc
+artifacts: 0 (e_sigma 1.01e-05, thr 2.00e-04), amp p2p 82.151 dB
+xrun delta (hat_out, hat_in, csound6): {'hat_out': 1, 'hat_in': 0, 'csound6': 0}
+channel alignment ok=False: {"in1": {"f1_dbfs": -132.7, "f2_dbfs": -134.7}, "in2": {"f1_dbfs": -130.3, "f2_dbfs": -132.7}, "in3": {"f1_dbfs": -134.9, "f2_dbfs": -140.7}, "in4": {"f1_dbfs": -143.0, "f2_dbfs": -132.9}, "in5": {"f1_dbfs": -141.5, "f2_dbfs": -137.4}, "in6": {"f1_dbfs": -140.1, "f2_dbfs": -137.8}, "in7": {"f1_dbfs": -141.5, "f2_dbfs": -138.5}, "in8": {"f1_dbfs": -141.7, "f2_dbfs": -134.6}}
+
+== path: engine  (rec 12.45 s)
+latency vs reference: median 23.828 ms (min 23.828, max 423.828), jitter 19200.0 smp, corr [0.953, 0.953, 0.953]
+1 kHz: -20.69 dBFS peak (gain vs ref -0.69 dB), THD+N -35.98 dB (1.58852 %), THD -57.04 dB, SNR 36.01 dB
+noise 20-20k: total -59.72 dBFS, robust -77.05 dBFS; silence rms -67.7 dBFS
+glitch-free 3.19 s: THD+N -57.41 dB (0.13473 %), THD -57.87 dB, SNR 67.38 dB, noise -91.08 dBFS; spurs: 1499.9 Hz -71.91 dBc; 60.1 Hz -82.2 dBc; 180.1 Hz -89.61 dBc; 10999.9 Hz -91.95 dBc; 1002.1 Hz -96.78 dBc; 13000.0 Hz -97.24 dBc; 997.7 Hz -97.25 dBc; 15000.1 Hz -102.19 dBc
+spurs: 13000.0 Hz -97.11 dBc
+artifacts: 3 (e_sigma 2.32e-05, thr 2.32e-04), amp p2p 2.447 dB
+   t=1.653s sample=139623 len=36 peak=-27.8 dBFS slip=0.0 zero_run=0
+   t=3.589s sample=232551 len=37 peak=-27.5 dBFS slip=0.0 zero_run=0
+   t=5.781s sample=337767 len=36 peak=-27.8 dBFS slip=0.0 zero_run=0
+xrun delta (hat_out, hat_in, csound6): {'hat_out': 0, 'hat_in': 0, 'csound6': 0}

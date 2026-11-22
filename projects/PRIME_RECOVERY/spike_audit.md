@@ -1,0 +1,46 @@
+# NEPTR csound single-cycle spike audit (read-only, static, 2026-10-23)
+
+Paths relative to ~/NEPTR_phase4/csound. Costs are estimates from code reading, not measurements. Period = 2.67 ms; stall threshold ~8 ms.
+
+## TOP 3 likely causes of a >8 ms single-cycle stall
+
+### 1. Looper buffer persistence: ftsavek of 18 MB tables on the perf thread (looper_persist.orc:360-361, 381-382, 402-403, 423-424, 444-445)
+- Tables: globals.orc:323-332, ten tables of -2304000 points (48 s at 48 kHz, 8-byte MYFLT = 18.4 MB each). ftsavek writes the WHOLE table, not the used length.
+- Trigger: loop close or overdub end (kPrev -> state 2, kPend latch, 2 s debounce at :338-359). Each fire = 2 tables x 18.4 MB = ~37 MB written inside ONE k-cycle, plus the meta ftsavek at :448. This is also the moment players tweak speed / start next loop, so it correlates with "changed loop speed".
+- Cost: milliseconds to tens/hundreds of ms (37 MB memcpy into page cache is ~10-30 ms alone, plus fopen/fclose, plus writeback stalls if the SD/NVMe is busy and dirty-page throttling kicks in). Also a memory-bandwidth hit on the other cores. This is the largest single item in the engine. Several channels closing within 2 s each fire separately.
+- Fix (sound identical): never write from the perf thread. Options: (a) separate low-priority instr/thread: copy only the used length gkLpLenN (tablecopy of N/16 samples per k-cycle into a staging table, then write from a non-RT helper), (b) have the host (demiurge-csound-host or a sidecar, nice 19, off core 3) mmap/write the table memory on a signal, (c) at minimum save only the first gkLpLenN samples (ftsavek cannot; use a sized staging table made at close time and spread the copy over ~64 cycles, then ftsavek from a niced non-FIFO csound instance/process). Meta ftsavek is 3 KB and fine.
+
+### 2. Preset recall / UI resync burst in a single cycle (state_persist.orc:178-246, state_unpack.inc.orc, handler/handler_osc.orc:11-20, 617-625, 681-690)
+- Trigger: preset recall (gkPresetOp==2), or the UI "sync request" (midi_handler.orc:575-577 -> gkOscRefresh=1; the touch UI sends it at startup/reconnect).
+- In the recall cycle: while-copy of 512 points (:193) + SOUNDMAGIC 768+24 tablew (:233-241) + state_unpack (~340 global assignments) + exclude save/restore; then gkOscRefresh=1 makes EVERY $OSC_I/$OSC_F site fire in the same cycle: ~332 sites in handler_osc.orc + 18 in handler_looper.orc, each an OSCsend to 127.0.0.1:8000 (sendto syscall, ~5-20 us) = ~2-7 ms of syscalls. The :681-690 refresh also re-zeroes 768+192+24 shadow entries and the echo throttle (kOscEchoDiv) is bypassed on refresh (:15). Recall also hits HgSendLane OSC.
+- Cost: ~3-10 ms in one cycle (table loops ~0.2 ms; the OSC burst dominates). Plausible 1 of the ~4 misses per 13 min if Emory recalls presets or the UI reconnects.
+- Fix: stagger the refresh. Replace the single-cycle gkOscRefresh=1 pulse with a sweep counter (send ~8-16 sites per k-cycle, e.g. a kRefreshCursor gating the OSC_* macros by uid bucket, or one shared kRefreshPhase 0..N-1 so site i fires when kRefreshPhase==i%N). Same messages, spread over ~40 cycles (~100 ms). Also spread the 512/768 recall copies over 4-8 cycles, or tablecopy (memcpy) instead of tablew loops.
+
+### 3. IR reverb preset switch: 10 tablecopy of 45k-point lanes in one cycle (effects/ir_reverb.orc:427-431, plus liveconv kIRUpd :512-537)
+- Trigger: changing IR row/variant (kIRChg) or first k-cycle of instr (effect first enabled).
+- Copies giIRSegLen = 12288 + 4x45056 = 192,512 points x L and R = 385k doubles = 3.1 MB read + 3.1 MB write inside one k-cycle (:429-430).
+- Cost: ~0.5-2 ms memcpy cold-cache (source tables were not touched recently so they miss cache), more if memory bus is contended; then liveconv kupdate runs partition FFT reloads over the following cycles (4 lanes x 2 sides burst staggering is already handled). Alone below 8 ms, but stacks with another event (e.g. a state save or preset recall that also changes the IR row).
+- Fix: do one lane/side per k-cycle (10 cycles, ~27 ms total, hold kIRUpdHold until lane 9 copied), already-fade logic masks it; or double-buffer: copy into a second work table set over N cycles, flip the liveconv table reference at the end (needs 2x work tables, ~3 MB).
+
+## Other findings (ranked, lower)
+
+4. Settings save on speed change (state_persist.orc:1441-1458 -> kDirty -> :1665-1666). Speed index writes dirty the table; 2 s metro (kMet, :250) scans ~344 compares (~30 us) then ftsavek of 512 pts (~4 KB, one of two alternating files). Cost: scan negligible; fopen/write/fclose of 4 KB = 0.1-2 ms, and can block on the filesystem journal if the disk is busy (rare tail). This is the most direct answer to "when I changed loop speed", but it is likely cause only when it lands on a stall in the fs. Fix: stage dirty -> ftsavek only after the value is quiet for 2 s (already 2 s cadence), or hand the write to a non-RT helper; keep ftsavek out of the perf thread. Also the speed itself (handler_looper.orc:470-540, effects/looper.orc:232-292) is cheap: one table read and a branch; no reinit, no ftgen. gkLpRdPos jump on leaving the transport lock is a single assignment.
+5. Preset bank capture/delete (state_persist.orc:1680-1727): 512 + 768 + 24 tablew loop, then ftsavek of giPresetBank (8736 pts, 70 KB) x2 files same cycle (:1730-1731) and the SM bank files (spectral/sm_persist.orc:198-201). ~0.5-3 ms disk. Fix: spread loop over cycles, write one file per cycle.
+6. Drum-loop browse (effects/drumloops.orc:~100-186): i-time resample loop up to 2.3M samples with 4 tab_i + 2 tableiw per sample plus GEN01 file decode, ftfree of temp tables, directory scan with bubble sort (:121-132). Doc says it "briefly blocks the audio thread" (:34). Cost: 100 ms - 1 s. Trigger: slot-0 encoder turn on LOOPER menu when no loop content and drum browse on (handler_looper.orc:460-466). Not speed related (needs gkLpLen1==0) but it IS a guaranteed underrun if reached. Fix: move to a non-RT thread (host side pre-resample all drumloops to 48 kHz tables at boot, or load via a separate low-priority csound/thread and swap by tablecopy over N cycles).
+7. SOUNDMAGIC time-domain instr start (spectral/sm_rack.orc:393,399,411,417 event "i" 251+/241+ with p3=-1; spectral/sm_ideefixer.orc:44-48): SM_IdeeFixer init does 2 x ftgen of 12.5 s = 600,000 points (4.8 MB each, zero-filled, page-faulted) then ftfree, ~1-3 ms per instance at init, other group instrs may have similar big i-time allocs. Trigger: toggling a rack slot on. Fix: allocate once at boot (ftgen at orc level) and zero with a k-spread, or preallocate the instance and keep it idle-gated. Also auto-restart of died instrs (:402-405).
+8. Effects with reinit on a continuously swept parameter: effects/spectraldelay.orc:67 and :152 (reinit RESTART / RESTART_BSC on each 1 ms step of maxdel; each reinit re-runs pvsinit/pvsanal/pvsbuffer sized to iMaxDelay up to 1 s ~ 2x ~190 KB alloc per reinit; ~0.2-1 ms, can occur on consecutive cycles while turning the knob). effects/phaser.orc:15 (reinit on shape/stages change, small). effects/gps.orc:26. Fix: snap maxdel to coarser steps (e.g. 10 ms) or allocate the buffer at max once and vary read time only (sound identical).
+9. schedkwhen grain spawners: effects/mood.orc:253 (instr 404, 17 p-fields), effects/granular.orc:128 (instr 81), effects/habit.orc:136 (instr 68). Per-grain instance alloc ~10-50 us each; spikes only if a burst of grains (high density) lands in one cycle. Check max density caps; use instr pooling (fixed voice array) if density can exceed ~16/cycle.
+10. NAM model activation: loader thread already demoted off core 3; I did not find a NAM table-level k-time op in the .orc (nam/ is a C++ plugin). The size switch ("nam_size", state_persist.orc:1651) is persisted only. If model swaps happen in the opcode's perf call, check src/ for a swap/memcpy under lock (not audited here).
+
+## Always-on cost while bypassed (secondary, not spikes)
+- OSC echo scan: ~330 changed-sites every 4th cycle (handler_osc.orc:11-20) and SM scan every 4th (:617), already throttled.
+- state_persist change scan: ~344 tab:k compares every 2 s (:250+), negligible.
+- ftsavek called every k-cycle with trig 0 (state_persist.orc:1665-66, 1730-31; looper_persist.orc:360-448; sm_persist.orc:182-201): ~20 opcode calls/cycle, trivial.
+- IR reverb liveconv runs 5 lanes x 2 sides unless gated by kIRLanes (ir_reverb.orc:512-537); confirm gating on bypass. Not verified which effects (reverb, spectral delay pvs chain at :70-95, SM rack, hyperguitar link, mood, granular) skip DSP when bypassed; I did not trace each bypass gate (listed for follow-up, a pvsanal/pvsynth pair runs per active instance only if the instr is on).
+- Looper: per-channel DSP only when state is 2 or 3 and len>0 (effects/looper.orc:230), so idle channels cost near zero.
+
+## Suggested order of work
+1. Move/stage the looper ftsavek (#1). 2. Stagger gkOscRefresh sends and recall copies (#2). 3. Spread ir tablecopy (#3). 4. Others as time allows. No effect removed; all fixes preserve sound.
+
+## Not verified
+Nothing measured; no csound/audio run. ftsavek binary/text flag is 0 in all call sites (binary). I did not read the csound ftsave C implementation, so the 18 MB-per-table claim assumes it writes ftlen points (it does in stock Csound).

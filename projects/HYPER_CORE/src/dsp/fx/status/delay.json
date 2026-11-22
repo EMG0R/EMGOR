@@ -1,0 +1,19 @@
+{
+  "id": "delay",
+  "file": "fx_delay.h",
+  "roles": {
+    "AMT": "MIX",
+    "TIME": "TIME",
+    "TONE": "TONE",
+    "MOD": "SPREAD",
+    "FB": "FB"
+  },
+  "actions": {
+    "MAIN": "stochastic hold, momentary (value>0.5 = on, v1 pad 9)",
+    "ALT": "toggle smooth/glide mode (v1 pad 10; off = 3 ms glide)",
+    "CLEAR": "clear both delay lines"
+  },
+  "ops_per_sample": "~110 flops/sample: 2 Hermite reads (~20 each), 2 DC blocks + 2 one-pole LPs (~16), 2 softclip in loop + 2 on the wet (~40), cross-blend/glide/gate/stochastic tick (~14). Mono-in or stereo-in cost identical. 4 expf per block.",
+  "memory_bytes": 1050624,
+  "notes": "2 x 2^17 float rings (2.5 s per side max, SDRAM on Seed). Time changes glide (one-pole, SMOOTH ms) = repitch, no zipper. FB capped 0.95, loop saturated with softclip. Stochastic: tick RATE ms, p=CHANCE opens wet (15 ms gate) and draws time 0.6*sqrt(rnd) s; v1 used a 250 ms mix ramp, shortened because it exceeds a 16th tick. Wet = softclip*0.62 as in v1 tanh~*0.62."
+}

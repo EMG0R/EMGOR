@@ -1,0 +1,5 @@
+inlets = 1; outlets = 0;
+var path = "@LOG@";
+function w(s) { var f = new File(path, "write"); f.open(); f.position = f.eof; f.writestring(s + "\n"); f.close(); }
+function anything() { w(messagename + " " + arrayfromargs(arguments).join(" ")); }
+function done() { w("DONE"); messnamed("max", "quit"); }

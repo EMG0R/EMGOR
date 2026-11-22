@@ -1,0 +1,23 @@
+[Unit]
+Description=DEMIURGE audio IRQ-thread RT priority (derived at runtime -> SCHED_FIFO 85)
+Documentation=man:chrt(1)
+Documentation=file:///usr/local/bin/demiurge-audio-irq-rt.sh
+Before=demiurge.service
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+# Type=simple, not oneshot: the structural pass finishes in milliseconds, then
+# the script keeps watching for a stream to start so it can derive the IRQ that
+# actually paces THIS interface (see the script header). demiurge.service is
+# only ordered after the unit *starts*, so nothing waits on the watch window.
+Type=simple
+ExecStart=/usr/local/bin/demiurge-audio-irq-rt.sh
+RemainAfterExit=yes
+# The script is best-effort by construction and always exits 0. This unit must
+# never end up in `systemctl --failed`: an unboosted IRQ is a latency problem,
+# a failed boot unit is a trust problem.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target

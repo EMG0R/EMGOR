@@ -1,0 +1,817 @@
+/* demiurge-web — the rig, in your hand.
+ *
+ * The palette is not invented here: every value is lifted from the on-device
+ * pygame UI (neptrPhase4_UI.py's BG/ACCENT/OFF_OUTLINE/ALERT constants and its
+ * four analogous slider hues) so the phone and the panel read as one
+ * instrument. Two rules carry over with the colours:
+ *
+ *   ON IS WHITE.  The device draws an engaged effect as a white-filled slab
+ *   with a violet bloom, not as a tinted outline. That is this rig's "on", so
+ *   it is the "on" for everything here: an engaged effect, the loaded patch,
+ *   the chosen interface, the clock master. One idea, one look.
+ *
+ *   PINK IS SILENCE.  #FF5478 is the only colour that leaves the purple
+ *   family. The device reserves it for "this is not making sound"; so does
+ *   this page. Spending it anywhere else would cost it its meaning.
+ */
+
+:root {
+  --ink-0: #14001a;          /* device BG_TOP */
+  --ink-1: #2a0232;          /* device BG_BOT */
+  --raise: rgba(255, 255, 255, .045);
+  --raise-2: rgba(255, 255, 255, .085);
+  --edge: #37193e;           /* EMPTY_OUTLINE — hairlines, empty slots */
+  --rim: #714075;            /* OFF_OUTLINE — an off control's edge */
+  --muted: #9b729e;          /* OFF_TEXT */
+  --fg: #f3e9f4;
+  --accent: #ca2aeb;         /* ACCENT — the violet-magenta glow */
+  --accent-dim: #561862;
+  --lit: #ffffff;
+  --alert: #ff5478;          /* ALERT — reserved for silence */
+  --ok: #7be0a4;
+
+  /* device SLIDER_COLORS, in order — faders cycle through them */
+  --f0: #ca2aeb;
+  --f1: #8a2cf5;
+  --f2: #f52cda;
+  --f3: #9159ff;
+
+  --bar: 62px;               /* top bar height */
+  --pad: 16px;
+  --r: 14px;
+
+  /* The INSTRUMENT's own palette, read off the physical unit — cast purple
+     resin lit blue at the rim, brass knobs, steel toggles, a near-black LCD.
+     It is deliberately outside the app palette above and used in exactly one
+     place, the drawn panel, because it is a picture of an object rather than
+     a piece of UI. The same values live in app.js's NP constant so the SVG
+     stays self-contained. */
+  --resin: #4B3A9E;
+  --resin-deep: #2A1F63;
+  --edge-glow: #1E5BFF;
+  --brass: #C9A227;
+  --brass-hi: #F2DE9B;
+  --brass-lo: #7A5F12;
+  --steel: #C6CBD4;
+  --lcd-bg: #061033;
+  --lcd-bar: #2E6BFF;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html { background: var(--ink-0); }
+
+body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(120% 60% at 50% 0%, #3a0446 0%, transparent 60%),
+    linear-gradient(180deg, var(--ink-0) 0%, var(--ink-1) 100%);
+  background-attachment: fixed;
+  color: var(--fg);
+  font: 400 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI",
+        system-ui, sans-serif;
+  overflow-x: hidden;        /* the page never scrolls sideways; see .scrollx */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── type roles ───────────────────────────────────────────────────────────
+   Two faces, two jobs. Sans at heavy weight and wide tracking for anything
+   you read as a label; mono for anything you read as a NUMBER — a CC, a
+   buffer size, a temperature. Mixing those up is how control surfaces start
+   looking like dashboards. */
+
+.lbl {
+  font: 700 11px/1 -apple-system, system-ui, sans-serif;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.num, .mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.big { font-weight: 800; letter-spacing: -.01em; }
+
+/* ── app shell ───────────────────────────────────────────────────────────── */
+
+#bar {
+  position: sticky; top: 0; z-index: 30;
+  height: calc(var(--bar) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) var(--pad) 0;
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(20, 0, 26, .82);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border-bottom: 1px solid var(--edge);
+}
+#back {
+  flex: none; width: 44px; height: 44px; margin-left: -10px;
+  display: grid; place-items: center;
+  background: none; border: 0; color: var(--fg); font-size: 26px;
+  line-height: 1; cursor: pointer;
+}
+#back[hidden] { display: none; }
+#title {
+  flex: 1; min-width: 0;
+  font: 800 17px/1 -apple-system, system-ui, sans-serif;
+  letter-spacing: .08em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#barnote { flex: none; font-size: 11px; color: var(--muted); }
+
+main { padding: 18px var(--pad) 40px; max-width: 620px; margin: 0 auto; }
+@media (min-width: 700px) { main { padding-top: 26px; } }
+
+.screen { animation: enter .18s cubic-bezier(.2,.7,.3,1); }
+.screen.back { animation-name: enterBack; }
+@keyframes enter { from { opacity: 0; transform: translateX(14px); } }
+@keyframes enterBack { from { opacity: 0; transform: translateX(-14px); } }
+@media (prefers-reduced-motion: reduce) {
+  .screen, .screen.back { animation: none; }
+  * { transition: none !important; }
+}
+
+section { margin-top: 26px; }
+section:first-child { margin-top: 0; }
+.sechead { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; }
+.sechead .lbl { flex: 1; }
+.note { font-size: 13px; line-height: 1.5; color: var(--muted); padding-top: 10px; }
+.note.alert { color: var(--alert); }
+
+/* ── the row: one shape for every list on the page ───────────────────────── */
+
+.row {
+  width: 100%; min-height: 60px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--raise);
+  border: 1.5px solid var(--edge);
+  border-radius: var(--r);
+  color: var(--fg); font: inherit; text-align: left;
+  cursor: pointer;
+  transition: transform .1s, background .12s, border-color .12s;
+}
+.row + .row { margin-top: 8px; }
+.row:active { transform: scale(.985); background: var(--raise-2); }
+.row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row .name { flex: 1; min-width: 0; font-weight: 600; }
+.row .sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400;
+            padding-top: 3px; white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; }
+.row .tag { flex: none; font-size: 12px; color: var(--muted); }
+.row .chev { flex: none; color: var(--rim); font-size: 20px; line-height: 1; }
+.row[disabled] { cursor: default; }
+
+/* THE SIGNATURE. Every "this is on" in the app, from an engaged fuzz to the
+   loaded patch, is this: white fill, ink text, violet bloom. */
+.row.on {
+  background: var(--lit);
+  border-color: var(--lit);
+  color: var(--ink-0);
+  box-shadow: 0 0 0 4px var(--accent-dim), 0 6px 26px -6px var(--accent);
+}
+.row.on .sub, .row.on .tag, .row.on .chev { color: rgba(20, 0, 26, .55); }
+
+/* Pressing an element previews the state it is ABOUT to have, exactly like
+   the panel: finger-down draws the would-be result, release commits it. */
+.row.preview { background: var(--raise-2); border-color: var(--accent); }
+.row.on.preview { background: rgba(255,255,255,.55); box-shadow: none; }
+
+.row.unknown { border-style: dashed; }
+.row.empty { opacity: .32; border-style: dashed; cursor: default; }
+.row.alert { border-color: var(--alert); }
+.row.alert .tag { color: var(--alert); }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.grid2 .row + .row { margin-top: 0; }
+@media (max-width: 380px) { .grid2 { grid-template-columns: 1fr; } }
+
+/* ── home: the state of the rig, above the menu ──────────────────────────── */
+
+.hero {
+  border: 1.5px solid var(--edge); border-radius: 18px;
+  background: linear-gradient(160deg, rgba(202,42,235,.10), transparent 60%);
+  padding: 18px; margin-bottom: 24px;
+}
+.hero .patch { font: 800 30px/1.05 -apple-system, system-ui, sans-serif;
+               letter-spacing: -.02em; padding: 4px 0 2px; word-break: break-word; }
+.hero .chain { font-size: 12px; color: var(--muted); padding-top: 6px; }
+.stats { display: flex; gap: 18px; flex-wrap: wrap; padding-top: 14px; }
+.stat { display: flex; flex-direction: column; gap: 3px; }
+.stat b { font: 600 15px/1 ui-monospace, Menlo, monospace; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+       background: var(--rim); }
+.dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.dot.bad { background: var(--alert); box-shadow: 0 0 8px var(--alert); }
+
+/* ── NEPTR ───────────────────────────────────────────────────────────────── */
+
+.link {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--muted);
+  border: 1px solid var(--edge); border-radius: 10px;
+  padding: 9px 12px; margin-bottom: 16px; line-height: 1.4;
+}
+.link.bad { border-color: var(--alert); color: var(--alert); }
+
+.slot { min-height: 68px; }
+.slot .hw { flex: none; width: 26px; font-size: 11px; color: var(--rim);
+            letter-spacing: .04em; }
+.slot.on .hw { color: rgba(20,0,26,.4); }
+.slot .name { font: 700 18px/1.1 -apple-system, system-ui, sans-serif;
+              letter-spacing: .01em; }
+
+/* Paging matches the panel's swipe: prev / next through the 19 menus, the
+   engine's own nav CCs, so the /menu echo is what actually moves the view. */
+.pager { display: flex; gap: 8px; margin-top: 16px; }
+.pager button {
+  flex: 1; min-height: 52px; border-radius: var(--r);
+  background: var(--raise); border: 1.5px solid var(--edge);
+  color: var(--fg); font: 700 13px/1 system-ui, sans-serif;
+  letter-spacing: .1em; cursor: pointer;
+}
+.pager button:active { background: var(--raise-2); }
+
+/* ── faders ──────────────────────────────────────────────────────────────
+   A fader is a control LOOP, not a write: the engine has no absolute path
+   for these, so the server chases the target with relative encoder detents
+   and the thumb draws the value the engine confirmed. While your finger is
+   down the value goes big and the track lights, because at arm's length on a
+   dark stage that readout is the only thing you can actually see. */
+
+.fader { padding: 14px 0 4px; }
+.fader .head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; }
+.fader .head .lbl { flex: 1; }
+.fader .val {
+  font: 600 16px/1 ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg); transition: font-size .12s, color .12s;
+}
+.fader.grabbing .val { font-size: 26px; color: var(--f); }
+
+.track {
+  position: relative; height: 56px; border-radius: 12px;
+  background: var(--raise); border: 1.5px solid var(--edge);
+  overflow: hidden; touch-action: none; cursor: ew-resize;
+}
+.track .fill {
+  position: absolute; inset: 0 auto 0 0; width: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--f) 55%, transparent),
+                                     var(--f));
+  transition: width .12s linear;
+}
+.fader.grabbing .track { border-color: var(--f); }
+.fader.grabbing .track .fill { transition: none; }
+.track .edge {
+  position: absolute; top: 0; bottom: 0; width: 2px; background: #fff;
+  opacity: .9; transform: translateX(-1px);
+}
+/* Where your finger asked for, while the engine is still catching up. */
+.track .target {
+  position: absolute; top: 6px; bottom: 6px; width: 2px;
+  background: rgba(255,255,255,.55);
+}
+.track[data-unavailable] { opacity: .4; cursor: default; }
+
+/* Armed elsewhere: the engine would refuse every one of these, so they stop
+   looking like controls until the slot above is armed. */
+#params.gated { opacity: .38; pointer-events: none; }
+
+.steps { display: flex; gap: 8px; align-items: stretch; }
+.steps button {
+  flex: none; width: 64px; border-radius: 12px;
+  background: var(--raise); border: 1.5px solid var(--rim);
+  color: var(--fg); font: 600 22px/1 ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+.steps button:active { background: var(--raise-2); border-color: var(--accent); }
+.steps .track { flex: 1; }
+
+.arm {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 10px; padding: 10px 12px;
+  border: 1px solid var(--rim); border-radius: 10px;
+  font-size: 12px; color: var(--muted); line-height: 1.4;
+}
+.arm button {
+  flex: none; background: var(--accent); border: 0; border-radius: 8px;
+  color: #fff; font: 700 11px/1 system-ui, sans-serif; letter-spacing: .1em;
+  padding: 10px 14px; cursor: pointer;
+}
+
+/* The expression pedal is pinned under every menu, unlabeled on the panel.
+   It is the one control with no OSC echo, so its thumb is honestly local. */
+.expr { margin-top: 22px; }
+
+/* ── the virtual instrument ──────────────────────────────────────────────
+   The bare-Pi stand-in for the Teensy, drawn rather than listed: one inline
+   SVG of the cast shell (see buildInstrument() in app.js) plus a second,
+   detached SVG for the expression pedal, because on the floor it is a
+   separate object. Everything here is scenery styling — the tab stops, the
+   focus rings and the touch targets live on the transparent .hit shapes laid
+   over the drawing, which is the only part a finger or a keyboard ever
+   reaches.
+
+   This is the one place in the app allowed to use the instrument palette. It
+   is a picture of an object, not a second design system: the page around it
+   stays in the app's own tokens. */
+
+/* The instrument and the sensors that are sealed inside it, as one unit: a
+   narrow column of compact sliders, then the shell. The shell keeps min-width
+   0 so it can shrink with the viewport instead of forcing the page sideways,
+   and on a phone the column stops being a column and stacks above it. */
+.np-unit { display: flex; align-items: flex-start; gap: 14px; }
+/* The column costs the shell width, and the shell is the thing you are aiming
+   at — so on a wide screen the unit steps outside the page's reading column
+   (still centred on it) and takes the width back. Capped against the viewport
+   so the page never scrolls sideways. */
+@media (min-width: 860px) {
+  .np-unit {
+    --npw: min(1180px, calc(100vw - 40px));
+    width: var(--npw); margin-left: calc(50% - var(--npw) / 2);
+  }
+}
+.np-unit .np-instrument { flex: 1 1 auto; min-width: 0; }
+.np-internals { flex: 0 0 132px; width: 132px; }
+.np-internals .note { padding-top: 2px; }
+.np-internals .fader.compact { padding: 8px 0 0; }
+.np-internals .fader.compact .head { padding-bottom: 4px; gap: 6px; }
+.np-internals .fader.compact .val { font-size: 12px; }
+.np-internals .fader.compact.grabbing .val { font-size: 16px; }
+.np-internals .fader.compact .track { height: 26px; border-radius: 8px; }
+@media (max-width: 700px) {
+  .np-unit { flex-wrap: wrap; }
+  .np-internals { flex: 1 1 100%; width: auto; }
+  .np-int-list { display: flex; flex-wrap: wrap; gap: 0 12px; }
+  .np-int-list .fader.compact { flex: 1 1 130px; }
+}
+
+.np-stage {
+  display: flex; align-items: flex-end; gap: 12px;
+  margin: 4px 0 14px;
+}
+.np-svg { display: block; width: 100%; height: auto; }
+.np-stage .np-body { flex: 1 1 auto; min-width: 0; }
+.np-stage .np-pedal { flex: 0 0 90px; width: 90px; }
+/* On a narrow phone the pedal drops under the body rather than squeezing it
+   — the shell is the thing you are aiming at. */
+@media (max-width: 460px) {
+  .np-stage { flex-wrap: wrap; justify-content: center; }
+  .np-stage .np-body { flex: 1 1 100%; }
+  .np-stage .np-pedal { flex: 0 0 120px; width: 120px; }
+}
+
+/* Etched-into-the-resin lettering, and the numbers beside it. */
+.np-lbl {
+  font: 700 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .1em; fill: #B9C8FF; opacity: .7; text-anchor: middle;
+}
+.np-lbl.small { font-size: 13px; letter-spacing: .06em; }
+.np-val {
+  font: 600 16px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  fill: #EAF0FF; opacity: .92; text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The LCD, in the instrument's own screen style: near-black field, blue
+   bars, small caps under them. */
+.np-scr-menu {
+  font: 800 22px/1 -apple-system, system-ui, sans-serif;
+  letter-spacing: -.01em; fill: #DCE7FF;
+}
+.np-scr-sub {
+  font: 700 13px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: .1em; fill: #6E8FD8;
+}
+.np-scr-lbl {
+  font: 700 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: .06em; fill: #6E8FD8; text-anchor: middle;
+}
+.np-scr-val {
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  fill: #AFC8FF; text-anchor: middle; font-variant-numeric: tabular-nums;
+}
+
+/* The control surface proper: invisible, focusable, and the only thing that
+   takes a pointer. A focus ring drawn as a stroke rather than an outline,
+   because an outline round an SVG shape is a box, not the shape. */
+.np-svg .hit {
+  fill: transparent; cursor: pointer; touch-action: none; outline: none;
+}
+.np-svg .hit:focus-visible {
+  stroke: #fff; stroke-width: 3; stroke-dasharray: 7 5;
+}
+
+/* Moving parts. Each one is a group whose transform is rewritten in JS: the
+   knob's indicator slot, a pushbutton's cap sinking under a thumb, the
+   joystick dome, the pedal treadle. */
+.np-ind, .np-dome, .np-treadle {
+  transition: transform .12s cubic-bezier(.2,.7,.3,1);
+}
+.np-pad { transition: r .1s linear; }
+
+/* The rim LED breathes, faintly, the way the real one does. */
+.np-glow { animation: npBreathe 7s ease-in-out infinite; }
+@keyframes npBreathe { 0%, 100% { opacity: .82; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .np-glow { animation: none; opacity: .9; }
+  .np-ind, .np-dome, .np-treadle, .np-pad { transition: none !important; }
+}
+
+/* Live values at a size a phone can read — the etched numbers on the shell
+   are detail, these are the readout. */
+.np-readout { display: flex; flex-wrap: wrap; gap: 6px; }
+.np-chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  border: 1px solid var(--edge); border-radius: 999px; padding: 6px 10px;
+  background: rgba(30, 91, 255, .07);
+}
+.np-chip b { font: 700 10px/1 system-ui, sans-serif; letter-spacing: .1em;
+             text-transform: uppercase; color: var(--muted); }
+.np-chip i { font: 600 12px/1 ui-monospace, Menlo, monospace; font-style: normal;
+             font-variant-numeric: tabular-nums; color: var(--fg); }
+
+/* What was last sent, in the wire's own words — and the screen reader's
+   only account of a control it cannot see move. */
+.np-status {
+  font-size: 12px; line-height: 1.4; color: var(--muted);
+  padding-top: 10px; min-height: 1.4em;
+}
+
+.dropout-btn {
+  margin-top: 8px; width: 100%; min-height: 40px; border-radius: 10px;
+  background: none; border: 1.5px solid var(--alert); color: var(--alert);
+  font: 700 11px/1 system-ui, sans-serif; letter-spacing: .06em; cursor: pointer;
+}
+.dropout-btn:active { background: var(--alert); color: #fff; }
+
+/* ── sensor mapping ──────────────────────────────────────────────────────
+   Same materials as the rest of the page (raise/edge/accent, the .row
+   shape, the .seg segmented control) applied to a config editor instead of
+   a live control surface. The one new idea is the travel picture — see
+   .travel below — because "which maps cover which slice of this sensor" is
+   the one fact here a number can't say as fast as a bar can. */
+
+.bar.mini { width: 46px; height: 8px; border-radius: 4px; flex: none;
+           background: rgba(255,255,255,.06); overflow: hidden; }
+.bar.mini i { display: block; height: 100%; width: 0; background: var(--accent);
+             border-radius: 4px; }
+
+.field { margin-bottom: 16px; }
+.field .lbl { display: block; padding-bottom: 8px; }
+.field input[type="number"], .field input[type="text"] {
+  width: 100%; min-height: 52px; background: var(--raise); color: inherit;
+  font: inherit; border: 1.5px solid var(--edge); border-radius: var(--r);
+  padding: 0 14px;
+}
+.field input:focus { outline: 2px solid var(--accent); outline-offset: 2px;
+                     border-color: var(--accent); }
+.field .seg { margin-top: 0; }
+
+/* The travel picture: one lane per set of non-overlapping maps, so a stack
+   of bars means "several maps share this slice" rather than one bar hiding
+   another. The live marker only ever moves — see JS update() — never
+   rebuilds, so it can't stutter the calibration form underneath it. */
+.travel-track {
+  position: relative; border: 1.5px solid var(--edge); border-radius: 12px;
+  background: var(--raise); overflow: hidden;
+}
+.travel-seg {
+  position: absolute; height: 20px; border-radius: 6px; background: var(--f);
+  color: #fff; font: 700 10px/20px system-ui, sans-serif; text-transform: uppercase;
+  letter-spacing: .04em; padding: 0 6px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; cursor: pointer;
+}
+.travel-seg.off { opacity: .35; }
+.travel-live {
+  position: absolute; top: 0; bottom: 0; width: 2px; background: #fff;
+  box-shadow: 0 0 8px #fff; transition: left .15s linear; pointer-events: none;
+}
+
+/* The zone editor: two round thumbs over one track, exactly the pointer-
+   capture drag idiom .track/.fader already use elsewhere on the page. */
+.zonepick { padding: 6px 13px; }
+.zonepick .track { position: relative; height: 56px; cursor: default; }
+.zonepick .fill.zonefill {
+  position: absolute; inset: 0 auto 0 0; width: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 45%, transparent),
+                                     var(--accent));
+}
+.zonepick .handle {
+  position: absolute; top: 50%; width: 28px; height: 28px;
+  margin-left: -14px; margin-top: -14px; border-radius: 50%; background: #fff;
+  box-shadow: 0 0 0 4px var(--accent-dim), 0 4px 14px -4px #000;
+  touch-action: none; cursor: grab;
+}
+.zonepick .handle:active { cursor: grabbing; }
+
+.picklist { max-height: 50vh; overflow-y: auto; margin-bottom: 4px; }
+.picklist .row + .row { margin-top: 8px; }
+
+/* ── buttons ─────────────────────────────────────────────────────────────── */
+
+button { font: inherit; }
+.btn {
+  width: 100%; min-height: 54px; border-radius: var(--r);
+  background: var(--raise); border: 1.5px solid var(--edge); color: var(--fg);
+  font: 700 13px/1 system-ui, sans-serif; letter-spacing: .1em;
+  text-transform: uppercase; cursor: pointer;
+}
+.btn:active { background: var(--raise-2); }
+.btn.danger { border-color: var(--alert); color: var(--alert); }
+.btn.armed { background: var(--alert); border-color: var(--alert); color: #fff; }
+.btnrow { display: flex; gap: 8px; margin-top: 10px; }
+.btnrow .btn { flex: 1; }
+
+.seg { display: flex; gap: 8px; }
+.seg button {
+  flex: 1; min-height: 52px; border-radius: var(--r);
+  background: var(--raise); border: 1.5px solid var(--edge); color: var(--fg);
+  font: 700 12px/1 system-ui, sans-serif; letter-spacing: .1em; cursor: pointer;
+}
+.seg button.on {
+  background: var(--lit); color: var(--ink-0); border-color: var(--lit);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* ── meters / sparklines ─────────────────────────────────────────────────── */
+
+.meter { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.meter .lbl { width: 4.2em; flex: none; }
+.meter .v { width: 5.2em; flex: none; text-align: right;
+            font: 600 14px/1 ui-monospace, Menlo, monospace; }
+.meter .bar { flex: 1; height: 8px; border-radius: 4px;
+              background: rgba(255,255,255,.06); overflow: hidden; }
+.meter .bar i { display: block; height: 100%; width: 0; background: var(--accent);
+                border-radius: 4px; transition: width .4s; }
+.meter .bar i.warn { background: #e8b341; }
+.meter .bar i.crit { background: var(--alert); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
+.chip { font: 600 10px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em;
+        border: 1px solid var(--edge); border-radius: 999px; padding: 6px 10px;
+        color: var(--rim); }
+.chip.now { color: var(--alert); border-color: var(--alert); }
+.chip.past { color: #e8b341; border-color: #6a5320; }
+
+.sparks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.spark canvas { width: 100%; height: 44px; display: block;
+                border: 1px solid var(--edge); border-radius: 10px; }
+
+/* Wide content scrolls in its own box; the page never does. */
+.scrollx { overflow-x: auto; -webkit-overflow-scrolling: touch;
+           white-space: nowrap; padding-bottom: 4px; }
+
+/* ── overlays ────────────────────────────────────────────────────────────── */
+
+.hidden { display: none !important; }
+
+#banner {
+  position: sticky; top: calc(var(--bar) + env(safe-area-inset-top)); z-index: 25;
+  background: var(--alert); color: #fff; text-align: center;
+  font: 700 12px/1 system-ui, sans-serif; letter-spacing: .08em;
+  padding: 10px;
+}
+
+.sheet { position: fixed; inset: 0; z-index: 40; background: rgba(8,0,10,.74);
+         display: flex; align-items: flex-end; justify-content: center;
+         backdrop-filter: blur(6px); }
+.sheet-box {
+  width: 100%; max-width: 620px;
+  background: #1d0524; border-top: 2px solid var(--accent);
+  border-radius: 20px 20px 0 0;
+  padding: 22px var(--pad) calc(26px + env(safe-area-inset-bottom));
+}
+.sheet-box p { padding-bottom: 16px; line-height: 1.5; }
+.sheet-box .small { font-size: 12px; color: var(--muted); padding-top: 10px; }
+#pw-input { width: 100%; background: #0d0011; color: inherit; font: inherit;
+            border: 1.5px solid var(--rim); border-radius: 10px; padding: 14px;
+            margin-bottom: 10px; }
+.pw-show { display: flex; gap: 8px; align-items: center; color: var(--muted);
+           font-size: 13px; padding-bottom: 8px; }
+
+#toast {
+  position: fixed; left: 50%; z-index: 50;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  transform: translateX(-50%); max-width: min(92%, 560px);
+  background: #2b0733; border: 1.5px solid var(--accent);
+  border-radius: 12px; padding: 12px 16px; font-size: 13px; line-height: 1.4;
+  box-shadow: 0 10px 40px -10px #000;
+}
+
+/* ── VIDEO ───────────────────────────────────────────────────────────────
+   The video section reuses every shape on this page — .fader, .track, .row,
+   .pager, .link, .note, .chip — and adds exactly one thing the rest of the
+   app never needed: a .pager button that can be LIT. NEPTR's pagers only
+   ever step, so "which of these is the current one" had no expression yet.
+
+   It is the same statement .row.on already makes, in the same tokens, so
+   MODE reads as selected the way an engaged slot reads as engaged. No new
+   colour is introduced: a second palette for the video mode would make it a
+   second program sharing a phone. */
+.pager button.on {
+  background: var(--accent); border-color: var(--accent);
+  color: #14001a; font-weight: 800;
+}
+/* The generator's number is a READOUT wearing a button's clothes, so that a
+   three-across row lines up. It must not look pressable. */
+.pager button:disabled {
+  background: none; border-style: dashed; color: var(--muted);
+  font-variant-numeric: tabular-nums; cursor: default; opacity: 1;
+}
+/* A stepper row followed by the next group's label: without this the label
+   sits on top of the buttons it does NOT belong to, which reads as a caption
+   for the row above rather than a heading for the row below. */
+.pager + .lbl { display: block; margin-top: 20px; }
+
+/* ── VIDEO · the full bank ────────────────────────────────────────────────
+   The VISUALS screen is every parameter the engine has, which is sixty-odd
+   on a 390px phone. Three things make that playable rather than a wall, and
+   all three are navigation rather than decoration: a sticky filter, a row of
+   jump chips, and group headers you can fold. The faders themselves are the
+   app's own .fader — a full-size 56px track, because this is the screen you
+   play from and a thumb does not get smaller when the list gets longer. */
+
+/* Deliberately INSET, not full-bleed. A `margin: 0 -var(--pad)` strip is the
+   obvious way to make a sticky bar reach the screen edges, and it overflows:
+   `.screen` animates in from `translateX(14px)`, so for the length of every
+   navigation into this page the bar's right edge sits 14px past the viewport
+   and the document is horizontally scrollable. Measured at 390px —
+   scrollWidth 404 against a 390 viewport, and it disappears the moment the
+   bar is hidden. On a phone that is a rubber-band wobble on every entry.
+
+   Inset costs nothing: `.link` and `.row` are inset too, so a rounded strip
+   is what the rest of the app already looks like. */
+.vbar {
+  position: sticky; z-index: 20;
+  top: calc(var(--bar) + env(safe-area-inset-top));
+  padding: 10px 12px 8px; margin-bottom: 4px;
+  border: 1px solid var(--edge); border-radius: 14px;
+  background: rgba(20, 0, 26, .94);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+}
+.vbar input[type="search"], .vbar input[type="text"] {
+  width: 100%; min-height: 44px; background: var(--raise); color: inherit;
+  font: inherit; border: 1.5px solid var(--edge); border-radius: 12px;
+  padding: 0 14px; -webkit-appearance: none; appearance: none;
+}
+.vbar input:focus { outline: 2px solid var(--accent); outline-offset: 2px;
+                    border-color: var(--accent); }
+
+/* The jump row scrolls sideways on its own rather than wrapping to three
+   lines and pushing every fader off the screen. */
+.vjump {
+  display: flex; gap: 6px; margin-top: 8px;
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.vjump::-webkit-scrollbar { display: none; }
+.vjump button {
+  flex: none; background: var(--raise); border: 1px solid var(--rim);
+  color: var(--muted); border-radius: 999px; cursor: pointer;
+  font: 700 10px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em;
+  padding: 9px 11px; white-space: nowrap;
+}
+.vjump button:active { border-color: var(--accent); color: var(--fg); }
+.vcount { font-size: 11px; color: var(--muted); padding-top: 8px; }
+
+/* A group header is the fold control, so it is a button the whole width of
+   the screen rather than a chevron someone has to hit. */
+.vgroup { margin-top: 22px; scroll-margin-top: 150px; }
+.vgroup > button {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: none; border: 0; border-bottom: 1px solid var(--edge);
+  padding: 10px 0; cursor: pointer; text-align: left; color: var(--muted);
+  font: 700 11px/1 -apple-system, system-ui, sans-serif;
+  letter-spacing: .14em; text-transform: uppercase;
+}
+.vgroup > button .n { margin-left: auto; font-variant-numeric: tabular-nums; }
+.vgroup > button .fold { color: var(--rim); font-size: 14px; }
+.vgroup.shut > div { display: none; }
+.vgroup.hidden { display: none; }
+
+/* Denser than a curated page — the head loses its slack, the track does not.
+   And the id is shown, because this is the screen where "which knob is that
+   exactly" is the question being asked. */
+.dense .fader { padding: 8px 0 2px; }
+.dense .fader .head { padding-bottom: 6px; }
+.dense .fader.hidden { display: none; }
+.fader .pid {
+  font: 400 10px/1 ui-monospace, Menlo, monospace;
+  color: var(--rim); letter-spacing: .02em;
+}
+
+/* ── the video section on a big screen ────────────────────────────────────
+ *
+ * Everything above is phone-first, and `main` is capped at 620px because a
+ * measure wider than that is unreadable on a handset and unreachable with one
+ * thumb. On a Mac that same cap is a narrow ribbon down the middle of a large
+ * display, with the instrument's seventy-five controls stacked in a single
+ * column you scroll for a minute to cross.
+ *
+ * So the cap lifts for the VIDEO section only, and only past 1000px. Nothing
+ * else on the site changes: this is one section that happens to have far more
+ * simultaneous controls than any other, not a new opinion about layout.
+ *
+ * The groups become columns rather than the faders becoming wider. A fader is
+ * a drag target and past about 420px extra width buys no precision -- it just
+ * makes the pointer travel further for the same 0..1. Columns instead put
+ * GLOBAL, COLOUR and the effect chain side by side, which is the thing the
+ * phone genuinely cannot do: see the whole instrument at once.
+ */
+@media (min-width: 1000px) {
+  body.video-wide main { max-width: min(1680px, 96vw); }
+
+  /* auto-fill, not auto-fit: a lone group keeps its column width instead of
+     stretching a single fader across the whole display. */
+  body.video-wide .dense {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 0 30px;
+    align-items: start;
+  }
+  /* Groups are the grid items, so a group never splits across columns --
+     a heading in one column with its faders in the next is unreadable. */
+  body.video-wide .dense > .vgroup { break-inside: avoid; }
+
+  /* The filter follows you down a page that is now much taller than the
+     viewport. Without this you scroll back to the top to retype a filter,
+     which on a 75-control surface is the most common thing you do. */
+  body.video-wide .vbar {
+    position: sticky; top: calc(var(--bar) + 4px); z-index: 5;
+    background: linear-gradient(180deg, var(--ink-1) 78%, transparent);
+    padding-bottom: 10px;
+  }
+}
+
+/* Past this width the columns stop multiplying and get roomier instead:
+   six columns of faders is a spreadsheet, not an instrument. */
+@media (min-width: 1700px) {
+  body.video-wide .dense { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* The generator grid. Thirty named buttons, so choosing one is a choice
+   rather than thirty taps of NEXT past twenty-nine you did not want. */
+.vpick {
+  display: grid; gap: 6px; margin-top: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.vpick button {
+  background: var(--raise); border: 1px solid var(--edge); color: var(--muted);
+  border-radius: 10px; padding: 10px 8px; cursor: pointer; text-align: left;
+  font: 700 10px/1.25 -apple-system, system-ui, sans-serif;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+.vpick button:hover { border-color: var(--rim); color: var(--fg); }
+.vpick button.on {
+  border-color: var(--accent); color: var(--lit);
+  background: linear-gradient(180deg, var(--accent-dim), var(--raise-2));
+}
+
+/* ── spectral rack page (#/neptr/spectral) ───────────────────────────────── */
+.sm-card { border: 1.5px solid var(--edge); border-radius: var(--r);
+           background: var(--raise); margin-top: 8px; overflow: hidden; }
+.sm-card.lit { border-color: var(--accent); }
+.sm-head { display: flex; align-items: center; gap: 12px; padding: 8px 12px; }
+.sm-head.unc .sm-sw { border-style: dashed; }
+.sm-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+            min-height: 48px; background: none; border: 0; color: var(--fg);
+            font: 700 17px/1.1 -apple-system, system-ui, sans-serif; text-align: left;
+            cursor: pointer; }
+.sm-title .n { flex: 1; min-width: 0; }
+.sm-title .chev { color: var(--rim); font-size: 20px; transition: transform .15s; }
+.sm-card.open .sm-title .chev { transform: rotate(90deg); }
+.badge { font: 700 10px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em;
+         text-transform: uppercase; border: 1px solid var(--rim); color: var(--muted);
+         border-radius: 999px; padding: 5px 8px; }
+.badge.ph1 { color: var(--ok); border-color: var(--ok); }
+.sm-sw { flex: none; width: 52px; height: 30px; border-radius: 15px; cursor: pointer;
+         background: var(--raise-2); border: 1.5px solid var(--rim); position: relative; }
+.sm-sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 21px;
+                height: 21px; border-radius: 50%; background: var(--rim);
+                transition: transform .12s, background .12s; }
+.sm-sw.on { background: var(--accent-dim); border-color: var(--accent); }
+.sm-sw.on::after { transform: translateX(22px); background: var(--lit); }
+.sm-body { padding: 4px 14px 14px; border-top: 1px solid var(--edge); }
+.sm-body.hidden { display: none; }
+.sm-p { padding: 14px 0 12px; border-bottom: 1px solid var(--edge); }
+.sm-p .head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; }
+.sm-p .head .lbl { flex: 1; }
+.sm-p .val { font: 700 16px/1 ui-monospace, Menlo, monospace; }
+.sm-p.unc .val { color: var(--muted); font-style: italic; }
+.sm-p.pinned { border-left: 3px solid var(--accent); padding-left: 10px; }
+.sm-range { width: 100%; height: 34px; accent-color: var(--accent); }
+.sm-sel { width: 100%; min-height: 44px; border-radius: 10px; background: var(--ink-1);
+          color: var(--fg); border: 1.5px solid var(--edge); font: 600 14px system-ui; padding: 0 10px; }
+.sm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sm-chipb { min-width: 56px; min-height: 44px; border-radius: 10px; cursor: pointer;
+            background: var(--raise); border: 1.5px solid var(--edge); color: var(--fg);
+            font: 600 13px ui-monospace, Menlo, monospace; }
+.sm-chipb.on { background: var(--lit); color: var(--ink-0); border-color: var(--lit); }
+.sm-pin { display: flex; gap: 8px; margin-top: 10px; }
+.sm-pin .sm-hs { flex: 1; min-height: 38px; font-size: 12px; }
+.sm-pedal { flex: none; min-height: 38px; padding: 0 12px; border-radius: 10px; cursor: pointer;
+            background: var(--raise); border: 1.5px solid var(--edge); color: var(--muted);
+            font: 700 11px system-ui; letter-spacing: .1em; }
+.sm-pedal.on { background: var(--accent); border-color: var(--accent); color: #fff; }

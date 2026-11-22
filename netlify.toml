@@ -2,3 +2,16 @@
 [functions]
   directory = "function"
   node_bundler = "esbuild"
+
+# projects/ is the source archive, not part of the site: never serve it.
+[[redirects]]
+  from = "/projects/*"
+  to = "/404"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/README.md"
+  to = "/404"
+  status = 404
+  force = true

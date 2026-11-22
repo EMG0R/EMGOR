@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# demiurge-freeze — STAGE-LEVEL freeze of the Demiurge synth, in place.
+#
+# SIGSTOPs the chain's DSP programs (csound/chuck/pd/sclang/faust/node/…) so the
+# synth pauses on the exact sample, but DELIBERATELY LEAVES RUNNING:
+#   * the demiurge-launcher (MainPID) — it owns/manages the PipeWire graph
+#     (demiurge-sink/-source loopbacks, the scrub/reconcile); freezing it breaks
+#     audio for everyone, incl. RetroArch (its audio init blocks → black screen).
+#   * pipewire / wireplumber / pw-* — the audio infra the game needs.
+#
+# Why not `systemctl kill --signal=SIGSTOP` (the whole cgroup)? That froze the
+# launcher too and hung RetroArch's audio init. Verified 2026-06-15.
+#
+# demiurge.service runs as the SAME user (gorpi7), so `kill -STOP` on its child
+# PIDs needs NO sudo. In TESTING_GROUND (empty chain) there are no stage procs,
+# so this is a clean no-op and the game gets a healthy audio graph.
+#
+# Usage: demiurge-freeze [unit]   (default: demiurge.service)
+set -uo pipefail
+UNIT="${1:-demiurge.service}"
+MAIN="$(systemctl show "$UNIT" -p MainPID --value 2>/dev/null)"
+CG="$(systemctl show "$UNIT" -p ControlGroup --value 2>/dev/null)"
+F="/sys/fs/cgroup${CG}/cgroup.procs"
+if [ -z "$CG" ] || [ ! -r "$F" ]; then
+  echo "[freeze] no readable cgroup for $UNIT — nothing frozen"; exit 0
+fi
+
+n=0
+for pid in $(cat "$F" 2>/dev/null); do
+  [ "$pid" = "$MAIN" ] && continue                 # keep the launcher
+  comm="$(cat "/proc/$pid/comm" 2>/dev/null || true)"
+  case "$comm" in
+    # keep ALL infra alive: pipewire/wireplumber/pw-*, and every demiurge-*
+    # helper (launcher, demiurge-clock, …) — those drive the audio graph, so
+    # freezing them re-hangs RetroArch. Only actual DSP-language stages freeze.
+    ""|pipewire*|wireplumber*|pw-*|demiurge*) continue ;;
+  esac
+  if kill -STOP "$pid" 2>/dev/null; then
+    echo "[freeze] STOP $pid ($comm)"; n=$((n + 1))
+  fi
+done
+echo "[freeze] froze $n stage process(es) in $UNIT (launcher + audio infra left up)"

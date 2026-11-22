@@ -1,0 +1,4 @@
+GOR_CAVE|81|wpa|active,saved
+Samsungfridge420|62|wpa|saved
+SpectrumSetup-DEF3|55|wpa|
+CoffeeShop Guest|40|open|

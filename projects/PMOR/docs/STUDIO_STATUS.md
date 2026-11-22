@@ -1,0 +1,26 @@
+# PMOR STUDIO - status (twink/pmor-studio)
+
+## Hardware-verified numbers (real PMOR, Pi 5 host, 2026-11-07)
+* Protocol suite on hardware: 42/42 (simulator 42/42). Schema 493 entries, hash D4789ADD identical sim/hardware.
+* Clock follow (STUDIO, Live-style clock from ALSA seq): tempo locks to the sent value (100.0 BPM measured via STATUS after ~4-5 s; the first seconds read 109-118 while the 24-tick PLL window and the phase slew settle). Steady-state sequenced-note phase vs the clock grid +-8 ms (includes ALSA sender + main-loop emission jitter). Start/Stop/SPP honoured; Stop halts the sequencer; leaving the mode re-arms the tick scheduler (a stale anchor used to burst ~2800 catch-up ticks, fixed).
+* Sample streaming during playback (PMOR master at 124 BPM, drums generative, 8 s of continuous PULL_SAMPLE count=8, ~154 chunks/s = 29 KB/s):
+  MIDI clock out mean tempo 123.986 / 124.063 / 124.042 BPM before / during / after (drift <= 0.08 BPM = 0.06 %, inside timestamp noise); tick interval std 0.89 / 1.27 / 0.73 ms, max deviation 3.2 / 4.8 / 2.8 ms; audio_overruns 0, midi_drops 0, event drops 0, 0 bad chunks. Streaming costs about +0.4 ms tick jitter, no drift, no audio hiccups counted.
+* Main-loop service gap (max between USB-service passes): 2-7 ms steady (was masked by a wrong metric). One 246 ms stall on CLOCKMODE save (QSPI erase), EDIT only.
+* Sample pull rate: 28 chunks/s with a per-chunk SD open (before), 154 chunks/s with the 2 KB block cache.
+
+## Known gaps / decisions for the manager
+1. Follow quality was measured with an ALSA-sequencer clock, not Live. Ticks are stamped when the main loop processes them (<=2-7 ms late); expect similar. If Live shows more phase wobble, add a USB-ISR arrival stamp.
+2. Manifest `ver` is 0 for card samples (no RTC). Hosts should key caches on (id, len).
+3. The Pi's NEPTR stack shares PMOR's ALSA MIDI port: tests had to cut the Midi Through links (tools/iso_pmor_midi.sh, the connect service restores them within ~1 s). In STUDIO/EDIT PMOR emits notes/CCs that the NEPTR hub would also receive if linked.
+4. QSPI settings write (CLOCKMODE) blocks the main loop ~250 ms (MIDI clock hiccup once); do it only from the editor.
+5. Builder #2 owns ui/: names to wire in the settings menu: `studioClockMode()/studioSetClockMode()/studioClockModeName()` (hw/studio.h, 0 AUTO 1 INTERNAL 2 FOLLOW 3 MASTER); sampler pool browser API: `patchPoolScan/patchPoolLen/patchPoolVer/patchPoolRead`, `patchAssignSample/patchAssignPoll` (store/patch.h), id = patch*16+slot.
+6. My core edits that touch builder #2's files (already pushed on twink/pmor-studio): event hooks + `synEmitOff` in synth.cpp, `EV_DRUM_ON` in drums.cpp, `EV_SMP_ON` in sampler.cpp, `synthReseed` in synth.cpp. Merge expects those lines kept.
+
+## Phase 4 measurements (real PMOR, ALSA-sequencer sender on the Pi, 2026-11-07)
+Method: `tools/iso_pmor_midi.sh` cuts the NEPTR hub links, `midiprobe clock` sends Start + 24 PPQN, STATUS reads PMOR's own counters (`ferr_us` = follower phase error mean/p99/max over the last <=256 corrections, `iv_us` = tick-to-tick interval min/max seen at PMOR, `late_us` = IRQ stamp vs processing time).
+* **Found a real bug:** the follower phase correction had the wrong sign (positive feedback) since it was written, so the grid never locked: error was uniform over +-half a step (mean 35-50 ms at 100 BPM, p99 60-75 ms). Fixed in 355d107 (late boundary now moves earlier). After the fix a fresh lock measures mean 0.8 ms / p99 4.6 ms over the first 29 corrections.
+* **Tempo lock:** 100 BPM sender: first stable estimate 0.2 s after the first tick (target < 1 s; before: 4-5 s). 70 BPM: 0.9 s (6 ticks = 0.21 s, first change reported later). 140 BPM: 0.13 s.
+* **IRQ stamp quality:** stamp vs main-loop processing time -1.3 .. +0.9 ms (stamps are right; the loop is no longer the limit).
+* **Remaining problem (open):** over 30+ s runs the follower error degrades to mean ~6-12 ms, p99 ~40-60 ms (after min-filter phase estimator and median tempo estimator, commits 4458d0c, 56d9a07). Cause measured: this sender delivers ticks in bursts (tick intervals seen at PMOR 0.04 .. 29 ms around a 25 ms nominal) and the tempo estimate shows a +4 % plateau (~0.6 s) about 0.5-1 s after Start in every run, which skews the grid period and the 1/4-gain phase loop then sits tens of ms off. Not yet resolved; needs a trace of the tempo estimator input around that moment, ideally with Live as the sender (CoreMIDI does not bunch) before more tuning.
+* **CLOCKMODE save stall:** was a 246 ms main-loop stall (QSPI erase). Now a deferred card-file write: max service gap 3 ms across set + write (3 STATUS reads), 0 audio overruns.
+* **skynet host client (`max/pmor_host.h`)** on the real PMOR via `build_host/hostclient_hw /dev/ttyACM0`: **19 passed, 0 failed** (connect + full resync, host edit/restore, range error, current-patch sample pull, cache skip, GET_PATCH resync, 4 s auto-PING, restore assertion, port close/reopen resync in EDIT, BYE). Same client vs the simulator: 25/25 (`test_hostclient`, now in check.sh). No firmware or protocol issue found; notes for skynet: `M` token 5 is `ver` (0 for card samples), and hardware sample pulls are ~150 chunks/s so a 2 s sample takes ~6 s.
