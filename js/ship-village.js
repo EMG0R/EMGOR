@@ -39,7 +39,8 @@ function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.l
 const VS = 1;                    // 2026-10-14: the whole village layout is 2.5x (huts, doors, well, stall, plaza, paths); villagers + golums stay their size
 const RP = 7 * VS;                // plaza ring radius (villagers walk it)
 const BIG = 1.0;            // Q60: human scale (1 m, H = 1.75): hut door 1.2 H (2.1 m), eave 1.5 H (2.65 m)
-const TW = 0.5 * BIG, DOOR_W = 1.7 * BIG, DOOR_H = 2.1 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap, foundation depth
+const TW = 0.9,      // wall thickness 0.9 m = 0.51 H (half-thickness >= 0.25 H so the 0.3 H foot step can never tunnel a wall)
+   DOOR_W = 1.7 * BIG, DOOR_H = 2.1 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap, foundation depth
 const TMPL = [{ id: 'cottage', w: 6 * BIG, d: 5 * BIG, h: 2.65 * BIG, roof: 'gable' }, { id: 'longhouse', w: 9 * BIG, d: 5 * BIG, h: 2.65 * BIG, roof: 'gable' }, { id: 'tower', w: 5 * BIG, d: 5 * BIG, h: 3.8 * BIG, roof: 'pyramid' }];
 const ROLE_COL = { farmer: 0x8FD06A, trader: 0xFFD36A, elder: 0xB08CFF, kid: 0xFF8AE0 };
 const WALK = 2.6, GOLUM_V = 3.1, GOLUM_HP = 600, GOLUM_DMG_MOB = 45, GOLUM_DMG_ME = 12, VILL_ACT_L = 40;
