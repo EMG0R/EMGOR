@@ -115,8 +115,8 @@ Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batc
 - [x] A7 Slow motion: sway 1.7 -> 0.35 + gust wave, cloud shadows on terrain, slower water, faint aurora on violet nights
 - [x] A8 Bloom on emissives only: threshold 1.0, strength 0.35, explicit HDR emissives, accent-only flora tips
 - [x] A9 (rounded, partial: hub/station untouched, no planet tint) Structures from the planet ramp (village, 7/11, hub), shared lighting + fog, brand colour only on signs
-- [ ] A10 Creatures/villagers/suit from the ramp + accent; roles by shape not hue
-- [ ] A11 HUD takes the planet accent/sky on land; idle-hide hotbar/markers
+- [x] A10 (suit + villagers + YOU/fighter; creature tint = patch in ship-planet.js pending) Creatures/villagers/suit from the ramp + accent; roles by shape not hue
+- [x] A11 HUD takes the planet accent/sky on land; idle-hide hotbar/markers
 - [x] A12 (own pass, landed only) Post folded into OutputPass: vignette, grain, violet black lift, split-tone
 - [x] A13 Delete list: ground noise, accent trees, mushroom/palm, slab rocks, day stars, slope grey, terra speckle, 1 hut template, day torches
 - [x] A14 Night pass: indigo sky, cool moon key, bio on accent only, fireflies 400 -> 120

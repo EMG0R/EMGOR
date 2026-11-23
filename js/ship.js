@@ -4564,7 +4564,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         holder.add(h.group);
         holder.traverse(function (o) { o.frustumCulled = false; });
-        return { group: holder, nozzles: function () { return (h.group && h.group.userData && h.group.userData.jetNozzles) || null; }, setSuit: function (s) { try { if (h.setSuit) h.setSuit({ suit: s }); } catch (e) { /* ignore */ } }, setSkin: function (o) { try { if (h.setSuit) h.setSuit(o); } catch (e) { /* ignore */ } }, update: function (dt, st) { try { h.update(dt, st); } catch (e) { /* ignore */ } }, setColor: function (c) { try { h.setColor(c); } catch (e) { /* ignore */ } }, dispose: function () { try { h.dispose(); } catch (e) { /* ignore */ } } };
+        return { group: holder, nozzles: function () { return (h.group && h.group.userData && h.group.userData.jetNozzles) || null; }, setSuit: function (s) { try { if (h.setSuit) h.setSuit({ suit: s }); } catch (e) { /* ignore */ } }, setSkin: function (o) { try { if (h.setSuit) h.setSuit(o); } catch (e) { /* ignore */ } }, update: function (dt, st) { try { h.update(dt, st); } catch (e) { /* ignore */ } }, setColor: function (c) { try { h.setColor(c); } catch (e) { /* ignore */ } }, setPal: function (o) { try { if (h.setPal) h.setPal(o); } catch (e) { /* ignore */ } }, pal: function () { return (h.group && h.group.userData && h.group.userData.pal) || null; }, dispose: function () { try { h.dispose(); } catch (e) { /* ignore */ } } };
     }
     function hullDrop() {                       // how far below the hull origin the landing feet reach, in L
         var d = 0;
@@ -8170,7 +8170,41 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             }
         } else if (obMark !== OB.markKind(c)) obMark = OB.markKind(c);
     }
+    // ── A10/A11: planet palette -> suit (base = ramp mid, trim = ramp light, accent = the player's own colour) + villagers + HUD accent; idle-hide of the ground HUD ──
+    var PAL_FB = { ramp: ['#1B1033', '#3A2466', '#6B3FB0', '#B58CF0', '#E0C8FF'], accent: '#A855F7' }, palS = { sig: '', obj: null, ground: false }, idleS = { t: 0, on: false };
+    function youSuit(f) {                      // the pixel-battle YOU sprite takes the suit hue (drawSprite recolours the pilot atlas when hue >= 0)
+        var h = suitMid(), r = (h >> 16 & 255) / 255, g = (h >> 8 & 255) / 255, b = (h & 255) / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, hu = 0;
+        if (d > 0.02) { hu = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; hu = (hu * 60 + 360) % 360; f.hue = hu; }
+        return f;
+    }
+    function suitMid() { var p = palOf(); return palHex(p.ramp[2]); }
+    function palOf() { var p = ps && ps.palette; return (p && Array.isArray(p.ramp) && p.ramp.length >= 5 && p.accent != null) ? p : PAL_FB; }
+    function palHex(v) { return typeof v === 'string' ? parseInt(v.replace('#', ''), 16) : (v >>> 0); }
+    function inkOn(hex) {                      // lighten toward white until >= 4.5:1 on the HUD panel (#0d0221)
+        var c = [hex >> 16 & 255, hex >> 8 & 255, hex & 255], k = 0, i, L;
+        function lum(a) { return 0.2126 * lin(a[0]) + 0.7152 * lin(a[1]) + 0.0722 * lin(a[2]); }
+        function lin(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+        for (; k <= 1; k += 0.05) { var m = [0, 1, 2].map(function (j) { return Math.round(c[j] + (255 - c[j]) * k); }); L = lum(m); if ((L + 0.05) / (lum([13, 2, 33]) + 0.05) >= 4.5) { c = m; break; } }
+        return c;
+    }
+    function palTick(dt) {
+        var ground = gmode === 'landed' || gmode === 'foot', p = palOf(), ec = effColor(), sig = p.ramp.join() + '|' + p.accent + '|' + ec + '|' + ground;
+        if (sig !== palS.sig || (hum.obj && hum.obj !== palS.obj)) {
+            palS.sig = sig; palS.obj = hum.obj;
+            try { if (humanMod && humanMod.charPalette) { if (hum.obj) hum.obj.setPal(humanMod.charPalette(p.ramp, ec)); if (ground) humanMod.setWorldPalette({ ramp: p.ramp, accent: p.accent }); } } catch (e) { /* ignore */ }
+            var ah = ground ? palHex(p.accent) : 0xA855F7, ik = inkOn(ah), ink = 'rgb(' + ik.join(',') + ')';
+            hud.style.setProperty('--hud-accent', hexCss(ah)); hud.style.setProperty('--hud-accent-ink', ink);
+            hud.style.setProperty('--hud-ink', ground ? ink : ''); hud.style.setProperty('--hud-line', ground ? 'rgba(' + (ah >> 16 & 255) + ',' + (ah >> 8 & 255) + ',' + (ah & 255) + ',0.55)' : '');
+            hud.style.setProperty('--hud-dim', ground ? 'rgba(' + ik.join(',') + ',0.7)' : '');
+        }
+        if (hum.moving || hum.air || hum.running) idleS.t = 0; else idleS.t += dt;
+        var want = ground && idleS.t > 4 && !document.body.classList.contains('sh-fight');
+        if (want !== idleS.on) { idleS.on = want; hud.classList.toggle('is-idle', want); }
+    }
+    function idleWake() { idleS.t = 0; if (idleS.on) { idleS.on = false; hud.classList.remove('is-idle'); } }
+    ['keydown', 'mousemove', 'pointerdown', 'wheel', 'touchstart'].forEach(function (ev) { window.addEventListener(ev, idleWake, true); });
     function onbTick(dt) {
+        palTick(dt);
         var pf = curProfile(); if (!pf || !pf.onb || state !== 'piloting') { onbSet(''); if (onb.card) { onb.card = false; elStart.classList.remove('is-on'); } return; }
         var o = pf.onb, txt = '', c = obChain();
         if (c && !o.c.card && !onb.card && (gmode === 'fly' || gmode === 'foot')) { o.c.card = true; obCardShow(); writeSave(); }      // first entry of a new profile
@@ -8831,7 +8865,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 mode: 'local', seed: seed || 1, stageSamples: samples, stocks: 2, skyAlpha: 0,
                 skyPalette: night > 0.5 ? { top: '#07051a', horizon: '#2a1a5a' } : { top: '#2a4a9a', horizon: '#9ac0ff' },
                 fighters: [
-                    Object.assign({ slot: 0, styleId: curStyleId || 'PILOT', name: userName(), color: effColor(), isLocal: true, isBot: false, id: 'me' }, meF || {}),
+                    Object.assign({ slot: 0, styleId: curStyleId || 'PILOT', name: userName(), color: suitMid(), isLocal: true, isBot: false, id: 'me' }, meF || {}),
                     Object.assign({ slot: 1, styleId: styleNpc, name: info.name, color: 0xffd36a, isLocal: false, isBot: true, id: info.id, level: role === 'elder' || role === 'golum' ? 3 : 2, tier: FG_TIER[role] || 1 }, npcF || {})
                 ]
             });
@@ -9753,7 +9787,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             aPlay('ui', { vel: 0.6, pitch: 0.7 });
             var u = opt.catchU;
             BT.ctrl = B.startBattle({
-                mine: mineMon ? B.fighterOf(mineMon) : B.youFighter(), wild: wf, sprite: function (q) { return ps.creatSprite ? ps.creatSprite(q.v, q.rgb, q.view, q.px) : null; }, chart: ptChart(), instant: !!opt.instant, rng: opt.rng,
+                mine: mineMon ? B.fighterOf(mineMon) : youSuit(B.youFighter()), wild: wf, sprite: function (q) { return q.v < 0 ? null : (ps.creatSprite ? ps.creatSprite(q.v, q.rgb, q.view, q.px) : null); }, chart: ptChart(), instant: !!opt.instant, rng: opt.rng,
                 catchU: u === undefined ? undefined : function () { return u; },
                 bonus: function () { return (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0; },
                 balls: { tier: function () { return gbBallTier(pf); }, n: function () { return gbBallCount(pf); }, use: function (t) { for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + t) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; } invFill(); } },

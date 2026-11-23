@@ -10,6 +10,8 @@
     --hud-hot: var(--cyan);            /* act-now / focus only */
     --hud-alert: #ff3a4a;              /* danger / damage only */
     --hud-coin: #FFD36A;               /* currency only */
+    --hud-accent: #A855F7;             /* planet accent while landed / on foot (ship.js palTick), violet in space */
+    --hud-accent-ink: #E0AAFF;         /* the accent lightened to >= 4.5:1 on the HUD panel: use for text */
     --hud-font: 'Monocraft', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
@@ -853,3 +855,7 @@ body.sh-photo [class*=" sh-"]:not(.sh-ph):not(.sh-fade) { display: none !importa
 
 body.sh-photo .gor-prompt, body.sh-photo .gor-reveal, body.sh-photo .gor-toasts, body.sh-photo .gor-help { display: none !important; }
 .is-inv .gor-toasts, .is-inv .gor-prompt, .is-inv .gor-reveal, .is-inv .sh-qt { opacity: 0; }
+
+/* A11: ground HUD idle-hide. Fades after 4 s without input or motion, returns within 120 ms. Never touches the active prompt (.sh-land), the toast line, health or coins. */
+#ship-hud .sh-hot, #ship-hud .sh-pl, #ship-hud .sh-hl, #ship-hud .sh-gd, #ship-hud .sh-cvm, #ship-hud .sh-ribbon { transition: opacity 0.1s linear; }
+#ship-hud.is-idle .sh-hot, #ship-hud.is-idle .sh-pl, #ship-hud.is-idle .sh-hl, #ship-hud.is-idle .sh-gd, #ship-hud.is-idle .sh-cvm, #ship-hud.is-idle .sh-ribbon { opacity: 0 !important; transition: opacity 0.4s ease; pointer-events: none; }

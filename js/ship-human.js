@@ -68,6 +68,22 @@ const JOINTS = {
 };
 const BONES = Object.keys(JOINTS);
 
+// A10: planet palette -> characters. ramp = 5 hex dark->light, accent = planet accent. Villagers read it (and re-tint live on change); the player gets setPal() from ship.js.
+let WORLD = null, WSIG = '';
+const LIVE = new Set();
+const hx = v => typeof v === 'string' ? parseInt(v.replace('#', ''), 16) : (v >>> 0);
+export function setWorldPalette(p) {
+  const ok = p && Array.isArray(p.ramp) && p.ramp.length >= 5;
+  const w = ok ? { ramp: p.ramp.slice(0, 5).map(hx), accent: p.accent != null ? hx(p.accent) : null } : null;
+  const sig = w ? w.ramp.join(',') + '|' + w.accent : '';
+  if (sig === WSIG) return false;
+  WORLD = w; WSIG = sig; LIVE.forEach(f => f()); return true;
+}
+export function charPalette(ramp, accent) {     // the suit set for a ramp: base = mid stop, trim = light stop, deep = dark stop, ONE accent
+  if (!Array.isArray(ramp) || ramp.length < 5) return null;
+  const r = ramp.map(hx); return { suit: r[2], trim: r[3], deep: r[0], accent: hx(accent) };
+}
+
 export function createHuman(THREE, opts = {}) {
   const VIL = opts.lod === 'villager';      // Q52 villager LOD: <= VILLAGER_TRI_BUDGET tris, no pack / belly / ears / blinking face, hats only; geometry shared per colour+role via VILLAGER_GEO
   const theme = new THREE.Color(opts.color != null ? opts.color : 0xB86CFF);
@@ -77,14 +93,15 @@ export function createHuman(THREE, opts = {}) {
   const PAL = { base: 0x3A3446, panel: DARK, accent: MARK, glow: 0xF4F8FF, dark: DARK, metal: GREY };
   // palette channels: 'T' theme (torso, arms), 'B' base (head, mitts), 'A' accent (boots, belly, trim), 'D' deep (legs, pelvis). Parts tagged with a channel repaint on setColor / setRig.
   const CH = { T: 1, B: 2, A: 3, D: 4 }, cols = [null, new THREE.Color(), new THREE.Color(), new THREE.Color(), new THREE.Color()];
-  let palette = null, rimMat = null, rimHex = null;      // rimHex: planet accent (setAccent) tints the rim light
+  let lastPal = null, live = null, palette = null, rimMat = null, rimHex = null, own = null;      // rimHex: planet accent (setAccent) tints the rim light
   // palette: muted violet-grey suit (theme pulled toward a grey-violet), pale lilac base, deep shade, ONE soft accent
   function derive() {
-    const p = palette || {};
-    cols[1].copy(theme).lerp(_W.set(0x8E87A3), 0.5);
-    if (p.base != null) cols[2].set(p.base); else cols[2].copy(theme).lerp(_W.set(0xE8E2F2), 0.78);
-    if (p.accent != null) cols[3].set(p.accent); else cols[3].set(0xE0A45C);
-    if (p.deep != null) cols[4].set(p.deep); else cols[4].copy(theme).lerp(_W.set(0x2A2438), 0.72);
+    const p = palette || {}, o = !palette ? (own || (VIL && WORLD ? charPalette(WORLD.ramp, WORLD.accent != null ? WORLD.accent : theme.getHex()) : null)) : null;
+    if (o) cols[1].set(o.suit); else cols[1].copy(theme).lerp(_W.set(0x8E87A3), 0.5);
+    if (p.base != null) cols[2].set(p.base); else if (o) cols[2].set(o.trim); else cols[2].copy(theme).lerp(_W.set(0xE8E2F2), 0.78);
+    if (p.accent != null) cols[3].set(p.accent); else if (o) cols[3].set(o.accent); else cols[3].set(theme).lerp(_W.set(0xFFFFFF), 0.25);
+    if (p.deep != null) cols[4].set(p.deep); else if (o) cols[4].set(o.deep); else cols[4].copy(theme).lerp(_W.set(0x2A2438), 0.72);
+    lastPal = { suit: cols[1].getHex(), trim: cols[2].getHex(), accent: cols[3].getHex(), deep: cols[4].getHex() };
     if (rimMat) { if (rimHex != null) rimMat.uniforms.uRim.value.set(rimHex); else rimMat.uniforms.uRim.value.copy(cols[3]).lerp(_W.set(0xFFFFFF), 0.25); }
   }
   const _W = new THREE.Color();
@@ -208,7 +225,7 @@ export function createHuman(THREE, opts = {}) {
     return finish();
   }
   const freeSet = S => { S.geoLit.dispose(); S.geoEmi.dispose(); if (S.geoGlass) S.geoGlass.dispose(); };
-  let hiKey = VIL ? 'b|' + theme.getHex() : null, attKey = null;
+  let hiKey = VIL ? 'b|' + theme.getHex() + '|' + WSIG : null, attKey = null;
   let hi = VIL ? VILLAGER_GEO.acquire(hiKey, () => genGeo('vil')) : genGeo('hi');
   const { geoLit, geoEmi } = hi;
 
@@ -229,6 +246,7 @@ export function createHuman(THREE, opts = {}) {
   const group = new THREE.Group();
   group.add(lit, emi);
   group.userData.eyeHeight = 0.93;
+  Object.defineProperty(group.userData, 'pal', { get: () => lastPal });
   group.userData.headPos = new THREE.Vector3(0, 0.93, 0);
 
   const loSets = [];     // low-LOD geometry sets (built lazily) that setColor must repaint too
@@ -449,7 +467,7 @@ export function createHuman(THREE, opts = {}) {
     applySuit(o);
     let S;
     if (VIL) {
-      const k = 'a|' + theme.getHex() + '|' + cur.vill + '|' + JSON.stringify([cur.suit, cur.role, cur.rig]);
+      const k = 'a|' + theme.getHex() + '|' + (VIL ? WSIG : '') + '|' + cur.vill + '|' + JSON.stringify([cur.suit, cur.role, cur.rig]);
       if (attKey && attKey !== k) VILLAGER_GEO.release(attKey, freeSet), attKey = null;
       if (attKey !== k) { S = VILLAGER_GEO.acquire(k, genAtt); if (!S) return; attKey = k; } else S = attSet.cur;
     } else { S = genAtt(); if (!S) return; for (const g of [attLit.geometry, attEmi.geometry, attGlass.geometry]) if (g !== EMPTY_GEO) g.dispose(); }
@@ -652,10 +670,13 @@ export function createHuman(THREE, opts = {}) {
   }
 
   function dispose() {
+    if (live) LIVE.delete(live);
     if (hiKey) VILLAGER_GEO.release(hiKey, freeSet); else freeSet(hi); if (loGroup) loGroup.userData.geoms.forEach(g => g.dispose()); if (attKey) VILLAGER_GEO.release(attKey, freeSet); else { attLit.geometry.dispose(); attEmi.geometry.dispose(); if (attGlass.geometry !== EMPTY_GEO) attGlass.geometry.dispose(); } if (pet) pet.dispose(); flameGeo.dispose(); puffGeo.dispose(); glassMat.dispose(); EMPTY_GEO.dispose(); flameMatO.dispose(); flameMatI.dispose(); for (const p of JETFX.puffs) p.m.material.dispose(); litMat.dispose(); emiMat.dispose(); skeleton.dispose();
     if (group.parent) group.parent.remove(group);
   }
-  return { group, update, setColor, setSuit, setRig, pet, dispose, setAccent(hex) { rimHex = hex; derive(); } };
+  function setPal(o) { const n = o && o.suit != null ? o : null; if (JSON.stringify(n) === JSON.stringify(own)) return; own = n; repaint(); }
+  if (VIL) { const f = () => { unshare(); repaint(); }; LIVE.add(f); live = f; }
+  return { group, update, setColor, setSuit, setRig, setPal, pet, dispose, setAccent(hex) { rimHex = hex; derive(); } };
 }
 
 // ── companion critter: 3 silhouettes, ~0.4 human height (feet at y=0, forward -Z), <= 600 tris, no skeleton ──

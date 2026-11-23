@@ -1616,3 +1616,34 @@ async function g25(T, o) {
     return { pass: false, error: 'no village planet', tries: tries };
 }
 tests.g25 = g25;
+
+// ── gH1 (A10/A11): on foot the suit base == the ramp mid stop (+/- 1/255) and --hud-accent == ps.accent; the hotbar fades to 0 after 4.5 s without input and is back within 0.2 s of a keydown. ps.palette absent -> the HUD violet fallback family. ──
+async function gH1(T, o) {
+    var ship = T.ship, out = { tries: [] }, nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    for (var ni = 0; ni < nodes.length && ni < 4 && ship.gmode !== 'foot'; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) continue;
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+    }
+    if (ship.gmode !== 'foot') { out.pass = false; out.error = 'never reached foot'; return out; }
+    T.step(30);
+    var P = ship.ps.palette, FB = { ramp: ['#1B1033', '#3A2466', '#6B3FB0', '#B58CF0', '#E0C8FF'], accent: '#A855F7' }, pal = P && P.ramp && P.ramp.length >= 5 && P.accent != null ? P : FB;
+    function rgb(h) { h = typeof h === 'string' ? parseInt(h.replace('#', ''), 16) : h; return [h >> 16 & 255, h >> 8 & 255, h & 255]; }
+    var got = ship._g.hum.obj.pal(), want = rgb(pal.ramp[2]), have = got ? rgb(got.suit) : [-9, -9, -9];
+    out.suitOk = want.every(function (v, k) { return Math.abs(v - have[k]) <= 1; }); out.suit = got && got.suit; out.want = pal.ramp[2];
+    var hud = document.getElementById('ship-hud'), tok = getComputedStyle(hud).getPropertyValue('--hud-accent').trim(), ta = rgb(tok), wa = rgb(pal.accent);
+    out.accentOk = ta.every(function (v, k) { return Math.abs(v - wa[k]) <= 1; }); out.token = tok; out.accent = pal.accent;
+    var hot = hud.querySelector('.sh-hot');
+    T.kd('KeyL'); T.ku('KeyL'); T.step(10);
+    T.step(330, 1 / 60);                                           // 5.5 s of virtual time, no input, no motion
+    await new Promise(function (r) { setTimeout(r, 600); });
+    out.hiddenOp = +getComputedStyle(hot).opacity; out.idleClass = hud.classList.contains('is-idle');
+    T.kd('KeyL'); T.ku('KeyL');
+    await new Promise(function (r) { setTimeout(r, 200); });
+    out.backOp = +getComputedStyle(hot).opacity;
+    out.pass = !!(out.suitOk && out.accentOk && out.hiddenOp === 0 && out.idleClass && out.backOp >= 0.99);
+    return out;
+}
+tests.gH1 = gH1;
