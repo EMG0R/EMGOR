@@ -1572,3 +1572,47 @@ async function g26(T, o) {
     return out;
 }
 tests.g26 = g26;
+// ─── g25 (Q55): the VISIBLE slab mesh top equals the registered floor (ps.groundTruth) at sample points on the 7/11 apron + parking slabs and the Burger House lot (within 0.02 H);
+//   also the Q60 scale numbers (7/11 door 1.25 H tall, interior ceiling 1.8 H, counter 0.55 H) read back from the registered walls/aisles. Lands on foot like g23. ──────────────────────────
+async function g25(T, o) {
+    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), ps = ship.ps, tries = [], nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    nodes.sort(function (a, b) { return (a.id.indexOf('metagor') >= 0 ? -1 : 0) - (b.id.indexOf('metagor') >= 0 ? -1 : 0); });
+    for (var ni = 0; ni < nodes.length && ni < 4; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) { tries.push(node.id + ': no land dir'); continue; }
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+        if (ship.gmode !== 'foot') { tries.push(node.id + ': not on foot'); continue; }
+        T.step(120); if (!ship.village.make()) { tries.push(node.id + ': no village'); T.fly(); continue; }
+        T.step(300);
+        var w = ship._g.world(), grp = w.group, meshes = [], rc = new THREE.Raycaster(), rows = [], bad = [], worst = 0;
+        grp.updateMatrixWorld(true); grp.traverse(function (m) { if (m.isMesh && !m.isSkinnedMesh && m.geometry && m.geometry.attributes.color && m.geometry.attributes.position) meshes.push(m); });
+        function probe(name, M, pts) {
+            var e = M.elements, up = new THREE.Vector3(e[4], e[5], e[6]).normalize(), dw = up.clone().transformDirection(grp.matrixWorld).negate();
+            pts.forEach(function (p) {
+                var org = new THREE.Vector3(p[0], p[2] + 6, p[1]).applyMatrix4(M).applyMatrix4(grp.matrixWorld); rc.set(org, dw); rc.far = 1e6;
+                var hits = rc.intersectObjects(meshes, false);
+                if (!hits.length) { bad.push(name + ' no hit @' + p[0] + ',' + p[1]); return; }
+                var hp = grp.worldToLocal(hits[0].point.clone()), l = hp.length(), gt = ps.groundTruth(hp.x / l, hp.y / l, hp.z / l), er = (l - gt) / H;
+                rows.push([name, p[0], p[1], +er.toFixed(4)]); if (Math.abs(er) > worst) worst = Math.abs(er); if (Math.abs(er) > 0.02) bad.push(name + '@' + p[0] + ',' + p[1] + ' ' + er.toFixed(3) + ' H');
+            });
+        }
+        var st = w.stores[0], I = st && st.interior, bh = w.burgerHouse, fl = I && I.floors;
+        if (I && fl && fl.length >= 3) {
+            var ap = fl[2], pts = [[ap.x0 + (ap.x1 - ap.x0) * 0.25, (ap.z0 + ap.z1) / 2, ap.top], [(ap.x0 + ap.x1) / 2, ap.z0 + 0.6, ap.top], [ap.x0 + (ap.x1 - ap.x0) * 0.8, ap.z1 - 0.6, ap.top]];
+            for (var pi = 3; pi < fl.length && pi < 6; pi++) pts.push([(fl[pi].x0 + fl[pi].x1) / 2 + 1.0, (fl[pi].z0 + fl[pi].z1) / 2 - 1.5, fl[pi].top]);
+            probe('7/11', I.matrix, pts);
+        }
+        if (bh && bh.floors && bh.floors.length) { var lt = bh.floors[0]; probe('burger', bh.matrix, [[0, lt.z1 - 2.2, lt.top], [-2, lt.z1 - 1.4, lt.top], [2.5, lt.z1 - 1.4, lt.top], [-5.4, -0.5, lt.top]]); }
+        // Q60 scale (store-local metres, 1 H = 1.75 m): interior ceiling, counter
+        var u = I ? I.unit : 1, sc = { H_m: +(H / u).toFixed(3) }, mm = H / u;
+        if (I) { var ceil = I.size.h - 0.02, ctr = I.aisles.filter(function (a) { return a.name === 'counter'; })[0]; sc.ceilingH = +(ceil / mm).toFixed(2); sc.counterH = ctr ? +((ctr.max.y - ctr.min.y) / mm).toFixed(2) : null }
+        var res = { planet: node.id.split('.').pop(), points: rows.length, worst_H: +worst.toFixed(4), bad: bad, rows: rows, scale: sc };
+        res.pass = rows.length >= 6 && bad.length === 0 && sc.ceilingH <= 1.85 && sc.counterH <= 0.6;
+        T.fly();
+        return res;
+    }
+    return { pass: false, error: 'no village planet', tries: tries };
+}
+tests.g25 = g25;

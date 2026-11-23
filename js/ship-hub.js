@@ -22,7 +22,7 @@ import { resourceItem, RESOURCE_BASE } from './ship-items.js';
 function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-const ARCH = 2.5;                              // 2026-10-14: the entrance arch (pillars, lintel, torches, veil, colliders) is 2.5x; the dungeon itself is unchanged
+const ARCH = 1.65, ARCH_Y = 0.5;   // Q60: arch span 4.2 x 1.65 = 6.9 m = 4 H, height top 8.7 x 0.5 = 4.35 m = 2.5 H (1 H = 1.75 m); horizontal scale ARCH, vertical ARCH_Y.                              // 2026-10-14: the entrance arch (pillars, lintel, torches, veil, colliders) is 2.5x; the dungeon itself is unchanged
 const DEPTH = 12, TILE = 1.5, GW = 2;          // dungeon floor y = -DEPTH; gate/corridor half width GW; tile edge
 // z-chain of rooms (x half-width hw, height h). kind: corridor | arena | loot | boss
 const LAYOUT = [
@@ -90,7 +90,7 @@ export function createHub(engine, L, opts) {
   const torches = [];
   const torch = (x, y, z, side) => { torches.push({ x, y, z, side, ph: rng() * 6.28 }); addLight(x - side * 0.5, y, z, WARM, 5.5, 1.15); };
   // entrance: two torches in front of the pillars
-  torch(-3.4 * ARCH, 3.2 * ARCH, -0.2 * ARCH, 1); torch(3.4 * ARCH, 3.2 * ARCH, -0.2 * ARCH, -1);
+  torch(-3.4 * ARCH, 3.2 * ARCH_Y, -0.2 * ARCH, 1); torch(3.4 * ARCH, 3.2 * ARCH_Y, -0.2 * ARCH, -1);
   for (const r of rooms) {
     const q = r._r, y = -DEPTH + 2.3;
     if (r.kind === 'corridor') { torch(-q.hw + 0.25, y, (q.z0 + q.z1) / 2, 1); if (q.z1 - q.z0 > 8) torch(q.hw - 0.25, y, q.z0 + 3, -1); }
@@ -115,7 +115,7 @@ export function createHub(engine, L, opts) {
     gates.push({ id: 'd:' + r.id + ':in', z: q.z0, open: 1, target: 1 });
     if (r.id !== 'boss') gates.push({ id: 'd:' + r.id + ':out', z: q.z1, open: 1, target: 1 });
   }
-  addLight(0, 3 * ARCH, 1, GREEN, 9 * ARCH, 0.9);                                   // entrance veil spill
+  addLight(0, 3 * ARCH_Y, 1, GREEN, 9 * ARCH, 0.9);                                   // entrance veil spill
 
   const chests = [];
   { const lr = roomById.loot._r, y = -DEPTH;
@@ -183,8 +183,8 @@ export function createHub(engine, L, opts) {
   plane([GW, -DEPTH, 0], Z, Y, 24, DEPTH + 0.7, null, (x, y) => (y < -9 ? 0.4 : 0.15), 1.5);
   box(-GW - 1.2, 0, 0, -GW, 0.7, 24, () => 0.2, 2); box(GW, 0, 0, GW + 1.2, 0.7, 24, () => 0.2, 2);
   // entrance arch: two pillars + lintel + capstones
-  { const A = ARCH; box(-3.5 * A, 0, -0.7 * A, -2.1 * A, 7 * A, 0.7 * A, mossLow(0), 1.4); box(2.1 * A, 0, -0.7 * A, 3.5 * A, 7 * A, 0.7 * A, mossLow(0), 1.4);
-    box(-3.9 * A, 6.9 * A, -0.9 * A, 3.9 * A, 8.1 * A, 0.9 * A, () => 0.05, 1.3); box(-1.2 * A, 8.1 * A, -0.5 * A, 1.2 * A, 8.7 * A, 0.5 * A, () => 0.0, 1.2); }
+  { const A = ARCH; const V = ARCH_Y; box(-3.5 * A, 0, -0.7 * A, -2.1 * A, 7 * V, 0.7 * A, mossLow(0), 1.4); box(2.1 * A, 0, -0.7 * A, 3.5 * A, 7 * V, 0.7 * A, mossLow(0), 1.4);
+    box(-3.9 * A, 6.9 * V, -0.9 * A, 3.9 * A, 8.1 * V, 0.9 * A, () => 0.05, 1.3); box(-1.2 * A, 8.1 * V, -0.5 * A, 1.2 * A, 8.7 * V, 0.5 * A, () => 0.0, 1.2); }
   // Q53: arch apron slab (drawn here, handed to the foot floor via hub.floors: hub metres {x0,x1,z0,z1,top}); skips the trench mouth (|x| < GW+1.2, z >= 0)
   const floors = [];
   { const A = ARCH, X1 = 3.9 * A, ZF = -(0.9 * A + 2), ZB = 0.9 * A, XT = GW + 1.2, TOP = 0.15;
@@ -229,7 +229,7 @@ export function createHub(engine, L, opts) {
   const GP = [], GC = [];
   { const gv = (x, y, z, k) => { GP.push(x, y, z); GC.push(0.1 * k, 0.9 * k, 0.35 * k); };
     const A = ARCH;
-    for (let i = 0; i < 6; i++) { const y0 = i * 1.15 * A, y1 = (i + 1) * 1.15 * A, k0 = 0.55 + 0.45 * Math.sin(Math.PI * Math.min(1, y0 / (7 * A))), k1 = 0.55 + 0.45 * Math.sin(Math.PI * Math.min(1, y1 / (7 * A)));
+    for (let i = 0; i < 6; i++) { const V = ARCH_Y, y0 = i * 1.15 * V, y1 = (i + 1) * 1.15 * V, k0 = 0.55 + 0.45 * Math.sin(Math.PI * Math.min(1, y0 / (7 * V))), k1 = 0.55 + 0.45 * Math.sin(Math.PI * Math.min(1, y1 / (7 * V)));
       gv(-2.1 * A, y0, 0, k0 * 0.5); gv(2.1 * A, y0, 0, k0 * 0.5); gv(2.1 * A, y1, 0, k1 * 0.5); gv(-2.1 * A, y0, 0, k0 * 0.5); gv(2.1 * A, y1, 0, k1 * 0.5); gv(-2.1 * A, y1, 0, k1 * 0.5); }
     const N = 20, R = 9 * A; for (let i = 0; i < N; i++) { const a0 = i / N * 6.2832, a1 = (i + 1) / N * 6.2832;
       GP.push(0, 0.12, 6, Math.cos(a0) * R, 0.12, 6 + Math.sin(a0) * R, Math.cos(a1) * R, 0.12, 6 + Math.sin(a1) * R);
@@ -291,7 +291,7 @@ export function createHub(engine, L, opts) {
   for (const p of pillars) walls.push(p);
   const gateWall = {}; gates.forEach((g) => { gateWall[g.id] = slab(-GW, -DEPTH, g.z - 0.25, GW, -DEPTH + 4, g.z + 0.25, g.id); gateWall[g.id].active = false; });
   // entrance arch pillars as colliders
-  slab(-3.5 * ARCH, 0, -0.7 * ARCH, -2.1 * ARCH, 7 * ARCH, 0.7 * ARCH); slab(2.1 * ARCH, 0, -0.7 * ARCH, 3.5 * ARCH, 7 * ARCH, 0.7 * ARCH);
+  slab(-3.5 * ARCH, 0, -0.7 * ARCH, -2.1 * ARCH, 7 * ARCH_Y, 0.7 * ARCH); slab(2.1 * ARCH, 0, -0.7 * ARCH, 3.5 * ARCH, 7 * ARCH_Y, 0.7 * ARCH);
 
   function floorAt(p) {
     const x = p.x != null ? p.x : p[0], z = p.z != null ? p.z : p[2];
