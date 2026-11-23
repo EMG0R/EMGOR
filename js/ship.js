@@ -48,6 +48,7 @@ var TERRAIN_DMG = 30, TERRAIN_INV = 0.8;    // terrain / body hit with a normal 
 var VEL_CHASE = 2.2, TURN_MAX = 8, GSHAKE_AT = 0.8;   // velocity chases the thrust vector at VEL_CHASE/s; max turn rate rad/s; g-shake above 0.8 of it
 var FLIP_T = 0.8, FLIP_CD = 1.5, DRIFT_T = 1.2, DRIFT_CD = 1.5, DRIFT_CHASE = 0.18, DRIFT_TURN = 1.6;   // maneuvers: Immelmann flip (dbl-tap S), drift turn (hold Ctrl)
 var ATM_R = 1.4, LF_ON = 1.6, LF_OFF = 1.7;     // rev 18: atmosphere top / local-frame engage / release (x R)
+var SLOW_L = 25, SLOW_MIN = 0.35;   // Q58: below SLOW_L ship lengths of altitude cruise (W alone) eases down to SLOW_MIN x; Shift / Space boosts override
 var ATM_BOOST = 12, ATM_PULSE = 40, ENTRY_T = 2, HOVER_L = 3, PROMPT_L = 3, CLEAR_L = 0.8, SUB_L = 0.45, APP_T = 1.2, ATM_FOV = 8;   // atmosphere speed caps (u/s), entry brake (s), hover / prompt altitude (L), hull clearance (L), substep (L), approach governor (s), fov gain
 var BOUNDARY_F = 3.5;              // soft edge, x root.sysR
 var TARGET_CONE = 6 * Math.PI / 180;
@@ -4423,6 +4424,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function targetSpeed(boosting) {
         // throttle in [THROTTLE_MIN,0] maps to [-REVERSE,0]
         var base = throttle >= 0 ? throttle * CRUISE : (throttle / THROTTLE_MIN) * -REVERSE, bst = lf.cap ? ATM_BOOST : BOOST;    // rev 18: atmosphere boost cap
+        if (!boosting && lf.on && lf.cap && lf.alt < SLOW_L * L) { var sa = lf.alt / (SLOW_L * L); sa = sa < 0 ? 0 : sa; base *= SLOW_MIN + (1 - SLOW_MIN) * sa * sa * (3 - 2 * sa); }     // Q58: smoothstep by altitude
         if (boosting && throttle > 0.02) base *= bst / CRUISE;
         else if (boosting && throttle < -0.02) base = (throttle / THROTTLE_MIN) * -0.7 * bst;     // rev 9: reverse boost = 0.7 x boost
         return base * engMul * fxSpeed;      // rev 22: engine upgrade tiers (+10 % cruise / boost each)
@@ -4498,6 +4500,24 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         shipRoot.add(sheath); sheathHull = hullObj;
         return sheath;
     }
+    // Q62: the entry sheath (additive white-hot hull copy) is driven only by updateEntry, which runs in the FLY step. A harness hoverAt / teleport during ENTRY (or any
+    // mode change that skips the fly frame) left entryHeat > 0 and the sheath visible with uI frozen: blown-out ghost hull on foot. Ground / dock states hard-clear it.
+    function hullMaxState() {       // Q62 probe: the largest additive / emissive-ish value any hull material carries (normal range <= ~1.15)
+        var mx = 0; if (!hullObj) return 0;
+        hullObj.traverse(function (o) {
+            var u = o.isMesh && o.material && o.material.uniforms; if (!u) return;
+            if (u.uHit) mx = Math.max(mx, u.uHit.value || 0);
+            if (u.uGl) mx = Math.max(mx, u.uGl.value || 0);
+            if (u.uRim && u.uRim.value) mx = Math.max(mx, u.uRim.value.x || 0, u.uRim.value.y || 0, u.uRim.value.z || 0);
+        });
+        if (sheath && sheath.visible) mx = Math.max(mx, 9);
+        return mx;
+    }
+    function entryOff() {
+        entryHeat = 0;
+        if (sheath) { sheath.visible = false; if (sheathMat) sheathMat.uniforms.uI.value = 0; }
+        if (cEntry) { cEntry = false; elEntry.classList.remove('is-on'); aPlay('entry', { stop: true }); }
+    }
     function updateEntry(dt, P, spd, bodies) {
         var heatT = 0, i;
         if (lf.on) {
@@ -4572,7 +4592,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         mM.makeBasis(gC, gA, gD); gQ.setFromRotationMatrix(mM);      // upright, nose along the old heading
         land.qFrom.copy(gQi).multiply(shipRoot.quaternion);
         land.qTo.copy(gQi).multiply(gQ);
-        lfOff(); gmode = 'landing'; landOk = false; firing = false; mdx = mdy = 0;
+        entryOff(); lfOff(); gmode = 'landing'; landOk = false; firing = false; mdx = mdy = 0;
         vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; pulseT = 0;
         killBolts(); combatRoot.visible = false;
         setGround(true, false);
@@ -5342,6 +5362,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         syncPlanet(node);
         var c = node.anchor.position, qM = node.mesh.quaternion, focus = null;
         psCalls = 0;
+        if (entryHeat > 0 || (sheath && sheath.visible) || cEntry) entryOff();      // Q62
         // 2026-10-14 (audit A4): the planet module (patch re-centre, world, creatures) updates FIRST, from last frame's ship / feet position, so the floors
         // read below (meshFloorLocal = the patch's own triangles) are the patch that renders this frame. The sky dome re-follows the camera at the end.
         // 2026-10-14 regression fix: ps.update picks the active body from the position it is given. hum.w is last frame's SMOOTHED feet, and exitShip did
@@ -5811,7 +5832,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var psA = null;
         if (ps) {
             try {
-                ps.moonMin = MOON_L * L; ps.footMode = false; ps.update(dt, P); psA = ps.active;
+                ps.moonMin = MOON_L * L; var tbN = ps.treeBreaks; ps.footMode = false; ps.update(dt, P); psA = ps.active;
+                if (ps.treeBreaks !== tbN) {      // Q56: tree hit: -8 % speed per tree, small camera kick, low thud
+                    var tbH = ps.treeBreaks - tbN, tbK = Math.pow(0.92, tbH); speed *= tbK; vel.multiplyScalar(tbK);
+                    shake = Math.max(shake, 0.25 * L); fovKick = Math.max(fovKick, 1.5); aPlay('treeThud', { vel: 0.5 });
+                }
                 if (psA && ps.shake > 0.01) shake = Math.max(shake, ps.shake * 0.075 * L * Math.min(1, vel.length() / BOOST));      // atmospheric entry rumble (rev 19: 15 % of 0.5 L)
             } catch (e) { planetFail(e); psA = null; }
         }
@@ -10981,7 +11006,7 @@ setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: p
         get save() { try { return localStorage.getItem(SAVE_KEY); } catch (e) { return null; } },
         get state() { return state; },
         get gmode() { return gmode; },
-        get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
+        get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, sheathOn: !!(sheath && sheath.visible), hullMax: hullMaxState(), legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
         land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyZ: onKeyZ, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
         _gb: { GB: GB, get fightSess() { return FG.sess; }, get party() { return ptMon ? ptMon() : null; }, wildNear: function (k) { var l = creatList(); return l.slice(0, 40).map(function (c) { return { id: c.id, kind: c.kind, d: c.lp.distanceTo(hum.pos) / hOf(L) }; }).sort(function (x, y) { return x.d - y.d; }).slice(0, k || 3); },

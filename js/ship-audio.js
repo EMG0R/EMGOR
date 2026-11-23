@@ -8,7 +8,7 @@
 // audio.ambience = { set({place,weather,biome,night,intensity,seed}), stop(), setLevel(v) }; cues: craft questAccept questDone harvest tame hire levelUp
 // renderPreview(name | 'amb:place[:weather[:biome[:night]]]', seconds) -> Float32Array (OfflineAudioContext, for testing)
 
-const CAPS = { fire: 6, hit: 8, crit: 4, kill: 4, limbSever: 4, bossRoar: 2, explosion: 4, entry: 1, land: 2, liftoff: 2, ui: 4, windup: 3, stall: 3, overheat: 1, ram: 2, scan: 2, shieldHit: 6, shieldBreak: 3, units: 4, buy: 2, npc: 3, shard: 6, craft: 2, questAccept: 2, questDone: 2, harvest: 3, tame: 2, hire: 2, levelUp: 2, copWarn: 2, grab: 3, checkout: 2, rockCrack: 3, chunk: 6, blueprint: 1, shipBuy: 1, landmark: 1, petHappy: 2, talk: 3, warp: 1, questFail: 1, step: 3, jump: 2, footLand: 2 };
+const CAPS = { fire: 6, hit: 8, crit: 4, kill: 4, limbSever: 4, bossRoar: 2, explosion: 4, entry: 1, land: 2, liftoff: 2, ui: 4, windup: 3, stall: 3, overheat: 1, ram: 2, scan: 2, shieldHit: 6, shieldBreak: 3, units: 4, buy: 2, npc: 3, shard: 6, craft: 2, questAccept: 2, questDone: 2, harvest: 3, tame: 2, hire: 2, levelUp: 2, copWarn: 2, grab: 3, checkout: 2, rockCrack: 3, chunk: 6, blueprint: 1, shipBuy: 1, landmark: 1, petHappy: 2, talk: 3, warp: 1, questFail: 1, step: 3, jump: 2, footLand: 2, treeThud: 3 };
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hashSeed(x) { if (typeof x === 'number') return x | 0; let h = 2166136261; for (const c of String(x)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h; }
 const VOW = [[730, 1090], [270, 2290], [300, 870], [530, 1840], [660, 1720]];
@@ -213,6 +213,14 @@ function buildCore(ctx, masterVal) {
     n.connect(lp); lp.connect(g); g.connect(out);
     return dur;
   };
+  R.treeThud = (v, out, t, p) => {      // Q56: low-volume wooden thud
+    const dur = 0.3;
+    const o = osc(v, 'sine', 95 * p.pitch, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.16);
+    const og = gain(0); env(og, t, 0.003, 0.22, 0.2); o.connect(og); og.connect(out);
+    const n = noise(v, t), lp = filt('lowpass', 700 * p.pitch, 0.7), g = gain(0); env(g, t, 0.002, 0.16, 0.14);
+    n.connect(lp); lp.connect(g); g.connect(out);
+    return dur;
+  };
   R.liftoff = (v, out, t, p) => {
     const dur = 2.2;
     const n = noise(v, t), bp = filt('bandpass', 400, 1);
@@ -366,27 +374,34 @@ function buildCore(ctx, masterVal) {
 
   // ---- jetpack loop (persistent, 6 nodes, created on first use) ----
   let J = null;
+  const JET_G = 0.316, JET_FADE = 0.08;     // Q59: -10 dB, 80 ms fades
   function jetpack(level) {
     const t = now();
     if (!J) {
       const nz = ctx.createBufferSource(); nz.buffer = nb; nz.loop = true;
       const bp = filt('bandpass', 700, 0.9), nG = gain(0.1), lo = ctx.createOscillator(); lo.type = 'sine'; lo.frequency.value = 70;
-      const sG = gain(0.1), jg = gain(0);
-      nz.connect(bp); bp.connect(nG); nG.connect(jg); lo.connect(sG); sG.connect(jg); jg.connect(bus);
+      const sG = gain(0.1), jg = gain(0), jl = filt('lowpass', 1800, 0.6), dk = gain(1);
+      nz.connect(bp); bp.connect(nG); nG.connect(jg); lo.connect(sG); sG.connect(jg); jg.connect(jl); jl.connect(dk); dk.connect(bus);
       nz.start(t, 0.7); lo.start(t);
-      J = { nz, bp, nG, lo, sG, jg };
+      J = { nz, bp, nG, lo, sG, jg, jl, dk, up: false };
     }
     const l = Math.max(0, Math.min(1, level == null ? 0.7 : level));
     J.bp.frequency.setTargetAtTime(450 + l * 1900, t, 0.06);
     J.nG.gain.setTargetAtTime(0.06 + l * 0.34, t, 0.06);
     J.lo.frequency.setTargetAtTime(58 + l * 40, t, 0.08);
     J.sG.gain.setTargetAtTime(0.1 + l * 0.22, t, 0.08);
-    J.jg.gain.cancelScheduledValues(t); J.jg.gain.setTargetAtTime(1, t, 0.03);
+    if (!J.up) { J.up = true; J.jg.gain.cancelScheduledValues(t); J.jg.gain.setValueAtTime(J.jg.gain.value, t); J.jg.gain.linearRampToValueAtTime(JET_G, t + JET_FADE); }
   }
   function jetpackStop() {
     if (!J) return;
-    const t = now();
-    J.jg.gain.cancelScheduledValues(t); J.jg.gain.setValueAtTime(J.jg.gain.value, t); J.jg.gain.linearRampToValueAtTime(0, t + 0.15);
+    const t = now(); J.up = false;
+    J.jg.gain.cancelScheduledValues(t); J.jg.gain.setValueAtTime(J.jg.gain.value, t); J.jg.gain.linearRampToValueAtTime(0, t + JET_FADE);
+  }
+  // Q59: UI / toast cues duck the jetpack loop to 35 % and release over 0.4 s
+  const DUCK_UI = { ui: 1, buy: 1, units: 1, questAccept: 1, questDone: 1, craft: 1, levelUp: 1, shipBuy: 1, checkout: 1, harvest: 1, hire: 1 };
+  function duckJet(t) {
+    if (!J) return;
+    J.dk.gain.cancelScheduledValues(t); J.dk.gain.setValueAtTime(J.dk.gain.value, t); J.dk.gain.linearRampToValueAtTime(0.35, t + 0.03); J.dk.gain.setTargetAtTime(1, t + 0.25, 0.15);
   }
 
   // ---- r27 cues ----
@@ -779,6 +794,7 @@ function buildCore(ctx, masterVal) {
   function play(name, o = {}) {
     const t = now() + 0.005;
     if (name === 'entryStop') { if (entryVoice) { entryVoice.release(t); stopLater(entryVoice, t + 0.55); entryVoice = null; } return; }
+    if (DUCK_UI[name]) duckJet(t);
     if (name === 'jetpack') return jetpack(o.level);
     if (name === 'jetpackStop') return jetpackStop();
     if (name === 'siren') return siren(o.level);

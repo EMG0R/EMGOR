@@ -764,3 +764,10 @@ NEXT 5 TO QUEUE: (1) distance LOD switch + glass in group.lo; (2) round-rig tri 
 - Limit: legs are 0.42 H long and walk speed is 6 H/s, so at >~4 H/s the stance foot still slips (~0.03 H/frame at 6 H/s); <= 3 H/s is planted (< 0.02). Tests gC1-gC3 in ship-planet-tests.js.
 
 - fx-fight3: gP1 "no human villager" = test bug, not a rig regression: village.info().villagers[].human is true only while the villager rig is spawned near you, so the filter returned nothing on a fresh load. Lookup now uses role (not elder/golum) and walks up. F,F on the merged head (def4216) verified.
+
+## 2026-11-23 fx-flight (Q56 Q58 Q59 Q62)
+- Q62 root cause: the entry sheath (additive white-hot hull copy) is only driven by updateEntry in the FLY step. A harness hoverAt during ENTRY then Z landing froze entryHeat > 0 with the sheath visible on foot. groundStep / startLanding now call entryOff(); g26 added (ship.ground.sheathOn / hullMax).
+- Q58: below 25 L altitude W-cruise scales 1.0 -> 0.35 (smoothstep); Shift/Space unchanged. 3 L: x0.38, 10 L: x0.58, 25 L: x1.0.
+- Q56: ps.treeStep (ship-planet.js) hits trunk segments, hides instance, 4-6 chunks from a pool of 40 (2 InstancedMeshes in the ride frame), broken Set cleared on planet exit; ship.js: -8 % speed/tree, kick, treeThud. Fade = shrink over last 1.2 s of 3 s.
+- Q59: jetpack -10 dB, lowpass 1800, 80 ms fades, ducked to 35 % by ui/buy/units/quest cues. Engine loop untouched.
+- NOT browser-verified: Q56 chunks visually, Q58 speed numbers, screenshots (harness unreliable in the allotted time); g1/g10/g14 not completed in browser.

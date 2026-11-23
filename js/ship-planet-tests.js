@@ -1550,3 +1550,25 @@ async function gC3() {
     out.pass = maxT <= 1800 && shared && geos.size <= 4 * 5; hs.forEach(function (h) { h.dispose(); }); return out;
 }
 tests.gC1 = gC1; tests.gC2 = gC2; tests.gC3 = gC3;
+
+// ── g26 (Q62): after a HARNESS landing (hoverAt + Z) started mid-ENTRY, the ship on foot must not carry the entry sheath / any blown-out hull state ──
+async function g26(T, o) {
+    var ship = T.ship, out = { tries: [] }, nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); });
+    for (var ni = 0; ni < nodes.length && ni < 4 && ship.gmode !== 'foot'; ni++) {
+        var node = nodes[ni]; await T.pause(); T.fly(); T.near(node);
+        var d = T.landDir(node); if (!d) { out.tries.push(node.id + ': no land dir'); continue; }
+        T.hoverAt(node, d, 400); T.step(10);
+        ship.lf.entryT = 2; ship.lf.cap = true; T.step(6);            // light the entry burn (what a fast harness drop leaves behind)
+        out.heatBefore = +ship.ground.entryHeat.toFixed(2); out.sheathBefore = ship.ground.sheathOn;
+        T.hoverAt(node, d, 2); T.step(40); T.kd('KeyZ'); T.ku('KeyZ'); T.step(3);
+        for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) T.step(1);
+        T.step(180); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
+        if (ship.gmode !== 'foot') out.tries.push(node.id + ': not on foot');
+    }
+    if (ship.gmode !== 'foot') { out.pass = false; out.error = 'never reached foot: ' + out.tries.join('; '); return out; }
+    T.step(30);
+    var g = ship.ground; out.entryHeat = g.entryHeat; out.sheathOn = g.sheathOn; out.hullMax = +g.hullMax.toFixed(3);
+    out.pass = g.entryHeat === 0 && !g.sheathOn && g.hullMax <= 1.15;
+    return out;
+}
+tests.g26 = g26;

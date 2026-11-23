@@ -1314,6 +1314,14 @@ export function createPlanetSurface(engine, L) {
 
     // outpost pads (local dir, flat chord, blend chord, height frac) -- mirrors hfunP in the patch shader
     var pads = [], outR = 0, lastLand = false, rideKey = [NaN, 0, 0, 0, 0, 0, 0];
+    // Q56: ship breaks trees. floraIds[i] = tier-independent lattice-cell id of flora slot i; broken = ids hidden this visit (session only, cleared when the planet is left);
+    // chunks = pool of 40 fragments (20 cylinder + 20 cone instances) simulated in the planet-local (ride) frame so they ride the spin / orbit.
+    var floraIds = new Int32Array(FLORA_MAX), broken = new Set(), CH_N = 40, CH_LIFE = 3, CH_G = 7;
+    var chP = new Float32Array(CH_N * 3), chV = new Float32Array(CH_N * 3), chQ = new Float32Array(CH_N * 4), chA = new Float32Array(CH_N * 3), chW = new Float32Array(CH_N), chAge = new Float32Array(CH_N), chS = new Float32Array(CH_N * 3), chOn = new Uint8Array(CH_N), chNext = 0, chLive = 0;
+    var _chM = new THREE.Matrix4(), _chQ = new THREE.Quaternion(), _chQ2 = new THREE.Quaternion(), _chV = new THREE.Vector3(), _chS = new THREE.Vector3(), _chAx = new THREE.Vector3();
+    var tsInv = new THREE.Matrix4(), tsP = new THREE.Vector3(), tsPrev = new THREE.Vector3(), tsVel = new THREE.Vector3(), tsOk = false, tsMid = new THREE.Vector3();
+    ps.treeBreaks = 0;         // running count of trees broken this visit's lifetime (ship.js diffs it per frame)
+    ps.treeHitSpeed = 0;       // ground-relative ship speed at the last break (world u/s)
     function hFrac(dx, dy, dz) {
         var h = sampleHeight(dx, dy, dz, seedV, freq, warp, sea, amp, bias, seaH);
         for (var i = 0; i < pads.length; i++) {
@@ -1466,6 +1474,16 @@ export function createPlanetSurface(engine, L) {
         }), FLORA_MAX);
         a.flora.count = 0; a.flora.frustumCulled = false; a.flora.renderOrder = 2;
         a.flora.onBeforeRender = syncRide; a.ride.add(a.flora);
+        // Q56 chunk pool: one InstancedMesh per fragment shape, 20 slots each, zero-scaled when idle
+        var chMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false });
+        a.chunkC = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5, 0.6, 1, 5), chMat, CH_N / 2);
+        a.chunkK = new THREE.InstancedMesh(new THREE.ConeGeometry(0.6, 1, 5), chMat, CH_N / 2);
+        [a.chunkC, a.chunkK].forEach(function (m) {
+            m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.renderOrder = 3; m.onBeforeRender = syncRide;
+            var zm = new THREE.Matrix4().makeScale(0, 0, 0); for (var zi = 0; zi < CH_N / 2; zi++) m.setMatrixAt(zi, zm);
+            m.setColorAt(0, new THREE.Color(1, 1, 1)); m.instanceColor.setUsage(THREE.DynamicDrawUsage);
+            a.ride.add(m);
+        });
 
         // creatures: walker (0) + jelly (1)
         var c = new GeoBuilder(), s;
@@ -2170,9 +2188,121 @@ export function createPlanetSurface(engine, L) {
     };
     ps.seaInfo = function (n) { return seaCache[(n || node || {}).id] || null; };
 
+    // ─── Q56: tree breaking ──────────────────────────────────────────────────────
+    function chClear() {
+        if (!alloc || !alloc.chunkC) { chLive = 0; chOn.fill(0); return; }
+        chOn.fill(0); chLive = 0;
+        _chM.makeScale(0, 0, 0);
+        for (var i = 0; i < CH_N / 2; i++) { alloc.chunkC.setMatrixAt(i, _chM); alloc.chunkK.setMatrixAt(i, _chM); }
+        alloc.chunkC.instanceMatrix.needsUpdate = true; alloc.chunkK.instanceMatrix.needsUpdate = true;
+    }
+    function chSpawn(px, py, pz, vx, vy, vz, sc, r, g, b) {
+        var i = chNext; chNext = (chNext + 1) % CH_N;       // oldest slot is recycled when the pool is full
+        var o3 = i * 3, o4 = i * 4;
+        chP[o3] = px; chP[o3 + 1] = py; chP[o3 + 2] = pz; chV[o3] = vx; chV[o3 + 1] = vy; chV[o3 + 2] = vz;
+        _chQ.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5 + 1e-3).normalize();
+        chQ[o4] = _chQ.x; chQ[o4 + 1] = _chQ.y; chQ[o4 + 2] = _chQ.z; chQ[o4 + 3] = _chQ.w;
+        _chAx.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+        chA[o3] = _chAx.x; chA[o3 + 1] = _chAx.y; chA[o3 + 2] = _chAx.z; chW[i] = 3 + Math.random() * 6;
+        chAge[i] = 0; chS[o3] = sc * (0.8 + Math.random() * 0.5); chS[o3 + 1] = sc * (1.2 + Math.random() * 1.6); chS[o3 + 2] = chS[o3];
+        if (!chOn[i]) chLive++;
+        chOn[i] = 1;
+        var m = i < CH_N / 2 ? alloc.chunkC : alloc.chunkK, j = i % (CH_N / 2);
+        m.instanceColor.setXYZ(j, Math.min(1, r * 1.1), Math.min(1, g * 1.1), Math.min(1, b * 1.1)); m.instanceColor.needsUpdate = true;
+    }
+    function chUpdate(dt) {
+        if (!alloc || !alloc.chunkC || !chLive) return;
+        for (var i = 0; i < CH_N; i++) {
+            if (!chOn[i]) continue;
+            var o3 = i * 3, o4 = i * 4, m = i < CH_N / 2 ? alloc.chunkC : alloc.chunkK, j = i % (CH_N / 2);
+            chAge[i] += dt;
+            if (chAge[i] >= CH_LIFE) { chOn[i] = 0; chLive--; _chM.makeScale(0, 0, 0); m.setMatrixAt(j, _chM); m.instanceMatrix.needsUpdate = true; continue; }
+            var px = chP[o3], py = chP[o3 + 1], pz = chP[o3 + 2], rl = Math.sqrt(px * px + py * py + pz * pz) || 1;
+            var gk = -CH_G * L / rl;
+            chV[o3] += px * gk * dt; chV[o3 + 1] += py * gk * dt; chV[o3 + 2] += pz * gk * dt;
+            px += chV[o3] * dt; py += chV[o3 + 1] * dt; pz += chV[o3 + 2] * dt;
+            rl = Math.sqrt(px * px + py * py + pz * pz) || 1;
+            var fl = R * (1 + hFrac(px / rl, py / rl, pz / rl)) + 0.15 * L;
+            if (rl < fl) {      // ground: slide + damp, low bounce
+                var ux = px / rl, uy = py / rl, uz = pz / rl, vr = chV[o3] * ux + chV[o3 + 1] * uy + chV[o3 + 2] * uz;
+                px = ux * fl; py = uy * fl; pz = uz * fl;
+                var vk = vr < 0 ? -1.25 * vr : 0;
+                chV[o3] = (chV[o3] - vr * ux) * 0.6 + ux * vk * 0.3; chV[o3 + 1] = (chV[o3 + 1] - vr * uy) * 0.6 + uy * vk * 0.3; chV[o3 + 2] = (chV[o3 + 2] - vr * uz) * 0.6 + uz * vk * 0.3;
+                chW[i] *= 0.7;
+            }
+            chP[o3] = px; chP[o3 + 1] = py; chP[o3 + 2] = pz;
+            _chQ.set(chQ[o4], chQ[o4 + 1], chQ[o4 + 2], chQ[o4 + 3]);
+            _chAx.set(chA[o3], chA[o3 + 1], chA[o3 + 2]);
+            _chQ2.setFromAxisAngle(_chAx, chW[i] * dt); _chQ.premultiply(_chQ2).normalize();
+            chQ[o4] = _chQ.x; chQ[o4 + 1] = _chQ.y; chQ[o4 + 2] = _chQ.z; chQ[o4 + 3] = _chQ.w;
+            var fade = Math.min(1, (CH_LIFE - chAge[i]) / 1.2);      // fade = shrink over the last 1.2 s (one shared material, so no per-chunk alpha)
+            fade = fade * fade * (3 - 2 * fade);
+            _chV.set(px, py, pz); _chS.set(chS[o3] * fade, chS[o3 + 1] * fade, chS[o3 + 2] * fade);
+            _chM.compose(_chV, _chQ, _chS); m.setMatrixAt(j, _chM); m.instanceMatrix.needsUpdate = true;
+        }
+    }
+    function breakTree(i) {
+        var a = alloc, mat = a.flora.instanceMatrix.array, o = i * 16, ca = a.floraCol.array;
+        broken.add(floraIds[i]); ps.treeBreaks++;
+        var bx = mat[o + 12], by = mat[o + 13], bz = mat[o + 14], ax = mat[o + 4], ay = mat[o + 5], az = mat[o + 6];
+        var sw = Math.hypot(mat[o], mat[o + 1], mat[o + 2]), sh = Math.hypot(ax, ay, az), cr = ca[i * 3], cg = ca[i * 3 + 1], cb = ca[i * 3 + 2];
+        mat[o] = mat[o + 1] = mat[o + 2] = mat[o + 4] = mat[o + 5] = mat[o + 6] = mat[o + 8] = mat[o + 9] = mat[o + 10] = 0;       // hide the instance (zero basis)
+        a.flora.instanceMatrix.needsUpdate = true;
+        var n = 4 + ((Math.random() * 3) | 0), csc = Math.max(0.2 * L, Math.min(0.9 * L, sw * 0.22));
+        for (var k = 0; k < n; k++) {
+            var hk = (k + 0.5) / n, sp = 3 * L * (0.6 + Math.random());
+            var ux = ax / sh, uy = ay / sh, uz = az / sh;
+            chSpawn(bx + ax * hk * 0.9, by + ay * hk * 0.9, bz + az * hk * 0.9,
+                tsVel.x + (Math.random() - 0.5) * 2 * sp + ux * sp * 0.4, tsVel.y + (Math.random() - 0.5) * 2 * sp + uy * sp * 0.4, tsVel.z + (Math.random() - 0.5) * 2 * sp + uz * sp * 0.4,
+                csc * (k === 0 ? 1.3 : 1), cr * (k % 2 ? 0.6 : 1), cg * (k % 2 ? 0.6 : 1), cb * (k % 2 ? 0.6 : 1));
+        }
+    }
+    function sqSegDist(px, py, pz, bx, by, bz, ax, ay, az) {      // squared distance from point p to segment b .. b + a
+        var wx = px - bx, wy = py - by, wz = pz - bz, aa = ax * ax + ay * ay + az * az || 1e-9;
+        var t = (wx * ax + wy * ay + wz * az) / aa; t = t < 0 ? 0 : (t > 1 ? 1 : t);
+        var dx = wx - ax * t, dy = wy - ay * t, dz = wz - az * t; return dx * dx + dy * dy + dz * dz;
+    }
+    // ship path (previous + current planet-local position, plus the midpoint) vs every instanced tree's trunk segment
+    function treeStep(dt, P) {
+        var a = alloc; syncRide();
+        tsInv.copy(a.ride.matrix).invert(); tsP.copy(P).applyMatrix4(tsInv);
+        var step = 0;
+        if (tsOk && dt > 0) { tsVel.subVectors(tsP, tsPrev); step = tsVel.length(); tsVel.multiplyScalar(1 / dt); if (step > 80 * L) { tsOk = false; step = 0; tsVel.set(0, 0, 0); } } else tsVel.set(0, 0, 0);
+        if (tsOk) tsMid.addVectors(tsP, tsPrev).multiplyScalar(0.5);
+        var mat = a.flora.instanceMatrix.array, cnt = a.flora.count, rs = 0.5 * L, hit = 0, reach = 2 * L + step;
+        for (var i = 0; i < cnt; i++) {
+            var o = i * 16;
+            if (mat[o + 4] === 0 && mat[o + 5] === 0 && mat[o + 6] === 0) continue;        // already broken
+            var bx = mat[o + 12], by = mat[o + 13], bz = mat[o + 14], ax = mat[o + 4], ay = mat[o + 5], az = mat[o + 6];
+            var ddx = tsP.x - bx, ddy = tsP.y - by, ddz = tsP.z - bz, bh = Math.sqrt(ax * ax + ay * ay + az * az);
+            if (ddx * ddx + ddy * ddy + ddz * ddz > (bh + reach) * (bh + reach)) continue;
+            var rt = 0.3 * Math.hypot(mat[o], mat[o + 1], mat[o + 2]) + rs, r2 = rt * rt;
+            var hc = sqSegDist(tsP.x, tsP.y, tsP.z, bx, by, bz, ax * 0.9, ay * 0.9, az * 0.9) < r2;
+            if (!hc && tsOk) hc = sqSegDist(tsPrev.x, tsPrev.y, tsPrev.z, bx, by, bz, ax * 0.9, ay * 0.9, az * 0.9) < r2 || sqSegDist(tsMid.x, tsMid.y, tsMid.z, bx, by, bz, ax * 0.9, ay * 0.9, az * 0.9) < r2;
+            if (hc) { ps.treeHitSpeed = step / (dt || 1); breakTree(i); hit++; }
+        }
+        tsPrev.copy(tsP); tsOk = true;
+        return hit;
+    }
+    // test / tool hook: break the nearest standing tree to a world position (no distance limit beyond maxL ship lengths); returns true on a break
+    ps.breakNearestTree = function (pos, maxL) {
+        if (!alloc || !node || !alloc.flora.count) return false;
+        rideKey[0] = NaN; syncRide(); tsInv.copy(alloc.ride.matrix).invert(); tsP.copy(pos).applyMatrix4(tsInv); tsVel.set(0, 0, 0);
+        var mat = alloc.flora.instanceMatrix.array, best = -1, bd = Math.pow((maxL || 60) * L, 2);
+        for (var i = 0; i < alloc.flora.count; i++) {
+            var o = i * 16; if (mat[o + 4] === 0 && mat[o + 5] === 0 && mat[o + 6] === 0) continue;
+            var dx = tsP.x - mat[o + 12], dy = tsP.y - mat[o + 13], dz = tsP.z - mat[o + 14], d = dx * dx + dy * dy + dz * dz;
+            if (d < bd) { bd = d; best = i; }
+        }
+        if (best < 0) return false; breakTree(best); return true;
+    };
+    ps.brokenCount = function () { return broken.size; };
+    ps.chunkLive = function () { return chLive; };
+    ps.standingTrees = function () { var n = 0; if (!alloc) return 0; var m = alloc.flora.instanceMatrix.array; for (var i = 0; i < alloc.flora.count; i++) if (m[i * 16 + 4] !== 0 || m[i * 16 + 5] !== 0 || m[i * 16 + 6] !== 0) n++; return n; };
+
     function activate(n, shipPos) {
         if (node && node !== n) { worldDetach(); unhookHalo(); killScars(); clearOutposts(); globeHi(null, false); }
-        node = n;
+        node = n; broken.clear(); chClear(); tsOk = false;
         if (!alloc) alloc = build();
         hookHalo(n);
         setNodeUniforms();
@@ -2190,7 +2320,7 @@ export function createPlanetSurface(engine, L) {
         globeHi(null, false); colExtra.length = 0; colExtraId = null;
         worldDetach();
         unhookHalo(); killScars(); clearOutposts(); siteDefs = [null, null, null]; pads = [];
-        node = null; ps.active = null; ps.depth = 0;
+        node = null; ps.active = null; ps.depth = 0; broken.clear(); chClear(); tsOk = false;      // Q56: trees regenerate on return
         if (alloc) { showObjs(false); alloc.domeU.uAlpha.value = 0; alloc.flora.count = 0; alloc.creat.count = 0; alloc.rocks.count = 0; alloc.spores.count = 0; rockSet = false; sporeSet = false; alloc.lm.count = 0; alloc.ffN = 0; alloc.steamN = 0; lmList = []; ffSet = false; }
     }
 
@@ -2228,6 +2358,8 @@ export function createPlanetSurface(engine, L) {
         var fCap = Math.round((look === 1 ? 350 : (look === 0 ? 110 : 50)) * floraLim / 700);
         for (var c = 0; c < cands.length && cnt < fCap; c++) {
             var cd = cands[c], dx = cd[1], dy = cd[2], dz = cd[3];
+            var fid = (((cd[4] * 73856093) ^ (cd[5] * 19349663) ^ (cd[6] * 83492791) ^ seed) >>> 0) & 0x7fffffff;
+            if (broken.size && broken.has(fid)) continue;           // Q56: a tree the ship broke stays gone until the planet is left
             var h = hFrac(dx, dy, dz);
             if (isGas || _lastN < sea + 0.03) continue;           // land only
             if (pads.length && nearPad(dx, dy, dz, 3)) continue;     // keep outposts clear
@@ -2245,7 +2377,7 @@ export function createPlanetSurface(engine, L) {
             var yaw = r3 * 6.2832, cyw = Math.cos(yaw), syw = Math.sin(yaw);
             var ux = rx * cyw + fx * syw, uy = ry * cyw + fy * syw, uz = rz * cyw + fz * syw;
             var vx = -rx * syw + fx * cyw, vy = -ry * syw + fy * cyw, vz = -rz * syw + fz * cyw;
-            rockIds[cnt] = (((cd[4] * 73856093) ^ (cd[5] * 19349663) ^ (cd[6] * 83492791) ^ seed) >>> 0) & 0x7fffffff;      // Q17b1: tier-independent id from the lattice cell
+            floraIds[cnt] = fid;
             var o = cnt * 16;
             mat[o] = ux * sw; mat[o + 1] = uy * sw; mat[o + 2] = uz * sw; mat[o + 3] = 0;
             mat[o + 4] = dx * sh; mat[o + 5] = dy * sh; mat[o + 6] = dz * sh; mat[o + 7] = 0;
@@ -2845,6 +2977,8 @@ export function createPlanetSurface(engine, L) {
         if (ratioD < FLORA_R && !isGas) {
             if (!floraSet || dirObj.angleTo(floraC) * R > 40 * L) { floraC.copy(dirObj); seedFlora(); }
         } else if (a.flora.count) { a.flora.count = 0; floraSet = false; }
+        if (a.flora.count && !ps.footMode && altG < 20 * L) treeStep(dt, shipPos); else tsOk = false;      // Q56
+        chUpdate(dt);
         if (ratioD < CREAT_R && !isGas) {
             if (!creatSet || dirObj.angleTo(creatC) * R > 60 * L) { creatC.copy(dirObj); seedCreatures(); }
             plObj.copy(dirObj).multiplyScalar(distC); plDir.copy(dirObj); plOk = true;

@@ -98,10 +98,10 @@ Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batc
 
 ## Phase 11 — owner notes 2026-11-12 (NOT started; owner will say go)
 - [ ] Q55 7/11 + Burger House platform/apron STILL off the ground after fc2daef (g23 passes, owner sees a gap): measure in-game at the owner's view, not the harness; suspect the visible slab mesh vs the registered rect (render vs groundTruth) or the apron/parking tops in ship-world.js not re-seated after relayoutGround. Fix at the mesh, add the visible-mesh check to g23.
-- [ ] Q56 Ship breaks trees it hits: tree splits into 3-5 chunks with velocity + spin, fades in 4 s; broken set per planet kept in session memory only, trees regenerate when the player returns to the planet. Pooled chunk meshes, no per-frame allocs.
+- [x] Q56 Ship breaks trees it hits: tree splits into 3-5 chunks with velocity + spin, fades in 4 s; broken set per planet kept in session memory only, trees regenerate when the player returns to the planet. Pooled chunk meshes, no per-frame allocs.
 - [ ] Q57 Fight sequence (GOR BRAWL vs villager / "deal") not working for the owner: reproduce from the FIRST STEPS 6/7 "walk up to a villager · F" prompt by hand (not harness), fix, add the F-prompt → fight start → result to g-tests.
-- [ ] Q58 Ship speed on planet: too fast near the surface, misses the 7/11. Cruise near surface slower (owner can aim at stores); Space = boost to leave orbit. Keep the FOV rules (ship-fov.js).
-- [ ] Q59 Jetpack sound too loud: drop gain, lowpass, duck under UI sounds.
+- [x] Q58 Ship speed on planet: too fast near the surface, misses the 7/11. Cruise near surface slower (owner can aim at stores); Space = boost to leave orbit. Keep the FOV rules (ship-fov.js).
+- [x] Q59 Jetpack sound too loud: drop gain, lowpass, duck under UI sounds.
 - [ ] Q60 7/11 ceilings too high; audit every structure interior against H (character height): door 1.2 H, ceiling 1.6-1.8 H, counters 0.55 H, shelves ≤ 1.2 H. Fix the 7/11, CVS, huts, hub.
 - [ ] Q61 Burger House enterable + modelled on the real Burger House on Mockingbird Lane (Dallas): research photos online first (exterior sign, red/white stand, counter, interior), then rebuild inside and out as faithfully as the low-poly style allows; walkable interior on groundTruth, counter NPC, menu board.
 
@@ -120,5 +120,5 @@ Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batc
 - [x] A12 (own pass, landed only) Post folded into OutputPass: vignette, grain, violet black lift, split-tone
 - [ ] A13 Delete list: ground noise, accent trees, mushroom/palm, slab rocks, day stars, slope grey, terra speckle, 1 hut template, day torches
 - [ ] A14 Night pass: indigo sky, cool moon key, bio on accent only, fireflies 400 -> 120
-- [ ] Q62 Ship renders ghosted/blown-out white on foot ONLY after a harness-driven landing (T.hoverAt + Z, seen at 52853c3 and def4216); normal Z landing is fine (look3-foot-ship.jpg). Find the state the harness leaves (landing glow / thruster emissive / vertex colour > 1.15 in ship-parts.js) and clamp it; add a g-test that reads a ship pixel luminance after landing.
+- [x] Q62 Ship renders ghosted/blown-out white on foot ONLY after a harness-driven landing (T.hoverAt + Z, seen at 52853c3 and def4216); normal Z landing is fine (look3-foot-ship.jpg). Find the state the harness leaves (landing glow / thruster emissive / vertex colour > 1.15 in ship-parts.js) and clamp it; add a g-test that reads a ship pixel luminance after landing.
 - [ ] Q63 Far-blur DoF is off by default (window.EMGOR_DOF=1 enables). Re-enable once Q62 is understood; the "blurry" look currently comes from vignette + grain + black lift only.
