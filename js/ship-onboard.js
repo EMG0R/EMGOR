@@ -12,6 +12,8 @@ export const STEPS = [
   { id: 'fight', title: 'WIN A FIGHT', text: 'WALK UP TO A VILLAGER · F TWICE · FIGHT', mark: 'village', when: 'any' },
   { id: 'station', title: 'FIND THE STATION', text: 'FLY TO THE INTERGALACTIC 7/11 STATION (HUD MARKER) · Z TO DOCK', mark: 'station', when: 'fly' },
 ];
+export const FAR_TEXT = 'THE 7/11 IS FAR (~1 L/S ON FOOT) · Z BOARD · FLY LOW TOWARD THE 7/11 MARKER · LAND BESIDE IT · Z STEP OUT';
+export function textOf(s, far) { return s ? (far && s.id === 'beacon' ? FAR_TEXT : s.text) : ''; }
 export const START_CARD = ['FLY · HOLD W, STEER WITH THE MOUSE', 'LAND · FLY LOW OVER A PLANET, PRESS Z', 'F = FIGHT · T = TALK'];
 
 export function fresh(done) { return { i: done ? STEPS.length : 0, won: !!done, card: !!done }; }
@@ -39,7 +41,7 @@ export function advance(c, snap) {
 export function current(c) { return c && c.i < STEPS.length ? STEPS[c.i] : null; }
 export function markKind(c) { const s = current(c); return s ? s.mark : ''; }
 // tracker entry: [title line, objective line]
-export function entry(c) {
-  const s = current(c); if (!s) return null;
-  return ['FIRST STEPS ' + (c.i + 1) + '/' + STEPS.length + ' · ' + s.title, s.text.charAt(0) + s.text.slice(1).toLowerCase()];
+export function entry(c, far) {
+  const s = current(c); if (!s) return null; const t = textOf(s, far);
+  return ['FIRST STEPS ' + (c.i + 1) + '/' + STEPS.length + ' · ' + s.title, t.charAt(0) + t.slice(1).toLowerCase()];
 }

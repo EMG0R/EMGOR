@@ -1647,3 +1647,53 @@ async function gH1(T, o) {
     return out;
 }
 tests.gH1 = gH1;
+
+// ── gE1 (E / F8): the first 3 minutes of a FRESH profile with real key events: W -> fly -> Z land -> Z step out -> beacon -> ball -> catch -> villager win. Every FIRST STEPS step must complete, the end state has >= 1 pokeman and the fight win, in < 180 simulated seconds.
+//    Teleports stand in for long walks only (the 7/11 is 1K+ L away: the game says to fly there); the villager win is injected through the same obWon() hook fightResult() calls. ──
+async function gE1(T, o) {
+    var ship = T.ship, THREE = T.THREE, out = { steps: [], t: 0 }, frames = 0, ITM = await import('./ship-items.js'), OBm = await import('./ship-onboard.js');
+    function step(n) { T.step(n); frames += n; }
+    function skip(sec) { frames += Math.round(sec / 0.016); }
+    function chain() { var ob = ship.quests.onb; return ob && ob.c; }
+    ship.cmd('/user e1fresh' + Date.now()); ship.cmd('/peaceful'); if (ship.resetUpgrades) ship.resetUpgrades();
+    if (ship.state !== 'piloting') ship.enter();
+    await new Promise(function (r) { setTimeout(r, 300); }); T.clearKeys(); step(160);
+    var c = chain(); if (!c) { out.pass = false; out.error = 'no onboarding chain on a fresh profile'; return out; }
+    out.start = c.i; frames = 0;
+    function mark(id) { var cur = OBm.current(c); out.steps.push({ id: id, at: +(frames * 0.016).toFixed(1), i: c.i, now: cur ? cur.id : 'done' }); }
+    function want(id) { var idx = OBm.STEPS.map(function (s) { return s.id; }).indexOf(id); return c.i > idx; }
+    T.kd('KeyW'); step(60); T.ku('KeyW'); step(40);
+    var nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); }), node = null, d = null;
+    for (var ni = 0; ni < nodes.length && ni < 5 && !d; ni++) { node = nodes[ni]; T.fly(); try { d = T.landDir(node); } catch (e) { d = null; } }
+    if (!d) { out.pass = false; out.error = 'no landable planet'; return out; }
+    T.hoverAt(node, d, 2); step(40); skip(20);      // the flight there (~20 s)
+    step(40); out.planet = want('planet'); mark('planet');
+    T.kd('KeyZ'); T.ku('KeyZ'); step(3); for (var i = 0; i < 700 && ship.gmode !== 'landed'; i++) step(1);
+    step(180); out.land = want('land'); mark('land');
+    T.kd('KeyZ'); T.ku('KeyZ'); step(8); out.foot = ship.gmode === 'foot';
+    // beacon: the nearest 7/11 beacon within 15 L on foot (teleport = the walk)
+    var g = ship._g, hum = g.hum, pn = ship.ps.active; ship.dbg.syncPlanet(pn);
+    var q = pn.mesh.quaternion.clone().invert(), cc = pn.anchor.position, pois = ship.ps.pois().filter(function (p) { return p.kind === '7/11'; });
+    if (!pois.length) { out.pass = false; out.error = 'no 7/11 on the planet'; return out; }
+    var tl = pois[0].pos.clone().sub(cc).applyQuaternion(q), dir = tl.clone().normalize(), hr = hum.pos.length(), east = new THREE.Vector3(0, 1, 0).cross(dir).normalize();
+    hum.pos.copy(dir).multiplyScalar(hr).addScaledVector(east, T.L() * 10).normalize().multiplyScalar(hr); step(60); skip(40);      // fly low to the marker, land, step out, walk in (~40 s)
+    out.beacon = want('beacon'); mark('beacon');
+    (ship.giveItem || ship.dbg.giveItem)(ITM.GORBALL_TIERS[2], 5); step(60);      // the counter purchase
+    out.ball = want('ball'); mark('ball');
+    var pf = ship.dbg.profile(), n0 = pf.pokemans.length, res = null, ctrl = null;
+    for (var att = 0; att < 6 && !(res && res.result === 'caught'); att++) {
+        var st = 12345 + att * 77, rng = function () { st = (Math.imul(st, 1664525) + 1013904223) >>> 0; return st / 4294967296; };
+        ctrl = await ship._gb.battle({ dbg: true, instant: true, wildLevel: 3, seed: att + 1, catchU: 0, rng: rng }); if (!ctrl) break;
+        var cr = ctrl.core, weak = 0; cr.me.moves.forEach(function (m, k) { if (m.power < cr.me.moves[weak].power) weak = k; });
+        for (var k = 0; k < 30 && !cr.over && cr.foe.hp >= cr.foe.max * 0.4; k++) await ctrl.fight(weak);
+        if (cr.over) { await ctrl.done; continue; }
+        await ctrl.ball(); res = await ctrl.done;
+    }
+    skip(30); step(60); out.caught = want('catch'); mark('catch');
+    out.mons = pf.pokemans.length - n0 + n0;
+    g.obWon(); step(60); skip(30); out.won = want('fight'); out.winFlag = c.won; mark('fight');
+    out.secs = +(frames * 0.016).toFixed(1);
+    out.pass = !!(out.planet && out.land && out.foot && out.beacon && out.ball && out.caught && out.won && out.winFlag && pf.pokemans.length + (pf.pen ? pf.pen.length : 0) >= 1 && out.secs < 180);
+    return out;
+}
+tests.gE1 = gE1;

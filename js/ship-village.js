@@ -24,7 +24,7 @@
 //   village.nearVillager(pPlanetLocal, r) -> villager | null      village.market(trader) -> { buys, buyPrices, sells } (ship-space makeMarket shape, live stock)
 //   village.scanTargets() -> [{ type:'village', id, kind:'village', name, pos (planet-local), color }]    village.poi { kind:'village', name, pos }
 //   village.serialize() / restore(o)   (trade stock per UTC day)       village.stats { tris, draws }       village.toParent(v, out) / toLocal(p, out)
-//   village.setNight(n)  dims the day mesh / brightens windows + torches.  Draw calls: 2 merged meshes (+2 per live human within 40 L, +5 per golum).
+//   village.setNight(n)  dims the day mesh / brightens windows.  Draw calls: 2 merged meshes (+2 per live human within 40 L, +5 per golum).
 import { createHuman } from './ship-human.js';
 import { rboxEmit, makeLitMaterial } from './ship-world.js';
 import { compose, makeMaterials, mergeLit, mulberry as pmul } from './ship-parts.js';
@@ -41,7 +41,7 @@ const RP = 7 * VS;                // plaza ring radius (villagers walk it)
 const BIG = 1.0;            // Q60: human scale (1 m, H = 1.75): hut door 1.2 H (2.1 m), eave 1.5 H (2.65 m)
 const TW = 0.9,      // wall thickness 0.9 m = 0.51 H (half-thickness >= 0.25 H so the 0.3 H foot step can never tunnel a wall)
    DOOR_W = 1.7 * BIG, DOOR_H = 2.1 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap, foundation depth
-const TMPL = [{ id: 'cottage', w: 6 * BIG, d: 5 * BIG, h: 2.65 * BIG, roof: 'gable' }, { id: 'longhouse', w: 9 * BIG, d: 5 * BIG, h: 2.65 * BIG, roof: 'gable' }, { id: 'tower', w: 5 * BIG, d: 5 * BIG, h: 3.8 * BIG, roof: 'pyramid' }];
+const TMPL = [{ id: 'cottage', w: 6 * BIG, d: 5 * BIG, h: 2.65 * BIG, roof: 'gable' }];      // E2: one hut template (A13: longhouse + tower retired)
 const ROLE_COL = { farmer: 0x8FD06A, trader: 0xFFD36A, elder: 0xB08CFF, kid: 0xFF8AE0 };
 const WALK = 2.6, GOLUM_V = 3.1, GOLUM_HP = 600, GOLUM_DMG_MOB = 45, GOLUM_DMG_ME = 12, VILL_ACT_L = 40;
 
@@ -170,7 +170,7 @@ export function createVillage(engine, u, opts) {
     const inner = i % 2 === 0, base = (i / nHuts) * 6.2831853;
     let placed = null, fallback = null;
     for (let tries = 0; tries < 18 && !placed; tries++) {
-      const a = base + (rng() - 0.5) * 0.5, rr = (inner ? 17 * BIG : 27 * BIG) + (rng() - 0.5) * 3, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, tm = TMPL[Math.floor(rng() * 3)];
+      const a = base + (rng() - 0.5) * 0.5, rr = (inner ? 17 * BIG : 27 * BIG) + (rng() - 0.5) * 3, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, tm = (rng(), TMPL[0]);
       const side = Math.abs(cx) > Math.abs(cz) ? (cx > 0 ? 'nx' : 'px') : (cz > 0 ? 'nz' : 'pz');      // door faces the well (axis aligned: AABB walls)
       const swap = side === 'px' || side === 'nx';
       const hx = (swap ? tm.d : tm.w) / 2, hz = (swap ? tm.w : tm.d) / 2, rect = { x0: cx - hx, x1: cx + hx, z0: cz - hz, z1: cz + hz };
@@ -246,9 +246,6 @@ export function createVillage(engine, u, opts) {
       rboxG(LP, LC, cx - (ax ? ha : hb), yR - 0.3 * rh2, cz - (ax ? hb : ha), cx + (ax ? ha : hb), yR + 1.3 * rh2, cz + (ax ? hb : ha), rc, 0.78 * rh2, 3); }
     // chimney on the cottage / longhouse
     if (tm.roof === 'gable') boxG(LP, LC, cx + (ax ? ha * 0.5 : hb * 0.4) - 0.3, yR + 0.2, cz + (ax ? -hb * 0.35 : ha * 0.5) - 0.3, cx + (ax ? ha * 0.5 : hb * 0.4) + 0.3, yR + rh + 1.1, cz + (ax ? -hb * 0.35 : ha * 0.5) + 0.3, tint(STONE, 0.8));
-    // door torches (a post + flame each side of the door front)
-    const pdx = -dr.d[1], pdz = dr.d[0];
-    for (const s of [-1, 1]) torches.push({ x: dr.front[0] + pdx * 1.5 * VS * s + dr.d[0] * 0.2, z: dr.front[1] + pdz * 1.5 * VS * s + dr.d[1] * 0.2 });
     // 2026-11-05: the hut FLOOR is a drawn slab (top = yb) AND the foot collision surface (village.solid.floors -> ship.js mFloor): inside the walls plus a doorstep out to door.front,
     // so the visible floor and the walkable floor are the same numbers and the sill is flush (yb = the highest ground under the hut, the terrain never pokes through).
     { const fx0 = cx - hx + TW, fx1 = cx + hx - TW, fz0 = cz - hz + TW, fz1 = cz + hz - TW, fy = yb - 0.3, pc = tint(PATH, 1.05);
@@ -302,13 +299,7 @@ export function createVillage(engine, u, opts) {
       boxG(LP, LC, fx0 - 0.03, y + yy - 0.04, fz0, fx0 + 0.03, y + yy + 0.04, fz1, wd); boxG(LP, LC, fx1 - 0.03, y + yy - 0.04, fz0, fx1 + 0.03, y + yy + 0.04, fz1, wd);
     }
   }
-  // plaza torches
-  for (let k = 0; k < 4; k++) { const a = Math.PI / 4 + k * Math.PI / 2; torches.push({ x: Math.cos(a) * 5.8 * VS, z: Math.sin(a) * 5.8 * VS }); }
-  for (const t of torches) {
-    const g = groundAt(t.x, t.z); t.y = g;
-    boxG(LP, LC, t.x - 0.08, g - 0.2, t.z - 0.08, t.x + 0.08, g + 1.5, t.z + 0.08, tint(WOOD, 1));
-    boxG(EP, EC, t.x - 0.13, g + 1.5, t.z - 0.13, t.x + 0.13, g + 1.85, t.z + 0.13, [1.7, 1.0, 0.3]);
-  }
+  // E2: no torches (door + plaza torches removed; `torches` stays an empty array for the API)
   // path decals: plaza ring + a ribbon from the plaza to every door
   function ribbon(x0, z0, x1, z1, w, cc) {
     const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz); if (len < 0.1) return;
@@ -322,7 +313,7 @@ export function createVillage(engine, u, opts) {
   for (const h of huts) { const f = h.door.front, l = Math.hypot(f[0], f[1]) || 1; ribbon(f[0] / l * RP, f[1] / l * RP, f[0], f[1], 1.9 * VS, PATH); }
   ribbon(0, 0, 0, 0, 1, PATH); ribbon(Math.cos(stall.a) * RP, Math.sin(stall.a) * RP, stall.cx - Math.cos(stall.a) * 2.5 * VS, stall.cz - Math.sin(stall.a) * 2.5 * VS, 1.6 * VS, PATH);
 
-  // ── meshes: ONE lit (day) + ONE emissive (windows / torches / stall lamps, night-bright) ──
+  // ── meshes: ONE lit (day) + ONE emissive (windows / stall lamps, night-bright) ──
   function mkGeo(P, C) { const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('color', new T.Float32BufferAttribute(C, 3)); if (P.N && P.N.length === P.length) g.setAttribute('normal', new T.Float32BufferAttribute(P.N, 3)); g.computeBoundingSphere(); return g; }
   const litMat = makeLitMaterial(T), emiMat = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, toneMapped: false });
   const litMesh = new T.Mesh(mkGeo(LP, LC), litMat), emiMesh = new T.Mesh(mkGeo(EP, EC), emiMat);
