@@ -96,6 +96,7 @@ import * as GL from './galaxy-layout.js';
     var W = 0, H = 0, DPR = 1;
     // perf rev 17 (ship-perf.js quality manager hooks)
     var dprCap = 2;                      // renderer pixel-ratio cap, set via engine.setPixelRatioCap
+    var dynRes = 1, gpuExt = null, gpuPend = [], gpuRing = [], gpuFrames = 0, gpuUp = 0, lastLookOn = false;   // F7 governor state
     var bloomOn = true, bloomScale = 1;  // engine.setBloom
     var starN = 0, dustN = 0, starDust = null;
     var frameCbs = [], wallMs = 0;
@@ -2030,9 +2031,32 @@ import * as GL from './galaxy-layout.js';
     }
 
     // bloom runs at bloomScale x the framebuffer size (UnrealBloomPass composites its mip chain back at full res)
+
+    // F7 frame governor (landed look only): GPU time of composer.render() via EXT_disjoint_timer_query_webgl2; every 90 frames, p95 > 7 ms drops the
+    // resolution one 0.125 step (floor: DPR 1), p95 comfortably low raises it again. Cost scales ~ with pixels, so the up-step is predicted from the measurement.
+    function govRender() {
+        if (gpuExt === null) { var _g = renderer.getContext(); gpuExt = (_g.getExtension && _g.getExtension('EXT_disjoint_timer_query_webgl2')) || false; }
+        if (!gpuExt) { composer.render(); return; }
+        var gl = renderer.getContext(), q = gl.createQuery();
+        gl.beginQuery(gpuExt.TIME_ELAPSED_EXT, q); composer.render(); gl.endQuery(gpuExt.TIME_ELAPSED_EXT); gpuPend.push(q);
+        while (gpuPend.length) {
+            var qq = gpuPend[0];
+            if (gl.getParameter(gpuExt.GPU_DISJOINT_EXT)) { gpuPend.forEach(function (x) { gl.deleteQuery(x); }); gpuPend.length = 0; break; }
+            if (!gl.getQueryParameter(qq, gl.QUERY_RESULT_AVAILABLE)) break;
+            gpuRing.push(gl.getQueryParameter(qq, gl.QUERY_RESULT) / 1e6); gl.deleteQuery(qq); gpuPend.shift();
+        }
+        if (gpuPend.length > 8) { gl.deleteQuery(gpuPend.shift()); }
+        if (gpuRing.length >= 90) {
+            var a = gpuRing.slice().sort(function (x, y) { return x - y; }), p95 = a[Math.floor(a.length * 0.95)]; gpuRing.length = 0;
+            var base = Math.max(1, Math.min(window.devicePixelRatio || 1, 2, dprCap)), dmin = 1 / base, nd = dynRes;
+            if (p95 > 7 && dynRes > dmin + 1e-3) { nd = Math.max(dmin, dynRes - 0.125); gpuUp = 0; }
+            else if (dynRes < 1 && p95 * Math.pow((dynRes + 0.125) / dynRes, 2) < 6) { if (++gpuUp >= 3) { nd = Math.min(1, dynRes + 0.125); gpuUp = 0; } } else gpuUp = 0;
+            if (nd !== dynRes) { dynRes = nd; resize(); }
+        }
+    }
     function applyBloomSize() {
         if (!bloomPass) return;
-        var f = Math.max(0.2, Math.min(1, bloomScale));
+        var f = Math.max(0.2, Math.min(1, bloomScale)); if (lookAmt > 0.02) f = Math.min(f, 0.5);   // F7: landed, the bloom chain runs at half the framebuffer (it is a soft glow; the mip chain starts at 1/2 again)
         bloomPass.setSize(Math.max(64, Math.floor(W * DPR * f)), Math.max(64, Math.floor(H * DPR * f)));
     }
 
@@ -2040,7 +2064,7 @@ import * as GL from './galaxy-layout.js';
     function resize() {
         W = window.innerWidth;
         H = window.innerHeight;
-        DPR = Math.min(window.devicePixelRatio || 1, 2, dprCap);
+        DPR = Math.max(1, Math.min(window.devicePixelRatio || 1, 2, dprCap) * dynRes);   // F7: dynRes (1..0.5) is the landed-look frame governor's resolution scale
         _bdYaw = 1e9;   // canvas buffers were just cleared: force a backdrop redraw
 
         availX = Math.max(120, W / 2 - MARGIN_X);
@@ -2262,7 +2286,10 @@ import * as GL from './galaxy-layout.js';
         var _tm = lookAmt > (lookTm ? 0.3 : 0.6);   // hysteresis; orbit / galaxy keep the site's ACES
         if (_tm !== lookTm) { lookTm = _tm; renderer.toneMapping = _tm ? THREE.AgXToneMapping : THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = _tm ? 1.0 : 1.15; }
         if (lookTm) renderer.toneMappingExposure = 1.0 - 0.4 * lookNight * lookAmt;   // A14: night reads as night
-        if (composer && bloomOn) composer.render();
+        var _lon = lookAmt > 0.02; if (_lon !== lastLookOn) { lastLookOn = _lon; applyBloomSize(); if (!_lon && dynRes !== 1) { dynRes = 1; gpuRing.length = 0; resize(); } }
+        if (composer && bloomOn) {
+            if (_lon) govRender(); else composer.render();
+        }
         else renderer.render(scene, camera);
         if (_fo) {
             scene.position.set(0, 0, 0);
@@ -2623,6 +2650,7 @@ import * as GL from './galaxy-layout.js';
                 applyBloomSize();
             },
             get bloom() { return { on: bloomOn, scale: bloomScale }; },
+            get dynRes() { return dynRes; }, set dynRes(v) { dynRes = Math.max(0.5, Math.min(1, +v || 1)); resize(); },
             setLook: function (a, focus, night) { lookAmt = Math.max(0, Math.min(1, +a || 0)); lookStamp = performance.now(); if (focus > 0) lookFocus = focus; lookNight = Math.max(0, Math.min(1, +night || 0)); },
             get look() { return lookAmt; },
             // fraction (0..1) of the star sky + dust band that is drawn (draw range on the Points; stars are in random order)

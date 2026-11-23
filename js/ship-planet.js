@@ -1,3 +1,4 @@
+var humanMod = null; import('./ship-human.js').then(function (m) { humanMod = m; }).catch(function () { humanMod = null; });      // lazy: node tests load this file without three/addons
 // ship-planet.js — fly-in planet surfaces for ship mode (docs/ship-mode.md, rev 12 A).
 // The surface IS the orbital planet shader: the noise/height functions below are copied
 // verbatim from galaxy3d.js PLANET_NOISE / PLANET_FRAG, so continents match from orbit.
@@ -1932,6 +1933,7 @@ export function createPlanetSurface(engine, L) {
     }
     ps.globeInfo = function () { return { on: !!hiOn, id: hiOn ? hiOn.id : null, seg: hiGeoN, tris: hiGeo ? hiGeo.index.count / 3 : 0 }; };
     // ─── rev 27: landmarks. Layout (direction space, seeded per planet id) is cached; matrices rebuild on every (re)seed so a pilot rescale re-lays them at the new radius.
+    var cpSuit = [0, 0, 0], cpDeep = [0, 0, 0], cpOn = false, _cc = new THREE.Color();
     var rampC = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], lmCache = {}, lmList = [], bioC = [0.6, 1, 0.8], ffC = new THREE.Vector3(), ffSet = false, ffLook = -1, hazeClear = 0;
     var hC = new THREE.Vector3(0, 1, 0), hT1 = new THREE.Vector3(1, 0, 0), hT2 = new THREE.Vector3(0, 0, 1), ringQ = new THREE.Quaternion();
     function bioColor() {
@@ -2111,10 +2113,12 @@ export function createPlanetSurface(engine, L) {
             pu.uRDeep.value.copy(pl.deep); pu.uRMid.value.copy(pl.mid); pu.uRSky.value.copy(pl.sky);
             rampC[0] = col3(pl.deep); rampC[1] = col3(pl.lo); rampC[2] = col3(pl.mid); rampC[3] = col3(pl.hi); rampC[4] = col3(pl.sky);
             ps.palette = { name: node.famName || '', ramp: pl.ramp.map(function (c) { return c.getHex(); }), accent: pl.acc.getHex(), sea: pl.sea.getHex(), atmo: pl.atmo.getHex() };
+            var cp = humanMod && humanMod.charPalette(ps.palette.ramp, ps.palette.accent);      // creature bodies wear the character suit set; accent only on markings
+            if (cp) { _cc.setHex(cp.suit); cpSuit[0] = _cc.r; cpSuit[1] = _cc.g; cpSuit[2] = _cc.b; _cc.setHex(cp.deep); cpDeep[0] = _cc.r; cpDeep[1] = _cc.g; cpDeep[2] = _cc.b; cpOn = true; }
         } else {      // non-ramp node (should not happen): derive a ramp from lo / hi
             var lo0 = col3(u.uColLow.value), hi0 = col3(u.uColHigh.value);
             pu.uRDeep.value.setRGB(lo0[0] * 0.5, lo0[1] * 0.4, lo0[2] * 0.7); pu.uRMid.value.setRGB((lo0[0] + hi0[0]) / 2, (lo0[1] + hi0[1]) / 2, (lo0[2] + hi0[2]) / 2); pu.uRSky.value.setRGB(hi0[0] * 0.5 + 0.5, hi0[1] * 0.5 + 0.5, hi0[2] * 0.5 + 0.5);
-            rampC[0] = col3(pu.uRDeep.value); rampC[1] = lo0; rampC[2] = col3(pu.uRMid.value); rampC[3] = hi0; rampC[4] = col3(pu.uRSky.value); ps.palette = null;
+            rampC[0] = col3(pu.uRDeep.value); rampC[1] = lo0; rampC[2] = col3(pu.uRMid.value); rampC[3] = hi0; rampC[4] = col3(pu.uRSky.value); ps.palette = null; cpOn = false;
         }
         for (var dbi = 0; dbi < discs.length; dbi++) if (discs[dbi]) discBind(discs[dbi]);
         floraSet = false; rockSet = false; sporeSet = false; ffSet = false;
@@ -2323,7 +2327,7 @@ export function createPlanetSurface(engine, L) {
         globeHi(null, false); colExtra.length = 0; colExtraId = null;
         worldDetach();
         unhookHalo(); killScars(); clearOutposts(); siteDefs = [null, null, null]; pads = [];
-        node = null; ps.active = null; ps.palette = null; ps.depth = 0; broken.clear(); chClear(); tsOk = false;      // Q56: trees regenerate on return
+        node = null; ps.active = null; ps.palette = null; ps.depth = 0; cpOn = false; broken.clear(); chClear(); tsOk = false;      // Q56: trees regenerate on return
         if (alloc) { showObjs(false); alloc.domeU.uAlpha.value = 0; alloc.flora.count = 0; alloc.creat.count = 0; alloc.rocks.count = 0; alloc.spores.count = 0; rockSet = false; sporeSet = false; alloc.lm.count = 0; alloc.ffN = 0; alloc.steamN = 0; lmList = []; ffSet = false; }
     }
 
@@ -2505,7 +2509,7 @@ export function createPlanetSurface(engine, L) {
                 cr.flee = (beh === 0 ? 10 : beh === 1 ? 6 : beh === 3 ? 8 : 0) * L;
                 cr.px = hash01(A, B, C2, seed + 11 + mi) * 6.28; cr.tm = hash01(A, B, C2, seed + 24 + mi) * 4; cr.paused = hash01(A, B, C2, seed + 25) > 0.5;
                 var tt = beh === 0 ? Math.min(1, Math.max(0, tt0 + (hm - 0.5) * 0.15)) : hm;
-                for (q = 0; q < 3; q++) cr.col[q] = bodyV === 1 ? (ac[q] * 0.7 + hi[q] * 0.3) * 1.1 + 0.1 : (lo[q] * (1 - tt) + hi[q] * tt) * 0.9 + 0.12 + (bodyV === 3 ? ac[q] * 0.15 : 0);
+                if (cpOn) { for (q = 0; q < 3; q++) cr.col[q] = (cpDeep[q] * (1 - tt) + cpSuit[q] * tt) * 0.9 + 0.12 + (bodyV === 1 ? ac[q] * 0.08 : 0); } else for (q = 0; q < 3; q++) cr.col[q] = bodyV === 1 ? (ac[q] * 0.7 + hi[q] * 0.3) * 1.1 + 0.1 : (lo[q] * (1 - tt) + hi[q] * tt) * 0.9 + 0.12 + (bodyV === 3 ? ac[q] * 0.15 : 0);
                 var o = byId[cr.id];
                 if (o) { cr.p.copy(o.p); cr.h.copy(o.h); cr.pp.copy(o.pp); cr.spd = o.spd; cr.tm = o.tm; cr.paused = o.paused; cr.fleeT = o.fleeT; cr.glowT = o.glowT; cr.r = o.r; }
                 cnt++;
