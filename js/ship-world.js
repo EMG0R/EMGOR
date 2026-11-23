@@ -88,7 +88,8 @@ void main(){
   float h = dot(N, normalize(uUpW)) * 0.5 + 0.5;
   vec3 fill = mix(vC * vec3(0.2, 0.13, 0.3), uSky * 0.8 + vec3(0.04, 0.02, 0.09), h);
   float w = clamp((dot(N, normalize(uLight)) + 0.3) / 1.3, 0.0, 1.0);
-  vec3 key = vec3(1.0, 0.9, 0.8) * smoothstep(0.0, 1.0, w) * (1.0 - 0.8 * uNightF);
+  float wm = clamp((dot(N, -normalize(uLight)) + 0.3) / 1.3, 0.0, 1.0);   // A14: cool moon key opposite the sun
+  vec3 key = vec3(1.0, 0.9, 0.8) * smoothstep(0.0, 1.0, w) * (1.0 - uNightF) + vec3(0.5, 0.62, 1.0) * smoothstep(0.0, 1.0, wm) * 0.4 * uNightF;
   vec3 col = vC * (fill * 0.6 + key * 0.5 + 0.22);
   float f = min(1.0 - exp(-pow(length(vV) * uFogK, 2.0)), 0.985);
   col = mix(col, uSky, f);

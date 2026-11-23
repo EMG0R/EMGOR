@@ -236,14 +236,15 @@ var PATCH_VERT = [
 var LIGHT_GLSL = [
     'vec3 litHemiKey(vec3 base, vec3 N, vec3 up, vec3 L, vec3 sky, float night) {',
     '    float h = dot(N, up) * 0.5 + 0.5;',
-    '    vec3 fill = mix(base * vec3(0.2, 0.13, 0.3), sky * 0.8 + vec3(0.04, 0.02, 0.09), h);',
+    '    vec3 fill = mix(base * vec3(0.2, 0.13, 0.3), sky * (0.8 - 0.4 * night) + vec3(0.04, 0.02, 0.09), h);',
     '    float w = clamp((dot(N, L) + 0.3) / 1.3, 0.0, 1.0);',
-    '    vec3 key = vec3(1.0, 0.9, 0.8) * smoothstep(0.0, 1.0, w) * (1.0 - 0.85 * night);',
+    '    float wm = clamp((dot(N, -L) + 0.3) / 1.3, 0.0, 1.0);',                                    // A14: the moon sits opposite the sun, cool key at 0.4
+    '    vec3 key = vec3(1.0, 0.9, 0.8) * smoothstep(0.0, 1.0, w) * (1.0 - night) + vec3(0.5, 0.62, 1.0) * smoothstep(0.0, 1.0, wm) * 0.4 * night;',
     '    return base * (fill * 0.7 + key * 0.7);',
     '}'
 ].join('\n');
 var PATCH_FRAG = [
-    'uniform vec3 uColHigh; uniform vec3 uColLow; uniform vec3 uColSea; uniform vec3 uAtmo; uniform vec3 uAccent;',
+    'uniform vec3 uColHigh; uniform vec3 uColLow; uniform vec3 uColSea; uniform vec3 uAtmo; uniform vec3 uAccent; uniform vec3 uRDeep; uniform vec3 uRMid; uniform vec3 uRSky;',
     'uniform float uBiome; uniform float uBandFreq; uniform float uSpeckle; uniform vec3 uLightDir;',
     'uniform vec3 uSeed; uniform float uFreq; uniform float uWarp; uniform float uSeaLevel;',
     'uniform float uFade; uniform float uSurf; uniform vec3 uFogCol; uniform float uFogK; uniform float uLook; uniform float uDetD; uniform float uDetK; uniform float uTime;',
@@ -267,7 +268,7 @@ var PATCH_FRAG = [
     '        seaM = 1.0 - land; landM = land; nn = n; wM = 1.0 - smoothstep(0.38, 0.5, land);',
     '        col = mix(uColSea, uColLow, land);',
     '        col = mix(col, uColHigh, high);',
-    '        col += (fbm(p * 6.3) - 0.5) * 0.07;',
+    '        col += (fbm(p * 6.3) - 0.5) * 0.07 * (1.0 - uSurf);',
     '    } else {',
     '        float lat = sp.y + (q.x - 0.5) * uWarp * 0.45 + (fbm(p * 2.3) - 0.5) * 0.3;',
     '        float s = sin(lat * uBandFreq + q.y * 2.4);',
@@ -279,7 +280,7 @@ var PATCH_FRAG = [
     '    }',
     '    if (uSpeckle > 0.0) {',
     '        float spk = step(1.0 - uSpeckle * 0.012, vnoise(p * 26.0));',
-    '        col += uAccent * spk * 1.7;',
+    '        col += uAccent * spk * 1.7 * (1.0 - uSurf);',
     '    }',
     // rev 24: the GLOBE's own lighting + fresnel on the sphere normal (verbatim PLANET_FRAG), so at >= 2 R the patch is pixel-equal to the painted sphere
     '    vec3 V = normalize(vView);',
@@ -294,33 +295,24 @@ var PATCH_FRAG = [
     '    float slope = 1.0 - clamp(dot(N, normalize(vUp)), 0.0, 1.0);',
     '    float hh = smoothstep(0.03, 0.2, vH);',
     '    float steep = smoothstep(0.035, 0.2, slope);',
-    '    float tn = 0.5;',                                                    // look rev 28: no ground colour noise, gradient bands only
-    '    if (uBiome < 0.5) {',
-    '        vec3 rockC = mix(uColLow, uColHigh, 0.4) * vec3(0.42, 0.38, 0.4) + 0.045;',
-    '        if (uLook < 0.5) {',                                                   // rocky: dusty plains, banded dark cliffs, pale summits
-    '            col = mix(col, col * (0.82 + 0.4 * tn) + 0.02, 0.6);',
-    '            col = mix(col, rockC * (0.8 + 0.6 * tn), steep);',
-    '            col = mix(col, col * 1.28 + 0.05, hh * (1.0 - steep) * 0.7);',
-    '        } else if (uLook < 1.5) {',                                            // lush: saturated lowlands, grey cliffs, snow on the peaks
-    '            col = mix(col, uColLow * (1.05 + 0.35 * tn) + 0.015, (1.0 - hh) * 0.6);',
-    '            col = mix(col, vec3(0.34, 0.33, 0.35) * (0.8 + 0.5 * tn), steep * 0.85);',
-    '            col = mix(col, vec3(0.92, 0.95, 1.0), smoothstep(0.62, 0.9, hh) * (1.0 - steep * 0.8) * 0.85);',
-    '        } else {',                                                             // icy: pale snow plains, deep blue crevasse walls, glints
-    '            vec3 snow = mix(vec3(0.78, 0.88, 1.0), vec3(0.95, 0.98, 1.0), tn);',
-    '            col = mix(col, snow * (0.8 + 0.2 * hh), (1.0 - steep) * 0.62);',
-    '            col = mix(col, uAtmo * 0.28 + rockC * 0.35, steep * 0.9);',
-    '        }',
+    '    if (uBiome < 0.5) {',                                                   // A1/A13: one ramp, slope pushes one stop darker (no grey), no per-look colour hacks
+    '        vec3 cliff = mix(uRDeep, uColLow, 0.45);',
+    '        col = mix(col, cliff, steep * 0.8);',
+    '        col = mix(col, col * 1.12 + 0.02, hh * (1.0 - steep) * 0.6);',
+    '        if (uLook > 1.5) col = mix(col, mix(uRSky, uColHigh, 0.5), (1.0 - steep) * 0.25);',          // icy: pale plains in the sky stop
+    '        else if (uLook > 0.5) col = mix(col, uRSky, smoothstep(0.62, 0.9, hh) * (1.0 - steep * 0.8) * 0.7);',   // lush: pale summits
     '    }',
     // rev 19: height bands (lowland -> highland hue shift, pale cap above 70 % of the amplitude), 2-octave ground detail, stronger slope + sun shading
     '    if (uBiome < 0.5) {',
     '        vec3 bandC = mix(uColLow, uColHigh, smoothstep(0.02, 0.17, vH));',
     '        col = mix(col, bandC * (0.55 + 0.9 * dot(col, vec3(0.33))) , 0.28 * (1.0 - seaM));',
     '        float cap = smoothstep(0.7, 0.92, hh) * (1.0 - steep * 0.75);',
-    '        col = mix(col, mix(uColHigh, vec3(0.93, 0.93, 0.95), 0.62) * 0.95 + 0.04, cap * 0.75 * (1.0 - seaM));',
-    '        vec3 dpC = uColLow * vec3(0.5, 0.36, 0.7);',                    // look rev 28: violet-anchored 4-stop height ramp, smooth bands
+    '        col = mix(col, mix(uColHigh, uRSky, 0.7), cap * 0.75 * (1.0 - seaM));',
+    '        vec3 dpC = uRDeep;',                    // look rev 28: violet-anchored 4-stop height ramp, smooth bands
     '        vec3 rmp = mix(dpC, uColLow, smoothstep(-0.02, 0.05, vH));',
-    '        rmp = mix(rmp, mix(uColLow, uColHigh, 0.5), smoothstep(0.04, 0.11, vH));',
+    '        rmp = mix(rmp, uRMid, smoothstep(0.04, 0.11, vH));',
     '        rmp = mix(rmp, uColHigh, smoothstep(0.1, 0.2, vH));',
+    '        rmp = mix(rmp, uRSky, smoothstep(0.2, 0.32, vH) * 0.55);',
     '        col = mix(col, rmp * (0.7 + 0.6 * dot(col, vec3(0.33))), 0.5 * (1.0 - seaM));',
     '    }',
     '    if (uBiome > 0.5) {',                                                   // rev 20: cloud world. local latitude stripes (palette bands) + domain-warped swirls + puffs, all in L
@@ -339,21 +331,23 @@ var PATCH_FRAG = [
     '    vec3 Nw = N; float foam = 0.0; float wAtt = 1.0 - smoothstep(uDetD, uDetD * 5.0, dist);',
     '    if (uBiome < 0.5 && wM > 0.001) {',
     '        float dep = smoothstep(0.0, 1.0, clamp((uSeaLevel - nn) / 0.06, 0.0, 1.0));',
-    '        vec3 shallow = uColSea * 1.7 + vec3(0.0, 0.03, 0.03);',
+    '        vec3 shallow = uColSea * 1.7;',
     '        vec3 deepC = uColSea * 0.38;',
     '        col = mix(col, mix(shallow, deepC, dep), wM);',
     '        vec3 gp2 = sp * uDetK;',
-    '        vec3 pw = vec3(sin(dot(gp2, vec3(0.9, 0.2, 0.4)) * 0.9 + uTime * 1.3) + sin(dot(gp2, vec3(0.2, -0.7, 0.6)) * 2.3 - uTime * 1.9),',
-    '                       sin(dot(gp2, vec3(-0.3, 0.8, 0.5)) * 1.4 - uTime * 1.6) + sin(dot(gp2, vec3(0.7, 0.4, -0.5)) * 3.1 + uTime * 2.4),',
-    '                       sin(dot(gp2, vec3(0.5, -0.6, 0.7)) * 2.0 + uTime * 1.1) + sin(dot(gp2, vec3(-0.6, 0.1, 0.8)) * 3.7 - uTime * 2.1));',
+    '        vec3 pw = vec3(sin(dot(gp2, vec3(0.9, 0.2, 0.4)) * 0.9 + uTime * 0.55) + sin(dot(gp2, vec3(0.2, -0.7, 0.6)) * 2.3 - uTime * 0.8),',
+    '                       sin(dot(gp2, vec3(-0.3, 0.8, 0.5)) * 1.4 - uTime * 0.7) + sin(dot(gp2, vec3(0.7, 0.4, -0.5)) * 3.1 + uTime * 1.0),',
+    '                       sin(dot(gp2, vec3(0.5, -0.6, 0.7)) * 2.0 + uTime * 0.5) + sin(dot(gp2, vec3(-0.6, 0.1, 0.8)) * 3.7 - uTime * 0.9));',
     '        pw = pw - N * dot(pw, N);',
     '        Nw = normalize(N + pw * 0.11 * wM * wAtt);',
     '        float cb = smoothstep(0.36, 0.46, landM) * (1.0 - smoothstep(0.5, 0.56, landM));',
-    '        float rip = 0.5 + 0.5 * sin(nn * 340.0 - uTime * 1.6 + vnoise(gp2 * 0.4) * 7.0);',
+    '        float rip = 0.5 + 0.5 * sin(nn * 340.0 - uTime * 0.7 + vnoise(gp2 * 0.4) * 7.0);',
     '        foam = cb * (0.5 + 0.5 * rip) * (1.0 - smoothstep(uDetD * 4.0, uDetD * 14.0, dist));',
     '    }',
     '    float ndl = dot(N, uLightDir) * 0.5 + 0.5;',
     '    col = litHemiKey(col, N, normalize(vUp), uLightDir, uFogCol, uNightF);',
+    '    float csh = vnoise(sp * uDetK / 420.0 + vec3(uTime * 0.0035, 0.0, uTime * 0.0022));',      // A7: cloud shadows drift across the ground, <= 0.15 darkening, one slow noise, no allocs
+    '    col *= 1.0 - 0.15 * smoothstep(0.5, 0.78, csh) * (1.0 - uNightF) * uSurf;',
     '    float fr = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.6);',
     '    col += uAtmo * fr * 0.18;',
     '    if (uBiome < 0.5) {',
@@ -361,9 +355,9 @@ var PATCH_FRAG = [
     '        float sp2 = pow(max(dot(Nw, Hh), 0.0), 140.0) * smoothstep(0.3, 0.6, ndl);',
     '        float sp3 = pow(max(dot(Nw, Hh), 0.0), 18.0) * smoothstep(0.3, 0.6, ndl);',
     '        col += wM * (vec3(1.0, 0.97, 0.9) * (sp2 * 1.3 + sp3 * 0.12) + uAtmo * pow(1.0 - clamp(dot(Nw, V), 0.0, 1.0), 3.5) * 0.24 * (0.3 + 0.7 * ndl));',
-    '        col = mix(col, vec3(0.95, 0.98, 1.0) * (0.35 + 0.65 * ndl), foam * 0.72);',
+    '        col = mix(col, uRSky * (0.35 + 0.65 * ndl), foam * 0.6);',
     '    }',
-    '    if (uBiome < 0.5 && uLook > 1.5) col += vec3(0.8, 0.9, 1.0) * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 6.0) * 0.25 * (1.0 - steep);',
+    '    if (uBiome < 0.5 && uLook > 1.5) col += uRSky * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 6.0) * 0.2 * (1.0 - steep);',
     '    col = mix(col, col * vec3(0.6, 0.48, 0.74), smoothstep(0.04, 0.22, slope) * step(uBiome, 0.5) * 0.6);',
     '    gcol = mix(gcol, col, uSurf);',
     '    }',
@@ -402,7 +396,7 @@ var INST_FRAG = [
 ].join('\n');
 
 var FLORA_FRAG = INST_FRAG.replace('varying vec3 vCol;', 'uniform float uGlow; uniform float uBioN; varying vec3 vBio; varying vec3 vLP; varying float vTop; varying vec3 vCol;')
-    .replace('vec3 col = litHemiKey(vCol, N, uUpW, uLightDir, uFogCol, uNightF);', 'vec3 col = litHemiKey(vCol, N, uUpW, uLightDir, uFogCol, uNightF); col += vCol * uGlow * smoothstep(0.8, 0.95, vTop) * 1.0; float bsp = smoothstep(0.5, 0.72, sin(vLP.x * 13.0 + vLP.y * 9.0) * sin(vLP.z * 11.0 - vLP.y * 7.0) * 0.5 + 0.5); float bk = max(vBio.r, max(vBio.g, vBio.b)) * uBioN * (0.3 + 0.7 * bsp); col = mix(col, vBio * (1.2 + 0.5 * bsp), min(bk, 0.92));');
+    .replace('vec3 col = litHemiKey(vCol, N, uUpW, uLightDir, uFogCol, uNightF);', 'vec3 col = litHemiKey(vCol, N, uUpW, uLightDir, uFogCol, uNightF); float bsp = smoothstep(0.5, 0.72, sin(vLP.x * 13.0 + vLP.y * 9.0) * sin(vLP.z * 11.0 - vLP.y * 7.0) * 0.5 + 0.5); float bk = max(vBio.r, max(vBio.g, vBio.b)) * uBioN * (0.3 + 0.7 * bsp); col = mix(col, vBio * (1.2 + 0.5 * bsp), min(bk, 0.92));');
 var FLORA_VERT = [
     'attribute float aVar; attribute float aPart; attribute float aSel; attribute vec3 aCol; attribute vec3 aBio;',
     'uniform float uFadeA; uniform float uFadeB; uniform float uNearA; uniform float uNearB;',
@@ -428,7 +422,7 @@ var FLORA_VERT = [
 ].join('\n');
 
 var FLORA_VERT_SW = FLORA_VERT.replace('uniform float uFadeA;', 'uniform float uTime; uniform float uSway; uniform float uFadeA;')
-    .replace('    pos *= k;', '    float swp = uTime * 0.45 + iw.x * 0.07 + iw.z * 0.05;\n    pos.x += (sin(swp) + 0.5 * sin(swp * 2.3 + 1.3)) * uSway * 0.2 * position.y * position.y;\n    pos.z += cos(swp * 0.8) * uSway * 0.12 * position.y * position.y;\n    pos *= k;');
+    .replace('    pos *= k;', '    float swp = uTime * 0.35 + iw.x * 0.07 + iw.z * 0.05;\n    float gst = 0.6 + 0.4 * sin(dot(iw.xyz, vec3(0.5, 0.35, 0.8)) * 0.006 - uTime * 0.28);\n    pos.x += (sin(swp) + 0.5 * sin(swp * 2.3 + 1.3)) * gst * uSway * 0.2 * position.y * position.y;\n    pos.z += cos(swp * 0.8) * uSway * 0.12 * position.y * position.y;\n    pos *= k;');
 
 var CREAT_VERT = [
     'attribute float aVar; attribute float aW; attribute float aPh; attribute float aSel; attribute vec3 aCol; attribute float aPartC;',
@@ -761,8 +755,8 @@ var DOME_FRAG = [
     '    float c = dot(v, normalize(uUp));',
     '    float z = clamp((c - uHor) / (1.0 - uHor), 0.0, 1.0);',   // 0 at the geometric horizon
     '    vec3 hor = uFogCol;',                                            // look rev 28: 3-stop gradient, horizon stop == fog colour exactly
-    '    vec3 mid = mix(uFogCol, uAtmo, 0.55) * (0.35 + 0.65 * uSun);',
-    '    vec3 zen = mix(uAtmo * vec3(0.55, 0.45, 0.95), vec3(0.06, 0.03, 0.14), 1.0 - uSun);',
+    '    vec3 mid = mix(uFogCol, uAtmo, 0.55) * (0.35 + 0.65 * uSun) + vec3(0.03, 0.03, 0.14) * (1.0 - uSun);',
+    '    vec3 zen = mix(uAtmo * vec3(0.55, 0.45, 0.95), vec3(0.05, 0.05, 0.26), 1.0 - uSun);',            // A14: indigo night zenith
     '    float bnd = 0.5 + 0.5 * sin(c * 7.0 + dot(v, vec3(1.3, 0.2, 0.7)) * 2.6 + uTime * 0.2) * (0.6 + 0.4 * sin(dot(v, vec3(0.4, 1.1, -0.8)) * 3.1 - uTime * 0.13));',   // lava-lamp bands, <= 0.05 Hz
     '    vec3 col = mix(hor, mid, smoothstep(0.0, 0.35, z));',
     '    col = mix(col, zen, smoothstep(0.25, 1.0, z));',
@@ -1261,7 +1255,7 @@ function lmGeometry(THREE) {
 var LM_VENTS = [[0, 0], [8, 3], [-7, 5], [4, -8], [-3, -9]];
 var LM_KINDS = ['spire', 'arch', 'islands', 'geyser', 'hull', 'monolith'], LM_NOUN = ['Spire', 'Arch', 'Reach', 'Geysers', 'Wreck', 'Circle'];
 var SYL_A = ['V', 'K', 'Z', 'Th', 'Br', 'M', 'S', 'T', 'N', 'Qu', 'Dr', 'Sh'], SYL_B = ['o', 'a', 'e', 'i', 'u', 'ai', 'ou'], SYL_C = ['hr', 'rn', 'l', 'th', 'x', 'n', 'r', 'sk', 'm', 'sh'];
-var FF_MAX = 400, STEAM_MAX = 120, Q_FF = [120, 200, 300, 400];
+var FF_MAX = 400, STEAM_MAX = 120, Q_FF = [40, 70, 100, 120];     // A14: 400 -> 120 (buffer layout keeps FF_MAX)
 function lmName(sd, kind) {
     var n = 1 + (hash01(sd, 3, 1, 1) > 0.55 ? 1 : 0), w = '';
     for (var i = 0; i < n; i++) {
@@ -1430,6 +1424,7 @@ export function createPlanetSurface(engine, L) {
         a.patchU = {
             uSeed: { value: new THREE.Vector3() }, uColHigh: { value: new THREE.Color() }, uColLow: { value: new THREE.Color() },
             uColSea: { value: new THREE.Color() }, uAtmo: { value: new THREE.Color() }, uAccent: { value: new THREE.Color() },
+            uRDeep: { value: new THREE.Color() }, uRMid: { value: new THREE.Color() }, uRSky: { value: new THREE.Color() },
             uBiome: { value: 0 }, uLook: { value: 0 }, uFreq: { value: 3 }, uWarp: { value: 1 }, uBandFreq: { value: 8 }, uSeaLevel: { value: 0.5 },
             uSpeckle: { value: 0 }, uLightDir: SH.uLightDir, uFogCol: SH.uFogCol, uFogK: SH.uFogK, uNightF: SH.uNight,
             uSeaH: { value: 0.5 }, uAmp: { value: AMP }, uBias: { value: BIAS }, uEps: { value: 0.0012 }, uTime: SH.uTime, uR: { value: 1 }, uDetD: { value: 140 * L }, uDetK: { value: 3000 },
@@ -1937,7 +1932,7 @@ export function createPlanetSurface(engine, L) {
     }
     ps.globeInfo = function () { return { on: !!hiOn, id: hiOn ? hiOn.id : null, seg: hiGeoN, tris: hiGeo ? hiGeo.index.count / 3 : 0 }; };
     // ─── rev 27: landmarks. Layout (direction space, seeded per planet id) is cached; matrices rebuild on every (re)seed so a pilot rescale re-lays them at the new radius.
-    var lmCache = {}, lmList = [], bioC = [0.6, 1, 0.8], ffC = new THREE.Vector3(), ffSet = false, ffLook = -1, hazeClear = 0;
+    var rampC = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], lmCache = {}, lmList = [], bioC = [0.6, 1, 0.8], ffC = new THREE.Vector3(), ffSet = false, ffLook = -1, hazeClear = 0;
     var hC = new THREE.Vector3(0, 1, 0), hT1 = new THREE.Vector3(1, 0, 0), hT2 = new THREE.Vector3(0, 0, 1), ringQ = new THREE.Quaternion();
     function bioColor() {
         var ac = col3(node.mesh.material.uniforms.uAccent.value), m = Math.max(ac[0], ac[1], ac[2], 1e-3);
@@ -2036,15 +2031,14 @@ export function createPlanetSurface(engine, L) {
             cands.push([(px - cx) * (px - cx) + (py - cy) * (py - cy) + (pz - cz) * (pz - cz), px / rl, py / rl, pz / rl, i, j, k]);
         }
         cands.sort(function (p, q) { return p[0] - q[0]; });
-        var cap = Math.round(Q_FF[qTier] * (look === 0 ? 0.6 : 1)), n = 0, pp = a.ptsPos.array, pa = a.ptsP.array, pc = a.ptsC.array, bc = bioColor();
-        var tint = look === 1 ? [0.7, 1.0, 0.45] : (look === 2 ? [0.55, 0.85, 1.0] : [1.0, 0.6, 0.25]);
+        var cap = Q_FF[qTier], n = 0, pp = a.ptsPos.array, pa = a.ptsP.array, pc = a.ptsC.array, bc = bioColor();
         for (var c = 0; c < cands.length && n < cap; c++) {
             var cd = cands[c], h = hFrac(cd[1], cd[2], cd[3]);
             if (_lastN < sea + 0.02) continue;
             var r1 = hash01(cd[4], cd[5], cd[6], seed + 4), r2 = hash01(cd[4], cd[5], cd[6], seed + 5), r3 = hash01(cd[4], cd[5], cd[6], seed + 6), rad = R * (1 + h) + (0.5 + 3 * r1) * L;
             pp[n * 3] = cd[1] * rad; pp[n * 3 + 1] = cd[2] * rad; pp[n * 3 + 2] = cd[3] * rad;
-            pa[n * 4] = 0; pa[n * 4 + 1] = r2; pa[n * 4 + 2] = 0.6 + r3; pa[n * 4 + 3] = 0.11 + 0.07 * r3;
-            for (var q = 0; q < 3; q++) pc[n * 3 + q] = (bc[q] * 0.5 + tint[q] * 0.5) * (0.8 + 0.4 * r1);
+            pa[n * 4] = 0; pa[n * 4 + 1] = r2; pa[n * 4 + 2] = 0.35 + 0.5 * r3; pa[n * 4 + 3] = 0.16 + 0.08 * r3;
+            for (var q = 0; q < 3; q++) pc[n * 3 + q] = bc[q] * (0.8 + 0.4 * r1);
             n++;
         }
         for (var z = n; z < FF_MAX; z++) pa[z * 4 + 3] = 0;
@@ -2111,8 +2105,17 @@ export function createPlanetSurface(engine, L) {
         amp = isGas ? AMP_GAS : AMP; bias = isGas ? GAS_DECK : BIAS;
         pu.uAmp.value = amp; pu.uBias.value = isGas ? 0 : bias; pu.uDetK.value = R / L;
         look = lookFromPalette(col3(u.uColLow.value), col3(u.uColHigh.value)); pu.uLook.value = look;
-        var A = col3(u.uAtmo.value);
+        var A = col3(u.uAtmo.value), pl = node.pal;
         alloc.domeU.uAtmo.value.setRGB(A[0], A[1], A[2]);
+        if (pl && pl.ramp) {      // A1: the landed shaders, flora, rocks, water and sky all sample the same 5-stop ramp
+            pu.uRDeep.value.copy(pl.deep); pu.uRMid.value.copy(pl.mid); pu.uRSky.value.copy(pl.sky);
+            rampC[0] = col3(pl.deep); rampC[1] = col3(pl.lo); rampC[2] = col3(pl.mid); rampC[3] = col3(pl.hi); rampC[4] = col3(pl.sky);
+            ps.palette = { name: node.famName || '', ramp: pl.ramp.map(function (c) { return c.getHex(); }), accent: pl.acc.getHex(), sea: pl.sea.getHex(), atmo: pl.atmo.getHex() };
+        } else {      // non-ramp node (should not happen): derive a ramp from lo / hi
+            var lo0 = col3(u.uColLow.value), hi0 = col3(u.uColHigh.value);
+            pu.uRDeep.value.setRGB(lo0[0] * 0.5, lo0[1] * 0.4, lo0[2] * 0.7); pu.uRMid.value.setRGB((lo0[0] + hi0[0]) / 2, (lo0[1] + hi0[1]) / 2, (lo0[2] + hi0[2]) / 2); pu.uRSky.value.setRGB(hi0[0] * 0.5 + 0.5, hi0[1] * 0.5 + 0.5, hi0[2] * 0.5 + 0.5);
+            rampC[0] = col3(pu.uRDeep.value); rampC[1] = lo0; rampC[2] = col3(pu.uRMid.value); rampC[3] = hi0; rampC[4] = col3(pu.uRSky.value); ps.palette = null;
+        }
         for (var dbi = 0; dbi < discs.length; dbi++) if (discs[dbi]) discBind(discs[dbi]);
         floraSet = false; rockSet = false; sporeSet = false; ffSet = false;
     }
@@ -2320,7 +2323,7 @@ export function createPlanetSurface(engine, L) {
         globeHi(null, false); colExtra.length = 0; colExtraId = null;
         worldDetach();
         unhookHalo(); killScars(); clearOutposts(); siteDefs = [null, null, null]; pads = [];
-        node = null; ps.active = null; ps.depth = 0; broken.clear(); chClear(); tsOk = false;      // Q56: trees regenerate on return
+        node = null; ps.active = null; ps.palette = null; ps.depth = 0; broken.clear(); chClear(); tsOk = false;      // Q56: trees regenerate on return
         if (alloc) { showObjs(false); alloc.domeU.uAlpha.value = 0; alloc.flora.count = 0; alloc.creat.count = 0; alloc.rocks.count = 0; alloc.spores.count = 0; rockSet = false; sporeSet = false; alloc.lm.count = 0; alloc.ffN = 0; alloc.steamN = 0; lmList = []; ffSet = false; }
     }
 
@@ -2366,7 +2369,8 @@ export function createPlanetSurface(engine, L) {
             if (_lastN > sea + 0.19) { if (hash01(cd[4], cd[5], cd[6], seed + 9) < 0.7) continue; }
             var rr = hash01(cd[4], cd[5], cd[6], seed + 4), r2 = hash01(cd[4], cd[5], cd[6], seed + 5), r3 = hash01(cd[4], cd[5], cd[6], seed + 6);
             if (hash01(Math.floor(cd[4] / 4), Math.floor(cd[5] / 4), Math.floor(cd[6] / 4), seed + 13) < 0.45) continue;      // look rev 28: groves with empty space between
-            var variant = look === 2 ? 3 : (rr < 0.45 ? 0 : 1), sh = (4 + r2 * 4) * 1.5 * L * (variant === 0 ? 1.35 : 1), sw = sh * (variant === 0 ? 0.2 + r3 * 0.06 : 0.38 + r3 * 0.22) * (look === 2 ? 0.7 : 1);
+            var r2q = (Math.floor(r2 * 3) + 0.5) / 3;      // A13: three sizes per family
+            var variant = look === 2 ? 3 : (rr < 0.45 ? 0 : 1), sh = (4 + r2q * 4) * 1.5 * L * (variant === 0 ? 1.35 : 1), sw = sh * (variant === 0 ? 0.2 + r3 * 0.06 : 0.38 + r3 * 0.22) * (look === 2 ? 0.7 : 1);
             var rad = Rr * (1 + h) - 0.25 * L;
             // basis: right = d x ref, fwd = right x d, yaw by r3
             var ref0 = Math.abs(dy) < 0.9 ? 0 : 1;
@@ -2385,7 +2389,7 @@ export function createPlanetSurface(engine, L) {
             mat[o + 12] = dx * rad; mat[o + 13] = dy * rad; mat[o + 14] = dz * rad; mat[o + 15] = 1;
             // palette tint: lerp lo/hi, with an occasional accent-coloured tree
             var tt = 0.25 + 0.75 * r2, base = null;      // look rev 28: no accent-coloured confetti trees
-            for (var q = 0; q < 3; q++) ca[cnt * 3 + q] = look === 2 ? [0.62, 0.8, 0.98][q] * (0.8 + 0.3 * r2) : ((base ? base[q] * 0.5 : (lo[q] * (1 - tt) + hi[q] * tt)) * 0.82 + 0.02);
+            for (var q = 0; q < 3; q++) ca[cnt * 3 + q] = look === 2 ? rampC[4][q] * (0.78 + 0.25 * r2) : ((base ? base[q] * 0.5 : (lo[q] * (1 - tt) + hi[q] * tt)) * 0.82 + 0.02);
             sa[cnt] = variant;
             var bio = hash01(cd[4], cd[5], cd[6], seed + 11) < (look === 1 ? 0.38 : (look === 2 ? 0.3 : 0.14)) ? 0.6 + 0.4 * r3 : 0, bb = a.floraBio.array;
             bb[cnt * 3] = bioC[0] * bio; bb[cnt * 3 + 1] = bioC[1] * bio; bb[cnt * 3 + 2] = bioC[2] * bio;
@@ -2418,7 +2422,7 @@ export function createPlanetSurface(engine, L) {
             if (isGas || _lastN < sea + 0.004) continue;                      // dry land only
             if (pads.length && nearPad(dx, dy, dz, 3)) continue;
             var r1 = hash01(cd[4], cd[5], cd[6], seed + 4), r2 = hash01(cd[4], cd[5], cd[6], seed + 5), r3 = hash01(cd[4], cd[5], cd[6], seed + 6);
-            var big = r1 > 0.93 ? 1.4 : 1, sw = (0.3 + r2 * 1.2) * 1.5 * L * big, sh = sw * (0.55 + r3 * 0.5);
+            var big = 1, sw = (0.3 + (Math.floor(r2 * 3) + 0.5) / 3 * 1.2) * 1.5 * L * big, sh = sw * (0.55 + r3 * 0.5);
             var rad = Rr * (1 + h) - 0.2 * sh;
             var ref0 = Math.abs(dy) < 0.9 ? 0 : 1, rx, ry, rz;
             if (ref0 === 0) { rx = dz; ry = 0; rz = -dx; } else { rx = 0; ry = -dz; rz = dy; }
@@ -2434,7 +2438,7 @@ export function createPlanetSurface(engine, L) {
             mat[o + 12] = dx * rad; mat[o + 13] = dy * rad; mat[o + 14] = dz * rad; mat[o + 15] = 1;
             var tt = 0.7 + 0.6 * r2, hi2 = hFrac(dx, dy, dz) > 0.07;
             for (var q = 0; q < 3; q++) {
-                var base = look === 2 ? [0.62, 0.7, 0.8][q] : (look === 1 ? [0.36, 0.35, 0.34][q] : (lo[q] * 0.35 + hi[q] * 0.25 + 0.1));
+                var base = rampC[0][q] * 0.45 + rampC[2][q] * 0.55 + 0.05;      // A1: stones sit between the deep and mid stops of the planet ramp
                 ca[cnt * 3 + q] = Math.min(1, (base * 0.72 + 0.04) * tt * (hi2 ? 1.15 : 1));
             }
             var rb = hash01(cd[4], cd[5], cd[6], seed + 11) < (look === 1 ? 0.25 : (look === 2 ? 0.2 : 0.12)) ? 0.5 + 0.5 * r3 : 0, rbb = a.rockBio.array;
@@ -2746,6 +2750,7 @@ export function createPlanetSurface(engine, L) {
     function wxSetup() {
         var A = col3(node.mesh.material.uniforms.uAtmo.value);
         wxCold = A[2] > A[0] * 1.05; wxSeed = nodeSeed(node);
+        var pl2 = node.pal; if (pl2 && alloc && alloc.aurU) { alloc.aurU.uColA.value.copy(pl2.acc); alloc.aurU.uColB.value.copy(pl2.atmo); }      // A14: accent + atmosphere, no stock green
         wxPeriod = 120 + hash01(wxSeed, 11, 3, 77) * 180;
     }
     function updateWeather(dt, sunTerm) {
@@ -2781,7 +2786,7 @@ export function createPlanetSurface(engine, L) {
         }
         // aurora: a curtain over the pole, night side only (a forced aurora shows regardless of the sun)
         var nightK = wxForce === 'aurora' ? 1 : smoothstep(0.35, 0.85, 1 - sunTerm);
-        wxAurA = wxI.aur * eff * nightK;
+        wxAurA = Math.max(wxI.aur, wxCold ? 0.16 : 0) * eff * nightK;      // A7: faint always-on bands on cold / violet nights
         if (wxAurA > 0.01) {
             var au = a.aurU; au.uI.value = wxAurA; au.uRt.value.copy(wxRt); au.uFw.value.copy(wxFw);
             au.uAz.value = (hash01(wxSeed, 8, 2, 55) - 0.5) * 0.8 + Math.sin(t * 0.02) * 0.3;
@@ -2953,7 +2958,7 @@ export function createPlanetSurface(engine, L) {
         if (ps.sunElev != null) { var se = ps.sunElev, ce = Math.sqrt(Math.max(0, 1 - se * se)); _sx.set(tmpV.y * 0 + 1, 0, 0); if (Math.abs(tmpV.x) > 0.9) _sx.set(0, 1, 0); _sx.crossVectors(tmpV, _sx).normalize(); SH.uLightDir.value.copy(tmpV).multiplyScalar(se).addScaledVector(_sx, ce).normalize(); }   // debug: ps.sunElev = sin(sun elevation) pins the time of day (null = real)
         var sunDot = tmpV.dot(SH.uLightDir.value), sunTerm = smoothstep(-0.25, 0.55, sunDot);
         var fb = 0.28 + 0.72 * sunTerm;
-        var hz = 0.15 + 0.85 * sunTerm; SH.uFogCol.value.set((A[0] * 0.6 + Hh[0] * 0.4) * hz * 0.95 + 0.04, (A[1] * 0.6 + Hh[1] * 0.4) * hz * 0.85 + 0.03, (A[2] * 0.6 + Hh[2] * 0.4) * hz + 0.08);   // look rev 28: luminous violet-biased haze   // horizon tint = pal.hi, zenith = pal.atmo
+        var hz = 0.15 + 0.85 * sunTerm, nz = 1 - sunTerm, Sk = rampC[4]; SH.uFogCol.value.set(((A[0] * 0.6 + Sk[0] * 0.4) * hz * 0.95 + 0.04) + 0.06 * nz, ((A[1] * 0.6 + Sk[1] * 0.4) * hz * 0.85 + 0.03) + 0.06 * nz, ((A[2] * 0.6 + Sk[2] * 0.4) * hz + 0.08) + 0.2 * nz);   // A1/A14: horizon = atmo + ramp sky stop; indigo floor at night   // look rev 28: luminous violet-biased haze   // horizon tint = pal.hi, zenith = pal.atmo
         // rev 19: ground visibility >= 400 L (f(400 L) = 0.38, f(150 L) = 0.05); only the haze layer near the top of the atmosphere densifies, and space (depth 0) is clear
         // rev 24: no top-of-atmosphere haze layer; fog density follows the altitude above the ground (clear from the air, f(400 L) = 0.10 on the surface)
         var altF = Math.max(0, ratioD * R - R * (1 + hFrac(dirObj.x, dirObj.y, dirObj.z))) / L;
@@ -2962,8 +2967,8 @@ export function createPlanetSurface(engine, L) {
         SH.uNight.value = 1 - sunTerm;
         updateWeather(dt, sunTerm);
         a.domeU.uUp.value.copy(tmpV); a.domeU.uSun.value = sunTerm;
-        if (engine.setLook) engine.setLook(ps.visible ? smoothstep(0.35, 0.95, ps.depth) : 0, 110 * L);
-        a.domeU.uAlpha.value = Math.pow(ps.depth, 0.6) * (0.5 + 0.35 * sunTerm); a.domeU.uStar.value = Math.pow(ps.depth, 0.8);   // rev 24: dome alpha <= 0.45
+        if (engine.setLook) engine.setLook(ps.visible ? smoothstep(0.35, 0.95, ps.depth) : 0, 110 * L, SH.uNight.value);
+        a.domeU.uAlpha.value = Math.pow(ps.depth, 0.6) * (0.68 + 0.17 * sunTerm); a.domeU.uStar.value = Math.pow(ps.depth, 0.8);   // rev 24: dome alpha <= 0.45
         a.domeU.uHor.value = -Math.sqrt(Math.max(0, 1 - 1 / (ratioE * ratioE)));   // sin(elevation) of the geometric horizon
         a.dome.position.copy(camera.position); a.dome.updateMatrixWorld();
         updateScars(dt);

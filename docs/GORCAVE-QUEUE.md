@@ -106,19 +106,19 @@ Rebase `gorcave-backlog` onto main before merging if main moved; run g1-g17 batc
 - [x] Q61 Burger House enterable + modelled on the real Burger House on Mockingbird Lane (Dallas): research photos online first (exterior sign, red/white stand, counter, interior), then rebuild inside and out as faithfully as the low-poly style allows; walkable interior on groundTruth, counter NPC, menu board.
 
 ## Phase 12 — planet aesthetic (see docs/planet-aesthetic-audit.md)
-- [ ] A1 Violet-anchored palettes: 6 families as 5-stop ramps + one accent (galaxy3d PALETTES/seedIdentity), flora/rocks/creatures sample the ramp, no accent trees
+- [x] A1 Violet-anchored palettes: 6 families as 5-stop ramps + one accent (galaxy3d PALETTES/seedIdentity), flora/rocks/creatures sample the ramp, no accent trees
 - [x] A2 Shared hemisphere + warm key lighting chunk on terrain/flora/outposts/world/human/village (village off MeshBasic); AgX, exposure 1.0
 - [x] A3 Sky dome: opaque by day, 3-stop gradient, sun disc + halo, slow bands, soft night stars; fog colour = horizon
 - [x] A4 Atmospheric perspective: fog toward sky colour, x2.4 density on foot, height term, sun in-scatter, cap 0.985
 - [x] A5 Terrain gradient bands: delete fbm colour/tn/dn noise, ramp by height + slope one stop darker
 - [x] A6 Prop families: stalk / blob / stone, smooth normals, 3 sizes, groves with empty space, lush cap 700 -> 350
-- [ ] A7 Slow motion: sway 1.7 -> 0.35 + gust wave, cloud shadows on terrain, slower water, faint aurora on violet nights
+- [x] A7 Slow motion: sway 1.7 -> 0.35 + gust wave, cloud shadows on terrain, slower water, faint aurora on violet nights
 - [x] A8 Bloom on emissives only: threshold 1.0, strength 0.35, explicit HDR emissives, accent-only flora tips
 - [x] A9 (rounded, partial: hub/station untouched, no planet tint) Structures from the planet ramp (village, 7/11, hub), shared lighting + fog, brand colour only on signs
 - [ ] A10 Creatures/villagers/suit from the ramp + accent; roles by shape not hue
 - [ ] A11 HUD takes the planet accent/sky on land; idle-hide hotbar/markers
 - [x] A12 (own pass, landed only) Post folded into OutputPass: vignette, grain, violet black lift, split-tone
-- [ ] A13 Delete list: ground noise, accent trees, mushroom/palm, slab rocks, day stars, slope grey, terra speckle, 1 hut template, day torches
-- [ ] A14 Night pass: indigo sky, cool moon key, bio on accent only, fireflies 400 -> 120
+- [x] A13 Delete list: ground noise, accent trees, mushroom/palm, slab rocks, day stars, slope grey, terra speckle, 1 hut template, day torches
+- [x] A14 Night pass: indigo sky, cool moon key, bio on accent only, fireflies 400 -> 120
 - [x] Q62 Ship renders ghosted/blown-out white on foot ONLY after a harness-driven landing (T.hoverAt + Z, seen at 52853c3 and def4216); normal Z landing is fine (look3-foot-ship.jpg). Find the state the harness leaves (landing glow / thruster emissive / vertex colour > 1.15 in ship-parts.js) and clamp it; add a g-test that reads a ship pixel luminance after landing.
-- [ ] Q63 Far-blur DoF is off by default (window.EMGOR_DOF=1 enables). Re-enable once Q62 is understood; the "blurry" look currently comes from vignette + grain + black lift only.
+- [x] Q63 Far-blur DoF is off by default (window.EMGOR_DOF=1 enables). Re-enable once Q62 is understood; the "blurry" look currently comes from vignette + grain + black lift only.

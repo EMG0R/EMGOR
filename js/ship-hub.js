@@ -270,8 +270,9 @@ export function createHub(engine, L, opts) {
     chestBody.instanceMatrix.needsUpdate = chestLid.instanceMatrix.needsUpdate = true; chestBody.instanceColor.needsUpdate = chestLid.instanceColor.needsUpdate = true; }
   const setGate = (i) => { const g = gates[i], k = g.open; M.compose(V1.set(0, -DEPTH + 2 - k * 2.05, g.z), Q.identity(), V2.set(2 * GW + 0.1, 4, 0.5)); gateMesh.setMatrixAt(i, M); gateMesh.instanceMatrix.needsUpdate = true; };
   const flameBase = torches.map((t) => ({ x: t.x + (t.side || 0) * 0.02, y: t.y + 0.28, z: t.z }));
-  function flickerFlames(t) { torches.forEach((o, i) => { const f = 0.8 + 0.25 * Math.sin(t * 9 + o.ph) + 0.12 * Math.sin(t * 23 + o.ph * 2), b = flameBase[i];
-    M.compose(V1.set(b.x, b.y + f * 0.05, b.z), Q.identity(), V2.set(0.2, 0.3 * f, 0.2)); flames.setMatrixAt(i, M); }); flames.instanceMatrix.needsUpdate = true; }
+  function flickerFlames(t) { const SK = (typeof globalThis !== 'undefined' && globalThis.EMGOR_SKY_UNIFORMS) || null, nt = SK ? SK.uNight.value : 1, dayK = Math.min(1, Math.max(0, (nt - 0.15) / 0.35));   // A13: the two outdoor entrance torches are out by day
+  torches.forEach((o, i) => { const f = 0.8 + 0.25 * Math.sin(t * 2.4 + o.ph) + 0.1 * Math.sin(t * 5.1 + o.ph * 2), b = flameBase[i], k = i < 2 ? dayK : 1;
+    M.compose(V1.set(b.x, b.y + f * 0.05, b.z), Q.identity(), V2.set(0.2 * k, 0.3 * f * k, 0.2 * k)); flames.setMatrixAt(i, M); }); flames.instanceMatrix.needsUpdate = true; }
   setCageMatrices(); flickerFlames(0); gates.forEach((g, i) => { g.open = 1; setGate(i); }); chests.forEach((c, i) => setChest(i));
 
   // ── colliders ──
