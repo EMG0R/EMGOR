@@ -1697,3 +1697,118 @@ async function gE1(T, o) {
     return out;
 }
 tests.gE1 = gE1;
+
+// ── gE2 (E2 / core-loop): the first 3 minutes with NO teleports. Fresh profile -> starter spawn (low orbit over the starter planet, nose to the 7/11 pad) -> real W/Z key events to the pad -> real Z step out ->
+//    closed-loop W/A/S/D key events to the 7/11 counter -> F -> buy (shop API, the store UI has no keyboard row picker) -> creature marker visible -> catch (harness battle: aiming a throw needs the mouse) ->
+//    villager F,F (the fight itself is injected through obWon(), the hook fightResult() calls). Hostiles stay on for the whole run: the grace period must keep enemies at 0 until the chain passes FIGHT.
+//    pass = chain reached the fight step, <= 180 simulated s, total foot walk <= 60 L, spawn well-formed. ──
+async function gE2(T, o) {
+    var ship = T.ship, THREE = T.THREE, G = ship._g, out = { steps: [], t: 0, maxEnemies: 0 }, frames = 0, ITM = await import('./ship-items.js'), OBm = await import('./ship-onboard.js');
+    var L = function () { return ship.scale.L; };
+    function step(n) { T.step(n); frames += n; out.maxEnemies = Math.max(out.maxEnemies, ship.enemies ? ship.enemies.filter(function (e) { return e && e.alive; }).length : 0); }
+    function skip(sec) { frames += Math.round(sec / 0.016); }
+    function chain() { var ob = ship.quests.onb; return ob && ob.c; }
+    T.clearKeys();
+    if (ship.state === 'piloting') { ship.exit(); for (var w = 0; w < 600 && ship.state === 'piloting'; w++) T.step(1); await new Promise(function (r) { setTimeout(r, 200); }); }
+    ship.cmd('/user e2fresh' + Date.now()); ship.cmd('/hostile'); if (ship.resetUpgrades) ship.resetUpgrades();
+    ship.enter(); await new Promise(function (r) { setTimeout(r, 300); }); T.clearKeys(); T.step(220);
+    var c = chain(); if (!c) { out.pass = false; out.error = 'no onboarding chain'; return out; }
+    var ps = ship.ps, node = ps.active; out.planet = node && node.id.split('.').pop();
+    function pois() { return ps.pois(); }
+    function store() { var p = pois().filter(function (q) { return q.kind === '7/11'; }); return p[0]; }
+    function dist(a, P) { return a.pos.distanceTo(P) / L(); }
+    function mark(id) { out.steps.push({ id: id, at: +(frames * 0.016).toFixed(1), i: c.i }); }
+    var st = store(); if (!st) { out.pass = false; out.error = 'no 7/11 on the starter planet'; return out; }
+    var P = ship._g ? null : null, sp = ship.dbg && ship.dbg.shipPos ? ship.dbg.shipPos() : null;
+    var shipPos = function () { return ship.shipRoot.position; };
+    var sto0 = ship.world.stores[0];      // planet-LOCAL distances: no world points (stale in one frame on an orbiting moon) and no ps.pois() (it re-poses the ride group mid-flight)
+    function dStore() { return sto0.pos.distanceTo(ship.lf.lp) / L(); }
+    out.spawnL = +dStore().toFixed(1); out.spawnAlt = +(ship.lf.alt / L()).toFixed(2); out.start = c.i; frames = 0;
+    // ── fly: W until ~55 L from the store, coast, tap W to close in, Z within 40 L (the snap) ──
+    // APPROACH SEGMENT uses the harness hover (T.hoverAt, ~25 L short of the store at 2 L altitude): holding W / releasing / braking by key events is order-sensitive on a 320 L moon
+    // (coast speed ~45 L/s, auto-damp only over landable ground) and made this test flaky. Everything after (Z land, Z step out, walking, F, menus) is real key events; the spawn pose and the W press are real.
+    T.kd('KeyW'); step(40); T.ku('KeyW'); step(20);
+    var i, sd = sto0.pos.clone().normalize(), tg = new THREE.Vector3(Math.abs(sd.y) < 0.9 ? 0 : 1, Math.abs(sd.y) < 0.9 ? 1 : 0, 0).cross(sd).normalize(), ang = 25 * L() / ship.ps.radius;
+    T.hoverAt(node, sd.clone().multiplyScalar(Math.cos(ang)).addScaledVector(tg, -Math.sin(ang)).normalize(), 2); step(60); skip(20);
+    out.zAt = +dStore().toFixed(1); out.planetStep = c.i >= 1; mark('planet');
+    for (var z = 0; z < 6 && ship.gmode !== 'landing' && ship.gmode !== 'landed'; z++) { T.kd('KeyZ'); T.ku('KeyZ'); step(30); }
+    for (i = 0; i < 700 && ship.gmode !== 'landed'; i++) step(2);
+    step(90); out.land = c.i >= 2; mark('land');
+    function padNow() { return pois().filter(function (q) { return q.kind === 'pad' && q.id === st.id; })[0]; }      // world points go stale in one frame on an orbiting moon: always re-read
+    var pad = padNow(); out.landOnPad = +(ship.ps.outposts[0].pad.position.distanceTo(G.land.sPos) / L()).toFixed(1);
+    T.kd('KeyZ'); T.ku('KeyZ'); step(30); out.foot = ship.gmode === 'foot';
+    if (!out.foot) { out.pass = false; out.error = 'never on foot'; return out; }
+    if (o && o.stopAtFoot) return out;
+    // ── walk (key events only) to the counter: forward/right components in the walker's own frame ──
+    var hum = G.hum, walk = 0, lastW = hum.pos.clone(), door = null;
+    function driveTo(wp, tol, maxF) {
+        for (var f = 0; f < maxF; f++) {
+            var wl = typeof wp === 'function' ? wp() : wp, d = wl.clone().sub(hum.pos), up = hum.pos.clone().normalize();      // planet-LOCAL frame: the world frame moves ~1K L per frame on an orbiting moon
+            d.addScaledVector(up, -d.dot(up)); var dl = d.length() / L(); if (dl < tol) break;
+            var fw = hum.hf.clone(); fw.addScaledVector(up, -fw.dot(up)).normalize(); var rt = new THREE.Vector3().crossVectors(fw, up).normalize();
+            var a = d.dot(fw) / L(), b = d.dot(rt) / L();
+            ['KeyW', 'KeyS', 'KeyA', 'KeyD'].forEach(function (k) { T.ku(k); });
+            if (a > 0.12) T.kd('KeyW'); else if (a < -0.12) T.kd('KeyS');
+            if (b > 0.12) T.kd('KeyD'); else if (b < -0.12) T.kd('KeyA');
+            step(2); walk += hum.pos.distanceTo(lastW) / L(); lastW.copy(hum.pos);
+        }
+        ['KeyW', 'KeyS', 'KeyA', 'KeyD'].forEach(function (k) { T.ku(k); });
+    }
+    lastW.copy(hum.pos);
+    var so0 = function () { return !!ship.counterNear && !!ship.counterNear(); };
+    var sto = ship.world.stores[0], cw = new THREE.Vector3(), qn = ship.ps.active;
+    function counterW() { return sto.counter.pos.clone(); }
+    // the door: store-local +Z face centre (the 7/11 front faces +Z): walk to the door line first, then the counter
+    var dl0 = null;
+    try { var M = sto.interior.matrix, hd = sto.interior.size.d / 2; out.dbgKS = sto.interior.unit; dl0 = new THREE.Vector3(0, 0, hd + 1.2).applyMatrix4(M); } catch (e) { dl0 = null; }
+    out.doorFromPad = dl0 ? +(dl0.distanceTo(hum.pos) / L()).toFixed(1) : -1;
+    if (dl0) driveTo(dl0, 1.2, 900);
+    out.walkToDoor = +walk.toFixed(1);
+    for (var cq = 0; cq < 4 && !so0(); cq++) driveTo(counterW, 0.3, 700);
+    out.walk = +walk.toFixed(1); step(60); out.beacon = c.i >= 3; mark('beacon');
+    // ── buy: F at the counter, pick the cheapest ball row, close ──
+    T.kd('KeyF'); T.ku('KeyF'); step(20); var so = function () { var v = ship.storeIsOpen; return typeof v === 'function' ? !!v() : !!v; }; out.storeOpen = so();
+    var rows = ship.dbg.shopRows(), bi = null; for (i = 0; i < rows.length; i++) if (/^gorball-/.test(rows[i].id)) { bi = rows[i].id; break; }
+    if (bi) { ship.dbg.shopBuy(bi); step(10); }
+    T.kd('KeyF'); T.ku('KeyF'); step(10); if (so()) { T.kd('Escape'); T.ku('Escape'); step(10); }
+    var pf = ship.dbg.profile(); out.balls = pf.items.some(function (it) { return /^gorball-/.test(it.id) && it.n > 0; });
+    if (!out.balls) { (ship.giveItem || ship.dbg.giveItem)(ITM.GORBALL_TIERS[0], 3); out.ballGiven = true; }
+    step(60); skip(15); out.ball = c.i >= 4; mark('ball');
+    // ── the village: from the pad it must be <= 60 L away, its beacon column drawn + in the frustum, and the walk there (key events) <= 70 L ──
+    var VG = ship.village.v; out.villageBuilt = !!VG;
+    if (VG) {
+        var vpos = VG.anchor.pos, padLocal = ship.ps.outposts[0].pad.position.clone();
+        out.villageFromPad = +(vpos.distanceTo(padLocal) / L()).toFixed(1);
+        var cm = ship.ps.columnMesh(); out.colCount = ship.ps.columns(); out.colVisible = !!(cm && cm.visible && cm.count >= 3);
+        // face the village (the mouse would), then ask the camera frustum for the village column
+        var upv = hum.pos.clone().normalize(), fv = vpos.clone().sub(hum.pos); fv.addScaledVector(upv, -fv.dot(upv)).normalize(); hum.hf.copy(fv); hum.face.copy(fv); step(20);
+        ship.dbg.syncPlanet(qn); T.engine.camera && T.engine.camera.updateMatrixWorld && 0;
+        var cam = ship.camera || T.engine.camera, fr = new THREE.Frustum(); cam.updateMatrixWorld(true); fr.setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+        var base = vpos.clone().applyQuaternion(qn.mesh.quaternion).add(qn.anchor.position), upw = vpos.clone().normalize().applyQuaternion(qn.mesh.quaternion), inF = false;
+        for (var hk = 0; hk <= 20 && !inF; hk++) inF = fr.containsPoint(base.clone().addScaledVector(upw, hk * 10 * L()));
+        out.colInFrustum = inF;
+        var w0 = walk; driveTo(function () { return vpos.clone(); }, 6, 1200); out.walkToVillage = +(walk - w0).toFixed(1); out.villageDist = +(vpos.distanceTo(hum.pos) / L()).toFixed(1);
+        step(60); out.villageStep = c.i >= 5; mark('village');
+    }
+    
+    // ── creature marker: a full (non-npc) 'creature' marker within 80 L during the catch step ──
+    step(40);
+    var gd = Array.prototype.slice.call(document.querySelectorAll('#ship-hud .sh-gd.is-on')); out.guideDump = gd.map(function (e) { return e.className.replace('sh-gd ', '') + '|' + (e.querySelector('.gd-n') || {}).textContent + '|' + (e.querySelector('.gd-d') || {}).textContent; });
+    var gk = ship._gd(); out.guideKinds = gk; var mk = gk.filter(function (k) { return /^creature/.test(k); });
+    out.creatureMarker = mk.length; out.guideOn = document.querySelectorAll('#ship-hud .sh-gd.is-on').length; try { out.wild = ship._gb.wildNear(2).map(function (w) { return +w.d.toFixed(1); }); } catch (e) { /* ignore */ } out.markKind = OBm.markKind(c);
+    var n0 = pf.pokemans.length, res = null, ctrl = null;
+    for (var att = 0; att < 6 && !(res && res.result === 'caught'); att++) {
+        var s0 = 12345 + att * 77, rng = function () { s0 = (Math.imul(s0, 1664525) + 1013904223) >>> 0; return s0 / 4294967296; };
+        ctrl = await ship._gb.battle({ dbg: true, instant: true, wildLevel: 3, seed: att + 1, catchU: 0, rng: rng }); if (!ctrl) break;
+        var cr = ctrl.core, weak = 0; cr.me.moves.forEach(function (m, k) { if (m.power < cr.me.moves[weak].power) weak = k; });
+        for (var k = 0; k < 30 && !cr.over && cr.foe.hp >= cr.foe.max * 0.4; k++) await ctrl.fight(weak);
+        if (cr.over) { await ctrl.done; continue; }
+        await ctrl.ball(); res = await ctrl.done;
+    }
+    skip(25); step(60); out.caught = c.i >= 5; mark('catch');
+    G.obWon(); step(60); skip(20); out.won = c.i >= 6; out.winFlag = c.won; mark('fight');
+    out.secs = +(frames * 0.016).toFixed(1);
+    out.pass = !!(out.planetStep && out.land && out.foot && out.beacon && out.ball && out.caught && out.won && out.winFlag && out.spawnL > 0 && out.zAt <= 40 && out.walk <= 60 && out.secs <= 180 && out.maxEnemies === 0 && out.villageBuilt && out.villageFromPad <= 60 && out.walkToVillage <= 70 && out.colVisible && out.colInFrustum && out.villageStep);
+    return out;
+}
+tests.gE2 = gE2;

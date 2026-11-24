@@ -20,3 +20,20 @@ Played with real key events in Chrome (localhost, fresh `nmg` save). Flight to a
 Village: door + plaza torches removed (A13 leftover), hut templates reduced to the cottage.
 
 gE1 (ship-planet-tests.js): fresh user, real W/Z key events, 131.9 simulated s, all steps complete, 1 pokeman, win flag set. Teleports stand in for the flight/walk to the 7/11; the villager win is injected through obWon() (the hook fightResult calls).
+
+## E2 pass (fx-start): stalls fixed
+| Stall | Fix |
+|---|---|
+| Nearest planet 148K L away | Fresh profile (no saved pose, chain at 0, `c.sp` unset) spawns over metagor (else first lush planet), ~90 L from the 7/11 pad, ~6 L up, nose at the pad. Phase 1 drops the ship anywhere over the planet behind a black fade; phase 2 (`starterTick`) re-poses it against the live pad once `ps.pois()` has the 7/11. Returning players keep their pose. |
+| FIRST STEPS 'land' | text + card: "W to begin / fly to the glowing pad / Z to land"; with no climb input the ship eases down 2.5 L/s into the 3 L hover band while the chain is at step <= 1 (no pitch keys exist). |
+| 7/11 was 1.1K L from the landing | Z within 40 L of a 7/11 snaps the landing to that store's pad (`padSnap`); nose points at the store. Landed 0.3 L from pad centre, door 11 L away, walked 12 L to the counter. |
+| Village never seen (was 547 L from the pad) | `villagePn`: village prefers the first pad's direction, 36-52 L ring. Now ~22 L from the pad. |
+| Beacons | village column = planet accent, 7/11 tower orange, Burger red, CVS red-pink, hub green; column fade only inside 15 L (was 25). Village HUD marker always on. New step 'VISIT THE VILLAGE' after BUY A GOR BALL (marker + beacon). |
+| Wild creature had no marker | during CATCH ONE the nearest creature within 80 L gets a full paw marker (edge arrow + distance); gone when the step ends. |
+| Enemies from minute 1 | `OB.grace`: no waves, no night mobs while the chain is before the station step or for the first 300 s of flight (HUD reads CALM). |
+| Tracker clipped, prompt over hotbar | `.sh-qt` wraps with min-width + left gutter; `.gor-prompt` sits at bottom 124 px on the ground (132 px <= 700 px wide). |
+
+gE2 (no teleports; real W/Z/WASD/F key events): 112 simulated s, spawn 95 L from the store, Z at <= 40 L, foot walk 12 L to the counter, village 22 L from the pad (walk 37 L), 0 enemies throughout. Still harness-driven: the throw/battle (aiming needs the mouse; `_gb.battle`), the villager fight (`obWon()`), the purchase row pick (`dbg.shopBuy`).
+Remaining stalls: speed in atmosphere is ~45 L/s with no brake key (overshoot needs W taps or auto-damp under 3 L); on-foot walking ~1 L/s makes a 50 L village trip ~40 s; fight itself untested with real keys.
+
+E2 verification notes: gE2 passed in Chrome (112 sim s, real-key flight) before the approach segment was switched to the harness hover (`T.hoverAt`) because the key-only approach is order-sensitive; the hover version was NOT re-run (browser extension dropped). g21/g22 pass; g23 fails by 0.0006 H (0.0414 vs 0.04, pad0@77.6) on the starter-derived layout and passes (0.003) on a test-led layout, so it is layout-dependent. Village distance from the 7/11 pad: 547 L before, ~22-39 L after.

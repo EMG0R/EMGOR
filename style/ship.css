@@ -859,3 +859,9 @@ body.sh-photo .gor-prompt, body.sh-photo .gor-reveal, body.sh-photo .gor-toasts,
 /* A11: ground HUD idle-hide. Fades after 4 s without input or motion, returns within 120 ms. Never touches the active prompt (.sh-land), the toast line, health or coins. */
 #ship-hud .sh-hot, #ship-hud .sh-pl, #ship-hud .sh-hl, #ship-hud .sh-gd, #ship-hud .sh-cvm, #ship-hud .sh-ribbon { transition: opacity 0.1s linear; }
 #ship-hud.is-idle .sh-hot, #ship-hud.is-idle .sh-pl, #ship-hud.is-idle .sh-hl, #ship-hud.is-idle .sh-gd, #ship-hud.is-idle .sh-cvm, #ship-hud.is-idle .sh-ribbon { opacity: 0 !important; transition: opacity 0.4s ease; pointer-events: none; }
+
+/* E2 (core-loop): the tracker never clips (wraps, keeps a min width and a left gutter) and the ground prompt sits above the hotbar (hotbar = bottom 46 px + 44 px + its 11 px name line) */
+.sh-qt { left: max(16px, env(safe-area-inset-left)); min-width: 180px; box-sizing: border-box; padding-left: 10px; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.sh-qt b, .sh-qt span { display: block; margin-right: 0; }
+#ship-hud.is-ground .gor-prompt { bottom: 124px; }
+@media (max-width: 700px) { .sh-qt { max-width: calc(100vw - 32px); } #ship-hud.is-ground .gor-prompt { bottom: 132px; } }

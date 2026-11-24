@@ -915,9 +915,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var low = h <= 30;
             if (low !== cLow) { cLow = low; elHp.classList.toggle('is-low', low); }
         }
-        var ws = peaceful ? 'PEACEFUL' : 'WAVE ' + shownWave();
+        var ws = peaceful ? 'PEACEFUL' : (graceOn() ? 'CALM' : 'WAVE ' + shownWave());
         if (ws !== cWave) { cWave = ws; elStWave.textContent = ws; }
-        var cmb = enemiesAlive > 0 && !peaceful;
+        var cmb = enemiesAlive > 0 && !peaceful && !graceOn();
         if (cmb !== cCombat) { cCombat = cmb; elStatsBox.classList.toggle('is-combat', cmb); }
         var es = 'ENEMIES ' + enemiesAlive;
         if (es !== cEn) { cEn = es; elStEn.textContent = es; }
@@ -1330,6 +1330,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var rs = resumeSnap, inFrame = false; resumeSnap = null;
         if (shareIn) { var sSnap = null; try { sSnap = shareSnap(shareIn); } catch (es) { warnOnce('shareLink', es); } if (sSnap) { rs = sSnap; photo.auto = shareIn.t; photo.autoUntil = performance.now() + 20000; } shareIn = null; }      // Q37: ?p=&d=&t= restores the shared view once
         if (!rs && state === 'docked') rs = poseFromProfile();
+        if (state === 'docked' || state === 'away') { var srs = starterSnap(); if (srs) rs = srs; }      // E2: a fresh profile starts in low orbit over the starter planet, nose to the 7/11 pad
         if (state === 'docked') {
             if (!rs) pushOutOfBodies(shipRoot.position, gatherBodies(), 2.2);      // fly from where the ship sits on screen (seamless boarding), never inside a body
             resetGame(resumeWave, resumeKills);
@@ -1350,6 +1351,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             setShipScale(L); boardT = 1; boarding = false; setHudOpacity(1); mdx = mdy = 0; fov = camera.fov;
             chaseTargets(0); camera.position.copy(camPos); camera.quaternion.copy(camQuat);
             fadeIn();
+            if (STR.on) { fadeEl.style.transition = 'none'; fadeEl.style.opacity = '1'; }      // E2: stay black until the starter pose is placed against the live planet
         }
         state = 'piloting';
         syncLod();
@@ -1372,6 +1374,64 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
 
     // ─── rev 24: Esc resumes exactly. exit() freezes the pose in its current frame; enter() restores it relative to the moved planet / station ───
     var resumePend = null, resumeWait = 0, resumeAlt = -1;
+    // ─── E2 starter spawn: a fresh profile (no saved pose, chain at step 0, c.sp unset) spawns in low orbit over ONE designated planet (metagor, else the first lush one), ~STR_DIST L from the
+    // 7/11 pad, ~6 L above the ground, nose toward the pad. The planet's own pad / store layout only exists once it is ps.active, so phase 1 drops the ship anywhere over it (screen black),
+    // phase 2 (starterTick) re-poses it against the real pad and fades in. ───
+    var STR = { on: false, node: null, t: 0, fixed: false }, STR_DIST = 90, STR_ALT = 6, STR_PITCH = 0.14;
+    function starterPick() {
+        var list = engine.drawOrder, best = null, bs = -1, i, nd, sc;
+        for (i = 0; i < list.length; i++) {
+            nd = list[i]; var u0 = nd.mesh && nd.mesh.material && nd.mesh.material.uniforms; if (!u0 || !u0.uSeed || !nd.anchor || !(nd.mesh.scale.x > 0) || u0.uBiome.value >= 0.5) continue;      // NOT hasSurface: at enter time the bodies are still galaxy-scale and read as moonlets
+            sc = (/metagor$/.test(String(nd.id)) ? 4 : 0) + (gdLook(nd) === 'lush' ? 2 : 0);
+            if (sc > bs) { bs = sc; best = nd; }
+        }
+        return best;
+    }
+    function starterSnap() {
+        var pf = curProfile(), c = pf && pf.onb && pf.onb.c; if (!c || c.sp || c.i > 0 || pf.pose || shareIn) return null;
+        var nd = starterPick(); if (!nd) return null;
+        c.sp = true; writeSave();
+        STR.on = true; STR.node = nd; STR.t = 0; STR.fixed = false;
+        return { f: 'planet', node: nd, mode: 'fly', lp: new THREE.Vector3(0.3, 0.8, 0.5).normalize().multiplyScalar(1.04), lq: new THREE.Quaternion(), R: 1, alt: -1, starter: true };
+    }
+    function starterFix() {          // -> resume snapshot against the live pad, or null while the planet has not built its 7/11 yet
+        var n = STR.node, pois, st = null, pad = null, i, p;
+        try { pois = ps.pois(); } catch (e) { return null; }
+        for (i = 0; i < pois.length; i++) { p = pois[i]; if (p.kind === '7/11' && (!st || p.pos.distanceTo(shipRoot.position) < st.pos.distanceTo(shipRoot.position))) st = p; }
+        if (!st) return null;
+        for (i = 0; i < pois.length; i++) if (pois[i].kind === 'pad' && pois[i].id === st.id) pad = pois[i];
+        syncPlanet(n); var qi = n.mesh.quaternion.clone().invert(), Rn = n.mesh.scale.x;
+        var dT = (pad || st).pos.clone().sub(n.anchor.position).applyQuaternion(qi).normalize();
+        var t1 = new THREE.Vector3(Math.abs(dT.y) < 0.9 ? 0 : 1, Math.abs(dT.y) < 0.9 ? 1 : 0, 0).cross(dT).normalize();
+        var a = STR_DIST * L / Rn, ds = dT.clone().multiplyScalar(Math.cos(a)).addScaledVector(t1, -Math.sin(a)).normalize();
+        var f = dT.clone().addScaledVector(ds, -dT.dot(ds)).normalize();      // heading along the ground toward the pad
+        var fl = ps.floorLocal(ds.x, ds.y, ds.z); if (!(fl > 0)) return null;
+        var up = ds.clone(), right = f.clone().cross(up).normalize(), nose = f.clone().addScaledVector(up, -STR_PITCH).normalize();
+        var m = new THREE.Matrix4().makeBasis(right, nose.clone().cross(right).normalize(), nose.clone().negate());
+        return { f: 'planet', node: n, mode: 'fly', lp: ds.clone().multiplyScalar(fl + STR_ALT * L), lq: new THREE.Quaternion().setFromRotationMatrix(m), R: Rn, alt: STR_ALT * L };
+    }
+    function starterTick(dt) {
+        STR.t += dt;
+        if (STR.fixed) { STR.on = false; fadeIn(); return; }
+        if (STR.t > 6) { STR.on = false; fadeIn(); return; }      // never hold the screen black: the phase-1 pose stays
+        if (!ps || ps.active !== STR.node || !lf.on || gmode !== 'fly' || STR.t < 0.3) return;
+        var rs = starterFix(); if (!rs) return;
+        STR.fixed = true; resumePend = rs; resumeWait = 2;
+    }
+    var padHead = new THREE.Vector3();      // pad -> store, world (set by padSnap): the landed ship points its nose at the store, so W on foot walks to the door
+    function padSnap(node, P) {      // E2: Z within 40 L of the 7/11 beacon lands ON the store's pad -> the world-space unit direction of the pad centre, or null
+        try {
+            var pois = ps.pois(), st = null, pad = null, i, p, d;
+            for (i = 0; i < pois.length; i++) { p = pois[i]; if (p.kind === '7/11' && p.pos.distanceTo(P) < 40 * L && (!st || p.pos.distanceTo(P) < st.pos.distanceTo(P))) st = p; }
+            if (!st) return null;
+            for (i = 0; i < pois.length; i++) if (pois[i].kind === 'pad' && pois[i].id === st.id) pad = pois[i];
+            if (!pad) return null;
+            padHead.copy(st.pos).sub(pad.pos); d = pad.pos.clone().sub(node.anchor.position); return d.lengthSq() > 1e-12 ? d.normalize() : null;
+        } catch (e) { return null; }
+    }
+    function landAssist() { var pf = curProfile(), c = pf && pf.onb && pf.onb.c; return !!c && c.i <= 1 && c.sp === true && !HB.in && (!!keys.KeyW || speed > 0.2); }      // only once the player is flying: the spawn view holds at 6 L until W
+    function graceOn() { var pf = curProfile(); return OB.grace(pf && pf.onb && pf.onb.c); }
+
     function resumeTick() {
         if (--resumeWait > 0) return;
         var rs = resumePend, ok = false; resumePend = null;
@@ -1577,7 +1637,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         gdQ7 = false;
         var aq = activeQuests();
         for (i = 0; i < aq.length && !gdQ7; i++) { var sq = aq[i].steps || []; for (var qj = 0; qj < sq.length; qj++) if (!sq[qj].done && sq[qj].type === 'deliver' && String(sq[qj].planetId) === nid) { gdQ7 = true; break; } }
-        gdLocal = list.map(function (p) { return { kind: p.kind, name: p.name, loc: p.loc, q: (gdQ7 && p.kind === '7/11') || (!!obMark && p.kind === obMark) }; });
+        gdLocal = list.map(function (p) { return { kind: p.kind, name: p.name, loc: p.loc, q: (gdQ7 && p.kind === '7/11') || (!!obMark && p.kind === obMark) || p.kind === 'village' }; });      // E2: the village marker is ALWAYS on (icon + distance)
     }
     function gdItem(i, kind, name, cls, always) { var it = gdItems[i]; it.kind = kind; it.name = name; it.cls = cls || ''; it.always = !!always; it.q = false; return it.w; }
     // NPCs near the feet: the selection refreshes at 2 Hz (refs, no allocation), positions every frame. t: 'c' crowd npc (pos planet-local), 'v' villager
@@ -1675,15 +1735,20 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         hum.pos.copy(q).multiplyScalar(r); hum.hr = hum.gr = hum.vh = r; hum.air = true; hum.vv = 0;
         hum.hf.copy(t).negate(); hum.face.copy(hum.hf); hum.pitch = 0; camRelInit = false; mdx = mdy = 0; return true;
     }
+    var gdCr = null;
     function gdNpcs(dt, ni) {
         gdNT -= dt;
         if (gdNT <= 0) {
-            gdNT = GD_EVERY; npcGather(GD_NPC_L, gdNpcTmp); gdNpcN = Math.min(GD_NPC, gdNpcTmp.length);
+            gdNT = GD_EVERY; npcGather(GD_NPC_L, gdNpcTmp); gdCr = null;
+            if (obMark === 'creature') for (var ci = 0; ci < gdNpcTmp.length; ci++) if (gdNpcTmp[ci].t === 'k' && gdNpcTmp[ci].d <= 80 * L) { gdCr = { id: gdNpcTmp[ci].id, name: gdNpcTmp[ci].name }; break; }      // E2: during CATCH ONE the nearest creature within 80 L gets a full marker
+            gdNpcN = Math.min(GD_NPC, gdNpcTmp.length);
             for (var i = 0; i < gdNpcN; i++) { var r = gdNpc[i], q = gdNpcTmp[i]; r.t = q.t; r.o = q.o; r.id = q.id; r.name = q.name; }
             gdNpcTmp.length = 0;
         }
         var n = land.node, c = n.anchor.position, q = n.mesh.quaternion;
+        if (gdCr && obMark === 'creature' && ni < GD_N && ps && ps.creatLocal && ps.creatLocal(gdCr.id, gdV)) { gdItem(ni, 'creature', gdCr.name, '', true).copy(gdV).applyQuaternion(q).add(c); gdItems[ni++].q = true; }
         for (var k = 0; k < gdNpcN && ni < GD_N; k++) {
+            if (gdNpc[k].t === 'k' && gdCr && gdNpc[k].id === gdCr.id) continue;
             if (!npcLocal(gdNpc[k], gdV)) continue;
             gdItem(ni++, gdNpc[k].t === 'k' ? 'creature' : 'npc', gdNpc[k].name, 'is-npc', false).copy(gdV).applyQuaternion(q).add(c);
         }
@@ -1776,36 +1841,46 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function villagePn(node) {             // the planetNode both villageSite (prediction) and createVillage (build) see: identical inputs -> identical site
         var pid = String(node.id), avoid = [], i;
         if (ps.outposts) for (i = 0; i < ps.outposts.length; i++) if (ps.outposts[i].dir) avoid.push(ps.outposts[i].dir.clone().normalize());
-        return { id: pid, name: pid, radius: ps.radius, biome: ps.lookOf ? ps.lookOf(node) : 'rocky', avoid: avoid, prefer: ps.siteDir ? SITE.prefer.copy(ps.siteDir).clone() : null, preferCap: ps.siteCap || 0.15,
+        var o0 = ps.outposts && ps.outposts[0], pref = ps.siteDir ? SITE.prefer.copy(ps.siteDir).clone() : null, cap = ps.siteCap || 0.15, near;
+        if (o0 && o0.dir && ps.radius > 0) { pref = o0.dir.clone().normalize(); cap = 52 * L / ps.radius; near = 36 * L / ps.radius; }      // E2: the village sits 36-52 L from the first 7/11 pad (roofs + beacon visible on stepping out), not on the far side of the planet
+        return { id: pid, name: pid, radius: ps.radius, biome: ps.lookOf ? ps.lookOf(node) : 'rocky', avoid: avoid, prefer: pref, preferCap: cap, avoidNear: near,
             site: (SITE.vill && SITE.nid === pid && siteRadOk(SITE.R)) ? SITE.vill : null,
             floor: function (x, y, z) { return ps.floorLocal(x, y, z); }, live: function (x, y, z) { return ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); }, land: function (x, y, z) { return ps.landLocal(x, y, z); } };
+    }
+    function colKeyNow(node) { var bh = world && world.node === node && world.burgerHouse; return String(palOf().accent) + '|' + (bh && bh.pos && bh.pos.lengthSq() > 1e-9 ? 1 : 0) + '|' + (SITE.cvsOk ? 1 : 0); }
+    function siteColsApply(node) {      // E2 world beacons: village = planet accent, 7/11 tower orange (ship-planet), Burger House red, CVS red-pink, hub arch green
+        var cols = [], bh = world && world.node === node && world.burgerHouse;
+        if (SITE.vill) cols.push({ x: SITE.villPos.x, y: SITE.villPos.y, z: SITE.villPos.z, col: palHex(palOf().accent) });
+        if (SITE.hubOk) cols.push({ x: SITE.hubPos.x, y: SITE.hubPos.y, z: SITE.hubPos.z, col: 0x66FF99 });
+        if (SITE.cvsOk) cols.push({ x: SITE.cvsPos.x, y: SITE.cvsPos.y, z: SITE.cvsPos.z, col: 0xFF4A5A });
+        if (bh && bh.pos && bh.pos.lengthSq() > 1e-9) cols.push({ x: bh.pos.x, y: bh.pos.y, z: bh.pos.z, col: 0xFF2A2A });
+        SITE.colKey = colKeyNow(node);
+        try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e2) { /* ignore */ }
     }
     function sitesTick() {
         if (!ps || !ps.active || !villMod) return;
         var node = ps.active, nid = String(node.id);
-        if (SITE.nid === nid && siteRadOk(SITE.R)) { if ((SITE.vill && !ps.sitePadOf(0)) || (SITE.hubOk && !ps.sitePadOf(1)) || (SITE.cvsOk && !ps.sitePadOf(2))) sitePads(); cvsEnsure(node); return; }
+        if (SITE.nid === nid && siteRadOk(SITE.R)) { if (SITE.colKey !== colKeyNow(node)) siteColsApply(node); if ((SITE.vill && !ps.sitePadOf(0)) || (SITE.hubOk && !ps.sitePadOf(1)) || (SITE.cvsOk && !ps.sitePadOf(2))) sitePads(); cvsEnsure(node); return; }
         SITE.nid = nid; SITE.R = ps.radius; SITE.vill = null; SITE.hubOk = false; SITE.cvsOk = false; SITE.cvsTried = false;
         var cols = [], ck = nid + '@' + ps.radius, cc = SITE.cache[ck];
         if (cc) {                                  // the village search is ~10^4 height samples: once per planet (and radius) per session
             SITE.vill = cc.vill; SITE.hubOk = cc.hubOk; SITE.villPos.copy(cc.villPos); SITE.hubPos.copy(cc.hubPos);
-            if (SITE.vill) cols.push({ x: SITE.villPos.x, y: SITE.villPos.y, z: SITE.villPos.z, col: 0x7CFFB0 });
-            if (SITE.hubOk) cols.push({ x: SITE.hubPos.x, y: SITE.hubPos.y, z: SITE.hubPos.z, col: 0x66FF99 });
-            try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e3) { /* ignore */ }
+            siteColsApply(node);
             sitePads(); cvsEnsure(node); gdT = 0; return;
         }
         try {
             if (villMod.villageSite) {
                 var pn = villagePn(node); pn.site = null;
                 SITE.vill = villMod.villageSite(engine, GM * L, pn, L);
-                if (SITE.vill) { SITE.villPos.copy(SITE.vill.d).multiplyScalar(SITE.vill.r0); cols.push({ x: SITE.villPos.x, y: SITE.villPos.y, z: SITE.villPos.z, col: 0x7CFFB0 }); }
+                if (SITE.vill) SITE.villPos.copy(SITE.vill.d).multiplyScalar(SITE.vill.r0);
             }
         } catch (e0) { SITE.vill = null; }
         try {
             var hd = hubSpot(fnv(nid));
-            if (hd) { SITE.hubPos.set(hd.x, hd.y, hd.z).normalize(); var hr = ps.floorLocal(SITE.hubPos.x, SITE.hubPos.y, SITE.hubPos.z); if (hr > 0) { SITE.hubPos.multiplyScalar(hr); SITE.hubOk = true; cols.push({ x: SITE.hubPos.x, y: SITE.hubPos.y, z: SITE.hubPos.z, col: 0x66FF99 }); } }
+            if (hd) { SITE.hubPos.set(hd.x, hd.y, hd.z).normalize(); var hr = ps.floorLocal(SITE.hubPos.x, SITE.hubPos.y, SITE.hubPos.z); if (hr > 0) { SITE.hubPos.multiplyScalar(hr); SITE.hubOk = true; } }
         } catch (e1) { SITE.hubOk = false; }
         SITE.cache[ck] = { vill: SITE.vill, hubOk: SITE.hubOk, villPos: SITE.villPos.clone(), hubPos: SITE.hubPos.clone() };
-        try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e2) { /* ignore */ }
+        siteColsApply(node);
         sitePads(); cvsEnsure(node); gdT = 0;
     }
     // 2026-10-14: every structure site is a terrain pad (flat in hFrac, the patch shader and the globe): village + hub arch, beside the outposts' own pads
@@ -1826,11 +1901,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             SITE.cvsDir.copy(q); SITE.cvsPos.copy(q).multiplyScalar(fl); SITE.cvsOk = true; break;
         }
         if (!SITE.cvsOk) return;
-        var cols = [];
-        if (SITE.vill) cols.push({ x: SITE.villPos.x, y: SITE.villPos.y, z: SITE.villPos.z, col: 0x7CFFB0 });
-        if (SITE.hubOk) cols.push({ x: SITE.hubPos.x, y: SITE.hubPos.y, z: SITE.hubPos.z, col: 0x66FF99 });
-        cols.push({ x: SITE.cvsPos.x, y: SITE.cvsPos.y, z: SITE.cvsPos.z, col: 0xFF4A5A });
-        try { if (ps.setColumns) ps.setColumns(node.id, cols); } catch (e2) { /* ignore */ }
+        siteColsApply(node);
         sitePads();
         try { world.setCvsSite(SITE.cvsDir, node.id); } catch (e3) { warnOnce('cvs.site', e3); }
         gdT = 0;
@@ -4582,11 +4653,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!fo || !(fo.r > 0)) return false;
         gA.subVectors(P, c); var r0 = gA.length(); if (r0 < 1e-6) return false;
         gA.divideScalar(r0);                                         // world up at the site
+        var pdn = padSnap(node, P); if (pdn) { gA.copy(pdn); try { fo = ps.floorAt(c.clone().addScaledVector(pdn, r0), { r: 0, n: new THREE.Vector3() }) || fo; } catch (e1) { /* keep */ } }      // E2: near the 7/11 the landing targets the store pad; the lateral offset fades over the descent
         legDrop = hullDrop();
         gQi.copy(node.mesh.quaternion).invert();
         land.node = node; land.r0 = r0; land.rg = fo.r + legDrop * L; land.t = 0; land.settle = 0; land.dustT = 0; land.auto = false; land.T = 2.2;
         land.gDir.copy(gA).applyQuaternion(gQi);
         gB.copy(NEG_Z).applyQuaternion(shipRoot.quaternion); gB.addScaledVector(gA, -gB.dot(gA));
+        if (pdn && padHead.lengthSq() > 1e-12) { gB.copy(padHead); gB.addScaledVector(gA, -gB.dot(gA)); }
         if (gB.lengthSq() < 1e-6) gB.crossVectors(gA, X);
         gB.normalize(); gC.crossVectors(gB, gA); gD.copy(gB).negate();
         mM.makeBasis(gC, gA, gD); gQ.setFromRotationMatrix(mM);      // upright, nose along the old heading
@@ -4876,6 +4949,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             }
         }
         lf.subN = sub;
+        if (lf.cap && !lf.hover && ps && ps.active === n && landAssist()) {      // E2: FIRST STEPS 'land': with no climb input the ship eases down 2.5 L/s toward the 3 L hover band (no pitch keys exist; the mouse still overrides)
+            var ra = lp.length(), fa = ps.floorLocal(lp.x, lp.y, lp.z), vra = (lv.x * lp.x + lv.y * lp.y + lv.z * lp.z) / (ra || 1);
+            if (ra - fa < 30 * L && ra - fa > 0.9 * HOVER_L * L && vra < 0.5 * L) lp.multiplyScalar((ra - 2.5 * L * dt) / ra);
+        }
         if (lf.hover && lf.cap) {
             // hover = terrain following: keep the altitude above the ground under the ship (the user's own climb / dive still moves it)
             var rr = lp.length(), fl2 = (ps && ps.active === n) ? ps.floorLocal(lp.x, lp.y, lp.z) : R * 1.04, vrad = (lv.x * lp.x + lv.y * lp.y + lv.z * lp.z) / (rr || 1);
@@ -5576,6 +5653,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (dt > 0.05) dt = 0.05;
         if (dt <= 0) return;
         if (resumePend) { resumeTick(); return; }
+        if (STR.on) starterTick(dt);
         if ((poseT += dt) >= 10) { poseT = 0; savePose(); }
         if (scaleChecks > 0) { scaleChecks--; refreshScale(); }
         if (station && station.group.visible) { try { station.update(engine.time, dt, shipRoot.position); } catch (e) { console.info('[ship] station.update', e); station.setVisible(false); } }
@@ -6006,7 +6084,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (prof.on) { tM = performance.now(); prof.flight += tM - tS; }
         if (!dead) {
             // waves (rev 9c tempo): clear -> 8-12 s breather -> next; a spike/boss wave earns 15 s; stragglers cannot stall the 60 s cycle
-            if (!peaceful) {
+            if (!peaceful && !graceOn()) {
                 if (waveActive && qN === 0 && !bossAlive() && (aliveCount() === 0 || (gt - waveStartT > 70 && aliveCount() <= 2))) waveClear();
                 if (!waveActive && gt >= nextWave && !bossAlive()) spawnWave(bodies);
                 if (qN > 0) pumpQueue(bodies);
@@ -7263,7 +7341,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function mobSpawnTick(dt) {
         MB.spawnT -= dt; if (MB.spawnT > 0) return; MB.spawnT = 1;
-        if (peaceful || MB.peaceful || !mobIsHost() || !ps || ps.active !== land.node || HB.in) return;
+        if (peaceful || MB.peaceful || graceOn() || !mobIsHost() || !ps || ps.active !== land.node || HB.in) return;
         var live = mobList().length; if (live >= MOB_CAP) return;
         var night = mobNight(), look = ps.lookOf ? ps.lookOf(land.node) : 'rocky', i, ws = [], tot = 0;
         for (i = 0; i < ENM.MOB_KINDS.length; i++) { var w = ENM.mobSpawnRule(ENM.MOB_KINDS[i], { night: night, lightLevel: 1 - night, biome: look }); ws.push(w); tot += w; }
@@ -8153,13 +8231,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         sn.landed = gmode === 'landing' || gmode === 'landed' || gmode === 'foot';
         sn.beacon = false;
         if (gmode === 'foot' && hum.obj) for (i = 0; i < gdLocal.length; i++) { g = gdLocal[i]; if (g.kind === '7/11' && g.loc.distanceTo(hum.pos) < 15 * L) { sn.beacon = true; break; } }
+        sn.village = false;
+        if (gmode === 'foot' && hum.obj) for (i = 0; i < gdLocal.length; i++) { g = gdLocal[i]; if (g.kind === 'village' && g.loc.distanceTo(hum.pos) < 25 * L) { sn.village = true; break; } }
         sn.far = false;          // E2: the 7/11 is often 1K+ L away (walking ~1 L/s): the beacon step says to fly there instead of promising a walk
         if ((gmode === 'foot' || gmode === 'landed') && !sn.beacon) { var fo = gmode === 'foot' && hum.obj ? hum.pos : land.sPos, fm = Infinity; for (i = 0; i < gdLocal.length; i++) { g = gdLocal[i]; if (g.kind === '7/11') fm = Math.min(fm, g.loc.distanceTo(fo)); } sn.far = fm > 120 * L && fm < Infinity; }
         sn.ball = false; for (i = 0; i < pf.items.length; i++) if (/^gorball-/.test(pf.items[i].id) && pf.items[i].n > 0) { sn.ball = true; break; }
         sn.caught = pf.party.length + pf.pen.length > 0; sn.won = c.won; sn.station = gmode === 'docking' || gmode === 'sfoot' || gmode === 'ifoot';
         return sn;
     }
-    var obSn = { far: false, planet: false, landed: false, beacon: false, ball: false, caught: false, won: false, station: false };
+    var obSn = { village: false, far: false, planet: false, landed: false, beacon: false, ball: false, caught: false, won: false, station: false };
     function obSync(force) {          // the chain advances from game state (never from a timer); each new step shows its line for 8 s
         var pf = curProfile(), c = obChain(); if (!pf || !c) { obMark = ''; return; }
         var was = c.i, n = OB.advance(c, obSnap(pf, c));
@@ -8209,6 +8289,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         palTick(dt);
         var pf = curProfile(); if (!pf || !pf.onb || state !== 'piloting') { onbSet(''); if (onb.card) { onb.card = false; elStart.classList.remove('is-on'); } return; }
         var o = pf.onb, txt = '', c = obChain();
+        if (o.c && o.c.gt < OB.GRACE_S && !dead && gmode !== 'ifoot') o.c.gt += dt;      // E2: grace clock = time spent flying / walking
         if (c && !o.c.card && !onb.card && (gmode === 'fly' || gmode === 'foot')) { o.c.card = true; obCardShow(); writeSave(); }      // first entry of a new profile
         if (onb.card) { onb.cardT += dt; if (onb.cardT > 1.5 && (keys.KeyW || keys.Enter || keys.Space || speed > 1.2 * CRUISE)) { onb.card = false; elStart.classList.remove('is-on'); onb.lineT = 8; onb.line = c ? OB.textOf(OB.current(c), obSn.far) : ''; } }
         onb.snapT -= dt; if (c && onb.snapT <= 0) { onb.snapT = 0.4; obSync(false); c = obChain(); }
@@ -11045,6 +11126,8 @@ setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: p
         get ground() { return { gmode: gmode, landOk: landOk, entryHeat: entryHeat, sheathOn: !!(sheath && sheath.visible), hullMax: hullMaxState(), legDrop: legDrop, human: hum.obj ? hum.obj.group.position.toArray() : null, hr: hum.hr, gr: hum.gr, air: hum.air, ship: shipRoot.position.toArray(), prompt: cLandTxt }; },
         land: function () { return startLanding(); }, onKeyF: onKeyF, onKeyZ: onKeyZ, onKeyE: onKeyF,
         get humanObj() { return hum.obj ? hum.obj.group : null; },
+        _str: STR,
+        _gd: function () { return gdPool.filter(function (m) { return m.on; }).map(function (m) { return m.key + (m.edge ? '*' : '') + ':' + m.dist; }); },      // E2 harness: the live HUD markers (kind[*edge]:distance)
         _gb: { GB: GB, get fightSess() { return FG.sess; }, get party() { return ptMon ? ptMon() : null; }, wildNear: function (k) { var l = creatList(); return l.slice(0, 40).map(function (c) { return { id: c.id, kind: c.kind, d: c.lp.distanceTo(hum.pos) / hOf(L) }; }).sort(function (x, y) { return x.d - y.d; }).slice(0, k || 3); },
             warpToCreature: function (id, back) { var l = creatList(), c = l.filter(function (q) { return q.id === id; })[0]; if (!c || gmode !== 'foot' || !hum.obj) return false; var H = hOf(L), tmp = c.lp.clone().normalize(); hum.pos.copy(c.lp).multiplyScalar(1 + (back || 2) * H / c.lp.length()); hum.hr = hum.gr = hum.vh = hum.pos.length(); hum.air = true; hum.vv = 0; camRelInit = false; return true; }, throwBall: gbThrow, battle: function (opt) { opt = opt || {}; var nm, pf = ensureProfile(userName()); if (!opt.dbg && !opt.target) { var cl = creatList(); opt.target = cl[0]; } opt.dbg = !opt.target; if (opt.dbg) { var sp = PKG.species('dbg' + (opt.sp || ''), opt.kind || 'grazer', { biome: opt.biome || 'lush', tier: opt.tier || 1 }), ind = PKG.individual(sp, 'dbg' + (opt.seed || 1)); opt.mon = PKC.makeMon(sp, ind, opt.wildLevel || 4, PKG.xpForLevel(opt.wildLevel || 4), String(land.node ? land.node.id : 'dbg')); } return battleBegin(null, opt.target || null, opt); }, get battleCtrl() { return BT.ctrl; }, get battleOn() { return BT.on; }, get hint() { return gbHintText; }, calm: function () { return ps; } },
         _g: { obWon: function () { obWon(); }, G_WALK: G_WALK, G_RUN: G_RUN, hOf: hOf, hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },

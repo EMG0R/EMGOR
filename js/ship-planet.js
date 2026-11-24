@@ -69,7 +69,7 @@ var NPAD = 3;                             // outposts per planet (max)
 var OUT_S = 2.5;                          // 2026-10-14: outposts (pad, flat ground, tower, beacon, NPC spot, the 7/11 + Burger House via ps.outScale) read 2.5x bigger
 var PAD_L = 6 * OUT_S, BLD_S = 0.55 * OUT_S, PAD_FLAT = 15 * OUT_S, PAD_BLEND = 22 * OUT_S, NPC_OFF = 7.8 * OUT_S, BLD_OFF = 11 * OUT_S;   // x L
 var SITE_CAP = 0.15;                      // 2026-10-14: the first outpost (and ship.js' village) is seeded within this angle (rad = R units of arc) of the approach direction
-var COL_MAX = 8, COL_H_L = 400, COL_H_R = 0.35;   // 2026-10-14: sky beacon columns (one instanced draw): height = max(400 L, 0.35 R)
+var COL_MAX = 10, COL_H_L = 400, COL_H_R = 0.35;   // 2026-10-14: sky beacon columns (one instanced draw): height = max(400 L, 0.35 R)
 var LAND_ALT = 12, LAND_SLOPE = 0.25, OUT_SEP = 0.4;
 
 // ─── GLSL: noise copied verbatim from galaxy3d PLANET_NOISE ───────────────────
@@ -620,7 +620,7 @@ var COL_VERT = [
     '    p += sd * position.x * w;',
     '    vX = position.x; vY = position.y; vC = aCol;',
     '    float db = distance(cameraPosition, b);',
-    '    vA = (1.0 - smoothstep(2.7 * uR, 3.0 * uR, db)) * smoothstep(3.0 * uL, 25.0 * uL, db);',
+    '    vA = (1.0 - smoothstep(2.7 * uR, 3.0 * uR, db)) * smoothstep(1.0 * uL, 15.0 * uL, db);',
     '    gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);',
     '    #include <logdepthbuf_vertex>',
     '}'
@@ -1892,6 +1892,7 @@ export function createPlanetSurface(engine, L) {
         layoutCols();
     };
     ps.columns = function () { return alloc && alloc.cols ? alloc.cols.count : 0; };
+    ps.columnMesh = function () { return alloc && alloc.cols ? alloc.cols : null; };      // harness: the instanced beacon-column mesh (gE2 checks it is visible + in frustum)
     // approach direction (planet-local unit vector) for the first site; remembered per planet id so a reload keeps the same layout on this client
     function siteFor(n, shipPos) {
         var key = 'nmg-site-' + n.id, v = null;

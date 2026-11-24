@@ -791,3 +791,8 @@ NEXT 5 TO QUEUE: (1) distance LOD switch + glass in group.lo; (2) round-rig tri 
 - ship-planet.js: creatures take suit/deep from humanMod.charPalette(ps.palette.ramp, accent) on palette apply (lazy import so node tests still load the file); jelly keeps 0.08 accent. Not visually verified in g24 battle sprite path (g24 passed with the earlier build, before this patch? no: g24 passed WITH the governor + palette patch).
 - g21/g22/g23 on a fresh load: tab froze under contention, no result. Node suite 412 pass / 0 fail.
 - fx-loop (E/F8): docs/core-loop.md storyboard; far-7/11 prompt (fly there), step-done sound + toast, no-payout win credits the chain, village torches + longhouse/tower removed, gE1 (131.9 sim s, pass).
+
+## 2026-11-23 fx-start (E2 first 3 minutes)
+- Starter spawn (metagor, 90 L from the 7/11 pad, 6 L up, nose at pad, black fade until re-posed), pad-snap landing within 40 L of a 7/11, landing assist (2.5 L/s down to the hover band while chain step <= 1), grace period (OB.grace: 300 s / until station step; waves + night mobs gated, HUD 'CALM'), wild creature HUD marker during CATCH ONE, village marker always on, new VISIT THE VILLAGE step (chain now 8 steps; finished profiles stay finished), village site 36-52 L from the first pad (was 547 L), column colours per type (+ Burger red), column fade 15 L, CSS tracker/prompt fixes.
+- gE2 added (js/ship-planet-tests.js): 112 sim s, walk 12 L to the counter, village 22 L from the pad; node suite 413 pass.
+- Touched: js/ship.js, js/ship-onboard.js, js/ship-planet.js (COL_MAX 10, fade, ps.columnMesh), style/ship.css, tests.
