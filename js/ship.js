@@ -1377,7 +1377,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // ─── E2 starter spawn: a fresh profile (no saved pose, chain at step 0, c.sp unset) spawns in low orbit over ONE designated planet (metagor, else the first lush one), ~STR_DIST L from the
     // 7/11 pad, ~6 L above the ground, nose toward the pad. The planet's own pad / store layout only exists once it is ps.active, so phase 1 drops the ship anywhere over it (screen black),
     // phase 2 (starterTick) re-poses it against the real pad and fades in. ───
-    var STR = { on: false, node: null, t: 0, fixed: false }, STR_DIST = 90, STR_ALT = 6, STR_PITCH = 0.14;
+    var STR = { on: false, node: null, t: 0, fixed: false, aim: false, fadedIn: false }, STR_DIST = 90, STR_ALT = 6, STR_PITCH = 0.14;
     function starterPick() {
         var list = engine.drawOrder, best = null, bs = -1, i, nd, sc;
         for (i = 0; i < list.length; i++) {
@@ -1388,7 +1388,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         return best;
     }
     function starterSnap() {
-        var pf = curProfile(), c = pf && pf.onb && pf.onb.c; if (!c || c.sp || c.i > 0 || pf.pose || shareIn) return null;
+        var pf = ensureProfile(userName()), c = pf && pf.onb && pf.onb.c; if (!c || shareIn || OB.finished(c)) return null;      // ensureProfile: a cleared save has no profile object yet (curProfile() is null) -> the old check never fired
+        if (!(c.i === 0 || !pf.pose)) return null;      // starter whenever REACH A PLANET is not done, or the pose is gone (/respawn); a returning player mid-chain with a pose keeps it
         var nd = starterPick(); if (!nd) return null;
         c.sp = true; writeSave();
         STR.on = true; STR.node = nd; STR.t = 0; STR.fixed = false;
@@ -1407,16 +1408,26 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var f = dT.clone().addScaledVector(ds, -dT.dot(ds)).normalize();      // heading along the ground toward the pad
         var fl = ps.floorLocal(ds.x, ds.y, ds.z); if (!(fl > 0)) return null;
         var up = ds.clone(), right = f.clone().cross(up).normalize(), nose = f.clone().addScaledVector(up, -STR_PITCH).normalize();
-        var m = new THREE.Matrix4().makeBasis(right, nose.clone().cross(right).normalize(), nose.clone().negate());
+        var m = new THREE.Matrix4().makeBasis(right, nose.clone().negate().cross(right).normalize(), nose.clone().negate());      // proper (right-handed) basis: X right, Y up, Z back
         return { f: 'planet', node: n, mode: 'fly', lp: ds.clone().multiplyScalar(fl + STR_ALT * L), lq: new THREE.Quaternion().setFromRotationMatrix(m), R: Rn, alt: STR_ALT * L };
+    }
+    var strQ = new THREE.Quaternion(), strM = new THREE.Matrix4(), strA = new THREE.Vector3(), strB = new THREE.Vector3(), strC = new THREE.Vector3(), strD = new THREE.Vector3(), strT = 0;
+    function starterAim(dt) {      // E2b: until the player's first input the nose stays on the pad (planet-LOCAL maths: world points lag a frame on an orbiting moon and the real-time loop drifted the heading 40-60 deg)
+        var o0 = ps && ps.outposts && ps.outposts[0]; if (!o0 || !lf.on || lf.node !== STR.node || gmode !== 'fly') return;
+        if (keys.KeyW || keys.Space || keys.KeyS || Math.abs(mdx) + Math.abs(mdy) > 4) { STR.aim = false; return; }
+        strT -= dt; if (strT > 0) return; strT = 0.1;
+        strA.copy(lf.lp).normalize(); strB.copy(o0.pad.position).sub(lf.lp); strB.addScaledVector(strA, -strB.dot(strA)); if (strB.lengthSq() < 1e-12) return; strB.normalize();
+        strB.addScaledVector(strA, -STR_PITCH).normalize(); strC.crossVectors(strB, strA).normalize(); strD.crossVectors(strB.clone().negate(), strC).normalize();      // right, up-ish, -nose
+        strM.makeBasis(strC, strD, strB.clone().negate()); strQ.setFromRotationMatrix(strM); lf.lq.copy(strQ); shipRoot.quaternion.copy(STR.node.mesh.quaternion).multiply(strQ);
     }
     function starterTick(dt) {
         STR.t += dt;
-        if (STR.fixed) { STR.on = false; fadeIn(); return; }
-        if (STR.t > 6) { STR.on = false; fadeIn(); return; }      // never hold the screen black: the phase-1 pose stays
+        if (STR.aim) starterAim(dt);
+        if (STR.fixed) { if (!STR.aim) { STR.on = false; } if (!STR.fadedIn) { STR.fadedIn = true; fadeIn(); } return; }
+        if (STR.t > 6) { STR.on = false; STR.aim = false; fadeIn(); return; }      // never hold the screen black: the phase-1 pose stays
         if (!ps || ps.active !== STR.node || !lf.on || gmode !== 'fly' || STR.t < 0.3) return;
         var rs = starterFix(); if (!rs) return;
-        STR.fixed = true; resumePend = rs; resumeWait = 2;
+        STR.fixed = true; STR.aim = true; STR.fadedIn = false; resumePend = rs; resumeWait = 2;
     }
     var padHead = new THREE.Vector3();      // pad -> store, world (set by padSnap): the landed ship points its nose at the store, so W on foot walks to the door
     function padSnap(node, P) {      // E2: Z within 40 L of the 7/11 beacon lands ON the store's pad -> the world-space unit direction of the pad centre, or null
@@ -4155,7 +4166,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (ukey) { if (ukey.length < 4) return bad('KEY NEEDS 4+ CHARACTERS'); if (!/^[a-z0-9_-]{2,20}$/i.test(un)) return bad('RELAY NAME · 2-20 of a-z 0-9 _ -'); return ok('USER ' + un + ' · ' + r27Login(un, ukey)); }
             return ok('USER ' + un);
         }
-        if (/^respawn$/i.test(raw)) { poseClear(); return ok('SAVED POSE FORGOTTEN · NEXT ENTRY FROM THE DOCK'); }
+        if (/^respawn$/i.test(raw)) { poseClear(); var pr0 = curProfile(); return ok('SAVED POSE FORGOTTEN · NEXT ENTRY ' + (pr0 && pr0.onb && pr0.onb.c && !OB.finished(pr0.onb.c) ? 'OVER THE STARTER PLANET' : 'FROM THE DOCK')); }
         if ((m = /^colou?r(?:\s+(.*))?$/i.exec(raw))) {
             var cn = String(m[1] || '').trim().toLowerCase(), cv = Object.prototype.hasOwnProperty.call(COLOR_NAMES, cn) ? COLOR_NAMES[cn] : null, hx = null;
             if (cv == null) hx = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(cn);

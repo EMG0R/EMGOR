@@ -4,7 +4,7 @@
 //   when the profile already did the thing. State lives on profile.onb.c = { i: step index, won: bool, card: bool }.
 //   snap = { planet, landed, beacon, ball, caught, won, station }  (all booleans, cumulative where the game keeps it)
 export const STEPS = [
-  { id: 'planet', title: 'REACH A PLANET', text: 'HOLD W + MOUSE · FLY TOWARD A PLANET, HOLD SPACE TO PULSE', mark: '7/11', when: 'fly' },
+  { id: 'planet', title: 'REACH A PLANET', text: 'W TO BEGIN · FLY TO THE GLOWING PAD · Z TO LAND', mark: '7/11', when: 'fly' },
   { id: 'land', title: 'LAND', text: 'FLY TO THE GLOWING PAD · UNDER 3 L THE SHIP SLOWS ITSELF · Z TO LAND', mark: '7/11', when: 'fly' },
   { id: 'beacon', title: 'WALK TO THE BEACON', text: 'Z · STEP OUT · WALK TO THE 7/11 BEACON', mark: '7/11', when: 'any' },
   { id: 'ball', title: 'BUY A GOR BALL', text: 'F AT THE 7/11 COUNTER · BUY A GOR BALL', mark: '7/11', when: 'any' },
