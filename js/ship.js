@@ -18,6 +18,7 @@ import * as PKG from './pokemans-gen.js';
 import * as PKC from './pokemans-catch.js';
 import * as PKP from './pokemans-party.js';
 import * as PKF from './pokemans-graft.js';
+import * as PKW from './pokemans-wild.js';
 import * as PDX from './pokemans-dex.js';
 import * as PHO from './ship-photo.js';
 import { targetFov } from './ship-fov.js';
@@ -605,10 +606,11 @@ export default function mount(engine) {
         o.pens = Math.max(0, o.pens | 0); o.pods = Math.max(0, o.pods | 0);
         if (!o.dex || typeof o.dex !== 'object' || !o.dex.seen || typeof o.dex.seen !== 'object' || Array.isArray(o.dex.seen)) o.dex = { seen: {} };      // Q25: species seen (pokemans-dex.note)
         if (!Array.isArray(o.pokemans)) o.pokemans = [];  // Q12: every caught mon (full data, js/pokemans-catch.js makeMon); party / pen hold their ids
-        o.pokemans = o.pokemans.filter(function (m) { return m && typeof m === 'object' && typeof m.id === 'string' && m.sp && m.ind; }).slice(-200);
-        if (!Array.isArray(o.party)) o.party = [];       // max 6 mon ids
+        o.pokemans = o.pokemans.filter(function (m) { return m && typeof m === 'object' && typeof m.id === 'string' && m.sp && m.ind; }).slice(-PKC.PARTY_MAX);
+        if (!Array.isArray(o.party)) o.party = [];       // POKEDEX roster: every caught mon id, unlimited; the ACTIVE one (activeMon) follows you
         if (!Array.isArray(o.pen)) o.pen = [];           // overflow mon ids
-        o.party = o.party.filter(function (x) { return typeof x === 'string'; }).slice(0, PKC.PARTY_MAX); o.pen = o.pen.filter(function (x) { return typeof x === 'string'; }).slice(-200);
+        o.party = o.party.filter(function (x) { return typeof x === 'string'; }).concat(o.pen.filter(function (x) { return typeof x === 'string'; })).filter(function (x, i, a) { return a.indexOf(x) === i; }).slice(0, PKC.PARTY_MAX); o.pen = [];      // legacy pen ids fold into the one roster
+        if (typeof o.activeMon !== 'string') o.activeMon = '';
         o.lureUntil = Math.max(0, +o.lureUntil || 0);    // Q12: Burger House lure fries: +catch chance until this epoch ms
         if (!Array.isArray(o.quests)) o.quests = [];     // rev 26: active quests (ship-quests.js objects + acceptedAt / expiresAt), max 3
         o.quests = o.quests.filter(function (q) { return q && typeof q === 'object' && typeof q.id === 'string' && Array.isArray(q.steps); }).slice(0, 3);
@@ -621,6 +623,10 @@ export default function mount(engine) {
         o.glowUntil = (typeof o.glowUntil === 'number' && isFinite(o.glowUntil)) ? o.glowUntil : 0;     // rev 23: fries glow expiry (epoch ms)
         if (!Array.isArray(o.depthStack)) o.depthStack = [];     // Q17b2: fractal dive stack [{planetId, rockIndex}]; sanitized by ship-depth.fromSave once loaded
         o.depthStack = o.depthStack.filter(function (e) { return e && typeof e.planetId === 'string' && isFinite(e.rockIndex) && e.rockIndex >= 0; }).slice(0, 4);
+        if (!(o.created > 0)) {      // brand-new profile: starter kit = 3 basic GOR BALLS + the POKEDEX
+            o.items.push({ id: 'gorball-1', seed: 1201, n: 3, d: 0, it: JSON.parse(JSON.stringify(ITM.GORBALL_TIERS[0])) });
+            o.items.push({ id: 'pokedex', seed: 1300, n: 1, d: 0, it: JSON.parse(JSON.stringify(ITM.POKEDEX)) });
+        } else if (o.pokemans.length && !o.items.some(function (r) { return r.id === 'pokedex'; })) o.items.push({ id: 'pokedex', seed: 1300, n: 1, d: 0, it: JSON.parse(JSON.stringify(ITM.POKEDEX)) });      // older saves that already caught something get the POKEDEX
         if (!(o.created > 0)) o.created = Date.now();
         return o;
     }
@@ -879,7 +885,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     elHelp.innerHTML = '<h4>KEYS<span>H closes</span></h4><div class="gh-g">' + [
         ['W / mouse', 'throttle / steer'], ['LMB', 'fire'], ['SPACE', 'pulse (hold)'], ['SHIFT', 'boost · +LMB ram'], ['A/D x2 · S x2', 'roll · flip'], ['CTRL', 'drift'],
         ['Q · X', 'focus · wingmen fire'], ['T', 'target / talk'], ['V', 'scan'], ['Z', 'land · dock · board'], ['HOLD Z / W', 'lift off'], ['F', 'interact · shop · fight'],
-        ['WASD · SHIFT', 'walk · run'], ['SPACE', 'jump · hold jetpack'], ['1-9 · 0', 'hotbar · party keys'], ['U', 'POKEMANS'], ['B', 'throw ball'], ['E', 'inventory'],
+        ['WASD · SHIFT', 'walk · run'], ['SPACE', 'jump · hold jetpack'], ['1-9', 'hotbar'], ['U', 'POKEDEX roster'], ['LMB · B', 'blast a wild, then throw ball'], ['E', 'inventory'],
         ['ENTER · /', 'chat'], ['P', 'photo mode'], ['HOLD ESC', 'exit']
     ].map(function (r) { return '<div class="gh-r"><b>' + qEsc(r[0]) + '</b><span>' + qEsc(r[1]) + '</span></div>'; }).join('') + '</div><div class="gh-f">/wave N · /peaceful · /hostile · /difficulty 1-3 · /quality 0-3 · /volume 0-10 · /weapons · /ship · /help</div>';
     hud.appendChild(elHelp);
@@ -4132,7 +4138,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (i = 0; i < allies.length; i++) { allies[i].alive = false; allies[i].g.visible = false; }
         wave = Math.max(0, n - 1); wavePending = true; nextWave = gt + 0.05;
     }
-    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land; step out; board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person or a wild creature, then B to throw a GOR BALL) · T talk (on foot / station) · U POKEMANS manager (on foot) · 1-9 weapon hotbar · 0 party keys (1-6 swap) · B throw ball · F fight wild · E inventory · P photo mode (drag orbit, wheel FOV, [ ] time, S save + share link) · F/E/Esc close any panel · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · BOARD + DISCOVERIES: emgor.online/nomansgor/board.html · /help';
+    var HELP = 'KEYS · HOLD ESC 3 s exit · SHIFT+LMB ram (boosting) · V scan · T cycle target · A/D x2 roll · S x2 flip · CTRL drift · Q focus · X wingmen focus fire · Z ship (land; step out; board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person) · LMB blasts a wild POKEMANS (your active one hops out to help), hold B at low HP to throw a GOR BALL · T talk (on foot / station) · U POKEDEX roster (on foot; or right-click the POKEDEX in the pack) · 1-9 weapon hotbar · B throw ball · E inventory · P photo mode (drag orbit, wheel FOV, [ ] time, S save + share link) · F/E/Esc close any panel · ENTER or / chat · CMDS · /wave N · /peaceful · /hostile · /difficulty 1-3 · /user NAME · /color #hex|name · /gorcave TEXT · /quality 0-3|auto · /volume 0-10 · /weapons [N] (owned weapons, N equips) · /ship [N|kind] (owned hulls, switch) · BOARD + DISCOVERIES: emgor.online/nomansgor/board.html · /help';
     function applyDifficultyLive() {
         var D = DIFFS[difficulty];
         for (var i = 0; i < enemies.length; i++) {
@@ -5192,7 +5198,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function onKeyF() {
         if (gmode === 'foot') {
             var ft = footTarget();
-            if (ft.kind === 'wild') { wildFight(ft.obj); return; }
             if (ft.kind === 'villager' || ft.kind === 'shopper' || ft.kind === 'clerk' || ft.kind === 'dealer') { fightAsk(ft); return; }
             footAct(ft);
         }
@@ -5210,6 +5215,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') { questDeliver(ft.obj); r28Checkout(); } else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'cvs') cvsUse(ft.obj);
         else if (ft.kind === 'creature') tameStart(ft.obj);
         else if (ft.kind === 'resource') harvStart(ft.obj);
+        else if (ft.kind === 'world') ft.obj.use({ aPlay: aPlay, giveItem: function (it) { giveItem(it, 1); } });
         else punch();
     }
     // rev 19: "near the ship" = within BOARD_L ship lengths of the spot on the ground directly under the hull (the old test measured to the hull origin, ~1.1 L above the feet, so it was never true on foot)
@@ -5283,7 +5289,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         camera.position.copy(focus).add(camRel);
         camera.quaternion.slerp(tq, damp(rate, dt));
     }
-    var G_WALK = 6, G_RUN = 13;   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
+    var G_WALK = 4, G_RUN = 9;    // in human heights (/s, /s^2); 2026-11-25 plush pass (was 6 / 13)
     // rev 20b: the foot controller. The human lives in the planet's LOCAL frame (hum.pos), is a capsule (feet footprint FOOT_R) and walks on the ground AS RENDERED
     // (ps.meshFloorLocal: the patch's own triangles, not the finer height function that the mesh only approximates). Motion is substepped (<= FOOT_SUB heights per
     // substep) with a slope-limited step test (rise <= run + 0.05 H) and wall sliding; the position is written once per frame. hum.vh is the VISUAL height (what the
@@ -5434,7 +5440,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             get stylesMod() { return stylesMod; }, get fxJump() { return fxJump; }, get fxSpeed() { return fxSpeed; }, get scanT() { return scanT; },
             get mdx() { return mdx; }, set mdx(v) { mdx = v; }, get mdy() { return mdy; }, set mdy(v) { mdy = v; },
             get flT() { return flT; }, set flT(v) { flT = v; }, get jetT() { return jetT; }, set jetT(v) { jetT = v; }, get jetLvl() { return jetLvl; }, set jetLvl(v) { jetLvl = v; },
-            get jumpHeld() { return jumpHeld; }, set jumpHeld(v) { jumpHeld = v; }, get shake() { return shake; }, set shake(v) { shake = v; }, get styFov() { return styFov; }, set styFov(v) { styFov = v; }
+            get jumpHeld() { return jumpHeld; }, set jumpHeld(v) { jumpHeld = v; }, get shake() { return shake; }, set shake(v) { shake = v; }, get styFov() { return styFov; }, set styFov(v) { styFov = v; }, get fovAdd() { return footFovAdd; }, set fovAdd(v) { footFovAdd = v; }
         });
         return foot.footStep(dt, c, qM);
     }
@@ -5501,7 +5507,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         vel.set(0, 0, 0); speed = 0;
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { gA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake); camera.position.add(gA); }
-        fov += (targetFov({ mode: gmode, base: baseFov }) - fov) * damp(4, dt);      // on foot 55 (galaxy stays 42)
+        fov += (targetFov({ mode: gmode, base: baseFov }) + (gmode === 'foot' ? footFovAdd : 0) - fov) * damp(4, dt);      // on foot 55 (galaxy stays 42)
         var gNear = gmode === 'foot' ? 0.01 * L : 0.02 * L;      // a human is ~0.0055 u tall: the 0.05 near plane would clip it
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== gNear) { camera.fov = fov; camera.near = gNear; camera.updateProjectionMatrix(); }
         if (gmode !== 'foot') clampCamToGround(0.5);
@@ -6656,6 +6662,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var pf = ensureProfile(userName()), rec = pf.items[idx], it = rec ? itemOf(rec) : null;
         if (!it) return;
         if (it.kind === 'ball') { addRow('', '', 'hold B on foot to aim, release to throw', 'is-sys'); return; }
+        if (it.kind === 'pokedex') { if (gmode !== 'foot') { addRow('', '', 'POKEDEX · ON FOOT ONLY', 'is-sys'); return; } closeInv(); ptMgr(true); return; }      // right-click = open the roster (same overlay as U)
         if (it.kind === 'pokemans') { addRow('', '', 'not food', 'is-sys'); return; }
         if (it.kind === 'graft') { addRow('', '', 'graft it at a POKEMANS counter (F on REVIVE with no one dead)', 'is-sys'); return; }
         try { if (ptFood(it)) { rec.n--; if (rec.n <= 0) pf.items.splice(idx, 1); aPlay('ui', { vel: 0.7 }); writeSave(); invFill(); invTip(null); return; } } catch (e3) { warnOnce('graft.food', e3); }
@@ -6789,6 +6796,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (it.category === 'weapon-mod') return ' · right click to fit your weapon';
         if (it.category === 'ship-upgrade') return ' · right click to install';
         if (it.pet || it.kind === 'part' || it.kind === 'material' || it.kind === 'junk') return R25.craftOn ? ' · click to place in the grid' : '';
+        if (it.kind === 'pokedex') return ' · right click to open (on foot)';
         return ' · right click to ' + (it.kind === 'drink' ? 'drink' : 'eat');
     }
     function takeKey(key, n) {
@@ -6869,7 +6877,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var pf = ensureProfile(userName()), i, c;
         if (s.getAttribute('data-i') != null) {
             var rec = pf.items[invTop * INV_COLS + (+s.getAttribute('data-i'))], it = rec ? itemOf(rec) : null;
-            if (!it || it.pet || it.kind === 'blueprint' || it.kind === 'ball' || it.kind === 'pokemans' || rec.n - r25Reserved(rec.id) <= 0) return;      // never craft away a recipe, a ball or a caught mon
+            if (!it || it.pet || it.kind === 'blueprint' || it.kind === 'ball' || it.kind === 'pokemans' || it.kind === 'pokedex' || rec.n - r25Reserved(rec.id) <= 0) return;      // never craft away a recipe, a ball or the POKEDEX
             for (i = 0; i < 9; i++) if (craftGrid[i] && craftGrid[i].key === rec.id) { craftGrid[i].n++; aPlay('ui', { vel: 0.5 }); invFill(); return; }
             for (i = 0; i < cl.length; i++) if (!craftGrid[cl[i]]) { craftGrid[cl[i]] = { key: rec.id, it: it, n: 1 }; aPlay('ui', { vel: 0.5 }); invFill(); return; }
         } else if (s.getAttribute('data-c') != null) {
@@ -7085,6 +7093,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     // ═══ mashup (rev 31): styles live on the foot controller (real slope / wall ctx), collidable STEEV blocks, night mobs, planet rooms (host-simulated) ═══════════
     var styU = {}, styM = { l: false, r: false }, STY_EMPTY = {}, styFloorN = { x: 0, y: 1, z: 0 };
+    var footFovAdd = 0;      // indoor FOV widening written by ship-foot (degrees)
     var styFov = 1, styUpW = new THREE.Vector3(), styN = { x: 0, y: 1, z: 0 }, styWallO = { x: 0, y: 0, z: 0 }, styAimO = { x: 0, y: 0, z: -1 }, styTgPool = [], styTg = [];
     var styTgt = { dist: 99, mat: 'air', hardness: 0.75, cx: 0, cy: 0, cz: 0, px: null, py: null, pz: null };
     var snA = new THREE.Vector3(), snB = new THREE.Vector3(), snC = new THREE.Vector3(), snD = new THREE.Vector3(), snM = new THREE.Matrix4(), snQ = new THREE.Quaternion();
@@ -8349,12 +8358,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         tcRes.id = best.id; tcRes.d = Math.sqrt(bd); tcRes.kind = crKind(best); tcRes.v = tcRes.kind === 1 ? 1 : 0; tcRes.pos.copy(best.lp);
         return tcRes;
     }
-    function wildFind() {      // Q48: nearest wild creature inside 3 H (pure predicate: PKC.wildEncounterIndex)
-        if (gmode !== 'foot' || !hum.obj || !ps || !ps.active || land.node !== ps.active) return null;
-        var list = creatList(), H = hOf(L), i = PKC.wildEncounterIndex(list, hum.pos, 3 * H);
-        return i < 0 || !PKC.encounterOk(list[i].lp.distanceTo(hum.pos) / H, gbKindOf(list[i]), null, 3) ? null : list[i];
-    }
-    function wildFight(cr) { battleBegin(null, cr, null); }      // F within 3 H of a wild creature starts the same pixel battle a thrown ball does
+    // (F-wild removed: wild POKEMANS are fought in real time with the blaster, then caught with a GOR BALL — see WILD ENCOUNTER below)
     function tameStart(c) { if (tame.on || !c) return; tame.on = true; tame.t = 0; tame.id = c.id; aPlay('ui', { vel: 0.6 }); addRow('', '', 'taming... hold still', 'is-sys'); }
     // ── harvesting: F near a resource node = 3 s channel, chunk bursts, then the stack goes to the inventory; spent nodes persist on the profile ──
     var harv = { on: false, t: 0, id: '', pos: new THREE.Vector3(), bt: 0 };
@@ -8490,6 +8494,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 int.pens[i].clear(); var p = pf.petPens[i]; if (p) int.pens[i].setPet({ seed: p.seed, name: p.name, tier: 1 });
                 int.pods[i].clear(); var c = pf.crew[i]; if (c) int.pods[i].setCrew({ seed: c.seed, name: c.name, color: c.color });
             }
+            var am = ptMon(), fp = -1;      // the active POKEMANS lives in the ship too: it takes the first free pen (same pet system, no second one)
+            if (am) { for (i = 0; i < 4; i++) if (!pf.petPens[i]) { fp = i; break; } if (fp >= 0) int.pens[fp].setPet({ seed: (am.sp.bodyRecipe.seed | 0) || 1, name: am.sp.name, plan: ptBodyRec(am).plan, tier: 1 }); }
         } catch (e0) { console.info('[ship] interior sync', e0); }
         r27Interior(int, pf);
         boardSync();
@@ -8721,7 +8727,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             for (i = 0; i < pm.length; i++) { var pi = pm[i]; shopRows.push({ k: 'i', item: pi, name: pi.name, sub: String(pi.blurb || '').slice(0, 44), price: pi.price }); }
         } else if (tab === 2) {
             for (i = 0; i < pf.weapons.length; i++) { var o = pf.weapons[i]; shopRows.push({ k: 'x', i: i, tag: String(o.cls || 'C'), name: o.name, sub: (pf.weapon && pf.weapon.id === o.id) ? 'EQUIPPED' : 'OWNED', price: Math.round(shopPrice(o) * (CRF.SELL_K || 0.4)) }); }
-            for (i = 0; i < pf.items.length; i++) { var r = pf.items[i], io = itemOf(r); if (io && io.kind !== 'pokemans') shopRows.push({ k: 'xi', i: i, item: io, name: io.name, sub: 'x' + r.n + ' OWNED', price: CRF.sellPrice(io) }); }
+            for (i = 0; i < pf.items.length; i++) { var r = pf.items[i], io = itemOf(r); if (io && io.kind !== 'pokemans' && io.kind !== 'pokedex') shopRows.push({ k: 'xi', i: i, item: io, name: io.name, sub: 'x' + r.n + ' OWNED', price: CRF.sellPrice(io) }); }
             if (!shopRows.length) shopRows.push({ k: '-', tag: '--', name: 'NOTHING TO SELL', sub: '', price: null });
         }
         shopTop = clamp(shopTop, 0, Math.max(0, shopRows.length - SHOP_ROWS)); shopSel = clamp(shopSel, 0, Math.max(0, shopRows.length - 1));
@@ -8875,9 +8881,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     // F on foot: the nearest thing to use. counter -> store, Burger House window -> fries, dealer -> street menu, shopper -> a line, clerk -> a line
     var ftI = { kind: '', obj: null, label: '' }, mutterT = 0;
+    function worldInteract() { return (world && world.interactNear && world.interactNear(hum.pos)) || (VG.v && VG.v.interactNear && VG.v.interactNear(hum.pos)) || null; }
     function footTarget() {
         ftI.kind = ''; ftI.obj = null; ftI.label = '';
         if (gmode !== 'foot' || !hum.obj || !world || !world.node) return ftI;
+        var wi = worldInteract();
+        if (wi && wi.kind === 'stand') { ftI.kind = 'world'; ftI.obj = wi; ftI.label = wi.label; return ftI; }      // seated: F stands up first
         if (HB.hub) { var hk = hubTarget(); if (hk || HB.in) return ftI; }
         if (VG.v && villageTarget()) return ftI;
         var c = counterNear(), n, k;
@@ -8887,6 +8896,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         }
         if (world.nearBurger) { ftI.kind = 'burger'; ftI.obj = world.nearBurger; ftI.label = 'F · FRIES'; return ftI; }
         if (world.nearCvs) { ftI.kind = 'cvs'; ftI.obj = world.nearCvs; ftI.label = world.nearCvs.kind === 'revive' ? cvsLabel() : 'F · HEAL'; return ftI; }
+        if (wi) { ftI.kind = 'world'; ftI.obj = wi; ftI.label = wi.label; return ftI; }      // F · SIT / F · RING BELL / F · DRAW WATER
         var shf = r28ShelfFind(); if (shf) { ftI.kind = 'shelf'; ftI.obj = shf; ftI.label = 'F · GRAB ' + String(shf.item && shf.item.name || 'ITEM').toUpperCase() + ' ' + ((shf.item && shf.item.price) | 0); return ftI; }
         var rn = resFind(); if (rn) { ftI.kind = 'resource'; ftI.obj = rn; ftI.label = 'F · HARVEST ' + String(rn.kind).toUpperCase(); return ftI; }
         var tc = tameFind(); if (tc) { ftI.kind = 'creature'; ftI.obj = tc; ftI.label = 'F · TAME'; return ftI; }
@@ -8894,8 +8904,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (n) { k = n.role === 'dealer' ? 'dealer' : 'shopper'; ftI.kind = k; ftI.obj = n; ftI.label = fightLabel(n.id || n.name || k, k === 'dealer' ? 'T · DEAL' : 'T · TALK'); return ftI; }
         c = npcNear();
         if (c) { ftI.kind = 'clerk'; ftI.obj = c; ftI.label = fightLabel(c.id || 'clerk', 'T · TALK'); return ftI; }
-        c = wildFind();      // Q48: a wild creature within 3 H and nothing else to do: F = ring fight (a treat in the bag makes F tame instead, above)
-        if (c) { ftI.kind = 'wild'; ftI.obj = c; ftI.label = fightLabel('wild:' + c.id, 'WILD'); }
         return ftI;
     }
 
@@ -8904,7 +8912,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var FG = { ask: null, on: false, sess: null, mod: null, loading: false, cd: {}, npc: null, keys: Object.create(null), mouse: 0, tmpA: new THREE.Vector3(), tmpB: new THREE.Vector3(), tmpM: new THREE.Vector3(), tmpT: new THREE.Vector3(), tmpD: new THREE.Vector3(), t: 0,
         ck: 0, cL: new THREE.Vector3(), uL: new THREE.Vector3(), tL: new THREE.Vector3(), cW: new THREE.Vector3(), uW: new THREE.Vector3(), tW: new THREE.Vector3(), nW: new THREE.Vector3(), eW: new THREE.Vector3(), lW: new THREE.Vector3(), cM: new THREE.Matrix4(), cQ: new THREE.Quaternion(), hid: false };      // ck: 0..1 side-on camera blend (0.4 s tween); the rest are pooled temps for it
     var FG_STYLE = { farmer: 'builder', trader: 'hauler', elder: 'seer', kid: 'sparklet', guard: 'bounty', golum: 'bounty', clerk: 'twin', cashier: 'twin', dealer: 'racer' };
-    var FG_TIER = { villager: 1, shopper: 1, clerk: 1, cashier: 1, farmer: 1, kid: 1, trader: 2, dealer: 2, guard: 2, elder: 3, golum: 3 };      // bot difficulty: 1 easy, 2 medium, 3 hard (smash-engine BOT_TIERS)
+    var FG_TIER = { villager: 3, shopper: 3, clerk: 4, cashier: 4, farmer: 3, kid: 3, trader: 5, dealer: 5, guard: 6, elder: 8, golum: 9 };      // CPU level 1-9 (smash-bot.js BOT_TIERS); villager L3-4, trader/guard L5-6, elder L8, golum L9
     var FG_ASK_T = 4;
     var FG_COIN = { farmer: 25, kid: 25, villager: 25, shopper: 25, clerk: 25, cashier: 25, trader: 50, dealer: 50, elder: 100, golum: 100, guard: 100 };
     function fgPreload() {      // load the ring modules as soon as a fightable human is in reach, so the first F shows the ask at once and a fast F,F starts the fight
@@ -8957,10 +8965,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         try {
             FG.sess = M.createFightSession({
                 mode: 'local', seed: seed || 1, stageSamples: samples, stocks: 2, skyAlpha: 0,
+                onSfx: function (n, p) { var FSX = { hit_light: 'hit', hit_heavy: 'hit', hit_crit: 'explosion', shot: 'laser', boost: 'boost', ko: 'explosion', jump: 'jump', tech: 'boost' }; aPlay(FSX[n] || n, p ? { pitch: p } : undefined); },      // same cue map as smash.html
                 skyPalette: night > 0.5 ? { top: '#07051a', horizon: '#2a1a5a' } : { top: '#2a4a9a', horizon: '#9ac0ff' },
                 fighters: [
                     Object.assign({ slot: 0, styleId: curStyleId || 'PILOT', name: userName(), color: suitMid(), isLocal: true, isBot: false, id: 'me' }, meF || {}),
-                    Object.assign({ slot: 1, styleId: styleNpc, name: info.name, color: 0xffd36a, isLocal: false, isBot: true, id: info.id, level: role === 'elder' || role === 'golum' ? 3 : 2, tier: FG_TIER[role] || 1 }, npcF || {})
+                    Object.assign({ slot: 1, styleId: styleNpc, name: info.name, color: 0xffd36a, isLocal: false, isBot: true, id: info.id, cpuLevel: FG_TIER[role] || 4 }, npcF || {})
                 ]
             });
         } catch (e) { console.info('[ship] fight session failed', e); FG.sess = null; return; }
@@ -9025,7 +9034,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var coin = FG_COIN[info.role] || 25; if (FG.tr) coin *= FG.tr.team.length; addUnits(coin, hum.w, true); obWon();
             var rwPart = '', rwXp = 0, rwBond = 0;
             if (FG.tr) { try { var tt = 1; FG.tr.team.forEach(function (q) { tt = Math.max(tt, q.sp.tier); }); var pd = PKF.partDrop(tt, 'catch', 0, Math.random()), pit = PKF.partItem(pd.part, pd.tier); if (giveItem(pit, 1)) { addRow('', '', '+ ' + pit.name, 'is-sys'); rwPart = pit.name; } } catch (eP) { warnOnce('trainer.part', eP); } }
-            try { var am = ptMon(); if (am) { rwXp = 8 + 4 * (FG.tr ? FG.tr.team.length : 1) + (FG_TIER[info.role] || 1) * 4; rwBond = PKF.BOND_PER_WIN; var lv0 = PKP.awardXp(am, rwXp); ptBond(am, rwBond); if (lv0 > 0) { addRow('', '', am.sp.name.toUpperCase() + ' → L' + am.level, 'is-sys'); aPlay('levelUp'); } ptHud(true); writeSave(); } } catch (eX) { warnOnce('fight.xp', eX); }
+            try { var am = ptMon(); if (am) { rwXp = 8 + 4 * (FG.tr ? FG.tr.team.length : 1) + Math.ceil((FG_TIER[info.role] || 3) / 2) * 4; rwBond = PKF.BOND_PER_WIN; var lv0 = PKP.awardXp(am, rwXp); ptBond(am, rwBond); if (lv0 > 0) { addRow('', '', am.sp.name.toUpperCase() + ' → L' + am.level, 'is-sys'); aPlay('levelUp'); } ptHud(true); writeSave(); } } catch (eX) { warnOnce('fight.xp', eX); }
             var line = ''; try { line = LNG.line({ seed: info.seed, role: info.role, name: info.name, known: knownFor() }, 'goodgame'); } catch (e0) { line = 'Good game.'; }
             try { if (FG.sess && FG.sess.setReward) FG.sess.setReward({ coin: coin, xp: rwXp, part: rwPart, bond: rwBond, line: line, who: String(info.name) }); } catch (eR) { warnOnce('fight.reward', eR); }
             addRow(String(info.name).toUpperCase(), '#8fe0a8', line); addRow('', '', 'YOU WON · +' + coin + ' gorCoin', 'is-sys'); FG.cd[info.id] = Date.now() + 60000;
@@ -9305,7 +9314,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function skCommon(dt) {      // shake / fov / camera plane / fx / hud / net: shared by every station sub-state
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { vA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake); camera.position.add(vA); }
-        fov += (targetFov({ mode: gmode, base: baseFov }) - fov) * damp(4, dt);
+        fov += (targetFov({ mode: gmode, base: baseFov }) + (gmode === 'foot' ? footFovAdd : 0) - fov) * damp(4, dt);
         var near = gmode === 'ifoot' ? Math.min(0.002, 0.02 * L) : (gmode === 'sfoot' ? (R27.dsite ? Math.min(0.003, 0.01 * L) : 0.01 * L) : 0.02 * L);      // rev 27: 0.003 inside a derelict
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== near) { camera.fov = fov; camera.near = near; camera.updateProjectionMatrix(); }
         camera.updateMatrixWorld(true);
@@ -9799,7 +9808,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!tier) { addRow('', '', 'NO GOR BALLS · 7/11', 'is-sys'); return; }
         for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + tier) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; }
         gbMesh(); gbAim(); gbPickAim();
-        if (GB.tgtId) { try { ps.calmCreature(GB.tgtId, PKC.CALM_SECS); } catch (e0) { /* ignore */ } }      // an aimed-at creature stops fleeing for 2 s
         gbLocalize(); GB.pp.copy(GB.lo); GB.mats.btn.color.setHex(ITM.GORBALL_TIERS[tier - 1].color);
         GB.id = 1; GB.on = true; GB.t = 0; GB.tier = tier; GB.phase = 'fly'; GB.e = null; GB.gr = null; GB.miss = false; GB.missD = 1e9; GB.spin = 16; GB.pt = 0; GB.hitId = '';
         GB.tEnd = Math.max(PKC.throwTime(), GB.tAim > 0 ? GB.tAim + 0.35 : 0); GB.aimT = 0; gbPips(false, 1);
@@ -9810,7 +9818,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gbEnd() {
         if (GB.gr && ps && ps.shrinkCreature) { try { ps.shrinkCreature(GB.gr.id, 1); } catch (e0) { /* ignore */ } }
         if (GB.m) { GB.m.visible = false; GB.mFlash.visible = false; }
-        GB.id = -1; GB.on = false; GB.phase = ''; GB.e = null; GB.gr = null; GB.hitId = '';
+        if (GB.cx && GB.cx.e) GB.cx.e.held = false;
+        GB.cx = null; GB.id = -1; GB.on = false; GB.phase = ''; GB.e = null; GB.gr = null; GB.hitId = '';
     }
     function gbHitTest(H) {      // swept ball segment (GB.pp -> GB.lp, planet-local) vs the creature's real body sphere (live, not the 250 ms cache); true on a hit, sets GB.e / GB.gr / GB.cl / GB.hitR
         var i, e, r, cl, rb = PKC.BALL.radius * H;
@@ -9842,6 +9851,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var node = land.node, pid = String(node.id), tier, seed, kind, sp, ind, lvl;
         if (e) { tier = e.cr.tier || 1; seed = e.cr.seed | 0; kind = e.cr.kind || 'creature'; } else { tier = 1 + (hash25(pid + ':' + g.id) % 2); seed = hash25(pid + ':' + g.id); kind = CR_NAMES[crKind(g)]; }
         sp = ptSpeciesOf(node, kind, tier + (e ? 1 : 0)); ind = PKG.individual(sp, seed + ':' + pid); lvl = Math.min(PKG.MAX_LEVEL, 1 + sp.tier * 2);      // early grazers L3-5, guardians up to ~L7
+        if (g && ps.creatSize) {      // the caught mon IS the wild: its world height + body variant become the species shape (no re-roll); palette slots stay the species' (planet ramp)
+            var cz = ps.creatSize(g.id);
+            if (cz) { var pl0 = ['quadruped', 'floater', 'quadruped', 'biped'][cz.v & 3], br = sp.bodyRecipe; Object.assign(br, PKG.bodyShape(pl0, br.seed >>> 0), { plan: pl0, h: Math.round(cz.h * 100) / 100, pal: br.pal || PKG.bodyShape(pl0, br.seed >>> 0).pal }); ind.size = 1; }
+        }
         return PKC.makeMon(sp, ind, lvl, PKG.xpForLevel(lvl), pid);
     }
     function gbCatch(pf, mon, e, g) {      // a battle ended in 'caught': record + party/pen + dex + world removal of the creature (e / g are null for a console test battle)
@@ -9849,72 +9862,130 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         mon.at = Date.now();
         for (nid = 0; pf.pokemans.some(function (m) { return m.id === mon.id + (nid ? '#' + nid : ''); }); nid++) { /* same species+size twice: suffix */ } if (nid) mon.id += '#' + nid;
         PDX.note(pf, sp, planetLabel(node)); pf.pokemans.push(mon);
-        (pf.party.length < PKC.PARTY_MAX ? pf.party : pf.pen).push(mon.id);
-        PKP.trimMons(pf, 200);      // after the new mon is in party/pen, so a full roster can never evict the catch itself
-        giveItem({ id: mon.id, seed: seed >>> 0, name: sp.name, kind: 'pokemans', base: sp.types.join('/'), infusion: null, modifier: null, color: new THREE.Color().setHSL(sp.bodyRecipe.hue / 360, 0.6, 0.55).getHex(), price: 0, tier: sp.tier, category: 'pokemans', tags: ['pokemans'], stackKey: mon.id, iconHint: 'candy', blurb: sp.types.join(' / ') + ' · L' + lvl + ' · ' + sp.moves.map(function (m) { return m.name; }).join(', '), dealer: false }, 1);
+        pf.party.push(mon.id);      // POKEDEX roster: unlimited; the active one is whoever activeMon names (first living by default)
+        PKP.trimMons(pf, PKC.PARTY_MAX);      // after the new mon is in party/pen, so a full roster can never evict the catch itself
+        if (!pf.items.some(function (r) { return r.id === 'pokedex'; })) giveItem(ITM.POKEDEX, 1);      // the first catch hands over the POKEDEX (the only POKEMANS item in the pack)
         if (e) { if (e.guard) e.guard._gdDead = true; if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }      // PF2: a caught guardian is dead for the guard spawner too, as in gndKill
         else if (g) { try { ps.setCreatureTamed(g.id, true); } catch (e0) { /* ignore */ } crCache.t = -1e9; pf.taken.push({ n: pid, id: g.id, k: g.kind }); pf.taken = pf.taken.slice(-40); }
         try { ptSpoils(sp.tier, 'catch'); } catch (e2) { warnOnce('graft.drop', e2); }
         discClaim('creature', pid + ':' + sp.name, sp.name);
         ptGainXp(PKP.xpForCatch(sp.tier, lvl));
-        addRow('', '', 'CAUGHT ' + sp.name.toUpperCase() + ' · L' + lvl + (ind.shiny ? ' · SHINY' : '') + (pf.party.indexOf(mon.id) >= 0 ? ' · party ' + pf.party.length + '/' + PKC.PARTY_MAX : ' · sent to the pen'), 'is-sys');
+        addRow('', '', 'CAUGHT ' + sp.name.toUpperCase() + ' · L' + lvl + (ind.shiny ? ' · SHINY' : '') + ' · POKEDEX ' + pf.party.length, 'is-sys');
         writeSave(); invFill();
     }
-    // ═══ BATTLE: the only catch path. A thrown GOR BALL hit, or F within 3 H, opens js/pokemans-battle.js (pixel FIGHT / BALL / RUN). Balls are spent in the battle; 'caught' -> gbCatch.
     window.addEventListener('pagehide', function () { try { if (ps && ps.creatSpriteDispose) ps.creatSpriteDispose(); } catch (e0) { /* ignore */ } });
-    var BT = { on: false, loading: false, mod: null, ctrl: null, css: false };
     function gbBallTier(pf) { var t = 0, i, r, n; for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; n = /^gorball-([123])$/.exec(r.id); if (n && r.n > 0 && (!t || +n[1] < t)) t = +n[1]; } return t; }
     function gbBallCount(pf) { var n = 0, i, r; for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; if (/^gorball-[123]$/.test(r.id) && r.n > 0) n += r.n; } return n; }
-    function battleBegin(e, g, opt) {
-        opt = opt || {};
-        if (BT.on || BT.loading || !ps || !land.node || (!e && !g && !opt.dbg)) return null;
-        var pf = ensureProfile(userName()), wild = opt.mon || gbMon(e, g);
-        if (opt.wildLevel) { wild.level = opt.wildLevel; wild.xp = PKG.xpForLevel(wild.level); wild.hp = PKP.maxHp(wild); }
-        BT.loading = true;
-        return import('./pokemans-battle.js').then(function (B) {
-            BT.loading = false; BT.mod = B;
-            if (!BT.css) { BT.css = true; var lk = document.createElement('link'); lk.rel = 'stylesheet'; lk.href = 'style/pokemans-battle.css'; document.head.appendChild(lk); }
-            var wf = B.fighterOf(wild); if (g && ps.creatLook) { var lk0 = ps.creatLook(g.id); if (lk0) wf.v = lk0.v; }      // the world creature's own rig variant
-            var mineMon = pf.party.length ? PKP.monById(pf, pf.party[0]) : null; if (mineMon && mineMon.dead) mineMon = null;
-            BT.on = true; cmdOpen = true; keys = Object.create(null); mdx = mdy = 0; try { document.exitPointerLock(); } catch (e0) { /* ignore */ }
-            if (g) { try { ps.calmCreature(g.id, 600); } catch (e1) { /* ignore */ } } if (e) e.held = true;
-            aPlay('ui', { vel: 0.6, pitch: 0.7 });
-            var u = opt.catchU;
-            BT.ctrl = B.startBattle({
-                mine: mineMon ? B.fighterOf(mineMon) : youSuit(B.youFighter()), wild: wf, sprite: function (q) { return q.v < 0 ? null : (ps.creatSprite ? ps.creatSprite(q.v, q.rgb, q.view, q.px) : null); }, chart: ptChart(), instant: !!opt.instant, rng: opt.rng,
-                catchU: u === undefined ? undefined : function () { return u; },
-                bonus: function () { return (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0; },
-                balls: { tier: function () { return gbBallTier(pf); }, n: function () { return gbBallCount(pf); }, use: function (t) { for (var i = 0; i < pf.items.length; i++) if (pf.items[i].id === 'gorball-' + t) { pf.items[i].n--; if (pf.items[i].n <= 0) pf.items.splice(i, 1); break; } invFill(); } },
-                onEnd: function (r, core) {
-                    BT.on = false; BT.ctrl = null; cmdOpen = false; keys = Object.create(null); mdx = mdy = 0;
-                    if (e) e.held = false;
-                    if (r === 'caught') { wild.hp = Math.max(1, core.foe.hp); aPlay('tame'); gbCatch(pf, wild, e, g); }
-                    else {
-                        if (g) { try { ps.calmCreature(g.id, r === 'win' ? 12 : 3); } catch (e2) { /* ignore */ } }
-                        if (e && r === 'win') { e.hp = 0; }
-                        if (r === 'win') { ptGainXp(PKP.xpForKill(wild.level, wild.sp.tier)); addRow('', '', 'WON · ' + wild.sp.name.toUpperCase() + ' fainted', 'is-sys'); }
-                        else addRow('', '', r === 'lose' ? 'you blacked out · nothing lost' : r === 'fled' ? wild.sp.name.toUpperCase() + ' fled' : 'got away', 'is-sys');
-                    }
-                    writeSave(); invFill(); try { var pl = document.body.requestPointerLock(); if (pl && pl.catch) pl.catch(function () { /* keyboard only */ }); } catch (e3) { /* ignore */ }
-                }
-            });
-            return BT.ctrl;
-        }).catch(function (err) { BT.loading = false; BT.on = false; cmdOpen = false; console.info('[ship] battle module unavailable', err); addRow('', '', 'battle failed to load', 'is-err'); return null; });
+
+    // ═══ WILD ENCOUNTER (real time; the pixel battle screen is gone). The blaster (footFireTick -> wildBlast) hurts a wild POKEMANS, it AGGROs (ps.setCreatureMode chase), fights back
+    // (melee lunge / ranged spit by species, damage scaled by level) and flees under 10 % HP. A GOR BALL then catches it: chance = ball floor + (1 - hp%)^1.5 curve (pokemans-wild.js liveCatchChance), resolved per shake.
+    // Rules are pure in js/pokemans-wild.js; this block is the world glue + HUD (chip, lock reticle, MISSED / BREAK OUT / CAUGHT text).
+    var WL = { m: Object.create(null), n: 0, cw: new THREE.Vector3(), pw: new THREE.Vector3(), pend: [], msgT: 0, sig: '', foc: '' };
+    var elWC = document.createElement('div'), elWLk = document.createElement('div'), elWM = document.createElement('div');
+    elWC.style.cssText = 'position:absolute;left:0;top:0;display:none;pointer-events:none;z-index:6;min-width:96px;padding:3px 7px 5px;text-align:center;white-space:nowrap;font:600 10px/1.25 ui-monospace,monospace;letter-spacing:0.05em;color:#e8dcff;background:rgba(13,2,33,0.72);border-bottom:2px solid #a855f7';
+    elWLk.style.cssText = 'position:absolute;left:0;top:0;display:none;pointer-events:none;z-index:6;width:46px;height:46px;margin:-23px 0 0 -23px;border:2px solid #C8A0FF;border-radius:50%;box-shadow:0 0 12px rgba(200,160,255,0.7), inset 0 0 8px rgba(200,160,255,0.4)';
+    elWM.style.cssText = 'position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);opacity:0;pointer-events:none;z-index:7;font:700 24px/1 ui-monospace,monospace;letter-spacing:0.12em;color:#fff;text-shadow:0 0 14px #a855f7,0 2px 0 #1B1033;transition:opacity 0.25s';
+    hud.appendChild(elWC); hud.appendChild(elWLk); hud.appendChild(elWM);
+    function wlMsg(text, col) { elWM.textContent = text; elWM.style.color = col || '#fff'; elWM.style.opacity = '1'; WL.msgT = 1.7; addRow('', '', text, 'is-sys'); }
+    function wlKey(c) { return land.node ? land.node.id + '|' + c.id : ''; }
+    function wlGet(c) {      // the live wild record of a creature (species / level / HP / aggro), made on first contact
+        var k = wlKey(c); if (!k) return null;
+        var e = WL.m[k];
+        if (!e) {
+            var mon = gbMon(null, c), ks = Object.keys(WL.m), i;
+            if (ks.length > 40) for (i = 0; i < 20; i++) delete WL.m[ks[i]];
+            e = WL.m[k] = { id: c.id, node: land.node.id, mon: mon, w: PKW.newWild(mon), style: PKW.wildStyle(c.beh, crKind(c)), mode: -1, modeAt: 0 };
+        }
+        return e;
+    }
+    function wlById(id) { var k = land.node ? land.node.id + '|' + id : ''; return k ? WL.m[k] || null : null; }
+    function wlLure(pf) { return (pf.lureUntil || 0) > Date.now() ? PKC.LURE_BONUS : 0; }
+    function wlChance(e, tier) { var pf = curProfile(); return PKW.liveCatchChance(tier, PKW.hpFrac(e.w), e.mon.sp.tier, pf ? wlLure(pf) : 0); }
+    function wildBlast(c, dmg) {      // the player's blaster hit creature c
+        var e = wlGet(c); if (!e) return;
+        var d = PKW.wildHit(e.w, dmg, false); e.mode = -1;
+        if (d <= 0 && e.w.hp > 1) return;
+        var m = ptMon(); if (m && !R27.follow.pet && PT.poof <= 0 && !m.dead) { try { ptSummon(m); } catch (e0) { warnOnce('wild.summon', e0); } }      // your active POKEMANS hops out to help
+        if (e.w.flee && !e.lowSaid) { e.lowSaid = true; wlMsg('LOW HP · THROW A GOR BALL (B)', '#ffd36a'); }
+    }
+    function wildAttack(e, r, dist) {
+        var dmg = PKW.wildPlayerDamage(e.mon.level, e.mon.sp.tier, e.style), H = hOf(L);
+        if (e.style === 'ranged') {      // spit: a violet bolt, lands ~0.35 s later
+            r27D.copy(hum.w).sub(WL.cw).normalize(); fx.spawnBolt(WL.cw, r27D, 0xC8A0FF, 90 * L, 0.5); aPlay('fire', { vel: 0.35, pitch: 0.7 });
+            WL.pend.push({ t: 0.35, dmg: dmg });
+        } else {
+            fx.impact(hum.w, 0xff8a5c, 1.4, 'hit'); hurtPlayer(dmg, null, 1, false);
+        }
+    }
+    function wildTick(dt) {
+        var H = hOf(L), k, e, st, r, dist, i, foc = null, pf, bd, c;
+        WL.msgT -= dt; if (WL.msgT <= 0 && elWM.style.opacity !== '0') elWM.style.opacity = '0';
+        for (i = WL.pend.length - 1; i >= 0; i--) { WL.pend[i].t -= dt; if (WL.pend[i].t <= 0) { if (!dead) hurtPlayer(WL.pend[i].dmg, null, 1, false); WL.pend.splice(i, 1); } }
+        if (!land.node || gmode !== 'foot' || !hum.obj || !ps || !ps.creatBody || ps.active !== land.node) { elWC.style.display = 'none'; elWLk.style.display = 'none'; WL.pend.length = 0; return; }
+        for (k in WL.m) {
+            e = WL.m[k]; if (e.node !== land.node.id || (!e.w.aggro && !e.w.flee && e.mode <= 0)) continue;
+            r = ps.creatBody(e.id, WL.cw); if (r < 0) { delete WL.m[k]; continue; }
+            dist = WL.cw.distanceTo(hum.w) / H; st = PKW.wildStep(e.w, dt, dist, e.style, r / H);
+            if (st.mode !== e.mode || (st.mode && performance.now() - e.modeAt > 1500)) { e.mode = st.mode; e.modeAt = performance.now(); try { ps.setCreatureMode(e.id, st.mode, st.mode === 2 ? PKW.WILD.fleeSecs : PKW.WILD.chaseSecs, PKW.wildStopH(e.style, r / H)); } catch (e0) { warnOnce('wild.mode', e0); } }
+            if (st.attack && !dead && !BATSKIP()) wildAttack(e, r, dist);
+        }
+        // focus: the aimed lock, else the nearest wild within 25 H
+        if (GB.aim && GB.tgtId) { for (i = 0, c = creatList(); i < c.length; i++) if (c[i].id === GB.tgtId) { foc = c[i]; break; } }
+        if (!foc) { bd = PKW.WILD.nameRangeH * H; for (i = 0, c = creatList(); i < c.length; i++) { dist = c[i].lp.distanceTo(hum.pos); if (dist < bd) { bd = dist; foc = c[i]; } } }
+        if (!foc || dead || cmdOpen) { elWC.style.display = 'none'; elWLk.style.display = 'none'; return; }
+        r = ps.creatBody(foc.id, WL.cw); if (r < 0) { elWC.style.display = 'none'; elWLk.style.display = 'none'; return; }
+        e = wlGet(foc); if (!e) return;
+        WL.pw.copy(WL.cw); r27D.copy(WL.cw).sub(land.node.anchor.position).normalize(); WL.pw.addScaledVector(r27D, r * 1.15 + 0.25 * H);
+        var locked = GB.aim && GB.tgtId === foc.id, tier = 0, line3 = '';
+        if (locked) { pf = curProfile(); tier = pf ? gbOwned(pf, GB.best) : 0; line3 = tier ? 'CATCH ' + Math.round(wlChance(e, tier) * 100) + '%' : 'NO GOR BALLS'; }
+        else if (e.w.aggro) line3 = 'HOSTILE'; else if (e.w.flee) line3 = 'RUNNING';
+        var frac = PKW.hpFrac(e.w), sig = e.mon.sp.name + e.mon.level + Math.round(frac * 50) + line3;
+        if (sig !== WL.sig) { WL.sig = sig; elWC.innerHTML = '<div>' + qEsc(e.mon.sp.name.toUpperCase()) + ' · L' + e.mon.level + '</div><div style="height:4px;margin:3px 0 2px;background:#2a1a4a"><div style="height:4px;width:' + Math.round(frac * 100) + '%;background:' + (frac < 0.2 ? '#ff5c7a' : frac < 0.5 ? '#ffd25c' : '#7CE0A0') + '"></div></div><div style="color:' + (locked ? '#ffd25c' : '#b9a6dd') + '">' + (line3 || '&nbsp;') + '</div>'; }
+        WL.pw.project(camera);
+        if (WL.pw.z > 1 || WL.pw.z < -1) { elWC.style.display = 'none'; } else { elWC.style.display = 'block'; elWC.style.transform = 'translate(' + Math.round((WL.pw.x * 0.5 + 0.5) * window.innerWidth) + 'px,' + Math.round((-WL.pw.y * 0.5 + 0.5) * window.innerHeight) + 'px) translate(-50%,-100%)'; }
+        if (locked) { WL.pw.copy(WL.cw).project(camera); if (WL.pw.z > 1 || WL.pw.z < -1) elWLk.style.display = 'none'; else { elWLk.style.display = 'block'; elWLk.style.transform = 'translate(' + Math.round((WL.pw.x * 0.5 + 0.5) * window.innerWidth) + 'px,' + Math.round((-WL.pw.y * 0.5 + 0.5) * window.innerHeight) + 'px) scale(' + (1 + 0.08 * Math.sin(gt * 9)).toFixed(3) + ')'; } } else elWLk.style.display = 'none';
+    }
+    function BATSKIP() { return FG.on; }      // a trainer brawl owns the screen: wilds hold their fire
+    // ball hit a creature / guardian: roll the per-shake outcome and start the wobble on the ground where it stood
+    function wlCatchBegin(e, g, tier) {
+        var pf = ensureProfile(userName()), mon, frac, we = null, chance, roll, k;
+        if (g) { we = wlGet(g); if (!we) return false; mon = we.mon; frac = PKW.hpFrac(we.w); }
+        else { mon = gbMon(e, null); frac = e.hpMax > 0 ? Math.max(0, e.hp / e.hpMax) : 1; }
+        chance = PKW.liveCatchChance(tier, frac, mon.sp.tier, wlLure(pf)); roll = PKW.shakeRoll(chance, [Math.random(), Math.random(), Math.random()]);
+        GB.cx = { e: e, g: g, we: we, mon: mon, frac: frac, chance: chance, roll: roll, t: 0, n: 0 };
+        if (g) { try { ps.calmCreature(g.id, 12); ps.shrinkCreature(g.id, 0.001); } catch (e0) { /* ignore */ } } if (e) e.held = true;
+        gbToLocal(GB.cw, GB.cl); GB.lo.copy(GB.cl).normalize().multiplyScalar(gbFloor(GB.cl) + PKC.BALL.radius * hOf(L)); GB.phase = 'cshake'; GB.pt = 0; GB.spin = 0;
+        return true;
+    }
+    function wlCatchTick(dt) {      // wobble: 0.5 s settle, then one shake every 0.8 s; the roll decides which shake breaks (1-3) or that all three hold
+        var cx = GB.cx, mon = cx.mon, pf = ensureProfile(userName());
+        cx.t += dt; var ph = cx.t - 0.5;
+        GB.m.rotation.z = ph > 0 ? Math.sin((ph % 0.8) / 0.8 * Math.PI * 2) * 0.7 * Math.max(0, 1 - (ph % 0.8) / 0.8) : 0;
+        if (ph < 0) return;
+        var n = Math.floor(ph / 0.8) + 1; if (n <= cx.n || n > 3) return;
+        cx.n = n; aPlay('hit', { vel: 0.3, pitch: 0.9 + 0.12 * n });
+        if (n < cx.roll.shakes) return;
+        if (cx.roll.caught) {
+            mon.hp = Math.max(1, Math.round(PKP.maxHp(mon) * cx.frac)); aPlay('tame'); gbCatch(pf, mon, cx.e, cx.g); if (cx.g) delete WL.m[wlKey(cx.g)];
+            wlMsg('CAUGHT · ' + mon.sp.name.toUpperCase(), '#7CE0A0'); GB.cx = null; gbEnd(); return;
+        }
+        wlMsg('BREAK OUT', '#ff8a5c'); aPlay('explosion', { vel: 0.3, pitch: 1.4 });
+        if (cx.g) { try { ps.calmCreature(cx.g.id, 0.01); } catch (e1) { /* ignore */ } }
+        if (cx.we) { cx.we.w.aggro = true; cx.we.w.since = 0; cx.we.mode = -1; }      // it is angry now
+        if (cx.e) { cx.e.held = false; }
+        GB.cx = null; gbEnd();
     }
     function gbFloor(v) { return ps.meshFloorLocal ? ps.meshFloorLocal(v.x, v.y, v.z) : ps.floorLocal(v.x, v.y, v.z); }
-    function gbHint(dt) {      // 'B · THROW GOR BALL xn' / 'NO GOR BALLS · 7/11' while a catchable is within 25 H (read by the prompt line in the frame loop)
+    function gbHint(dt) {      // 'B · THROW GOR BALL xn' only while a lock is possible (a catchable in the 12 deg cone within 40 H); 'NO GOR BALLS' when out
         GB.hintT -= dt; if (GB.hintT > 0) return; GB.hintT = 0.2; gbHintText = '';
         if (!gbOk() || GB.on || GB.aim) return;
-        var H = hOf(L), cl = creatList(), i, e, near = false, n = 0, pf, r;
-        for (i = 0; i < cl.length && !near; i++) near = PKC.encounterOk(cl[i].lp.distanceTo(hum.pos) / H, gbKindOf(cl[i]), null, PKC.HINT_RANGE);
-        for (i = 0; i < R27.gnd.length && !near; i++) { e = R27.gnd[i]; if (e.alive && !e.mob && !e.held && e.mode === 'planet' && e.node === land.node) near = PKC.encounterOk(e.w.distanceTo(hum.w) / H, 'predator', null, PKC.HINT_RANGE); }
-        if (!near) return;
-        pf = curProfile(); if (pf) for (i = 0; i < pf.items.length; i++) { r = pf.items[i]; if (/^gorball-[123]$/.test(r.id) && r.n > 0) n += r.n; }
+        gbAim(); gbPickAim(); if (!GB.tgtId && !GB.tgtE) return;
+        var pf = curProfile(), n = pf ? gbBallCount(pf) : 0;
         gbHintText = n > 0 ? 'B · THROW GOR BALL ×' + n : 'NO GOR BALLS · 7/11';
     }
     function gbTick(dt) {
         var H = hOf(L), pf, pop = 1, rb = PKC.BALL.radius * H, u, k, vr;
-        gbHint(dt);
+        gbHint(dt); wildTick(dt);
         if (!GB.on) { gbPreview(dt); return; }
         pf = ensureProfile(userName());
         if (!gbOk()) { if (GB.e) GB.e.held = false; gbEnd(); return; }
@@ -9927,18 +9998,19 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             gbToLocal(GB.p, GB.lp);
             if (GB.tgtId) { k = ps.creatBody(GB.tgtId, GB.cw); if (k >= 0) GB.missD = Math.min(GB.missD, GB.p.distanceTo(GB.cw) / H - k / H); }
             else if (GB.tgtE && GB.tgtE.alive) { k = gndSphere(GB.tgtE, GB.cw); GB.missD = Math.min(GB.missD, GB.p.distanceTo(GB.cw) / H - k / H); }
-            if (gbHitTest(H)) {      // a hit STARTS A BATTLE (no direct catch); the throw is refunded, balls are spent inside the battle
+            if (gbHitTest(H)) {      // a hit starts the shake roll (wlCatchBegin); the ball was spent at the throw
                 var hE = GB.e, hG = GB.gr, hT = GB.tier;
                 fx.impact(GB.p, 0xFFFFFF, 2, 'hit'); aPlay('hit', { dist: aDist(GB.p), vel: 0.5 });
-                try { giveItem(ITM.GORBALL_TIERS[hT - 1], 1); } catch (eR) { warnOnce('battle.refund', eR); }
-                gbEnd(); battleBegin(hE, hG, null); return;
+                if (wlCatchBegin(hE, hG, hT)) { GB.pp.copy(GB.lp); return; }
+                gbEnd(); return;
             } else if (GB.t >= GB.tEnd || GB.lp.length() < gbFloor(GB.lp) + rb) {      // flew out of reach or into the ground: it lands, rolls a moment and is lost
                 GB.miss = true; GB.lv.copy(GB.lp).sub(GB.pp).multiplyScalar(1 / Math.max(dt, 1e-3)); GB.lo.copy(GB.lp); GB.phase = 'drop'; GB.pt = 0; GB.shakeN = 0;
-                addRow('', '', GB.missD < 1e8 ? 'MISSED · ' + Math.max(0, GB.missD).toFixed(1) + ' H' : 'MISSED', 'is-sys');
+                wlMsg('MISSED', '#ffd36a');
             }
             GB.pp.copy(GB.lp);
             return;
         }
+        if (GB.phase === 'cshake') { gbProject(); GB.m.visible = true; GB.m.position.copy(GB.o); GB.m.scale.setScalar(0.25 * H); wlCatchTick(dt); return; }
         GB.pt += dt;
         if (GB.phase === 'drop' || GB.phase === 'roll') {
             GB.nn.copy(GB.lo).normalize();
@@ -9964,6 +10036,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (e.code !== 'KeyB' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || state !== 'piloting' || cmdOpen) return;
         if (invOpen || storeOpen) { addRow('', '', 'CLOSE INVENTORY', 'is-sys'); return; }
         if (gmode !== 'foot') { addRow('', '', 'ON FOOT ONLY', 'is-sys'); return; }
+        var pfB = curProfile(); if (!pfB || !gbBallCount(pfB)) { wlMsg('NO GOR BALLS', '#ff8a5c'); return; }      // say it on keydown, not after the throw
         GB.aim = true; GB.best = !!e.shiftKey;
     }, true);
     window.addEventListener('keyup', function (e) { if (e.code !== 'KeyB' || !GB.aim) return; GB.aim = false; if (state === 'piloting') gbThrow(); }, true);
@@ -9982,12 +10055,27 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             t = b - Math.sqrt(disc); if (t < 0) t = 0;
             if (t < bt) { bt = t; best = e; }
         }
+        var bc = null, btc = bt;      // wild POKEMANS (planet creatures): the ray vs each body sphere; closer than any guardian = the shot hits it
+        if (ps && ps.creatBody && land.node && ps.active === land.node) {
+            var cl0 = creatList();
+            for (i = 0; i < cl0.length; i++) {
+                r = ps.creatBody(cl0[i].id, r27B); if (r < 0) continue;
+                ocx = r27B.x - camera.position.x; ocy = r27B.y - camera.position.y; ocz = r27B.z - camera.position.z;
+                b = ocx * r27A.x + ocy * r27A.y + ocz * r27A.z; if (b < 0) continue;
+                c = ocx * ocx + ocy * ocy + ocz * ocz - r * r; if (b * b - c < 0) continue;
+                t = b - Math.sqrt(b * b - c); if (t < 0) t = 0;
+                if (t < btc) { btc = t; bc = cl0[i]; }
+            }
+            if (bc) best = null;
+        }
         r27R.set(1, 0, 0).applyQuaternion(hum.obj.group.quaternion); r27F.set(0, 0, -1).applyQuaternion(hum.obj.group.quaternion); r27U.set(0, 1, 0).applyQuaternion(hum.obj.group.quaternion);
         r27G.copy(hum.w).addScaledVector(r27U, 0.52 * H).addScaledVector(r27R, 0.14 * H).addScaledVector(r27F, 0.32 * H);      // the hand
         if (best) { gndSphere(best, r27B); if (!hasLineOfSight(r27G, r27B)) { best = null; bt = 40 * L; } }      // a wall between you and the target: the bolt flies, nothing is hit
-        r27T.copy(camera.position).addScaledVector(r27A, best ? bt : 40 * L);
+        if (bc) { ps.creatBody(bc.id, r27B); if (!hasLineOfSight(r27G, r27B)) { bc = null; btc = 40 * L; } }
+        r27T.copy(camera.position).addScaledVector(r27A, bc ? btc : best ? bt : 40 * L);
         r27D.subVectors(r27T, r27G).normalize();
         fx.spawnBolt(r27G, r27D, effColor(), 170 * L, 0.28); fx.muzzle(r27G, r27D, effColor(), 'bolt'); aPlay('fire', { vel: 0.5, pitch: 1.35 });
+        if (bc) { fx.impact(r27T, 0xC8A0FF, 1.4, 'hit'); aPlay('hit', { dist: aDist(r27T), vel: 0.5, pitch: 1.1 }); wildBlast(bc, (st.dmg || 8) * (st.count || 1) * 0.8); return; }
         if (best) {
             var dmg = (st.dmg || 8) * (st.count || 1) * 0.8;
             if (best.mob || best.hub) { fx.impact(r27T, 0xff8a5c, 1.4, 'hit'); aPlay('hit', { dist: aDist(r27T), vel: 0.5 }); mobHurt(best, dmg, 'me'); return; }
@@ -10039,6 +10127,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function r27Foot(dt) {          // on foot on a planet, or on foot inside a derelict
         mobTick(dt);
         var onP = gmode === 'foot' && hum.obj, onD = !!R27.dsite && gmode === 'sfoot' && hum.obj;
+        if (!onP) { elWC.style.display = 'none'; elWLk.style.display = 'none'; }
         if (!onP && !onD) { R27.fire = false; return; }
         sinceHit += dt; if (sinceHit > 5 && hp < HP_MAX) hp = Math.min(HP_MAX, hp + 5 * dt);
         footFireTick(dt);
@@ -10060,10 +10149,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (gmode !== 'foot' || !hum.obj || !ps || !ps.active) { addRow('', '', 'call ' + p.name + ' out on foot, on a planet', 'is-sys'); return true; }
         if (!humanMod || typeof humanMod.createPet !== 'function') return false;
         petStow();
-        var pet; try { pet = humanMod.createPet(THREE, { seed: p.seed, plan: p.plan }); } catch (e0) { return false; }
+        var pet; try { var pal0 = p.rec ? palOf() : null; pet = humanMod.createPet(THREE, { seed: p.seed, plan: p.plan, rec: p.rec, size: p.hs ? p.hs / 0.4 : 1, ramp: pal0 ? pal0.ramp : null, accent: pal0 ? pal0.accent : null }); } catch (e0) { return false; }
         pet.group.traverse(function (o) { o.frustumCulled = false; });
         var hd = new THREE.Group(); hd.add(pet.group); scene.add(hd);
-        f.key = it.id; f.pet = pet; f.holder = hd; f.init = false; f.name = p.name; f.chk = 0;
+        f.key = it.id; f.pet = pet; f.holder = hd; f.init = false; f.name = p.name; f.chk = 0; f.hs = p.hs || 0.4;
         addRow('', '', p.name + ' follows you · right-click again to stow', 'is-sys'); aPlay('tame', { vel: 0.5 });
         return true;
     }
@@ -10076,11 +10165,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         r27R.set(1, 0, 0).applyQuaternion(hq); r27U.set(0, 1, 0).applyQuaternion(hq); r27F.set(0, 0, -1).applyQuaternion(hq);
         if (f.init) f.pp.copy(f.lpp).applyQuaternion(ps.active.mesh.quaternion).add(ps.active.anchor.position);      // the planet moves: the pet lives in its LOCAL frame between frames
         if (!f.init || f.pp.distanceToSquared(hum.w) > (10 * H) * (10 * H)) { f.pp.copy(hum.w).addScaledVector(r27R, 1.1 * H).addScaledVector(r27F, -0.9 * H); f.init = true; }
-        r27G.copy(hum.w).addScaledVector(r27R, -0.9 * H).addScaledVector(r27F, -0.8 * H);
+        var hx = Math.max(0, (f.hs || 0.4) - 0.4);      // a big POKEMANS trails further back
+        r27G.copy(hum.w).addScaledVector(r27R, -(0.9 + 0.8 * hx) * H).addScaledVector(r27F, -(0.8 + 0.8 * hx) * H);
         f.holder.position.copy(f.pp); f.holder.quaternion.copy(hq); f.holder.scale.setScalar(H);
         r27T.subVectors(r27G, f.pp).applyQuaternion(r27Qi.copy(hq).invert()).divideScalar(H); r27T.y = 0;
         f.pet.group.position.set(0, 0, 0);
-        f.pet.follow(r27T, dt, { dist: 0.45, rate: 3 });
+        f.pet.follow(r27T, dt, { dist: 0.45 + 0.5 * Math.max(0, (f.hs || 0.4) - 0.4), rate: 3 });
         r27D.copy(f.pet.group.position).multiplyScalar(H).applyQuaternion(hq); f.pp.add(r27D); f.pet.group.position.set(0, 0, 0);
         try {
             var fo = ps.floorAt(f.pp, r27Fo);
@@ -10096,6 +10186,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var PT = { dirty: false, svAt: 0, cds: [0, 0, 0, 0, 0], learn: null, learnT: 0, bondAcc: 0, poof: 0, bat: 0, calm: 0, hit: 0, tgt: null, chart: null, sig: '', foe: { def: 30, types: [] }, keys: false, forced: -1, fAge: 0, rad: { on: false, t: 0, dx: 0, dy: 0, sel: -1 }, pm: false };
     function ptMon() { var pf = curProfile(); return pf ? PKP.active(pf) : null; }
     function ptChart() { if (!PT.chart) PT.chart = PKG.typeChart(7); return PT.chart; }
+    var PT_LEGACY = { skimmer: 'bird', crawler: 'quadruped', floater: 'floater', strider: 'biped', burrower: 'serpent', swarmer: 'blob' };
+    function ptBodyRec(mon) {      // the species body recipe in the six-plan vocabulary (older saves carry the old plan names / no shape data)
+        var b = PKF.bodyOf(mon), plan = PKG.PLANS.indexOf(b.plan) >= 0 ? b.plan : (PT_LEGACY[b.plan] || 'quadruped');
+        return (b.prop && b.plan === plan) ? b : Object.assign({}, b, PKG.bodyShape(plan, b.seed >>> 0), { plan: plan });
+    }
+    function ptHeightH(mon, rec) { return clamp((rec.h || 1) * ((mon.ind && mon.ind.size) || 1), 0.4, 3.8); }
     function ptSummon(mon) {
         var f = R27.follow, h = PKP.canSummon(mon); if (!h.ok) { addRow('', '', h.why === 'dead' ? 'DEAD · revive it at a POKEMANS' : 'no one there', 'is-sys'); return false; }
         if (gmode !== 'foot' || !hum.obj || !ps || !ps.active) return false;
@@ -10103,31 +10199,16 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (f.key === mon.id) return true;
         if (f.pet && f.holder) fx.impact(f.pp, 0xC8A0FF, 1, 'hit');
         petStow(); PT.poof = PKP.SWAP_POOF; PT.cds[0] = PT.cds[1] = PT.cds[2] = PT.cds[3] = PT.cds[4] = PKP.SWAP_POOF;
-        var ok = petFollowToggle({ id: mon.id, pet: { seed: (mon.sp.bodyRecipe.seed | 0) || 1, plan: Math.abs(hash25(String(mon.sp.bodyRecipe.plan || mon.sp.id))) % 3, name: mon.sp.name } });
+        var rec = ptBodyRec(mon), ok = petFollowToggle({ id: mon.id, pet: { seed: (mon.sp.bodyRecipe.seed | 0) || 1, plan: rec.plan, rec: rec, hs: ptHeightH(mon, rec), name: mon.sp.name } });
         if (ok && f.pp) { fx.impact(f.pp, 0xC8A0FF, 2, 'explode'); aPlay('tame', { vel: 0.5, pitch: 1.3 }); }
         return ok;
     }
-    function ptSwap(i) {
-        var pf = curProfile(); if (!pf || PT.poof > 0) return;
-        var m = pf.party[i] ? PKP.monById(pf, pf.party[i]) : null; if (!m) { addRow('', '', 'party slot ' + (i + 1) + ' is empty', 'is-sys'); return; }
-        if (m.dead) { addRow('', '', m.sp.name.toUpperCase() + ' is DEAD · revive it at a POKEMANS', 'is-sys'); return; }
-        PKP.pickActive(pf, i); ptSummon(m); writeSave(); ptHud(true);
-    }
-    window.addEventListener('keydown', function (e) {      // Alt+1..6 = party slot (plain 1-9 stays the weapon hotbar)
-        if (!e.altKey || e.repeat || e.ctrlKey || e.metaKey || !/^Digit[1-6]$/.test(e.code) || state !== 'piloting' || invOpen || cmdOpen || menuOpen || storeOpen || gmode !== 'foot') return;
-        e.preventDefault(); ptSwap(+e.code.slice(5) - 1);
-    }, true);
     var elParty = document.createElement('div'); elParty.className = 'sh-party'; hud.appendChild(elParty);
-    function ptHud(force) {
-        var pf = curProfile(), sig = '', i, m, h = '';
-        if (pf && pf.party.length) for (i = 0; i < pf.party.length; i++) { m = PKP.monById(pf, pf.party[i]); if (m) sig += m.id + (m.dead ? 'x' : Math.ceil(10 * m.hp / PKP.maxHp(m))) + m.level + (pf.activeMon === m.id ? '*' : ''); }
+    function ptHud(force) {      // ONE chip: the active POKEMANS (name, level, hp) + how many the POKEDEX holds
+        var pf = curProfile(), m = pf ? PKP.active(pf) : null, sig = m ? m.id + (m.dead ? 'x' : Math.ceil(10 * m.hp / PKP.maxHp(m))) + m.level + ':' + pf.party.length : '';
         if (!force && sig === PT.sig) return; PT.sig = sig;
         elParty.style.display = sig ? '' : 'none'; if (!sig) return;
-        for (i = 0; i < pf.party.length; i++) {
-            m = PKP.monById(pf, pf.party[i]); if (!m) continue;
-            h += '<span class="' + (m.dead ? 'is-dead ' : '') + (PKP.active(pf) === m ? 'is-act' : '') + '"><b>' + (i + 1) + '</b>' + m.sp.name.slice(0, 7).toUpperCase() + ' L' + m.level + '<i style="width:' + (m.dead ? 0 : Math.round(100 * m.hp / PKP.maxHp(m))) + '%"></i></span>';
-        }
-        elParty.innerHTML = h;
+        elParty.innerHTML = '<span class="is-act"><b>' + pf.party.length + '</b>' + qEsc(m.sp.name.slice(0, 9).toUpperCase()) + ' L' + m.level + '<i style="width:' + Math.round(100 * m.hp / PKP.maxHp(m)) + '%"></i></span>';
     }
     // Q14 POKEMANS CVS: REVIVE counter = first DEAD mon for 10 + 4·level gorCoin (PKP.reviveAtCvs); HEAL counter is free and only plays the vibe
     var CVS_VIBE = ['all better. you were never hurt. enjoy the lobby music', 'the pharmacist nods slowly. nothing happened. it felt good', 'thank you for visiting. please take a mint', 'you are exactly as healthy as before. the staff are proud of you'];
@@ -10195,6 +10276,23 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (g > 0) { addRow('', '', m.sp.name.toUpperCase() + ' → L' + m.level, 'is-sys'); aPlay('levelUp'); }
         ptHud(true);
     }
+    function ptWildAssist(m, f, H) {      // the active partner attacks the nearest wild the player is fighting, with its own moves; pokemans-wild.js clamps it at 5 % HP so the catch stays yours
+        var k, bd = 1e18, best = null, r, d, we, nm, mv, dmg, i;
+        if (!land.node || !ps || !ps.creatBody) return;
+        for (k in WL.m) {
+            we = WL.m[k]; if (we.node !== land.node.id || !we.w.hits || we.w.since > PKW.WILD.calmAfter + 5 || we.w.hp <= Math.ceil(we.w.max * 0.05)) continue;
+            r = ps.creatBody(we.id, WL.cw); if (r < 0) continue; d = WL.cw.distanceTo(f.pp);
+            if (d < 18 * H + r && d < bd) { bd = d; best = we; WL.pw.copy(WL.cw); }
+        }
+        if (!best) return;
+        PT.bat = 1; PT.calm = 0; PT.foe.def = 25 + 8 * best.mon.sp.tier; PT.foe.types = best.mon.sp.types; if (PT.forced >= 0) PT.fAge += 0.016;
+        nm = PKP.nextMove(m, PT.foe, ptChart(), PT.cds, Math.random(), PT.forced, PT.fAge); k = nm.k; if (!nm.keep && k >= 0) PT.forced = -1;
+        if (k < 0) return;
+        mv = PKP.moveAt(m, k); dmg = PKP.moveDamage(m, mv, PT.foe, ptChart()); if (Math.random() < PKF.critChance(m)) dmg = Math.round(dmg * 1.5);
+        PT.cds[k] = PKP.moveCooldown(m) * 1.6; for (i = 0; i < 5; i++) if (i !== k && PT.cds[i] < 0.25) PT.cds[i] = 0.25;
+        d = PKW.wildHit(best.w, dmg, true); fx.impact(WL.pw, 0xC8A0FF, 1, 'hit'); aPlay('hit', { dist: aDist(WL.pw), vel: 0.4, pitch: 1.2 });
+        if (d > 0) { ptBond(m, PKF.BOND_PER_WIN * 0.15); PT.dirty = true; }
+    }
     function ptTick(dt) {
         var f = R27.follow, pf = curProfile(), m, i, e, bd, d, H = hOf(L), mv, k, dmg, live = 0, nm;
         if (!pf || !pf.party.length) { ptHud(false); return; }
@@ -10222,6 +10320,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 PT.hit = 1; PT.dirty = true; if (PKP.damage(m, Math.max(1, Math.round((2 + 3 * (e.cr.tier || 1)) * (1 - Math.min(0.6, m.level / 90))))) ) { ptFaint(m); ptHud(true); return; }
             }
         }
+        if (!e && PT.poof <= 0 && gmode === 'foot') ptWildAssist(m, f, H);      // no mob to fight: help the player against a wild POKEMANS
         if (PT.bat && !live && PT.calm > 3) { PT.bat = 0; if (PKP.healParty(pf) && PKP.active(pf)) { addRow('', '', 'party healed', 'is-sys'); writeSave(); } }      // survive a battle = full heal; no potions anywhere
         if (PT.dirty && Date.now() - PT.svAt > 1000) { PT.dirty = false; PT.svAt = Date.now(); writeSave(); }      // Q26: follower hp persists on every change (bites are 1/s, so 1 write/s)
         ptHud(false);
@@ -10261,8 +10360,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (PT.pm) { e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') e.__shipHandled = true; if (e.code === 'Escape' || e.code === 'KeyU' || e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'Backspace') ptMgr(false); return; }
         if (e.code === 'KeyU') { if (gmode === 'foot') { e.preventDefault(); ptMgr(true); } else addRow('', '', 'U · POKEMANS MANAGER · ON FOOT ONLY', 'is-sys'); return; }      // manager is a foot-mode overlay: in flight it released the pointer and left the ship uncontrolled
         if (gmode !== 'foot') return;
-        if (e.code === 'Digit0') { PT.keys = !PT.keys; elParty.classList.toggle('is-keys', PT.keys); addRow('', '', PT.keys ? 'PARTY KEYS · 1-6 swap · 0 = weapons' : 'WEAPON KEYS · 1-9 hotbar', 'is-sys'); aPlay('ui', { vel: 0.4 }); return; }
-        if (PT.keys && /^Digit[1-6]$/.test(e.code)) { e.preventDefault(); ptSwap(+e.code.slice(5) - 1); }
     }, true);
     var elPM = document.createElement('div'); elPM.className = 'sh-pm'; hud.appendChild(elPM);
     function ptMgr(on) {
@@ -10277,26 +10374,23 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             try { var p = document.body.requestPointerLock(); if (p && p.catch) p.catch(function () { /* keyboard only */ }); } catch (e1) { /* ignore */ }
         }
     }
-    function ptMgrRow(pf, id, inParty) {
+    function ptMgrRow(pf, id) {
         var m = PKP.monById(pf, id); if (!m) return '';
-        var r = PDX.partyRow(pf, m, PKP.maxHp(m)), act = inParty && PKP.active(pf) === m, rec = PKF.bodyOf(m);
+        var r = PDX.partyRow(pf, m, PKP.maxHp(m)), act = PKP.active(pf) === m, rec = PKF.bodyOf(m);
         return '<div class="pm-r' + (r.dead ? ' is-dead' : '') + (act ? ' is-act' : '') + '"><img class="pm-i" src="' + monIconUrl(rec, r.dead) + '"><span class="pm-n">' + qEsc(r.name.toUpperCase()) + ' L' + r.level + '</span>'
-            + '<span class="pm-t">' + r.types.join('/') + ' · ' + (r.dead ? 'FAINTED' : r.hp + '/' + r.max) + ' · BOND ' + r.bond + (r.bondTier ? ' T' + r.bondTier : '') + (r.grafts ? ' · ' + r.grafts + ' GRAFT' + (r.grafts > 1 ? 'S' : '') : '') + '<s class="pm-hp"><b style="width:' + Math.round(r.frac * 100) + '%"></b></s></span>'
-            + (inParty && !m.dead && !act ? '<button data-pm="act" data-id="' + id + '">ACTIVE</button>' : act ? '<em>ACTIVE</em>' : '') + '<button data-pm="mv" data-id="' + id + '">' + (inParty ? 'TO PEN' : 'TO PARTY') + '</button></div>';
+            + '<span class="pm-t">' + r.types.join('/') + ' · ' + (m.sp.bodyRecipe.plan || '') + ' · ' + (m.sp.bodyRecipe.h || 1) + ' H · ' + (r.dead ? 'FAINTED' : r.hp + '/' + r.max) + ' · BOND ' + r.bond + (r.bondTier ? ' T' + r.bondTier : '') + (r.grafts ? ' · ' + r.grafts + ' GRAFT' + (r.grafts > 1 ? 'S' : '') : '') + '<s class="pm-hp"><b style="width:' + Math.round(r.frac * 100) + '%"></b></s></span>'
+            + (!m.dead && !act ? '<button data-pm="act" data-id="' + id + '">ACTIVE</button>' : act ? '<em>ACTIVE</em>' : '') + '</div>';
     }
     function ptMgrFill() {
-        var pf = curProfile(), i, h = '<div class="pm-h">PARTY ' + (pf ? pf.party.length : 0) + '/' + PKC.PARTY_MAX + ' · U / Esc closes</div>';
+        var pf = curProfile(), i, h = '<div class="pm-h">POKEDEX · ' + (pf ? pf.party.length : 0) + ' POKEMANS · pick one to walk with you · U / Esc closes</div>';
         if (!pf) return;
-        for (i = 0; i < pf.party.length; i++) h += ptMgrRow(pf, pf.party[i], true);
-        h += '<div class="pm-h">PEN ' + pf.pen.length + '</div>';
-        for (i = Math.max(0, pf.pen.length - 30); i < pf.pen.length; i++) h += ptMgrRow(pf, pf.pen[i], false);
+        for (i = 0; i < pf.party.length; i++) h += ptMgrRow(pf, pf.party[i]);
         elPM.innerHTML = h;
     }
     elPM.addEventListener('click', function (e) {
         var b = e.target.closest ? e.target.closest('button') : null, pf = curProfile(); if (!b || !pf) return;
         var id = b.getAttribute('data-id'), a = b.getAttribute('data-pm'), r;
-        if (a === 'act') { var m = PKP.setActiveId(pf, id); if (m) { PT.poof = 0; ptSummon(m); addRow('', '', m.sp.name.toUpperCase() + ' is active', 'is-sys'); } }
-        else if (a === 'mv') { r = PKP.moveToggle(pf, id, PKC.PARTY_MAX); if (!r.ok) addRow('', '', r.why === 'full' ? 'party is full' : r.why === 'last' ? 'keep one living POKEMANS in the party' : 'not found', 'is-sys'); else if (r.to === 'pen' && R27.follow.key === id) petStow(); }
+        if (a === 'act') { var m = PKP.setActiveId(pf, id); if (m) { PT.poof = 0; if (gmode === 'foot') ptSummon(m); addRow('', '', m.sp.name.toUpperCase() + ' is active', 'is-sys'); if (ix.on) r25Refresh(); } }
         writeSave(); ptHud(true); ptMgrFill(); aPlay('ui', { vel: 0.4 });
     });
     function petRideTick() {       // follower rides along while you fly (shown on the dash, scaled to the hull); landing re-places it beside you
@@ -11140,7 +11234,7 @@ setLocal: function (lx, ly, lz, qx, qy, qz, qw) {         // rev 18 test hook: p
         _str: STR,
         _gd: function () { return gdPool.filter(function (m) { return m.on; }).map(function (m) { return m.key + (m.edge ? '*' : '') + ':' + m.dist; }); },      // E2 harness: the live HUD markers (kind[*edge]:distance)
         _gb: { GB: GB, get fightSess() { return FG.sess; }, get party() { return ptMon ? ptMon() : null; }, wildNear: function (k) { var l = creatList(); return l.slice(0, 40).map(function (c) { return { id: c.id, kind: c.kind, d: c.lp.distanceTo(hum.pos) / hOf(L) }; }).sort(function (x, y) { return x.d - y.d; }).slice(0, k || 3); },
-            warpToCreature: function (id, back) { var l = creatList(), c = l.filter(function (q) { return q.id === id; })[0]; if (!c || gmode !== 'foot' || !hum.obj) return false; var H = hOf(L), tmp = c.lp.clone().normalize(); hum.pos.copy(c.lp).multiplyScalar(1 + (back || 2) * H / c.lp.length()); hum.hr = hum.gr = hum.vh = hum.pos.length(); hum.air = true; hum.vv = 0; camRelInit = false; return true; }, throwBall: gbThrow, battle: function (opt) { opt = opt || {}; var nm, pf = ensureProfile(userName()); if (!opt.dbg && !opt.target) { var cl = creatList(); opt.target = cl[0]; } opt.dbg = !opt.target; if (opt.dbg) { var sp = PKG.species('dbg' + (opt.sp || ''), opt.kind || 'grazer', { biome: opt.biome || 'lush', tier: opt.tier || 1 }), ind = PKG.individual(sp, 'dbg' + (opt.seed || 1)); opt.mon = PKC.makeMon(sp, ind, opt.wildLevel || 4, PKG.xpForLevel(opt.wildLevel || 4), String(land.node ? land.node.id : 'dbg')); } return battleBegin(null, opt.target || null, opt); }, get battleCtrl() { return BT.ctrl; }, get battleOn() { return BT.on; }, get hint() { return gbHintText; }, calm: function () { return ps; } },
+            warpToCreature: function (id, back) { var l = creatList(), c = l.filter(function (q) { return q.id === id; })[0]; if (!c || gmode !== 'foot' || !hum.obj) return false; var H = hOf(L), tmp = c.lp.clone().normalize(); hum.pos.copy(c.lp).multiplyScalar(1 + (back || 2) * H / c.lp.length()); hum.hr = hum.gr = hum.vh = hum.pos.length(); hum.air = true; hum.vv = 0; camRelInit = false; return true; }, throwBall: gbThrow, battle: function () { return null; }, battleCtrl: null, battleOn: false, wild: WL.m, wildBlast: wildBlast, catchNow: function (id) { var c = creatList().filter(function (q) { return q.id === id; })[0], e = c && wlGet(c); if (!e) return false; e.mon.hp = Math.max(1, Math.round(PKP.maxHp(e.mon) * PKW.hpFrac(e.w))); gbCatch(ensureProfile(userName()), e.mon, null, c); delete WL.m[wlKey(c)]; return true; }, wildHp: function (id) { var e = wlById(id); return e ? PKW.hpFrac(e.w) : -1; }, creatSize: function (id) { return ps.creatSize ? ps.creatSize(id) : null; }, catchChance: function (id, tier) { var e = wlById(id); return e ? wlChance(e, tier || 1) : -1; }, get hint() { return gbHintText; }, calm: function () { return ps; } },
         _g: { obWon: function () { obWon(); }, G_WALK: G_WALK, G_RUN: G_RUN, hOf: hOf, hum: hum, land: land, fl: fl, world: function () { return world; }, objBegin: function () { return objBegin(); }, objPush: function (p, H) { return objPush(p, H); } },
         get stats() { return { hp: hp, wave: shownWave(), bossPhase: (api.boss || { bphase: 0 }).bphase, boss: (api.boss || { hp: 0 }).hp, bossMax: (api.boss || { maxHp: 0 }).maxHp, allies: allies.filter(function (a) { return a.alive; }).length, kills: kills, enemies: aliveCount(), L: L, dead: dead, gt: gt }; }
     };
