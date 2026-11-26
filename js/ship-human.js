@@ -680,10 +680,19 @@ export function createHuman(THREE, opts = {}) {
 }
 
 // ── companion critter: 3 silhouettes, ~0.4 human height (feet at y=0, forward -Z), <= 600 tris, no skeleton ──
+import { PLANS as PK_PLANS, bodyShape } from './pokemans-gen.js';
 export function createPet(THREE, o = {}) {
   const seed = o.seed != null ? (o.seed | 0) : 1, rng = pmul(seed * 131 + 7), PLANS = ['walker', 'jelly', 'strider'];
-  let plan = o.plan; if (typeof plan === 'number') plan = PLANS[((plan % 3) + 3) % 3]; if (!PLANS.includes(plan)) plan = PLANS[Math.abs(seed) % 3];
+  let plan = o.plan; if (typeof plan === 'number') plan = PLANS[((plan % 3) + 3) % 3];
+  // POKEMANS body plans (pokemans-gen.js PLAN_SPEC): biped / quadruped / serpent / floater / bird / blob. o.rec = the species bodyRecipe (shape data), else it is derived from the seed.
+  const shape = PK_PLANS.includes(plan) ? ((o.rec && o.rec.plan === plan && o.rec.prop) ? o.rec : bodyShape(plan, seed >>> 0)) : null;
+  if (!shape && !PLANS.includes(plan)) plan = PLANS[Math.abs(seed) % 3];
   const hue = rng(), body = new THREE.Color().setHSL(hue, 0.5, 0.52), belly = new THREE.Color().setHSL(hue, 0.4, 0.72), dark = new THREE.Color().setHSL(hue, 0.35, 0.26), glowC = new THREE.Color().setHSL((hue + 0.45) % 1, 0.9, 0.65);
+  // palette: the species' 3 ramp slots (shape.pal) resolved against the planet's violet-anchored ramp (o.ramp[5 stops] + o.accent), never a second palette
+  if (shape && Array.isArray(o.ramp) && o.ramp.length >= 5) {
+    const at = (i) => (i === 5 ? (o.accent != null ? o.accent : o.ramp[4]) : o.ramp[Math.max(0, Math.min(4, i))]);
+    body.set(at(shape.pal[0])); belly.set(at(shape.pal[1])); dark.set(o.ramp[1]); glowC.set(at(shape.pal[2]));
+  }
   const litMat = mkToon(THREE), emiMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   const geoms = [], root = new THREE.Group(), bodyG = new THREE.Group();
   root.add(bodyG);
@@ -696,11 +705,61 @@ export function createPet(THREE, o = {}) {
   const sph = (r, w, h, sx, sy, sz, x, y, z, c) => { const g = new THREE.SphereGeometry(r, w, h); g.scale(sx, sy, sz); g.translate(x, y, z); return paint(g, c); };
   const cyl = (r0, r1, h, seg, x, y, z, c) => { const g = new THREE.CylinderGeometry(r0, r1, h, seg, 1); g.translate(x, y, z); return paint(g, c); };
   const mesh = (list, mat, parent) => { const g = mergeGeometries(list); geoms.push(g); const m = new THREE.Mesh(g, mat); m.frustumCulled = false; parent.add(m); return m; };
-  const legs = [], hang = [];   // pivots animated in update
+  const legs = [], hang = [], wings = [], wave = [];   // pivots animated in update
   const pivot = (x, y, z, geo) => { const p = new THREE.Group(); p.position.set(x, y, z); const g = geo; geoms.push(g); const m = new THREE.Mesh(g, litMat); m.frustumCulled = false; p.add(m); bodyG.add(p); return p; };
   const lit = [], emi = [];
   let lift = 0, bobAmp = 0.008;
-  if (plan === 'walker') {        // squat 4-legged critter, tail, ear nubs
+  if (shape) {                    // ── one of the six POKEMANS plans: nominal ~0.4 H tall, o.size (H) scales the whole root ──
+    const P = shape.prop, bs = P.body, hs = P.head || 1, ls = P.limb, W = new THREE.Color(1, 1, 1);
+    const limb = (x, y, z, len, r0, r1, c, store) => store.push(pivot(x, y, z, paint(new THREE.CylinderGeometry(r0, r1, len, 4).translate(0, -len / 2, 0), c)));
+    const eyes = (y, z, sx, r) => emi.push(sph(0.5, 4, 3, r, r, r * 0.6, -sx, y, z, W), sph(0.5, 4, 3, r, r, r * 0.6, sx, y, z, W));
+    if (plan === 'biped') {
+      const ll = 0.13 * ls, ty = ll + 0.09 * bs;
+      lit.push(sph(0.5, 7, 5, 0.15, 0.17 * bs, 0.11, 0, ty, 0, body), sph(0.5, 6, 4, 0.1, 0.12 * bs, 0.05, 0, ty, -0.05, belly));
+      lit.push(sph(0.5, 7, 5, 0.12 * hs, 0.11 * hs, 0.11 * hs, 0, ty + 0.13 * bs + 0.05 * hs, -0.01, body));
+      lit.push(cyl(0.01, 0.025, 0.05, 4, -0.04, ty + 0.13 * bs + 0.13 * hs, 0, dark), cyl(0.01, 0.025, 0.05, 4, 0.04, ty + 0.13 * bs + 0.13 * hs, 0, dark));
+      eyes(ty + 0.13 * bs + 0.06 * hs, -0.095, 0.04, 0.035); emi.push(sph(0.5, 4, 3, 0.05, 0.03, 0.03, 0, ty + 0.02, 0.1, glowC));
+      limb(-0.045, ll, 0, ll, 0.022, 0.017, dark, legs); limb(0.045, ll, 0, ll, 0.022, 0.017, dark, legs);
+      for (let i = 0; i < shape.arms; i++) limb(i ? 0.14 : -0.14, ty + 0.1 * bs, 0, 0.11 * ls, 0.016, 0.012, body, hang);
+      if (shape.tail) lit.push(cyl(0.004, 0.02, 0.13, 4, 0, ty - 0.02, 0.14, dark));
+    } else if (plan === 'quadruped') {
+      const ll = 0.1 * ls, ty = ll + 0.07 * bs;
+      lit.push(sph(0.5, 7, 5, 0.12 * bs, 0.085 * bs, 0.2 * bs, 0, ty, 0.02, body), sph(0.5, 6, 4, 0.09 * bs, 0.05, 0.14 * bs, 0, ty - 0.03, 0.02, belly));
+      lit.push(sph(0.5, 6, 5, 0.12 * hs, 0.11 * hs, 0.12 * hs, 0, ty + 0.05, -0.2 * bs, body), cyl(0.01, 0.03, 0.06, 4, -0.045, ty + 0.15, -0.2 * bs, dark), cyl(0.01, 0.03, 0.06, 4, 0.045, ty + 0.15, -0.2 * bs, dark));
+      eyes(ty + 0.07, -0.31 * bs, 0.04, 0.03); emi.push(sph(0.5, 4, 3, 0.05, 0.03, 0.05, 0, ty + 0.05, 0.24 * bs, glowC));
+      lit.push(cyl(0.004, 0.025, 0.14, 4, 0, ty + 0.05, 0.27 * bs, dark));
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => limb(sx * 0.07 * bs, ll, sz * 0.1 * bs, ll, 0.02, 0.015, dark, legs));
+    } else if (plan === 'serpent') {
+      const n = Math.max(5, Math.min(9, shape.legs === 0 && o.rec && o.rec.segs ? o.rec.segs : 6)), r0 = 0.07;
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1), rr = r0 * (1.15 - 0.7 * t) * (0.9 + 0.2 * bs), z = (i - 1) * 0.1 * bs;
+        const pv = pivot(0, rr, z, paint(new THREE.SphereGeometry(1, 6, 4).scale(rr, rr * 0.95, rr * 1.35), i % 2 ? belly : body)); wave.push(pv);
+      }
+      lit.push(sph(0.5, 7, 5, 0.17 * hs, 0.14 * hs, 0.19 * hs, 0, 0.1, -0.16 * bs, body)); lit.push(cyl(0.005, 0.02, 0.07, 4, 0, 0.19, -0.16 * bs, dark));
+      eyes(0.115, -0.3 * bs, 0.045, 0.03); emi.push(sph(0.5, 4, 3, 0.04, 0.03, 0.05, 0, 0.12, (n - 2) * 0.1 * bs, glowC));
+      lift = 0.0; bobAmp = 0.004;
+    } else if (plan === 'floater') {
+      lift = 0.11; bobAmp = 0.035; const n = Math.max(2, Math.min(6, shape.arms || 3));
+      { const g = new THREE.SphereGeometry(0.5, 8, 5); g.scale(0.26 * bs, 0.2 * hs, 0.26 * bs); g.translate(0, 0.2, 0); lit.push(paint(g, body)); }
+      lit.push(sph(0.5, 6, 3, 0.2 * bs, 0.04, 0.2 * bs, 0, 0.12, 0, belly));
+      emi.push(sph(0.5, 5, 4, 0.1, 0.1, 0.1, 0, 0.24, 0, glowC)); eyes(0.2, -0.12 * bs, 0.05, 0.035);
+      for (let i = 0; i < n; i++) { const a = i / n * 6.283; hang.push(pivot(Math.cos(a) * 0.09 * bs, 0.14, Math.sin(a) * 0.09 * bs, paint(new THREE.CylinderGeometry(0.014, 0.004, 0.2 * ls, 3).translate(0, -0.1 * ls, 0), i % 2 ? belly : dark))); }
+    } else if (plan === 'bird') {
+      const ll = 0.12 * ls, ty = ll + 0.07 * bs;
+      lit.push(sph(0.5, 7, 5, 0.1 * bs, 0.095 * bs, 0.16 * bs, 0, ty, 0.01, body), sph(0.5, 6, 4, 0.07, 0.06, 0.1, 0, ty - 0.03, -0.02, belly));
+      lit.push(sph(0.5, 6, 5, 0.09 * hs, 0.09 * hs, 0.09 * hs, 0, ty + 0.1, -0.12 * bs, body));
+      { const g = new THREE.ConeGeometry(0.03, 0.09, 4); g.rotateX(-Math.PI / 2); g.translate(0, ty + 0.095, -0.22 * bs); lit.push(paint(g, glowC)); }
+      eyes(ty + 0.12, -0.17 * bs, 0.035, 0.025);
+      lit.push(cyl(0.004, 0.05, 0.13, 4, 0, ty + 0.01, 0.17 * bs, dark));
+      limb(-0.04, ll, 0, ll, 0.01, 0.008, glowC, legs); limb(0.04, ll, 0, ll, 0.01, 0.008, glowC, legs);
+      for (const sx of [-1, 1]) { const pv = new THREE.Group(); pv.position.set(sx * 0.09 * bs, ty + 0.03, 0); const g = paint(new THREE.SphereGeometry(1, 6, 3).scale(0.2 * ls, 0.015, 0.1).translate(sx * 0.2 * ls, 0, 0), dark); geoms.push(g); const m = new THREE.Mesh(g, litMat); m.frustumCulled = false; pv.add(m); bodyG.add(pv); wings.push(pv); }
+    } else {                      // blob
+      lit.push(sph(0.5, 8, 5, 0.3 * bs, 0.22 * bs, 0.3 * bs, 0, 0.14 * bs, 0, body), sph(0.5, 6, 3, 0.22 * bs, 0.05, 0.22 * bs, 0, 0.05, 0, belly));
+      eyes(0.2 * bs, -0.2 * bs, 0.07, 0.05); emi.push(sph(0.5, 5, 4, 0.08, 0.08, 0.05, 0, 0.1 * bs, -0.29 * bs, glowC));
+      for (let i = 0; i < Math.min(4, shape.arms); i++) { const a = i / 4 * 6.283 + 0.5; lit.push(sph(0.5, 5, 3, 0.07 * ls, 0.05 * ls, 0.07 * ls, Math.cos(a) * 0.27 * bs, 0.05, Math.sin(a) * 0.27 * bs, dark)); }
+      bobAmp = 0.02;
+    }
+  } else if (plan === 'walker') {        // squat 4-legged critter, tail, ear nubs
     lit.push(sph(0.5, 7, 5, 0.13, 0.085, 0.17, 0, 0.19, 0.02, body), sph(0.5, 6, 4, 0.1, 0.05, 0.12, 0, 0.17, 0.02, belly));
     lit.push(sph(0.5, 6, 4, 0.15, 0.13, 0.13, 0, 0.275, -0.15, body));
     lit.push(cyl(0.012, 0.03, 0.06, 4, -0.045, 0.37, -0.15, dark), cyl(0.012, 0.03, 0.06, 4, 0.045, 0.37, -0.15, dark));
@@ -721,7 +780,8 @@ export function createPet(THREE, o = {}) {
   }
   mesh(lit, litMat, bodyG); const emiMesh = mesh(emi, emiMat, bodyG);
   let tris = 0; geoms.forEach(g => { tris += g.attributes.position.count / 3; });
-  root.userData.tris = tris; root.userData.plan = plan; root.userData.height = 0.4;
+  const size = o.size > 0 ? Math.max(0.3, Math.min(10, +o.size)) : 1; if (size !== 1) root.scale.setScalar(size);      // o.size = height in H (nominal kit height ~0.4 H, so size 1 = a 0.4 H critter; ship.js passes sp.h / 0.4)
+  root.userData.tris = tris; root.userData.plan = shape ? plan : plan; root.userData.height = 0.4 * size;
   let t = rng() * 20, mood = 0.5, spd = 0, hop = 0, yawT = 0, followed = false;
   const lerp = (a, b, k) => a + (b - a) * k;
   function setMood(m) { mood = Math.max(0, Math.min(1, +m || 0)); emiMat.color.setScalar(0.35 + 1.25 * mood); }
@@ -734,6 +794,8 @@ export function createPet(THREE, o = {}) {
     bodyG.position.y = lift + Math.sin(t * 2.1 * tm) * bobAmp * (1 - mv * 0.6) + air;
     bodyG.rotation.z = Math.sin(t * 1.3 * tm) * 0.03; bodyG.rotation.x = -0.12 * mv;
     legs.forEach((l, i) => { l.rotation.x = Math.sin(hop * 1 + (i % 2 ? Math.PI : 0) + (i > 1 ? 0.8 : 0)) * 0.7 * mv; });
+    wave.forEach((l, i) => { l.position.x = Math.sin(t * (2.5 + 3 * mv) - i * 0.8) * (0.012 + 0.03 * mv); });
+    wings.forEach((w, i) => { w.rotation.z = (i ? 1 : -1) * (0.15 + Math.sin(t * (3 + 9 * mv)) * (0.25 + 0.5 * mv)); });
     hang.forEach((l, i) => { l.rotation.x = Math.sin(t * 2.6 * tm + i * 1.3) * (0.18 + 0.2 * mv); l.rotation.z = Math.cos(t * 2.2 * tm + i * 0.9) * 0.18; });
     root.rotation.y += (yawT - root.rotation.y) * Math.min(1, dt * 8);
   }

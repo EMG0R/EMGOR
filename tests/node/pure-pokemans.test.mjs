@@ -150,5 +150,5 @@ test('arcPoint: t=0 is the hand; throwTime within tMax; dots stay finite and mov
 test('makeMon: level >= 1, hp = full max, not dead, monLevel matches xp, junk args do not NaN', () => {
   const sp = G.species('m', 'n'), ind = G.individual(sp, 3);
   const m = C.makeMon(sp, ind, 0, undefined); assert.equal(m.level, 1); assert.equal(m.hp, G.statsAt(sp, ind, 1).hp); assert.equal(m.dead, false); assert.equal(m.xp, 0);
-  assert.equal(C.monLevel(C.makeMon(sp, ind, 20, G.xpForLevel(20))), 20); assert.equal(C.monLevel(null), 1); assert.equal(C.PARTY_MAX, 6);
+  assert.equal(C.monLevel(C.makeMon(sp, ind, 20, G.xpForLevel(20))), 20); assert.equal(C.monLevel(null), 1); assert.ok(C.PARTY_MAX >= 1000);      // POKEDEX roster: no party cap
 });

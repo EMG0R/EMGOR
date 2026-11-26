@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PHYS, hitlagOf, knockback } from '../../js/smash-phys.js';
+import { PHYS, setPreset, hitlagOf, knockback } from '../../js/smash-phys.js';
 import { newView, updateView, viewEvent, ringStage, createMatch, hitPitch } from '../../js/smash-engine.js';
 import { FIGHTERS } from '../../js/smash-fighters.js';
 import { mk, run, B, SAMPLES } from './smash-arena.mjs';
+setPreset('classic');      // these tests pin the original reference numbers; the FAST preset (the default) is covered in smash-fast.test.mjs
 
 const H = PHYS.H;
 // put fighter 0 at x=0 on the ground facing right and fighter 1 `d` px in front

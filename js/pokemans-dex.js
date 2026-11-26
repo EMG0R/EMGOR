@@ -61,7 +61,7 @@ export function iconGrid(rec) {
   const disc = (cx, cy, rx, ry) => { for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) { const dx = (x - cx) / rx, dy = (y - cy) / ry; if (dx * dx + dy * dy <= 1.05) P(x, y, 'b'); } };
   const segs = Math.max(3, Math.min(7, rec.segs | 0 || 4)), limbs = Math.max(0, Math.min(6, rec.limbs | 0));
   let top = 4, mid = 8, eyeX = 10, eyeY = 7;
-  switch (rec.plan) {
+  switch ({ biped: 'strider', quadruped: 'crawler', serpent: 'burrower', bird: 'skimmer', blob: 'swarmer' }[rec.plan] || rec.plan) {      // six body plans -> the six silhouette drawers
     case 'skimmer': { const rx = Math.min(6.5, 3 + segs * 0.5), ry = 2.6 + (r() < 0.5 ? 0 : 0.6); mid = 8; top = mid - ry; disc(7.5, mid, rx, ry); for (let i = 0; i < 3; i++) { P(7.5 - rx - 1 + i * 0.5, mid + 1 + i, 'b'); P(7.5 + rx + 1 - i * 0.5, mid + 1 + i, 'b'); } eyeX = 7.5 + rx - 2; eyeY = mid - 1; break; }
     case 'floater': { const ry = 3 + segs * 0.35, rx = ry + 0.8; mid = 6; top = mid - ry; disc(7.5, mid, rx, ry); const n = Math.max(2, limbs || 3); for (let i = 0; i < n; i++) { const x = 4 + Math.round((i * 7) / Math.max(1, n - 1)); for (let y = Math.round(mid + ry); y < 14; y++) P(x + (((y + i) & 2) ? 1 : 0), y, 'b'); } eyeX = 7.5 + 1.5; eyeY = mid; break; }
     case 'strider': { mid = 5; top = 3; disc(7.5, mid, 3.4, 2.4); const n = Math.max(2, limbs || 2); for (let i = 0; i < n; i++) { const x = 4 + Math.round((i * 7) / Math.max(1, n - 1)); const bend = i % 2 ? 1 : -1; for (let y = 7; y < 15; y++) P(x + (y < 10 ? bend * (y - 7) * 0.3 : 0), y, 'b'); } eyeX = 9; eyeY = 5; break; }

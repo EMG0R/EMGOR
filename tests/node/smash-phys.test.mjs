@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PHYS, physOf, knockback, hitlagOf, hitstunOf, launchSpeed, diBend, locoStep, jumpSpeed } from '../../js/smash-phys.js';
+import { PHYS, setPreset, physOf, knockback, hitlagOf, hitstunOf, launchSpeed, diBend, locoStep, jumpSpeed } from '../../js/smash-phys.js';
 import { FIGHTERS } from '../../js/smash-fighters.js';
 import { createMatch, ringStage, sinD, cosD } from '../../js/smash-engine.js';
 import { mk, run, B, SAMPLES } from './smash-arena.mjs';
+setPreset('classic');      // these tests pin the original reference numbers; the FAST preset (the default) is covered in smash-fast.test.mjs
 
 const H = PHYS.H;
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, (msg || '') + ' got ' + a + ' want ' + b + ' +-' + tol);

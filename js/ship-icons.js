@@ -289,6 +289,11 @@ export const NEW_TEMPLATES = {
   strider: [0x7CD860, { k: 0x2E2838 }, [
     '................', '....OOOOOO......', '...OhlbbbbOO....', '..OhlbwbbbbbO...', '..OlbbbbbbbbdO..', '...OdbbbbbbdO...', '....OOOddOOO....', '....OlO..OdO....',
     '...OlO....OdO...', '...OlO....OdO...', '..OlO......OdO..', '..OlO......OdO..', '.OllO......OddO.', '.OOOO......OOOO.', '................', '................']],
+  pokedex: [0x9A5CFF, { 2: 0xFF5C7A, 3: 0x5CE8FF, k: 0x1B1033, w: 0xE0C8FF }, [
+    '................', '..OOOOOOOOOOOO..', '.OhlbbbbbbbbbdO.', '.OlbOOOOOOOObdO.',
+    '.OlbOkkkkkkObdO.', '.OlbOkwkkkkObdO.', '.OlbOkkkkkkObdO.', '.OlbOOOOOOOObdO.',
+    '.Olb2bbbbbb3bdO.', '.Olb2bbbbbb3bdO.', '.OlbbbOOObbbbdO.', '.OlbbbbbbbbbbdO.',
+    '.OdbbbbbbbbbddO.', '..OOOOOOOOOOOO..', '................', '................']],
   critter: [0xB07AFF, { 2: 0xFF8AB0, k: 0x2E2838 }, [
     '................', '..OO........OO..', '.OhbO......ObdO.', '.OhlbOOOOOObbdO.', '..OhlbbbbbbbdO..', '.OhlbkbbbbkbbdO.', '.Olbbbbb22bbbdO.', '.OlbbbbbbbbbbdO.',
     '.OdbbbbbbbbbddO.', '..OdbbbbbbbddO..', '...OOddddddOO...', '....OOOOOOOO....', '................', '................', '................', '................']],
@@ -335,6 +340,7 @@ function newTemplateFor(item) {
   const kind = String(item.kind || ''), base = String(item.base || '').toLowerCase(), hint = String(item.iconHint || '').toLowerCase(), cat = String(item.category || '');
   if (QUEST[kind]) return ['Q', kind];
   if (kind === 'pet' || item.plan) { const p = String(item.plan || item.name || ''); for (const [re, t] of PET_PLAN) if (re.test(p)) return ['T', t]; return ['T', 'critter']; }
+  if (kind === 'pokedex') return ['T', 'pokedex'];
   if (kind === 'crew' || item.role) return ['C'];
   if (kind === 'resource' && RES.has(base)) return ['T', base];
   if (kind === 'shard' || /signal shard/i.test(item.name || '') || base === 'signal shard') return ['T', 'shard'];

@@ -1529,7 +1529,7 @@ export function createPlanetSurface(engine, L) {
         a.creat.onBeforeRender = syncRide; a.ride.add(a.creat);
         a.creatData = []; a.creatAlt = [];
         function mkCd() { return { id: '', key: '', kind: '', beh: 0, v: 0, p: new THREE.Vector3(), h: new THREE.Vector3(1, 0, 0), pp: new THREE.Vector3(), want: new THREE.Vector3(), folP: new THREE.Vector3(), folPrev: new THREE.Vector3(), col: [0, 0, 0],
-            r: 1, hover: 0, sz: 1, spd: 0, vmax: 1, flee: 0, fleeT: 0, tm: 0, paused: false, leader: -1, ox: 0, oz: 0, px: 0, glowT: 0, mov: 0, tamed: false, folT: -9, calmT: 0, shrink: 1 }; }
+            r: 1, hover: 0, sz: 1, spd: 0, vmax: 1, flee: 0, fleeT: 0, tm: 0, paused: false, leader: -1, ox: 0, oz: 0, px: 0, glowT: 0, mov: 0, tamed: false, folT: -9, calmT: 0, shrink: 1, mode: 0, modeT: 0, stopD: 0, hH: 1 }; }
         for (var q = 0; q < CREAT_MAX; q++) { a.creatData.push(mkCd()); a.creatAlt.push(mkCd()); }
         a.creatRR = 0;
 
@@ -2491,7 +2491,7 @@ export function createPlanetSurface(engine, L) {
             for (var mi = 0; mi < members; mi++) {
                 var cr = nw[cnt], hm = hash01(A, B, C2, seed + 30 + mi);
                 cr.id = mi ? key + '#' + mi : key; cr.key = key; cr.beh = beh; cr.v = bodyV; cr.kind = KIND[bodyV];
-                cr.tamed = !!tamedMap[node.id + '|' + cr.id]; cr.leader = mi ? lead : -1; cr.glowT = 0; cr.spd = 0; cr.mov = 0; cr.fleeT = 0; cr.calmT = 0; cr.shrink = 1; cr.folT = -9; cr.want.set(0, 0, 0);
+                cr.tamed = !!tamedMap[node.id + '|' + cr.id]; cr.leader = mi ? lead : -1; cr.glowT = 0; cr.spd = 0; cr.mov = 0; cr.fleeT = 0; cr.calmT = 0; cr.shrink = 1; cr.folT = -9; cr.mode = 0; cr.modeT = 0; cr.stopD = 0; cr.want.set(0, 0, 0);
                 cr.p.set(cd[1], cd[2], cd[3]); tangentFrame(cr.p, tmpA, tmpB);
                 cr.h.copy(tmpA).multiplyScalar(Math.cos(head)).addScaledVector(tmpB, Math.sin(head));
                 if (mi) {          // herd member: fixed offset in the leader's frame
@@ -2503,16 +2503,19 @@ export function createPlanetSurface(engine, L) {
                 }
                 cr.pp.copy(cr.p);
                 cr.r = Rr * (1 + hFrac(cr.p.x, cr.p.y, cr.p.z));
-                cr.hover = bodyV === 1 ? (5 + hash01(A, B, C2, seed + 5) * 7) * L : 0;
+                // POKEMANS wild size: height in H, log-normal about 1 H (0.5-2 common, ~5 % 2-3.5), same law as pokemans-gen.js bodyShape; ship.js gbMon hands the caught mon this exact height
+                var hu1 = Math.max(1e-6, hash01(A, B, C2, seed + 31 + mi)), hu2 = hash01(A, B, C2, seed + 32 + mi), hz = Math.sqrt(-2 * Math.log(hu1)) * Math.cos(6.2831853 * hu2);
+                cr.hH = hash01(A, B, C2, seed + 33 + mi) < 0.05 ? 2 + 1.5 * hash01(A, B, C2, seed + 34 + mi) : Math.max(0.5, Math.min(2, Math.exp(0.32 * hz)));
+                cr.hover = bodyV === 1 ? (1.5 + hash01(A, B, C2, seed + 5) * 4.5) * 0.27 * L : 0;      // jellies hover 1.5-6 H up so a blaster / ball can reach them
                 var szk = 0.8 + hm * 0.7;
-                cr.sz = (bodyV === 1 ? 4.5 : bodyV === 2 ? 3.4 : bodyV === 3 ? 3.6 : beh === 1 ? 2.6 : 3.5) * L * szk;
+                cr.sz = cr.hH * 0.27 * L * (bodyV === 1 ? 1.5 : bodyV === 2 ? 2.2 : bodyV === 3 ? 1.7 : 1.8);      // body span = height x plan factor (was a flat 2.6-4.5 L = 10-17 H)
                 cr.vmax = (beh === 0 ? 2.0 : beh === 1 ? 14 : beh === 2 ? 1.4 : 2.4) * L;
-                cr.flee = (beh === 0 ? 10 : beh === 1 ? 6 : beh === 3 ? 8 : 0) * L;
+                cr.flee = 0;      // POKEMANS wild: no flee-on-sight; they wander until hit (ps.setCreatureMode) and only flee when ship.js says so
                 cr.px = hash01(A, B, C2, seed + 11 + mi) * 6.28; cr.tm = hash01(A, B, C2, seed + 24 + mi) * 4; cr.paused = hash01(A, B, C2, seed + 25) > 0.5;
                 var tt = beh === 0 ? Math.min(1, Math.max(0, tt0 + (hm - 0.5) * 0.15)) : hm;
                 if (cpOn) { for (q = 0; q < 3; q++) cr.col[q] = (cpDeep[q] * (1 - tt) + cpSuit[q] * tt) * 0.9 + 0.12 + (bodyV === 1 ? ac[q] * 0.08 : 0); } else for (q = 0; q < 3; q++) cr.col[q] = bodyV === 1 ? (ac[q] * 0.7 + hi[q] * 0.3) * 1.1 + 0.1 : (lo[q] * (1 - tt) + hi[q] * tt) * 0.9 + 0.12 + (bodyV === 3 ? ac[q] * 0.15 : 0);
                 var o = byId[cr.id];
-                if (o) { cr.p.copy(o.p); cr.h.copy(o.h); cr.pp.copy(o.pp); cr.spd = o.spd; cr.tm = o.tm; cr.paused = o.paused; cr.fleeT = o.fleeT; cr.glowT = o.glowT; cr.r = o.r; }
+                if (o) { cr.p.copy(o.p); cr.h.copy(o.h); cr.pp.copy(o.pp); cr.spd = o.spd; cr.tm = o.tm; cr.paused = o.paused; cr.fleeT = o.fleeT; cr.glowT = o.glowT; cr.r = o.r; cr.mode = o.mode | 0; cr.modeT = o.modeT || 0; cr.stopD = o.stopD || 0; }
                 cnt++;
             }
         }
@@ -2558,6 +2561,7 @@ export function createPlanetSurface(engine, L) {
         a.spores.instanceMatrix.needsUpdate = true; a.sporeCol.needsUpdate = true; a.sporeSp.needsUpdate = true;
         sporeSet = true;
     }
+    var WILD_ALERT = 8 * 0.27, WILD_CHASE_CAP = 2.8, WILD_FLEE_CAP = 3.5;      // L: 8 H alert radius; chase 2.8 L/s; flee 3.5 L/s (player run = 12 H/s = 3.24 L/s, so flee <= 1.08x)
     var _pv = new THREE.Vector3(), _hv = new THREE.Vector3(), _gv = new THREE.Vector3(), _tv = new THREE.Vector3(), plObj = new THREE.Vector3(), plDir = new THREE.Vector3(), plOk = false;
     function rotH(cd, ang) { _gv.crossVectors(cd.p, cd.h); cd.h.multiplyScalar(Math.cos(ang)).addScaledVector(_gv, Math.sin(ang)); }
     function steer(cd, hd, rate, dt) {
@@ -2597,7 +2601,15 @@ export function createPlanetSurface(engine, L) {
                 if (plOk && !(cd.calmT > 0)) { D = _tv.copy(cd.p).multiplyScalar(cd.r + cd.hover).sub(plObj).length(); }
                 var beh = cd.beh, ld = cd.leader >= 0 ? pool[cd.leader] : null;
                 if (ld && ld.tamed) { ld = null; cd.leader = -1; }
-                if (beh === 1) {                                                   // skitterer: darts, flees fast
+                var wm = cd.mode | 0;
+                if (cd.modeT > 0) { cd.modeT -= dt; if (cd.modeT <= 0) cd.mode = wm = 0; }
+                if (plOk && wm === 1) {                                            // POKEMANS wild AGGRO: close on the player, stop at stopD (melee ~2 H off the hide, ranged holds further)
+                    gd = tangentTo(cd, plDir, _hv); hd = _hv; rate = 4; cd.paused = false;
+                    sp = gd > Math.max(cd.stopD, 0.5 * L) ? Math.min(cd.vmax * 2, WILD_CHASE_CAP * L) : 0;
+                } else if (plOk && wm === 2) {                                     // POKEMANS wild FLEE (below 10 % HP / 25 s unhit): never faster than 1.1 x the player's run
+                    tangentTo(cd, plDir, _hv); hd = _hv.multiplyScalar(-1); rate = 3; cd.paused = false;
+                    sp = Math.min(cd.vmax * 2.4, WILD_FLEE_CAP * L);
+                } else if (beh === 1) {                                            // skitterer: darts, flees fast
                     if (D < cd.flee) { if (cd.fleeT <= 0) { cd.fleeT = 1.2; } else cd.fleeT = Math.max(cd.fleeT, 0.5); }
                     if (cd.fleeT > 0) { cd.fleeT -= dt; sp = cd.vmax * 1.15; tangentTo(cd, plDir, _hv); hd = _hv.multiplyScalar(-1); rate = 9; }
                     else {
@@ -2619,7 +2631,7 @@ export function createPlanetSurface(engine, L) {
                     rotH(cd, Math.sin(t * 0.3 + cd.px) * 0.2 * dt);
                     if (cd.want.lengthSq() > 0) { cd.want.addScaledVector(cd.p, -cd.want.dot(cd.p)); if (cd.want.lengthSq() > 1e-9) hd = cd.want.normalize(); }
                     rate = 0.4; sp = cd.vmax;
-                    if (plOk && D < 30 * L) { tangentTo(cd, plDir, _hv); if (D > 6 * L) { hd = _hv; rate = 0.6; } else { hd = _hv.multiplyScalar(-1); rate = 1.2; } }
+                    if (plOk && D < 30 * L) { tangentTo(cd, plDir, _hv); if (D > 3 * L) { hd = _hv; rate = 0.6; } else { sp = 0; hd = _hv; rate = 0.8; } }      // curious: drift in, hover at ~3 L instead of backing off
                 } else if (ld) {                                                   // herd member: hold the formation slot
                     if (D < cd.flee && cd.fleeT <= 0) cd.fleeT = 3.5;
                     if (cd.fleeT > 0) { cd.fleeT -= dt; sp = cd.vmax * 2.4; tangentTo(cd, plDir, _hv); hd = _hv.multiplyScalar(-1); rate = 3; }
@@ -2639,6 +2651,7 @@ export function createPlanetSurface(engine, L) {
                         sp = cd.paused ? 0 : cd.vmax; rotH(cd, Math.sin(t * 0.2 + cd.px) * 0.25 * dt);
                     }
                 }
+                if (wm === 0 && plOk && D < WILD_ALERT * L) { tangentTo(cd, plDir, _hv); hd = _hv; rate = 1.2; sp = 0; }      // ALERT: the player is inside ~8 H, hold still and watch
                 if (cd.shrink < 0.999 || cd.calmT > 0) sp = 0;      // inside a GOR BALL or fixated by an aimed throw: stands still
                 cd.spd += (sp - cd.spd) * Math.min(1, dt * (beh === 1 ? 9 : 3));
                 steer(cd, hd, rate, dt);
@@ -2648,7 +2661,7 @@ export function createPlanetSurface(engine, L) {
                     _pv.copy(cd.p).multiplyScalar(cc).addScaledVector(cd.h, sn); _hv.copy(cd.h).multiplyScalar(cc).addScaledVector(cd.p, -sn);
                     cd.p.copy(_pv).normalize(); cd.h.copy(_hv).addScaledVector(cd.p, -_hv.dot(cd.p)).normalize();
                 }
-                cd.mov = Math.min(1, cd.spd / ((beh === 1 ? 6 : 2) * L)); rad = cd.r + cd.hover + (cd.v === 1 ? Math.sin(t * 1.3 + cd.px) * 1.6 * L : 0);
+                cd.mov = Math.min(1, cd.spd / ((beh === 1 ? 6 : 2) * L)); rad = cd.r + cd.hover + (cd.v === 1 ? Math.sin(t * 1.3 + cd.px) * 0.4 * L : 0);
             }
             if (cd.glowT > 0) cd.glowT -= dt;
             a.creatGlow.array[i] = Math.min(1, Math.max(0, cd.glowT)); a.creatMov.array[i] = cd.mov;
@@ -2680,9 +2693,11 @@ export function createPlanetSurface(engine, L) {
     // GOR BALL: live body centre (world) of creature `id` into out; returns the body hit radius (0.5 x render size, world units) or -1. Also calm + shrink hooks.
     ps.creatBody = function (id, out) {
         var cd = findCd(id); if (!cd || cd.tamed || !alloc || !node) return -1; syncRide();
-        var r = alloc.ride, rad = cd.r + cd.hover + (cd.v === 1 ? Math.sin(t * 1.3 + cd.px) * 1.6 * L : 0) + 0.5 * cd.sz * cd.shrink;
+        var r = alloc.ride, rad = cd.r + cd.hover + (cd.v === 1 ? Math.sin(t * 1.3 + cd.px) * 0.4 * L : 0) + 0.5 * cd.sz * cd.shrink;
         out.copy(cd.p).multiplyScalar(rad).applyQuaternion(r.quaternion).add(r.position); return 0.5 * cd.sz;
     };
+    // POKEMANS wild AI hook: mode 0 wander (default), 1 chase the player (stop `stopH` H from the body centre), 2 flee; secs = how long the mode lasts (then back to 0)
+    ps.setCreatureMode = function (id, mode, secs, stopH) { var cd = findCd(id); if (!cd) return false; cd.mode = mode | 0; cd.modeT = cd.mode ? (secs || 5) : 0; cd.stopD = (stopH || 0) * 0.27 * L; return true; };
     ps.calmCreature = function (id, secs) { var cd = findCd(id); if (cd) cd.calmT = secs || 2; return !!cd; };
     ps.shrinkCreature = function (id, k) { var cd = findCd(id); if (cd) cd.shrink = Math.max(0.001, Math.min(1, k)); return !!cd; };
     ps.setCreatureTamed = function (id, on, planetId) {
@@ -2737,6 +2752,7 @@ export function createPlanetSurface(engine, L) {
     ps.creatSpriteDispose = function () {
         if (!spr) return; for (var k in spr.rt) spr.rt[k].dispose(); spr.g.dispose(); spr.m.material.dispose(); spr = null;
     };
+    ps.creatSize = function (id) { var cd = findCd(id); return cd ? { h: cd.hH, v: cd.v } : null; };      // wild height in H + body variant (0 walker, 1 jelly, 2 ox, 3 strider): the caught mon inherits both
     ps.creatLook = function (id) { var cd = findCd(id); return cd ? { v: cd.v, col: [cd.col[0], cd.col[1], cd.col[2]] } : null; };
     ps.glowCreature = function (id, secs) { var cd = findCd(id); if (cd) cd.glowT = secs || 1.6; return !!cd; };
     ps.glowNear = function (wp, radius, secs) {

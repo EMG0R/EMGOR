@@ -38,7 +38,7 @@ test('catchRoll: always 3 shakes, caught iff u < chance; empirical rate matches'
   assert.ok(Math.abs(c / N - 0.3) < 0.01);
 });
 
-test('arc: 8 dots, within 12 H reach, descending under gravity, deterministic', () => {
+test('arc: 8 dots, within BALL.reach (40 H), descending under gravity, deterministic', () => {
   const d = { x: 0, y: 0, z: -1 }, up = { x: 0, y: 1, z: 0 }, dots = Array.from({ length: 8 }, () => ({ x: 0, y: 0, z: 0 }));
   assert.equal(PKC.previewDots({ x: 0, y: 0, z: 0 }, d, up, dots), 8);
   let prev = 0;
@@ -54,7 +54,7 @@ test('makeMon carries full data; ids differ per individual', () => {
   const m = PKC.makeMon(sp, a, 5, PKG.xpForLevel(5), 'planetA');
   assert.equal(m.level, 5); assert.equal(m.hp, PKG.statsAt(sp, a, 5).hp); assert.equal(m.sp, sp); assert.equal(m.dead, false);
   assert.notEqual(m.id, PKC.makeMon(sp, b, 5, 0, 'planetA').id);
-  assert.equal(PKC.PARTY_MAX, 6);
+  assert.ok(PKC.PARTY_MAX >= 1000);      // POKEDEX roster: no party cap
 });
 
 test('catchChance with NaN hp fraction is finite', () => {

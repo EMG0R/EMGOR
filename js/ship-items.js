@@ -302,6 +302,9 @@ export const GORBALL_TIERS = [
   mkBall(2, 'GREAT GOR BALL', 60, 0x5CE8FF, 'Bigger click. Twice the optimism.'),
   mkBall(3, 'ULTRA GOR BALL', 200, 0xFFD25C, 'Almost never lets go. Costs like it knows.'),
 ];
+// POKEDEX: the ONE POKEMANS item in the pack (non-stackable, ship.js never stacks it). Right-click opens the roster; every caught mon lives in the profile roster, not in the bag.
+export const POKEDEX = { id: 'pokedex', seed: 1300, name: 'POKEDEX', kind: 'pokedex', base: 'POKEDEX', infusion: null, family: null, modifier: null, tier: 1, price: 0, blurb: 'Every POKEMANS you catch lives in here. Right click to pick who walks with you.', color: 0xB86CFF, absurdity: 0, dealer: false, blurbs: ['Every POKEMANS you catch lives in here.'],
+  stackKey: 'pokedex', category: 'pokedex', tags: ['pokedex'], iconHint: 'pokedex', effect: { duration: 0, params: {}, extras: {} } };
 // lure fries: eaten like fries (glow) and also doubles as bait: +LURE_BONUS catch chance for 10 REAL minutes (ship.js sets pf.lureUntil)
 export const LUREFRIES = Object.assign(mkFries('lurefries', 'Burger House Lure Fries', 'Lure Fries', 20, 10, 'Smells like a promise. Everything with a nose comes closer, and stays still for it.'), { effect: { duration: 10 * 60, realtime: true, params: {}, extras: { lure: 1 }, glow: { color: 0x7FD8FF, minutes: 10 } } });
 FRIES_TIERS.push(LUREFRIES);
@@ -311,6 +314,7 @@ export function itemFromKey(key) {
   key = String(key || '');
   const tier = FRIES_TIERS.find((f) => f.id === key || f.stackKey === key); if (tier) return tier;
   const ball = GORBALL_TIERS.find((b) => b.id === key); if (ball) return ball;
+  if (key === 'pokedex') return POKEDEX;
   let m = /^it([0-9a-f]{8})(d?)$/.exec(key);
   if (m) return generateItem(parseInt(m[1], 16), { dealer: !!m[2] });
   m = /^res-(\w+)-(.+)$/.exec(key);

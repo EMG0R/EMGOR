@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as PKC from '../../js/pokemans-catch.js';
 
 const up = { x: 0, y: 1, z: 0 };
-for (const [dist, hy] of [[6, 0], [6, 3], [15, 0], [15, 4], [20, 2]]) {
+for (const [dist, hy] of [[6, 0], [6, 3], [15, 0], [15, 4], [20, 2], [30, 3], [38, 5], [40, 0]]) {
   test('aim solve: ball reaches a body at ' + dist + ' H (height ' + hy + ')', () => {
     const T = { x: 0, y: hy, z: -dist }, d = { x: 0, y: 0, z: 0 }, t = PKC.solveAim(T.x, T.y, T.z, up, d);
     assert.ok(t > 0 && t <= PKC.BALL.tMax, 't ' + t);

@@ -1,13 +1,13 @@
 // pokemans-catch.js — pure GOR BALL throw + catch maths for POKEMANS (docs/next-stage-plan.md A2). No DOM, no THREE, no Math.random.
-//   battleCatchChance(tier, hp, maxHp [, bonus])  the battle BALL odds (pokemans-battle.js); catchChance = legacy curve still read by pokemans-fighter
+//   catchChance = legacy curve still read by pokemans-fighter; the live GOR BALL odds are pokemans-wild.js liveCatchChance
 //   catchChance(tier, hpFrac [, bonus])  -> 0.1..1   tier(1-3)·(1-hp%)·0.9 + 0.1 (+ lure bonus), clamped
 //   catchRoll(chance, u)                 -> { shakes: 3, caught }   three shakes, then 'click' (caught) or 'burst' (escaped)
 //   arcPoint(o, d, t, out) / previewDots(o, d, out)   ballistic arc in H (human heights) along d (unit) with up (0,1,0 in the caller's frame)
 //   makeMon(sp, ind, level, xp)          -> the full-data record stored on pokemans[] / inventory stack (kind 'pokemans')
 import { statsAt, xpToLevel } from './pokemans-gen.js';
 
-export const BALL = { speed: 15, lift: 0.28, g: 12, reach: 20, dots: 8, tMax: 2.2, radius: 0.35 };     // H, H/s, H/s²: reach = max straight distance from the hand
-export const PARTY_MAX = 6;
+export const BALL = { speed: 30, lift: 0.12, g: 6, reach: 40, dots: 8, tMax: 3.0, radius: 0.35 };     // H, H/s, H/s²: reach = max straight distance from the hand (30 H/s, g 6: a 40 H lob is solvable; at 15/12 the max range was 19 H)
+export const PARTY_MAX = 2000;      // POKEDEX roster: no party cap (2000 = a localStorage safety ceiling); 'active' = exactly one, the rest are stored and all selectable
 export const LURE_BONUS = 0.15;
 
 export function catchChance(tier, hpFrac, bonus) {
@@ -15,7 +15,7 @@ export function catchChance(tier, hpFrac, bonus) {
   return Math.max(0.1, Math.min(1, Math.max(t * (1 - h) * 0.9 + 0.1, FLOOR[t - 1]) + (bonus || 0)));
 }
 export const FLOOR = [0.35, 0.45, 0.55];      // full-hp floor per ball tier (grazers always roll at hp 1); lower hp still raises it
-export const AIM_CONE = 20 * Math.PI / 180, AIM_REACH = 20, HINT_RANGE = 25;
+export const AIM_CONE = 12 * Math.PI / 180, AIM_REACH = 40, HINT_RANGE = 45;      // lock = nearest wild in a 12 deg cone within 40 H; the B hint range is 45 H
 export const CALM_SECS = 2, BODY_K = 0.5, GRAZER_K = 1.5;      // body hit radius = BODY_K x render size (x GRAZER_K for grazers)
 export const CATCHABLE = { grazer: 1, jelly: 1, predator: 1 };
 // pure encounter predicate: dist in H, kind 'grazer'|'jelly'|'predator' (villagers/npcs never), st = {tamed, held, dead}
@@ -50,12 +50,7 @@ export function solveAim(Tx, Ty, Tz, up, out) {
 }
 export function catchRoll(chance, u) { return { shakes: 3, caught: u < chance }; }
 
-// Battle catch (the only catch path): chance = tierFloor x (1 - hp/maxHp x 0.8) (+ lure bonus), shown as a percentage on the BALL option.
-// tier 1..3 = ball tier. A full-hp wild keeps 20 % of the floor; a 1-hp wild keeps ~100 % of it.
-export function battleCatchChance(tier, hp, maxHp, bonus) {
-  const t = Math.max(1, Math.min(3, tier | 0 || 1)), f = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 1;
-  return Math.max(0, Math.min(1, FLOOR[t - 1] * (1 - f * 0.8) + (bonus || 0)));
-}
+// The catch odds live in pokemans-wild.js (liveCatchChance / shakeRoll); catchChance above is the legacy curve pokemans-fighter still reads.
 
 // o = {x,y,z} hand, d = {x,y,z} unit aim, up = {x,y,z} unit. Position at time t of a ball thrown at BALL.speed with BALL.lift added along up.
 export function arcPoint(o, d, up, t, out) {

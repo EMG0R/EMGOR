@@ -10,7 +10,7 @@ import { species, individual, statsAt, xpForLevel, MAX_LEVEL, isTrainer } from '
 import { makeMon, catchChance, catchRoll } from './pokemans-catch.js';
 import { PARTS, applyGraft, bodyOf } from './pokemans-graft.js';
 
-export const PLAN_BASE = { skimmer: 'twin', crawler: 'ranger', floater: 'jelly', strider: 'racer', burrower: 'sparklet', swarmer: 'hum' };
+export const PLAN_BASE = { skimmer: 'twin', crawler: 'ranger', floater: 'jelly', strider: 'racer', burrower: 'sparklet', swarmer: 'hum', biped: 'racer', quadruped: 'ranger', serpent: 'sparklet', bird: 'twin', blob: 'hum' };
 export const TYPE_COL = { leaf: [0.42, 0.85, 0.42], frost: [0.6, 0.9, 1], vapor: [0.8, 0.8, 0.95], stone: [0.75, 0.65, 0.5], ember: [1, 0.5, 0.2], brine: [0.3, 0.6, 1], spark: [1, 0.9, 0.3], void: [0.7, 0.35, 0.95] };
 const RANGED = { spark: 1, vapor: 1 };                  // these types throw a bolt on bN, the rest swing
 const SLOTS = ['bN', 'bF', 'bD', 'ftilt'];              // moves 0..3 -> special / side special / down special / forward tilt

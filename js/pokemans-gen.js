@@ -21,7 +21,23 @@ export const GRAFT_MAX = 6;
 export const EFFECTS = ['burn', 'slow', 'shield', 'heal', 'flinch', 'launch', 'drain'];
 const VERBS = ['bite', 'lash', 'burst', 'slam', 'rake', 'pulse', 'crash', 'sting', 'surge', 'snap', 'hex', 'rush'];
 const TYPE_WORD = { leaf: 'Thorn', frost: 'Rime', vapor: 'Mist', stone: 'Grit', ember: 'Cinder', brine: 'Tide', spark: 'Volt', void: 'Null' };
-const PLANS = ['skimmer', 'crawler', 'floater', 'strider', 'burrower', 'swarmer'];
+// six body plans. PLAN_SPEC = data the follower kit (ship-human.js createPet) reads: legs / arms / tail / wings counts + proportion ranges; STAT_BIAS = base-stat multipliers per plan.
+export const PLANS = ['quadruped', 'biped', 'floater', 'serpent', 'bird', 'blob'];
+export const PLAN_SPEC = {
+  biped:     { legs: [2, 2], arms: [2, 2], tail: [0, 1], wings: 0, head: [0.9, 1.3], limb: [0.8, 1.2], body: [0.9, 1.2] },
+  quadruped: { legs: [4, 4], arms: [0, 0], tail: [1, 1], wings: 0, head: [0.8, 1.1], limb: [0.7, 1.1], body: [1.0, 1.4] },
+  serpent:   { legs: [0, 0], arms: [0, 0], tail: [1, 1], wings: 0, head: [0.8, 1.2], limb: [0.8, 1.0], body: [1.4, 2.2], segs: [5, 9] },
+  floater:   { legs: [0, 0], arms: [2, 6], tail: [0, 0], wings: 0, head: [1.0, 1.4], limb: [0.8, 1.6], body: [0.8, 1.1] },
+  bird:      { legs: [2, 2], arms: [0, 0], tail: [1, 1], wings: 2, head: [0.8, 1.1], limb: [0.9, 1.5], body: [0.7, 1.0] },
+  blob:      { legs: [0, 0], arms: [0, 4], tail: [0, 0], wings: 0, head: [0.0, 0.0], limb: [0.5, 0.9], body: [1.0, 1.5] }
+};
+const STAT_BIAS = {
+  biped: { hp: 1, atk: 1.15, def: 1, spd: 1, sp: 0.95 }, quadruped: { hp: 1.15, atk: 1, def: 1.15, spd: 0.9, sp: 0.9 }, serpent: { hp: 0.95, atk: 1.2, def: 0.9, spd: 1.1, sp: 1 },
+  floater: { hp: 0.9, atk: 0.8, def: 0.95, spd: 1, sp: 1.3 }, bird: { hp: 0.85, atk: 1, def: 0.8, spd: 1.35, sp: 1.05 }, blob: { hp: 1.35, atk: 0.9, def: 1.1, spd: 0.7, sp: 1 }
+};
+const PLAN_H = { biped: 1.25, quadruped: 1.0, serpent: 0.95, floater: 1.1, bird: 0.9, blob: 0.9 };      // median height multiplier per plan (H = one human height)
+// 3-colour palette = indices into the planet's violet-anchored 5-stop ramp (+ 5 = the accent), resolved at render time by ship.js (ps.palette) so a POKEMANS always matches the world it stands in
+export const PALETTE_SLOTS = 6;
 const SIG_PARTS = ['fin', 'spike', 'shell', 'tail', 'horn', 'glow', 'tentacle', 'claw', 'eye'];
 
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -59,6 +75,8 @@ export function species(seedPlanet, kind, opts) {
   const nSig = ri(r, 0, 2), sig = [];
   while (sig.length < nSig) { const p = SIG_PARTS[ri(r, 0, SIG_PARTS.length - 1)]; if (sig.indexOf(p) < 0) sig.push(p); }
   const bodyRecipe = { plan: PLANS[ri(r, 0, PLANS.length - 1)], seed: sd, segs: ri(r, 3, 7), limbs: ri(r, 0, 3) * 2, hue: Math.round(r() * 359), sig };
+  Object.assign(bodyRecipe, bodyShape(bodyRecipe.plan, sd));
+  { const bias = STAT_BIAS[bodyRecipe.plan], sk = Math.min(1.3, Math.max(0.8, 1.2 - 0.2 * bodyRecipe.h)); for (const st of STATS) { const sizeK = st === 'hp' ? 1 / sk : st === 'spd' ? sk : 1; base[st] = Math.max(lo, Math.min(Math.min(120, hi), Math.round(base[st] * bias[st] * sizeK))); } }
   // moves: 4 from a procedural pool; first is a STAB (own type) attack, rest mix own types / neutral spark..void
   const moves = [], used = new Set();
   for (let i = 0; i < 4; i++) {
@@ -72,6 +90,19 @@ export function species(seedPlanet, kind, opts) {
   return { id: sd.toString(16).padStart(8, '0'), name: nm, tier, biome, family, types: [t1, t2], base, bodyRecipe, moves };
 }
 
+// seeded shape data for a plan: height h in H (log-normal around 1.0, median per plan; 0.5-2.0 common, 2-3.5 for the rare ~5 %), limb counts, proportions, 3-colour palette
+export function bodyShape(plan, sd) {
+  const r = mulberry((sd >>> 0) ^ 0xb0d1), sp = PLAN_SPEC[plan] || PLAN_SPEC.quadruped, rg = (a) => a[0] + (a[1] - a[0]) * r();
+  const u1 = Math.max(1e-6, r()), u2 = r(), z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  let h = Math.exp(Math.log(PLAN_H[plan] || 1) + 0.32 * z);
+  if (r() < 0.05) h = 2 + 1.5 * r(); else h = Math.max(0.5, Math.min(2, h));
+  const pb = 1 + ri(r, 0, 2), pl = 3 + ri(r, 0, 1);
+  return {
+    h: Math.round(h * 100) / 100, legs: ri(r, sp.legs[0], sp.legs[1]), arms: ri(r, sp.arms[0], sp.arms[1]), tail: ri(r, sp.tail[0], sp.tail[1]), wings: sp.wings,
+    prop: { head: Math.round(rg(sp.head) * 100) / 100, limb: Math.round(rg(sp.limb) * 100) / 100, body: Math.round(rg(sp.body) * 100) / 100 },
+    pal: [pb, pb === pl ? 4 : pl, [5, 5, 4, 0][ri(r, 0, 3)]]
+  };
+}
 // one procedural move of `type` from a seed (grafts / foods / bond signature); power fixed when given
 export function makeMove(type, seed, power) {
   const r = mulberry(seedOf(seed) ^ 0x70e5), p = power || ri(r, 40, 100);

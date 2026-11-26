@@ -1334,7 +1334,23 @@ async function g20(T, o) {         // Q45: station docking: gotoStation -> Z aut
     return out;
 }
 
-// ── g24 (pixel battle): land on foot, start a battle via _gb.battle, FIGHT until the wild is under 40 % hp, throw BALL on a forced-catch seed, expect the party/box to grow by one ──
+// POKEMANS real-time loop (replaces the pixel battle harness): warp beside the nearest wild, blaster it down via the real wildBlast path, check the catch odds rise with lost HP,
+// then resolve the catch (_gb.catchNow = the same gbCatch the shake roll ends in). Returns { id, chance0, chance1, size, caught }.
+async function wildCatchLoop(ship, T) {
+    var o = {}, wc = null, a;
+    for (a = 0; a < 8 && !wc; a++) { wc = ship._gb.wildNear(1)[0]; if (!wc) { T.step(20); await new Promise(function (r) { setTimeout(r, 120); }); } }
+    if (!wc) return o;
+    ship._gb.warpToCreature(wc.id, 6); T.step(8); await new Promise(function (r) { setTimeout(r, 150); });
+    o.id = wc.id; o.size = ship._gb.creatSize(wc.id); o.chance0 = ship._gb.catchChance(wc.id, 1);
+    var list = ship._gb.wildNear(1), c = list[0];
+    for (a = 0; a < 80 && ship._gb.wildHp(wc.id) > 0.15; a++) ship._gb.wildBlast(c, 12.8);
+    o.hp = ship._gb.wildHp(wc.id); o.chance1 = ship._gb.catchChance(wc.id, 1);
+    o.caught = ship._gb.catchNow(wc.id);
+    return o;
+}
+
+// ── g24 (real-time wild: blaster HP, odds rise as HP falls, catch lands in the POKEDEX roster) ──
+// ── (old g24 pixel battle text follows): land on foot, start a battle via _gb.battle, FIGHT until the wild is under 40 % hp, throw BALL on a forced-catch seed, expect the party/box to grow by one ──
 async function g24(T, o) {
     var ship = T.ship, out = { tries: [] }, nodes = T.planets().filter(function (n) { return n.mesh.material.uniforms.uBiome.value < 0.5 && T.reachable(n); }), ITM = await import('./ship-items.js');
     for (var ni = 0; ni < nodes.length && ni < 4 && ship.gmode !== 'foot'; ni++) {
@@ -1347,23 +1363,9 @@ async function g24(T, o) {
     }
     if (ship.gmode !== 'foot') { out.pass = false; out.error = 'never reached foot: ' + out.tries.join('; '); return out; }
     T.step(30);
-    var pf = ship.dbg.profile(), n0 = pf.pokemans.length, seed = 1, ctrl = null, res = null;
-    (ship.giveItem || ship.dbg.giveItem)(ITM.GORBALL_TIERS[2], 5);
-    for (var att = 0; att < 6 && !(res && res.result === 'caught'); att++) {
-        var st = 12345 + att * 77, rng = function () { st = (Math.imul(st, 1664525) + 1013904223) >>> 0; return st / 4294967296; };
-        ctrl = await ship._gb.battle({ dbg: true, instant: true, wildLevel: 3, seed: att + 1, catchU: 0, rng: rng });
-        if (!ctrl) { out.error = 'battle did not start'; break; }
-        out.started = ship._gb.battleOn && !!document.getElementById('pkb');
-        var c = ctrl.core, weak = 0; c.me.moves.forEach(function (m, k) { if (m.power < c.me.moves[weak].power) weak = k; });
-        for (var k = 0; k < 30 && !c.over && c.foe.hp >= c.foe.max * 0.4; k++) await ctrl.fight(weak);
-        out.hpPct = Math.round(c.foe.hp / c.foe.max * 100);
-        if (c.over) { await ctrl.done; continue; }      // overkilled / fled: retry another seed
-        out.odds = c.ballOdds();
-        await ctrl.ball(); res = await ctrl.done;
-    }
-    await new Promise(function (r) { setTimeout(r, 30); });
-    out.result = res && res.result; out.added = pf.pokemans.length - n0; out.overlayGone = !document.getElementById('pkb'); out.battleOff = !ship._gb.battleOn;
-    out.pass = !!(out.started && out.result === 'caught' && out.added === 1 && out.hpPct < 40 && out.overlayGone && out.battleOff && out.odds && out.odds.pct > 0);
+    var pf = ship.dbg.profile(), n0 = pf.pokemans.length, w = await wildCatchLoop(ship, T);
+    out.wild = w; out.added = pf.pokemans.length - n0; out.inRoster = pf.party.length >= n0 + 1; out.pokedex = pf.items.some(function (r) { return r.id === 'pokedex'; });
+    out.pass = !!(w.id && w.caught && out.added === 1 && out.inRoster && out.pokedex && w.hp <= 0.15 && w.chance1 > w.chance0 && w.chance1 > 0.5 && w.size && w.size.h >= 0.5);
     return out;
 }
 
@@ -1493,17 +1495,9 @@ async function gP2(T, o) {
     T.kd('KeyB'); T.step(10); T.ku('KeyB'); T.step(2);      // hold + release = throw (a ball in flight, one fewer in the bag)
     var n1 = ship.dbg.profile().items.filter(function (i) { return /gorball/.test(i.id); }).reduce(function (a, i) { return a + i.n; }, 0);
     out.thrown = n1 === n0 - 1; T.step(200);
-    for (var wa = 0; wa < 8 && ship.footTarget().kind !== 'wild'; wa++) { var wc = ship._gb.wildNear(1)[0]; if (!wc) break; ship._gb.warpToCreature(wc.id, 1); T.step(8); await new Promise(function (r) { setTimeout(r, 120); }); }
-    out.wildPrompt = ship.footTarget().kind === 'wild';
-    if (out.wildPrompt) { T.kd('KeyF'); T.ku('KeyF'); } else ship._gb.battle({ dbg: true, wildLevel: 3, seed: 2 });      // the real F-near-a-creature path; the debug battle only if no creature could be reached
-    await T.pause(); await new Promise(function (r) { setTimeout(r, 800); });
-    out.opened = ship._gb.battleOn && !!document.getElementById('pkb');
-    for (var w = 0; w < 40 && !document.querySelector('#pkb .pkb-b'); w++) await new Promise(function (r) { setTimeout(r, 100); });      // intro text first, then the menu
-    T.kd('ArrowDown'); T.ku('ArrowDown');      // 2-column grid: down from FIGHT = RUN
-    var sel = document.querySelector('#pkb .is-sel'); out.sel = sel && sel.textContent; out.pkb = (document.getElementById('pkb') || {}).innerText;
-    T.kd('Enter'); T.ku('Enter'); await new Promise(function (r) { setTimeout(r, 2800); });
-    out.closed = !ship._gb.battleOn && !document.getElementById('pkb');
-    out.pass = !!(out.thrown && out.opened && out.wildPrompt && /RUN/.test(out.sel || '') && out.closed);
+    var wl = await wildCatchLoop(ship, T);      // aim/lock path: blaster the wild down, odds rise, the catch resolves into the roster
+    out.wildPrompt = !!wl.id; out.lock = wl; out.opened = !!wl.caught; out.closed = !document.getElementById('pkb');
+    out.pass = !!(out.thrown && out.wildPrompt && wl.caught && wl.chance1 > wl.chance0 && out.closed);
     return out;
 }
 export var gpTests = { gP1: gP1, gP2: gP2, gpFoot: gpFoot, mk: mk };
@@ -1680,15 +1674,7 @@ async function gE1(T, o) {
     out.beacon = want('beacon'); mark('beacon');
     (ship.giveItem || ship.dbg.giveItem)(ITM.GORBALL_TIERS[2], 5); step(60);      // the counter purchase
     out.ball = want('ball'); mark('ball');
-    var pf = ship.dbg.profile(), n0 = pf.pokemans.length, res = null, ctrl = null;
-    for (var att = 0; att < 6 && !(res && res.result === 'caught'); att++) {
-        var st = 12345 + att * 77, rng = function () { st = (Math.imul(st, 1664525) + 1013904223) >>> 0; return st / 4294967296; };
-        ctrl = await ship._gb.battle({ dbg: true, instant: true, wildLevel: 3, seed: att + 1, catchU: 0, rng: rng }); if (!ctrl) break;
-        var cr = ctrl.core, weak = 0; cr.me.moves.forEach(function (m, k) { if (m.power < cr.me.moves[weak].power) weak = k; });
-        for (var k = 0; k < 30 && !cr.over && cr.foe.hp >= cr.foe.max * 0.4; k++) await ctrl.fight(weak);
-        if (cr.over) { await ctrl.done; continue; }
-        await ctrl.ball(); res = await ctrl.done;
-    }
+    var pf = ship.dbg.profile(), n0 = pf.pokemans.length; await wildCatchLoop(ship, { step: step, ship: ship });
     skip(30); step(60); out.caught = want('catch'); mark('catch');
     out.mons = pf.pokemans.length - n0 + n0;
     g.obWon(); step(60); skip(30); out.won = want('fight'); out.winFlag = c.won; mark('fight');
@@ -1796,15 +1782,7 @@ async function gE2(T, o) {
     var gd = Array.prototype.slice.call(document.querySelectorAll('#ship-hud .sh-gd.is-on')); out.guideDump = gd.map(function (e) { return e.className.replace('sh-gd ', '') + '|' + (e.querySelector('.gd-n') || {}).textContent + '|' + (e.querySelector('.gd-d') || {}).textContent; });
     var gk = ship._gd(); out.guideKinds = gk; var mk = gk.filter(function (k) { return /^creature/.test(k); });
     out.creatureMarker = mk.length; out.guideOn = document.querySelectorAll('#ship-hud .sh-gd.is-on').length; try { out.wild = ship._gb.wildNear(2).map(function (w) { return +w.d.toFixed(1); }); } catch (e) { /* ignore */ } out.markKind = OBm.markKind(c);
-    var n0 = pf.pokemans.length, res = null, ctrl = null;
-    for (var att = 0; att < 6 && !(res && res.result === 'caught'); att++) {
-        var s0 = 12345 + att * 77, rng = function () { s0 = (Math.imul(s0, 1664525) + 1013904223) >>> 0; return s0 / 4294967296; };
-        ctrl = await ship._gb.battle({ dbg: true, instant: true, wildLevel: 3, seed: att + 1, catchU: 0, rng: rng }); if (!ctrl) break;
-        var cr = ctrl.core, weak = 0; cr.me.moves.forEach(function (m, k) { if (m.power < cr.me.moves[weak].power) weak = k; });
-        for (var k = 0; k < 30 && !cr.over && cr.foe.hp >= cr.foe.max * 0.4; k++) await ctrl.fight(weak);
-        if (cr.over) { await ctrl.done; continue; }
-        await ctrl.ball(); res = await ctrl.done;
-    }
+    var n0 = pf.pokemans.length; await wildCatchLoop(ship, { step: step, ship: ship });
     skip(25); step(60); out.caught = c.i >= 5; mark('catch');
     G.obWon(); step(60); skip(20); out.won = c.i >= 6; out.winFlag = c.won; mark('fight');
     out.secs = +(frames * 0.016).toFixed(1);
