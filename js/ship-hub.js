@@ -13,6 +13,8 @@
 //   hub.spawns(roomId) -> [[x,y,z]...]    mob spawn points (around the cage)
 //   hub.bossSpec  { kind:'boss', name, wave, hp:300, tier:4, scaleH:3, phases, drop:{ blueprint, coin:[100,200] } }   (feed generateBoss(THREE, name, wave, opts))
 //   hub.chests [{ id, pos, opened, locked, loot:[{ id|item, n }] }]   hub.open(chestId) -> loot | null
+//   2026-11-25 world2: dungeon rooms softened: two stone tones (STONE_A walls/ceiling, STONE_B floor/pillars/trims) + violet sconce light/flame (ship-look ramp), concave floor skirting + ceiling cove, quarter-round corner pillars in arenas/loot/boss,
+//     round boss pillars, rounded door-frame jambs + lintel at every gate, a low rounded plinth under each chest (chest meshes lifted by PLINTH_H). Rooms, walls, floorAt, chest positions are byte-identical to before (checked); tris 13126 -> ~15.7k (budget 16k).
 //   hub.update(t, dt, playerHubPos) -> null | { type:'enter'|'lock'|'unlock', room }   torch flicker, gate state, cage pulse
 //   hub.state { level, cleared:{roomId:1} }   hub.setCleared(roomId)   hub.serialize() / hub.restore(o)   hub.ambience = 'hub'   hub.stats {tris, draws}
 import { mobSpawnRule, MOB_KINDS } from './ship-enemies.js';
@@ -24,7 +26,7 @@ function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; le
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 const ARCH = 1.65, ARCH_Y = 0.7;   // 2026-11-25: arch span 4.2 x 1.65 = 6.9 m = 4 H, height top 8.7 x 0.7 = 6.1 m = 3.5 H (1 H = 1.75 m); horizontal scale ARCH, vertical ARCH_Y. (was 0.5 = 2.5 H.)
-const DEPTH = 12, TILE = 1.5, GW = 2;          // dungeon floor y = -DEPTH; gate/corridor half width GW; tile edge
+const DEPTH = 12, TILE = 1.5, GW = 2, PLINTH_H = 0.16;          // dungeon floor y = -DEPTH; gate/corridor half width GW; tile edge
 // z-chain of rooms (x half-width hw, height h). kind: corridor | arena | loot | boss
 const LAYOUT = [
   { id: 'start', kind: 'corridor', z0: 24, z1: 36, hw: GW, h: 4 },
@@ -67,10 +69,10 @@ export function createHub(engine, L, opts) {
   group.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), anchor.up);
 
   // ── lights (baked into vertex colours; no real lights) ──
-  const lights = [], WARM = [1.0, 0.58, 0.26], GREEN = [0.25, 1.0, 0.45];
+  const lights = [], SCONCE = mixHex(TONES.mid, 0xFFFFFF, 0.4), WARM = [((SCONCE >> 16) & 255) / 255 * 1.05, ((SCONCE >> 8) & 255) / 255 * 0.85, (SCONCE & 255) / 255 * 1.05], GREEN = [0.25, 1.0, 0.45];      // world2: the sconce light + flame are violet (ship-look ramp), not orange
   const addLight = (x, y, z, c, r, k) => lights.push({ x, y, z, c, r, k });
   function lightAt(x, y, z) {
-    let R = 0.10, G = 0.09, B = 0.14;
+    let R = 0.15, G = 0.13, B = 0.2;
     for (let i = 0; i < lights.length; i++) {
       const l = lights[i], dx = x - l.x, dy = y - l.y, dz = z - l.z, q = (dx * dx + dy * dy + dz * dz) / (l.r * l.r), f = l.k / (1 + q * 1.6) / (1 + q * q);
       R += l.c[0] * f; G += l.c[1] * f; B += l.c[2] * f;
@@ -135,7 +137,8 @@ export function createHub(engine, L, opts) {
   // ── geometry: one vertex-coloured stone mesh ──
   const P = [], C = [];
   const col = new T.Color();
-  const stoneCol = (moss, r) => col.set(mixHex(TONES.dark, moss ? TONES.floor : TONES.shelfD, 0.25 + r() * 0.3));      // ship-look.js ramp: dusk-violet stone, lighter lavender where it was moss
+  const STONE_A = mixHex(TONES.dark, TONES.lo, 0.55), STONE_B = mixHex(TONES.lo, TONES.mid, 0.4);      // world2: TWO stone tones (walls + ceiling deep violet, floor + pillars + trims lighter lavender); `moss` selects B
+  const stoneCol = (moss, r) => col.set(moss ? STONE_B : STONE_A).multiplyScalar(0.96 + r() * 0.08);
   const vtx = (x, y, z, c) => { const l = lightAt(x, y, z); P.push(x, y, z); C.push(c.r * l[0], c.g * l[1], c.b * l[2]); };
   const quad = (a, b, c, d, cc) => { vtx(a[0], a[1], a[2], cc); vtx(b[0], b[1], b[2], cc); vtx(c[0], c[1], c[2], cc); vtx(a[0], a[1], a[2], cc); vtx(c[0], c[1], c[2], cc); vtx(d[0], d[1], d[2], cc); };
   const geoRng = mulberry(seed ^ 0x57A1E);
@@ -171,8 +174,8 @@ export function createHub(engine, L, opts) {
     plane([x0, y0, z0], Z, Y, dz, dy, null, mossP, tile); plane([x1, y0, z0], Z, Y, dz, dy, null, mossP, tile);
     plane([x0, y1, z0], X, Z, dx, dz, null, mossP, tile);
   }
-  function box(x0, y0, z0, x1, y1, z1, mossP, tile) {            // the entrance arch + its apron: rounded blocks
-    tile = (tile || TILE) * 2.6; const w = x1 - x0, h = y1 - y0, d = z1 - z0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2, rad = Math.min(0.35, 0.3 * Math.min(w, h, d)), tp = bevelTemplate(w, h, d, rad, 2);
+  function box(x0, y0, z0, x1, y1, z1, mossP, tile, seg) {            // the entrance arch + its apron: rounded blocks
+    tile = (tile || TILE) * 2.6; const w = x1 - x0, h = y1 - y0, d = z1 - z0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2, rad = Math.min(0.35, 0.3 * Math.min(w, h, d)), tp = bevelTemplate(w, h, d, rad, seg || 2);
     const cc = stoneCol(geoRng() < (mossP ? mossP(cx, y0 + 0.5, cz) : 0.1), geoRng).clone(), S = tp.pos, N = tp.nrm;
     for (let i = 0; i < S.length; i += 9) {
       if (S[i + 1] + cy < y0 + 1e-6 && S[i + 4] + cy < y0 + 1e-6 && S[i + 7] + cy < y0 + 1e-6 && y0 > -0.5) continue;      // the underside of a block standing on the ground is never seen
@@ -181,6 +184,23 @@ export function createHub(engine, L, opts) {
   }
   const mossLow = (base) => (x, y) => (y - base < 1.3 ? 0.5 : 0.1);
   const isGap = (x, y, base) => Math.abs(x) < GW && y - base < 4;
+  // ── world2 rounded pieces (all baked-lit through vtx, strips split to `tile` so the torch light keeps its resolution) ──
+  const colB = () => stoneCol(true, geoRng).clone(), colA = () => stoneCol(false, geoRng).clone();
+  function coveStrip(ax, az, bx, bz, nx, nz, y, sg, R, segs, tile, cc) {      // concave fillet along a wall/floor (sg +1) or wall/ceiling (sg -1) junction; (nx,nz) = unit horizontal normal into the room
+    const len = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(len / tile)), ux = (bx - ax) / (len || 1), uz = (bz - az) / (len || 1);
+    const pt = (i, j) => { const th = j / segs * Math.PI / 2, f = i / n * len; return [ax + ux * f - nx * R * Math.cos(th) + nx * R, y + sg * R - sg * R * Math.sin(th), az + uz * f - nz * R * Math.cos(th) + nz * R]; };
+    for (let i = 0; i < n; i++) for (let j = 0; j < segs; j++) { const k = 0.9 + 0.1 * j / segs; quad(pt(i, j), pt(i + 1, j), pt(i + 1, j + 1), pt(i, j + 1), cc.clone().multiplyScalar(k)); }
+  }
+  function cornerPillar(cx, cz, sx, sz, y0, y1, r, tile, cc) {      // quarter round pillar hugging a room corner, centred on the corner point, bulging r into the room
+    const segs = 4, rows = Math.max(1, Math.round((y1 - y0) / tile)), pt = (j, k) => { const th = j / segs * Math.PI / 2; return [cx + sx * r * Math.cos(th), y0 + (y1 - y0) * k / rows, cz + sz * r * Math.sin(th)]; };
+    for (let j = 0; j < segs; j++) for (let k = 0; k < rows; k++) quad(pt(j, k), pt(j + 1, k), pt(j + 1, k + 1), pt(j, k + 1), cc.clone().multiplyScalar(0.85 + 0.2 * j / segs));
+  }
+  function roundPillar(cx, cz, r, y0, y1, segs, tile, cc) {      // free standing 8-sided soft pillar with a flared foot ring
+    const rows = Math.max(1, Math.round((y1 - y0) / tile));
+    for (let j = 0; j < segs; j++) { const a0 = j / segs * 6.2831853, a1 = (j + 1) / segs * 6.2831853, k = 0.85 + 0.2 * Math.max(0, Math.cos((a0 + a1) / 2 - 0.8));
+      const p = (a, f, rr) => [cx + Math.cos(a) * rr, y0 + (y1 - y0) * f / rows, cz + Math.sin(a) * rr];
+      for (let f = 0; f < rows; f++) quad(p(a0, f, r), p(a1, f, r), p(a1, f + 1, r), p(a0, f + 1, r), cc.clone().multiplyScalar(k)); }
+  }
 
   for (const r of rooms) {
     const q = r._r, y0 = -DEPTH, y1 = y0 + q.h, hw = q.hw, len = q.z1 - q.z0;
@@ -190,12 +210,23 @@ export function createHub(engine, L, opts) {
     plane([-hw, y0, q.z0], Z, Y, len, q.h, null, mossLow(y0)); plane([hw, y0, q.z0], Z, Y, len, q.h, null, mossLow(y0));
     if (solidEnd0) plane([-hw, y0, q.z0], X, Y, 2 * hw, q.h, (x, y) => isGap(x, y, y0), mossLow(y0));
     if (solidEnd1) plane([-hw, y0, q.z1], X, Y, 2 * hw, q.h, r.id === 'boss' ? null : (x, y) => isGap(x, y, y0), mossLow(y0));
+    // world2: soft floor skirting (concave cove) along the side walls, and along the end walls outside the door gap; ceiling cove + quarter-round corner pillars in the big rooms; rounded door frames
+    { const R = 0.5, sk = colB(); coveStrip(-hw, q.z0, -hw, q.z1, 1, 0, y0, 1, R, 2, 4, sk); coveStrip(hw, q.z0, hw, q.z1, -1, 0, y0, 1, R, 2, 4, sk);
+      if (r.kind !== 'corridor') {
+        for (const [za, nz] of [[q.z0, 1], [q.z1, -1]]) { const full = r.id === 'boss' && za === q.z1; if (full) coveStrip(-hw, za, hw, za, 0, nz, y0, 1, R, 2, 4, sk); else { coveStrip(-hw, za, -GW - 0.6, za, 0, nz, y0, 1, R, 2, 4, sk); coveStrip(GW + 0.6, za, hw, za, 0, nz, y0, 1, R, 2, 4, sk); } }
+        const ck = colA().multiplyScalar(1.1); coveStrip(-hw, q.z0, -hw, q.z1, 1, 0, y1, -1, R, 2, 6, ck); coveStrip(hw, q.z0, hw, q.z1, -1, 0, y1, -1, R, 2, 6, ck);
+        for (const sx of [-1, 1]) for (const [za, sz] of [[q.z0, 1], [q.z1, -1]]) cornerPillar(sx * hw, za, -sx, sz, y0, y1, 0.55, 3.6, colB());
+      } }
+    if (GATED[r.id] || r.kind === 'loot') for (const zw of [q.z0, q.z1]) {
+      if (zw === q.z1 && r.id === 'boss') continue;
+      box(-GW - 0.6, y0, zw - 0.4, -GW, y0 + 4.5, zw + 0.4, () => 1, 8, 1); box(GW, y0, zw - 0.4, GW + 0.6, y0 + 4.5, zw + 0.4, () => 1, 8, 1); box(-GW - 0.6, y0 + 4.0, zw - 0.4, GW + 0.6, y0 + 4.6, zw + 0.4, () => 1, 8, 1);
+    }
   }
   // boss pillars
   const pillars = [];
   { const q = roomById.boss._r; for (let k = 0; k < 4; k++) for (const s of [-1, 1]) {
     const x = s * 9, z = q.z0 + 6 + k * 8; pillars.push({ min: [x - 0.8, -DEPTH, z - 0.8], max: [x + 0.8, -DEPTH + q.h, z + 0.8], door: null, active: true });
-    tbox(x - 0.8, -DEPTH, z - 0.8, x + 0.8, -DEPTH + q.h, z + 0.8, mossLow(-DEPTH), 2.2); } }
+    roundPillar(x, z, 0.85, -DEPTH, -DEPTH + q.h, 8, 3.5, colB()); } }
   // stairs trench (open to the sky): steps + two side walls + parapet rim
   for (let i = 0; i < 24; i++) {
     const yt = -i * 0.5, yb = -(i + 1) * 0.5;
@@ -213,8 +244,10 @@ export function createHub(engine, L, opts) {
   { const A = ARCH, X1 = 3.9 * A, ZF = -(0.9 * A + 2), ZB = 0.9 * A, XT = GW + 1.2, TOP = 0.15;
     floors.push({ x0: -X1, x1: X1, z0: ZF, z1: 0, top: TOP }, { x0: -X1, x1: -XT, z0: 0, z1: ZB, top: TOP }, { x0: XT, x1: X1, z0: 0, z1: ZB, top: TOP });
     for (const f of floors) box(f.x0, -0.4, f.z0, f.x1, f.top, f.z1, () => 0.12, 2); }
+  // world2: a low rounded plinth under each chest (the chest instances are lifted by PLINTH_H)
+  for (const c of chests) box(c.pos[0] - 0.85, c.pos[1], c.pos[2] - 0.65, c.pos[0] + 0.85, c.pos[1] + PLINTH_H, c.pos[2] + 0.65, () => 1, 4, 1);
   // torch brackets + bones + skulls
-  const BONE = new T.Color(0.62, 0.6, 0.5), WOOD = new T.Color(0.2, 0.12, 0.07);
+  const BONE = new T.Color(0.62, 0.6, 0.5), WOOD = new T.Color(STONE_B).multiplyScalar(0.8);
   function addBox(cx, cy, cz, sx, sy, sz, ry, c) {
     const co = Math.cos(ry), si = Math.sin(ry), h = [sx / 2, sy / 2, sz / 2];
     const V = (a, b, d) => [cx + co * a * h[0] + si * d * h[2], cy + b * h[1], cz - si * a * h[0] + co * d * h[2]];
@@ -263,7 +296,7 @@ export function createHub(engine, L, opts) {
 
   // instanced: flames, cages, gates, chest bodies, chest lids
   const unit = new T.BoxGeometry(1, 1, 1);
-  const flames = new T.InstancedMesh(unit, unlitMat(T, { color: TONES.accent }), torches.length); flames.frustumCulled = false; group.add(flames);
+  const flames = new T.InstancedMesh(unit, unlitMat(T, { color: SCONCE }), torches.length); flames.frustumCulled = false; group.add(flames);
   const cageGeo = (() => { const g = [], bar = (cx, cy, cz, sx, sy, sz) => { const b = new T.BoxGeometry(sx, sy, sz); b.translate(cx, cy, cz); g.push(b); };
     for (const a of [-1, 1]) for (const b of [-1, 1]) { bar(a * 0.5, b * 0.5, 0, 0.09, 0.09, 1.09); bar(a * 0.5, 0, b * 0.5, 0.09, 1.09, 0.09); bar(0, a * 0.5, b * 0.5, 1.09, 0.09, 0.09); }
     for (let i = -1; i <= 1; i += 1) { bar(0, i * 0.5, 0.5, 0.05, 0.05, 0.05); }
@@ -282,10 +315,10 @@ export function createHub(engine, L, opts) {
   const cageState = cages.map(() => 1);
   function setCageMatrices() { cages.forEach((c, i) => { const s = cageState[i] * c.s; M.compose(V1.set(c.x, c.y, c.z), Q.identity(), V2.set(s, s, s)); cageMesh.setMatrixAt(i, M); }); cageMesh.instanceMatrix.needsUpdate = true; }
   function setChest(i) { const c = chests[i], lid = c.opened ? 1 : (c.lid || 0), x = c.pos[0], y = c.pos[1], z = c.pos[2];
-    M.compose(V1.set(x, y + 0.35, z), Q.setFromAxisAngle(V2.set(0, 1, 0), c.face > 0 ? Math.PI / 2 : c.face < 0 ? -Math.PI / 2 : Math.PI), V2.set(1.1, 0.7, 0.75)); chestBody.setMatrixAt(i, M);
+    M.compose(V1.set(x, y + PLINTH_H + 0.35, z), Q.setFromAxisAngle(V2.set(0, 1, 0), c.face > 0 ? Math.PI / 2 : c.face < 0 ? -Math.PI / 2 : Math.PI), V2.set(1.1, 0.7, 0.75)); chestBody.setMatrixAt(i, M);
     // lid hinges at the back edge: rotate about local x at (y+0.7, back)
     const base = new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), c.face > 0 ? Math.PI / 2 : c.face < 0 ? -Math.PI / 2 : Math.PI);
-    const hinge = new T.Vector3(0, 0.7, -0.375).applyQuaternion(base).add(new T.Vector3(x, y, z));
+    const hinge = new T.Vector3(0, 0.7, -0.375).applyQuaternion(base).add(new T.Vector3(x, y + PLINTH_H, z));
     const rot = base.clone().multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), -1.2 * lid));
     const center = new T.Vector3(0, 0.12, 0.375).applyQuaternion(rot).add(hinge);
     M.compose(center, rot, V2.set(1.1, 0.24, 0.75)); chestLid.setMatrixAt(i, M);

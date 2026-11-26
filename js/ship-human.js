@@ -6,6 +6,9 @@
 //   group.userData.jetNozzles = Vector3[] (human-local nozzle exits, for the flame fx) ; group.userData.jetBone = the bone those are relative to (world = jetBone's parent chain, use group-local)
 //   Q10 rig: setRig(recipe|null) (recipe per ship-styles.js normRig: headShape headScale torso limbLen limbShape feet tail quills cap eyeStyle palette gait) re-bones the human; also via setSuit({rig}). group.userData.rig = normalised rig (gait, hitbox, top).
 //   createPet(THREE, {seed, plan:'walker'|'jelly'|'strider'|0..2}) -> { group, update(dt), follow(target, dt), setMood(0..1), dispose }  (0.4 human height, <=600 tris)
+//   POSE: rig.pose = 'sit' | 'lie' | '' (getter/setter on the returned object; also rig.setPose(p) or st.pose in update()). Blends in/out over 0.3 s (smoothstep) on top of the normal animation, idle breathing kept.
+//     'sit' = hips ~0.4 H down to a seat (group origin = the seat top, feet dangle), thighs horizontal, shins vertical, forearms resting, 8 deg forward lean.
+//     'lie' = supine on the group origin plane (face up, head toward +Z of the rig, feet toward -Z), legs straight, arms at the sides. Set it every frame or once; '' stands.
 // Suit attachments live in their own skinned mesh pair on the same skeleton, so setSuit rebuilds only those.
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PARTS, mulberry as pmul } from './ship-parts.js';
@@ -527,6 +530,8 @@ export function createHuman(THREE, opts = {}) {
   // st: moving running airborne speed(0..1) facing jet scan | vH (ground speed, human heights / s) dist (heights moved this frame) turn (yaw rate rad/s, + = left)
   //     look {x,z,d} (target in model-local H: x right, z back) | groundAt(lx, lz) -> ground height under a foot relative to the standing plane (H; on group.userData)
   let t = 0, wingPh = 0, psi = 0, vs = 0, vsPrev = 0, accS = 0, run = 0, air = 0, crouch = 0, pit = 0, wasAir = false, sqz = 0, sqzT = 0, takeT = 0, yaw = 0;
+  let poseName = '', sitK = 0, lieK = 0;
+  const lerpA = (a, b, k) => a + (b - a) * k;
   let rollS = 0, lookY = 0, lookG = 0, shiftX = 0, shiftTo = 0, shiftT = 3 + Math.random() * 2, gestT = 4 + Math.random() * 5, gestK = 0, gestSide = 1, dhL = 0, dhR = 0;
   const lerp = (a, b, k) => a + (b - a) * k;
   const damp = (cur, tgt, rate, dt) => cur + (tgt - cur) * (1 - Math.exp(-rate * dt));
@@ -666,6 +671,24 @@ export function createHuman(THREE, opts = {}) {
     const fl = jet > 0.02 ? (0.25 + 1.5 * jet) * (0.88 + 0.12 * Math.sin(t * 43)) : 0.0001;
     B.jet.scale.setScalar(0.0001);      // the baked flame boxes stay hidden; updateJetFx drives the visible jet
     updateJetFx(dt, jet, t);
+    // pose blend (sit / lie): overrides the walk-cycle bone values by sitK / lieK (0.3 s smoothstep), breathing terms already in B.torso stay
+    if (typeof st.pose === 'string') poseName = st.pose;
+    const sT = poseName === 'sit' ? 1 : 0, lT = poseName === 'lie' ? 1 : 0, stp = dt / 0.3;
+    sitK = sitK < sT ? Math.min(sT, sitK + stp) : Math.max(sT, sitK - stp); lieK = lieK < lT ? Math.min(lT, lieK + stp) : Math.max(lT, lieK - stp);
+    const ps = sstep(0, 1, sitK), pl = sstep(0, 1, lieK), pk = Math.max(ps, pl);
+    if (pk > 0) {
+      const mix = (cur, a, b) => { const tot = ps + pl; return tot > 1 ? lerpA(a, b, pl / tot) : lerpA(lerpA(cur, a, ps), b, pl); };
+      B.hips.position.y = mix(B.hips.position.y, 0.12, 0.13); B.hips.position.x = lerpA(B.hips.position.x, 0, pk);
+      B.hips.rotation.x = mix(B.hips.rotation.x, 0, Math.PI / 2); B.hips.rotation.y = lerpA(B.hips.rotation.y, 0, pk); B.hips.rotation.z = lerpA(B.hips.rotation.z, 0, pk);
+      for (const sd of ['L', 'R']) {
+        B['hp' + sd].rotation.x = mix(B['hp' + sd].rotation.x, Math.PI / 2, 0); B['hp' + sd].rotation.z = lerpA(B['hp' + sd].rotation.z, sd === 'L' ? 0.04 : -0.04, pk);
+        B['kn' + sd].rotation.x = mix(B['kn' + sd].rotation.x, -Math.PI / 2, 0);
+        B['ft' + sd].rotation.x = mix(B['ft' + sd].rotation.x, 0, 0.1); B['ft' + sd].rotation.z = lerpA(B['ft' + sd].rotation.z, 0, pk);
+        B['sh' + sd].rotation.x = mix(B['sh' + sd].rotation.x, -0.5, 0.05); B['el' + sd].rotation.x = mix(B['el' + sd].rotation.x, 1.1, 0.15);
+      }
+      B.torso.rotation.x = mix(B.torso.rotation.x, -0.14 + br * 0.012, br * 0.012); B.torso.rotation.y = lerpA(B.torso.rotation.y, 0, pk); B.torso.rotation.z = lerpA(B.torso.rotation.z, 0, pk);
+      B.head.rotation.x = mix(B.head.rotation.x, 0.12, 0); B.head.rotation.z = lerpA(B.head.rotation.z, 0, pk);
+    }
     emiMat.color.setScalar(emiBase * (1 + scan * 0.55 * (0.5 + 0.5 * Math.sin(t * 9))));
   }
 
@@ -676,7 +699,7 @@ export function createHuman(THREE, opts = {}) {
   }
   function setPal(o) { const n = o && o.suit != null ? o : null; if (JSON.stringify(n) === JSON.stringify(own)) return; own = n; repaint(); }
   if (VIL) { const f = () => { unshare(); repaint(); }; LIVE.add(f); live = f; }
-  return { group, update, setColor, setSuit, setRig, setPal, pet, dispose, setAccent(hex) { rimHex = hex; derive(); } };
+  return { group, update, setColor, setSuit, setRig, setPal, pet, dispose, get pose() { return poseName; }, set pose(v) { poseName = v === 'sit' || v === 'lie' ? v : ''; }, setPose(v) { this.pose = v; }, setAccent(hex) { rimHex = hex; derive(); } };
 }
 
 // ── companion critter: 3 silhouettes, ~0.4 human height (feet at y=0, forward -Z), <= 600 tris, no skeleton ──

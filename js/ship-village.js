@@ -28,6 +28,9 @@
 //     inward when the player is within 1.5 H or a villager is at the threshold. The bell is a swinging mesh; the well splashes. All colours from ship-look.js TONES; boxes via its cached bevel templates.
 //   village.interactNear(feetPlanetLocal) -> { kind:'bell'|'well', label:'F · RING BELL'|'F · DRAW WATER', use(ctx) } | null   ctx = { aPlay?, giveItem?(item) }.  Bell (NE post) rings, swings ~9 s and every villager
 //     (not in panic, not at night) walks to the plaza for 30 s.  Well: splash animation; ctx.giveItem(waterItem) when the caller has an item hook.  village.ring(ctx) / village.drawWater(ctx) are the same actions.
+//   2026-11-25 world2: hut interiors (bed / chest / table + 2 stools / wall shelf / rug / hanging lamp; props are solids in village.walls, merged into the day + glow meshes). interactNear also returns { kind:'rest', label:'F · REST' } at a bed
+//     (ctx.heal(1,'rest') if given, else aPlay + village.rested = { t, hut, id }) and { kind:'chest', label:'F · OPEN' } at a chest (one seeded item per UTC day per chest via ctx.giveItem; persisted in serialize().chests). Villagers at night
+//     walk to a spot beside their hut's bed (drawn only while you are inside that hut).
 //   village.setNight(n)  dims the day mesh / brightens windows.  Draw calls: 2 merged meshes (+2 per live human within 40 L, +5 per golum).
 import { createHuman } from './ship-human.js';
 import { softMat, unlitMat, bevelTemplate, TONES, mixHex } from './ship-look.js';
@@ -204,6 +207,58 @@ export function createVillage(engine, u, opts) {
   }
   if (!stall) { stall = { cx: 0, cz: 10.5 * VS, a: Math.PI / 2, rect: { x0: -2 * BIG, x1: 2 * BIG, z0: 10.5 * VS - 1.4 * BIG, z1: 10.5 * VS + 1.4 * BIG } }; }
 
+  // ── hut interiors (2026-11-25 world2): bed, chest, table + 2 stools, wall shelf, rug disc, hanging lamp. Layout frame per hut: a = lateral (door-facing, -3.05..3.05), b = depth from the hut centre toward the BACK wall
+  // (-2.6 = door wall inner face .. 2.6 = back wall). The door lane |a| < 1.2 is kept free; the bed is on one side (mirrored per hut by a seeded flip), chest back corner + table + stools on the other.
+  // Props merge into the existing day mesh (LP), the lamp bulb into the glow mesh (EP, dimmed by the day/night setNight). Solids go into `walls` (same boxes as hut walls -> village.solid.a -> objPush). No rng() draws.
+  const IN_A = 3.05, IN_B = 2.6, IA_R = 1.7;       // interior half extents (m); interaction reach (~1 H)
+  const BEDC = rgb(mixHex(TONES.mid, TONES.lo, 0.35)), PILC = rgb(mixHex(TONES.accent, TONES.wall, 0.45)), RUGC = rgb(mixHex(TONES.lo, TONES.mid, 0.5)), RUGC2 = rgb(mixHex(TONES.mid, TONES.hi, 0.3)), LAMPC = [1.5, 1.1, 0.55];
+  function fbox(P, C, x0, y0, z0, x1, y1, z1, cc) {      // 12-tri flat box (legs, planks, latch)
+    const a = [x0, y0, z0], b = [x1, y0, z0], c = [x1, y1, z0], d = [x0, y1, z0], e = [x0, y0, z1], f = [x1, y0, z1], g = [x1, y1, z1], h = [x0, y1, z1];
+    quad(P, C, a, d, c, b, cc, [0, 0, -1], 1); quad(P, C, e, f, g, h, cc, [0, 0, 1], 1); quad(P, C, a, e, h, d, cc, [-1, 0, 0], 1); quad(P, C, b, c, g, f, cc, [1, 0, 0], 1); quad(P, C, d, h, g, c, cc, [0, 1, 0], 1); quad(P, C, a, b, f, e, cc, [0, -1, 0], 0.7);
+  }
+  function rugDisc(P, C, cx, y, cz, r, hh, cc, seg) {      // soft flat disc: top fan + a bevelled rim ring (seg*3 tris)
+    const N = P.N || (P.N = []), ri = r - 0.1, v = (x, yy, z) => [cx + x, yy, cz + z];
+    for (let i = 0; i < seg; i++) {
+      const a0 = i / seg * 6.2831853, a1 = (i + 1) / seg * 6.2831853, c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
+      tri(P, C, v(0, y + hh, 0), v(c0 * ri, y + hh, s0 * ri), v(c1 * ri, y + hh, s1 * ri), cc, 0, 1, 0, 1);
+      const k = 0.7071, n0 = [c0 * k, k, s0 * k], n1 = [c1 * k, k, s1 * k], A = v(c0 * ri, y + hh, s0 * ri), B = v(c1 * ri, y + hh, s1 * ri), Cc = v(c1 * r, y + 0.01, s1 * r), D = v(c0 * r, y + 0.01, s0 * r);
+      const nm = [(n0[0] + n1[0]) / 2, k, (n0[2] + n1[2]) / 2];
+      tri(P, C, A, B, Cc, cc, nm[0], nm[1], nm[2], 0.88); tri(P, C, A, Cc, D, cc, nm[0], nm[1], nm[2], 0.88);
+    }
+  }
+  function furnish(h, dr, yb, y1) {
+    const cx = h.cx, cz = h.cz, d = dr.d, t0 = -d[1], t1 = d[0], n0 = -d[0], n1 = -d[1], m = (hashStr(pid + ':bed:' + h.idx) & 1) ? 1 : -1;
+    const W = (a, b) => [cx + t0 * a * m + n0 * b, cz + t1 * a * m + n1 * b];
+    const R = (a0, a1, b0, b1) => { const p = W(a0, b0), q = W(a1, b1); return { x0: Math.min(p[0], q[0]), x1: Math.max(p[0], q[0]), z0: Math.min(p[1], q[1]), z1: Math.max(p[1], q[1]) }; };
+    const RB = (r, y0, y1b, cc, rad) => pushBox(LP, LC, r.x0, yb + y0, r.z0, r.x1, yb + y1b, r.z1, cc, rad, 1, 1);
+    const FB = (r, y0, y1b, cc) => fbox(LP, LC, r.x0, yb + y0, r.z0, r.x1, yb + y1b, r.z1, cc);
+    const solid = (nm, r, hh) => { const b = mkBox('hut' + h.idx + '-' + nm, r.x0, yb - 0.1, r.z0, r.x1, yb + hh, r.z1); walls.push(b); return b; };
+    const wood = tint(WOOD, 1.5), woodD = tint(WOOD, 1.1), woodL = tint(WOOD, 1.9), gold = rgb(TONES.accent);
+    // bed (1.0 x 2.0 H = 1.75 x 3.5 m, 0.45 H = 0.79 m tall): frame, mattress + blanket, pillow accent, headboard on the back wall
+    const bed = R(-2.95, -1.2, -0.9, 2.6);
+    RB(R(-2.95, -1.2, -0.9, 2.6), 0, 0.42, wood, 0.1); RB(R(-2.85, -1.3, -0.8, 2.5), 0.42, 0.79, BEDC, 0.14); RB(R(-2.75, -1.4, 1.65, 2.4), 0.79, 0.97, PILC, 0.12);
+    FB(R(-2.95, -1.2, 2.5, 2.6), 0, 1.25, woodD);
+    solid('bed', bed, 0.79);
+    // chest (0.6 H = 1.05 m cube): body + lid + latch on the front (door side) face
+    const chest = R(1.9, 2.95, 1.5, 2.55);
+    RB(chest, 0, 0.7, woodD, 0.1); RB(R(1.88, 2.97, 1.48, 2.57), 0.7, 1.05, wood, 0.16); FB(R(2.28, 2.57, 1.44, 1.5), 0.52, 0.88, gold);
+    solid('chest', chest, 1.05);
+    // table (1.4 x 1.0 m, top 0.79 m) + 2 stools
+    const tab = R(1.5, 2.9, -0.5, 0.5);
+    RB(tab, 0.66, 0.79, woodL, 0.06); for (const [la, lb] of [[1.62, -0.38], [2.66, -0.38], [1.62, 0.26], [2.66, 0.26]]) FB(R(la, la + 0.12, lb, lb + 0.12), 0, 0.66, woodD);
+    RB(R(2.0, 2.4, -0.12, 0.12), 0.79, 0.93, gold, 0.06);      // a bowl on the table
+    solid('table', tab, 0.79);
+    for (const sb of [-1.15, 0.95]) { const st = R(1.95, 2.45, sb - 0.25, sb + 0.25); RB(R(1.95, 2.45, sb - 0.25, sb + 0.25), 0.36, 0.5, wood, 0.07); FB(R(2.1, 2.3, sb - 0.1, sb + 0.1), 0, 0.36, woodD); solid('stool', st, 0.5); }
+    // wall shelf on the back wall (above head height, not a solid) + 3 small items
+    FB(R(0.0, 1.7, 2.22, 2.6), 2.0, 2.1, woodL);
+    RB(R(0.15, 0.45, 2.3, 2.55), 2.1, 2.45, rgb(TONES.hi), 0.06); RB(R(0.7, 1.1, 2.3, 2.58), 2.1, 2.28, gold, 0.05); RB(R(1.3, 1.55, 2.32, 2.55), 2.1, 2.4, rgb(TONES.sky), 0.08);
+    // rug disc (r 1.3) in the door lane + the hanging lamp (cord + cap day mesh, shade + bulb glow mesh)
+    const rc = W(0, 0.7); rugDisc(LP, LC, rc[0], yb, rc[1], 1.3, 0.05, RUGC, 14); rugDisc(LP, LC, rc[0], yb + 0.05, rc[1], 0.62, 0.012, RUGC2, 10);
+    const lp = W(0, 0.7); fbox(LP, LC, lp[0] - 0.02, y1 - 1.3, lp[1] - 0.02, lp[0] + 0.02, y1, lp[1] + 0.02, woodD);
+    pushBox(EP, EC, lp[0] - 0.3, y1 - 1.95, lp[1] - 0.3, lp[0] + 0.3, y1 - 1.3, lp[1] + 0.3, LAMPC, 0.2, 1, 1);
+    const spot = (k) => { const b = -0.2 + (k % 3) * 0.9, p = W(-0.75, b), f = W(-2.0, b); return { x: p[0], z: p[1], yaw: Math.atan2(-(f[0] - p[0]), -(f[1] - p[1])) }; };
+    h.fur = { spot, lane: W(0, -1.6), bed: Object.assign(bed, { y: yb }), chest: chest, inner: R(-IN_A, IN_A, -IN_B, IN_B), yb };
+  }
   // ── build: huts ──
   const torches = [];
   const door = (h) => {      // door centre on the wall + the point just outside it (toward the well)
@@ -258,6 +313,7 @@ export function createVillage(engine, u, opts) {
       const dx0 = Math.min(dr.c[0], dr.front[0]), dx1 = Math.max(dr.c[0], dr.front[0]), dz0 = Math.min(dr.c[1], dr.front[1]), dz1 = Math.max(dr.c[1], dr.front[1]), sw = DOOR_W / 2 + 0.1;
       const sx0 = dr.d[0] !== 0 ? dx0 - TW : dx0 - sw, sx1 = dr.d[0] !== 0 ? dx1 + TW : dx1 + sw, sz0 = dr.d[1] !== 0 ? dz0 - TW : dz0 - sw, sz1 = dr.d[1] !== 0 ? dz1 + TW : dz1 + sw;
       boxG(LP, LC, sx0, fy, sz0, sx1, yb, sz1, pc); floorRects.push({ x0: sx0, x1: sx1, z0: sz0, z1: sz1, top: yb }); }
+    furnish(h, dr, yb, y1);
     h.walls = hw;
     h.boxOut = { min: [cx - hx, y0, cz - hz], max: [cx + hx, y1 + 0.35, cz + hz] };
   }
@@ -370,6 +426,7 @@ export function createVillage(engine, u, opts) {
     plaza: (a) => ({ x: Math.cos(a) * RP, z: Math.sin(a) * RP, kind: 'plaza' }),
     door: (h) => ({ x: h.door.front[0], z: h.door.front[1], kind: 'door', hut: h }),
   };
+  function inSpot(v) { const h = v.homeHut, f = h.fur; if (!f) { v.x = h.cx; v.z = h.cz; return; } const s = f.spot(v.slot); v.x = s.x; v.z = s.z; v.sYaw = s.yaw; }      // the indoor idle spot = standing beside the bed
   const kidR = mulberry(seed ^ 0x6C1D);
   for (let i = 0; i < nVill; i++) {
     const role = roleOrder[i % roleOrder.length], home = huts[i % huts.length], vid = pid + ':v' + i;
@@ -388,7 +445,8 @@ export function createVillage(engine, u, opts) {
       say(ctx) { return lingo.line(v, ctx || 'greeting'); },
       get lines() { return [lingo.line({ seed: vseed, role, name: v.name, known: v.known }, 'greeting'), lingo.line({ seed: vseed, role, name: v.name, known: v.known }, 'shopper'), lingo.line({ seed: vseed, role, name: v.name, known: v.known }, 'gossip')]; },
     };
-    v.x = home.cx; v.z = home.cz;
+    v.slot = home.occ = (home.occ || 0) + 1; v.slot--;      // 0.. per hut: which spot beside the bed
+    inSpot(v);
     villagers.push(v);
   }
   // trader's six seeded trades: they WANT a resource (SELL tab pays above market) and SELL seeded goods (BUY tab, village discount)
@@ -434,12 +492,13 @@ export function createVillage(engine, u, opts) {
   function setPath(v, tg) {
     const key = tg.call ? 'call' : tg.home ? 'home' : 's' + tg.stop; if (v.tgt === key) return; v.tgt = key;
     let pts = []; const h = v.homeHut;
-    if (v.inside) { pts.push([h.cx, h.cz], [h.door.c[0], h.door.c[1]], [h.door.front[0], h.door.front[1]]); v.inside = false; v.hidden = false; }
+    const wasIn = v.inside, ln = h.fur ? h.fur.lane : null;
+    if (v.inside) { pts.push([v.x, v.z]); if (ln) pts.push([ln[0], ln[1]]); pts.push([h.door.c[0], h.door.c[1]], [h.door.front[0], h.door.front[1]]); v.inside = false; v.hidden = false; }
     const from = pts.length ? pts[pts.length - 1] : [v.x, v.z];
     if (tg.call) { const r = route(from[0], from[1], v.callPt[0], v.callPt[1]); pts = pts.concat(pts.length ? r.slice(1) : r); }      // the bell: walk to the plaza
-    else if (tg.home) { const r = route(from[0], from[1], h.door.front[0], h.door.front[1]); pts = pts.concat(pts.length ? r.slice(1) : r); pts.push([h.door.c[0], h.door.c[1]], [h.cx, h.cz]); }
+    else if (tg.home) { const r = route(from[0], from[1], h.door.front[0], h.door.front[1]); pts = pts.concat(pts.length ? r.slice(1) : r); pts.push([h.door.c[0], h.door.c[1]]); if (ln) pts.push([ln[0], ln[1]]); const sp = h.fur ? h.fur.spot(v.slot) : { x: h.cx, z: h.cz }; pts.push([sp.x, sp.z]); }
     else { const s = v.stops[tg.stop], r = route(from[0], from[1], s.x, s.z); pts = pts.concat(pts.length ? r.slice(1) : r); }
-    v.path = pts; v.pi = 1; v.thru = !!(tg.home || (pts.length && pts[0][0] === h.cx && pts[0][1] === h.cz));      // thru: doorway legs skip the wall push-out
+    v.path = pts; v.pi = 1; v.thru = !!(tg.home || wasIn);      // thru: doorway legs skip the wall push-out
   }
 
   // ── humans (lazy: only inside VILLAGE_ACT_L of the player) ──
@@ -583,6 +642,7 @@ export function createVillage(engine, u, opts) {
   }
 
   const lookO = { x: 0, z: 0, d: 99 };
+  const inHutNow = (h, px, py, pz) => { const f = h.fur; return !!f && Math.abs(py - f.yb) < 3 && px > f.inner.x0 - 0.3 && px < f.inner.x1 + 0.3 && pz > f.inner.z0 - 0.3 && pz < f.inner.z1 + 0.3; };      // villagers at their bed are drawn only while you are in the hut
   village.update = (dt, ctx) => {
     ctx = ctx || {}; const night = ctx.night || 0; village.night = night; setNight(night);
     if (village.threat) { village.threat.t -= dt; if (village.threat.t <= 0) village.threat = null; }
@@ -604,7 +664,7 @@ export function createVillage(engine, u, opts) {
       v.panic = Math.max(0, v.panic - dt); v.flinch = Math.max(0, v.flinch - dt); v.greetCd = Math.max(0, v.greetCd - dt);
       if (v.first == null) {      // first sim frame: snap to the routine so every client agrees
         v.first = 1; const tg = targetFor(v, tm, night);
-        if (tg.home) { v.x = v.homeHut.cx; v.z = v.homeHut.cz; v.inside = true; }
+        if (tg.home) { inSpot(v); v.yaw = v.sYaw != null ? v.sYaw : v.yaw; v.inside = true; }
         else { const s = v.stops[tg.stop]; v.x = s.x; v.z = s.z; v.inside = false; }
         v.tgt = tg.home ? 'home' : 's' + tg.stop; v.path = null;
       }
@@ -618,14 +678,14 @@ export function createVillage(engine, u, opts) {
       else if (v.path && v.pi < v.path.length) {
         const q = v.path[v.pi], dx = q[0] - v.x, dz = q[1] - v.z, d = Math.hypot(dx, dz), sp = (v.panic > 0 ? WALK * 1.8 : WALK * (v.role === 'kid' ? 1.3 : v.role === 'elder' ? 0.7 : 1)) * dt;
         if (d <= sp) { v.x = q[0]; v.z = q[1]; v.pi++; } else { v.x += dx / d * sp; v.z += dz / d * sp; v.yaw = Math.atan2(-dx, -dz); moving = true; }
-        if (v.pi >= v.path.length && v.tgt === 'home') { v.inside = true; v.path = null; }
+        if (v.pi >= v.path.length && v.tgt === 'home') { v.inside = true; v.path = null; if (v.sYaw != null) v.yaw = v.sYaw; }
       }
       if (!v.inside && !v.thru) pushOut(v, 0.3);      // Q29: never clipped into a hut/stall/well wall
       if (!v.path || (v.pi > 3 && v.tgt !== 'home')) v.thru = false;
       v.moving = moving; v.y = v.inside ? v.homeHut.yb : groundLive(v.x, v.z); v.pos.set(v.x, v.y, v.z);
       const hm = v.human;
       if (hm) {
-        const vis = !v.inside; if (hm.group.visible !== vis) hm.group.visible = vis;
+        const vis = !v.inside || (haveP && inHutNow(v.homeHut, px, py, pz)); if (hm.group.visible !== vis) hm.group.visible = vis;
         if (vis) {
           // body yaw follows the heading with a ~0.12 s lag (turn rate fed to the rig for lean / head lead); stride is driven by the distance actually walked
           const hs = hm.group.scale.x || 1.75;
@@ -683,15 +743,47 @@ export function createVillage(engine, u, opts) {
     return waterItem;
   };
   const IA_BELL = { kind: 'bell', label: 'F · RING BELL', use: (ctx) => village.ring(ctx) }, IA_WELL = { kind: 'well', label: 'F · DRAW WATER', use: (ctx) => village.drawWater(ctx) };
+  // hut props: bed -> F · REST (ctx.heal(1, 'rest') when the caller has it, else aPlay + village.rested), chest -> F · OPEN (one seeded item per UTC day per chest via ctx.giveItem)
+  const chestDay = {}, dist2R = (r, x, z) => { const dx = Math.max(r.x0 - x, 0, x - r.x1), dz = Math.max(r.z0 - z, 0, z - r.z1); return dx * dx + dz * dz; };
+  village.rested = null;
+  village.rest = (h, ctx) => {
+    village.rested = { t: Date.now(), hut: h.idx, id: pid + ':h' + h.idx };
+    let healed = false; try { if (ctx && typeof ctx.heal === 'function') { ctx.heal(1, 'rest'); healed = true; } } catch (e) { /* ignore */ }
+    try { if (ctx && ctx.aPlay) ctx.aPlay('ui', { vel: 0.5, pitch: healed ? 0.7 : 0.45 }); } catch (e) { /* ignore */ }
+    return true;
+  };
+  village.chestItem = (h) => {      // seeded: pid + hut + UTC day -> half resource, half a village-menu item
+    const dk = dayKey(), r = mulberry(hashStr('chest:' + pid + ':' + h.idx + ':' + dk));
+    if (r() < 0.5) { const kinds = Object.keys(RESOURCE_BASE); return resourceItem(kinds[Math.floor(r() * kinds.length)], pn.name || pid); }
+    const menu = storeMenu('village:' + pid + ':chest' + h.idx, 8, new Date().toISOString().slice(0, 10)).filter((q) => q.kind !== 'ball'); return menu.length ? menu[Math.floor(r() * menu.length)] : resourceItem('plant', pn.name || pid);
+  };
+  village.openChest = (h, ctx) => {
+    const dk = dayKey(); let it = null;
+    if (chestDay[h.idx] !== dk) {
+      it = village.chestItem(h);
+      if (ctx && typeof ctx.giveItem === 'function') { try { ctx.giveItem(it); chestDay[h.idx] = dk; } catch (e) { it = null; } } else it = null;
+    }
+    try { if (ctx && ctx.aPlay) ctx.aPlay('ui', { vel: 0.7, pitch: it ? 0.9 : 0.5 }); } catch (e) { /* ignore */ }
+    return it;
+  };
+  for (const h of huts) if (h.fur) { h.iaRest = { kind: 'rest', label: 'F · REST', use: (ctx) => village.rest(h, ctx) }; h.iaChest = { kind: 'chest', label: 'F · OPEN', use: (ctx) => village.openChest(h, ctx) }; }
   village.interactNear = (p) => {
     if (!p) return null;
-    toLocal(p, vLocal); if (Math.abs(vLocal.y - wellY) > 2.5) return null;
+    toLocal(p, vLocal);
+    for (const h of huts) {
+      const f = h.fur; if (!f || Math.abs(vLocal.y - f.yb) > 2.5) continue;
+      const q = f.inner; if (vLocal.x < q.x0 - 0.4 || vLocal.x > q.x1 + 0.4 || vLocal.z < q.z0 - 0.4 || vLocal.z > q.z1 + 0.4) continue;
+      const db = dist2R(f.bed, vLocal.x, vLocal.z), dc = dist2R(f.chest, vLocal.x, vLocal.z);
+      if (db < IA_R * IA_R && db <= dc) return h.iaRest;
+      if (dc < IA_R * IA_R) return h.iaChest;
+    }
+    if (Math.abs(vLocal.y - wellY) > 2.5) return null;
     if (Math.hypot(vLocal.x - BELL_POST[0], vLocal.z - BELL_POST[1]) < 2.2) return IA_BELL;
     return Math.hypot(vLocal.x, vLocal.z) < 3.9 ? IA_WELL : null;
   };
 
-  village.serialize = () => { syncStock(); return { day: stockDay, stock: Object.assign({}, stock) }; };
-  village.restore = (o) => { if (!o || typeof o !== 'object') return; if (o.day === dayKey() && o.stock && typeof o.stock === 'object') { stockDay = o.day; stock = {}; for (const k in o.stock) if (typeof o.stock[k] === 'number') stock[k] = o.stock[k] | 0; } };
+  village.serialize = () => { syncStock(); return { day: stockDay, stock: Object.assign({}, stock), chests: Object.assign({}, chestDay) }; };
+  village.restore = (o) => { if (!o || typeof o !== 'object') return; if (o.chests && typeof o.chests === 'object') { const dk = dayKey(); for (const k in o.chests) if (o.chests[k] === dk) chestDay[k] = dk; } if (o.day === dayKey() && o.stock && typeof o.stock === 'object') { stockDay = o.day; stock = {}; for (const k in o.stock) if (typeof o.stock[k] === 'number') stock[k] = o.stock[k] | 0; } };
   village.syncStock = syncStock;
   village.dispose = () => {
     for (const v of villagers) if (v.human) { try { v.human.dispose(); } catch (e) { /* ignore */ } }

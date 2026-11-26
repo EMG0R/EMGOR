@@ -830,58 +830,30 @@ async function g14(T, o) {
 // rev 29 flight sub-test: hold Space 2 s on foot -> flight; 60 s of random flight inputs kept at 1-10 heights above the floor (a store is aimed at when one exists):
 // never below the rendered floor, the capsule never inside a store/burger box, no NaN; then release everything and land.
 async function flightSub(T, ship, node, o) {
-    var THREE = T.THREE, L = T.L(), ps = ship.ps, H = ship._g.hOf(L), g = ship._g, hum = g.hum, fl = g.fl, w = g.world(), r = { pass: true }, dt = 0.033, i, f;
+    // 2026-11-25: FLIGHT mode is gone; this checks the plain jetpack: hold Space 2.4 s -> airborne >= 1 H, 20 s of random inputs with Space held never go below the
+    // rendered floor and never NaN, release -> the capsule is back on the ground within 40 s.
+    var L = T.L(), ps = ship.ps, H = ship._g.hOf(L), g = ship._g, hum = g.hum, r = { pass: true }, dt = 0.033, i, f;
     T.clearKeys(); T.step(10, dt);
     T.kd('Space'); for (i = 0; i < Math.round(2.4 / dt); i++) T.step(1, dt);
-    r.entered = fl.on; if (!fl.on) { r.pass = false; r.why = 'Space hold did not start flight'; T.ku('Space'); return r; }
-    // optional: start in front of a store so the random flight meets walls
-    var st = w && w.stores && w.stores[0], I = st && st.interior, sc = null;
-    if (I && I.matrix) {
-        sc = new THREE.Vector3(0, 0, 0).applyMatrix4(I.matrix);
-        var q = new THREE.Vector3(0, 1.5, (I.size ? I.size.d : 26) / 2 + 8).applyMatrix4(I.matrix);
-        var fr = ps.meshFloorLocal(q.x, q.y, q.z), qr = q.length(); if (qr < fr + 1.5 * H) q.multiplyScalar((fr + 1.5 * H) / qr);
-        hum.pos.copy(q); hum.hr = q.length(); fl.v.set(0, 0, 0);
-    }
-    if (o.shot) { T.kd('KeyW'); T.kd('Space'); for (i = 0; i < Math.round(3 / dt); i++) T.step(1, dt); r.shot = true; r.alt = fl.alt; return r; }      // leave the human mid-flight for a screenshot
-    var held = {}, codes = ['KeyW', 'KeyS', 'ShiftLeft', 'Space'], minClr = 1e9, nan = 0, boxHits = 0, maxAlt = 0, minAlt = 1e9, tmp = new THREE.Vector3(), up = new THREE.Vector3(), frames = Math.round((o.flightSeconds || 60) / dt), landed = 0;
-    function inBoxes(Ii, p) {
-        var arr = (Ii.walls || []).concat(Ii.aisles || []), j, b;
-        for (j = 0; j < arr.length; j++) { b = arr[j]; if (p.x > b.min.x && p.x < b.max.x && p.y > b.min.y && p.y < b.max.y && p.z > b.min.z && p.z < b.max.z) return true; }
-        return false;
-    }
+    var P = hum.pos, mf0 = ps.meshFloorLocal(P.x, P.y, P.z), alt0 = (hum.hr - mf0) / H;
+    r.entered = !!hum.air && alt0 >= 1; r.alt0_H = +alt0.toFixed(2);
+    if (!r.entered) { r.pass = false; r.why = 'Space hold did not lift the jetpack (alt ' + alt0.toFixed(2) + ' H, air ' + hum.air + ')'; T.ku('Space'); return r; }
+    if (o.shot) { T.kd('KeyW'); for (i = 0; i < Math.round(3 / dt); i++) T.step(1, dt); r.shot = true; return r; }
+    var held = {}, codes = ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ShiftLeft'], minClr = 1e9, nan = 0, maxAlt = 0, frames = Math.round(20 / dt), rnd = T.rng ? T.rng() : Math.random;
     for (f = 0; f < frames; f++) {
         if (f % 250 === 0) await T.pause();
-        if (!fl.on) { landed++; T.kd('Space'); for (i = 0; i < 70 && !fl.on; i++) T.step(1, dt); if (!fl.on) { fl.on = true; fl.v.set(0, 0, 0); hum.air = true; } T.ku('Space'); }
-        if (f % 9 === 0) {
-            var alt = fl.alt, aim = sc && ((f / 300) | 0) % 2 === 1;
-            codes.forEach(function (c) {
-                var want = c === 'KeyW' ? T.rng() < (aim ? 0.95 : 0.65) : (c === 'Space' ? alt < 3 || (alt < 8 && T.rng() < 0.4) : T.rng() < 0.2);
-                if (c === 'Space' && alt > 8) want = false;
-                if (c === 'KeyW' && alt > 9) want = false;
-                if (want && !held[c]) { T.kd(c); held[c] = 1; } else if (!want && held[c]) { T.ku(c); held[c] = 0; }
-            });
-            if (aim) { tmp.copy(sc).sub(hum.pos); up.copy(hum.pos).normalize(); tmp.addScaledVector(up, -tmp.dot(up)); if (tmp.lengthSq() > 1e-8) hum.hf.copy(tmp.normalize()); ship.dbg.inject(0, 0); }
-            else ship.dbg.inject((T.rng() - 0.5) * 260, (T.rng() - 0.5) * 120);
-        }
-        if (fl.alt > 9 && fl.pit > -0.2) fl.pit = -0.2;      // the test keeps the flight in the 1-10 H band
+        if (f % 30 === 0) { var c = codes[Math.floor(rnd() * codes.length)]; if (held[c]) { T.ku(c); held[c] = false; } else { T.kd(c); held[c] = true; } }
+        if (f % 90 === 0) { if (held.Space) { T.ku('Space'); held.Space = false; } else { T.kd('Space'); held.Space = true; } }
         T.step(1, dt);
-        var P = hum.pos, mf = ps.meshFloorLocal(P.x, P.y, P.z);
-        if (!isFinite(P.x + P.y + P.z) || !isFinite(hum.vh) || !isFinite(hum.w.x) || !isFinite(fl.v.x)) { nan++; break; }
-        minClr = Math.min(minClr, (hum.hr - mf) / H); maxAlt = Math.max(maxAlt, fl.alt); minAlt = Math.min(minAlt, fl.alt);
-        if (w && w.stores) {
-            up.copy(P).normalize();
-            for (var si = 0; si < w.stores.length; si++) {
-                var Is = w.stores[si].interior; if (!Is || !Is.toStore) continue;
-                [0.25, 0.75].forEach(function (hh) { tmp.copy(P).addScaledVector(up, hh * H); Is.toStore(tmp, tmp); if (inBoxes(Is, tmp)) boxHits++; });
-            }
-        }
+        var mf = ps.meshFloorLocal(P.x, P.y, P.z);
+        if (!isFinite(P.x + P.y + P.z) || !isFinite(hum.vh) || !isFinite(hum.w.x)) { nan++; break; }
+        minClr = Math.min(minClr, (hum.hr - mf) / H); maxAlt = Math.max(maxAlt, (hum.hr - mf) / H);
         if (ship.gmode !== 'foot') { r.pass = false; r.why = 'left foot mode ' + ship.gmode; break; }
     }
     Object.keys(held).forEach(function (c) { if (held[c]) T.ku(c); });
     T.clearKeys(); for (i = 0; i < Math.round(40 / dt); i++) T.step(1, dt);
-    r.minFloorClear_H = +minClr.toFixed(4); r.minAlt_H = +minAlt.toFixed(2); r.maxAlt_H = +maxAlt.toFixed(2); r.nan = nan; r.boxHits = boxHits; r.relanded = landed; r.hadStore = !!sc;
-    r.glideLanded = !fl.on;
-    if (minClr < -0.05 || nan || boxHits || !r.glideLanded) r.pass = false;
+    r.minFloorClear_H = +minClr.toFixed(4); r.maxAlt_H = +maxAlt.toFixed(2); r.nan = nan; r.landed = !hum.air;
+    if (minClr < -0.05 || nan || !r.landed) r.pass = false;
     return r;
 }
 

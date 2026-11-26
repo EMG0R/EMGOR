@@ -67,6 +67,7 @@ var FLORA_R = 1.3, CREAT_R = 1.2;         // x R
 var NPADU = 6;                           // 2026-10-14: shader pad slots = NPAD outposts + 3 site pads (village, hub arch, Q14 POKEMANS CVS): flat ground under every structure
 var NPAD = 3;                             // outposts per planet (max)
 var OUT_S = 2.5;                          // 2026-10-14: outposts (pad, flat ground, tower, beacon, NPC spot, the 7/11 + Burger House via ps.outScale) read 2.5x bigger
+var PAD_T = 0.12 * 0.27;      // pad plate top above the flattened ground (L): 0.12 H, H = 0.27 L (ship-scale H_RATIO, same as HUM_H below)
 var PAD_L = 6 * OUT_S, BLD_S = 0.55 * OUT_S, PAD_FLAT = 15 * OUT_S, PAD_BLEND = 22 * OUT_S, NPC_OFF = 7.8 * OUT_S, BLD_OFF = 11 * OUT_S;   // x L
 var SITE_CAP = 0.15;                      // 2026-10-14: the first outpost (and ship.js' village) is seeded within this angle (rad = R units of arc) of the approach direction
 var COL_MAX = 10, COL_H_L = 400, COL_H_R = 0.35;   // 2026-10-14: sky beacon columns (one instanced draw): height = max(400 L, 0.35 R)
@@ -534,7 +535,7 @@ var AUR_FRAG = [
 
 // outposts: pads + buildings share one vertex shader (instance colour x per-vertex shade; shade >= 1.5 = lit window / lamp)
 var OUT_VERT = [
-    'attribute float aPart; attribute vec3 aCol;',
+    'attribute float aPart; attribute vec3 aCol; uniform vec3 uVio;',
     'varying vec3 vCol; varying vec3 vN; varying vec3 vView; varying float vGlow;',
     '#include <common>',
     '#include <logdepthbuf_pars_vertex>',
@@ -542,7 +543,7 @@ var OUT_VERT = [
     '    mat4 M = modelMatrix * instanceMatrix;',
     '    vec4 wp = M * vec4(position, 1.0);',
     '    vN = normalize(mat3(M) * normal);',
-    '    vCol = aCol * aPart; vGlow = step(1.5, aPart);',
+    '    vCol = mix(aCol * aPart, uVio * (aPart - 3.0), step(3.0, aPart)); vGlow = step(1.5, aPart);',      // aPart >= 3: soft emissive violet (intensity = aPart - 3), independent of the planet tint
     '    vView = cameraPosition - wp.xyz;',
     '    gl_Position = projectionMatrix * viewMatrix * wp;',
     '    #include <logdepthbuf_vertex>',
@@ -1117,6 +1118,25 @@ GeoBuilder.prototype.hex = function (r0, r1, y, shade) {
         }
     }
 };
+// 2026-11-25 (world2): lathe about the Y axis at (cx, cz). prof = [[r, y, shade], ...] walked from the top centre outward / down (shade of segment j = prof[j][2]); normals come out of the winding, so each
+// triangle is oriented along the 2D profile normal (-dy, dr). Used by the soft pad plate (bevelled edge), the violet ring and the corner studs.
+GeoBuilder.prototype.lathe = function (cx, cz, prof, sides) {
+    for (var j = 0; j < prof.length - 1; j++) {
+        var P0 = prof[j], P1 = prof[j + 1], nr = -(P1[1] - P0[1]), ny = P1[0] - P0[0];
+        for (var i = 0; i < sides; i++) {
+            var a0 = i / sides * Math.PI * 2, a1 = (i + 1) / sides * Math.PI * 2, am = (a0 + a1) / 2;
+            var A = [cx + Math.cos(a0) * P0[0], P0[1], cz + Math.sin(a0) * P0[0]], B = [cx + Math.cos(a1) * P0[0], P0[1], cz + Math.sin(a1) * P0[0]];
+            var C = [cx + Math.cos(a1) * P1[0], P1[1], cz + Math.sin(a1) * P1[0]], D = [cx + Math.cos(a0) * P1[0], P1[1], cz + Math.sin(a0) * P1[0]];
+            var rx = Math.cos(am) * nr, rz = Math.sin(am) * nr;
+            var tris = P0[0] < 1e-9 ? [[A, C, D]] : [[A, B, C], [A, C, D]];      // a zero-radius start collapses A == B: one triangle
+            for (var t = 0; t < tris.length; t++) {
+                var T3 = tris[t], ux = T3[1][0] - T3[0][0], uy = T3[1][1] - T3[0][1], uz = T3[1][2] - T3[0][2], vx = T3[2][0] - T3[0][0], vy = T3[2][1] - T3[0][1], vz = T3[2][2] - T3[0][2];
+                var cxn = uy * vz - uz * vy, cyn = uz * vx - ux * vz, czn = ux * vy - uy * vx;
+                if (cxn * rx + cyn * ny + czn * rz < 0) this.tri(T3[0], T3[2], T3[1], 0, P0[2]); else this.tri(T3[0], T3[1], T3[2], 0, P0[2]);
+            }
+        }
+    }
+};
 // low UV sphere (ellipsoid), lat0..lat1 in [0,pi]
 GeoBuilder.prototype.sphere = function (cx, cy, cz, rx, ry, rz, seg, rings, lat0, lat1, v, part, w, ph, pc) {
     function P(i, j) {
@@ -1644,13 +1664,13 @@ export function createPlanetSurface(engine, L) {
         }
         // outposts: pads, buildings, beacons (3 instanced draws, up to NPAD instances each)
         var pg2 = new GeoBuilder();
-        pg2.hex(0, 1.0, 0.1, 0.5);                       // slab
-        pg2.hex(0.84, 1.0, 0.12, 0.62);                  // rim
-        pg2.hex(0, 0.84, 0.14, 0.95);                    // plate
-        pg2.hex(0.30, 0.42, 0.16, 1.7);                  // lit ring
+        // 2026-11-25 (world2): the plate is ONE soft lathe, top at PAD_T = 0.12 H above the flattened ground (was 0.74-0.96 H: a table). r is a fraction of the pad radius (X/Z scale 15 L), y is in L (Y scale 1 L).
+        // Plate top (r <= 0.84) at PAD_T, a slightly lower rim to the edge, then a 3-step bevelled edge down below the ground (so no gap on a slope); the lit ring + 6 corner studs are soft emissive violet (aPart >= 3).
+        pg2.lathe(0, 0, [[0, PAD_T, 0.95], [0.838, PAD_T, 0.95], [0.844, PAD_T * 0.8, 0.62], [0.9935, PAD_T * 0.8, 0.6], [0.9962, PAD_T * 0.62, 0.5], [0.9985, PAD_T * 0.38, 0.5], [1.0, PAD_T * 0.12, 0.5], [1.0, -0.03, 0.5]], 28);
+        pg2.lathe(0, 0, [[0.30, PAD_T, 3.8], [0.3045, PAD_T + 0.006, 3.8], [0.315, PAD_T + 0.011, 3.8], [0.405, PAD_T + 0.011, 3.8], [0.4155, PAD_T + 0.006, 3.8], [0.42, PAD_T, 3.8]], 28);
         for (var hc = 0; hc < 6; hc++) {
             var ha = hc / 6 * Math.PI * 2, hx = Math.cos(ha) * 0.92, hz = Math.sin(ha) * 0.92;
-            pg2.box(hx - 0.035, 0.1, hz - 0.035, hx + 0.035, 0.34, hz + 0.035, 2.3);
+            pg2.lathe(hx, hz, [[0, PAD_T + 0.04, 3.6], [0.016, PAD_T + 0.038, 3.6], [0.026, PAD_T + 0.028, 3.6], [0.03, PAD_T + 0.01, 3.5], [0.03, PAD_T * 0.8 - 0.002, 3.5]], 10);
         }
         var bg = new GeoBuilder();
         bg.rbox(-3, -0.8, -2.5, 3, 3.2, 2.5, 1.0, 0.9);        // main block
@@ -1671,6 +1691,7 @@ export function createPlanetSurface(engine, L) {
                 vertexShader: OUT_VERT, fragmentShader: OUT_FRAG, side: THREE.DoubleSide, toneMapped: false,
                 polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3
             }), NPAD);
+            m.material.uniforms.uVio = { value: new THREE.Vector3(0.68, 0.52, 1.0) };
             m.count = 0; m.frustumCulled = false; m.renderOrder = 2; m.onBeforeRender = syncRide; m.name = name;
             a.ride.add(m);
             return { mesh: m, col: col };
@@ -1814,8 +1835,8 @@ export function createPlanetSurface(engine, L) {
             var ux = f.e1[0] * cy2 + f.e2[0] * sy2, uy = f.e1[1] * cy2 + f.e2[1] * sy2, uz = f.e1[2] * cy2 + f.e2[2] * sy2;   // pad X (toward building)
             var vx = -f.e1[0] * sy2 + f.e2[0] * cy2, vy = -f.e1[1] * sy2 + f.e2[1] * cy2, vz = -f.e1[2] * sy2 + f.e2[2] * cy2;
             var rad = R * (1 + f.h), sp = PAD_L * L, o = i * 16, m4 = new THREE.Matrix4();
-            // pad instance: X/Z = hex radius, Y = 1 L, lifted a hair above the flat ground
-            var lift = 0.1 * L;
+            // pad instance: X/Z = pad radius, Y = 1 L, seated ON the flattened ground (plate top = PAD_T = 0.12 H above it: the ground truth / strut floor is that plane, the plate is a 0.12 H lip)
+            var lift = 0;
             pm[o] = ux * sp; pm[o + 1] = uy * sp; pm[o + 2] = uz * sp; pm[o + 3] = 0;
             pm[o + 4] = d.x * L; pm[o + 5] = d.y * L; pm[o + 6] = d.z * L; pm[o + 7] = 0;
             pm[o + 8] = vx * sp; pm[o + 9] = vy * sp; pm[o + 10] = vz * sp; pm[o + 11] = 0;

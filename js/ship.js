@@ -5215,7 +5215,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') { questDeliver(ft.obj); r28Checkout(); } else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'cvs') cvsUse(ft.obj);
         else if (ft.kind === 'creature') tameStart(ft.obj);
         else if (ft.kind === 'resource') harvStart(ft.obj);
-        else if (ft.kind === 'world') ft.obj.use({ aPlay: aPlay, giveItem: function (it) { giveItem(it, 1); } });
+        else if (ft.kind === 'world') ft.obj.use({ aPlay: aPlay, giveItem: function (it) { giveItem(it, 1); }, heal: function (frac) { hp = Math.min(hpMax, hp + hpMax * clamp(+frac || 1, 0, 1)); sinceHit = 0; } });      // F · REST restores health
         else punch();
     }
     // rev 19: "near the ship" = within BOARD_L ship lengths of the spot on the ground directly under the hull (the old test measured to the hull origin, ~1.1 L above the feet, so it was never true on foot)
@@ -5335,7 +5335,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
 
     // ─── rev 29: solid objects on the planet (store + burger-house boxes, the parked hull) and jetpack FLIGHT ───────────────────────────────────────────────
-    var fl = { on: false, pit: 0, wy: 0, wp: 0, th: 0, cr: 0, lock: false, tag: '', v: new THREE.Vector3(), alt: 0 }, flT = 0;
+    var fl = { cr: 0 }, flT = 0;      // fl.cr = landing crouch (the jetpack FLIGHT mode was removed 2026-11-25)
     // Q17b2: fractal depth persistence + HUD chip. depthMod is a guarded import like ship-styles: failure leaves depth 0 and nothing else changes.
     var depthMod = null, depthOwner = null, depthStack = [], elDepth = document.createElement('div'), depthTag = '';
     elDepth.className = 'sh-depth'; hud.appendChild(elDepth);
@@ -5346,15 +5346,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function depthHud() {
         var t = depthStack.length ? 'DEPTH ' + depthStack.length : '';
-        if (t !== depthTag) { depthTag = t; elDepth.textContent = t; elDepth.classList.toggle('is-on', !!t); }
+        if (t !== depthTag) { depthTag = t; idleWake(); elDepth.textContent = t; elDepth.classList.toggle('is-on', !!t); }
     }
     import('./ship-depth.js').then(function (m) { depthMod = m; depthLoad(); }).catch(function (e) { console.info('[ship] ship-depth unavailable (depth 0 only)', e); });
-    var elFlight = document.createElement('div'); elFlight.className = 'sh-flight'; hud.appendChild(elFlight);
-    function flHud(on, alt) {
-        var t = on ? 'FLIGHT · ' + Math.round(alt) + ' H' : '';
-        if (t !== fl.tag) { fl.tag = t; elFlight.textContent = t; elFlight.classList.toggle('is-on', on); }
-    }
-    function flKill() { if (!fl) return; fl.on = false; fl.v.set(0, 0, 0); fl.th = 0; fl.cr = 0; flT = 0; flHud(false, 0); }
+    function flKill() { fl.cr = 0; flT = 0; }
     var opList = [], opPool = [], opA = new THREE.Vector3(), opB = new THREE.Vector3(), opC = new THREE.Vector3(), opU = new THREE.Vector3(), opBhI = new THREE.Matrix4(), opCvI = new THREE.Matrix4(), OP_HS = [0.25, 0.75];
     function objBegin() {      // the solid sets for this frame (planet-local frame); returns how many
         var n = 0, i, s, I, bh = world && world.burgerHouse;
@@ -5433,7 +5428,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function footStep(dt, c, qM) {
         if (!foot) foot = createFoot({
             THREE: THREE, FOOT_SLIDE_A: FOOT_SLIDE_A, FOOT_SLIDE_K: FOOT_SLIDE_K, G_WALK: G_WALK, G_RUN: G_RUN, JET_HOLD: JET_HOLD, JET_UP: JET_UP, MOUSE_SENS: MOUSE_SENS,
-            R27: R27, X: X, aPlay: aPlay, clamp: clamp, damp: damp, fl: fl, flHud: flHud, footFloor: footFloor, footWind: footWind, fsC: fsC, fsC2: fsC2, fsT: fsT,
+            R27: R27, X: X, aPlay: aPlay, clamp: clamp, damp: damp, fl: fl, footFloor: footFloor, footWind: footWind, fsC: fsC, fsC2: fsC2, fsT: fsT,
             gA: gA, gB: gB, gC: gC, gD: gD, gE: gE, gQ: gQ, gQi: gQi, groundCam: groundCam, hum: hum, jetFx: jetFx, mFloor: mFloor, mM: mM, objBegin: objBegin, objPush: objPush,
             styEggTick: styEggTick, styU: styU, styUpW: styUpW, styWallO: styWallO, styleFx: styleFx, styleStep: styleStep, styleSync: styleSync, vTmp: vTmp,
             get fx() { return fx; }, get L() { return L; }, get ps() { return ps; }, get keys() { return keys; }, get cmdOpen() { return cmdOpen; }, get curStyle() { return curStyle; },
@@ -5519,7 +5514,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         // prompt
         if (gmode === 'landing') setPrompt('', false);
         else if (gmode === 'landed') setPrompt('Z · STEP OUT · HOLD LIFT OFF', true);
-        else if (gmode === 'foot' && !storeOpen && !invOpen && footTarget().kind) setPrompt(ftI.label, true);
+        else if (gmode === 'foot' && !storeOpen && !invOpen && footTarget().kind && !((ftI.kind === 'creature' || ftI.kind === 'resource') && nearShip())) setPrompt(ftI.label, true);      // inside the hatch radius the board line wins over TAME / HARVEST (one hint line)
         else if (nearShip()) setPrompt(R25.mod ? 'Z · ENTER SHIP · HOLD LIFT OFF' : 'Z · BOARD', true);
         else setPrompt(gbHintText, false);      // GOR BALL region: 'B · THROW GOR BALL xn' / 'NO GOR BALLS · 7/11' when a catchable is within 25 H
         if (net) { net.sendPos(); net.update(dt, dockA); ghostFx(); }
@@ -7686,7 +7681,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function hubToWorld(ph, out) { hubToLocal(ph, out); var n = land.node; return out.applyQuaternion(n.mesh.quaternion).add(n.anchor.position); }
     function hubEnter() {
         var hb = HB.hub; if (!hb || HB.in || gmode !== 'foot' || !hum.obj) return false;
-        jetKill(); fl.on = false; for (var i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob && !R27.gnd[i].hub) gndFree(R27.gnd[i]);
+        jetKill(); for (var i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob && !R27.gnd[i].hub) gndFree(R27.gnd[i]);
         HB.in = true; hubNetEnter(); HB.p.fromArray(hb.interior.spawn); HB.vy = 0; HB.air = false; HB.fight = null; HB.cd = 0; HB.camD = 3;
         hum.hf.set(0, 0, 1).applyQuaternion(HB.q); hum.face.copy(hum.hf); hum.pitch = 0.3; hum.air = false; hum.vv = 0; camRelInit = false; mdx = mdy = 0;
         hum.up.copy(HB.up); hubToLocal(HB.p, hum.pos); hum.hr = hum.gr = hum.vh = hum.pos.length();
@@ -7745,7 +7740,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         gA.copy(hum.face).applyQuaternion(qM); gB.copy(up).applyQuaternion(qM); styUpW.copy(gB);
         gC.crossVectors(gA, gB); gD.copy(gA).negate(); mM.makeBasis(gC, gB, gD);
         o.group.quaternion.setFromRotationMatrix(mM); o.group.position.copy(hum.w); o.group.scale.set(H, H, H);
-        flHud(false, 0);
         o.update(dt, { moving: moving, running: run, airborne: HB.air, speed: moving ? (run ? 1 : 0.5) : 0, facing: 0, jet: 0, scan: scanT > 0 ? Math.min(1, scanT / 1.2) : 0 });
         // camera: orbit behind the head, shortened until the ray is clear of walls / floor / ceiling
         hbC.set(p.x, p.y + 1.44, p.z); hbD.copy(hum.hf).applyQuaternion(HB.qi); hbD.y = 0; hbD.normalize();
@@ -8202,7 +8196,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         questExpire(); qObjTick(0.5);
         var t = state === 'piloting' ? trackerText() : '';
         if (t !== qTrkC) {      // HUD system: one dim line, the first quest, "+N" for the rest
-            qTrkC = t; elQT.textContent = ''; var parts = t ? t.split('\n\n') : [];
+            qTrkC = t; idleWake(); elQT.textContent = ''; var parts = t ? t.split('\n\n') : [];
             if (parts.length) { var l = parts[0].split('\n'); elQT.innerHTML = '<b>' + qEsc(l[0]) + '</b><span>' + qEsc(l[1] || '') + (parts.length > 1 ? ' · +' + (parts.length - 1) : '') + '</span>'; }
             elQT.classList.toggle('is-on', !!t);
         }
@@ -8300,7 +8294,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             hud.style.setProperty('--hud-dim', ground ? 'rgba(' + ik.join(',') + ',0.7)' : '');
         }
         if (hum.moving || hum.air || hum.running) idleS.t = 0; else idleS.t += dt;
-        var want = ground && idleS.t > 4 && !document.body.classList.contains('sh-fight');
+        var want = ground && idleS.t > 6 && !document.body.classList.contains('sh-fight');
         if (want !== idleS.on) { idleS.on = want; hud.classList.toggle('is-idle', want); }
     }
     function idleWake() { idleS.t = 0; if (idleS.on) { idleS.on = false; hud.classList.remove('is-idle'); } }
@@ -10578,7 +10572,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function wxTick() {
         var node = ps && ps.active, tx = '';
         if (node && ps.depth > 0.02 && ps.weather && WX_G[ps.weather.state]) tx = WX_G[ps.weather.state];
-        if (tx !== R27.wxTxt) { R27.wxTxt = tx; elWx.textContent = tx; elWx.classList.toggle('is-on', !!tx); elWx.setAttribute('data-wx', tx ? ps.weather.state : ''); }
+        if (tx !== R27.wxTxt) { R27.wxTxt = tx; idleWake(); elWx.textContent = tx; elWx.classList.toggle('is-on', !!tx); elWx.setAttribute('data-wx', tx ? ps.weather.state : ''); }
     }
     function r27Tick(dt) {
         R27.t += dt;

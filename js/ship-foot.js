@@ -1,5 +1,5 @@
-// ship-foot.js — the on-foot controller split out of ship.js (Q27, zero behaviour change): footStep + jetpack flightStep + their private constants/scratch.
-//   createFoot(ctx) -> { footStep(dt, c, qM) -> focus Vector3, flightStep(dt, c, qM) }
+// ship-foot.js — the on-foot controller split out of ship.js (Q27, zero behaviour change): footStep (jetpack included: hold Space in the air) + its private constants/scratch.
+//   createFoot(ctx) -> { footStep(dt, c, qM) -> focus Vector3 }
 //   ctx = ship.js state. Stable objects/functions/constants are plain properties (captured once, at first use); state ship.js reassigns is read/written
 //   through the accessor properties (S.mdx, S.keys, S.ps, ...), so there is exactly one copy of every variable.
 //   2026-11-25: camera constants are CAM (top of this file): boom 3.2 H, wheel zoom 2-5 H, wall / roof pull-in (probes along the boom through ctx.objPush, snap in, ease out 6 H/s), indoor mode under a roof (boom 1.6 H,
@@ -37,18 +37,21 @@ export const SEAT = { req: null, on: false, leave: false, armed: false, k: 0, po
 export function createFoot(ctx) {
     var S = ctx, THREE = ctx.THREE;
     var FOOT_SLIDE_A = ctx.FOOT_SLIDE_A, FOOT_SLIDE_K = ctx.FOOT_SLIDE_K, G_WALK = ctx.G_WALK, G_RUN = ctx.G_RUN, JET_HOLD = ctx.JET_HOLD, JET_UP = ctx.JET_UP, MOUSE_SENS = ctx.MOUSE_SENS;
-    var R27 = ctx.R27, X = ctx.X, aPlay = ctx.aPlay, clamp = ctx.clamp, damp = ctx.damp, fl = ctx.fl, flHud = ctx.flHud, footFloor = ctx.footFloor, footWind = ctx.footWind;
+    var R27 = ctx.R27, X = ctx.X, aPlay = ctx.aPlay, clamp = ctx.clamp, damp = ctx.damp, fl = ctx.fl, footFloor = ctx.footFloor, footWind = ctx.footWind;
     var fsC = ctx.fsC, fsC2 = ctx.fsC2, fsT = ctx.fsT, gA = ctx.gA, gB = ctx.gB, gC = ctx.gC, gD = ctx.gD, gE = ctx.gE, gQ = ctx.gQ, gQi = ctx.gQi;
     var groundCam = ctx.groundCam, hum = ctx.hum, jetFx = ctx.jetFx, mFloor = ctx.mFloor, mM = ctx.mM, objBegin = ctx.objBegin, objPush = ctx.objPush;
     var styEggTick = ctx.styEggTick, styU = ctx.styU, styUpW = ctx.styUpW, styWallO = ctx.styWallO, styleFx = ctx.styleFx, styleStep = ctx.styleStep, styleSync = ctx.styleSync, vTmp = ctx.vTmp;
     var G_GRAV = 16, G_GRAV_UP = 7.93, G_JUMP = 5.34;   // apex 1.8 H; walk / run speed = ctx.G_WALK / G_RUN (ship.js)   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
+    // JETPACK (one mechanism: hold Space in the air = burn; no flight mode, no orientation change). Units: H = human heights.
+    //   RAMP s to full thrust (vertical accel = VMAX / RAMP), VMAX the vertical speed cap (H/s), DIVE_G Shift-in-air fall accel as a multiple of G_GRAV (fixed, no exponential), DIVE_CAP terminal fall (H/s).
+    //   Horizontal: run speed with the normal ground easing (pilotRamp). Camera smoothing (VH_EASE) is the same on ground and in air; the indoor camera is frozen off above ROOF_FREEZE H over the floor.
+    var JET = { RAMP: 0.25, VMAX: 14, DIVE_G: 2, DIVE_CAP: 48, VH_EASE: 26, VH_LAG: 0.35, ROOF_FREEZE: 3.2 };
     var camZoom = CAM.BOOM;      // the wheel moves this between CAM.ZOOM_MIN and CAM.ZOOM_MAX
-    var FL_HOLD = 2, FL_V = 36;
-    var JET_RAMP = 1.2, JET_DIVE = 16, DIVE_V0 = 3, DIVE_TAU = 0.6, DIVE_CAP = 48, stepPh = 0.6, camDip = 0;      // 2026-10-14 jump: apex 1.2 H in 0.55 s (v0 4.36 H/s, g_up 7.93, falling g 16); Shift dive v = v0 * 2^(t/0.6) capped at 48 H/s      // 2026-10-14: jetpack climb ramp (s to 3.5x), Shift dive speed (heights/s), footstep phase               // rev 29: hold Space this many s = jetpack FLIGHT; flight cruise speed (heights/s)
+    var stepPh = 0.6, camDip = 0;
     var WALL_TAN = Math.tan(70 * Math.PI / 180);      // Q06: terrain steeper than 70 deg along the move counts as a wall
     var FOOT_SUB = 0.12, fsD = new THREE.Vector3();
     // unstyled (PILOT) ground model: speed ramps with FEEL.ACC_T / FRIC_T (0.18 s up, 0.14 s down); direction is instant, a reversal brakes to 0 in TURN_T first
-    var gv = 0, gdir = new THREE.Vector3(), JET_A = 60, DIVE_A = 90;      // JET_A / DIVE_A: vertical H/s^2 toward the burn / dive target (linear)
+    var gv = 0, gdir = new THREE.Vector3();
     function pilotRamp(dt, up, moving, wish, top, topRef) {
         var lim = 0.02 * topRef;
         gdir.addScaledVector(up, -gdir.dot(up)); if (gdir.lengthSq() < 1e-8) gdir.copy(wish); gdir.normalize();
@@ -106,12 +109,14 @@ export function createFoot(ctx) {
     function indoorTick(dt, up, hr, H) {
         var k, hits = 0, step;
         indProbeT -= dt;
+        var hiAir = hum.air && hr - hum.gr > JET.ROOF_FREEZE * H;      // flying over / above a roof: no indoor toggling (hysteresis)
+        if (hiAir) { indRaw = false; indAgree = 0; indTgt = 0; }
         if (indProbeT <= 0) {
             indProbeT = 0.1;
             for (k = 0; k < CAM.ROOF_PROBES.length; k++) { kP.copy(up).multiplyScalar(hr + CAM.ROOF_PROBES[k] * H); if (probeHit(kP, up, H)) hits++; }
             indRaw = hits >= 2;
         }
-        if (indRaw !== (indTgt > 0.5)) { indAgree += dt; if (indAgree >= (indRaw ? CAM.ROOF_ON : CAM.ROOF_OFF)) { indTgt = indRaw ? 1 : 0; indAgree = 0; } } else indAgree = 0;
+        if (hiAir) { /* held off */ } else if (indRaw !== (indTgt > 0.5)) { indAgree += dt; if (indAgree >= (indRaw ? CAM.ROOF_ON : CAM.ROOF_OFF)) { indTgt = indRaw ? 1 : 0; indAgree = 0; } } else indAgree = 0;
         step = dt / CAM.INDOOR_EASE; indK += indTgt > indK ? Math.min(step, indTgt - indK) : -Math.min(step, indK - indTgt);
         return indK * indK * (3 - 2 * indK);
     }
@@ -132,92 +137,11 @@ export function createFoot(ctx) {
         camZoom = clamp(camZoom + clamp(e.deltaY, -120, 120) * CAM.WHEEL_K, CAM.ZOOM_MIN, CAM.ZOOM_MAX);
     }, { passive: true });
     function vTo(tgt, step) { var d = tgt - hum.vv; hum.vv += d > step ? step : d < -step ? -step : d; }
-    function flightStep(dt, c, qM) {
-        var H = hOf(S.L), o = hum.obj, up = hum.up, k, v = fl.v;
-        if (S.cmdOpen) { S.mdx = S.mdy = 0; }
-        up.copy(hum.pos).normalize();
-        var wy = clamp(S.mdx * MOUSE_SENS * 1.3 / dt, -3, 3), wp = clamp(S.mdy * MOUSE_SENS * 1.3 / dt, -2.5, 2.5);
-        S.mdx = S.mdy = 0;
-        fl.wy += (wy - fl.wy) * damp(7, dt); fl.wp += (wp - fl.wp) * damp(7, dt);      // weighted: the body lags the mouse like the ship does, lighter
-        hum.hf.applyAxisAngle(up, -fl.wy * dt);
-        hum.hf.addScaledVector(up, -hum.hf.dot(up));
-        if (hum.hf.lengthSq() < 1e-8) hum.hf.crossVectors(up, X);
-        hum.hf.normalize();
-        var kW = !S.cmdOpen && !!S.keys.KeyW, kS = !S.cmdOpen && !!S.keys.KeyS, kSp = !S.cmdOpen && !!S.keys.Space, kSh = !!(S.keys.ShiftLeft || S.keys.ShiftRight), thr = kW || kSp;
-        fl.pit = clamp(fl.pit - fl.wp * dt, -1.3, 1.3);
-        if (!thr) fl.pit *= Math.exp(-1.6 * dt);                           // auto-level
-        flF.copy(hum.hf).multiplyScalar(Math.cos(fl.pit)).addScaledVector(up, Math.sin(fl.pit));
-        var vmax = FL_V * H * (1 + 0.12 * R27.su.jetpack) * (kSh ? 2 : 1) * S.fxSpeed;
-        if (kW) v.addScaledVector(flF, 70 * H * (kSh ? 1.6 : 1) * dt);
-        if (kSp) v.addScaledVector(up, 60 * H * (kSh ? 1.4 : 1) * dt);
-        else if (kSh && !kW) v.addScaledVector(up, -80 * H * dt);           // 2026-10-14: Shift alone pulls you back down
-        if (kS) v.multiplyScalar(Math.exp(-5 * dt));                         // brake
-        v.multiplyScalar(Math.exp(-(thr ? 0.35 : 0.9) * dt));
-        if (!kSp) v.addScaledVector(up, -G_GRAV * H * (kW ? 0.1 : 0.6) * dt);   // glide down
-        var vl = v.length(); if (vl > vmax) { v.multiplyScalar(vmax / vl); vl = vmax; }
-        var nSub = clamp(Math.ceil(vl * dt / (0.3 * H)), 1, 40), h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, sup = footFloor(dir, H), touched = false, vUp0 = v.dot(up), opN = objBegin(), vn, ln;
-        if (hr - sup > 400 * H && vUp0 > 0) v.addScaledVector(up, -vUp0);
-        for (k = 0; k < nSub; k++) {                                       // swept, substepped: each substep is <= 0.3 H, the capsule radius is 0.22 H
-            fsC.copy(dir).multiplyScalar(hr).addScaledVector(v, h);
-            if (opN) {
-                fsT.copy(fsC);
-                if (objPush(fsC, H)) {
-                    flA.subVectors(fsC, fsT); ln = flA.length();
-                    if (ln > 0) { flA.divideScalar(ln); vn = v.dot(flA); if (vn < 0) v.addScaledVector(flA, -vn); if (flA.dot(up) > 0.7) touched = true; }      // resting on a roof / shelf top counts as touchdown
-                }
-            }
-            hr = fsC.length(); dir.copy(fsC).divideScalar(hr || 1);
-            sup = footFloor(dir, H);
-            if (hr <= sup) {
-                hr = sup; touched = true; vn = v.dot(dir); if (vn < 0) v.addScaledVector(dir, -vn);
-                if (opN) { fsC.copy(dir).multiplyScalar(hr); if (objPush(fsC, H)) { hr = fsC.length(); dir.copy(fsC).divideScalar(hr || 1); } }      // Q47: the floor clamp must not seat the capsule back inside a store box
-            }
-        }
-        hum.gr = sup; hum.hr = hr; hum.vv = v.dot(dir); hum.air = true; hum.moving = true; hum.running = true;
-        hum.pos.copy(dir).multiplyScalar(hr); up.copy(dir); hum.vh = hr;
-        if (touched && !kSp) { fl.on = false; fl.lock = false; hum.air = false; hum.vv = 0; fl.cr = clamp(0.45 + Math.abs(vUp0) / (14 * H), 0.45, 1); fl.v.set(0, 0, 0); aPlay('footLand', { vel: fl.cr }); }
-        fl.alt = Math.max(0, (hr - sup) / H);
-        fl.th += ((thr ? (kSh ? 1 : 0.7) : 0) - fl.th) * damp(6, dt);
-        // pose: body forward = flight forward leaned nose-down with thrust
-        var bp = clamp(fl.pit - 0.55 * fl.th * (kW ? 1 : 0.3), -1.45, 1.45);
-        flA.copy(hum.hf).multiplyScalar(Math.cos(bp)).addScaledVector(up, Math.sin(bp));
-        fsT.copy(up).multiplyScalar(hr).applyQuaternion(qM).add(c); hum.w.copy(fsT);
-        hum.face.copy(hum.hf);
-        gA.copy(flA).applyQuaternion(qM); gB.copy(up).applyQuaternion(qM);
-        gC.crossVectors(gA, gB).normalize(); gE.crossVectors(gC, gA); gD.copy(gA).negate();
-        mM.makeBasis(gC, gE, gD);
-        o.group.quaternion.setFromRotationMatrix(mM);
-        o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr), H);
-        o.update(dt, { moving: true, running: true, airborne: true, speed: 1, facing: 0, jet: S.jetLvl, scan: S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0 });
-        jetFx(dt, fl.on ? Math.max(0.35, fl.th) : 0, H, qM, c, dir, sup, hr);
-        flHud(fl.on, fl.alt);
-        // camera: behind and a little above the flying human, along the (damped) flight pitch; never under the floor
-        var cpi = fl.pit * 0.75;
-        flA.copy(hum.hf).multiplyScalar(Math.cos(cpi)).addScaledVector(up, Math.sin(cpi)).negate().multiplyScalar(camZoom * H).addScaledVector(up, 0.7 * H);
-        kH.copy(up).multiplyScalar(hr + 0.5 * H); kW.copy(kH).add(flA);
-        flA.multiplyScalar(camClip(dt, kH, kW, up, H));      // flying past a hut / the store: the boom shortens instead of going through the wall
-        gA.copy(flA).applyQuaternion(qM);
-        gC.copy(gB).multiplyScalar(0.5 * H).add(hum.w);
-        gD.copy(gC).add(gA);
-        vTmp.subVectors(gD, c);
-        var cr = vTmp.length();
-        gQi.copy(qM).invert(); fsT.copy(vTmp).applyQuaternion(gQi);
-        var cfr = mFloor(fsT.x, fsT.y, fsT.z);
-        if (cr < cfr + 0.04 * S.L) gD.copy(c).addScaledVector(vTmp.divideScalar(cr || 1), cfr + 0.04 * S.L);
-        mM.lookAt(gD, gC, gB); gQ.setFromRotationMatrix(mM);
-        groundCam(dt, gC, gD, gQ, 10);
-        return gC;
-    }
     function footStep(dt, c, qM) {
         var H = hOf(S.L), o = hum.obj, up = hum.up, i, k;
         if (S.cmdOpen) { S.mdx = S.mdy = 0; }
         up.copy(hum.pos).normalize();
-        // rev 29: hold Space FL_HOLD s (continuously, in the air) = jetpack FLIGHT
         styleSync(); styEggTick(dt); var sty = S.curStyle, sr = null, sSpd = -1, air0 = hum.air, vv0 = hum.vv;
-        var flWant = !S.cmdOpen && !!S.keys.Space;
-        if (flWant && !fl.lock) S.flT += dt; else { S.flT = 0; if (!flWant) fl.lock = false; }
-        if (!fl.on && hum.air && S.flT >= FL_HOLD) { fl.on = true; fl.pit = 0; fl.wy = fl.wp = 0; fl.th = 0; fl.cr = 0; fl.v.copy(up).multiplyScalar(Math.max(0, hum.vv)); }
-        if (fl.on) return flightStep(dt, c, qM);
         if (fl.cr > 0) fl.cr = Math.max(0, fl.cr - dt * 3.2);
         // look
         if (S.mdx !== 0) hum.hf.applyAxisAngle(up, -S.mdx * MOUSE_SENS * 1.3);
@@ -259,9 +183,7 @@ export function createFoot(ctx) {
         var jsm = S.jsm || (S.jsm = mkJetSM()), jt = jetStep(jsm, dt, wantJump, hum.air, !!(S.keys.ShiftLeft || S.keys.ShiftRight) && !S.cmdOpen, !!sty), jetMul = sty ? jetThrust(sty.id) : 1;
         S.jetT = jt.t;
         var dive = jt.dive;
-        if (dive) { if (!(hum.diveT > 0)) hum.diveV0 = Math.max(DIVE_V0, -hum.vv / H); hum.diveT = jt.diveT; } else hum.diveT = 0;
-        var diveV = Math.min(DIVE_CAP, (hum.diveV0 || DIVE_V0) * Math.pow(2, Math.min(hum.diveT, 8) / DIVE_TAU));      // exponential in hold time, from the speed you already have
-        var jet = jt.jet, jetK = jt.k * jetMul;
+        var jet = jt.jet;
         // substepped capsule motion in the local frame
         var spd = (sSpd >= 0 ? sSpd : (jet ? G_RUN * (1 + 0.12 * R27.su.jetpack) : (run ? G_RUN * (1 + 0.1 * R27.su.sprint) : G_WALK))) * H * S.fxSpeed, nSub = 1;
         if (sSpd < 0) {          // PILOT: explicit accel / friction / turnaround, then keep walking in the old direction while the speed coasts down
@@ -300,8 +222,8 @@ export function createFoot(ctx) {
                 }
             }
             if (hum.air) {
-                if (jet) { vTo(JET_UP * jetK * (1 + 0.2 * R27.su.jetpack) * H, JET_A * H * h); if (hr > supNow + 400 * H) hum.vv = Math.min(hum.vv, 0); }
-                else if (dive) vTo(-diveV * H, DIVE_A * H * h);
+                if (jet) { vTo(JET.VMAX * jetMul * H, (JET.VMAX / JET.RAMP) * H * h); if (hum.vv > JET.VMAX * jetMul * H) hum.vv = JET.VMAX * jetMul * H; if (hr > supNow + 400 * H) hum.vv = Math.min(hum.vv, 0); }
+                else if (dive) hum.vv = Math.max(-JET.DIVE_CAP * H, hum.vv - JET.DIVE_G * G_GRAV * H * h);
                 else if (!sty) hum.vv -= (hum.vv > 0 ? G_GRAV_UP : G_GRAV) * H * h;      // styles integrate their own gravity
                 hr += hum.vv * h;
                 if (hr <= supNow && !(sty && hum.vv > 0)) { hr = supNow; hum.vv = 0; hum.air = false; }
@@ -325,9 +247,10 @@ export function createFoot(ctx) {
         up.copy(dir);
         // visual height: eases toward the physical one (hides the sub-height snaps of a patch re-centre), never below the ground
         if (!(hum.vh > 0)) hum.vh = hr;
-        if (hum.air || Math.abs(hum.vh - hr) > 1.5 * H) hum.vh = hr;      // airborne, or teleported / dropped a long way: no easing
+        if (Math.abs(hum.vh - hr) > 1.5 * H && !hum.air) hum.vh = hr;      // teleported / dropped a long way: no easing
         else {
-            hum.vh += (hr - hum.vh) * damp(26, dt);
+            hum.vh += (hr - hum.vh) * damp(JET.VH_EASE, dt);      // same time-constant on ground and in air
+            if (hum.vh > hr + JET.VH_LAG * H) hum.vh = hr + JET.VH_LAG * H; else if (hum.vh < hr - JET.VH_LAG * H) hum.vh = hr - JET.VH_LAG * H;
             if (hum.vh < hr - 0.03 * H) hum.vh = hr - 0.03 * H;
         }
         fsT.copy(up).multiplyScalar(hum.vh);
@@ -339,8 +262,8 @@ export function createFoot(ctx) {
         gC.crossVectors(gA, gB); gD.copy(gA).negate();
         mM.makeBasis(gC, gB, gD);
         o.group.quaternion.setFromRotationMatrix(mM);
-        o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr) * (1 - 0.28 * SEAT.k), H);      // seated: the rig squashes to 0.72 H (ship-human.js has no sit pose; see changes-world.md)
-        flHud(false, 0);
+        o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr), H);      // seated: ship-human.js 'sit' pose (no squash); camera drop below stays
+        if (o.setPose) { if (SEAT.on) o.setPose('sit'); else if (o.pose === 'sit') o.setPose(''); }
         if (hum.sAnim) { var ua = Object.assign(styU, hum.sAnim); ua.facing = 0; ua.jet = S.jetLvl; ua.scan = S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0; ua.vH = sSpd >= 0 ? sSpd : undefined; ua.dist = sSpd >= 0 && !hum.air ? sSpd * dt : undefined; ua.turn = ftTurn; ua.look = lookFeed(dt, H, up); o.group.userData.groundAt = groundAtFoot; o.update(dt, ua); }
         else { o.group.userData.groundAt = groundAtFoot; o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, cad: moving ? clamp(spd / (G_RUN * H), 0.3, 1.2) : 0, vH: moving ? spd / H : 0, dist: moving && !hum.air ? spd * dt / H : 0, turn: ftTurn, look: lookFeed(dt, H, up), facing: 0, jet: S.jetLvl, scan: S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0 }); }
         jetFx(dt, jet, H, qM, c, dir, supNow, hr);
@@ -371,5 +294,5 @@ export function createFoot(ctx) {
         groundCam(dt, gC, gD, gQ, camSnap ? 40 : 16);
         return gC;
     }
-    return { footStep: footStep, flightStep: flightStep };
+    return { footStep: footStep };
 }
