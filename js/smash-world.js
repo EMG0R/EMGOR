@@ -12,6 +12,7 @@ import { FIGHTER_IDS, FIGHTERS } from './smash-fighters.js';
 import { buildAtlas } from './smash-sprites.js';
 import { createTerrainVisual } from './smash-stages.js';
 import { createUI } from './smash-ui.js';
+import { PHYS } from './smash-phys.js';
 
 const PHYS_H = 36;      // smash-phys H (character height, px)
 const STYLE_MAP = { MARO: 'pilot', JOSHI: 'hopper', STEEV: 'builder', SONIK: 'swift' };
@@ -20,6 +21,11 @@ export function styleToFighter(id) {
   const k = String(id == null ? '' : id).toUpperCase(); if (STYLE_MAP[k]) return STYLE_MAP[k];
   let h = 0; for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0; return FIGHTER_IDS[Math.abs(h) % FIGHTER_IDS.length];
 }
+
+// CPU difficulty ladder is 1-9 (smash-bot.js). Callers pass f.cpuLevel (1-9) directly; the old ship.js call passes tier 1/2/3 (easy/med/hard), remapped here so
+// an unpatched caller still gets a real fight: 1 -> L4, 2 -> L6, 3 -> L8.
+const LEGACY_TIER = [0, 4, 6, 8];
+function cpuTier(f) { if (f.cpuLevel > 0) return Math.max(1, Math.min(9, f.cpuLevel | 0)); const t = f.tier | 0; return t >= 1 && t <= 3 ? LEGACY_TIER[t] : t > 3 ? Math.min(9, t) : 0; }
 
 let ATLAS = null; const atlas = () => ATLAS || (ATLAS = buildAtlas(FIGHTER_IDS));
 const SKIP = new Set(['def', 'bot', 'move', 'hbMove', 'pend', 'cd', 'i', 'fid', 'ctrl', 'level', 'tier']);
@@ -62,7 +68,7 @@ export function createFightSession(opts) {
   const stageDef = ringStage(samples, 'terrain_' + (seed >>> 0).toString(16));
   const cols = fighters.map((f, i) => parseCol((opts.playerColors && opts.playerColors[i]) || f.color || PLAYER_COLORS[i % 4]));
   const cfg = {
-    players: fighters.map((f) => ({ fid: f.fid || styleToFighter(f.styleId), def: f.def || null, stocks: f.stocks || 0, ctrl: f.isBot ? 'cpu' : 'net', level: f.level || 2, tier: f.tier || 0 })),
+    players: fighters.map((f) => ({ fid: f.fid || styleToFighter(f.styleId), def: f.def || null, stocks: f.stocks || 0, ctrl: f.isBot ? 'cpu' : 'net', level: f.level || 2, tier: cpuTier(f) })),
     stageDef, seed, stocks: opts.stocks || 2, time: (opts.time || 180) * 60,
   };
   const ownIdx = mode === 'guest' ? fighters.findIndex((f) => f.isLocal) : -1;
@@ -78,7 +84,7 @@ export function createFightSession(opts) {
   const vis = createTerrainVisual(stageDef, opts.skyPalette, seed, opts.skyAlpha);
   vis.drawStage = ringStageDraw(stageDef);
   vis.drawBack = () => {};      // the 3D village is the backdrop: no 2D sky / ridge rects (they boxed the ring in a grey rectangle)
-  let view = newView(); view.cmin = 7 * PHYS_H; view.cmax = 16 * PHYS_H; view.pcol = cols.map((c) => c.rgb); view.tcol = cols.map((c) => c.rgb.map((v) => 0.72 + 0.28 * v));
+  let view = newView(); view.cmin = PHYS.camMin; view.cmax = Math.max(PHYS.camMax, 13 * PHYS_H); view.pcol = cols.map((c) => c.rgb); view.tcol = cols.map((c) => c.rgb.map((v) => 0.72 + 0.28 * v));
   const savedColors = PLAYER_COLORS.slice();
 
   // ---- sim
@@ -251,10 +257,12 @@ export function createFightSession(opts) {
       if (net && net.offMessage) net.offMessage(onMsg);
     },
     update(dt) {
-      if (!running) return; dt = Math.min(0.1, dt || 0); clock += dt; acc += dt; let n = 0;
-      while (acc >= (mode === 'local' && view.slow > 0 ? 2 / 60 : 1 / 60) && n < 5) { acc -= (mode === 'local' && view.slow > 0 ? 2 / 60 : 1 / 60); n++;      // KO slow-mo (local fights only: a relayed match must keep 60 Hz lockstep)
+      if (!running) return; dt = Math.min(0.1, dt || 0); clock += dt;
+      const spd = mode === 'local' ? (PHYS.speed > 0 ? PHYS.speed : 1) : 1;      // sim speed multiplier: local / NPC fights only (a relayed match keeps 1.0 lockstep)
+      acc += dt * spd; let n = 0;
+      while (acc >= (mode === 'local' && view.slow > 0 ? 2 / 60 : 1 / 60) && n < 6) { acc -= (mode === 'local' && view.slow > 0 ? 2 / 60 : 1 / 60); n++;      // KO slow-mo (local fights only: a relayed match must keep 60 Hz lockstep)
         if (!(S.phase === 'over' && (mode === 'host' || mode === 'local' ? done : false))) tick(); }
-      if (n === 5) acc = 0;
+      if (n === 6) acc = 0;
       render(acc * 60);
     },
     setInput(mask, which) { localMask[which | 0] = mask | 0; },

@@ -4,7 +4,8 @@
 import { FIGHTERS, FIGHTER_IDS, AUTO } from './smash-fighters.js';
 import { STAGES, createStageVisual, hazardState, terrainStage } from './smash-stages.js';
 import { buildAtlas } from './smash-sprites.js';
-import { PHYS, physOf, locoStep, groundVx, airVx, fall, knockback, hitlagOf, hitstunOf, launchSpeed, diBend, dirOf as dirOfP } from './smash-phys.js';
+import { sinD, cosD, segSeg2, hurtCaps, hitCapsuleWorld, launchArc, launchDir as launchDirG } from './smash-geom.js';
+import { PHYS, setPreset, physOf, locoStep, groundVx, airVx, fall, knockback, hitlagOf, hitstunOf, launchSpeed, diBend, dirOf as dirOfP } from './smash-phys.js';
 import './smash-moves.js';      // upgrades FIGHTERS in place: physics contract + the full data-driven move table
 import { botInput as botInputImpl, BOT_TIERS as BOT_TIERS_IMPL } from './smash-bot.js';
 
@@ -17,36 +18,11 @@ const FIX = 256, snap = (v) => Math.round(v * FIX) / FIX;
 const sgn = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
-// ---- deterministic math ------------------------------------------------------------------------
-const SIN = new Float64Array(362);
-(function () {
-  for (let d = 0; d <= 361; d++) {
-    const dd = d <= 90 ? d : d <= 270 ? 180 - d : d - 360, x = dd * 3.141592653589793 / 180, x2 = x * x;
-    SIN[d] = x * (1 - x2 / 6 * (1 - x2 / 20 * (1 - x2 / 42 * (1 - x2 / 72 * (1 - x2 / 110 * (1 - x2 / 156))))));
-  }
-})();
-export function sinD(a) { a %= 360; if (a < 0) a += 360; const i = a | 0, fr = a - i; return SIN[i] + (SIN[i + 1] - SIN[i]) * fr; }
-export function cosD(a) { return sinD(a + 90); }
+// ---- deterministic math: sin / cos table + capsule tests live in smash-geom.js (shared with the bot)
+export { sinD, cosD };
 export function hitPitch(d) { return d >= 20 ? 0.6 : d <= 2 ? 1.5 : 1.5 - (d - 2) * 0.05; }
 function wscale(w) { const x = 100 / w - 1; return 1 + 0.8 * x - 0.08 * x * x + 0.032 * x * x * x; } // (100/w)^0.8
 function mulberry(a) { return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-
-function segSeg2(p1x, p1y, q1x, q1y, p2x, p2y, q2x, q2y) {
-  const dx1 = q1x - p1x, dy1 = q1y - p1y, dx2 = q2x - p2x, dy2 = q2y - p2y, rx = p1x - p2x, ry = p1y - p2y;
-  const a = dx1 * dx1 + dy1 * dy1, e = dx2 * dx2 + dy2 * dy2, f = dx2 * rx + dy2 * ry; let s, t;
-  if (a <= 1e-9 && e <= 1e-9) return rx * rx + ry * ry;
-  if (a <= 1e-9) { s = 0; t = clamp(f / e, 0, 1); }
-  else {
-    const c = dx1 * rx + dy1 * ry;
-    if (e <= 1e-9) { t = 0; s = clamp(-c / a, 0, 1); }
-    else {
-      const b = dx1 * dx2 + dy1 * dy2, den = a * e - b * b;
-      s = den !== 0 ? clamp((b * f - c * e) / den, 0, 1) : 0; t = (b * s + f) / e;
-      if (t < 0) { t = 0; s = clamp(-c / a, 0, 1); } else if (t > 1) { t = 1; s = clamp((b - c) / a, 0, 1); }
-    }
-  }
-  const cx = rx + dx1 * s - dx2 * t, cy = ry + dy1 * s - dy2 * t; return cx * cx + cy * cy;
-}
 
 // ---- the ring: terrain stage rebuilt to the stage contract (main platform 12 H, two soft platforms at 2.2 H, blast +-16 H / +14 H up / -7 H down) ----
 export function ringStage(samples, id) {
@@ -60,7 +36,7 @@ export function ringStage(samples, id) {
 }
 
 // ---- the match sim -----------------------------------------------------------------------------
-const STOCKS = 3, TIME = 14400, COUNT = 150;
+const STOCKS = 3, TIME = 14400;
 // stateless hash random (same on host / guest, no stored rng state)
 function rndAt(S, k) { let h = (Math.imul(S.frame, 374761393) + Math.imul(k | 0, 668265263) + Math.imul(S.seed | 0, 362437)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; h = Math.imul(h, 2246822519); h ^= h >>> 13; return (h >>> 0) / 4294967296; }
 const GROUND_STATES = { idle: 1, run: 1, crouch: 1 };
@@ -68,12 +44,12 @@ const GROUND_STATES = { idle: 1, run: 1, crouch: 1 };
 function mkFighter(i, slot, stage, stocks) {
   const def = slot.def || FIGHTERS[slot.fid];      // slot.def: a runtime fighter def (pokemans-fighter.js); fid stays the sprite atlas key
   return {
-    i, fid: slot.fid, def, ctrl: slot.ctrl || 'cpu', level: slot.level || 2, tier: slot.tier || 0,
+    i, fid: slot.fid, def, ctrl: slot.ctrl || 'cpu', level: slot.level || 6, tier: slot.tier || 0,
     x: stage.start[i].x, y: stage.start[i].y, px: stage.start[i].x, py: stage.start[i].y, vx: 0, vy: 0, face: i & 1 ? -1 : 1, grounded: true, landed: false,
     state: 'idle', st: 0, animT: 0, pct: 0, stocks: slot.stocks || stocks || STOCKS, hitlag: 0, pend: null, hitstun: 0, tumble: false, inv: 0, armorNow: 0,
     sh: 180, jumps: def.jumps, upUsed: false, flutterT: 0, jumpT: 99, ff: false, move: null, mf: 0, hitSet: 0, hbMove: null, hbT: 0, moveAir: false,
     bufA: 0, bufB: 0, bufG: 0, bufJ: 0, inp: 0, prev: 0, cd: {}, reflectT: 0, hold: -1, heldBy: -1, holdT: 0, ledge: -1, ledgeT: 0, ledgeLock: 0, dropT: 0,
-    eggT: 0, stunT: 0, lag: 0, deadT: 0, respT: 0, dashx: 0, dashy: 0, res: def.res0 || 0, resT: 0, kos: 0, dealt: 0, taken: 0, eggShield: 1, rollDir: 1,
+    eggT: 0, stunT: 0, lag: 0, deadT: 0, respT: 0, dashx: 0, dashy: 0, res: def.res0 || 0, resT: 0, kos: 0, dealt: 0, taken: 0, eggShield: 1, rollDir: 1, dashT: 0,
     dmgMult: 1, stK: '', stT: 0, bot: null, flash: 0, koDir: 0, hurtMul: def.hurtMul || 1,
     fx: 0, fy: 0, fz: 0, copy: '', copyT: 0, absorbT: 0, final: 0, meter: 0, sleepT: 0,
     adUsed: 0, helpless: 0, turnTo: 0, chgT: 0, chgMul: 1, chgBit: 0, bufS: 0, bufC: 0, cBits: 0, dAgeX: 99, dAgeU: 99, dAgeD: 99, sst: 0, downT: 0, gAtk: 0, kdx: 0, kdy: 0, pumT: 0, rollT: 0, lastLag: 0,
@@ -85,7 +61,7 @@ export function createMatch(cfg) {
   const stage = cfg.stageDef || STAGES[cfg.stage || 'plateau']; // stageDef: runtime stage (terrain fights)
   const slots = (cfg.players || [{ fid: 'pilot', ctrl: 'p1' }, { fid: 'swift', ctrl: 'cpu' }]).filter((p) => p.ctrl !== 'off').slice(0, 4);
   const S = {
-    stage, frame: 0, phase: 'count', count: COUNT, time: cfg.time || TIME, endT: 0, rng: mulberry((cfg.seed | 0) || 1234),
+    stage, frame: 0, phase: 'count', count: PHYS.count, time: cfg.time || TIME, endT: 0, rng: mulberry((cfg.seed | 0) || 1234),
     fighters: slots.map((p, i) => mkFighter(i, p, stage, cfg.stocks)), projs: [], blocks: [], events: [], solids: stage.solids.slice(), nid: 1, result: null,
     ledgeOcc: [-1, -1], seed: (cfg.seed | 0) || 1234, cine: 0, cineWho: -1,
     thin: stage.thin.map((t) => ({ x0: t.x0, x1: t.x1, y: t.y })),
@@ -93,7 +69,7 @@ export function createMatch(cfg) {
   S.ledges = [];
   stage.solids.forEach((s, k) => { S.ledges.push({ x: s.x0, y: s.y0, side: -1 }, { x: s.x1, y: s.y0, side: 1 }); });
   S.ledgeOcc = S.ledges.map(() => -1);
-  S.fighters.forEach((f) => { if (f.ctrl === 'cpu') f.bot = { rng: mulberry(9000 + f.i * 77 + (cfg.seed | 0)), next: 0, tap: 0, hold: 0, shT: 0, lastB: 0, lvl: f.level, turn: 0, tier: f.tier || Math.max(1, Math.min(3, f.level || 2)) }; });
+  S.fighters.forEach((f) => { if (f.ctrl === 'cpu') f.bot = { rng: mulberry(9000 + f.i * 77 + (cfg.seed | 0)), next: 0, tap: 0, hold: 0, shT: 0, lastB: 0, lvl: f.level, turn: 0, tier: f.tier || Math.max(1, Math.min(9, f.level || 6)) }; });
   // services used by the data tables
   S.sfx = (n, p) => S.events.push(p == null ? { t: 'sfx', n } : { t: 'sfx', n, p });
   S.countProj = (f, kind) => S.projs.reduce((a, p) => a + (p.owner === f.i && p.kind === kind ? 1 : 0), 0);
@@ -137,16 +113,6 @@ function mineBlock(S, f) {
 }
 
 // ---- hurt / hit shapes ----------------------------------------------------------------------
-const HURT = [[0, -6, 0, -14, 7], [0, -20, 0, -28, 8], [0, -35, 0, -35, 6]];
-function hurtCaps(f, out) {
-  let k = f.hurtMul;
-  const st = f.state;
-  if (st === 'crouch' || st === 'roll' || st === 'dodge' || st === 'getup') k *= 0.62; else if (st === 'land') k *= 0.85;
-  if (out.length !== 3) { out.length = 0; for (let i = 0; i < 3; i++) out.push([0, 0, 0, 0, 0]); }      // pooled: the 3 capsule arrays are reused, never reallocated per call
-  const hr = f.def.hurtR || (f.fid === 'swift' ? 0.9 : 1);
-  for (let i = 0; i < 3; i++) { const c = HURT[i], o = out[i]; o[0] = f.x + c[0]; o[1] = f.y + c[1] * k; o[2] = f.x + c[2]; o[3] = f.y + c[3] * k; o[4] = c[4] * hr; }
-  return out;
-}
 const _hc = [];
 
 function supportAt(S, f) {
@@ -257,6 +223,7 @@ function loco(S, f) {
     case 'JUMP': S.sfx('jump'); break;
     case 'DJ': S.events.push({ t: 'puff', x: f.x, y: f.y }); S.sfx('jump'); break;
     case 'AD': S.sfx('roll'); break;
+    case 'FF': S.events.push({ t: 'puff', x: f.x, y: f.y - 18 }); S.sfx('boost', 1.6); break;
     case 'LAND': break;
   }
 }
@@ -282,7 +249,10 @@ function stepFighter(S, f) {
       if (f.st >= 18) { f.state = f.grounded ? 'idle' : 'air'; f.st = 0; }
       break;
     }
-    case 'attack': updateAttack(S, f); break;
+    case 'attack':
+      // an up special (noGrav move) grabs the ledge on the way down, like the air state does: recoveries must be able to finish on the ledge
+      if (f.upUsed && f.vy >= 0 && f.ledgeLock === 0 && !f.grounded && f.mf > 8 && f.move && f.move.noGrav && tryLedge(S, f)) { f.move = null; f.hbMove = null; f.chgMul = 1; f.chgT = 0; break; }
+      updateAttack(S, f); break;
     case 'hit': {
       if (f.grounded) { f.vx = f.vx > 0.2 ? f.vx - PHYS.traction * 1.5 : f.vx < -0.2 ? f.vx + PHYS.traction * 1.5 : 0; }
       else {
@@ -485,7 +455,7 @@ function spitFighter(S, f, v) {
 function shieldBreak(S, f) { f.state = 'stun'; f.stunT = 90; f.vy = -4; f.grounded = false; f.sh = 0; S.sfx('break'); S.events.push({ t: 'break', x: f.x, y: f.y - 24 }); }
 
 function respawn(S, f) {
-  const sp = S.stage.spawns[f.i];
+  const sp = S.stage.spawns[S.fighters.length === 2 ? (f.i ? 3 : 0) : f.i];      // a 1v1 respawns on the two outer pads (mirror-symmetric: no seat advantage)
   f.state = 'respawn'; f.st = 0; f.x = sp.x; f.y = sp.y; f.px = f.x; f.py = f.y; f.vx = f.vy = 0; f.respT = 120; f.inv = 120; f.pct = 0; f.sh = 180;
   f.grounded = false; f.move = null; f.hitstun = 0; f.pend = null; f.hitlag = 0; f.face = sp.x < 0 ? 1 : -1; f.eggShield = 1; f.upUsed = false; f.flutterT = 0; f.jumps = f.def.jumps; f.hurtMul = f.def.hurtMul || 1;
   if (f.def.res0) f.res = f.def.res0;
@@ -502,10 +472,7 @@ function koFighter(S, f) {
 }
 
 // ---- combat ---------------------------------------------------------------------------------
-function launchDir(f, ang, dir) {
-  if (ang === AUTO) ang = f.grounded ? 25 : 44;
-  return [cosD(ang) * dir, sinD(ang)];
-}
+const launchDir = (f, ang, dir) => launchDirG(f.grounded, ang, dir);
 
 function hitFighter(S, att, vic, h, dir, src) {
   const dmgMul = att ? att.dmgMult : 1, chg = att && !src && att.chgMul > 1 ? att.chgMul : 1, dmg = h.dmg * dmgMul * chg * (vic.state === 'sleep' ? 1.3 : 1) * (vic.def.takeMul || 1);      // takeMul: creature hp -> how fast percent accrues
@@ -522,7 +489,7 @@ function hitFighter(S, att, vic, h, dir, src) {
   releaseHold(S, vic);
   if (h.eff) { vic.stK = h.eff; vic.stT = 90; }      // creature move effect -> status icon over the victim (visual tag; the dmg/kb shaping lives in the move)
   vic.pct += dmg; if (att) { att.dealt += dmg; meterGain(S, att, dmg * 0.9); } vic.taken += dmg; meterGain(S, vic, dmg * 0.25);
-  let lag = hitlagOf(dmg); if (h.flinch === false) lag = 2;
+  let lag = hitlagOf(dmg); if (h.flinch === false) lag = 2;      // (re-derived below once the knockback is known)
   // armor: damage only
   if (vic.armorNow) { vic.hitlag = lag; if (att) att.hitlag = lag; S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb: 0, dir, who: vic.i, by: att ? att.i : -1, armor: 1 }); S.sfx('hit_light'); return true; }
   if (h.sleep) {
@@ -538,10 +505,17 @@ function hitFighter(S, att, vic, h, dir, src) {
     vic.hitlag = lag; if (att) att.hitlag = lag;
     S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb: 0, dir, who: vic.i, by: att ? att.i : -1 }); S.sfx('hit_light'); return true;
   }
+  // impact: hitlag scales with the hit (FAST: +30 % at kb>=60, 14-18 f freeze when the launch arc leaves the blast zone), 3 sfx strengths layered
+  const ko = PHYS.koLag > 0 && launchArc(S.stage, vic, kb, h.ang, dir, 0, 0).ko, str = ko || kb >= 100 ? 2 : kb >= 45 ? 1 : 0;
+  lag = hitlagOf(dmg, kb, ko);
   vic.hitlag = lag; if (att) att.hitlag = lag;
   vic.pend = { kb, ang: h.ang, dir }; vic.move = null; vic.state = 'hit'; vic.st = 0; vic.hitstun = 999; vic.flash = 4;
-  S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb, dir, who: vic.i, by: att ? att.i : -1, lag });
-  S.sfx(kb > 60 ? 'hit_heavy' : 'hit_light', hitPitch(dmg));
+  const dl = launchDir(vic, h.ang, dir);
+  S.events.push({ t: 'hit', col: h.col || null, x: vic.x, y: vic.y - 22, dmg, kb, dir, who: vic.i, by: att ? att.i : -1, lag, ko: ko ? 1 : 0, str, lx: dl[0], ly: dl[1] });
+  const hp = hitPitch(dmg);
+  if (str === 0) S.sfx('hit_light', hp);
+  else if (str === 1) { S.sfx('hit_light', hp); S.sfx('hit_heavy', hp * 0.85); }
+  else { S.sfx('hit_heavy', hp * 0.75); S.sfx('hit_crit', 1); }
   return true;
 }
 
@@ -557,15 +531,10 @@ function applyLaunch(S, f) {
   if (!f.grounded) f.y -= 0.01;
 }
 
-function hitCapsuleWorld(f, h) {
-  const d = f.face;
-  return [f.x + d * h.seg[0], f.y + h.seg[1], f.x + d * h.seg[2], f.y + h.seg[3], h.r];
-}
-
 function detectHits(S) {
-  const F = S.fighters;
-  for (const a of F) {
-    const m = a.hbMove; if (!m || a.state !== 'attack' || a.hitlag > 0) continue;
+  const F = S.fighters, nF = F.length, rot = S.frame % (nF || 1);      // the attacker order rotates each frame: a same-frame trade must not always go to player 1
+  for (let ai = 0; ai < nF; ai++) {
+    const a = F[(ai + rot) % nF], m = a.hbMove; if (!m || a.state !== 'attack' || a.hitlag > 0) continue;
     for (let hi = 0; hi < m.hits.length; hi++) {
       const h = m.hits[hi]; if (a.hbT < h.s || a.hbT >= h.e) continue; if (h.cond && !h.cond(a)) continue;
       const cap = hitCapsuleWorld(a, h);
@@ -926,28 +895,44 @@ function drawStatus(R, f, ix, iy, X, Y, z) {
   for (let i = 0; i < g.length; i++) { const q = g[i]; R.rect(ox + q[0], oy + q[1], q[2], q[3], c[0], c[1], c[2], 1); }
 }
 
-export function newView() { return { x: 0, y: -40, z: 1, shake: 0, flash: 0, fx: [], t: 0, debug: false, hold: 0, slow: 0 }; }
+export function newView() { return { x: 0, y: -40, z: 1, shake: 0, flash: 0, fx: [], t: 0, debug: false, hold: 0, slow: 0, punch: 0 }; }
 
-const CAM_MARGIN = 1.5 * PHYS.H, CAM_MINW = 7 * PHYS.H, CAM_MAXW = 20 * PHYS.H;
+const CAM_MARGIN = 1.5 * PHYS.H;      // width clamp + lerp rates come from the preset (PHYS.camMin / camMax / camPos / camZoom): FAST 5..12 H, zoom lerp 0.12
 export function updateView(view, S) {
   let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9, n = 0;
   for (const f of S.fighters) { if (f.state === 'dead' || f.state === 'out') continue; n++; minx = Math.min(minx, f.x); maxx = Math.max(maxx, f.x); miny = Math.min(miny, f.y - 44); maxy = Math.max(maxy, f.y + 4); }
   if (!n) { minx = -60; maxx = 60; miny = -80; maxy = 20; }
   // frame both fighters with 1.5 H margin; width clamps to 7..20 H; gentle zoom
-  const w = Math.max(maxx - minx + 2 * CAM_MARGIN, (maxy - miny + CAM_MARGIN) * 480 / 270), wc = clamp(w, view.cmin || CAM_MINW, view.cmax || CAM_MAXW), z = 480 / wc;      // view.cmin/cmax: the in-world ring tightens the width clamp
+  const w = Math.max(maxx - minx + 2 * CAM_MARGIN, (maxy - miny + CAM_MARGIN) * 480 / 270), wc = clamp(w, view.cmin || PHYS.camMin, view.cmax || PHYS.camMax), z = 480 / wc;      // view.cmin/cmax: the in-world ring tightens the width clamp
   const b = S.stage.blast; let cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
   cx = clamp(cx, b.l + 240 / z, b.r - 240 / z); cy = clamp(cy, b.t + 135 / z, b.b - 135 / z);
-  if (view.snap) { view.x = cx; view.y = cy; view.z = z; } else { view.x += (cx - view.x) * 0.08; view.y += (cy - view.y) * 0.08; view.z += (z - view.z) * 0.04; }
+  if (view.snap) { view.x = cx; view.y = cy; view.z = z; } else { view.x += (cx - view.x) * PHYS.camPos; view.y += (cy - view.y) * PHYS.camPos; view.z += (z - view.z) * PHYS.camZoom; }
   if (view.hold > 0) view.hold--; else { if (view.shake > 0) view.shake *= 0.85; if (view.shake < 0.1) view.shake = 0; }
   if (view.flash > 0) view.flash--; if (view.slow > 0) view.slow--;
   view.t++; if (view.cine > 0) view.cine--;
+  if (view.punch > 0.002) view.punch *= 0.8; else view.punch = 0;
   if (view.hold > 0) return;      // hitstop: particles freeze with the sim
+  for (const f of S.fighters) {      // launch trail: a streak behind a fast-flying victim (view-only: not part of the sim hash)
+    if (f.state !== 'hit' || f.hitlag > 0 || view.fx.length > 360) continue;
+    const sp = Math.sqrt(f.vx * f.vx + f.vy * f.vy); if (sp < 3.2) continue;
+    view.fx.push({ x: f.x, y: f.y - 20, vx: 0, vy: 0, g: 0, a: 0, life: sp > 6 ? 14 : 9, kind: 'trail', col: sp > 6 ? [1, 0.85, 0.5] : [0.8, 0.8, 1], w: Math.min(6, 2 + sp * 0.4) });
+  }
   for (let i = view.fx.length - 1; i >= 0; i--) { const p = view.fx[i]; p.x += p.vx; p.y += p.vy; p.vy += p.g; if (++p.a >= p.life) view.fx.splice(i, 1); }
 }
 export function viewEvent(view, e) {
   const burst = (x, y, n, sp, life, kind, col) => { for (let i = 0; i < n; i++) { const a = (i * 360 / n) + (i * 37 % 29), s = sp * (0.5 + ((i * 7) % 5) / 5); view.fx.push({ x, y, vx: cosD(a) * s, vy: -sinD(a) * s, g: 0.04, a: 0, life, kind, col }); } };
-  if (e.t === 'hit') { burst(e.x, e.y, 5 + Math.min(8, e.dmg | 0), 2.6, 12, 'star', e.col || null); view.shake = Math.max(view.shake, Math.min(10, 1 + (e.kb || 0) * 0.05 + e.dmg / 6)); if (e.lag) view.hold = Math.max(view.hold, e.lag); }
-  else if (e.t === 'ko') { view.flash = 3; view.shake = 9; view.slow = 20; view.fx.push({ x: e.x, y: e.y, dx: e.dx || 0, dy: e.dy || 0, vx: 0, vy: 0, g: 0, a: 0, life: 16, kind: 'bz' }); burst(e.x, e.y, 26, 5, 30, 'star', (view.pcol || PCOL)[e.who % 4]); }
+  if (e.t === 'hit') {
+    const str = e.str | 0, n = 5 + Math.min(8, e.dmg | 0) + str * 3;
+    burst(e.x, e.y, n, 2.6 + str * 0.8, 12 + str * 3, 'star', e.col || null);
+    if (e.lx != null && str > 0) {      // directional hitspark: streaks along the launch vector (strength 1: 4, strength 2: 8 + an impact ring)
+      const m = str === 1 ? 4 : 8; for (let i = 0; i < m; i++) { const sp = 3 + (i % 4) * 1.1 + str * 1.2, sx = (i - (m - 1) / 2) * 0.12; view.fx.push({ x: e.x, y: e.y, vx: (e.lx - e.ly * sx) * sp, vy: -(e.ly + e.lx * sx) * sp, g: 0, a: 0, life: 9 + str * 3, kind: 'streak', col: str === 2 ? [1, 0.9, 0.55] : [1, 1, 1] }); }
+      if (str === 2) view.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, g: 0, a: 0, life: 10, kind: 'blast' });
+    }
+    view.shake = Math.max(view.shake, Math.min(14, 1 + (e.kb || 0) * 0.05 + e.dmg / 6 + (e.ko ? 4 : 0)));
+    if (e.ko) view.punch = Math.max(view.punch || 0, 0.16); else if (str === 1) view.punch = Math.max(view.punch || 0, 0.03);
+    if (e.lag) view.hold = Math.max(view.hold, e.lag);
+  }
+  else if (e.t === 'ko') { view.flash = 3; view.shake = 12; view.slow = 20; view.punch = Math.max(view.punch || 0, 0.1); view.fx.push({ x: e.x, y: e.y, dx: e.dx || 0, dy: e.dy || 0, vx: 0, vy: 0, g: 0, a: 0, life: 16, kind: 'bz' }); burst(e.x, e.y, 26, 5, 30, 'star', (view.pcol || PCOL)[e.who % 4]); }
   else if (e.t === 'puff') burst(e.x, e.y, 6, 1.1, 14, 'puff', null);
   else if (e.t === 'boom') { view.shake = 6; burst(e.x, e.y, 22, 3.5, 22, 'puff', [1, 0.6, 0.2]); view.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, g: 0, a: 0, life: 8, kind: 'blast' }); }
   else if (e.t === 'ring') { view.fx.push({ x: e.x, y: e.y, vx: 0, vy: 0, g: 0, a: 0, life: 36, kind: 'ring' }); }
@@ -985,7 +970,7 @@ function drawFinalLimb(R, A, fx, f, m, X, Y, z, view) {
 }
 
 export function drawScene(R, S, atlas, vis, view, alpha, debug) {
-  const A = atlas.canvas, fx = atlas.fx, z = view.z;
+  const A = atlas.canvas, fx = atlas.fx, z = view.z * (1 + (view.punch || 0));      // punch = the KO-hit zoom-in
   const sh = view.shake, shx = sh ? (((view.t * 7) % 5) - 2) * sh * 0.35 : 0, shy = sh ? (((view.t * 3) % 5) - 2) * sh * 0.35 : 0;
   const cam = view._cam || (view._cam = { x: 0, y: 0, zoom: 1 }); cam.x = view.x + shx; cam.y = view.y + shy; cam.zoom = z;      // pooled camera
   const X = (wx) => (wx - cam.x) * z + 240, Y = (wy) => (wy - cam.y) * z + 135;
@@ -1050,6 +1035,8 @@ export function drawScene(R, S, atlas, vis, view, alpha, debug) {
     const u = p.a / p.life, c = p.col || [1, 1, 1];
     if (p.kind === 'ring') { for (let k = 0; k < 3; k++) { const rr = (6 + p.a * 2.6 - k * 7); if (rr > 2) ring(R, X(p.x), Y(p.y), rr * z, 1, 0.7 + k * 0.1, 0.9, (1 - u) * 0.8); } continue; }
     if (p.kind === 'bz') { const k = (1 - u) * 0.9, L_ = 140 * z; if (p.dx) R.rect(X(p.x) - 3 * z, Y(p.y) - L_ / 2, 6 * z, L_, 1, 1, 1, k); else R.rect(X(p.x) - L_ / 2, Y(p.y) - 3 * z, L_, 6 * z, 1, 1, 1, k); continue; }
+    if (p.kind === 'streak') { const k = 1 - u; for (let i = 0; i < 4; i++) R.rect(X(p.x - p.vx * i * 1.1) - 1, Y(p.y - p.vy * i * 1.1) - 1, Math.max(1, 2 * z * (1 - i * 0.2)), Math.max(1, 2 * z * (1 - i * 0.2)), c[0], c[1], c[2], k * (1 - i * 0.2)); continue; }
+    if (p.kind === 'trail') { const wd = (p.w || 3) * z * (1 - u * 0.6); R.rect(X(p.x) - wd / 2, Y(p.y) - wd / 2, wd, wd, c[0], c[1], c[2], (1 - u) * 0.5); continue; }
     if (p.kind === 'blast') { circleStrips(R, X(p.x), Y(p.y), (10 + p.a * 6) * z, 1, 0.9, 0.5, 0.5 * (1 - u)); continue; }
     if (p.kind === 'puff') { R.setTint(c[0] * 0.9, c[1] * 0.9, c[2] * 0.9, 0.8 * (1 - u)); R.img(A, fx.dot.x, fx.dot.y, 2, 2, X(p.x), Y(p.y), (3 - u * 2) * z, (3 - u * 2) * z); R.setTint(1, 1, 1, 1); continue; }
     R.setTint(c[0], c[1], c[2], 1 - u * 0.6); const s = (1 + (u < 0.3 ? 1 : 0)) * z; R.img(A, fx.star.x, fx.star.y, 5, 5, X(p.x) - 2.5 * s, Y(p.y) - 2.5 * s, 5 * s, 5 * s); R.setTint(1, 1, 1, 1);
@@ -1074,6 +1061,8 @@ export function createGame(o) {
   const R = createRenderer(canvas, atlas, /[?&]canvas2d/.test(location.search));
   const g = { visFor, vis: null, sim: null, view: newView(), input, atlas, R, inject: [null, null, null, null], paused: false, debug: /[?&]smashdebug/.test(location.search), cfg: null, simMs: 0, simSteps: 0, running: false };
   let acc = 0, last = 0;
+  g.speed = PHYS.speed;      // 1.15 under FAST, 1.0 under CLASSIC; smash.html's FAST/CLASSIC toggle calls g.setPreset()
+  g.setPreset = (name) => { setPreset(name); g.speed = PHYS.speed; return PHYS.preset; };
   function masks() {
     const S = g.sim, out = [];
     for (const f of S.fighters) {
@@ -1113,14 +1102,15 @@ export function createGame(o) {
     const dt = Math.min(100, ts - last); last = ts;
     if (!g.sim || g.paused) { if (g.sim) g.render(1); return; }
     acc += dt; let n = 0;
-    while (acc >= (g.view.slow > 0 ? 2000 / 60 : 1000 / 60) && n < 5) {
-      acc -= (g.view.slow > 0 ? 2000 / 60 : 1000 / 60); n++;
+    const per = (g.view.slow > 0 ? 2000 : 1000) / (60 * (g.speed > 0 ? g.speed : 1));      // sim speed multiplier (local / CPU matches; net lockstep must stay 1.0)
+    while (acc >= per && n < 6) {
+      acc -= per; n++;
       if (g.sim.phase === 'over' && g._doneSent) { acc = 0; break; }
       const t0 = performance.now(); g.sim.step(masks()); g.simMs += performance.now() - t0; g.simSteps++; drain(); updateView(g.view, g.sim);
       if (g.sim.phase === 'over') g._doneSent = true;
     }
-    if (n === 5) acc = 0;
-    g.render(acc / (1000 / 60));
+    if (n === 6) acc = 0;
+    g.render(Math.min(1, acc / per));
   }
   g.bench = function (steps) { // sim cost only (no render)
     const S = createMatch(g.cfg || { players: [{ fid: 'pilot', ctrl: 'cpu', level: 3 }, { fid: 'swift', ctrl: 'cpu', level: 3 }] }); let worst = 0; const t0 = performance.now();
@@ -1129,4 +1119,4 @@ export function createGame(o) {
   };
   return g;
 }
-export { botInput, BOT_TIERS };
+export { botInput, BOT_TIERS, PHYS, setPreset };

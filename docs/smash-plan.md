@@ -1,6 +1,6 @@
 # GOR SMASH — plan v2 (pure 2D)
 
-Status 2026-10-06: plan only, nothing built. Supersedes v1 (2.5D, 6 fighters). Platform fighter, 2-4 players, browser, entered from NO MANS GOR.
+Status 2026-11-25: built; v4 feel + CPU pass done (FAST physics preset default + CLASSIC, impact juice, 9-level CPU ladder, see docs/audit-2026-11-25/changes-brawl.md). Original 2026-10-06: plan only, nothing built. Supersedes v1 (2.5D, 6 fighters). Platform fighter, 2-4 players, browser, entered from NO MANS GOR.
 IP rule, hard: moves, physics and roles follow the classic 64-era platform-fighter archetypes (that is game design, not IP).
 Names, sprites, stages, sounds, UI chrome, logos are ALL original. No Nintendo/Mojang names or art anywhere, including code comments, file names, alt text.
 Rule zero: SMASH never opened = ship.js is byte-for-byte unchanged in behavior.
@@ -194,3 +194,10 @@ Passes (each playable and deployable):
 - **Stage (ring)**: main 12 H (432 px), two soft platforms 2.2 H up and 3 H wide, blast +-16 H, +14 H up, -7 H down. Camera frames both fighters with 1.5 H margin, 7..20 H wide, eased. KO = flash + 20 f slow-mo (local fights only).
 - **Moves** (`js/smash-moves.js`): 25 keys per style from BASE rows x per-style profile (jab x3, f/u/d tilt, dash attack, f/u/d smash, 5 aerials with landing lag, grab, pummel, 4 throws, 4 specials). MARO fireball/cape/super-jump-punch/tornado, SONIK homing/spin dash/spring/spin charge, JOSHI egg throw/egg roll/flutter up/ground pound, STEEV block/minecart/elytra/TNT. Long scripted specials retimed/trimmed to startup 3-25 / endlag <= 45 (hum rest is now a 49 f move).
 - **CPU** (`js/smash-bot.js`): utility planner, perceives a reaction-delayed copy of the foe (easy 20 f, med 8, hard 3). Defend / punish-window / combo / edgeguard / space / recover / DI / tech / grab-throw. Headless tests: hard beats easy and the mash-smash dummy, med beats the dummy.
+
+## v4 feel + CPU pass 2026-11-25 (status: built, tests green; supersedes the v3 numbers where they differ)
+
+- **Physics presets** (`smash-phys.js`): `FAST` default (gravity 0.14 u, fall 2.4, hop ~39 f, dash burst + dash dance, landing lag 2, endlag x0.8, launch 0.065, sim speed 1.15 local only) and `CLASSIC` (the v3 numbers, selectable; the old pinned tests run against it). `physOf` honours def.run/grav/fall/air under FAST.
+- **Camera**: 5..12 H wide, zoom lerp 0.12 (fighters ~22-25 % of screen height at mid range).
+- **Impact**: hitlag scaled by kb, 14-18 f KO-hit freeze via the launch-arc predictor, directional sparks, KO zoom punch, launch trail, 3 layered hit cues.
+- **CPU**: 9-level ladder L1-L9 (default 6; smash.html top-left selector), exact capsule hit tests, survival DI, edgeguard, kill-confirm, dash dance, habit reading; shared `js/smash-geom.js` (BRAWL_API) so the bot never imports the engine. World NPC levels: villager 3-4, trader/guard 5-6, elder 8, golum 9 (ship.js diff pending in changes-brawl.md).

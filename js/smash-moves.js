@@ -5,7 +5,7 @@
 // Frame data per move (frameData(m)): s = startup (first active frame index), a = active frames, e = endlag (frames after the last active/spawn frame).
 // Row fields in BASE: s a e (frames) | d dmg | b base knockback | g knockback scaling | ang | x:[from,to] reach px | y height px | r hit radius | pose.
 import { FIGHTERS, FIGHTER_IDS, AUTO } from './smash-fighters.js';
-import { PHYS, clampN } from './smash-phys.js';
+import { PHYS, clampN, onPreset } from './smash-phys.js';
 
 const hit = (s, e, seg, r, dmg, bkb, gr, ang, x) => Object.assign({ s, e, seg, r, dmg, bkb, gr, ang }, x || {});
 const dirX = (f) => (f.inp & 2 ? 1 : 0) - (f.inp & 1 ? 1 : 0);
@@ -72,12 +72,12 @@ function shape(B, P, sw) {
 
 // builds one data-driven move from a BASE row
 export function buildMove(key, B, P) {
-  const s = clampN(Math.round(B.s * P.q), 3, 25), e = Math.min(45, Math.round(B.e * P.q)), a = B.a;
+  const s = clampN(Math.round(B.s * P.q * PHYS.startScale), 3, 25), e = Math.min(45, Math.round(B.e * P.q * PHYS.endScale)), a = B.a;      // startScale / endScale: the FAST preset's global move-speed scale
   const dmg = r1(B.d * (key.startsWith('jab') ? 1 + (P.k - 1) * 0.5 : P.k)), bkb = r1(B.b * P.b), kbg = r1(B.g * P.g), seg = shape(B, P), r = B.r * (P.r > 1 ? 1 + (P.r - 1) * 0.3 : 1);
   const hits = [hit(s, s + a, seg, r, dmg, bkb, kbg, B.ang)];
   if (B.sh === 'ds') { hits[0].seg = [B.x[0], B.y, B.x[1] * P.r, B.y]; hits.push(hit(s + 4, s + 4 + a, [-B.x[0], B.y, -B.x[1] * P.r, B.y], r, dmg, bkb, kbg, B.ang)); }
   const m = { name: key, dur: s + a + e + (B.sh === 'ds' ? 4 : 0), pose: B.pose, hits, data: 1 };
-  if (B.air) { m.air = true; m.landLag = Math.round(B.land * P.q); m.ac = [B.ac[0], Math.min(B.ac[1], m.dur)]; }
+  if (B.air) { m.air = true; m.landLag = Math.max(2, Math.round(B.land * P.q * PHYS.landScale)); m.ac = [B.ac[0], Math.min(B.ac[1], m.dur)]; }
   if (B.back) m.back = true;
   if (B.smash) m.charge = s - 1;       // frame at which the move holds while the button is down (up to PHYS.smashCharge frames)
   const slide = B.slide, dash = B.dash;
@@ -222,6 +222,16 @@ export function upgradeFighters() {
   }
 }
 upgradeFighters();
+// preset switch: the data-driven normals bake PHYS.startScale / endScale / landScale in at build time, so rebuild them (specials, grabs, throws stay)
+function rebuildNormals() {
+  for (const id of FIGHTER_IDS) {
+    const def = FIGHTERS[id], P = profileOf(def), m = def.moves;
+    for (const k of MOVE_KEYS) if (BASE[k]) m[k] = buildMove(k, BASE[k], P);
+    m.jab1.name = 'jab1'; m.jab1.next = 'jab2'; m.jab2.next = 'jab3';
+    for (const k of ['jab1', 'jab2']) { const h = m[k].hits[0]; m[k].cancelFrom = h.s + 1; }
+  }
+}
+onPreset(rebuildNormals);
 export function completeDef(def) { if (!def.moves.grab || !def.moves.dsmash) { ensureMoves(def); normalize(def); } return def; }
 
 // frame data table for docs / tests / the bot: every move of a def as {key: {s,a,e,dmg}}

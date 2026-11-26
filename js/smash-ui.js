@@ -3,6 +3,7 @@
 import { FIGHTERS, FIGHTER_IDS } from './smash-fighters.js';
 import { PLAYER_COLORS } from './smash-engine.js';
 import { STAGES, STAGE_IDS } from './smash-stages.js';
+import { PHYS } from './smash-phys.js';
 
 const CSS = `
 .sm-root{position:fixed;inset:0;background:#05020a;display:flex;align-items:center;justify-content:center;overflow:hidden;font-family:'Monocraft',ui-monospace,Menlo,Consolas,monospace;color:#E0AAFF;user-select:none;-webkit-user-select:none}
@@ -39,6 +40,8 @@ const CSS = `
 .sm-slot .fn{font-weight:400;font-size:calc(var(--u)*8px);letter-spacing:calc(var(--u)*1px)}
 .sm-stages{position:absolute;top:calc(var(--u)*40px);left:0;right:0;display:flex;justify-content:center;gap:calc(var(--u)*6px)}
 .sm-stg{padding:calc(var(--u)*2px) calc(var(--u)*8px);font-size:calc(var(--u)*6.5px);font-weight:400;letter-spacing:calc(var(--u)*1px);background:rgba(13,2,33,.72);border:calc(var(--u)*1px) solid rgba(168,85,247,.45);cursor:pointer;border-radius:calc(var(--u)*3px)}
+.sm-opts{position:absolute;top:calc(var(--u)*6px);display:flex;align-items:center;gap:calc(var(--u)*2px);font-size:calc(var(--u)*5.5px);letter-spacing:calc(var(--u)*1px);color:rgba(224,170,255,.7)}.sm-opts.l{left:calc(var(--u)*8px)}.sm-opts.r{right:calc(var(--u)*8px)}.sm-opts b{font-weight:400;margin-right:calc(var(--u)*3px)}
+.sm-lv{width:calc(var(--u)*10px);height:calc(var(--u)*10px);line-height:calc(var(--u)*10px);text-align:center;cursor:pointer;background:rgba(13,2,33,.72);border:calc(var(--u)*1px) solid rgba(168,85,247,.45);border-radius:calc(var(--u)*2px)}.sm-lv.cur{border-color:#E0AAFF;background:rgba(168,85,247,.35);color:#fff}
 .sm-stg.cur{border-color:#E0AAFF;background:rgba(168,85,247,.2)}
 .sm-info{position:absolute;bottom:calc(var(--u)*29px);left:0;right:0;text-align:center;font-size:calc(var(--u)*6px);color:rgba(224,170,255,.55);letter-spacing:calc(var(--u)*1px)}
 .sm-fin{margin-left:calc(var(--u)*4px);font-size:calc(var(--u)*6px);font-weight:400}
@@ -67,15 +70,15 @@ const CSS = `
 .sm-pause.on{display:flex}
 `;
 
-const CTRL_OPTS = [
+const CTRL_OPTS = [      // a CPU slot uses the shared CPU LEVEL (1-9, default 6) picked in the top-left row
   { ctrl: 'p1', label: 'HUMAN  WASD' }, { ctrl: 'p2', label: 'HUMAN  FHTG' },
-  { ctrl: 'cpu', level: 1, label: 'CPU  EASY' }, { ctrl: 'cpu', level: 2, label: 'CPU  MED' }, { ctrl: 'cpu', level: 3, label: 'CPU  HARD' }, { ctrl: 'off', label: 'OFF' },
+  { ctrl: 'cpu', cpu: true, label: 'CPU' }, { ctrl: 'off', label: 'OFF' },
 ];
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
 export function createUI(root) {
   if (!document.getElementById('sm-css')) { const s = document.createElement('style'); s.id = 'sm-css'; s.textContent = CSS; document.head.appendChild(s); }
-  const ui = { slots: [{ fid: 'pilot', opt: 0 }, { fid: 'swift', opt: 3 }, { fid: 'hopper', opt: 5 }, { fid: 'builder', opt: 5 }], sel: 0, stage: 'plateau', game: null, atlas: null, onLaunch: null };
+  const ui = { slots: [{ fid: 'pilot', opt: 0 }, { fid: 'swift', opt: 2 }, { fid: 'hopper', opt: 3 }, { fid: 'builder', opt: 3 }], sel: 0, stage: 'plateau', level: 6, preset: PHYS.preset, game: null, atlas: null, onLaunch: null };
   const rootEl = el('div', 'sm-root'), wrap = el('div', 'sm-wrap'), canvas = el('canvas'); canvas.width = 480; canvas.height = 270;
   wrap.appendChild(canvas);
   const hud = el('div', 'sm-layer sm-hud'), timer = el('div', 'sm-timer', '4:00'), cards = el('div', 'sm-cards'), big = el('div', 'sm-big'), pause = el('div', 'sm-pause', 'PAUSED');
@@ -96,13 +99,15 @@ export function createUI(root) {
   }
   function buildSelect() {
     sel.innerHTML = ''; previews.length = 0;
-    sel.append(el('div', 'sm-title', 'GOR BRAWL'), el('div', 'sm-sub', '3 STOCKS  -  4:00  -  CLICK A SLOT, THEN A FIGHTER, PICK A STAGE'));
+    const lv = el('div', 'sm-opts l', '<b>CPU LEVEL</b>'); for (let n = 1; n <= 9; n++) { const c = el('div', 'sm-lv' + (ui.level === n ? ' cur' : ''), String(n)); c.onclick = () => { ui.level = n; buildSelect(); }; lv.appendChild(c); }
+    const ph = el('div', 'sm-opts r', '<b>PHYSICS</b>'); for (const nm of ['fast', 'classic']) { const c = el('div', 'sm-stg' + (ui.preset === nm ? ' cur' : ''), nm.toUpperCase()); c.onclick = () => { ui.preset = nm; if (ui.game && ui.game.setPreset) ui.game.setPreset(nm); buildSelect(); }; ph.appendChild(c); }
+    sel.append(lv, ph, el('div', 'sm-title', 'GOR BRAWL'), el('div', 'sm-sub', '3 STOCKS  -  4:00  -  CLICK A SLOT, THEN A FIGHTER, PICK A STAGE'));
     const stg = el('div', 'sm-stages'); STAGE_IDS.forEach((id) => { const b = el('div', 'sm-stg' + (ui.stage === id ? ' cur' : ''), STAGES[id].name); b.onclick = () => { ui.stage = id; buildSelect(); }; stg.appendChild(b); }); sel.appendChild(stg);
     const slots = el('div', 'sm-slots');
     ui.slots.forEach((s, i) => {
       const d = el('div', 'sm-slot' + (i === ui.sel ? ' sel' : '') + (CTRL_OPTS[s.opt].ctrl === 'off' ? ' off' : ''));
       const cv = el('canvas'); cv.width = 32; cv.height = 48; previews.push([cv, () => s.fid]);
-      const ct = el('div', 'ct', CTRL_OPTS[s.opt].label);
+      const ct = el('div', 'ct', CTRL_OPTS[s.opt].cpu ? 'CPU  L' + ui.level : CTRL_OPTS[s.opt].label);
       ct.onclick = (e) => { e.stopPropagation(); s.opt = (s.opt + 1) % CTRL_OPTS.length; buildSelect(); };
       d.append(el('div', 'pl', 'P' + (i + 1)), ct, cv, el('div', 'fn', FIGHTERS[s.fid].name));
       d.querySelector('.pl').style.color = PLAYER_COLORS[i];
@@ -126,8 +131,9 @@ export function createUI(root) {
   let selTimer = 0;
   function animatePreviews() { clearInterval(selTimer); let n = 0; selTimer = setInterval(() => { n++; previews.forEach(([cv, fn]) => drawPreview(cv, fn(), (n >> 1) % 6)); }, 110); }
   ui.launch = () => {
-    const players = ui.slots.map((s) => { const o = CTRL_OPTS[s.opt]; return { fid: s.fid, ctrl: o.ctrl, level: o.level || 2 }; }).filter((p) => p.ctrl !== 'off');
-    if (players.length < 2) { const s = ui.slots.find((x) => CTRL_OPTS[x.opt].ctrl === 'off'); if (s) s.opt = 3; return ui.launch(); }
+    const players = ui.slots.map((s) => { const o = CTRL_OPTS[s.opt]; return { fid: s.fid, ctrl: o.ctrl, level: ui.level, tier: o.cpu ? ui.level : 0 }; }).filter((p) => p.ctrl !== 'off');
+    if (players.length < 2) { const s = ui.slots.find((x) => CTRL_OPTS[x.opt].ctrl === 'off'); if (s) s.opt = 2; return ui.launch(); }
+    if (ui.game && ui.game.setPreset) ui.game.setPreset(ui.preset);
     ui.onLaunch && ui.onLaunch({ players, stage: ui.stage });
   };
   ui.attach = (game) => { ui.game = game; ui.atlas = game.atlas; buildSelect(); animatePreviews(); };
@@ -140,7 +146,7 @@ export function createUI(root) {
     cards.innerHTML = ''; cardEls = []; cache = [];
     sim.fighters.forEach((f) => {
       const c = el('div', 'sm-card'), d = f.def || FIGHTERS[f.fid];
-      c.innerHTML = '<div class="nm"><i class="sw" style="background:' + PLAYER_COLORS[f.i] + '"></i>P' + (f.i + 1) + ' ' + d.name + (f.ctrl === 'cpu' ? ' <span style="color:rgba(224,170,255,.55)">CPU ' + ['', 'EASY', 'MED', 'HARD'][f.bot ? f.bot.tier : f.level] + '</span>' : '') + '</div><div class="pc">0<small>%</small></div><div class="pips"></div>';
+      c.innerHTML = '<div class="nm"><i class="sw" style="background:' + PLAYER_COLORS[f.i] + '"></i>P' + (f.i + 1) + ' ' + d.name + (f.ctrl === 'cpu' ? ' <span style="color:rgba(224,170,255,.55)">CPU ' + 'L' + (f.bot ? f.bot.tier : f.level) + '</span>' : '') + '</div><div class="pc">0<small>%</small></div><div class="pips"></div>';
       cards.appendChild(c); cardEls.push({ c, pc: c.querySelector('.pc'), pips: c.querySelector('.pips') }); cache.push({});
     });
     say('', 0);
