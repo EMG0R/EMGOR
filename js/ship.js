@@ -5408,7 +5408,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 opB.copy(opA);
                 mv = opBoxes(o.a, rs); if (opBoxes(o.b, rs)) mv = true;
                 if (!mv) continue;
-                opC.copy(opA).applyMatrix4(o.m); opB.applyMatrix4(o.m); opC.sub(opB); p.add(opC); pushed = true; again = true;
+                opC.copy(opA).applyMatrix4(o.m); opB.applyMatrix4(o.m); opC.sub(opB); if (si === 0) { dl = opC.dot(opU); if (dl < 0) opC.addScaledVector(opU, -dl); }      // the lower sphere is never resolved along -up (only the head may be pushed down by a roof)
+                p.add(opC); pushed = true; again = true;
             }
         }
         }
@@ -5417,7 +5418,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             for (si = 0; si < 2; si++) {
                 opA.copy(p).addScaledVector(opU, OP_HS[si] * H).sub(land.sPos); dl = opA.length();
                 var need = hr0 + FOOT_R * H;
-                if (dl < need) { if (dl < 1e-9) opA.copy(opU), dl = 1; p.addScaledVector(opA, (need - dl) / dl); pushed = true; }
+                if (dl < need) { if (dl < 1e-9) opA.copy(opU), dl = 1; opA.multiplyScalar((need - dl) / dl); var dU = opA.dot(opU); if (dU < 0) opA.addScaledVector(opU, -dU); p.add(opA); pushed = true; }      // hull push-out: sideways or up, never down through the floor
             }
         }
         return pushed;

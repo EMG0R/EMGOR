@@ -34,3 +34,8 @@ Not done (time spent on task 0).
 4. Shift in air: constant 2x fall, no runaway acceleration; land: no bounce.
 5. Stand next to the ship with a creature near: prompt reads Z · BOARD; walk away: F · TAME.
 6. Stand still 6 s: quest tracker/NPC dots fade; hotbar and HP stay; new quest text brings them back.
+
+## 6. Jet at the spawn pad: pushed 1.49 H down, no lift (browser repro)
+Not reproduced in node (no browser); fixed by code reading. Path: ship-foot substep -> objPush(p) -> `if (hum.air && nl < hr) { hr = nl; vv = min(vv, 0) }`. objPush's parked-hull sphere (0.45 L at the hull origin, 0.4 L above the feet) resolved the capsule radially from the sphere centre: a foot sphere beside/below that centre gets a push with a -up component, so hr is lowered below the floor and vv is zeroed every substep, which is exactly "sunk, jet cannot lift, W (moving away from the hull) frees it". Box solids did the same for the lower sphere.
+Fix (ship.js objPush): hull push-out drops any component along -up (sideways or up only); box push for the lower sphere drops -up too (the head sphere can still be pushed down by a real roof, which still caps vv). Result: the capsule can never be resolved below the floor by a hull/pad-side push, and the jet lifts unless physically roofed.
+exitShip already places feet at mFloor (groundTruth) 0.75 L beside the hull, outside hull radius + foot radius; unchanged. If the harness still shows -1.49 H, the next suspect is ps.groundTruth vs meshFloorLocal on the pad lathe (read: groundTruth >= meshFloorLocal, so it cannot explain a sink), then hum.vh smoothing (vh now eased with a 0.35 H lag cap in air).
