@@ -24,9 +24,13 @@
 //   village.nearVillager(pPlanetLocal, r) -> villager | null      village.market(trader) -> { buys, buyPrices, sells } (ship-space makeMarket shape, live stock)
 //   village.scanTargets() -> [{ type:'village', id, kind:'village', name, pos (planet-local), color }]    village.poi { kind:'village', name, pos }
 //   village.serialize() / restore(o)   (trade stock per UTC day)       village.stats { tris, draws }       village.toParent(v, out) / toLocal(p, out)
+//   2026-11-25: huts are 7.9 x 7.0 m outside (interior 6.1 x 5.2 m = 3.5 x 3 H), ceiling 4.9 m (2.8 H), door 1.8 x 2.85 m (1.03 x 1.63 H), walls 0.9 m. Each hut has a hinged door leaf (own mesh) that eases ~100 deg open
+//     inward when the player is within 1.5 H or a villager is at the threshold. The bell is a swinging mesh; the well splashes. All colours from ship-look.js TONES; boxes via its cached bevel templates.
+//   village.interactNear(feetPlanetLocal) -> { kind:'bell'|'well', label:'F · RING BELL'|'F · DRAW WATER', use(ctx) } | null   ctx = { aPlay?, giveItem?(item) }.  Bell (NE post) rings, swings ~9 s and every villager
+//     (not in panic, not at night) walks to the plaza for 30 s.  Well: splash animation; ctx.giveItem(waterItem) when the caller has an item hook.  village.ring(ctx) / village.drawWater(ctx) are the same actions.
 //   village.setNight(n)  dims the day mesh / brightens windows.  Draw calls: 2 merged meshes (+2 per live human within 40 L, +5 per golum).
 import { createHuman } from './ship-human.js';
-import { rboxEmit, makeLitMaterial } from './ship-world.js';
+import { softMat, unlitMat, bevelTemplate, TONES, mixHex } from './ship-look.js';
 import { compose, makeMaterials, mergeLit, mulberry as pmul } from './ship-parts.js';
 import { storeMenu, resourceItem, RESOURCE_BASE } from './ship-items.js';
 import * as lingo from './ship-lingo.js';
@@ -38,10 +42,13 @@ function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.l
 
 const VS = 1;                    // 2026-10-14: the whole village layout is 2.5x (huts, doors, well, stall, plaza, paths); villagers + golums stay their size
 const RP = 7 * VS;                // plaza ring radius (villagers walk it)
-const BIG = 1.0;            // Q60: human scale (1 m, H = 1.75): hut door 1.2 H (2.1 m), eave 1.5 H (2.65 m)
+const BIG = 1.0;            // Q60: human scale (1 m, H = 1.75). 2026-11-25 plush pass: interior >= 3.5 x 3 H (6.1 x 5.2 m), ceiling 2.8 H (4.9 m), door 1.03 H x 1.63 H
 const TW = 0.9,      // wall thickness 0.9 m = 0.51 H (half-thickness >= 0.25 H so the 0.3 H foot step can never tunnel a wall)
-   DOOR_W = 1.7 * BIG, DOOR_H = 2.1 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap, foundation depth
-const TMPL = [{ id: 'cottage', w: 6 * BIG, d: 5 * BIG, h: 2.65 * BIG, roof: 'gable' }];      // E2: one hut template (A13: longhouse + tower retired)
+   DOOR_W = 1.8 * BIG, DOOR_H = 2.85 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap (1.8 m = 1.03 H), door height (2.85 m = 1.63 H), foundation depth
+const TMPL = [{ id: 'cottage', w: 7.9 * BIG, d: 7.0 * BIG, h: 4.9 * BIG, roof: 'gable' }];      // E2: one hut template (A13: longhouse + tower retired); outer = interior + 2 x TW
+const HUT_R = [20 * BIG, 32 * BIG];      // inner / outer hut ring radius (m): the bigger hut keeps clear of the plaza, plots and stall
+const BELL_POST = [1.35, 1.35];
+const DOOR_OPEN_R = 1.5 * 1.75 * BIG, DOOR_OPEN_A = 1.75, DOOR_EASE = 7, BELL_CALL_S = 30;      // doors open when the player is within 1.5 H (2.6 m); ~100 deg swing; seconds the bell holds the village at the plaza
 const ROLE_COL = { farmer: 0x8FD06A, trader: 0xFFD36A, elder: 0xB08CFF, kid: 0xFF8AE0 };
 const WALK = 2.6, GOLUM_V = 3.1, GOLUM_HP = 600, GOLUM_DMG_MOB = 45, GOLUM_DMG_ME = 12, VILL_ACT_L = 40;
 
@@ -137,24 +144,22 @@ export function createVillage(engine, u, opts) {
   const LP = [], LC = [], EP = [], EC = [];
   const LDIR = vec(-0.45, 0.8, 0.35).normalize(), col = new T.Color();
   const lush = biome === 'lush';
-  const WALL = lush ? [0.62, 0.5, 0.34] : [0.43, 0.41, 0.48], ROOF = lush ? [0.36, 0.2, 0.55] : [0.3, 0.17, 0.26], WOOD = [0.22, 0.14, 0.09], PATH = lush ? [0.56, 0.47, 0.33] : [0.36, 0.34, 0.4];
-  const SOIL = [0.25, 0.16, 0.1], CROP = lush ? [0.3, 0.7, 0.28] : [0.5, 0.35, 0.7], STONE = [0.5, 0.5, 0.56];
+  const rgb = (hex) => { col.set(hex); return [col.r, col.g, col.b]; };      // ship-look.js TONES (the violet-anchored ramp): a hut is wall + roof + one accent (the wood), nothing else
+  const WALL = rgb(lush ? mixHex(TONES.wall, TONES.hi, 0.2) : mixHex(TONES.hi, TONES.mid, 0.4)), ROOF = rgb(lush ? TONES.shelfD : mixHex(TONES.shelfD, TONES.dark, 0.45)), WOOD = rgb(mixHex(TONES.accent, TONES.dark, 0.78)), PATH = rgb(lush ? mixHex(TONES.floor, TONES.wall, 0.25) : mixHex(TONES.floor, TONES.dark, 0.35));
+  const SOIL = rgb(mixHex(TONES.dark, TONES.accent, 0.18)), CROP = lush ? [0.3, 0.7, 0.28] : [0.5, 0.35, 0.7], STONE = rgb(TONES.chrome);
   const sh = (nx, ny, nz) => 0.5 + 0.5 * Math.max(0, nx * LDIR.x + ny * LDIR.y + nz * LDIR.z);
   function tri(P, C, a, b, c, cc, nx, ny, nz, k) {     // look rev 28: no baked light; the normal rides along (P.N) for the shared sky-fill + key shader
     const s = k || 1, N = P.N || (P.N = []);
     for (const v of [a, b, c]) { P.push(v[0], v[1], v[2]); C.push(cc[0] * s, cc[1] * s, cc[2] * s); N.push(nx, ny, nz); }
   }
-  function rtri(P, C, a, b, c, na, nb, nc, cc, k) {
-    const s = k || 1, N = P.N || (P.N = []);
-    P.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); N.push(na[0], na[1], na[2], nb[0], nb[1], nb[2], nc[0], nc[1], nc[2]);
-    for (let i = 0; i < 3; i++) C.push(cc[0] * s, cc[1] * s, cc[2] * s);
+  // rounded box: every structure piece goes through here, no hard 90 degree outer edges. Default radius = min(0.24, 0.3 x the smallest side); triangles come from the dims+radius-keyed
+  // bevel template cache in ship-look.js (a hundred walls of one size share one build). rboxG draws one rng() per box (the seeded colour jitter), exactly as before; pushBox is the rng-free core.
+  function pushBox(P, C, x0, y0, z0, x1, y1, z1, cc, rad, m, k) {
+    const w = x1 - x0, h = y1 - y0, d = z1 - z0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+    const r = rad != null ? rad : Math.min(0.24, 0.3 * Math.min(w, h, d)), tp = bevelTemplate(w, h, d, r, m || (r > 0.08 ? 2 : 1)), N = P.N || (P.N = []), S = tp.pos, Nn = tp.nrm;
+    for (let i = 0; i < S.length; i += 3) { P.push(S[i] + cx, S[i + 1] + cy, S[i + 2] + cz); N.push(Nn[i], Nn[i + 1], Nn[i + 2]); C.push(cc[0] * k, cc[1] * k, cc[2] * k); }
   }
-  // rounded box (bevel ~ 0.1 of its height, capped): every structure piece goes through here, no hard 90 degree outer edges
-  function rboxG(P, C, x0, y0, z0, x1, y1, z1, cc, rad, m) {
-    const k = 0.94 + rng() * 0.1, hx = (x1 - x0) / 2, hy = (y1 - y0) / 2, hz = (z1 - z0) / 2, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
-    const r = rad != null ? rad : Math.min(0.1 * (y1 - y0), 0.22, 0.45 * Math.min(2 * hx, 2 * hy, 2 * hz));
-    rboxEmit(hx, hy, hz, r, m || (r > 0.08 ? 2 : 1), (a, b, c, na, nb, nc) => rtri(P, C, [a[0] + cx, a[1] + cy, a[2] + cz], [b[0] + cx, b[1] + cy, b[2] + cz], [c[0] + cx, c[1] + cy, c[2] + cz], na, nb, nc, cc, k));
-  }
+  function rboxG(P, C, x0, y0, z0, x1, y1, z1, cc, rad, m) { pushBox(P, C, x0, y0, z0, x1, y1, z1, cc, rad, m, 0.94 + rng() * 0.1); }
   function quad(P, C, a, b, c, d, cc, n, k) { tri(P, C, a, b, c, cc, n[0], n[1], n[2], k); tri(P, C, a, c, d, cc, n[0], n[1], n[2], k); }
   function boxG(P, C, x0, y0, z0, x1, y1, z1, cc, bottom) { rboxG(P, C, x0, y0, z0, x1, y1, z1, cc); }
   const mkBox = (name, x0, y0, z0, x1, y1, z1) => ({ name, min: vec(x0, y0, z0), max: vec(x1, y1, z1), solid: true, indestructible: true });
@@ -170,7 +175,7 @@ export function createVillage(engine, u, opts) {
     const inner = i % 2 === 0, base = (i / nHuts) * 6.2831853;
     let placed = null, fallback = null;
     for (let tries = 0; tries < 18 && !placed; tries++) {
-      const a = base + (rng() - 0.5) * 0.5, rr = (inner ? 17 * BIG : 27 * BIG) + (rng() - 0.5) * 3, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, tm = (rng(), TMPL[0]);
+      const a = base + (rng() - 0.5) * 0.5, rr = (inner ? HUT_R[0] : HUT_R[1]) + (rng() - 0.5) * 3, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, tm = (rng(), TMPL[0]);
       const side = Math.abs(cx) > Math.abs(cz) ? (cx > 0 ? 'nx' : 'px') : (cz > 0 ? 'nz' : 'pz');      // door faces the well (axis aligned: AABB walls)
       const swap = side === 'px' || side === 'nx';
       const hx = (swap ? tm.d : tm.w) / 2, hz = (swap ? tm.w : tm.d) / 2, rect = { x0: cx - hx, x1: cx + hx, z0: cz - hz, z1: cz + hz };
@@ -233,10 +238,10 @@ export function createVillage(engine, u, opts) {
     else { const xx = h.side === 'px' ? cx + hx : cx - hx; boxG(LP, LC, xx - 0.35, yb, cz - DOOR_W / 2 - fr, xx + 0.35, yb + DOOR_H, cz - DOOR_W / 2, post); boxG(LP, LC, xx - 0.35, yb, cz + DOOR_W / 2, xx + 0.35, yb + DOOR_H, cz + DOOR_W / 2 + fr, post); }
     // windows: glowing squares on the two side walls (not the door wall)
     const WC = [1.5, 1.1, 0.55];
-    const wq = (x, y, z, nx, nz) => { const a = nx ? [0, 0.45 * VS] : [0.45 * VS, 0], b = [0, 0.45]; const P = EP, C = EC; const q = [[x - a[0], y - 0.4 * VS, z - a[1]], [x + a[0], y - 0.4 * VS, z + a[1]], [x + a[0], y + 0.4 * VS, z + a[1]], [x - a[0], y + 0.4 * VS, z - a[1]]]; quad(P, C, q[0], q[1], q[2], q[3], WC, [nx, 0, nz], 1.0); };
+    const wq = (x, y, z, nx, nz) => { const a = nx ? [0, 0.62 * VS] : [0.62 * VS, 0]; const P = EP, C = EC; const q = [[x - a[0], y - 0.55 * VS, z - a[1]], [x + a[0], y - 0.55 * VS, z + a[1]], [x + a[0], y + 0.55 * VS, z + a[1]], [x - a[0], y + 0.55 * VS, z - a[1]]]; quad(P, C, q[0], q[1], q[2], q[3], WC, [nx, 0, nz], 1.0); };
     const eps = 0.03;
-    if (h.side === 'px' || h.side === 'nx') { wq(cx, yb + 1.7 * VS, cz - hz - eps, 0, -1); wq(cx, yb + 1.7 * VS, cz + hz + eps, 0, 1); }
-    else { wq(cx - hx - eps, yb + 1.7 * VS, cz, -1, 0); wq(cx + hx + eps, yb + 1.7 * VS, cz, 1, 0); }
+    if (h.side === 'px' || h.side === 'nx') { wq(cx, yb + 2.7 * VS, cz - hz - eps, 0, -1); wq(cx, yb + 2.7 * VS, cz + hz + eps, 0, 1); }
+    else { wq(cx - hx - eps, yb + 2.7 * VS, cz, -1, 0); wq(cx + hx + eps, yb + 2.7 * VS, cz, 1, 0); }
     // roof
     const ov = 0.7, rc = tint(ROOF, 0.9 + rng() * 0.2), ax = hx >= hz, ha = (ax ? hx : hz) + ov, hb = (ax ? hz : hx) + ov, yR = y1 + 0.35, rh = tm.roof === 'pyramid' ? hb * 0.95 : hb * 0.72;
     const pt = (a, b, y) => (ax ? [cx + a, y, cz + b] : [cx + b, y, cz + a]);
@@ -267,7 +272,7 @@ export function createVillage(engine, u, opts) {
     boxG(LP, LC, -1.5, wellY + 3.0, -0.12, 1.5, wellY + 3.25, 0.12, tint(WOOD, 1.15));
     rboxG(LP, LC, -2.1, wellY + 3.0, -2.1, 2.1, wellY + 4.7, 2.1, tint(ROOF, 1), 0.8, 3);
     quad(LP, LC, [-0.8, wellY + 0.55, -0.8], [0.8, wellY + 0.55, -0.8], [0.8, wellY + 0.55, 0.8], [-0.8, wellY + 0.55, 0.8], [0.3, 0.75, 1.0], [0, 1, 0], 1.25);
-    boxG(LP, LC, -0.16, wellY + 2.15, -0.14, 0.16, wellY + 2.75, 0.14, [1.0, 0.82, 0.3]);       // the bell
+    boxG(LP, LC, BELL_POST[0] - 0.45, wellY + 1.5, BELL_POST[1] - 0.05, BELL_POST[0] - 0.37, wellY + 3.0, BELL_POST[1] + 0.05, rgb(TONES.accent));       // the bell rope at the north-east post (F there rings; the bell itself is a swinging mesh below)
   }
   function scaleGeo(P, i0, px, py, pz, k) { for (let i = i0; i + 2 < P.length; i += 3) { P[i] = px + (P[i] - px) * k; P[i + 1] = py + (P[i + 1] - py) * k; P[i + 2] = pz + (P[i + 2] - pz) * k; } }
   function scaleBoxes(i0, px, py, pz, k) { for (let i = i0; i < walls.length; i++) { const b = walls[i]; b.min.set(px + (b.min.x - px) * k, py + (b.min.y - py) * k, pz + (b.min.z - pz) * k); b.max.set(px + (b.max.x - px) * k, py + (b.max.y - py) * k, pz + (b.max.z - pz) * k); } }
@@ -315,13 +320,38 @@ export function createVillage(engine, u, opts) {
 
   // ── meshes: ONE lit (day) + ONE emissive (windows / stall lamps, night-bright) ──
   function mkGeo(P, C) { const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('color', new T.Float32BufferAttribute(C, 3)); if (P.N && P.N.length === P.length) g.setAttribute('normal', new T.Float32BufferAttribute(P.N, 3)); g.computeBoundingSphere(); return g; }
-  const litMat = makeLitMaterial(T), emiMat = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, toneMapped: false });
+  const litMat = softMat(T), emiMat = unlitMat(T, { vertexColors: true, side: T.DoubleSide, toneMapped: false });
   const litMesh = new T.Mesh(mkGeo(LP, LC), litMat), emiMesh = new T.Mesh(mkGeo(EP, EC), emiMat);
   litMesh.name = 'village-day'; emiMesh.name = 'village-glow'; litMesh.frustumCulled = false; emiMesh.frustumCulled = false; emiMesh.renderOrder = 1;
   const syncFn = typeof opts.sync === 'function' ? opts.sync : null;      // 2026-11-05: ps.sync at render time (no one-frame spin slip of the ride group)
   const hookRide = (root) => { if (syncFn) root.traverse((o) => { if (o.isMesh) o.onBeforeRender = syncFn; }); };
   litMesh.onBeforeRender = emiMesh.onBeforeRender = syncFn || litMesh.onBeforeRender;
   group.add(litMesh); group.add(emiMesh);
+  // ── animated parts (own small meshes on the shared lit material): a hinged leaf per hut, the swinging bell, the well splash ──
+  const aP = [], aC = [], one = [1, 1, 1];
+  const leaf = (P, C, x0, y0, z0, x1, y1, z1, cc, rad) => pushBox(P, C, x0, y0, z0, x1, y1, z1, cc, rad, 1, 1);
+  const mkMesh = (P, C, name) => { const m = new T.Mesh(mkGeo(P, C), litMat); m.name = name; m.frustumCulled = false; if (syncFn) m.onBeforeRender = syncFn; return m; };
+  const doorGeo = (() => {      // hinge at the origin, the leaf runs +x, 0.14 thick: planks + two braces + a brass knob
+    const P = [], C = [], wd = tint(WOOD, 1.7), br = tint(WOOD, 1.1), gold = rgb(TONES.accent);
+    leaf(P, C, 0.04, 0, -0.07, DOOR_W - 0.04, DOOR_H - 0.04, 0.07, wd, 0.05);
+    for (const yy of [0.7, DOOR_H - 0.9]) leaf(P, C, 0.1, yy, -0.1, DOOR_W - 0.1, yy + 0.16, 0.1, br, 0.05);
+    leaf(P, C, DOOR_W - 0.3, 1.35, -0.16, DOOR_W - 0.16, 1.49, 0.16, gold, 0.06);
+    return mkGeo(P, C);
+  })();
+  const doorMat = litMat;
+  for (const h of huts) {
+    const d = h.door.d, t = [-d[1], d[0]], th = Math.atan2(-t[1], t[0]), o = (a) => Math.cos(a) * -d[0] + -Math.sin(a) * -d[1];      // o(a): the leaf direction at angle a dotted with the inward normal
+    const sg = o(th + DOOR_OPEN_A) >= o(th - DOOR_OPEN_A) ? 1 : -1, g = new T.Group(), m = new T.Mesh(doorGeo, doorMat);
+    m.frustumCulled = false; if (syncFn) m.onBeforeRender = syncFn; g.add(m);
+    g.position.set(h.door.c[0] - d[0] * TW / 2 - t[0] * DOOR_W / 2, h.yb, h.door.c[1] - d[1] * TW / 2 - t[1] * DOOR_W / 2); g.rotation.y = th; g.name = 'hut-door'; group.add(g);
+    h.doorObj = { g, th, sg, a: 0 };
+  }
+  const bellG = new T.Group(); bellG.position.set(0, wellY + 3.0 * BIG, 0); bellG.name = 'village-bell';
+  { const P = [], C = [], gold = rgb(TONES.accent);
+    leaf(P, C, -0.17, -0.74, -0.15, 0.17, -0.12, 0.15, gold, 0.15); leaf(P, C, -0.06, -0.1, -0.06, 0.06, 0.02, 0.06, gold, 0.04); leaf(P, C, -0.05, -0.86, -0.05, 0.05, -0.72, 0.05, tint(gold, 0.7), 0.05);
+    const bm = mkMesh(P, C, 'bell'); bellG.add(bm); group.add(bellG); }
+  let bellT = 99, splash = null, splashT = 99;
+  const waterItem = resourceItem('ice', pn.name || pid);
   const tris = (LP.length + EP.length) / 9;
   let nightV = -1;
   function setNight(n) {
@@ -402,11 +432,12 @@ export function createVillage(engine, u, opts) {
     return { stop: 0 };
   }
   function setPath(v, tg) {
-    const key = tg.home ? 'home' : 's' + tg.stop; if (v.tgt === key) return; v.tgt = key;
+    const key = tg.call ? 'call' : tg.home ? 'home' : 's' + tg.stop; if (v.tgt === key) return; v.tgt = key;
     let pts = []; const h = v.homeHut;
     if (v.inside) { pts.push([h.cx, h.cz], [h.door.c[0], h.door.c[1]], [h.door.front[0], h.door.front[1]]); v.inside = false; v.hidden = false; }
     const from = pts.length ? pts[pts.length - 1] : [v.x, v.z];
-    if (tg.home) { const r = route(from[0], from[1], h.door.front[0], h.door.front[1]); pts = pts.concat(pts.length ? r.slice(1) : r); pts.push([h.door.c[0], h.door.c[1]], [h.cx, h.cz]); }
+    if (tg.call) { const r = route(from[0], from[1], v.callPt[0], v.callPt[1]); pts = pts.concat(pts.length ? r.slice(1) : r); }      // the bell: walk to the plaza
+    else if (tg.home) { const r = route(from[0], from[1], h.door.front[0], h.door.front[1]); pts = pts.concat(pts.length ? r.slice(1) : r); pts.push([h.door.c[0], h.door.c[1]], [h.cx, h.cz]); }
     else { const s = v.stops[tg.stop], r = route(from[0], from[1], s.x, s.z); pts = pts.concat(pts.length ? r.slice(1) : r); }
     v.path = pts; v.pi = 1; v.thru = !!(tg.home || (pts.length && pts[0][0] === h.cx && pts[0][1] === h.cz));      // thru: doorway legs skip the wall push-out
   }
@@ -419,7 +450,7 @@ export function createVillage(engine, u, opts) {
       const s = v.role === 'kid' ? 1.15 : v.role === 'elder' ? 1.7 : 1.75; hm.group.scale.setScalar(s); hm.group.visible = false; hookRide(hm.group); group.add(hm.group); v.human = hm;
     } catch (e) {
       v.humanFail = true;
-      const m = new T.Mesh(new T.CapsuleGeometry(0.35, 1.1, 3, 6), new T.MeshBasicMaterial({ color: ROLE_COL[v.role] || 0xffffff })); m.position.y = 0.9; const g = new T.Group(); g.add(m); g.visible = false; hookRide(g); group.add(g);
+      const m = new T.Mesh(new T.CapsuleGeometry(0.35, 1.1, 3, 6), unlitMat(T, { color: ROLE_COL[v.role] || 0xffffff })); m.position.y = 0.9; const g = new T.Group(); g.add(m); g.visible = false; hookRide(g); group.add(g);
       v.human = { group: g, update() {}, dispose() { m.geometry.dispose(); m.material.dispose(); } };
     }
   }
@@ -556,8 +587,10 @@ export function createVillage(engine, u, opts) {
     ctx = ctx || {}; const night = ctx.night || 0; village.night = night; setNight(night);
     if (village.threat) { village.threat.t -= dt; if (village.threat.t <= 0) village.threat = null; }
     const tm = ctx.t != null ? ctx.t : Date.now() / 1000, haveP = !!ctx.player;
-    let px = 0, pz = 0, pd = 1e12;
-    if (haveP) { toLocal(ctx.player, vLocal); px = vLocal.x; pz = vLocal.z; pd = anchor.pos.distanceTo(ctx.player); }
+    let px = 0, pz = 0, py = 0, pd = 1e12;
+    if (haveP) { toLocal(ctx.player, vLocal); px = vLocal.x; py = vLocal.y; pz = vLocal.z; pd = anchor.pos.distanceTo(ctx.player); }
+    bellT += dt; bellG.rotation.x = bellT < 9 ? 0.6 * Math.exp(-bellT * 0.8) * Math.sin(bellT * 8.4) : 0;      // the bell swings out over ~9 s
+    stepSplash(dt);
     const act = pd < VILL_ACT_L * Lw + 60 * u;
     if (!act) { for (const v of villagers) { v.first = null; if (v.human) v.human.group.visible = false; } for (const g of golums) if (g.M) g.M.root.visible = false; village.near = null; return; }
     // mobs -> village metres
@@ -575,7 +608,8 @@ export function createVillage(engine, u, opts) {
         else { const s = v.stops[tg.stop]; v.x = s.x; v.z = s.z; v.inside = false; }
         v.tgt = tg.home ? 'home' : 's' + tg.stop; v.path = null;
       }
-      const tg = targetFor(v, tm, night);
+      v.callT = Math.max(0, (v.callT || 0) - dt);
+      const tg = v.callT > 0 && night <= 0.55 && v.panic <= 0 ? { call: true } : targetFor(v, tm, night);      // the bell calls everyone to the plaza (night / panic still send them home)
       if (!(v.inside && tg.home)) setPath(v, tg);
       let moving = false;
       if (haveP && !v.inside && v.panic <= 0 && Math.hypot(v.x - px, v.z - pz) < 7.0) { v.attend = 6; v.yaw = Math.atan2(-(px - v.x), -(pz - v.z)); }      // Q29: approached -> stops walking 6 s and turns to face you
@@ -616,6 +650,44 @@ export function createVillage(engine, u, opts) {
     if (near && nd < 5.25 && near.greetCd <= 0 && greetT <= 0) { near.greetCd = 40; greetT = 4; events.push({ type: 'greet', v: near, text: lingo.line({ seed: near.seed, role: near.role, name: near.name, known: near.known, _n: near._n++ }, near._n % 3 === 0 ? 'shopper' : 'greeting') }); }
     // golums
     for (const g of golums) stepGolum(g, dt, ctx, px, pz, haveP, mobsV);
+    // hut doors: eased open when the player (within 1.5 H) or a walker is at the threshold, shut again after
+    for (const h of huts) {
+      const D = h.doorObj; if (!D) continue; let want = 0;
+      if (haveP && Math.abs(py - h.yb) < 3 && Math.hypot(h.door.c[0] - px, h.door.c[1] - pz) < DOOR_OPEN_R) want = 1;
+      if (!want) for (const v of villagers) if (!v.inside && Math.hypot(v.x - h.door.c[0], v.z - h.door.c[1]) < 2.4) { want = 1; break; }
+      D.a += (want - D.a) * (1 - Math.exp(-DOOR_EASE * dt)); D.g.rotation.y = D.th + D.sg * DOOR_OPEN_A * D.a;
+    }
+  };
+
+  // ── world interactions (ship.js footTarget/footAct call village.interactNear(p).use(ctx), prompt string = .label; same 'F · VERB' shape as the shop) ──
+  function stepSplash(dt) {
+    if (!splash || splashT > 1.4) return; splashT += dt;
+    const on = splashT < 1.4; splash.g.visible = on;
+    if (on) for (const q of splash.q) { const t = Math.max(0, splashT - q.d); q.m.visible = t > 0; q.m.position.set(Math.cos(q.a) * q.r * t, wellY + 0.6 + q.v * t - 4.9 * t * t, Math.sin(q.a) * q.r * t); }
+  }
+  village.ring = (ctx) => {
+    bellT = 0; const n = villagers.length;
+    villagers.forEach((v, i) => { const a = i / n * 6.2831853 + 0.3; v.callPt = [Math.cos(a) * 4.2, Math.sin(a) * 4.2]; if (v.panic <= 0) { v.callT = BELL_CALL_S; v.tgt = ''; } });
+    try { if (ctx && ctx.aPlay) ctx.aPlay('ui', { vel: 0.9, pitch: 0.55 }); } catch (e) { /* ignore */ }
+    return true;
+  };
+  village.drawWater = (ctx) => {      // the item hook is ctx.giveItem(item); without it the well just splashes
+    if (!splash) {
+      const g = new T.Group(), geo = new T.SphereGeometry(0.09, 6, 4), mat = unlitMat(T, { color: 0xBEEFFF }), q = [];
+      for (let i = 0; i < 7; i++) { const m = new T.Mesh(geo, mat); m.frustumCulled = false; if (syncFn) m.onBeforeRender = syncFn; g.add(m); q.push({ m, a: i * 0.9, r: 0.5 + (i % 3) * 0.25, v: 2.6 + (i % 4) * 0.5, d: i * 0.04 }); }
+      g.visible = false; g.name = 'well-splash'; group.add(g); splash = { g, q, geo, mat };
+    }
+    splashT = 0;
+    try { if (ctx && ctx.aPlay) ctx.aPlay('step', { level: 0, vel: 0.5 }); } catch (e) { /* ignore */ }
+    if (ctx && typeof ctx.giveItem === 'function') { try { ctx.giveItem(waterItem); } catch (e) { /* ignore */ } }
+    return waterItem;
+  };
+  const IA_BELL = { kind: 'bell', label: 'F · RING BELL', use: (ctx) => village.ring(ctx) }, IA_WELL = { kind: 'well', label: 'F · DRAW WATER', use: (ctx) => village.drawWater(ctx) };
+  village.interactNear = (p) => {
+    if (!p) return null;
+    toLocal(p, vLocal); if (Math.abs(vLocal.y - wellY) > 2.5) return null;
+    if (Math.hypot(vLocal.x - BELL_POST[0], vLocal.z - BELL_POST[1]) < 2.2) return IA_BELL;
+    return Math.hypot(vLocal.x, vLocal.z) < 3.9 ? IA_WELL : null;
   };
 
   village.serialize = () => { syncStock(); return { day: stockDay, stock: Object.assign({}, stock) }; };
@@ -624,6 +696,7 @@ export function createVillage(engine, u, opts) {
   village.dispose = () => {
     for (const v of villagers) if (v.human) { try { v.human.dispose(); } catch (e) { /* ignore */ } }
     for (const g of golums) if (g.M) g.M.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    doorGeo.dispose(); bellG.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); if (splash) { splash.geo.dispose(); splash.mat.dispose(); }
     litMesh.geometry.dispose(); emiMesh.geometry.dispose(); litMat.dispose(); emiMat.dispose();
     if (group.parent) group.parent.remove(group);
   };

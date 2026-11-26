@@ -18,11 +18,12 @@
 import { mobSpawnRule, MOB_KINDS } from './ship-enemies.js';
 import { blueprintItem, BLUEPRINTS } from './ship-craft.js';
 import { resourceItem, RESOURCE_BASE } from './ship-items.js';
+import { unlitMat, bevelTemplate, TONES, mixHex } from './ship-look.js';
 
 function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-const ARCH = 1.65, ARCH_Y = 0.5;   // Q60: arch span 4.2 x 1.65 = 6.9 m = 4 H, height top 8.7 x 0.5 = 4.35 m = 2.5 H (1 H = 1.75 m); horizontal scale ARCH, vertical ARCH_Y.                              // 2026-10-14: the entrance arch (pillars, lintel, torches, veil, colliders) is 2.5x; the dungeon itself is unchanged
+const ARCH = 1.65, ARCH_Y = 0.7;   // 2026-11-25: arch span 4.2 x 1.65 = 6.9 m = 4 H, height top 8.7 x 0.7 = 6.1 m = 3.5 H (1 H = 1.75 m); horizontal scale ARCH, vertical ARCH_Y. (was 0.5 = 2.5 H.)
 const DEPTH = 12, TILE = 1.5, GW = 2;          // dungeon floor y = -DEPTH; gate/corridor half width GW; tile edge
 // z-chain of rooms (x half-width hw, height h). kind: corridor | arena | loot | boss
 const LAYOUT = [
@@ -134,7 +135,7 @@ export function createHub(engine, L, opts) {
   // ── geometry: one vertex-coloured stone mesh ──
   const P = [], C = [];
   const col = new T.Color();
-  const stoneCol = (moss, r) => moss ? col.setHSL(0.28 + r() * 0.06, 0.38, 0.17 + r() * 0.07) : col.setHSL(0.73 + r() * 0.04, 0.08, 0.2 + r() * 0.08);
+  const stoneCol = (moss, r) => col.set(mixHex(TONES.dark, moss ? TONES.floor : TONES.shelfD, 0.25 + r() * 0.3));      // ship-look.js ramp: dusk-violet stone, lighter lavender where it was moss
   const vtx = (x, y, z, c) => { const l = lightAt(x, y, z); P.push(x, y, z); C.push(c.r * l[0], c.g * l[1], c.b * l[2]); };
   const quad = (a, b, c, d, cc) => { vtx(a[0], a[1], a[2], cc); vtx(b[0], b[1], b[2], cc); vtx(c[0], c[1], c[2], cc); vtx(a[0], a[1], a[2], cc); vtx(c[0], c[1], c[2], cc); vtx(d[0], d[1], d[2], cc); };
   const geoRng = mulberry(seed ^ 0x57A1E);
@@ -150,11 +151,33 @@ export function createHub(engine, L, opts) {
     }
   }
   const X = [1, 0, 0], Y = [0, 1, 0], Z = [0, 0, 1];
-  function box(x0, y0, z0, x1, y1, z1, mossP, tile) {            // all 4 side faces + top (bottom skipped)
+  // rounded stone block (ship-look.js bevel template, radius min(0.35, 0.3 x the smallest side)), triangles split until no edge is longer than `tile` so the baked torch light keeps its resolution;
+  // form shading is baked too (top brighter, the unlit material has no lights). The tiled `plane` above stays for the dungeon rooms (flat walls).
+  const sub = (a, b, c, na, nb, nc, tile, cc) => {      // longest-edge bisection: a long thin face costs L / tile triangles, not (L / tile)^2
+    const ab = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), bc = Math.hypot(c[0] - b[0], c[1] - b[1], c[2] - b[2]), ca = Math.hypot(a[0] - c[0], a[1] - c[1], a[2] - c[2]), e = Math.max(ab, bc, ca);
+    if (e > tile) {
+      const mp = (u, v) => [(u[0] + v[0]) / 2, (u[1] + v[1]) / 2, (u[2] + v[2]) / 2], mn = (u, v) => { const x = (u[0] + v[0]) / 2, y = (u[1] + v[1]) / 2, z = (u[2] + v[2]) / 2, l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; };
+      if (e === ab) { const m = mp(a, b), nm = mn(na, nb); sub(a, m, c, na, nm, nc, tile, cc); sub(m, b, c, nm, nb, nc, tile, cc); }
+      else if (e === bc) { const m = mp(b, c), nm = mn(nb, nc); sub(a, b, m, na, nb, nm, tile, cc); sub(a, m, c, na, nm, nc, tile, cc); }
+      else { const m = mp(c, a), nm = mn(nc, na); sub(a, b, m, na, nb, nm, tile, cc); sub(m, b, c, nm, nb, nc, tile, cc); }
+      return;
+    }
+    const p3 = [a, b, c], n3 = [na, nb, nc];
+    for (let k = 0; k < 3; k++) { const q = p3[k], nn = n3[k], f = 0.78 + 0.22 * Math.max(0, nn[1]) + 0.08 * nn[0]; vtx(q[0], q[1], q[2], new T.Color(cc.r * f, cc.g * f, cc.b * f)); }
+  };
+  function tbox(x0, y0, z0, x1, y1, z1, mossP, tile) {            // dungeon masonry: tiled flat faces (all 4 sides + top, bottom skipped); the boss pillars and the trench rims
     const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
     plane([x0, y0, z0], X, Y, dx, dy, null, mossP, tile); plane([x0, y0, z1], X, Y, dx, dy, null, mossP, tile);
     plane([x0, y0, z0], Z, Y, dz, dy, null, mossP, tile); plane([x1, y0, z0], Z, Y, dz, dy, null, mossP, tile);
     plane([x0, y1, z0], X, Z, dx, dz, null, mossP, tile);
+  }
+  function box(x0, y0, z0, x1, y1, z1, mossP, tile) {            // the entrance arch + its apron: rounded blocks
+    tile = (tile || TILE) * 2.6; const w = x1 - x0, h = y1 - y0, d = z1 - z0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2, rad = Math.min(0.35, 0.3 * Math.min(w, h, d)), tp = bevelTemplate(w, h, d, rad, 2);
+    const cc = stoneCol(geoRng() < (mossP ? mossP(cx, y0 + 0.5, cz) : 0.1), geoRng).clone(), S = tp.pos, N = tp.nrm;
+    for (let i = 0; i < S.length; i += 9) {
+      if (S[i + 1] + cy < y0 + 1e-6 && S[i + 4] + cy < y0 + 1e-6 && S[i + 7] + cy < y0 + 1e-6 && y0 > -0.5) continue;      // the underside of a block standing on the ground is never seen
+      sub([S[i] + cx, S[i + 1] + cy, S[i + 2] + cz], [S[i + 3] + cx, S[i + 4] + cy, S[i + 5] + cz], [S[i + 6] + cx, S[i + 7] + cy, S[i + 8] + cz], [N[i], N[i + 1], N[i + 2]], [N[i + 3], N[i + 4], N[i + 5]], [N[i + 6], N[i + 7], N[i + 8]], tile, cc);
+    }
   }
   const mossLow = (base) => (x, y) => (y - base < 1.3 ? 0.5 : 0.1);
   const isGap = (x, y, base) => Math.abs(x) < GW && y - base < 4;
@@ -172,7 +195,7 @@ export function createHub(engine, L, opts) {
   const pillars = [];
   { const q = roomById.boss._r; for (let k = 0; k < 4; k++) for (const s of [-1, 1]) {
     const x = s * 9, z = q.z0 + 6 + k * 8; pillars.push({ min: [x - 0.8, -DEPTH, z - 0.8], max: [x + 0.8, -DEPTH + q.h, z + 0.8], door: null, active: true });
-    box(x - 0.8, -DEPTH, z - 0.8, x + 0.8, -DEPTH + q.h, z + 0.8, mossLow(-DEPTH), 2.2); } }
+    tbox(x - 0.8, -DEPTH, z - 0.8, x + 0.8, -DEPTH + q.h, z + 0.8, mossLow(-DEPTH), 2.2); } }
   // stairs trench (open to the sky): steps + two side walls + parapet rim
   for (let i = 0; i < 24; i++) {
     const yt = -i * 0.5, yb = -(i + 1) * 0.5;
@@ -181,7 +204,7 @@ export function createHub(engine, L, opts) {
   }
   plane([-GW, -DEPTH, 0], Z, Y, 24, DEPTH + 0.7, null, (x, y) => (y < -9 ? 0.4 : 0.15), 1.5);
   plane([GW, -DEPTH, 0], Z, Y, 24, DEPTH + 0.7, null, (x, y) => (y < -9 ? 0.4 : 0.15), 1.5);
-  box(-GW - 1.2, 0, 0, -GW, 0.7, 24, () => 0.2, 2); box(GW, 0, 0, GW + 1.2, 0.7, 24, () => 0.2, 2);
+  tbox(-GW - 1.2, 0, 0, -GW, 0.7, 24, () => 0.2, 2); tbox(GW, 0, 0, GW + 1.2, 0.7, 24, () => 0.2, 2);
   // entrance arch: two pillars + lintel + capstones
   { const A = ARCH; const V = ARCH_Y; box(-3.5 * A, 0, -0.7 * A, -2.1 * A, 7 * V, 0.7 * A, mossLow(0), 1.4); box(2.1 * A, 0, -0.7 * A, 3.5 * A, 7 * V, 0.7 * A, mossLow(0), 1.4);
     box(-3.9 * A, 6.9 * V, -0.9 * A, 3.9 * A, 8.1 * V, 0.9 * A, () => 0.05, 1.3); box(-1.2 * A, 8.1 * V, -0.5 * A, 1.2 * A, 8.7 * V, 0.5 * A, () => 0.0, 1.2); }
@@ -211,7 +234,7 @@ export function createHub(engine, L, opts) {
   }
   const stoneGeo = new T.BufferGeometry();
   stoneGeo.setAttribute('position', new T.Float32BufferAttribute(P, 3)); stoneGeo.setAttribute('color', new T.Float32BufferAttribute(C, 3));
-  const stoneMesh = new T.Mesh(stoneGeo, new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide }));
+  const stoneMesh = new T.Mesh(stoneGeo, unlitMat(T, { vertexColors: true, side: T.DoubleSide }));
   stoneMesh.frustumCulled = false; stoneMesh.name = 'hub-stone'; group.add(stoneMesh);
   let tris = P.length / 9;
 
@@ -222,7 +245,7 @@ export function createHub(engine, L, opts) {
   for (const r of rooms) if (r.kind !== 'corridor') { const q = r._r, y = -DEPTH + q.h - 0.02, hw = q.hw - 0.02;
     web(-hw, y, q.z0 + 0.02, 1, 1, 1); web(hw, y, q.z0 + 0.02, -1, 1, 1); web(-hw, y, q.z1 - 0.02, 1, -1, 1); web(hw, y, q.z1 - 0.02, -1, -1, 1); }
   const webGeo = new T.BufferGeometry(); webGeo.setAttribute('position', new T.Float32BufferAttribute(W, 3));
-  const webMesh = new T.Mesh(webGeo, new T.MeshBasicMaterial({ color: 0xc8cadc, transparent: true, opacity: 0.3, side: T.DoubleSide, depthWrite: false }));
+  const webMesh = new T.Mesh(webGeo, unlitMat(T, { color: TONES.sky, transparent: true, opacity: 0.3, side: T.DoubleSide, depthWrite: false }));
   webMesh.frustumCulled = false; group.add(webMesh); tris += W.length / 9;
 
   // entrance glow: veil in the arch + ground halo (additive)
@@ -235,12 +258,12 @@ export function createHub(engine, L, opts) {
       GP.push(0, 0.12, 6, Math.cos(a0) * R, 0.12, 6 + Math.sin(a0) * R, Math.cos(a1) * R, 0.12, 6 + Math.sin(a1) * R);
       GC.push(0.12, 0.8, 0.35, 0, 0, 0, 0, 0, 0); } }
   const glowGeo = new T.BufferGeometry(); glowGeo.setAttribute('position', new T.Float32BufferAttribute(GP, 3)); glowGeo.setAttribute('color', new T.Float32BufferAttribute(GC, 3));
-  const glowMat = new T.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide });
+  const glowMat = unlitMat(T, { vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide });
   const glowMesh = new T.Mesh(glowGeo, glowMat); glowMesh.frustumCulled = false; group.add(glowMesh); tris += GP.length / 9;
 
   // instanced: flames, cages, gates, chest bodies, chest lids
   const unit = new T.BoxGeometry(1, 1, 1);
-  const flames = new T.InstancedMesh(unit, new T.MeshBasicMaterial({ color: 0xffa040 }), torches.length); flames.frustumCulled = false; group.add(flames);
+  const flames = new T.InstancedMesh(unit, unlitMat(T, { color: TONES.accent }), torches.length); flames.frustumCulled = false; group.add(flames);
   const cageGeo = (() => { const g = [], bar = (cx, cy, cz, sx, sy, sz) => { const b = new T.BoxGeometry(sx, sy, sz); b.translate(cx, cy, cz); g.push(b); };
     for (const a of [-1, 1]) for (const b of [-1, 1]) { bar(a * 0.5, b * 0.5, 0, 0.09, 0.09, 1.09); bar(a * 0.5, 0, b * 0.5, 0.09, 1.09, 0.09); bar(0, a * 0.5, b * 0.5, 1.09, 0.09, 0.09); }
     for (let i = -1; i <= 1; i += 1) { bar(0, i * 0.5, 0.5, 0.05, 0.05, 0.05); }
@@ -248,10 +271,10 @@ export function createHub(engine, L, opts) {
     const pos = [], col2 = []; let tcount = 0;
     for (const b of g) { const nb = b.toNonIndexed(), p = nb.attributes.position; for (let i = 0; i < p.count; i++) { pos.push(p.getX(i), p.getY(i), p.getZ(i)); const core = Math.abs(p.getX(i)) < 0.16 && Math.abs(p.getY(i)) < 0.16 && Math.abs(p.getZ(i)) < 0.16; col2.push(core ? 1 : 0.35, core ? 1 : 1, core ? 1 : 0.55); } tcount += p.count / 3; b.dispose(); nb.dispose(); }
     const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new T.Float32BufferAttribute(col2, 3)); geo.userData.tris = tcount; return geo; })();
-  const cageMat = new T.MeshBasicMaterial({ vertexColors: true, color: 0x66ff99 });
+  const cageMat = unlitMat(T, { vertexColors: true, color: 0x66ff99 });
   const cageMesh = new T.InstancedMesh(cageGeo, cageMat, cages.length); cageMesh.frustumCulled = false; group.add(cageMesh);
-  const gateMesh = new T.InstancedMesh(unit, new T.MeshBasicMaterial({ color: 0x3a2a2e }), gates.length); gateMesh.frustumCulled = false; group.add(gateMesh);
-  const chestBody = new T.InstancedMesh(unit, new T.MeshBasicMaterial({ color: 0xffffff }), chests.length), chestLid = new T.InstancedMesh(unit, new T.MeshBasicMaterial({ color: 0xffffff }), chests.length);
+  const gateMesh = new T.InstancedMesh(unit, unlitMat(T, { color: mixHex(TONES.shelfD, TONES.dark, 0.5) }), gates.length); gateMesh.frustumCulled = false; group.add(gateMesh);
+  const chestBody = new T.InstancedMesh(unit, unlitMat(T, { color: 0xffffff }), chests.length), chestLid = new T.InstancedMesh(unit, unlitMat(T, { color: 0xffffff }), chests.length);
   chestBody.frustumCulled = chestLid.frustumCulled = false; group.add(chestBody); group.add(chestLid);
   tris += 12 * (torches.length + gates.length + chests.length * 2) + cages.length * cageGeo.userData.tris;
 
@@ -266,7 +289,7 @@ export function createHub(engine, L, opts) {
     const rot = base.clone().multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), -1.2 * lid));
     const center = new T.Vector3(0, 0.12, 0.375).applyQuaternion(rot).add(hinge);
     M.compose(center, rot, V2.set(1.1, 0.24, 0.75)); chestLid.setMatrixAt(i, M);
-    chestBody.setColorAt(i, CC.set(c.boss ? 0x8a3cff : c.opened ? 0x3a2a1a : 0x7a4a22)); chestLid.setColorAt(i, CC.set(c.boss ? 0xb870ff : c.opened ? 0x4a3a2a : 0xa86a30));
+    chestBody.setColorAt(i, CC.set(c.boss ? TONES.floor : c.opened ? mixHex(TONES.dark, TONES.accent, 0.2) : mixHex(TONES.accent, TONES.dark, 0.55))); chestLid.setColorAt(i, CC.set(c.boss ? TONES.trim : c.opened ? mixHex(TONES.dark, TONES.accent, 0.3) : mixHex(TONES.accent, TONES.dark, 0.35)));
     chestBody.instanceMatrix.needsUpdate = chestLid.instanceMatrix.needsUpdate = true; chestBody.instanceColor.needsUpdate = chestLid.instanceColor.needsUpdate = true; }
   const setGate = (i) => { const g = gates[i], k = g.open; M.compose(V1.set(0, -DEPTH + 2 - k * 2.05, g.z), Q.identity(), V2.set(2 * GW + 0.1, 4, 0.5)); gateMesh.setMatrixAt(i, M); gateMesh.instanceMatrix.needsUpdate = true; };
   const flameBase = torches.map((t) => ({ x: t.x + (t.side || 0) * 0.02, y: t.y + 0.28, z: t.z }));

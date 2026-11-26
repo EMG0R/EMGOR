@@ -1,5 +1,8 @@
 # NO MANS GOR — HANDOFF (current state 2026-11-04; history below)
 
+> **2026-11-25 overhaul (Mac, three Sonnet builders, verified only by node tests + g10/g17/g24 in headless Chrome, NOT by eye):** full audit + change logs in `docs/audit-2026-11-25/` (audit-*.md, changes-world.md, changes-pokemans.md, changes-brawl.md, each with an owner by-eye checklist). Headlines: 7/11 moved off the landing pad (offset from the real pad radius); every building box rounded by default + toon look module `js/ship-look.js`; ceilings 2.8 H, doors 1.0x1.6 H, huts 3.5x3 H; on-foot camera wall/roof pull-in + indoor mode (boom 1.6 H, FOV +10) + outdoor boom 3.2 H with wheel zoom 2-5 H; walk 4 / run 9 H/s with eased accel; bell / well / hut doors / Burger seats interactive (F). POKEMANS is a real-time on-foot loop now: wilds are ~1 H (log-normal 0.5-2 H, 5% to 3.5 H, 6 body plans), blaster damages them, they fight back, catch chance rises as HP drops (5% full -> ~70-90% low), partner hops out and assists, GOR BALL reach 40 H with lock reticle; single POKEDEX item opens an uncapped roster (one active follower); Alt+1-6 / 0-then-1-6 party swap REMOVED; pixel battle screen (`pokemans-battle.js`) DELETED. GOR BRAWL: FAST physics preset default (CLASSIC selectable), sim 1.15x local, dash burst + dash dance, per-fighter physics, tighter camera, KO hitlag/zoom/sparks, 9-level bot ladder (`js/smash-geom.js` read-only API), NPC levels villager L3-4 / trader L5 / guard L6 / elder L8 / golum L9.
+
+
 ## CURRENT STATE (2026-11-04, branch `gorcave-backlog`, written from docs/GORCAVE-LOG.md)
 Nothing on this branch is merged to main or seen by eye. The gorcave builder (Sonnet, unattended, no browser) ran Q01-Q33; everything browser-side is unrun. Source of truth for "what ran": `docs/GORCAVE-LOG.md`. Work list: `docs/GORCAVE-QUEUE.md`. Specs: `docs/next-stage-plan.md` (statuses at its top).
 
@@ -19,7 +22,7 @@ Nothing on this branch is merged to main or seen by eye. The gorcave builder (So
 | onboarding + 7-step first-five-minutes chain | `js/ship-onboard.js` | Q26 |
 | movement styles (MARO/JOSHI/STEEV/SONIK), rig recipes | `js/ship-styles.js`, `js/ship-human.js` | `maroTable()` (Q08/Q09) exists and is tested but is NOT wired into live `maro()` |
 | enemies, bosses, mobs, creature kit | `js/ship-enemies.js`, `js/ship-parts.js`, `js/ship-hull.js` | |
-| POKEMANS | `js/pokemans-gen.js` (species), `-catch.js`, `-party.js`, `-graft.js`, `-dex.js`, `-fighter.js` | catch/party/graft/dex/trainer fights built; ring-wild capture entry unwired |
+| POKEMANS | `js/pokemans-gen.js` (species), `-catch.js`, `-party.js`, `-graft.js`, `-dex.js`, `-fighter.js`, `-wild.js` | real-time wild encounter (blaster HP chip, aggro, partner assist, GOR BALL shake catch), POKEDEX roster (one active follower, unlimited stored), 6 body plans; trainer fights stay on the smash engine; the pixel battle screen is removed |
 | fractal depth | `js/ship-depth.js` (pure), rock API in ship-planet.js, `depthStack` save + HUD chip | dive/climb engine wiring (Q17b3) NOT done: Mac session |
 | soundtrack | `js/ship-music.js` (+ `ship-audio.js` sfx) | pure scheduler, seeded |
 | perf/quality tiers | `js/ship-perf.js` | |
@@ -28,7 +31,7 @@ Nothing on this branch is merged to main or seen by eye. The gorcave builder (So
 | tests | `js/ship-planet-tests.js` (g1-g19, browser), `tests/node/*.test.mjs` | |
 
 ### Key map (as of HELP in ship.js ~3914)
-Z ship (land / step out / board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person) · T talk (on foot/station), T cycle target (space), hold T beside follower = 4-move radial · V scan · Q focus · X wingmen focus fire · E inventory · U POKEMANS manager · 1-9 weapon hotbar · 0 then 1-6 (or Alt+1-6) swap party · B throw GOR BALL · A/D x2 roll · S x2 flip · Ctrl drift · Shift boost/run · Space pulse/jetpack · Shift+LMB ram · hold Esc 3 s exit · Enter or / chat. Commands: /wave /peaceful /hostile /difficulty /user /color /ship /weapons /volume /quality /gorcave /help.
+Z ship (land / step out / board; HOLD = lift off / summon) · W lift off (landed) · F interact (shop, fight a person) · T talk (on foot/station), T cycle target (space), hold T beside follower = 4-move radial · V scan · Q focus · X wingmen focus fire · E inventory · U POKEDEX roster (or right-click the POKEDEX item) · 1-9 weapon hotbar · LMB blaster hits a wild · hold B (lock in 12 deg cone, 40 H) throw GOR BALL · A/D x2 roll · S x2 flip · Ctrl drift · Shift boost/run · Space pulse/jetpack · Shift+LMB ram · hold Esc 3 s exit · Enter or / chat. Commands: /wave /peaceful /hostile /difficulty /user /color /ship /weapons /volume /quality /gorcave /help.
 
 ### How to test
 - Node (pure modules, runs on gorcave): `bash tools/test-node.sh` (= `node --test tests/node/*.test.mjs`). Last run 2026-11-04: 257 tests, 242 pass / 0 fail / 15 skipped (todo markers document known bugs). Also `node --check` every edited .js (copy to .mjs if import/export trips it).
@@ -44,7 +47,7 @@ Z ship (land / step out / board; HOLD = lift off / summon) · W lift off (landed
 3. Scale: H_RATIO 0.2 and pilot {4,3}: player beside ship, hut door, 7/11 + CVS + hub arch, creatures; landing approach (the 2026-10-14 failure mode). Revert = H_RATIO / `{root:6,deep:4}`.
 4. Landing: Q03 auto-damp under 3 L, `Z · LAND` while cruising, "SLOW DOWN to land" at speed >= 2; hint bar fades 10 s, returns 6 s on mode change; marker count (ship + 3 + quest); boss HUD 3 bars + pips.
 5. Fights: villager easy / elder hard; idle payout 0; result card coin/xp/part/bond/line/who (Q31); trainer fight end to end (Q24).
-6. POKEMANS loop: buy ball, weaken, hold B (8-dot arc, 12 H), 3 shakes, caught; summon, fights beside you, T radial, U manager, faint, REVIVE at planet + station CVS; grafts, food tutor, bond 10/30, DEX tab. GOR BALL on a fast-rotating planet stays on its arc (Q32 `gbLocalize/gbProject`, riskiest frame math). Full bag (400 stacks): no follower flicker, BAG FULL rows.
+6. POKEMANS loop: shoot a wild with the blaster (HP chip, it fights back, partner hops out), hold B (8-dot arc, 40 H, lock reticle + catch %), 1-3 shakes resolved per shake, caught; starter kit = 3 GOR BALL + POKEDEX; summon, fights beside you, T radial, U manager, faint, REVIVE at planet + station CVS; grafts, food tutor, bond 10/30, DEX tab. GOR BALL on a fast-rotating planet stays on its arc (Q32 `gbLocalize/gbProject`, riskiest frame math). Full bag (400 stacks): no follower flicker, BAG FULL rows.
 7. Q26 new-profile START card + 7-step chain + respawn card; Q27 ship-foot.js walk/jump/jetpack/dive/styles/wall slide/store collision; Q28 hub mobs two tabs; Q29 NPC access (g19); Q30 station marker, Z DOCK sequence, deck markers, launch, pose resume.
 8. Q19 music: 3 biomes + night + wind + fight mute, nothing audible muted, /volume scales.
 9. Relay (Q15, Q33): two tabs, valid-origin wss, peers see `frame:'planet'` poses, reconnect leaves no ghost, `__proto__` profile survives. Only verified to the Funnel 403 origin check from the Pi; backup of old server.js in /tmp is gone on reboot.
@@ -53,7 +56,7 @@ Z ship (land / step out / board; HOLD = lift off / summon) · W lift off (landed
 ### Known open (not queued unless noted)
 - `maroTable()` switch-over into live `maro()` (controller must supply wallT/normal, slope, ledgeTop, dive/pound/punch edges, consume out.fx).
 - Q17b3 fractal dive/climb wiring; use rockId not slot for microSpec (slots shift across quality tiers).
-- Ring-wild capture entry (`ft.wild` never set); grafts not visible on the 3D follower mesh; no elder GRAFT counter; no resource-node part drops; trainer mons don't heal.
+- Wild encounter + POKEDEX rework (docs/audit-2026-11-25/changes-pokemans.md) is code-complete but NOT play-tested in a browser; ship-planet-tests.js g24 etc. still call the removed `_gb.battle` and need rewriting; grafts not visible on the 3D follower mesh; no elder GRAFT counter; no resource-node part drops; trainer mons don't heal.
 - Station: no 7/11 shelves on the deck, launch 4-8 s (spec 2 s), no approach beam. E · TRADE unbound (E = inventory).
 - ship.js split step 2 (collision into ship-foot.js, hubFootStep, style bridge).
 - [guess] constants throughout (ball arc/shake, XP formula, CVS offset 60 L, music danger mapping, dock duration, beacon radius 15 L).

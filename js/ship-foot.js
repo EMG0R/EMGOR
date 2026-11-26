@@ -2,8 +2,37 @@
 //   createFoot(ctx) -> { footStep(dt, c, qM) -> focus Vector3, flightStep(dt, c, qM) }
 //   ctx = ship.js state. Stable objects/functions/constants are plain properties (captured once, at first use); state ship.js reassigns is read/written
 //   through the accessor properties (S.mdx, S.keys, S.ps, ...), so there is exactly one copy of every variable.
+//   2026-11-25: camera constants are CAM (top of this file): boom 3.2 H, wheel zoom 2-5 H, wall / roof pull-in (probes along the boom through ctx.objPush, snap in, ease out 6 H/s), indoor mode under a roof (boom 1.6 H,
+//   lower head, FOV +10 deg via S.fovAdd, 0.25 s blend). Movement easing is FEEL (0.18 s up, 0.14 s down). SEAT is the Burger House pose freeze (written by ship-world.js interactNear).
 import { hOf } from './ship-scale.js';
-import { mkJetSM, jetStep, jetThrust, LOCO } from './ship-styles.js';
+import { mkJetSM, jetStep, jetThrust } from './ship-styles.js';
+
+// ── camera + feel constants (2026-11-25). Distances in human heights (H), speeds in H/s, times in s. Tune here, nothing else in this file hardcodes them. ──
+export const CAM = {
+  BOOM: 3.2,            // default outdoor boom (was 4.5)
+  ZOOM_MIN: 2, ZOOM_MAX: 5, WHEEL_K: 0.0025,      // mouse wheel zoom range; one 120-unit notch = 0.3 H
+  SHOULDER: 0.35,       // right-shoulder offset (camera and look point both slide this far)
+  HEAD: 1.0,            // focus height above the feet
+  MARGIN: 0.15,         // extra clearance kept from a wall / roof, on top of the probe radius (0.26 H)
+  MIN: 0.8,             // the camera never comes closer than this to the head
+  STEP: 0.3,            // wall probe spacing along the boom
+  EASE_OUT: 6,          // H/s the boom grows back after a wall pull-in; pull-IN is instant
+  INDOOR_BOOM: 1.6,     // boom under a roof (store, hut, Burger House, awning)
+  INDOOR_HEAD: 0.85,    // focus height under a roof
+  INDOOR_PITCH: 0.6,    // pitch scale under a roof (keeps the lens under the ceiling)
+  INDOOR_SHOULDER: 0.5, // shoulder scale under a roof
+  INDOOR_FOV: 10,       // degrees added to the foot FOV under a roof (ship.js reads S.fovAdd, see changes-world.md)
+  INDOOR_EASE: 0.25,    // seconds for the indoor blend
+  ROOF_PROBES: [1.6, 2.2, 2.8, 3.4],  // heights above the feet (H) probed for a roof / ceiling (a 2.8 H ceiling is hit by the top two); >= 2 hits = indoors
+  ROOF_ON: 0.15, ROOF_OFF: 0.35,     // seconds the probes must agree before the mode flips (doorways do not flicker)
+};
+export const FEEL = {
+  ACC_T: 0.18,          // s to reach walk / run speed from rest (was 0.067)
+  FRIC_T: 0.14,         // s to stop from full speed (was 0.075)
+  TURN_T: 0.08,         // s to brake a 180 degree reversal before walking the new way (was 0.033)
+};
+// a Burger House stool / booth: ship-world.js interactNear() writes SEAT.req = { pos:[x,y,z], face:[x,y,z] } (planet-local), foot owns the pose.
+export const SEAT = { req: null, on: false, leave: false, armed: false, k: 0, pos: null, face: null, stand: null };
 
 export function createFoot(ctx) {
     var S = ctx, THREE = ctx.THREE;
@@ -12,20 +41,21 @@ export function createFoot(ctx) {
     var fsC = ctx.fsC, fsC2 = ctx.fsC2, fsT = ctx.fsT, gA = ctx.gA, gB = ctx.gB, gC = ctx.gC, gD = ctx.gD, gE = ctx.gE, gQ = ctx.gQ, gQi = ctx.gQi;
     var groundCam = ctx.groundCam, hum = ctx.hum, jetFx = ctx.jetFx, mFloor = ctx.mFloor, mM = ctx.mM, objBegin = ctx.objBegin, objPush = ctx.objPush;
     var styEggTick = ctx.styEggTick, styU = ctx.styU, styUpW = ctx.styUpW, styWallO = ctx.styWallO, styleFx = ctx.styleFx, styleStep = ctx.styleStep, styleSync = ctx.styleSync, vTmp = ctx.vTmp;
-    var G_GRAV = 16, G_GRAV_UP = 7.93, G_JUMP = 5.34, FOOT_CAM = 4.5;   // 2026-11 scale retune: walk 6 / run 13 H/s (SM64 ~6), apex 1.8 H, camera 4.5 H back   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
+    var G_GRAV = 16, G_GRAV_UP = 7.93, G_JUMP = 5.34;   // apex 1.8 H; walk / run speed = ctx.G_WALK / G_RUN (ship.js)   // in human heights (/s, /s^2); rev 29: walk = the old run speed, Shift run = 2x
+    var camZoom = CAM.BOOM;      // the wheel moves this between CAM.ZOOM_MIN and CAM.ZOOM_MAX
     var FL_HOLD = 2, FL_V = 36;
     var JET_RAMP = 1.2, JET_DIVE = 16, DIVE_V0 = 3, DIVE_TAU = 0.6, DIVE_CAP = 48, stepPh = 0.6, camDip = 0;      // 2026-10-14 jump: apex 1.2 H in 0.55 s (v0 4.36 H/s, g_up 7.93, falling g 16); Shift dive v = v0 * 2^(t/0.6) capped at 48 H/s      // 2026-10-14: jetpack climb ramp (s to 3.5x), Shift dive speed (heights/s), footstep phase               // rev 29: hold Space this many s = jetpack FLIGHT; flight cruise speed (heights/s)
     var WALL_TAN = Math.tan(70 * Math.PI / 180);      // Q06: terrain steeper than 70 deg along the move counts as a wall
     var FOOT_SUB = 0.12, fsD = new THREE.Vector3();
-    // unstyled (PILOT) ground model: speed ramps with the same LOCO constants the styles use; direction is instant, a reversal brakes to 0 in TURN_T first
-    var gv = 0, gdir = new THREE.Vector3(), JET_A = 60, DIVE_A = 90;      // JET_A / DIVE_A: vertical H/s^2 toward the burn / dive target (linear, same family as LOCO)
+    // unstyled (PILOT) ground model: speed ramps with FEEL.ACC_T / FRIC_T (0.18 s up, 0.14 s down); direction is instant, a reversal brakes to 0 in TURN_T first
+    var gv = 0, gdir = new THREE.Vector3(), JET_A = 60, DIVE_A = 90;      // JET_A / DIVE_A: vertical H/s^2 toward the burn / dive target (linear)
     function pilotRamp(dt, up, moving, wish, top, topRef) {
         var lim = 0.02 * topRef;
         gdir.addScaledVector(up, -gdir.dot(up)); if (gdir.lengthSq() < 1e-8) gdir.copy(wish); gdir.normalize();
         if (moving) {
-            if (gv > lim && gdir.dot(wish) < 0) { gv = Math.max(0, gv - 2 * topRef / LOCO.TURN_T * dt); if (gv <= lim) { gv = 0; gdir.copy(wish); } }
-            else { gdir.copy(wish); gv = gv > top ? Math.max(top, gv - topRef / LOCO.FRIC_T * dt) : Math.min(top, gv + top / LOCO.ACC_T * dt); }
-        } else gv = Math.max(0, gv - topRef / LOCO.FRIC_T * dt);
+            if (gv > lim && gdir.dot(wish) < 0) { gv = Math.max(0, gv - 2 * topRef / FEEL.TURN_T * dt); if (gv <= lim) { gv = 0; gdir.copy(wish); } }
+            else { gdir.copy(wish); gv = gv > top ? Math.max(top, gv - topRef / FEEL.FRIC_T * dt) : Math.min(top, gv + top / FEEL.ACC_T * dt); }
+        } else gv = Math.max(0, gv - topRef / FEEL.FRIC_T * dt);
         return gv;
     }
     // character animation feed (ship-human.js update): signed yaw rate, ground under each foot, nearest creature to look at
@@ -52,6 +82,55 @@ export function createFoot(ctx) {
         return lkO;
     }
     var styCam = 1, flF = new THREE.Vector3(), flA = new THREE.Vector3();
+    // ── camera: wall / roof pull-in + indoor mode ──────────────────────────────────────────────────────────────────────────────────────────────────
+    // The solid sets (store / Burger House / CVS walls + roofs, village hut walls + roof slabs, the hull) live behind ctx.objBegin()/objPush(): objPush resolves a capsule (two spheres 0.25 H and 0.75 H
+    // above the "feet" point, radius 0.26 H) against all of them. The camera probes with that same capsule centred on each sample (feet = sample - 0.5 H up), so "blocked" means the lens would be inside
+    // or within 0.26 H of a solid. Everything below is planet-local (the frame objPush works in).
+    var kH = new THREE.Vector3(), kW = new THREE.Vector3(), kP = new THREE.Vector3(), kQ = new THREE.Vector3(), kD = new THREE.Vector3(), kR = new THREE.Vector3();
+    var camT = 1, camSnap = false, indK = 0, indTgt = 0, indRaw = false, indAgree = 0, indProbeT = 0;
+    function probeHit(p, up, H) { kQ.copy(p).addScaledVector(up, -0.5 * H); return objPush(kQ, H); }
+    // head -> wanted lens (planet-local): the fraction of the boom that is free. Pull-in is instant, the boom grows back at CAM.EASE_OUT H/s. Returns the fraction to apply to (want - head).
+    function camClip(dt, head, want, up, H) {
+        var len = head.distanceTo(want), n = Math.max(3, Math.min(24, Math.ceil(len / (CAM.STEP * H)))), i, t = 1;
+        if (len < 1e-9) return 1;
+        for (i = 1; i <= n; i++) {
+            kP.lerpVectors(head, want, i / n);
+            if (probeHit(kP, up, H)) { t = Math.max(0, (i - 1) / n - CAM.MARGIN * H / len); break; }
+        }
+        t = Math.max(t, Math.min(1, CAM.MIN * H / len));
+        camSnap = t < camT;      // pulled in this frame: the smoother follows faster so the lens never lags through the wall
+        if (camSnap) camT = t; else camT = Math.min(t, camT + CAM.EASE_OUT * H * dt / len);
+        return camT;
+    }
+    // roof / ceiling above the head? three vertical probes, >= 2 hits, debounced; indK is the 0..1 smoothed blend (CAM.INDOOR_EASE s)
+    function indoorTick(dt, up, hr, H) {
+        var k, hits = 0, step;
+        indProbeT -= dt;
+        if (indProbeT <= 0) {
+            indProbeT = 0.1;
+            for (k = 0; k < CAM.ROOF_PROBES.length; k++) { kP.copy(up).multiplyScalar(hr + CAM.ROOF_PROBES[k] * H); if (probeHit(kP, up, H)) hits++; }
+            indRaw = hits >= 2;
+        }
+        if (indRaw !== (indTgt > 0.5)) { indAgree += dt; if (indAgree >= (indRaw ? CAM.ROOF_ON : CAM.ROOF_OFF)) { indTgt = indRaw ? 1 : 0; indAgree = 0; } } else indAgree = 0;
+        step = dt / CAM.INDOOR_EASE; indK += indTgt > indK ? Math.min(step, indTgt - indK) : -Math.min(step, indK - indTgt);
+        return indK * indK * (3 - 2 * indK);
+    }
+    // seat: a Burger House stool / booth. SEAT.req is set by ship-world.js; pose is frozen at the seat, any move key (pressed fresh) or SEAT.leave stands up where you sat down from.
+    function seatTick(dt) {
+        var mv = !S.cmdOpen && !!(S.keys.KeyW || S.keys.KeyA || S.keys.KeyS || S.keys.KeyD || S.keys.Space || S.keys.Escape);
+        if (SEAT.req) { if (!SEAT.on) { SEAT.on = true; SEAT.armed = false; SEAT.stand = hum.pos.toArray(); } SEAT.pos = SEAT.req.pos; SEAT.face = SEAT.req.face; SEAT.req = null; hum.air = false; hum.vv = 0; gv = 0; }
+        if (!SEAT.on) { if (SEAT.k > 0) SEAT.k = Math.max(0, SEAT.k - dt * 4); return false; }
+        if (!mv) SEAT.armed = true;
+        if (SEAT.leave || (SEAT.armed && mv)) {
+            SEAT.on = false; SEAT.leave = false; hum.pos.fromArray(SEAT.stand); hum.hr = hum.gr = hum.vh = hum.pos.length(); hum.air = false; hum.vv = 0; return false;
+        }
+        SEAT.k = Math.min(1, SEAT.k + dt * 4);
+        return true;
+    }
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('wheel', function (e) {
+        if (S.cmdOpen || typeof document === 'undefined' || !document.pointerLockElement) return;
+        camZoom = clamp(camZoom + clamp(e.deltaY, -120, 120) * CAM.WHEEL_K, CAM.ZOOM_MIN, CAM.ZOOM_MAX);
+    }, { passive: true });
     function vTo(tgt, step) { var d = tgt - hum.vv; hum.vv += d > step ? step : d < -step ? -step : d; }
     function flightStep(dt, c, qM) {
         var H = hOf(S.L), o = hum.obj, up = hum.up, k, v = fl.v;
@@ -114,7 +193,9 @@ export function createFoot(ctx) {
         flHud(fl.on, fl.alt);
         // camera: behind and a little above the flying human, along the (damped) flight pitch; never under the floor
         var cpi = fl.pit * 0.75;
-        flA.copy(hum.hf).multiplyScalar(Math.cos(cpi)).addScaledVector(up, Math.sin(cpi)).negate().multiplyScalar(FOOT_CAM * H).addScaledVector(up, 0.7 * H);
+        flA.copy(hum.hf).multiplyScalar(Math.cos(cpi)).addScaledVector(up, Math.sin(cpi)).negate().multiplyScalar(camZoom * H).addScaledVector(up, 0.7 * H);
+        kH.copy(up).multiplyScalar(hr + 0.5 * H); kW.copy(kH).add(flA);
+        flA.multiplyScalar(camClip(dt, kH, kW, up, H));      // flying past a hut / the store: the boom shortens instead of going through the wall
         gA.copy(flA).applyQuaternion(qM);
         gC.copy(gB).multiplyScalar(0.5 * H).add(hum.w);
         gD.copy(gC).add(gA);
@@ -150,7 +231,9 @@ export function createFoot(ctx) {
         gB.set(0, 0, 0).addScaledVector(hum.hf, fw).addScaledVector(gA, sd);
         var ml = gB.length(), moving = ml > 0.01, run = moving && !!(S.keys.ShiftLeft || S.keys.ShiftRight);
         if (moving) gB.divideScalar(ml);
-        var wantJump = !S.cmdOpen && !!S.keys.Space;
+        var sat = seatTick(dt);      // Burger House seat: frozen pose, no walking, no jumping
+        if (sat) { moving = false; run = false; }
+        var wantJump = !sat && !S.cmdOpen && !!S.keys.Space;
         if (sty) {          // rev 30: the style owns velocity (incl. gravity); we move the capsule by vel * dt, collide, and report onGround back next frame
             sr = styleStep(dt, up, gA, H);
             if (sr && sr.vel) {
@@ -190,6 +273,8 @@ export function createFoot(ctx) {
         if (hum.air) nSub = Math.max(nSub, Math.ceil(Math.abs(hum.vv) * dt / (0.25 * H)));
         nSub = Math.min(16, nSub);
         var h = dt / nSub, dir = fsD.copy(hum.pos).normalize(), hr = hum.hr, supNow = footFloor(dir, H, hr), opN = objBegin(), edgeG = !!(sr && sr.edgeGuard), wallHit = false, wallSl = false, wSx = 0, wSz = 0, wallNow = false, wRiseH = 0;
+        if (sat) { dir.set(SEAT.pos[0], SEAT.pos[1], SEAT.pos[2]); hr = dir.length(); dir.normalize(); supNow = hr; nSub = 0; hum.air = false; hum.vv = 0;      // seated: pinned to the seat, no substeps
+            hum.face.set(SEAT.face[0], SEAT.face[1], SEAT.face[2]); }
         for (k = 0; k < nSub; k++) {
             if (moving) {
                 var step = spd * h;
@@ -254,27 +339,36 @@ export function createFoot(ctx) {
         gC.crossVectors(gA, gB); gD.copy(gA).negate();
         mM.makeBasis(gC, gB, gD);
         o.group.quaternion.setFromRotationMatrix(mM);
-        o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr), H);
+        o.group.position.copy(hum.w); o.group.scale.set(H, H * (1 - 0.22 * fl.cr) * (1 - 0.28 * SEAT.k), H);      // seated: the rig squashes to 0.72 H (ship-human.js has no sit pose; see changes-world.md)
         flHud(false, 0);
         if (hum.sAnim) { var ua = Object.assign(styU, hum.sAnim); ua.facing = 0; ua.jet = S.jetLvl; ua.scan = S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0; ua.vH = sSpd >= 0 ? sSpd : undefined; ua.dist = sSpd >= 0 && !hum.air ? sSpd * dt : undefined; ua.turn = ftTurn; ua.look = lookFeed(dt, H, up); o.group.userData.groundAt = groundAtFoot; o.update(dt, ua); }
         else { o.group.userData.groundAt = groundAtFoot; o.update(dt, { moving: moving, running: run || jet, airborne: hum.air, speed: moving ? (run || jet ? 1 : 0.5) : 0, cad: moving ? clamp(spd / (G_RUN * H), 0.3, 1.2) : 0, vH: moving ? spd / H : 0, dist: moving && !hum.air ? spd * dt / H : 0, turn: ftTurn, look: lookFeed(dt, H, up), facing: 0, jet: S.jetLvl, scan: S.scanT > 0 ? Math.min(1, S.scanT / 1.2) : 0 }); }
         jetFx(dt, jet, H, qM, c, dir, supNow, hr);
         if (landImp > 0.35) S.fx.impact(hum.w, 0xc8b89a, 0.6 + landImp);
-        // camera: 4.5 human heights back, pitched, never under the floor; it follows the SMOOTHED position (hum.w), not the raw step
-        gA.copy(hum.hf).negate().multiplyScalar(Math.cos(hum.pitch)).addScaledVector(up, Math.sin(hum.pitch)).applyQuaternion(qM);   // world offset dir
+        // camera: CAM.BOOM (3.2) H back, wheel-zoomable 2-5 H, pitched, right-shoulder; it follows the SMOOTHED position (hum.w), not the raw step. Under a roof (indoor mode) the boom shortens to 1.6 H, the lens drops,
+        // the FOV widens 10 degrees. A wall / roof between the head and the lens pulls it in instantly (probes along the boom against the structure solids), it eases back out at 6 H/s. Never under the floor.
+        var ik = indoorTick(dt, up, hum.hr, H), seatK = SEAT.k;
         camDip *= Math.exp(-9 * dt); if (camDip < 1e-6) camDip = 0;
-        gC.copy(gB).multiplyScalar(1.0 * H - camDip).add(hum.w);       // focus (head), dips a little on landing
-        gD.copy(gC).addScaledVector(gA, FOOT_CAM * H * styCam);                 // wanted camera position
-        gE.copy(hum.hf).cross(gB).applyQuaternion(qM);                           // right-shoulder offset: camera and look point both slide 0.35 H right
-        gD.addScaledVector(gE, 0.35 * H);
+        var pch = hum.pitch * (1 - (1 - CAM.INDOOR_PITCH) * ik), boom = (camZoom + (CAM.INDOOR_BOOM - camZoom) * ik) * styCam, headH = (CAM.HEAD + (CAM.INDOOR_HEAD - CAM.HEAD) * ik) * (1 - 0.28 * seatK) * H - camDip, shl = CAM.SHOULDER * (1 - (1 - CAM.INDOOR_SHOULDER) * ik) * H;
+        kD.copy(hum.hf).negate().multiplyScalar(Math.cos(pch)).addScaledVector(up, Math.sin(pch));          // planet-local boom direction
+        kR.crossVectors(hum.hf, up);                                                                          // planet-local right
+        kH.copy(up).multiplyScalar(hum.vh + headH);                                                           // planet-local head
+        kW.copy(kH).addScaledVector(kD, boom * H).addScaledVector(kR, shl);                                   // planet-local wanted lens
+        var ct = camClip(dt, kH, kW, up, H);
+        gA.copy(kD).applyQuaternion(qM);                                                                      // world boom direction
+        gE.copy(kR).applyQuaternion(qM);                                                                      // world right
+        gC.copy(gB).multiplyScalar(headH).add(hum.w);                                                         // focus (head), dips a little on landing / sitting
+        gD.copy(gC).addScaledVector(gA, boom * H).addScaledVector(gE, shl);                                   // wanted lens, full boom
+        gD.sub(gC).multiplyScalar(ct).add(gC);                                                                // the free part of it
+        S.fovAdd = CAM.INDOOR_FOV * ik;                                                                       // degrees (ship.js adds it to the foot FOV)
         vTmp.subVectors(gD, c);
         var cr = vTmp.length();
         gQi.copy(qM).invert(); fsT.copy(vTmp).applyQuaternion(gQi);
         var cfr = mFloor(fsT.x, fsT.y, fsT.z);
         if (cr < cfr + 0.04 * S.L) gD.copy(c).addScaledVector(vTmp.divideScalar(cr || 1), cfr + 0.04 * S.L);      // the rendered ground now equals the floor used here, so the clearance is just a little more than the near plane
-        gE.multiplyScalar(0.35 * H).add(gC);
+        gE.multiplyScalar(shl).add(gC);
         mM.lookAt(gD, gE, gB); gQ.setFromRotationMatrix(mM);
-        groundCam(dt, gC, gD, gQ, 16);
+        groundCam(dt, gC, gD, gQ, camSnap ? 40 : 16);
         return gC;
     }
     return { footStep: footStep, flightStep: flightStep };

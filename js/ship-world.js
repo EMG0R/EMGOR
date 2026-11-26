@@ -35,6 +35,11 @@
 //     store.security { cop (stationcop NPC | null, ~50 % of stores, patrols a loop; cop.pos live), state: patrol|warn|chase|busted|none, seen, range (12 m), cone (100 deg), sees(p planet-local) -> bool, line }.
 //     world.heat 0..3 (+1 per grab while seen, -1/min); >=2 -> guard chases, >=3 (or caught) -> world.onBusted({store,items,total,fine,line}) (cart returned to shelves, heat 0).
 //     world.cart [{item,shelfId,storeId}], world.cartTotal(), world.checkout() -> total gorCoin (clears cart + heat; world.lastCheckout = items). world.onCopSay({store,cop,state,line}) on warn/chase.
+//   2026-11-25 plush pass (docs/audit-2026-11-25/changes-world.md): world.storeOffset(padRadius) = pad centre -> store glass front, derived from the REAL pad radius (apothem + 1.2 L gap + the parking depth) so the store,
+//     apron and parking slabs sit fully off the hex plate; every box in makeSoup is rounded by default (ship-look.js bevel template, cached by dims + radius); colours come from ship-look.js TONES; the lit material
+//     is ship-look.js softMat (planet light rig + 4-step toon ramp). Ceiling 2.8 H, door 1.0 x 1.6 H, counters 0.6 H.
+//   world.interactNear(feetPlanetLocal) -> { kind:'sit'|'stand', label:'F · SIT'|'F · STAND', use() } | null   Burger House seats (5 stools + 8 bench seats). ship.js footTarget/footAct route it (see changes-world.md);
+//     use() asks ship-foot.js (SEAT) to freeze the pose at the seat; any move key stands you up.
 //   STORE_NAME is the one constant to rename the shop (the lit sign, the UI and the clerk lines read it).
 //   Also exported for the station: createStandaloneStore(THREE, opts), transformBoxes(boxes, matrix).
 // Scale: the store is modelled in metres (planet store 64 x 40 x 15, station store 40 x 26 x 12; see makeDims); a human is 1.75 m = H_RATIO L.
@@ -43,6 +48,7 @@
 import { createHuman } from './ship-human.js';
 import { storeMenu, dealerMenu, partsMenu, FRIES, resourceItem } from './ship-items.js';
 import * as lingo from './ship-lingo.js';
+import { SEAT } from './ship-foot.js';
 
 export const STORE_NAME = 'INTERGALACTIC 7/11';
 export const STORE_COLOR = 0x8A3CFF;
@@ -54,105 +60,48 @@ const WT = 0.5, FY = 0.22;              // wall thickness, floor standing height
 function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function mulberry(a) { a |= 0; return function () { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
-const VERT = /* glsl */`
-varying vec3 vC; varying vec3 vV; varying vec3 vNw;
-#include <common>
-#include <logdepthbuf_pars_vertex>
-void main(){
-  vC = color;
-  vec4 lp = vec4(position, 1.0);
-  vec3 nl = normal;
-  #ifdef USE_INSTANCING
-    lp = instanceMatrix * lp;
-    nl = mat3(instanceMatrix) * nl;
-  #endif
-  vNw = mat3(modelMatrix) * nl;
-  #ifdef USE_INSTANCING_COLOR
-    vC *= instanceColor;
-  #endif
-  vec4 mv = modelViewMatrix * lp;
-  vV = mv.xyz;
-  gl_Position = projectionMatrix * mv;
-  #include <logdepthbuf_vertex>
-}`;
-// look rev 28: shared sky-fill + warm wrapped key (same model as ship-planet LIGHT_GLSL), smooth vertex normals, fog toward the sky colour, matte
-const FRAG_LIT = /* glsl */`
-uniform vec3 uLight; uniform vec3 uUpW; uniform vec3 uSky; uniform float uFogK; uniform float uNightF;
-varying vec3 vC; varying vec3 vV; varying vec3 vNw;
-#include <common>
-#include <logdepthbuf_pars_fragment>
-void main(){
-  #include <logdepthbuf_fragment>
-  vec3 N = normalize(vNw);
-  if (dot(N, N) < 0.5) N = normalize(cross(dFdx(vV), dFdy(vV)));
-  float h = dot(N, normalize(uUpW)) * 0.5 + 0.5;
-  vec3 fill = mix(vC * vec3(0.2, 0.13, 0.3), uSky * 0.8 + vec3(0.04, 0.02, 0.09), h);
-  float w = clamp((dot(N, normalize(uLight)) + 0.3) / 1.3, 0.0, 1.0);
-  float wm = clamp((dot(N, -normalize(uLight)) + 0.3) / 1.3, 0.0, 1.0);   // A14: cool moon key opposite the sun
-  vec3 key = vec3(1.0, 0.9, 0.8) * smoothstep(0.0, 1.0, w) * (1.0 - uNightF) + vec3(0.5, 0.62, 1.0) * smoothstep(0.0, 1.0, wm) * 0.4 * uNightF;
-  vec3 col = vC * (fill * 0.6 + key * 0.5 + 0.22);
-  float f = min(1.0 - exp(-pow(length(vV) * uFogK, 2.0)), 0.985);
-  col = mix(col, uSky, f);
-  gl_FragColor = vec4(col, 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`;
-const FRAG_EMI = /* glsl */`
-uniform float uTime;
-varying vec3 vC; varying vec3 vV;
-#include <common>
-#include <logdepthbuf_pars_fragment>
-void main(){
-  #include <logdepthbuf_fragment>
-  gl_FragColor = vec4(vC * (0.94 + 0.08 * sin(uTime * 3.0 + vC.g * 9.0 + vV.x * 0.02)), 1.0);
-  #include <colorspace_fragment>
-}`;
-
-// rounded box shell centred on the origin (half extents hx,hy,hz, bevel r, m segments per 45 degrees): emit(pa, pb, pc, na, nb, nc) per triangle with smooth outward normals.
-export function rboxEmit(hx, hy, hz, rad, m, emit) {
-  const r = Math.max(1e-3, Math.min(rad, hx * 0.999, hy * 0.999, hz * 0.999));
-  const ang = []; for (let j = 0; j <= m; j++) ang.push(Math.tan(Math.PI / 4 * j / m));
-  for (let axis = 0; axis < 3; axis++) for (let sgn = -1; sgn <= 1; sgn += 2) for (let sa2 = -1; sa2 <= 1; sa2 += 2) for (let sb = -1; sb <= 1; sb += 2) {
-    const grid = [];
-    for (let i = 0; i <= m; i++) { const row = []; for (let j = 0; j <= m; j++) {
-      const dv = [0, 0, 0]; dv[axis] = sgn; dv[(axis + 1) % 3] = sa2 * ang[i]; dv[(axis + 2) % 3] = sb * ang[j];
-      const Ln = Math.hypot(dv[0], dv[1], dv[2]), nx = dv[0] / Ln, ny = dv[1] / Ln, nz = dv[2] / Ln;
-      row.push({ p: [(hx - r) * (nx >= 0 ? 1 : -1) + r * nx, (hy - r) * (ny >= 0 ? 1 : -1) + r * ny, (hz - r) * (nz >= 0 ? 1 : -1) + r * nz], n: [nx, ny, nz] });
-    } grid.push(row); }
-    for (let i = 0; i < m; i++) for (let j = 0; j < m; j++) {
-      const A = grid[i][j], B = grid[i + 1][j], C = grid[i + 1][j + 1], D = grid[i][j + 1];
-      emit(A.p, B.p, C.p, A.n, B.n, C.n); emit(A.p, C.p, D.p, A.n, C.n, D.n);
-    }
-  }
-}
+import { softMat, glowMat, unlitMat, mixHex, rboxEmit, TONES, bevelTemplate, bevelRadius, boxKind, softNormal } from './ship-look.js';
+export { rboxEmit };      // the one rounded-box generator lives in ship-look.js; ship-village imports it from here
 
 // ── non-indexed box soup with vertex colours + normals (flat boxes, rounded boxes, cylinders / capsules) ──
-function makeSoup(T) {
+function makeSoup(T, geoMin) {
   const pos = [], col = [], nrm = [], c = new T.Color(), q = new T.Vector3();
   const tri = (a, b, cc, na, nb, nc, r, g, bl) => { for (const [p, n] of [[a, na], [b, nb], [cc, nc]]) { pos.push(p[0], p[1], p[2]); nrm.push(n[0], n[1], n[2]); col.push(r, g, bl); } };
   const soup = {
-    // box: size (w,h,d), centre x, bottom y, centre z, colour, optional rotation about X (rad) around its own bottom-front... centre of the box
+    // box: size (w,h,d), centre x, bottom y, centre z, colour, optional rotation about X (rad) around its own centre. ship-look.js boxKind decides the shape: real rounded geometry
+    // (default radius bevelRadius: min(0.16 m, 0.3 x the smallest side), cached template), a 12-tri box with pillowed normals (small / skip-face boxes), or flat (thin boards).
     box(w, h, d, cx, y0, cz, hex, rx = 0, brightness = 1, skip = 0) {
-      c.set(hex); const r = c.r * brightness, g = c.g * brightness, b = c.b * brightness;
-      const corners = [];
+      const kind = boxKind(w, h, d, skip, rx, geoMin);
+      if (kind === 'bevel') { soup.rbox(w, h, d, cx, y0, cz, hex, bevelRadius(w, h, d), rx, brightness, 1); return; }
+      c.set(hex); const r = c.r * brightness, g = c.g * brightness, b = c.b * brightness, soft = kind === 'soft';
+      const corners = [], cs = rx ? Math.cos(rx) : 1, sn = rx ? Math.sin(rx) : 0;
       for (let i = 0; i < 8; i++) {
         q.set((i & 1 ? 0.5 : -0.5) * w, (i & 2 ? 0.5 : -0.5) * h, (i & 4 ? 0.5 : -0.5) * d);
-        if (rx) { const cs = Math.cos(rx), sn = Math.sin(rx), y = q.y * cs - q.z * sn, z = q.y * sn + q.z * cs; q.y = y; q.z = z; }
+        if (rx) { const y = q.y * cs - q.z * sn, z = q.y * sn + q.z * cs; q.y = y; q.z = z; }
         corners.push([q.x + cx, q.y + y0 + h / 2, q.z + cz]);
       }
       // faces by corner index: bit0=x, bit1=y, bit2=z.  Two triangles per face, CCW seen from outside (DoubleSide anyway).
       const quads = [[1, 3, 7, 5], [0, 4, 6, 2], [2, 6, 7, 3], [0, 1, 5, 4], [4, 5, 7, 6], [0, 2, 3, 1]];
       const fn = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
-      quads.forEach((f, fi) => { if (skip & (1 << fi)) return; if (fi === 3 && !rx && y0 <= 2.0) return; /* resting on the floor: bottom face is never seen */ let n = fn[fi]; if (rx) { const cs = Math.cos(rx), sn = Math.sin(rx); n = [n[0], n[1] * cs - n[2] * sn, n[1] * sn + n[2] * cs]; }
-        for (const t of [[0, 1, 2], [0, 2, 3]]) for (const k of t) { const p = corners[f[k]]; pos.push(p[0], p[1], p[2]); nrm.push(n[0], n[1], n[2]); col.push(r, g, b); } });
+      quads.forEach((f, fi) => { if (skip & (1 << fi)) return; if (fi === 3 && !rx && y0 <= 2.0) return; /* resting on the floor: bottom face is never seen */
+        const n0 = fn[fi];
+        for (const t of [[0, 1, 2], [0, 2, 3]]) for (const k of t) {
+          const p = corners[f[k]], ci = f[k];
+          let n = soft ? softNormal(n0, ci & 1 ? 1 : -1, ci & 2 ? 1 : -1, ci & 4 ? 1 : -1) : n0;
+          if (rx) n = [n[0], n[1] * cs - n[2] * sn, n[1] * sn + n[2] * cs];
+          pos.push(p[0], p[1], p[2]); nrm.push(n[0], n[1], n[2]); col.push(r, g, b);
+        } });
     },
     // rounded box (same arguments + bevel radius r, m = arc segments per 45 deg half-bevel): inner box + r-radius shell, smooth normals. radius is clamped to 0.5 * the smallest side.
+    // The triangles come from a template cached by dims + radius + m (ship-look.js bevelTemplate), so 200 boxes of one size share one build.
     rbox(w, h, d, cx, y0, cz, hex, rad, rx = 0, brightness = 1, m = 2) {
       c.set(hex); const cr = c.r * brightness, cg = c.g * brightness, cb = c.b * brightness;
-      const ca = rx ? Math.cos(rx) : 1, sa = rx ? Math.sin(rx) : 0, hy = h / 2;
-      const T3 = (v) => { let x = v[0], y = v[1], z = v[2]; if (rx) { const yy = y * ca - z * sa, zz = y * sa + z * ca; y = yy; z = zz; } return [x, y, z]; };
-      const L = (p) => { const t = T3(p); return [t[0] + cx, t[1] + y0 + hy, t[2] + cz]; };
-      rboxEmit(w / 2, h / 2, d / 2, rad, m, (A, B, C, na, nb, nc) => tri(L(A), L(B), L(C), T3(na), T3(nb), T3(nc), cr, cg, cb));
+      const ca = rx ? Math.cos(rx) : 1, sa = rx ? Math.sin(rx) : 0, hy = h / 2, tp = bevelTemplate(w, h, d, rad, m), P = tp.pos, N = tp.nrm, oy = y0 + hy;
+      for (let i = 0; i < P.length; i += 3) {
+        let x = P[i], y = P[i + 1], z = P[i + 2], nx = N[i], ny = N[i + 1], nz = N[i + 2];
+        if (rx) { const yy = y * ca - z * sa, zz = y * sa + z * ca; y = yy; z = zz; const ny2 = ny * ca - nz * sa, nz2 = ny * sa + nz * ca; ny = ny2; nz = nz2; }
+        pos.push(x + cx, y + oy, z + cz); nrm.push(nx, ny, nz); col.push(cr, cg, cb);
+      }
     },
     // vertical cylinder with an optional hemispherical dome on top: radius rad, shaft height h from y0, seg sides
     pillar(rad, h, cx, y0, cz, hex, cap = 'dome', seg = 14, brightness = 1) {
@@ -199,13 +148,7 @@ function makeSoup(T) {
 }
 
 // lit material shared by the outposts and the village (sky fill + warm key + fog, vertex colour + vertex normal); bind to the planet's uniforms with ps.shared
-export function makeLitMaterial(T, ps) {
-  const m = new T.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_LIT, vertexColors: true, side: T.DoubleSide,
-    uniforms: { uLight: { value: new T.Vector3(-0.62, 0.52, 0.4).normalize() }, uUpW: { value: new T.Vector3(0, 1, 0) }, uSky: { value: new T.Color(0.36, 0.3, 0.5) }, uFogK: { value: 0 }, uNightF: { value: 0 } } });
-  const S = (ps && ps.shared) || (typeof globalThis !== 'undefined' && globalThis.EMGOR_SKY_UNIFORMS) || null;
-  if (S) { const u = m.uniforms; u.uLight = S.uLightDir; u.uUpW = S.uUpW; u.uSky = S.uFogCol; u.uFogK = S.uFogK; u.uNightF = S.uNight; }
-  return m;
-}
+export function makeLitMaterial(T, ps) { return softMat(T, ps); }      // ship-look.js: the one lit material (planet light rig + soft toon ramp)
 
 // ── layout plan for a store of W x D x H metres (all store-local metres, front +Z). Planet stores are PD (64x40x15, ~2.5x the old floor area); the station store is CD (the old 40x26 footprint, same look). ──
 function makeDims(W, D, H) {
@@ -219,10 +162,10 @@ function makeDims(W, D, H) {
   return { W, D, H, HW, HD, P, lanes, gondolas, gz0, gz1, zN, zS, cX, cZ, qx: lanes[nL - 1], racks, guard: [{ x: la, z: zS }, { x: la, z: zN }, { x: lb, z: zN }, { x: lb, z: zS }], gh: Math.min(7, H * 0.5), signW: Math.round(W * 0.5), signH: Math.round(W * 0.5) / 4.57,
     sg: { sY: H + 1.0 + Math.round(W * 0.5) / 4.57 / 2, sZ: HD + 0.5, tx: -HW + 3.5, tz: HD + 4.4, tcy: H + 6, tw: 7.0, th: 5.6 }, gl: { DW: 2.9, pier: 1.4, y0: 1.1 }, clerkDz: -2.4, custDz: 2.1, queueDz: 1.9, counterR: 4.5 };
 }
-// Q60 human-scaled planet store (store-local unit = 1 m, a 1.75 m human = 1 H): door 1.25 H x 0.9 H, ceiling 1.8 H inside / 2.1 H roof, counter 0.55 H, shelves <= 1.2 H in 3 tiers, aisles 1.0 H, sign board 0.6 H.
+// Q60 human-scaled planet store (store-local unit = 1 m, a 1.75 m human = 1 H). 2026-11-25 plush pass: door 1.0 H wide x 1.6 H tall, ceiling 2.8 H inside / 3.1 H roof, counter 0.6 H, shelves 0.6-1.2 H in 3 tiers, aisles 1.0 H, sign board 0.6 H.
 const HM = 1.75;
 function makeDimsH(W, D) {
-  const H = 1.8 * HM, HW = W / 2, HD = D / 2, P = 1.0 * HM + 1.0, xs = -HW + 2.0, lanes = [], gondolas = [];
+  const H = 2.8 * HM, HW = W / 2, HD = D / 2, P = 1.0 * HM + 1.0, xs = -HW + 2.0, lanes = [], gondolas = [];
   const nL = Math.floor((HW - 3.4 - xs) / P) + 1;
   for (let j = 0; j < nL; j++) lanes.push(xs + P * j);
   for (let j = 0; j < nL - 1; j++) gondolas.push(lanes[j] + P / 2);
@@ -230,19 +173,21 @@ function makeDimsH(W, D) {
   const racks = []; for (let i = 0; i < 6; i++) racks.push([lanes[1 + i], zN]);
   const la = lanes[1], lb = lanes[Math.min(3, nL - 2)], sw = 5.0, sh = sw / 4.57;
   return { human: true, W, D, H, HW, HD, P, lanes, gondolas, gz0, gz1, zN, zS, cX, cZ, qx: lanes[nL - 1], racks, guard: [{ x: la, z: zS }, { x: la, z: zN }, { x: lb, z: zN }, { x: lb, z: zS }],
-    gh: 1.25 * HM, DW: 0.45 * HM, signW: sw, signH: sh,
-    sg: { sY: H + 0.2 + 0.5 + 0.25 + sh / 2, sZ: HD + 0.42, tx: -HW + 1.6, tz: HD + 3.3, tcy: 3.4, tw: 2.8, th: 2.24 }, gl: { DW: 0.45 * HM, pier: 0.9, y0: 0.8 }, clerkDz: -0.95, custDz: 1.3, queueDz: 1.3, counterR: 3.2 };
+    gh: 1.6 * HM, DW: 0.5 * HM, signW: sw, signH: sh, apronZ1: HD + 4.4, parkZ1: HD + 10.9,      // apronZ1 / parkZ1: where the apron and the parking slabs end (store-local), the pad offset (storeMatrix) reads parkZ1
+   
+    sg: { sY: H + 0.2 + 0.5 + 0.25 + sh / 2, sZ: HD + 0.42, tx: -HW + 1.6, tz: HD + 3.3, tcy: 3.4, tw: 2.8, th: 2.24 }, gl: { DW: 0.5 * HM, pier: 0.9, y0: 0.8 }, clerkDz: -0.95, custDz: 1.3, queueDz: 1.3, counterR: 3.2 };
 }
 const PD = makeDimsH(22, 14), CD = makeDims(40, 26, 12);
-const ITEM_COLORS = (() => { const c = storeMenu('baked-shelf', 32).map((i) => i.color); return c.length ? c : [0xFF5CE1, 0x5CE8FF, 0xFFD25C, 0x8A6CFF, 0x7CFF8A, 0xFF8A5C]; })();
+const ITEM_COLORS = TONES.stock;      // ship-look.js: stock on the shelves is the ramp + the accent, nothing else
+const PLUM = mixHex(TONES.dark, TONES.shelfD, 0.45), ASPHALT = mixHex(TONES.floor, TONES.dark, 0.5), ASPHALT2 = mixHex(TONES.floor, TONES.dark, 0.62), TILE = mixHex(TONES.floor, TONES.wall, 0.5), CRATE = mixHex(TONES.accent, TONES.dark, 0.6);
 const SEVEN = { ORANGE: 0xF58220, GREEN: 0x00A651, RED: 0xE31B23 };
 
 // ── the INTERGALACTIC 7/11: white box, orange/green/red stripe band, red lettering on white, glass front + centre door, flat roof. Front (glass, door) faces +Z. ──
 function buildStoreGeoms(T, opts) {
   opts = opts || {};
   const d = opts.dims || PD, { W, D, H, HW, HD } = d;
-  const B = makeSoup(T), E = makeSoup(T), walls = [], aisles = [];
-  const WALL = 0xF4F2EE, TRIM = 0xC9C5D2, DARK = 0x2A2430, FLOOR = 0xB4AEC8, SHELF = 0xE8E4EE, SHELFD = 0x6C6878, RED = SEVEN.RED, CHROME = 0x9AA0AE;
+  const B = makeSoup(T, 0.6), E = makeSoup(T, 0.6), walls = [], aisles = [];      // the compact (station) store is modelled at ~2.3x the planet store: bevel geometry only on its big pieces
+  const { wall: WALL, trim: TRIM, dark: DARK, floor: FLOOR, shelf: SHELF, shelfD: SHELFD, chrome: CHROME } = TONES, RED = SEVEN.RED;
   const rec = (list, name, w, h, dd, cx, y0, cz) => list.push({ name, min: [cx - w / 2, y0, cz - dd / 2], max: [cx + w / 2, y0 + h, cz + dd / 2] });
   const wall = (name, w, h, dd, cx, y0, cz, hex, rad) => { if (rad) B.rbox(w, h, dd, cx, y0, cz, hex, rad); else B.box(w, h, dd, cx, y0, cz, hex); rec(walls, name, w, h, dd, cx, y0, cz); };
   const aisle = (name, w, h, dd, cx, y0, cz) => rec(aisles, name, w, h, dd, cx, y0, cz);
@@ -250,8 +195,8 @@ function buildStoreGeoms(T, opts) {
   const gh = d.gh, top = H + 0.2;
 
   // slab + foundation + tile floor (+ two lit strips along the cross aisles)
-  B.rbox(W + 1.6, 3.2, D + 1.6, 0, -3.0, 0, 0x6A6480, 0.9, 0, 1, 1); B.rbox(W + 1.6, 0.5, D + 1.6, 0, -0.3, 0, FLOOR, 0.24, 0, 1, 1); B.box(W - 1, 0.02, D - 1, 0, 0.2, 0, 0xDAD6E6);
-  E.box(W - 4, 0.02, 0.2, 0, 0.22, d.zS, 0xB8A8F0, 0, 0.7); E.box(W - 4, 0.02, 0.2, 0, 0.22, d.zN, 0xB8A8F0, 0, 0.7);
+  B.rbox(W + 1.6, 3.2, D + 1.6, 0, -3.0, 0, ASPHALT, 0.9, 0, 1, 1); B.rbox(W + 1.6, 0.5, D + 1.6, 0, -0.3, 0, FLOOR, 0.24, 0, 1, 1); B.box(W - 1, 0.02, D - 1, 0, 0.2, 0, TILE);
+  E.box(W - 4, 0.02, 0.2, 0, 0.22, d.zS, TONES.trim, 0, 0.7); E.box(W - 4, 0.02, 0.2, 0, 0.22, d.zN, TONES.trim, 0, 0.7);
   // white shell
   wall('back', W, H, WT, 0, 0.2, -HD + WT / 2, WALL);
   wall('wallL', WT, H, D, -HW + WT / 2, 0.2, 0, WALL); wall('wallR', WT, H, D, HW - WT / 2, 0.2, 0, WALL);
@@ -270,34 +215,34 @@ function buildStoreGeoms(T, opts) {
   for (const sg of [-1, 1]) for (let i = 0; i <= nm; i++) B.box(0.22, gh - 0.9, 0.4, sg * (DW + gw * i / nm), 1.1, HD - 0.25, CHROME);
   rec(walls, 'glass', gw, gh - 0.9, 0.2, -(DW + gw / 2), 1.1, HD - 0.2); rec(walls, 'glassR', gw, gh - 0.9, 0.2, DW + gw / 2, 1.1, HD - 0.2);
   for (const sg of [-1, 1]) B.box(0.3, gh, 0.5, sg * DW, 0.2, HD - 0.25, CHROME);                  // door posts
-  E.box(4.4, 0.04, 2.0, 0, 0.22, HD - 1.3, 0x6CFFB0, 0, 0.5);                                       // lit door mat
-  E.box(1.4, 0.4, 0.1, 0, gh - 0.5, HD - 0.05, 0xFF3A3A, 0, 0.9);                                    // OPEN light over the door
+  E.box(4.4, 0.04, 2.0, 0, 0.22, HD - 1.3, TONES.glow, 0, 0.5);                                       // lit door mat
+  E.box(1.4, 0.4, 0.1, 0, gh - 0.5, HD - 0.05, RED, 0, 0.9);                                    // OPEN light over the door
   // facade sign on the roof (white board, red neon frame; the lettering plane is A.signGeo) + roof gear
   const sw = d.signW, sh = d.signH, sy = H + 1.0;
   B.rbox(sw + 0.8, sh + 0.6, 0.7, 0, sy, HD + 0.1, 0xFFFFFF, 0.3);
   E.box(sw + 1.0, 0.2, 0.2, 0, sy - 0.1, HD + 0.5, RED); E.box(sw + 1.0, 0.2, 0.2, 0, sy + sh + 0.5, HD + 0.5, RED);
   E.box(0.2, sh + 0.8, 0.2, -(sw / 2 + 0.5), sy - 0.1, HD + 0.5, RED); E.box(0.2, sh + 0.8, 0.2, sw / 2 + 0.5, sy - 0.1, HD + 0.5, RED);
-  B.rbox(3.4, 1.4, 2.2, -W * 0.3, top + 0.8, -2, 0xBFBBC8, 0.5, 0, 1, 1); B.rbox(3.4, 1.4, 2.2, -W * 0.3 + 5, top + 0.8, 3, 0xBFBBC8, 0.5, 0, 1, 1);
-  B.box(0.3, 1.8, 0.3, W * 0.3, top + 0.8, 4, DARK); B.box(2.4, 0.2, 2.4, W * 0.3, top + 2.4, 4, 0xDDD8EE, 0.7);
+  B.rbox(3.4, 1.4, 2.2, -W * 0.3, top + 0.8, -2, TRIM, 0.5, 0, 1, 1); B.rbox(3.4, 1.4, 2.2, -W * 0.3 + 5, top + 0.8, 3, TRIM, 0.5, 0, 1, 1);
+  B.box(0.3, 1.8, 0.3, W * 0.3, top + 0.8, 4, DARK); B.box(2.4, 0.2, 2.4, W * 0.3, top + 2.4, 4, TRIM, 0.7);
   // sign tower out front: pole + a two-sided white board (planes in A.signGeo)
   const tx = -HW + 3.5, tz = HD + 4.4, th = H + 6;
   B.pillar(0.6, th, tx, 0.2, tz, 0xFFFFFF, null, 14); B.rbox(7.4, 6.0, 0.9, tx, th - 3.0, tz, 0xFFFFFF, 0.45);
   E.box(7.6, 0.2, 0.2, tx, th + 2.9, tz + 0.5, RED); E.box(7.6, 0.2, 0.2, tx, th - 3.1, tz + 0.5, RED);
   rec(walls, 'tower', 1.2, th, 1.2, tx, 0.2, tz);
   // ceiling: panels + 4 long beams
-  for (let x = -W / 2 + 4; x < W / 2 - 2; x += 8) for (let z = -D / 2 + 4; z < D / 2 - 2; z += 8) E.box(3.6, 0.1, 2.6, x, top - 0.12, z, 0xFFF4D8, 0, 0.95, 4 | 3 | 48);
+  for (let x = -W / 2 + 4; x < W / 2 - 2; x += 8) for (let z = -D / 2 + 4; z < D / 2 - 2; z += 8) E.box(3.6, 0.1, 2.6, x, top - 0.12, z, TONES.glow, 0, 0.95, 4 | 3 | 48);
   for (let k = -1.5; k <= 1.5; k++) B.box(0.5, 0.6, D - 1, k * W / 4, top - 0.6, 0, SHELFD);
   // back wall: fridge doors (glass, lit, 2 rows of colourful stock)
   const nF = Math.floor((W - 6) / 4);
   for (let f = 0; f < nF; f++) {
     const fx = (f - (nF - 1) / 2) * 4.0, fzc = -HD + WT + 0.8;
-    B.box(3.85, 5.4, 1.6, fx, 0.2, fzc, 0x3A3446);
-    E.box(3.4, 4.6, 0.08, fx, 0.55, fzc + 0.82, 0x5CE8FF, 0, 0.4);
+    B.box(3.85, 5.4, 1.6, fx, 0.2, fzc, PLUM);
+    E.box(3.4, 4.6, 0.08, fx, 0.55, fzc + 0.82, TONES.sky, 0, 0.4);
     for (let r = 0; r < 2; r++) E.box(3.0, 1.0, 0.12, fx, 1.0 + r * 2.0, fzc + 0.9, nextCol(), 0, 0.85);
-    E.box(3.4, 0.14, 0.1, fx, 5.3, fzc + 0.86, 0xFFF4D8);
+    E.box(3.4, 0.14, 0.1, fx, 5.3, fzc + 0.86, TONES.glow);
   }
   aisle('fridges', nF * 4 - 0.15, 5.4, 1.6, 0, 0.2, -HD + WT + 0.8);
-  E.box(W - 3, 6.0, 0.08, 0, 6.2, -HD + WT + 0.05, 0xFFE6B0, 0, 0.3);                                 // glow above the fridges
+  E.box(W - 3, 6.0, 0.08, 0, 6.2, -HD + WT + 0.05, TONES.glow, 0, 0.3);                                 // glow above the fridges
   // wall shelves along the left wall: 3 levels of stock
   const wl = HD - 8 - (-HD + 4), wz = (HD - 8 + -HD + 4) / 2, nb = Math.floor(wl / 3);
   for (let l = 0; l < 3; l++) {
@@ -307,7 +252,7 @@ function buildStoreGeoms(T, opts) {
   B.box(0.2, 2.4, wl, -HW + WT + 0.1, 0.2, wz, SHELFD); aisle('shelvesL', 1.2, 2.4, wl, -HW + WT + 0.6, 0.2, wz);
   // gondolas: double-sided, 3 levels, stock blocks per side; aisles between them are 4 m (2.3 humans)
   const len = d.gz1 - d.gz0, gzc = (d.gz0 + d.gz1) / 2, nBlk = Math.max(2, Math.floor(len / 3.4)), bl = len / nBlk - 0.4;
-  const tints = [0x2FD9C8, 0xFF5CE1, 0xFFC46B];
+  const tints = [TONES.trim, TONES.accent, TONES.accent];
   d.gondolas.forEach((gx, gi) => {
     B.box(0.12, 2.2, len, gx, 0.2, gzc, SHELFD); B.box(1.7, 0.2, len, gx, 0.2, gzc, SHELFD);
     for (let l = 0; l < 3; l++) {
@@ -321,32 +266,32 @@ function buildStoreGeoms(T, opts) {
   // cashier counter (customer side z+) with till, candy rack, hot-dog roller; stock wall behind the clerk
   const cX = d.cX, cZ = d.cZ;
   B.box(6.0, 1.3, 1.8, cX, 0.2, cZ, WALL); B.box(6.0, 0.3, 1.82, cX, 0.7, cZ + 0.005, SEVEN.ORANGE); B.box(6.6, 0.12, 2.2, cX, 1.5, cZ, DARK);
-  B.box(0.9, 0.4, 0.7, cX - 2.1, 1.62, cZ - 0.2, 0x3A3446); E.box(0.7, 0.04, 0.5, cX - 2.1, 2.02, cZ - 0.25, 0x6CFFB0); B.box(1.4, 0.4, 0.8, cX + 0.1, 1.62, cZ, 0x555064);
+  B.box(0.9, 0.4, 0.7, cX - 2.1, 1.62, cZ - 0.2, PLUM); E.box(0.7, 0.04, 0.5, cX - 2.1, 2.02, cZ - 0.25, TONES.glow); B.box(1.4, 0.4, 0.8, cX + 0.1, 1.62, cZ, PLUM);
   for (let k = 0; k < 4; k++) E.box(0.5, 0.7, 0.4, cX + 1.4 + k * 0.4, 1.62, cZ + 0.2, nextCol(), 0, 0.85);
-  for (let k = 0; k < 3; k++) E.box(1.0, 0.16, 0.16, cX - 0.9, 1.9 + k * 0.2, cZ + 0.6, 0xE0603A, 0, 0.8);
+  for (let k = 0; k < 3; k++) E.box(1.0, 0.16, 0.16, cX - 0.9, 1.9 + k * 0.2, cZ + 0.6, TONES.accent, 0, 0.8);
   aisle('counter', 6.6, 1.6, 2.2, cX, 0.2, cZ);
   B.box(6.0, 2.6, 0.4, cX, 0.2, cZ - 4.1, SHELFD); for (let k = 0; k < 6; k++) E.box(0.8, 0.5, 0.1, cX - 2.4 + k * 0.95, 0.9 + (k % 3) * 0.6, cZ - 3.85, nextCol(), 0, 0.85);
   // slurpee machine (4 swirling tanks) and coffee station on the right wall
   const sz = d.zS - 3, cz2 = d.gz0 + 2.4, rx = HW - WT - 1.3;
-  B.box(2.2, 1.6, 4.2, rx, 0.2, sz, 0x3A3446);
-  [0x5CE8FF, 0xFF5CE1, 0x7CFF8A, 0xFFD25C].forEach((c, k) => { E.box(0.8, 1.0, 0.7, rx, 1.9, sz - 1.5 + k * 1.0, c, 0, 0.9); B.box(0.3, 0.4, 0.3, rx - 0.9, 1.4, sz - 1.5 + k * 1.0, DARK); });
-  E.box(0.1, 0.3, 3.6, rx - 1.12, 1.2, sz, 0xFF5CE1); aisle('slurpee', 2.2, 2.9, 4.2, rx, 0.2, sz);
-  B.box(2.2, 1.1, 4.4, rx, 0.2, cz2, 0x3A3446); B.box(2.4, 0.1, 4.6, rx, 1.3, cz2, DARK);
-  [0xFFB25C, 0xFFB25C, 0xC98B4A].forEach((c, k) => E.box(0.5, 0.6, 0.5, rx, 1.4, cz2 - 1.2 + k * 1.2, c, 0, 0.9));
-  for (let k = 0; k < 3; k++) E.box(0.4, 0.3, 0.4, rx - 0.7, 1.4, cz2 + 0.2 + k * 0.5, 0xF4F8FF, 0, 0.9);
+  B.box(2.2, 1.6, 4.2, rx, 0.2, sz, PLUM);
+  [TONES.sky, TONES.accent, TONES.hi, TONES.glow].forEach((c, k) => { E.box(0.8, 1.0, 0.7, rx, 1.9, sz - 1.5 + k * 1.0, c, 0, 0.9); B.box(0.3, 0.4, 0.3, rx - 0.9, 1.4, sz - 1.5 + k * 1.0, DARK); });
+  E.box(0.1, 0.3, 3.6, rx - 1.12, 1.2, sz, TONES.accent); aisle('slurpee', 2.2, 2.9, 4.2, rx, 0.2, sz);
+  B.box(2.2, 1.1, 4.4, rx, 0.2, cz2, PLUM); B.box(2.4, 0.1, 4.6, rx, 1.3, cz2, DARK);
+  [TONES.accent, TONES.accent, CRATE].forEach((c, k) => E.box(0.5, 0.6, 0.5, rx, 1.4, cz2 - 1.2 + k * 1.2, c, 0, 0.9));
+  for (let k = 0; k < 3; k++) E.box(0.4, 0.3, 0.4, rx - 0.7, 1.4, cz2 + 0.2 + k * 0.5, WALL, 0, 0.9);
   aisle('coffee', 2.4, 2.0, 4.6, rx, 0.2, cz2);
   // hanging giant slurpee over the cross aisle
   for (const [dx, dz] of [[-1.0, -1.0], [1.0, 1.0]]) B.box(0.08, 3.4, 0.08, d.lanes[2] + dx, H - 3.4, d.zS + dz, DARK);
-  E.box(2.4, 2.6, 2.4, d.lanes[2], H - 6.0 + 0.2, d.zS, 0x5CE8FF, 0, 0.85); E.box(2.6, 0.4, 2.6, d.lanes[2], H - 3.4 + 0.2, d.zS, 0xF4F8FF, 0, 0.9);
+  E.box(2.4, 2.6, 2.4, d.lanes[2], H - 6.0 + 0.2, d.zS, TONES.sky, 0, 0.85); E.box(2.6, 0.4, 2.6, d.lanes[2], H - 3.4 + 0.2, d.zS, WALL, 0, 0.9);
   // apron + parking pads outside
   // 2026-11-05: the apron + parking pads are rigid tangent slabs: on a sphere their far edge (47 su from the centre) sits s^2/2R above the ground (1.0 su at R = 320 L), so they carry the
   // same 3 su foundation skirt as the main slab (top 0.2 = the slab: no sill step) and no edge floats down to R ~ 110 L
-  B.rbox(W + 4, 3.1, 7, 0, -2.9, HD + 3.5, 0x6A6480, 0.6, 0, 1, 1);
+  B.rbox(W + 4, 3.1, 7, 0, -2.9, HD + 3.5, ASPHALT, 0.6, 0, 1, 1);
   if (opts.pads !== false) for (const f of [-0.25, 0.05, 0.3625]) { const px = f * W;
-    B.rbox(8, 3.1, 10, px, -2.9, HD + 11, 0x5A5470, 0.6, 0, 1, 1);
-    E.box(8, 0.02, 0.2, px, 0.2, HD + 6.2, 0x2FD9C8); E.box(0.2, 0.02, 10, px - 3.9, 0.2, HD + 11, 0x2FD9C8); E.box(0.2, 0.02, 10, px + 3.9, 0.2, HD + 11, 0x2FD9C8); E.box(2.4, 0.02, 0.4, px, 0.2, HD + 11, 0xFF5CE1);
+    B.rbox(8, 3.1, 10, px, -2.9, HD + 11, ASPHALT2, 0.6, 0, 1, 1);
+    E.box(8, 0.02, 0.2, px, 0.2, HD + 6.2, TONES.trim); E.box(0.2, 0.02, 10, px - 3.9, 0.2, HD + 11, TONES.trim); E.box(0.2, 0.02, 10, px + 3.9, 0.2, HD + 11, TONES.trim); E.box(2.4, 0.02, 0.4, px, 0.2, HD + 11, TONES.accent);
   }
-  B.box(1.2, 0.9, 1.2, -0.17 * W, 0.2, HD + 3.2, 0x6A5030); B.box(0.8, 1.0, 0.8, HW + 1, 0.2, HD + 2.4, 0x555064); E.box(0.82, 0.12, 0.82, HW + 1, 1.2, HD + 2.4, 0xFF8A5C);
+  B.box(1.2, 0.9, 1.2, -0.17 * W, 0.2, HD + 3.2, CRATE); B.box(0.8, 1.0, 0.8, HW + 1, 0.2, HD + 2.4, PLUM); E.box(0.82, 0.12, 0.82, HW + 1, 1.2, HD + 2.4, TONES.accent);
   // 2026-11-05: the WALKABLE floor, store-local metres, one source for the visible tops above and the foot collision (ship.js objBegin/mFloor): main tile floor top 0.22,
   // apron + parking pads top 0.2 (0.02 su under the tile: no sill step), all in the same tangent plane.
   const floors = [{ x0: -(W - 1) / 2, x1: (W - 1) / 2, z0: -(D - 1) / 2, z1: (D - 1) / 2, top: 0.22 }, { x0: -(W + 1.6) / 2, x1: (W + 1.6) / 2, z0: -(D + 1.6) / 2, z1: (D + 1.6) / 2, top: 0.2 },
@@ -361,15 +306,15 @@ function slabFloor(cx, cz, w, d, top) { return { x0: cx - w / 2 + SL_B, x1: cx +
 function buildStoreGeomsH(T, opts) {
   const d = opts.dims, { W, D, H, HW, HD } = d, WK = 0.3;
   const B = makeSoup(T), E = makeSoup(T), walls = [], aisles = [];
-  const WALL = 0xF4F2EE, TRIM = 0xC9C5D2, DARK = 0x2A2430, FLOOR = 0xB4AEC8, SHELF = 0xE8E4EE, SHELFD = 0x6C6878, RED = SEVEN.RED, CHROME = 0x9AA0AE;
+  const { wall: WALL, trim: TRIM, dark: DARK, floor: FLOOR, shelf: SHELF, shelfD: SHELFD, chrome: CHROME } = TONES, RED = SEVEN.RED;
   const rec = (list, name, w, h, dd, cx, y0, cz) => list.push({ name, min: [cx - w / 2, y0, cz - dd / 2], max: [cx + w / 2, y0 + h, cz + dd / 2] });
   const wall = (name, w, h, dd, cx, y0, cz, hex) => { B.box(w, h, dd, cx, y0, cz, hex); rec(walls, name, w, h, dd, cx, y0, cz); };
   const aisle = (name, w, h, dd, cx, y0, cz) => rec(aisles, name, w, h, dd, cx, y0, cz);
   let ci = 0; const nextCol = () => ITEM_COLORS[(ci++ * 7 + 3) % ITEM_COLORS.length];
   const gh = d.gh, top = H + 0.2, DW = d.DW, roofT = top + 0.5;
   // slab (pill), tile floor, lit cross-aisle strips
-  B.slab(0, 0, W + 1.6, D + 1.6, 0.2, SL_T, SL_B, 1.6, FLOOR, 1.6); B.box(W - 1, 0.02, D - 1, 0, 0.2, 0, 0xDAD6E6);
-  E.box(W - 3, 0.02, 0.12, 0, 0.22, d.zS, 0xB8A8F0, 0, 0.7); E.box(W - 3, 0.02, 0.12, 0, 0.22, d.zN, 0xB8A8F0, 0, 0.7);
+  B.slab(0, 0, W + 1.6, D + 1.6, 0.2, SL_T, SL_B, 1.6, FLOOR, 1.6); B.box(W - 1, 0.02, D - 1, 0, 0.2, 0, TILE);
+  E.box(W - 3, 0.02, 0.12, 0, 0.22, d.zS, TONES.trim, 0, 0.7); E.box(W - 3, 0.02, 0.12, 0, 0.22, d.zN, TONES.trim, 0, 0.7);
   // shell
   wall('back', W, H, WK, 0, 0.2, -HD + WK / 2, WALL); wall('wallL', WK, H, D, -HW + WK / 2, 0.2, 0, WALL); wall('wallR', WK, H, D, HW - WK / 2, 0.2, 0, WALL);
   B.rbox(W + 1.0, 0.5, D + 1.0, 0, top, 0, TRIM, 0.2); rec(walls, 'roof', W + 1.0, 0.5, D + 1.0, 0, top, 0);
@@ -386,69 +331,69 @@ function buildStoreGeomsH(T, opts) {
   for (const sg of [-1, 1]) for (let i = 0; i <= nm; i++) B.box(0.1, gh - d.gl.y0 + 0.2, 0.2, sg * (DW + gw * i / nm), d.gl.y0, HD - 0.1, CHROME);
   rec(walls, 'glass', gw, gh - d.gl.y0 + 0.2, 0.1, -(DW + gw / 2), d.gl.y0, HD - 0.1); rec(walls, 'glassR', gw, gh - d.gl.y0 + 0.2, 0.1, DW + gw / 2, d.gl.y0, HD - 0.1);
   for (const sg of [-1, 1]) B.box(0.12, gh, 0.3, sg * DW, 0.2, HD - 0.1, CHROME);
-  E.box(1.8, 0.03, 1.0, 0, 0.22, HD - 0.5, 0x6CFFB0, 0, 0.5);
-  E.box(0.6, 0.16, 0.06, 0, gh + 0.05, HD, 0xFF3A3A, 0, 0.9);           // OPEN light over the door
+  E.box(1.8, 0.03, 1.0, 0, 0.22, HD - 0.5, TONES.glow, 0, 0.5);
+  E.box(0.6, 0.16, 0.06, 0, gh + 0.05, HD, RED, 0, 0.9);           // OPEN light over the door
   // roof sign (board 0.6 H tall) + gear
   const sw = d.signW, sh = d.signH, sy = d.sg.sY - sh / 2;
   B.rbox(sw + 0.4, sh + 0.3, 0.3, 0, sy - 0.15, HD + 0.2, 0xFFFFFF, 0.12);
   E.box(sw + 0.5, 0.07, 0.07, 0, sy - 0.12, HD + 0.4, RED); E.box(sw + 0.5, 0.07, 0.07, 0, sy + sh + 0.12, HD + 0.4, RED);
   E.box(0.07, sh + 0.3, 0.07, -(sw / 2 + 0.22), sy - 0.15, HD + 0.4, RED); E.box(0.07, sh + 0.3, 0.07, sw / 2 + 0.22, sy - 0.15, HD + 0.4, RED);
-  B.rbox(1.4, 0.6, 1.0, -W * 0.3, roofT, -1.5, 0xBFBBC8, 0.2, 0, 1, 1); B.rbox(1.4, 0.6, 1.0, -W * 0.3 + 2.2, roofT, 1.5, 0xBFBBC8, 0.2, 0, 1, 1);
+  B.rbox(1.4, 0.6, 1.0, -W * 0.3, roofT, -1.5, TRIM, 0.2, 0, 1, 1); B.rbox(1.4, 0.6, 1.0, -W * 0.3 + 2.2, roofT, 1.5, TRIM, 0.2, 0, 1, 1);
   // pole sign out front on the apron
   const tg = d.sg;
   B.pillar(0.14, tg.tcy + tg.th / 2, tg.tx, 0.2, tg.tz, 0xFFFFFF, null, 12); B.rbox(tg.tw + 0.2, tg.th + 0.2, 0.25, tg.tx, tg.tcy - tg.th / 2 - 0.1, tg.tz, 0xFFFFFF, 0.12);
   E.box(tg.tw + 0.3, 0.06, 0.06, tg.tx, tg.tcy + tg.th / 2 + 0.12, tg.tz + 0.15, RED); E.box(tg.tw + 0.3, 0.06, 0.06, tg.tx, tg.tcy - tg.th / 2 - 0.12, tg.tz + 0.15, RED);
   rec(walls, 'tower', 0.4, tg.tcy + tg.th / 2, 0.4, tg.tx, 0.2, tg.tz);
   // ceiling: light panels + beams
-  for (let x = -HW + 3; x < HW - 1; x += 4) for (let z = -HD + 2.5; z < HD - 1; z += 3.5) E.box(1.6, 0.06, 0.9, x, top - 0.08, z, 0xFFF4D8, 0, 0.95, 4 | 3 | 48);
+  for (let x = -HW + 3; x < HW - 1; x += 4) for (let z = -HD + 2.5; z < HD - 1; z += 3.5) E.box(1.6, 0.06, 0.9, x, top - 0.08, z, TONES.glow, 0, 0.95, 4 | 3 | 48);
   for (let k = -1.5; k <= 1.5; k++) B.box(0.3, 0.25, D - 1, k * W / 4, top - 0.25, 0, SHELFD);
   // back wall fridges (2.1 = 1.2 H), 2 rows of stock
   const nF = Math.floor((W - 4) / 2.2), fzc = -HD + WK + 0.4;
   for (let f = 0; f < nF; f++) { const fx = (f - (nF - 1) / 2) * 2.2;
-    B.box(2.1, 2.1, 0.8, fx, 0.2, fzc, 0x3A3446); E.box(1.8, 1.7, 0.06, fx, 0.4, fzc + 0.43, 0x5CE8FF, 0, 0.4);
+    B.box(2.1, 2.1, 0.8, fx, 0.2, fzc, PLUM); E.box(1.8, 1.7, 0.06, fx, 0.4, fzc + 0.43, TONES.sky, 0, 0.4);
     for (let r = 0; r < 3; r++) E.box(1.6, 0.4, 0.08, fx, 0.5 + r * 0.55, fzc + 0.47, nextCol(), 0, 0.85);
-    E.box(1.8, 0.08, 0.06, fx, 2.2, fzc + 0.43, 0xFFF4D8); }
+    E.box(1.8, 0.08, 0.06, fx, 2.2, fzc + 0.43, TONES.glow); }
   aisle('fridges', nF * 2.2 - 0.1, 2.1, 0.8, 0, 0.2, fzc);
-  E.box(W - 3, 0.8, 0.05, 0, 2.5, -HD + WK + 0.03, 0xFFE6B0, 0, 0.3);
+  E.box(W - 3, 0.8, 0.05, 0, 2.5, -HD + WK + 0.03, TONES.glow, 0, 0.3);
   // left wall shelves: 3 tiers
   const wl = d.gz1 - d.gz0, wz = (d.gz1 + d.gz0) / 2, nb = Math.max(2, Math.floor(wl / 1.5));
   for (let l = 0; l < 3; l++) { B.box(0.5, 0.06, wl, -HW + WK + 0.25, 0.5 + l * 0.62, wz, SHELF);
     for (let k = 0; k < nb; k++) E.box(0.36, 0.4, wl / nb - 0.25, -HW + WK + 0.28, 0.56 + l * 0.62, wz - wl / 2 + (k + 0.5) * wl / nb, nextCol(), 0, 0.82); }
   B.box(0.08, 1.9, wl, -HW + WK + 0.04, 0.2, wz, SHELFD); aisle('shelvesL', 0.55, 1.9, wl, -HW + WK + 0.27, 0.2, wz);
   // gondolas: double sided, 3 tiers, top 1.2 H; aisles are 1 H wide
-  const len = wl, gzc = wz, nBlk = Math.max(2, Math.floor(len / 1.5)), bl = len / nBlk - 0.2, tints = [0x2FD9C8, 0xFF5CE1, 0xFFC46B];
+  const len = wl, gzc = wz, nBlk = Math.max(2, Math.floor(len / 1.5)), bl = len / nBlk - 0.2, tints = [TONES.trim, TONES.accent, TONES.accent];
   d.gondolas.forEach((gx, gi) => {
     B.box(0.08, 1.9, len, gx, 0.2, gzc, SHELFD); B.box(1.0, 0.14, len, gx, 0.2, gzc, SHELFD);
     for (let l = 0; l < 3; l++) { B.box(0.96, 0.05, len, gx, 0.5 + l * 0.62, gzc, SHELF);
       for (const sd of [-1, 1]) for (let k = 0; k < nBlk; k++) E.box(0.34, 0.4, bl, gx + sd * 0.3, 0.57 + l * 0.62, gzc - len / 2 + (k + 0.5) * len / nBlk, nextCol(), 0, 0.82, (sd > 0 ? 2 : 1) | 48); }
     E.box(1.0, 0.3, 0.06, gx, 1.75, gzc - len / 2 - 0.03, tints[gi % 3], 0, 0.9);       // end-cap strip (<= 2.1)
-    B.box(0.04, 0.8, 0.04, gx, H - 0.6, gzc, DARK); E.box(1.0, 0.4, 0.06, gx, 2.5, gzc, tints[gi % 3], 0, 0.9);      // hanging aisle sign
+    B.box(0.04, top - 2.9, 0.04, gx, 2.9, gzc, DARK); E.box(1.0, 0.4, 0.06, gx, 2.5, gzc, tints[gi % 3], 0, 0.9);      // hanging aisle sign (rod from the ceiling)
     aisle('gondola' + gi, 1.0, 2.1, len + 0.1, gx, 0.2, gzc); });
   // cashier counter 0.55 H (0.96 m), till, candy, hot-dog roller; stock rack behind the clerk
   const cX = d.cX, cZ = d.cZ;
-  B.box(3.0, 0.96, 0.9, cX, 0.2, cZ, WALL); B.box(3.0, 0.14, 0.92, cX, 0.5, cZ + 0.005, SEVEN.ORANGE); B.box(3.3, 0.06, 1.15, cX, 1.1, cZ, DARK);
-  B.box(0.5, 0.22, 0.4, cX - 1.0, 1.16, cZ - 0.1, 0x3A3446); E.box(0.4, 0.03, 0.3, cX - 1.0, 1.38, cZ - 0.12, 0x6CFFB0); B.box(0.7, 0.2, 0.4, cX + 0.1, 1.16, cZ, 0x555064);
-  for (let k = 0; k < 4; k++) E.box(0.25, 0.3, 0.2, cX + 0.7 + k * 0.22, 1.16, cZ + 0.2, nextCol(), 0, 0.85);
-  for (let k = 0; k < 2; k++) E.box(0.5, 0.08, 0.08, cX - 0.5, 1.3 + k * 0.12, cZ + 0.3, 0xE0603A, 0, 0.8);
-  aisle('counter', 3.3, 0.96, 1.15, cX, 0.2, cZ);
+  B.box(3.0, 1.05, 0.9, cX, 0.2, cZ, WALL); B.box(3.0, 0.14, 0.92, cX, 0.55, cZ + 0.005, SEVEN.ORANGE); B.box(3.3, 0.06, 1.15, cX, 1.25, cZ, DARK);      // counter top 1.11 m = 0.63 H
+  B.box(0.5, 0.22, 0.4, cX - 1.0, 1.31, cZ - 0.1, PLUM); E.box(0.4, 0.03, 0.3, cX - 1.0, 1.53, cZ - 0.12, TONES.glow); B.box(0.7, 0.2, 0.4, cX + 0.1, 1.31, cZ, PLUM);
+  for (let k = 0; k < 4; k++) E.box(0.25, 0.3, 0.2, cX + 0.7 + k * 0.22, 1.31, cZ + 0.2, nextCol(), 0, 0.85);
+  for (let k = 0; k < 2; k++) E.box(0.5, 0.08, 0.08, cX - 0.5, 1.45 + k * 0.12, cZ + 0.3, TONES.accent, 0, 0.8);
+  aisle('counter', 3.3, 1.11, 1.15, cX, 0.2, cZ);
   B.box(2.4, 1.6, 0.3, cX, 0.2, cZ - 1.5, SHELFD); for (let k = 0; k < 5; k++) E.box(0.4, 0.3, 0.06, cX - 1.0 + k * 0.5, 0.6 + (k % 3) * 0.4, cZ - 1.33, nextCol(), 0, 0.85);
   // slurpee machine + coffee station on the right wall
   const rx = HW - WK - 0.5, sz = 1.2, cz2 = -2.0;
-  B.box(0.9, 0.95, 2.0, rx, 0.2, sz, 0x3A3446);
-  [0x5CE8FF, 0xFF5CE1, 0x7CFF8A, 0xFFD25C].forEach((c, k) => { E.box(0.36, 0.55, 0.36, rx, 1.15, sz - 0.75 + k * 0.5, c, 0, 0.9); });
+  B.box(0.9, 0.95, 2.0, rx, 0.2, sz, PLUM);
+  [TONES.sky, TONES.accent, TONES.hi, TONES.glow].forEach((c, k) => { E.box(0.36, 0.55, 0.36, rx, 1.15, sz - 0.75 + k * 0.5, c, 0, 0.9); });
   aisle('slurpee', 0.9, 1.75, 2.0, rx, 0.2, sz);
-  B.box(0.9, 0.85, 2.0, rx, 0.2, cz2, 0x3A3446); B.box(1.0, 0.06, 2.1, rx, 1.05, cz2, DARK);
-  [0xFFB25C, 0xFFB25C, 0xC98B4A].forEach((c, k) => E.box(0.25, 0.3, 0.25, rx, 1.11, cz2 - 0.6 + k * 0.6, c, 0, 0.9));
+  B.box(0.9, 0.85, 2.0, rx, 0.2, cz2, PLUM); B.box(1.0, 0.06, 2.1, rx, 1.05, cz2, DARK);
+  [TONES.accent, TONES.accent, CRATE].forEach((c, k) => E.box(0.25, 0.3, 0.25, rx, 1.11, cz2 - 0.6 + k * 0.6, c, 0, 0.9));
   aisle('coffee', 1.0, 0.9, 2.1, rx, 0.2, cz2);
   // hanging giant slurpee over the cross aisle
-  for (const dx of [-0.4, 0.4]) B.box(0.04, 0.8, 0.04, d.lanes[2] + dx, H - 0.6, d.zS, DARK);
-  E.box(0.9, 0.9, 0.9, d.lanes[2], 2.3, d.zS, 0x5CE8FF, 0, 0.85); E.box(1.0, 0.12, 1.0, d.lanes[2], 3.2, d.zS, 0xF4F8FF, 0, 0.9);
+  for (const dx of [-0.4, 0.4]) B.box(0.04, top - 3.3, 0.04, d.lanes[2] + dx, 3.3, d.zS, DARK);
+  E.box(0.9, 0.9, 0.9, d.lanes[2], 2.3, d.zS, TONES.sky, 0, 0.85); E.box(1.0, 0.12, 1.0, d.lanes[2], 3.2, d.zS, WALL, 0, 0.9);
   // apron (1 slab strip) + 3 parking slabs, each >= 1 ship length (L = 3.7 H = 6.5 m): pill slabs, top 0.2, 0.3 H lip
-  const AW = W + 4, AZ0 = HD - 0.3, AZ1 = HD + 4.4, PW = 7.5, PZ0 = HD + 3.2, PZ1 = HD + 10.9, PX = [-8.5, 0, 8.5];
-  B.slab(0, (AZ0 + AZ1) / 2, AW, AZ1 - AZ0, 0.2, SL_T, SL_B, 1.5, 0x6A6480, 1.6);
-  if (opts.pads !== false) for (const px of PX) { B.slab(px, (PZ0 + PZ1) / 2, PW, PZ1 - PZ0, 0.2, SL_T, SL_B, 1.8, 0x5A5470, 1.6);
-    E.box(PW - 1.2, 0.02, 0.12, px, 0.22, PZ0 + 0.9, 0x2FD9C8); E.box(0.12, 0.02, 6.2, px - PW / 2 + 0.7, 0.22, (PZ0 + PZ1) / 2 + 0.3, 0x2FD9C8); E.box(0.12, 0.02, 6.2, px + PW / 2 - 0.7, 0.22, (PZ0 + PZ1) / 2 + 0.3, 0x2FD9C8); E.box(1.2, 0.02, 0.3, px, 0.22, (PZ0 + PZ1) / 2, 0xFF5CE1); }
-  B.box(0.6, 0.5, 0.6, -0.3 * W, 0.2, HD + 0.9, 0x6A5030); B.box(0.5, 0.8, 0.5, HW + 0.3, 0.2, HD + 0.9, 0x555064); E.box(0.52, 0.08, 0.52, HW + 0.3, 1.0, HD + 0.9, 0xFF8A5C);
+  const AW = W + 4, AZ0 = HD - 0.3, AZ1 = d.apronZ1, PW = 7.5, PZ0 = HD + 3.2, PZ1 = d.parkZ1, PX = [-8.5, 0, 8.5];
+  B.slab(0, (AZ0 + AZ1) / 2, AW, AZ1 - AZ0, 0.2, SL_T, SL_B, 1.5, ASPHALT, 1.6);
+  if (opts.pads !== false) for (const px of PX) { B.slab(px, (PZ0 + PZ1) / 2, PW, PZ1 - PZ0, 0.2, SL_T, SL_B, 1.8, ASPHALT2, 1.6);
+    E.box(PW - 1.2, 0.02, 0.12, px, 0.22, PZ0 + 0.9, TONES.trim); E.box(0.12, 0.02, 6.2, px - PW / 2 + 0.7, 0.22, (PZ0 + PZ1) / 2 + 0.3, TONES.trim); E.box(0.12, 0.02, 6.2, px + PW / 2 - 0.7, 0.22, (PZ0 + PZ1) / 2 + 0.3, TONES.trim); E.box(1.2, 0.02, 0.3, px, 0.22, (PZ0 + PZ1) / 2, TONES.accent); }
+  B.box(0.6, 0.5, 0.6, -0.3 * W, 0.2, HD + 0.9, CRATE); B.box(0.5, 0.8, 0.5, HW + 0.3, 0.2, HD + 0.9, PLUM); E.box(0.52, 0.08, 0.52, HW + 0.3, 1.0, HD + 0.9, TONES.accent);
   // walkable floors (store-local): tile 0.22, slab 0.2, apron 0.2, pads 0.2: the FLAT top of each slab = the registered rect (inset by the bevel)
   const floors = [{ x0: -(W - 1) / 2, x1: (W - 1) / 2, z0: -(D - 1) / 2, z1: (D - 1) / 2, top: 0.22 }, slabFloor(0, 0, W + 1.6, D + 1.6, 0.2), slabFloor(0, (AZ0 + AZ1) / 2, AW, AZ1 - AZ0, 0.2)];
   if (opts.pads !== false) for (const px of PX) floors.push(slabFloor(px, (PZ0 + PZ1) / 2, PW, PZ1 - PZ0, 0.2));
@@ -498,26 +443,32 @@ function signTexture(T) {
 // ── Q61 Burger House: ENTERABLE, a small 1950s Dallas burger stand (homage to the Burger House on E Mockingbird Lane; no photo source was reachable, so built from the description: single-storey
 //    white stucco box, low flat roof, red base band + red fascia, red striped awning over a walk-up order window, door, long counter with stools, 4 red vinyl booths, black-and-white checker
 //    floor, menu board over the counter, roof sign in big red block letters, neon in the window). Local metres (1 = 1 m, H = 1.75), front +Z. Door 1.25 H x 0.9 H, ceiling 1.8 H, roof 2.1 H, counter 0.55 H. ──
-const BH = { WX: 4.5, WZ: 3.5, WIN_X: -2.6, DOOR_X: 2.6, CLERK: [-1.9, 1.6], WINDOW_POS: [-1.5, 3.2] };
+const BH = { WX: 4.5, WZ: 3.5, WIN_X: -2.6, DOOR_X: 2.6, CLERK: [-1.9, 1.6], WINDOW_POS: [-1.5, 3.2], H: 2.8 * HM };      // 2026-11-25: ceiling 2.8 H, door 1.0 H x 1.6 H, sill 0.6 H
+BH.BOOTHS = [[1.5, -2.0, 'x'], [3.1, -2.0, 'x'], [3.15, 0.4, 'z'], [3.15, 1.65, 'z']];      // [cx, cz, axis]: benches either side of a table
+BH.STOOLS = [0, 1, 2, 3, 4].map((k) => -2.4 + k);      // counter stools at x 0.05, one per z
+// every place to sit (Burger-local metres): p = the seat top, f = the way you face. Stools face the counter (-x), bench seats face the table.
+BH.SEATS = [];
+for (const z of BH.STOOLS) BH.SEATS.push({ p: [0.05, 0.84, z], f: [-1, 0, 0] });
+for (const [bx, bz, ax] of BH.BOOTHS) for (const sg of [-1, 1]) BH.SEATS.push(ax === 'x' ? { p: [bx, 0.65, bz + sg * 0.95], f: [0, 0, -sg] } : { p: [bx + sg * 0.8, 0.65, bz], f: [-sg, 0, 0] });
 function buildBurgerGeoms(T) {
   const B = makeSoup(T), E = makeSoup(T), walls = [];
-  const WH = 0xF6F2EC, RED = 0xD8312F, DARK = 0x2A2024, CHROME = 0xB8BEC8, CREAM = 0xFFF1C8, VINYL = 0xC8242E, TAB = 0xF2EEEA;
-  const H = 1.8 * HM, top = H + 0.2, WX = BH.WX, WZ = BH.WZ, K = 0.3, DWW = 0.9 * HM, DH = 1.25 * HM;
+  const WH = TONES.wall, RED = 0xD8312F, DARK = TONES.dark, CHROME = TONES.chrome, CREAM = mixHex(TONES.wall, TONES.accent, 0.35), VINYL = mixHex(RED, TONES.dark, 0.12), TAB = TONES.shelf;      // brand red + the ramp
+  const H = BH.H, top = H + 0.2, WX = BH.WX, WZ = BH.WZ, K = 0.3, DWW = 1.0 * HM, DH = 1.6 * HM, SILL = 1.05, WY0 = 0.2 + SILL, WY1 = 2.6;
   const rec = (name, w, h, d, cx, y0, cz) => walls.push({ name, min: [cx - w / 2, y0, cz - d / 2], max: [cx + w / 2, y0 + h, cz + d / 2] });
   const wall = (name, w, h, d, cx, y0, cz, hex) => { B.box(w, h, d, cx, y0, cz, hex); rec(name, w, h, d, cx, y0, cz); };
   const solid = (name, w, h, d, cx, y0, cz, hex) => { B.box(w, h, d, cx, y0, cz, hex); rec(name, w, h, d, cx, y0, cz); };
   // lot: pill slab (top 0.2, 0.3 H lip) under everything
-  const LOT = { cx: 0, cz: 1.5, w: 13, d: 11.5 }; B.slab(LOT.cx, LOT.cz, LOT.w, LOT.d, 0.2, SL_T, SL_B, 2.0, 0xBDB8C8, 1.6);
+  const LOT = { cx: 0, cz: 1.5, w: 13, d: 11.5 }; B.slab(LOT.cx, LOT.cz, LOT.w, LOT.d, 0.2, SL_T, SL_B, 2.0, mixHex(TONES.floor, TONES.wall, 0.3), 1.6);
   E.box(11.6, 0.02, 0.14, 0, 0.22, 6.6, RED, 0, 0.7);                                    // painted kerb line
   // checker floor 0.7 m tiles (vertex colours, top face only)
   const nx = 12, nz = 9, tx0 = -4.2, tz0 = -3.15, ts = 0.7;
-  for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) B.quadY(tx0 + i * ts, tz0 + j * ts, tx0 + (i + 1) * ts, tz0 + (j + 1) * ts, 0.22, (i + j) & 1 ? 0x1E1A24 : 0xF2EEF4);
+  for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) B.quadY(tx0 + i * ts, tz0 + j * ts, tx0 + (i + 1) * ts, tz0 + (j + 1) * ts, 0.22, (i + j) & 1 ? TONES.dark : TONES.wall);
   // shell: back, sides, front (pier | window | pier | door | pier)
   const fz = WZ - K / 2;
   wall('back', 2 * WX, H, K, 0, 0.2, -WZ + K / 2, WH); wall('sideL', K, H, 2 * WZ, -WX + K / 2, 0.2, 0, WH); wall('sideR', K, H, 2 * WZ, WX - K / 2, 0.2, 0, WH);
   const wx0 = BH.WIN_X - 0.9, wx1 = BH.WIN_X + 0.9, dx0 = BH.DOOR_X - DWW / 2, dx1 = BH.DOOR_X + DWW / 2;
   wall('pierL', wx0 + WX, H, K, (wx0 - WX) / 2, 0.2, fz, WH); wall('pierM', dx0 - wx1, H, K, (dx0 + wx1) / 2, 0.2, fz, WH); wall('pierR', WX - dx1, H, K, (WX + dx1) / 2, 0.2, fz, WH);
-  wall('winSill', 1.8, 0.96, K, BH.WIN_X, 0.2, fz, WH); wall('winHead', 1.8, top - 2.4, K, BH.WIN_X, 2.4, fz, WH); wall('lintel', DWW, top - (0.2 + DH), K, BH.DOOR_X, 0.2 + DH, fz, WH);
+  wall('winSill', 1.8, SILL, K, BH.WIN_X, 0.2, fz, WH); wall('winHead', 1.8, top - WY1, K, BH.WIN_X, WY1, fz, WH); wall('lintel', DWW, top - (0.2 + DH), K, BH.DOOR_X, 0.2 + DH, fz, WH);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) B.pillar(0.3, H + 0.1, sx * WX, 0.2, sz * WZ, WH, null, 12);
   // red base band (not across the door) + red stripe under the roof + roof (2.1 H) with red cap
   B.box(2 * WX + 0.15, 0.5, 0.1, 0, 0.2, -WZ - 0.02, RED); B.box(0.1, 0.5, 2 * WZ + 0.15, -WX - 0.02, 0.2, 0, RED); B.box(0.1, 0.5, 2 * WZ + 0.15, WX + 0.02, 0.2, 0, RED);
@@ -525,30 +476,30 @@ function buildBurgerGeoms(T) {
   B.box(2 * WX + 0.2, 0.25, 2 * WZ + 0.2, 0, top - 0.32, 0, RED);
   B.rbox(2 * WX + 1.0, 0.5, 2 * WZ + 1.0, 0, top, 0, WH, 0.2); B.rbox(2 * WX + 1.2, 0.1, 2 * WZ + 1.2, 0, top + 0.5, 0, RED, 0.05, 0, 1, 1);
   // window: chrome trim + neon outline + OPEN (plane in bGeo) + service ledge
-  B.box(1.9, 0.07, 0.1, BH.WIN_X, 1.16, WZ + 0.02, CHROME); B.box(1.9, 0.07, 0.1, BH.WIN_X, 2.35, WZ + 0.02, CHROME); B.box(0.08, 1.2, 0.1, wx0, 1.16, WZ + 0.02, CHROME); B.box(0.08, 1.2, 0.1, wx1, 1.16, WZ + 0.02, CHROME);
-  E.box(1.7, 0.05, 0.05, BH.WIN_X, 2.28, WZ + 0.1, 0xFF4A4A); E.box(0.05, 1.05, 0.05, wx0 + 0.1, 1.25, WZ + 0.1, 0xFF4A4A); E.box(0.05, 1.05, 0.05, wx1 - 0.1, 1.25, WZ + 0.1, 0xFF4A4A);
-  B.box(2.0, 0.05, 0.5, BH.WIN_X, 1.16, WZ + 0.3, RED); B.box(2.1, 0.03, 0.55, BH.WIN_X, 1.21, WZ + 0.3, WH);
-  E.box(1.0, 0.6, 0.05, mid(dx0, wx1), 1.3, WZ + 0.04, 0xFFC878, 0, 0.6);              // lit menu panel by the door
-  for (let k = 0; k < 4; k++) E.box(0.8, 0.07, 0.04, mid(dx0, wx1), 1.55 + k * 0.1 - 0.15, WZ + 0.08, k % 2 ? RED : DARK);
+  B.box(1.9, 0.07, 0.1, BH.WIN_X, WY0, WZ + 0.02, CHROME); B.box(1.9, 0.07, 0.1, BH.WIN_X, WY1 - 0.07, WZ + 0.02, CHROME); B.box(0.08, WY1 - WY0, 0.1, wx0, WY0, WZ + 0.02, CHROME); B.box(0.08, WY1 - WY0, 0.1, wx1, WY0, WZ + 0.02, CHROME);
+  E.box(1.7, 0.05, 0.05, BH.WIN_X, WY1 - 0.14, WZ + 0.1, 0xFF4A4A); E.box(0.05, WY1 - WY0 - 0.2, 0.05, wx0 + 0.1, WY0 + 0.1, WZ + 0.1, 0xFF4A4A); E.box(0.05, WY1 - WY0 - 0.2, 0.05, wx1 - 0.1, WY0 + 0.1, WZ + 0.1, 0xFF4A4A);
+  B.box(2.0, 0.05, 0.5, BH.WIN_X, WY0, WZ + 0.3, RED); B.box(2.1, 0.03, 0.55, BH.WIN_X, WY0 + 0.05, WZ + 0.3, WH);
+  E.box(1.0, 0.6, 0.05, mid(dx0, wx1), 1.5, WZ + 0.04, TONES.glow, 0, 0.6);              // lit menu panel by the door
+  for (let k = 0; k < 4; k++) E.box(0.8, 0.07, 0.04, mid(dx0, wx1), 1.75 + k * 0.1 - 0.15, WZ + 0.08, k % 2 ? RED : DARK);
   function mid(a, b) { return (a + b) / 2; }
   // striped awning over the window + door: 10 tilted slats, red fascia, posts, bulbs
-  for (let i = 0; i < 10; i++) { const w = (2 * WX + 0.6) / 10; B.rbox(w, 0.08, 1.5, -WX - 0.3 + w * (i + 0.5), 2.62, WZ + 0.85, i % 2 ? WH : RED, 0.03, 0.2, 1, 1); }
-  B.box(2 * WX + 0.6, 0.3, 0.08, 0, 2.2, WZ + 1.55, RED); for (const sx of [-1, 1]) B.box(0.08, 2.4, 0.08, sx * (WX + 0.2), 0.2, WZ + 1.5, CHROME);
-  for (let k = 0; k < 12; k++) E.box(0.08, 0.08, 0.08, -WX + 0.4 + k * 0.75, 2.12, WZ + 1.6, k % 2 ? 0xFFE08A : 0xFFB04A);
+  for (let i = 0; i < 10; i++) { const w = (2 * WX + 0.6) / 10; B.rbox(w, 0.08, 1.5, -WX - 0.3 + w * (i + 0.5), 3.55, WZ + 0.85, i % 2 ? WH : RED, 0.03, 0.2, 1, 1); }
+  B.box(2 * WX + 0.6, 0.3, 0.08, 0, 3.15, WZ + 1.55, RED); for (const sx of [-1, 1]) B.box(0.08, 3.3, 0.08, sx * (WX + 0.2), 0.2, WZ + 1.5, CHROME);
+  for (let k = 0; k < 12; k++) E.box(0.08, 0.08, 0.08, -WX + 0.4 + k * 0.75, 3.05, WZ + 1.6, k % 2 ? TONES.glow : TONES.accent);
   // roof sign: backing + red neon frame (block-letter plane = bGeo); pylon with FRIES
   B.rbox(8.6, 1.7, 0.25, 0, top + 0.6, WZ - 0.5, DARK, 0.1); for (const sx of [-1, 1]) B.box(0.12, 0.2, 0.12, sx * 3.2, top + 0.5, WZ - 0.5, CHROME);
   E.box(8.7, 0.06, 0.06, 0, top + 0.6, WZ - 0.34, 0xFF4A4A); E.box(8.7, 0.06, 0.06, 0, top + 2.3, WZ - 0.34, 0xFF4A4A); E.box(0.06, 1.7, 0.06, -4.3, top + 0.6, WZ - 0.34, 0xFF4A4A); E.box(0.06, 1.7, 0.06, 4.3, top + 0.6, WZ - 0.34, 0xFF4A4A);
   B.pillar(0.1, 3.0, 5.3, 0.2, 5.6, RED, 'dome', 10); B.rbox(1.7, 0.9, 0.2, 5.3, 3.4, 5.6, DARK, 0.08, 0, 1, 1); E.box(1.75, 0.05, 0.05, 5.3, 3.4, 5.72, 0xFF4A6A); E.box(1.75, 0.05, 0.05, 5.3, 4.3, 5.72, 0xFF4A6A);
   // interior: kitchen glow, grill, fryer; long counter (0.55 H) with 5 stools; menu board over the counter; fries baskets, Dr Pepper
-  B.box(3.4, 1.0, 0.06, -2.7, 0.9, -WZ + K + 0.03, DARK); E.box(3.0, 0.8, 0.04, -2.7, 1.0, -WZ + K + 0.07, 0xFFC878, 0, 0.7);
-  B.box(1.4, 0.8, 0.7, -3.6, 0.2, -2.7, DARK); E.box(1.2, 0.04, 0.5, -3.6, 1.0, -2.7, 0xFF7A3A, 0, 0.8); B.box(0.7, 0.85, 0.6, -2.4, 0.2, -2.8, CHROME); E.box(0.5, 0.03, 0.4, -2.4, 1.05, -2.8, 0xFFD25C, 0, 0.8);
+  B.box(3.4, 1.0, 0.06, -2.7, 0.9, -WZ + K + 0.03, DARK); E.box(3.0, 0.8, 0.04, -2.7, 1.0, -WZ + K + 0.07, TONES.glow, 0, 0.7);
+  B.box(1.4, 0.8, 0.7, -3.6, 0.2, -2.7, DARK); E.box(1.2, 0.04, 0.5, -3.6, 1.0, -2.7, TONES.accent, 0, 0.8); B.box(0.7, 0.85, 0.6, -2.4, 0.2, -2.8, CHROME); E.box(0.5, 0.03, 0.4, -2.4, 1.05, -2.8, TONES.glow, 0, 0.8);
   const CX = -0.9;
-  solid('counter', 0.8, 0.96, 5.4, CX, 0.2, -0.45, WH); B.box(0.8, 0.14, 5.42, CX, 0.5, -0.45, RED); B.box(1.1, 0.06, 5.6, CX + 0.05, 1.1, -0.45, DARK);
-  for (let k = 0; k < 5; k++) { const sz = -2.4 + k * 1.0; B.pillar(0.04, 0.56, 0.05, 0.2, sz, CHROME, null, 8); B.pillar(0.2, 0.08, 0.05, 0.76, sz, VINYL, null, 10); }
-  for (let k = 0; k < 3; k++) { E.box(0.2, 0.1, 0.2, CX + 0.1, 1.16, -1.8 + k * 1.5, 0xFFD25C, 0, 0.9); B.box(0.22, 0.04, 0.22, CX + 0.1, 1.16, -1.8 + k * 1.5, CHROME); E.box(0.07, 0.22, 0.07, CX - 0.1, 1.16, -1.1 + k * 1.5, 0x8A1A22, 0, 0.9); }
-  B.box(0.1, 0.95, 3.8, CX, 2.1, -0.45, DARK); E.box(0.05, 0.8, 3.6, CX + 0.07, 2.17, -0.45, CREAM, 0, 0.95);
-  for (let k = 0; k < 4; k++) { E.box(0.05, 0.08, 1.4, CX + 0.1, 2.8 - k * 0.15, -1.3, k % 2 ? RED : DARK); E.box(0.05, 0.08, 0.6, CX + 0.1, 2.8 - k * 0.15, 0.7, RED); }
-  for (const z of [-2.3, 1.4]) B.box(0.03, 1.2, 0.03, CX, 3.0 - 1.2 + 0.2 + 0.1, z, CHROME);
+  solid('counter', 0.8, 1.05, 5.4, CX, 0.2, -0.45, WH); B.box(0.8, 0.14, 5.42, CX, 0.55, -0.45, RED); B.box(1.1, 0.06, 5.6, CX + 0.05, 1.25, -0.45, DARK);      // counter top 1.11 m = 0.63 H
+  for (const sz of BH.STOOLS) { B.pillar(0.04, 0.56, 0.05, 0.2, sz, CHROME, null, 8); B.pillar(0.2, 0.08, 0.05, 0.76, sz, VINYL, null, 10); }
+  for (let k = 0; k < 3; k++) { E.box(0.2, 0.1, 0.2, CX + 0.1, 1.31, -1.8 + k * 1.5, TONES.glow, 0, 0.9); B.box(0.22, 0.04, 0.22, CX + 0.1, 1.31, -1.8 + k * 1.5, CHROME); E.box(0.07, 0.22, 0.07, CX - 0.1, 1.31, -1.1 + k * 1.5, mixHex(RED, TONES.dark, 0.5), 0, 0.9); }
+  B.box(0.1, 0.95, 3.8, CX, 3.0, -0.45, DARK); E.box(0.05, 0.8, 3.6, CX + 0.07, 3.07, -0.45, CREAM, 0, 0.95);
+  for (let k = 0; k < 4; k++) { E.box(0.05, 0.08, 1.4, CX + 0.1, 3.7 - k * 0.15, -1.3, k % 2 ? RED : DARK); E.box(0.05, 0.08, 0.6, CX + 0.1, 3.7 - k * 0.15, 0.7, RED); }
+  for (const z of [-2.3, 1.4]) B.box(0.03, top - 3.95, 0.03, CX, 3.95, z, CHROME);      // rods from the ceiling to the menu board
   // 4 red vinyl booths: A/B on the back wall, C/D on the right wall; bench seat 0.45, back 0.95, table 0.75 on a chrome pole
   const booth = (cx, cz, ax) => {      // ax 'x': benches at cz -/+ 0.95 (long along x); ax 'z': benches at cx -/+ 0.8 (long along z)
     const L = 1.2;
@@ -559,7 +510,7 @@ function buildBurgerGeoms(T) {
     if (ax === 'x') solid('table', 1.0, 0.05, 0.7, cx, 0.9, cz, TAB); else solid('table', 0.7, 0.05, 1.0, cx, 0.9, cz, TAB);
     B.box(0.06, 0.7, 0.06, cx, 0.2, cz, CHROME);
   };
-  booth(1.5, -2.0, 'x'); booth(3.1, -2.0, 'x'); booth(3.15, 0.4, 'z'); booth(3.15, 1.65, 'z');
+  for (const bt of BH.BOOTHS) booth(bt[0], bt[1], bt[2]);
   // outside: one picnic table with two stools
   B.rbox(1.6, 0.08, 0.9, -5.2, 0.2 + 0.7, 5.4, WH, 0.04, 0, 1, 1); B.box(0.1, 0.7, 0.1, -5.2, 0.2, 5.4, CHROME); for (const s of [-1, 1]) B.pillar(0.2, 0.06, -5.2 + s * 0.7, 0.2 + 0.4, 5.4 + 0.0, VINYL, null, 8);
   const flat = slabFloor(LOT.cx, LOT.cz, LOT.w, LOT.d, 0.2);
@@ -584,10 +535,10 @@ function burgerSignTexture(T) {
 function burgerSignGeometry(T) {
   const p = [], u = [];
   const quad = (cx, cy, cz, w, h, u0, u1, v0, v1) => { p.push(cx - w / 2, cy - h / 2, cz, cx + w / 2, cy - h / 2, cz, cx + w / 2, cy + h / 2, cz, cx - w / 2, cy - h / 2, cz, cx + w / 2, cy + h / 2, cz, cx - w / 2, cy + h / 2, cz); u.push(u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1); };
-  const top = 1.8 * HM + 0.2;
+  const top = BH.H + 0.2;
   quad(0, top + 1.45, BH.WZ - 0.34, 8.4, 1.5, 0.01, 0.99, 0.625, 0.995);      // roof sign: block letters (letters ~0.6 H)
   quad(5.3, 3.85, 5.72, 1.6, 0.8, 0.02, 0.48, 0.03, 0.48);                  // pylon: FRIES
-  quad(BH.WIN_X, 2.92, BH.WZ + 0.07, 1.2, 0.5, 0.52, 0.98, 0.03, 0.48);      // OPEN neon over the window
+  quad(BH.WIN_X, 2.95, BH.WZ + 0.07, 1.2, 0.5, 0.52, 0.98, 0.03, 0.48);      // OPEN neon over the window
   const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(p, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(u, 2)); g.computeBoundingSphere();
   return g;
 }
@@ -598,25 +549,25 @@ function burgerSignGeometry(T) {
 const CVS_WX = 2.8;
 function buildCvsGeoms(T) {
   const B = makeSoup(T), E = makeSoup(T), walls = [];
-  const WH = 0xF8F6F4, RED = 0xD21F2E, DARK = 0x2A2024, CONC = 0xC4C0CC, CHROME = 0xB8BEC8, GRN = 0x39E58C;
+  const WH = TONES.wall, RED = 0xD21F2E, DARK = TONES.dark, CONC = mixHex(TONES.floor, TONES.wall, 0.3), CHROME = TONES.chrome, GRN = 0x39E58C;      // brand red / green + the ramp
   const wall = (name, w, h, d, cx, y0, cz, hex) => { B.box(w, h, d, cx, y0, cz, hex); walls.push({ name, min: [cx - w / 2, y0, cz - d / 2], max: [cx + w / 2, y0 + h, cz + d / 2] }); };
-  B.rbox(17, 2.4, 15, 0, -2.2, 2.6, 0x6A6480, 0.7); B.rbox(16, 0.3, 14, 0, -0.1, 2.6, CONC, 0.14, 0, 1, 1);                    // foundation + concrete lot
+  B.rbox(17, 2.4, 15, 0, -2.2, 2.6, ASPHALT, 0.7); B.rbox(16, 0.3, 14, 0, -0.1, 2.6, CONC, 0.14, 0, 1, 1);                    // foundation + concrete lot
   E.box(15.6, 0.02, 0.25, 0, 0.2, 9.2, RED, 0, 0.7);                                                       // painted kerb line
   wall('back', 10, 3.4, 0.3, 0, 0.2, -2.85, WH); wall('sideL', 0.3, 3.4, 6, -4.85, 0.2, 0, WH); wall('sideR', 0.3, 3.4, 6, 4.85, 0.2, 0, WH);
   wall('frontEdgeL', 0.85, 3.4, 0.3, -4.425, 0.2, 2.85, WH); wall('frontMid', 3.2, 3.4, 0.3, 0, 0.2, 2.85, WH); wall('frontEdgeR', 0.85, 3.4, 0.3, 4.425, 0.2, 2.85, WH);
-  for (const s of [-1, 1]) { wall('low' + s, 2.4, 0.96, 0.3, s * CVS_WX, 0.2, 2.85, WH); wall('high' + s, 2.4, 0.75, 0.3, s * CVS_WX, 2.6, 2.85, WH); }
+  for (const s of [-1, 1]) { wall('low' + s, 2.4, 1.05, 0.3, s * CVS_WX, 0.2, 2.85, WH); wall('high' + s, 2.4, 0.75, 0.3, s * CVS_WX, 2.6, 2.85, WH); }
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) B.pillar(0.55, 3.45, sx * 4.98, 0.2, sz * 2.98, WH, null, 14);   // look rev 28: round corner columns
   B.rbox(10.2, 0.5, 6.2, 0, 0.2, 0, RED, 0.22);                  // red base band
   B.box(10.3, 0.22, 6.3, 0, 2.98, 0, RED);                // red stripe under the roof
   B.rbox(10.6, 0.3, 6.6, 0, 3.6, 0, WH, 0.14); B.rbox(10.8, 0.12, 6.8, 0, 3.9, 0, RED, 0.058, 0, 1, 1);                          // flat roof + red cap
   for (const s of [-1, 1]) {
     const x = s * CVS_WX;
-    B.box(2.6, 0.14, 0.1, x, 2.5, 3.04, CHROME); B.box(2.6, 0.14, 0.1, x, 1.12, 3.04, CHROME);          // chrome window trim
-    B.box(0.14, 1.5, 0.1, x - 1.25, 1.12, 3.04, CHROME); B.box(0.14, 1.5, 0.1, x + 1.25, 1.12, 3.04, CHROME);
-    B.box(2.6, 0.12, 1.0, x, 1.04, 3.55, RED); B.box(2.8, 0.05, 1.1, x, 1.16, 3.55, WH);                  // service ledge
-    E.box(2.4, 0.08, 0.08, x, 2.75, 3.12, s < 0 ? 0xFF4A5A : GRN); E.box(2.4, 0.08, 0.08, x, 1.3, 3.12, s < 0 ? 0xFF4A5A : GRN);   // neon outline: red = REVIVE, green = HEAL
-    E.box(0.08, 1.5, 0.08, x - 1.2, 1.3, 3.12, s < 0 ? 0xFF4A5A : GRN); E.box(0.08, 1.5, 0.08, x + 1.2, 1.3, 3.12, s < 0 ? 0xFF4A5A : GRN);
-    E.box(2.0, 1.1, 0.06, x, 1.4, -2.58, 0xE8FFF4, 0, 0.7);                                               // lit shelf glow behind each window
+    B.box(2.6, 0.14, 0.1, x, 2.5, 3.04, CHROME); B.box(2.6, 0.14, 0.1, x, 1.25, 3.04, CHROME);          // chrome window trim
+    B.box(0.14, 1.39, 0.1, x - 1.25, 1.25, 3.04, CHROME); B.box(0.14, 1.39, 0.1, x + 1.25, 1.25, 3.04, CHROME);
+    B.box(2.6, 0.12, 1.0, x, 1.17, 3.55, RED); B.box(2.8, 0.05, 1.1, x, 1.29, 3.55, WH);                  // service ledge
+    E.box(2.4, 0.08, 0.08, x, 2.75, 3.12, s < 0 ? 0xFF4A5A : GRN); E.box(2.4, 0.08, 0.08, x, 1.42, 3.12, s < 0 ? 0xFF4A5A : GRN);   // neon outline: red = REVIVE, green = HEAL
+    E.box(0.08, 1.38, 0.08, x - 1.2, 1.42, 3.12, s < 0 ? 0xFF4A5A : GRN); E.box(0.08, 1.38, 0.08, x + 1.2, 1.42, 3.12, s < 0 ? 0xFF4A5A : GRN);
+    E.box(2.0, 1.1, 0.06, x, 1.4, -2.58, TONES.glow, 0, 0.7);                                               // lit shelf glow behind each window
   }
   B.box(8.6, 1.5, 0.1, 0, 1.0, -2.65, DARK);
   wall('floorInside', 9.4, 0.1, 5.4, 0, 0.2, 0, DARK);
@@ -693,26 +644,25 @@ const PRICE = { C: 120, B: 300, A: 700, S: 1500 };
 function makeAssets(T, dims) {
   const dm = dims || PD;
   const uniformsT = { value: 0 };
-  const base = { vertexShader: VERT, vertexColors: true, side: T.DoubleSide };
   const A = {
     uniformsT, geoms: null, burger: null,
-    matBody: new T.ShaderMaterial(Object.assign({ fragmentShader: FRAG_LIT, uniforms: { uLight: { value: new T.Vector3(-0.62, 0.52, 0.4).normalize() }, uUpW: { value: new T.Vector3(0, 1, 0) }, uSky: { value: new T.Color(0.36, 0.3, 0.5) }, uFogK: { value: 0 }, uNightF: { value: 0 } } }, base)),
-    matEmi: new T.ShaderMaterial(Object.assign({ fragmentShader: FRAG_EMI, uniforms: { uTime: uniformsT } }, base)),
-    matGlass: new T.MeshBasicMaterial({ color: 0xA8ECFF, transparent: true, opacity: 0.16, depthWrite: false, side: T.DoubleSide }),
+    matBody: softMat(T, null),
+    matEmi: glowMat(T, uniformsT),
+    matGlass: unlitMat(T, { color: 0xA8ECFF, transparent: true, opacity: 0.16, depthWrite: false, side: T.DoubleSide }),
     signTex: null, matSign: null, signGeo: null, glassGeo: null, bTex: null, bMat: null, bGeo: null, cvs: null, cTex: null, cMat: null, cGeo: null,
   };
   A.geoms = dm.human ? buildStoreGeomsH(T, { dims: dm }) : buildStoreGeoms(T, { dims: dm }); A.dims = dm;
-  A.signTex = signTexture(T); A.matSign = new T.MeshBasicMaterial({ map: A.signTex, toneMapped: false, side: T.DoubleSide });
+  A.signTex = signTexture(T); A.matSign = unlitMat(T, { map: A.signTex, toneMapped: false, side: T.DoubleSide });
   A.signGeo = signGeometry(T, dm);
   A.glassGeo = glassGeometry(T, dm);
   A.burgerGeoms = () => {
     if (A.burger) return A.burger;
-    A.burger = buildBurgerGeoms(T); A.bTex = burgerSignTexture(T); A.bMat = new T.MeshBasicMaterial({ map: A.bTex, toneMapped: false, side: T.DoubleSide }); A.bGeo = burgerSignGeometry(T);
+    A.burger = buildBurgerGeoms(T); A.bTex = burgerSignTexture(T); A.bMat = unlitMat(T, { map: A.bTex, toneMapped: false, side: T.DoubleSide }); A.bGeo = burgerSignGeometry(T);
     return A.burger;
   };
   A.cvsGeoms = () => {
     if (A.cvs) return A.cvs;
-    A.cvs = buildCvsGeoms(T); A.cTex = cvsSignTexture(T); A.cMat = new T.MeshBasicMaterial({ map: A.cTex, toneMapped: false, side: T.DoubleSide }); A.cGeo = cvsSignGeometry(T);
+    A.cvs = buildCvsGeoms(T); A.cTex = cvsSignTexture(T); A.cMat = unlitMat(T, { map: A.cTex, toneMapped: false, side: T.DoubleSide }); A.cGeo = cvsSignGeometry(T);
     return A.cvs;
   };
   A.dispose = () => {
@@ -760,7 +710,7 @@ function createCrowd(T, parent, cfg) {
     const g = makeNpc(T, parent, { id: cfg.id + '-guard', color: ROLE_COLOR.stationcop, role: 'stationcop', lex, known, x: gx0, z: gz0, yaw: 0, speed: 1.25 });
     g.patrol = true; g.wp = 1; g.state.wait = 0; g.isGuard = true;
     if (g.human) {   // the EYE: a small emissive bar over the visor, visible while sees() is true
-      const eye = new T.Mesh(new T.BoxGeometry(0.2, 0.085, 0.03), new T.MeshBasicMaterial({ color: 0xFF2A4A, toneMapped: false }));
+      const eye = new T.Mesh(new T.BoxGeometry(0.2, 0.085, 0.03), unlitMat(T, { color: 0xFF2A4A, toneMapped: false }));
       eye.position.set(0, 0.93, -0.12); eye.visible = false; eye.name = 'guard-eye'; eye.frustumCulled = false; g.human.group.add(eye); g.eye = eye;
     }
     crowd.guard = g; crowd.npcs.push(g); crowd.characters.push(g);
@@ -869,6 +819,12 @@ function fillStoreRecord(store, crowd, id) {
 }
 
 // ── rev 27 shelf racks + store security ──
+// unit rounded box (radius 0.2, one segment) for the instanced shelf racks + stock: same bevel template as every other box (ship-look.js)
+function roundUnitBox(T) {
+  const tp = bevelTemplate(1, 1, 1, 0.2, 1), g = new T.BufferGeometry();
+  g.setAttribute('position', new T.BufferAttribute(tp.pos.slice(), 3)); g.setAttribute('normal', new T.BufferAttribute(tp.nrm.slice(), 3)); g.computeBoundingSphere();
+  return g;
+}
 function makeShelves(T, shared, store, id, dm) {
   const RACKS = (dm || PD).racks;   // store-local metres, in the lanes beside the gondolas
   const r = mulberry(hashStr('shelves:' + id)), menu = store.menu, shelves = [];
@@ -876,14 +832,14 @@ function makeShelves(T, shared, store, id, dm) {
   const m = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), ps = new T.Vector3(), col = new T.Color();
   RACKS.forEach((rk, i) => {
     const item = menu[Math.floor(r() * menu.length)], n = 3 + Math.floor(r() * 4);
-    m.compose(ps.set(rk[0], FY + 0.4, rk[1]), q, sc.set(1.3, 0.8, 0.8)); mesh.setMatrixAt(i * 7, m); mesh.setColorAt(i * 7, col.set(0x4A4256));
+    m.compose(ps.set(rk[0], FY + 0.6, rk[1]), q, sc.set(1.3, 1.2, 0.8)); mesh.setMatrixAt(i * 7, m);      // rack 0.69 H tall: the stock on top is at 0.7-0.93 H, within reach mesh.setColorAt(i * 7, col.set(0x4A4256));
     const slots = [];
     for (let k = 0; k < 6; k++) {
-      const mm = new T.Matrix4().compose(ps.set(rk[0] + (k % 3 - 1) * 0.38, FY + 0.8 + 0.21, rk[1] + (Math.floor(k / 3) - 0.5) * 0.34), q, sc.set(0.32, 0.42, 0.32));
+      const mm = new T.Matrix4().compose(ps.set(rk[0] + (k % 3 - 1) * 0.38, FY + 1.2 + 0.21, rk[1] + (Math.floor(k / 3) - 0.5) * 0.34), q, sc.set(0.32, 0.42, 0.32));
       slots.push(mm); mesh.setColorAt(i * 7 + 1 + k, col.set(item.color || 0xFF5CE1).multiplyScalar(1.15));
       if (k < n) mesh.setMatrixAt(i * 7 + 1 + k, mm); else mesh.setMatrixAt(i * 7 + 1 + k, shared.zero);
     }
-    shelves.push({ id: id + '-shelf' + i, storeId: id, pos: new T.Vector3(rk[0], FY + 0.8, rk[1]), world: new T.Vector3(), item, n, nMax: n, taken: false, _base: i * 7 + 1, _slots: slots });
+    shelves.push({ id: id + '-shelf' + i, storeId: id, pos: new T.Vector3(rk[0], FY + 1.2, rk[1]), world: new T.Vector3(), item, n, nMax: n, taken: false, _base: i * 7 + 1, _slots: slots });
   });
   mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   store.shelves = shelves;
@@ -1105,7 +1061,7 @@ export function createWorld(THREE, ps, L, mods) {
     if (A) return;
     A = makeAssets(T, PD); world.storeTris = A.geoms.tris;
     if (ps && ps.shared) { const u = A.matBody.uniforms, S = ps.shared; u.uLight = S.uLightDir; u.uUpW = S.uUpW; u.uSky = S.uFogCol; u.uFogK = S.uFogK; u.uNightF = S.uNight; }   // look rev 28: one light model for terrain / props / buildings
-    matShard = new T.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_EMI, vertexColors: true, side: T.DoubleSide, uniforms: { uTime: A.uniformsT } });
+    matShard = glowMat(T, A.uniformsT);
     shardGeo = shardGeometry(T);
     resMat = new T.ShaderMaterial({ vertexShader: RES_VERT, fragmentShader: RES_FRAG, vertexColors: true, side: T.DoubleSide, uniforms: { uTime: A.uniformsT, uScan: { value: 0 } } });
     resGeos = resGeometries(T);
@@ -1115,7 +1071,7 @@ export function createWorld(THREE, ps, L, mods) {
   function padFrames() {
     const out = [], R = ps.radius || 1;
     const outs = ps.outposts || [];
-    for (let i = 0; i < outs.length; i++) out.push({ id: outs[i].id, name: outs[i].name, m: outs[i].pad.matrix.clone(), key: outs[i].pad.position.length() });
+    for (let i = 0; i < outs.length; i++) out.push({ id: outs[i].id, name: outs[i].name, m: outs[i].pad.matrix.clone(), key: outs[i].pad.position.length(), radius: outs[i].radius > 0 ? outs[i].radius : PAD_R_L * OS * L });
     if (out.length) return out;
     // fallback: sample 400 directions, score by land + flatness of a ring at 14 L, take the flattest
     const node = world.node, sd = hashStr(String(node && node.id)) + 777, r = rngOf(sd);
@@ -1142,16 +1098,21 @@ export function createWorld(THREE, ps, L, mods) {
     const up = best.d, x = best.e1, z = new T.Vector3().crossVectors(x, up).normalize();
     const m = new T.Matrix4().makeBasis(x, up, z);
     m.setPosition(up.x * R * (1 + best.h), up.y * R * (1 + best.h), up.z * R * (1 + best.h));
-    out.push({ id: (node ? node.id : 'planet') + '-op0', name: 'Roadside Stop', m, key: R * (1 + best.h) });
+    out.push({ id: (node ? node.id : 'planet') + '-op0', name: 'Roadside Stop', m, key: R * (1 + best.h), radius: PAD_R_L * OS * L });
     return out;
   }
 
-  // planet-local matrix of a store from its pad frame (store centre 9.6 L behind the pad so the glass front sits ~8.9 L away, as before)
+  // planet-local matrix of a store from its pad frame. 2026-11-25 (pad through the 7/11): the hex pad (ship-planet PAD_L = 6 * OUT_S = 15 L circumradius, instance X/Z scale, outposts[i].radius) has its
+  // vertices on the pad X axis and a flat edge across the pad Z axis, apothem = 0.866 R. The store sits behind that edge: its glass front faces the pad, and the FARTHEST thing in front of it
+  // (the parking slabs, parkZ1) ends PAD_GAP L outside the apothem, so store, apron and parking never touch the plate. padR = the real pad radius (world units).
+  const PAD_R_L = 6, PAD_GAP_L = 1.2, HEX_APO = 0.8660254;
   const _t = new T.Matrix4(), _sc = new T.Matrix4();
-  function storeMatrix(padM, out) {
-    out.copy(padM).multiply(_t.makeTranslation(-0.75 * OS * L, 0.05 * L, -(4.5 * OS * L + PD.HD * KS))).multiply(_sc.makeScale(KS, KS, KS));
+  function storeOffset(padR) { return HEX_APO * padR + PAD_GAP_L * L + (PD.parkZ1 - PD.HD) * KS; }      // pad centre -> store glass front, along -Z of the pad frame
+  function storeMatrix(padM, out, padR) {
+    out.copy(padM).multiply(_t.makeTranslation(-0.75 * OS * L, 0.05 * L, -(storeOffset(padR > 0 ? padR : PAD_R_L * OS * L) + PD.HD * KS))).multiply(_sc.makeScale(KS, KS, KS));
     return out;
   }
+  world.storeOffset = storeOffset;
 
   // 2026-11-05: SEAT a rigid structure on the ground. The structure's walkable floor (store-local rects, y = top) is a flat tangent plane on a sphere; it is lifted/lowered along
   // its own up axis until every sampled floor point (rect corners + centre) is at or above the analytic ground under it (+ eps). The plane then touches the ground at its highest
@@ -1184,7 +1145,7 @@ export function createWorld(THREE, ps, L, mods) {
     return s;
   }
   function layoutStore(site) {
-    storeMatrix(site.pad, site.M);
+    storeMatrix(site.pad, site.M, site.padR);
     seatAndRegister('store' + sites.indexOf(site), site.M, site.store.interior.floors, 0.015 * KS);
     const M = site.M, st = site.store;
     st.pos.set(0, 0, 0).applyMatrix4(M);
@@ -1204,8 +1165,11 @@ export function createWorld(THREE, ps, L, mods) {
     const R = ps.radius || 1, pm = site0.pad;
     const cands = [[-6, -4], [-8, -9], [5, -8], [-10, 0], [7, -3], [0, -14], [-14, -6], [12, -10]];
     let best = null;
+    const padRr = site0.padR > 0 ? site0.padR : PAD_R_L * OS * L, padA = HEX_APO * padRr + (PAD_GAP_L + 1.4) * L, stZ = -(storeOffset(padRr) + PD.HD * KS), stX = -0.75 * OS * L;     // the lot is ~1.4 L from its centre to a corner
     for (const c of cands) {
-      const p = new T.Vector3(c[0] * OS * L, 0, c[1] * OS * L).applyMatrix4(pm), dir = p.clone().normalize();
+      const cx = c[0] * OS * L, cz = c[1] * OS * L, hx1 = cx * HEX_APO;
+      const onPad = Math.abs(cz) < padA && Math.abs(hx1 + cz * 0.5) < padA && Math.abs(hx1 - cz * 0.5) < padA, onStore = Math.hypot(cx - stX, cz - stZ) < 5 * L;      // never on the hex plate, never on the 7/11
+      const p = new T.Vector3(cx, 0, cz).applyMatrix4(pm), dir = p.clone().normalize();
       if (ps.landLocal && !ps.landLocal(dir.x * R, dir.y * R, dir.z * R)) continue;
       const fl = ps.floorLocal(dir.x, dir.y, dir.z); if (!isFinite(fl)) continue;
       const e1 = (Math.abs(dir.y) < 0.9 ? new T.Vector3(dir.z, 0, -dir.x) : new T.Vector3(0, -dir.z, dir.y)).normalize(), e2 = new T.Vector3().crossVectors(dir, e1).normalize();
@@ -1215,6 +1179,7 @@ export function createWorld(THREE, ps, L, mods) {
         if (ps.landLocal && !ps.landLocal(q.x * R, q.y * R, q.z * R)) { worst = 9; break; }
         worst = Math.max(worst, Math.abs(ps.floorLocal(q.x, q.y, q.z) - fl));
       }
+      if (onPad || onStore) worst += 1e6;
       if (!best || worst < best.worst) best = { worst, dir, fl };
       if (worst < 0.03 * L) break;
     }
@@ -1430,11 +1395,11 @@ export function createWorld(THREE, ps, L, mods) {
           interior: makeInterior(T, A.geoms, PD), lineIdx: 0,
         };
         fillStoreRecord(store, crowd, f.id);
-        if (!shelfShared) shelfShared = { geo: new T.BoxGeometry(1, 1, 1), mat: new T.MeshBasicMaterial({ color: 0xFFFFFF }), zero: new T.Matrix4().makeScale(0, 0, 0) };
+        if (!shelfShared) shelfShared = { geo: roundUnitBox(T), mat: unlitMat(T, { color: 0xFFFFFF }), zero: new T.Matrix4().makeScale(0, 0, 0) };
         const shelfMesh = makeShelves(T, shelfShared, store, f.id, PD); node.add(shelfMesh);
         makeSecurity(T, store, crowd);
         crowd.frame = new T.Matrix4();           // planet-local frame of this store (layoutStore keeps it equal to site.M)
-        sites.push({ pad: f.m.clone(), M: crowd.frame, store, node, crowd, shelfMesh });
+        sites.push({ pad: f.m.clone(), padR: f.radius, M: crowd.frame, store, node, crowd, shelfMesh });
         world.stores.push(store);
       });
       // Burger House (first outpost only)
@@ -1456,7 +1421,7 @@ export function createWorld(THREE, ps, L, mods) {
       bodies.name = 'store-bodies'; emis.name = 'store-emissive'; signs.name = 'store-signs'; glasses.name = 'store-glass'; shardMesh.name = 'shards';
       bodies.count = emis.count = signs.count = glasses.count = sites.length;
     }
-    frames.forEach((f, i) => { sites[i].pad.copy(f.m); layoutStore(sites[i]); });
+    frames.forEach((f, i) => { sites[i].pad.copy(f.m); sites[i].padR = f.radius; layoutStore(sites[i]); });
     layoutBurger(sites[0]);
     ensureCvs(); layoutCvs();
     layoutShards(frames);
@@ -1605,6 +1570,22 @@ export function createWorld(THREE, ps, L, mods) {
     }
   }
 
+  // 2026-11-25 world interactions beyond the counters: Burger House seats. ship.js footTarget/footAct call world.interactNear(feetPlanetLocal).use(); the prompt string is .label ('F · VERB', the
+  // shop's shape). Sitting is a pose freeze owned by ship-foot.js (SEAT); while seated the answer is F · STAND (any move key also stands you up).
+  const _seatIA = new Map(), _stand = { kind: 'stand', label: 'F · STAND', use() { SEAT.leave = true; } };
+  world.interactNear = function (p) {
+    if (SEAT.on) return _stand;
+    if (!burger || !p) return null;
+    const q = _v.copy(p).applyMatrix4(_m.copy(burger.matrix).invert());
+    if (Math.abs(q.x) > BH.WX + 1.5 || Math.abs(q.z) > BH.WZ + 1.5 || q.y < -1 || q.y > 3) return null;      // inside / at the walls of the house
+    let best = null, bd = 1.5 * 1.5;      // metres, to the seat centre
+    for (const s2 of BH.SEATS) { const dx = q.x - s2.p[0], dz = q.z - s2.p[2], d2 = dx * dx + dz * dz; if (d2 < bd) { bd = d2; best = s2; } }
+    if (!best) return null;
+    let ia = _seatIA.get(best);
+    if (!ia) { const seat = best; ia = { kind: 'sit', label: 'F · SIT', seat, use() { const M = burger && burger.matrix; if (!M) return; const pos = new T.Vector3(seat.p[0], seat.p[1], seat.p[2]).applyMatrix4(M), face = new T.Vector3(seat.f[0], seat.f[1], seat.f[2]).transformDirection(M); SEAT.req = { pos: [pos.x, pos.y, pos.z], face: [face.x, face.y, face.z] }; } }; _seatIA.set(best, ia); }
+    return ia;
+  };
+
   world.update = function (t, dt, pl) {
     if (!world.node || !bodies) return;
     A.uniformsT.value = t;
@@ -1672,3 +1653,5 @@ export function createWorld(THREE, ps, L, mods) {
   };
   return world;
 }
+// dev / smoke-test hook (node scripts build the geometry without a planet)
+export const _dev = { buildStoreGeomsH, buildBurgerGeoms, buildCvsGeoms, makeSoup, PD };

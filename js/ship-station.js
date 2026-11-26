@@ -25,50 +25,17 @@ import { weaponSetFor, generateWeapon } from './ship-weapons.js';
 import { makeMarket } from './ship-space.js';
 import { buildHull } from './ship-hull.js';
 import { fmt } from './ship-craft.js';
+import { softMat, glowMat, unlitMat, bevelTemplate, TONES, mixHex } from './ship-look.js';
 
 const HW = 4.5, HH = 4.8, HD = 26;          // hangar inner half-width, height, depth (L)
 const MOUTH_HW = 4.5, MOUTH_HH = 2.4;       // mouth half extents (opening is 9 x 4.8 L; centre y = 2.4)
 const HUMAN_H = 0.09;                 // station deck is its own space, modelled at the old human size (ship-scale.js H_RATIO governs planets)
 
-const C = { hull: 0x3a3352, hull2: 0x2c2640, hull3: 0x201b30, panel: 0x4a4266, violet: 0x8A3CFF, cyan: 0x5CE8FF, mag: 0xFF5CE1, amber: 0xFFC46B, white: 0xF4F8FF, floor: 0x7d7699, wall: 0x544c70, dark: 0x16121f };
+// ship-look.js ramp (dusk-lav) + the accent: the hangar is hull tones + two light colours (pale lavender, warm accent), the 7/11 violet keeps its brand
+const C = { hull: mixHex(TONES.dark, TONES.shelfD, 0.55), hull2: mixHex(TONES.dark, TONES.shelfD, 0.3), hull3: TONES.dark, panel: mixHex(TONES.shelfD, TONES.floor, 0.3), violet: TONES.mid, cyan: TONES.sky, mag: TONES.accent, amber: TONES.glow, white: TONES.wall, floor: mixHex(TONES.floor, TONES.mid, 0.3), wall: mixHex(TONES.shelfD, TONES.mid, 0.3), dark: mixHex(TONES.dark, 0x000000, 0.4) };
 
 function mul(seed) { let a = seed | 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
-const VERT = /* glsl */`
-varying vec3 vC; varying vec3 vV;
-#include <common>
-#include <logdepthbuf_pars_vertex>
-void main(){
-  vC = color;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  vV = mv.xyz;
-  gl_Position = projectionMatrix * mv;
-  #include <logdepthbuf_vertex>
-}`;
-const FRAG_LIT = /* glsl */`
-varying vec3 vC; varying vec3 vV;
-#include <common>
-#include <logdepthbuf_pars_fragment>
-void main(){
-  #include <logdepthbuf_fragment>
-  vec3 n = normalize(cross(dFdx(vV), dFdy(vV)));
-  vec3 Ld = normalize(mat3(viewMatrix) * normalize(vec3(-0.62, 0.52, 0.4)));
-  float d = abs(dot(n, Ld)) * 0.55 + 0.45;
-  float rim = pow(1.0 - abs(dot(n, normalize(-vV))), 3.0) * 0.3;
-  gl_FragColor = vec4(vC * d + rim * vec3(0.5, 0.3, 0.85), 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`;
-const FRAG_EMI = /* glsl */`
-uniform float uTime;
-varying vec3 vC; varying vec3 vV;
-#include <common>
-#include <logdepthbuf_pars_fragment>
-void main(){
-  #include <logdepthbuf_fragment>
-  gl_FragColor = vec4(vC * (0.95 + 0.06 * sin(uTime * 2.5 + vC.g * 9.0)), 1.0);
-  #include <colorspace_fragment>
-}`;
 const VERT_LIGHT = /* glsl */`
 uniform float uPx; uniform float uH;
 varying vec3 vC; varying vec2 vUv;
@@ -101,21 +68,29 @@ void main(){
   gl_FragColor = vec4(vC * g * 2.2, min(1.0, g));
 }`;
 
-// ── merged vertex-coloured soup ──
+// ── merged vertex-coloured soup (positions + colours + normals) ──
+// Boxes go through ship-look.js bevelTemplate (rounded, smooth normals, cached by dims + radius) when every side is >= BEVEL_MIN L; thinner strips / panels stay plain boxes (flat normals).
+const BEVEL_MIN = 0.4, BEVEL_MAX = 0.06;      // L (the station is modelled in ship lengths)
 function makeSoup(T) {
-  const pos = [], col = [], c = new T.Color(), v = new T.Vector3(), m = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), s = new T.Vector3(), p = new T.Vector3();
+  const pos = [], col = [], nrm = [], c = new T.Color(), v = new T.Vector3(), m = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), s = new T.Vector3(), p = new T.Vector3(), nv = new T.Vector3(), ones = new T.Vector3(1, 1, 1);
   const unit = new T.BoxGeometry(1, 1, 1).toNonIndexed().attributes.position.array;
   const soup = {
-    geo(arr, hex, mat, br = 1) {                  // arr = non-indexed position array
-      c.set(hex); const r = c.r * br, g = c.g * br, b = c.b * br;
-      for (let i = 0; i < arr.length; i += 3) {
-        v.set(arr[i], arr[i + 1], arr[i + 2]); if (mat) v.applyMatrix4(mat);
-        pos.push(v.x, v.y, v.z); col.push(r, g, b);
+    geo(arr, hex, mat, br = 1) {                  // arr = non-indexed position array; flat normals per triangle
+      c.set(hex); const r = c.r * br, g = c.g * br, b = c.b * br, t = [new T.Vector3(), new T.Vector3(), new T.Vector3()];
+      for (let i = 0; i + 8 < arr.length; i += 9) {
+        for (let k = 0; k < 3; k++) { t[k].set(arr[i + k * 3], arr[i + k * 3 + 1], arr[i + k * 3 + 2]); if (mat) t[k].applyMatrix4(mat); pos.push(t[k].x, t[k].y, t[k].z); col.push(r, g, b); }
+        nv.subVectors(t[1], t[0]).cross(v.subVectors(t[2], t[0])).normalize(); for (let k = 0; k < 3; k++) nrm.push(nv.x, nv.y, nv.z);
       }
     },
     // centre box with optional Euler rotation
     cbox(w, h, d, cx, cy, cz, hex, br = 1, rx = 0, ry = 0, rz = 0) {
-      e.set(rx, ry, rz); q.setFromEuler(e); s.set(w, h, d); p.set(cx, cy, cz); m.compose(p, q, s);
+      e.set(rx, ry, rz); q.setFromEuler(e); p.set(cx, cy, cz);
+      if (Math.min(w, h, d) >= BEVEL_MIN) {
+        const tp = bevelTemplate(w, h, d, Math.min(BEVEL_MAX, 0.3 * Math.min(w, h, d)), 1), P = tp.pos, N = tp.nrm; m.compose(p, q, ones); c.set(hex);
+        for (let i = 0; i < P.length; i += 3) { v.set(P[i], P[i + 1], P[i + 2]).applyMatrix4(m); pos.push(v.x, v.y, v.z); nv.set(N[i], N[i + 1], N[i + 2]).applyQuaternion(q); nrm.push(nv.x, nv.y, nv.z); col.push(c.r * br, c.g * br, c.b * br); }
+        return;
+      }
+      s.set(w, h, d); m.compose(p, q, s);
       soup.geo(unit, hex, m, br);
     },
     // min/max box
@@ -124,6 +99,7 @@ function makeSoup(T) {
     geometry() {
       const g = new T.BufferGeometry();
       g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+      g.setAttribute('normal', new T.Float32BufferAttribute(nrm, 3));
       g.setAttribute('color', new T.Float32BufferAttribute(col, 3));
       g.computeBoundingSphere();
       return g;
@@ -209,18 +185,17 @@ export function createStation(engine, L, opts) {
     stats: { tris: 0, meshes: 0 },
   };
   const uTime = { value: 0 }, uPx = { value: 6.5 }, uH = { value: 900 };
-  const matLit = new T.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_LIT, vertexColors: true, side: T.DoubleSide, uniforms: {} });
-  const matEmi = new T.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_EMI, vertexColors: true, side: T.DoubleSide, uniforms: { uTime } });
+  const matLit = softMat(T, null, { ambient: 0.5 }), matEmi = glowMat(T, uTime);      // ship-look.js: the same light rig + toon ramp as the planet buildings (brighter ambient: the hangar has no sky)
   const matLight = new T.ShaderMaterial({ vertexShader: VERT_LIGHT, fragmentShader: FRAG_LIGHT, uniforms: { uPx, uH }, transparent: true, depthWrite: false, blending: T.AdditiveBlending });
   const tex = new T.CanvasTexture(signCanvas()); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
-  const matSign = new T.MeshBasicMaterial({ map: tex, toneMapped: false, side: T.DoubleSide });
-  const matField = new T.MeshBasicMaterial({ color: C.cyan, transparent: true, opacity: 0.07, depthWrite: false, side: T.DoubleSide });
+  const matSign = unlitMat(T, { map: tex, toneMapped: false, side: T.DoubleSide });
+  const matField = unlitMat(T, { color: C.cyan, transparent: true, opacity: 0.07, depthWrite: false, side: T.DoubleSide });
   const quadGeo = new T.PlaneGeometry(1, 1);
   // shipyard sign + bounties screen (2 draws) + 2 display hulls
   const yardTex = new T.CanvasTexture(yardSignCanvas()); yardTex.colorSpace = T.SRGBColorSpace;
-  const yardSign = new T.Mesh(quadGeo, new T.MeshBasicMaterial({ map: yardTex, toneMapped: false })); yardSign.name = 'station-yard-sign'; yardSign.frustumCulled = false;
+  const yardSign = new T.Mesh(quadGeo, unlitMat(T, { map: yardTex, toneMapped: false })); yardSign.name = 'station-yard-sign'; yardSign.frustumCulled = false;
   let qTex = new T.CanvasTexture(questCanvas([])); qTex.colorSpace = T.SRGBColorSpace;
-  const qMat = new T.MeshBasicMaterial({ map: qTex, toneMapped: false });
+  const qMat = unlitMat(T, { map: qTex, toneMapped: false });
   const questMesh = new T.Mesh(quadGeo, qMat); questMesh.name = 'station-bounties'; questMesh.frustumCulled = false; questMesh.rotation.y = -Math.PI / 2;
   const yardHulls = SHIPS.map((sh) => { const g = new T.Group(); g.name = 'yard-' + sh.kind; let h = null; try { h = buildHull(T, { kind: sh.kind, lod: 'low' }); } catch (e) { h = null; } if (h) { const b = new T.Box3().setFromObject(h), sz = b.getSize(new T.Vector3()), c = b.getCenter(new T.Vector3()); const k = 2.6 / Math.max(sz.x, sz.y, sz.z, 1e-6); h.scale.multiplyScalar(k); h.position.set(-c.x * k, -c.y * k, -c.z * k); g.add(h); } return g; });
   group.add(yardSign, questMesh, ...yardHulls);
