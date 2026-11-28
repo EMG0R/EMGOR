@@ -52,7 +52,7 @@
 #ifdef HX_D12
 #define FW_VERSION "drone12-1.4"
 #elif defined(HX_MIN_DRONE)
-#define FW_VERSION "padfx-4.12"
+#define FW_VERSION "padfx-4.13"
 #elif defined(HX_OUTSTAGE)
 #define FW_VERSION "rig-2.6"
 #elif defined(TEST_DELAY)
@@ -256,7 +256,7 @@ static void fxParamsRx(const char* line); static void fxParamsInit(); static voi
 #endif
 static volatile int g_og_req = OG_DEF10;                           // pending request from the host (set in the CDC ISR, applied in the main loop)
 #endif
-static volatile int g_lcap = 64, g_lfloor = 14, g_lsens = 8; static volatile float g_lthr = -28.0f; static volatile bool g_ngOn = false; static volatile float g_ngThr = -50.0f;   // mic noise gate (web UI toggle + threshold, dBFS)   // g_lthr: reactive-lighting threshold, dBFS (web UI, next to master volume)     // strip/trellis brightness cap (0..64 of 255), floor (% of cap), audio sensitivity
+static volatile int g_lcap = 64, g_lfloor = 14, g_lsens = 8; static volatile float g_lthr = -40.0f; static volatile bool g_ngOn = false; static volatile float g_ngThr = -50.0f;   // mic noise gate (web UI toggle + threshold, dBFS)   // g_lthr: reactive-lighting threshold, dBFS (web UI, next to master volume)     // strip/trellis brightness cap (0..64 of 255), floor (% of cap), audio sensitivity
 #endif
 static volatile bool g_cmd_reset = false, g_cmd_hello = false, g_cmd_scan = false, g_cal_pending = false;
 #ifdef TEST_DELAY

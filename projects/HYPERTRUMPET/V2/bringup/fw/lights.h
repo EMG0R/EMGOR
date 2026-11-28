@@ -161,22 +161,23 @@ static float g_resid[STRIP_N][3];                                      // tempor
 // SPEED follows g_lvl: colour drift 0.04 .. 0.6 palette steps/s, motion 6 .. 105 px/s. Palette = hot pink / warm yellow / light blue blended along the strip
 // with value-noise domain warping, three incommensurate noise clocks: no fixed loop. Brightness follows g_lvl (35 % .. 100 %) times g_act.
 static float g_act = 0, g_lvl = 0, g_envs = 0, g_pp = 0, g_pw = 0, g_ps = 0; static bool g_open = false;
-static const float kPal[3][3] = { { 255, 60, 170 }, { 255, 210, 40 }, { 90, 190, 255 } };   // pink, yellow, light blue
+static const float kPal[2][3] = { { 255, 90, 190 }, { 110, 200, 255 } };   // 4.13: pink + light blue only (no yellow)
 static inline void palCol(float p, float* o) {
-    p -= 3.0f * floorf(p / 3.0f); int i = (int)p; if(i > 2) i = 2; const int j = i == 2 ? 0 : i + 1; const float f = sstep(0.0f, 1.0f, p - (float)i);
+    p -= 2.0f * floorf(p / 2.0f); int i = (int)p; if(i > 1) i = 1; const int j = 1 - i; const float f = sstep(0.0f, 1.0f, p - (float)i);
     for(int c = 0; c < 3; c++) o[c] = (kPal[i][c] + (kPal[j][c] - kPal[i][c]) * f) * (1.0f / 255.0f);
 }
 static void lightsCompute(float dt) {
     const float db = 20.0f * log10f(g_env + 1e-7f), thr = g_lthr;       // threshold from the web UI (lthr)
-    if(!g_open && db > thr) g_open = true; else if(g_open && db < thr - 4.0f) g_open = false;
+    static float hold = 0.0f;   // 4.13: close only after 10 dB below thr AND 350 ms hold, so note tails stay lit
+    if(db > thr) { g_open = true; hold = 0.35f; } else if(g_open) { if(db < thr - 10.0f) { hold -= dt; if(hold <= 0.0f) g_open = false; } else hold = 0.35f; }
     float l = (db - thr) / 24.0f; l = l < 0 ? 0 : l > 1 ? 1 : l;
     if(!g_open) l = 0.0f;
-    g_act += ((g_open ? 1.0f : 0.0f) - g_act) * (1.0f - expf(-dt / (g_open ? 0.025f : 0.260f)));
+    g_act += ((g_open ? 1.0f : 0.0f) - g_act) * (1.0f - expf(-dt / (g_open ? 0.020f : 0.450f)));
     g_lvl += (l - g_lvl) * (1.0f - expf(-dt / (l > g_lvl ? 0.040f : 0.250f)));
     g_envs = g_lvl; g_capBoost = 1.0f + 1.0f * g_lvl;
     const bool dark = g_act < 0.003f;
     g_pp += dt * (0.04f + 0.56f * g_lvl); g_pw += dt * (0.07f + 0.9f * g_lvl); g_ps += dt * (0.4f + 7.0f * g_lvl);   // palette phase, warp clock, travel clock (all faster when louder)
-    const float bri = g_act * (0.35f + 0.65f * g_lvl);
+    const float bri = g_act * (0.70f + 0.30f * g_lvl);   // 4.13: high floor, no dark colours while lit
     for(int i = 0; i < STRIP_N + 16; i++) {
         bool strip = i < STRIP_N; float x = strip ? (float)(STRIP_FROM_END ? (STRIP_N - 1 - i) : i) : ((i - STRIP_N) + 0.5f) / 16.0f * STRIP_N;   // x = distance from the near (mouthpiece) end
         RGB c = { 0, 0, 0 };
@@ -184,7 +185,7 @@ static void lightsCompute(float dt) {
             const float p = g_pp + x * 0.022f + 1.1f * (vnoise(x * 0.035f + g_pw + 11.0f) - 0.5f) + 0.5f * (vnoise(x * 0.09f - g_pw * 0.6f + 47.0f) - 0.5f);
             float pc[3]; palCol(p, pc);
             const float sh = 0.7f * vnoise(x * 0.07f - g_ps) + 0.3f * vnoise(x * 0.19f - g_ps * 1.7f + 5.0f);   // shimmer travelling toward the bell
-            const float k = bri * (0.30f + 0.70f * sh);
+            const float k = bri * (0.80f + 0.20f * sh);
             c.r = pc[0] * k; c.g = pc[1] * k; c.b = pc[2] * k;
         }
         if(!strip) { int k = i - STRIP_N; c.r += (kBlue.r - c.r) * g_flash[k]; c.g += (kBlue.g - c.g) * g_flash[k]; c.b += (kBlue.b - c.b) * g_flash[k]; }
