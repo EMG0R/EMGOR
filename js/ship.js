@@ -552,7 +552,7 @@ export default function mount(engine) {
     var difficulty = 2, peaceful = false;
     // rev 11+: every save blob and profile carries a schema version `v`; ONE migrate() fills missing fields with defaults
     // and never deletes unknown fields (a newer/older game version round-trips them untouched).
-    var SCHEMA_V = 2;      // rev 25: v2 = gorCoin (profile.gor, migrated from units), stacks may carry a full item (rec.it), crew / pets / pens / missions
+    var SCHEMA_V = 2;      // rev 25: v2 = gorCoin (profile.gor, migrated from units), stacks may carry a full item (rec.it), crew / pets / pens
     var COLOR_NAMES = { orange: 0xFF7A1A, violet: 0x8a5cff, cyan: 0x00f0ff, red: 0xff3a2a, green: 0x3aff7a, white: 0xffffff };
     function pget(o, k, d) { var v = o ? o[k] : undefined; return (v === undefined || v === null) ? d : v; }   // accessor: never read raw
     function migrateProfile(p) {
@@ -574,21 +574,16 @@ export default function mount(engine) {
         if (!o.tstock || typeof o.tstock !== 'object' || Array.isArray(o.tstock) || typeof o.tstock.day !== 'string' || !o.tstock.m || typeof o.tstock.m !== 'object') o.tstock = { day: '', m: {} };      // consistency: station / convoy stock persists per UTC day like the village's
         o.shieldTier = clamp(o.shieldTier | 0, 0, 3); o.engineTier = clamp(o.engineTier | 0, 0, 3);
         o.style = (typeof o.style === 'string' && /^[a-z0-9_-]{1,16}$/i.test(o.style)) ? o.style : '';      // rev 30: character style id ('' = PILOT)
-        if (!o.blk || typeof o.blk !== 'object' || Array.isArray(o.blk)) o.blk = {};      // mashup: STEEV blocks per planet id {b:[up xyz, fwd xyz], c:[[i,j,k,mat]]} <= 64
         if (!o.hubs || typeof o.hubs !== 'object' || Array.isArray(o.hubs)) o.hubs = {};      // mob hub state per planet id (hub.serialize())
         if (!o.vill || typeof o.vill !== 'object' || Array.isArray(o.vill)) o.vill = {};      // village trade stock per planet id (village.serialize())
         if (!Array.isArray(o.items)) o.items = [];       // rev 23: inventory stacks {id, seed, n, d (dealer variant)}
         o.items = o.items.filter(function (r) { return r && typeof r === 'object' && typeof r.id === 'string' && r.n > 0 && (typeof r.seed === 'number' || (r.it && typeof r.it === 'object')); }).map(function (r) { var q = { id: r.id, seed: (r.seed >>> 0) || 0, n: Math.min(9999, r.n | 0), d: r.d ? 1 : 0 }; if (r.it && typeof r.it === 'object') q.it = r.it; return q; }).slice(-400);
-        if (!Array.isArray(o.crew)) o.crew = [];          // rev 25: [{id,name,role,color,rank,lines[],busy}] cap 4
-        o.crew = o.crew.filter(function (c) { return c && typeof c === 'object' && typeof c.name === 'string'; }).slice(0, 4);
         if (!Array.isArray(o.petPens)) o.petPens = [];    // rev 25: pet items living in the pens (index = pen)
         o.petPens = o.petPens.slice(0, 4);
         if (!Array.isArray(o.taken)) o.taken = [];        // rev 25: tamed creatures hidden on their planet [{n: planet id, x,y,z: planet-local}]
         o.taken = o.taken.filter(function (t) { return t && typeof t.n === 'string' && (typeof t.id === 'string' || isFinite(t.x + t.y + t.z)); }).slice(-40);      // rev 26: {n: planet id, id: ps creature id, k: kind}; old {x,y,z,c} entries are kept but no longer hide anything
         if (!o.suit || typeof o.suit !== 'object' || Array.isArray(o.suit)) o.suit = {};      // rev 27: on-foot suit tiers 0..3 (7/11 GEAR tab + crafted kits)
         ['jetpack', 'scanner', 'sprint', 'storage'].forEach(function (k) { o.suit[k] = clamp(o.suit[k] | 0, 0, 3); });
-        if (!o.rep || typeof o.rep !== 'object' || Array.isArray(o.rep)) o.rep = {};      // rev 27: convoy reputation
-        o.rep = { corp: isFinite(o.rep.corp) ? clamp(+o.rep.corp, -99, 99) : 0, dealers: isFinite(o.rep.dealers) ? clamp(+o.rep.dealers, -99, 99) : 0 };
         if (!Array.isArray(o.disc)) o.disc = [];      // rev 27: my discoveries [{k: kind, id, name, by}] (observation-room plaques)
         o.disc = o.disc.filter(function (d) { return d && typeof d.id === 'string' && typeof d.k === 'string'; }).slice(-120);
         if (!Array.isArray(o.hulls)) o.hulls = ['hauler'];      // rev 28: owned hull kinds (shipyard)
@@ -598,12 +593,9 @@ export default function mount(engine) {
         o.mined = o.mined.filter(function (m) { return Array.isArray(m) && isFinite(m[0]) && isFinite(m[1]); }).slice(-200);
         if (!o.moods || typeof o.moods !== 'object' || Array.isArray(o.moods)) o.moods = {};      // rev 28: npc id -> mood -2..2
         o.savedAt = isFinite(o.savedAt) ? +o.savedAt : 0;      // rev 27: last local change (relay profile sync picks the newer side)
-        if (!o.board || typeof o.board !== 'object' || Array.isArray(o.board)) o.board = { seed: 0, day: '', list: [] };      // rev 25: mission board {seed, day, list[{id,name,kind,minutes,gor,crewId,start,end}]}
-        if (!Array.isArray(o.board.list)) o.board.list = [];
-        o.board.list = o.board.list.filter(function (m) { return m && typeof m === 'object' && typeof m.id === 'string'; }).slice(0, 6);
         if (!o.harv || typeof o.harv !== 'object' || Array.isArray(o.harv)) o.harv = {};      // rev 25: harvested resource nodes {id:{n,at}} (the world respawns them 20 min after `at`)
         o.visits = Math.max(0, o.visits | 0);             // Burger House visits (every 3rd offers a recruit)
-        o.pens = Math.max(0, o.pens | 0); o.pods = Math.max(0, o.pods | 0);
+        o.pens = Math.max(0, o.pens | 0);
         if (!o.dex || typeof o.dex !== 'object' || !o.dex.seen || typeof o.dex.seen !== 'object' || Array.isArray(o.dex.seen)) o.dex = { seen: {} };      // Q25: species seen (pokemans-dex.note)
         if (!Array.isArray(o.pokemans)) o.pokemans = [];  // Q12: every caught mon (full data, js/pokemans-catch.js makeMon); party / pen hold their ids
         o.pokemans = o.pokemans.filter(function (m) { return m && typeof m === 'object' && typeof m.id === 'string' && m.sp && m.ind; }).slice(-PKC.PARTY_MAX);
@@ -1464,7 +1456,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         resumeSnap = null;
         if (dead) return;
         var P = shipRoot.position;
-        if (gmode === 'sfoot' && R27.dsite) {      // consistency: a derelict has no station deck; resume in flight where the ship is parked at its mouth
+        if (gmode === 'ifoot' && IXF.on) {      // inside the ship in flight: resume flying where the autopilot has it
             resumeSnap = { f: 'world', pos: P.clone(), quat: shipRoot.quaternion.clone() };
         } else if (gmode === 'ifoot' && ix.from === 'sfoot' && station && sk.mode === 'deck') {
             resumeSnap = { f: 'station', pad: sk.pad, hp: sk.hp.clone(), yaw: sk.yaw, pitch: sk.pitch };
@@ -1543,7 +1535,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             return o;
         }
         if (rs.f === 'station' && rs.hp) return { v: 2, t: Date.now(), mode: 'station', pad: rs.pad | 0, hp: poseA(rs.hp), yaw: rs.yaw, pitch: rs.pitch };
-        return null;      // interior / derelict: keep the previous pose
+        return null;      // interior: keep the previous pose
     }
     function poseToSnap(o) {
         var v3 = function (a) { if (!Array.isArray(a) || a.length < 3 || !a.every(isFinite)) throw new Error('bad vec'); return new THREE.Vector3(+a[0], +a[1], +a[2]); };
@@ -1715,7 +1707,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function npcAudit() {
         var out = [], H = hOf(L), i, j, st, cr, v, rep = null;
-        if (gmode === 'sfoot' && sk.mode === 'deck' && !R27.dsite && station && station.interior && station.deck && npcRelMod && npcRelMod.deckNpcReport) {      // Q53: the station deck is flat (floor y = 0, station-local L): same report, deck walls instead of terrain
+        if (gmode === 'sfoot' && sk.mode === 'deck' && station && station.interior && station.deck && npcRelMod && npcRelMod.deckNpcReport) {      // Q53: the station deck is flat (floor y = 0, station-local L): same report, deck walls instead of terrain
             var sn = station.interior.npcs || [], sw = station.deck.walls, sb = station.deck.bounds, sr = npcRelMod.deckNpcReport(sn.map(function (n) { return { x: n.localPos.x, z: n.localPos.z }; }), sw, sb, SK_R, SK_H);
             for (i = 0; i < sn.length; i++) out.push({ id: 'station-' + i, kind: 'station', pos: sn[i].pos.toArray(), reachable: sr.unreachable.indexOf(i) < 0 && sr.outside.indexOf(i) < 0, floorDy: 0, distToPad: 0, o: sn[i] });
             return out;
@@ -1792,7 +1784,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function guideTick(dt) {
         var i, m, on = 0, n = null, ni = 0;
         var ok = state === 'piloting' && !boarding && !exiting && !dead && !cmdOpen && gmode !== 'docking' && gmode !== 'launching' && gmode !== 'sfoot' && gmode !== 'ifoot';
-        var okS = state === 'piloting' && !boarding && !exiting && !dead && !cmdOpen && gmode === 'sfoot' && sk.mode === 'deck' && !R27.dsite && !!hum.obj;
+        var okS = state === 'piloting' && !boarding && !exiting && !dead && !cmdOpen && gmode === 'sfoot' && sk.mode === 'deck' && !!hum.obj;
         if (ok && ps && ps.active) {
             n = ps.active;
             var org = (gmode === 'foot' && hum.obj) ? hum.w : shipRoot.position, Rn = n.mesh.scale.x;
@@ -2562,7 +2554,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 var sgt = space.scanTargets(), sn2 = 0, sr2 = (500 * L) * (500 * L);
                 for (i = 0; i < sgt.length && sn2 < 14; i++) {
                     var tg2 = sgt[i]; if (tg2.pos.distanceToSquared(org) > sr2) continue;
-                    hlMark(tg2.pos, tg2.kind === 'crate' ? 'shard' : (tg2.kind === 'derelict' ? 'post' : (tg2.kind === 'convoy' ? 'friend' : 'resource')), tg2.kind === 'derelict' ? 'DERELICT' : (tg2.kind === 'crate' ? 'CRATE' : (tg2.kind === 'convoy' ? 'CONVOY' : String(tg2.kind).toUpperCase())), org, tg2.kind === 'convoy' ? 'freighter' : ''); sn2++;
+                    hlMark(tg2.pos, 'resource', String(tg2.kind).toUpperCase(), org, ''); sn2++;
                 }
             } catch (e0) { warnOnce('scan.highlight', e0); }
         }
@@ -2620,7 +2612,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var node = ps && ps.active, depth = (node && ps.depth > 0.02) ? ps.depth : 0;
             var look = musNode && ps && ps.lookOf ? ps.lookOf(musNode) : 'rocky';
             st.biome = (musNode && !biomeWord(musNode)) ? 'gas' : look;
-            if (gmode === 'ifoot' || R27.dsite || HB.in) st.band = 'interior';
+            if (gmode === 'ifoot' || HB.in) st.band = 'interior';
             else if (gmode === 'sfoot' || gmode === 'docking' || gmode === 'launching') st.band = 'orbit';
             else if (depth > 0) st.band = (gmode === 'foot' || gmode === 'landed' || gmode === 'landing') ? 'surface' : 'atmo';
             else st.band = (musNode && bd < 3 * nr) ? 'orbit' : 'space';
@@ -4643,7 +4635,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     import('./ship-human.js').then(function (m) { humanMod = m; }).catch(function () { /* capsule fallback */ });
     function makeHuman(color, sid) {                 // { group (a holder, oriented + scaled by the caller), update(dt, st), setColor, dispose }
         var h = null, holder = new THREE.Group();
-        if (humanMod && typeof humanMod.createHuman === 'function') { try { var sa = skinArg(sid == null ? curStyleId : sid); h = humanMod.createHuman(THREE, { color: color, suit: suitOf(curProfile()), role: sa.role, extra: sa.extra, rig: sa.rig }); } catch (e) { h = null; } }
+        if (humanMod && typeof humanMod.createHuman === 'function') { try { h = humanMod.createHuman(THREE, { color: color, suit: suitOf(curProfile()), role: null, extra: [], rig: null }); } catch (e) { h = null; } }
         if (!h) {
             var cm = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.6, 3, 8), new THREE.MeshBasicMaterial({ color: color }));
             cm.position.y = 0.46;
@@ -5189,7 +5181,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     var dockAssist = false;
     function onKeyZ() {
-        if (gmode === 'fly') { if (cvHail()) return; if (dockAssist && !dead) { dockAssist = false; beginDock(null, true); return; } if (landOk && landStill()) landReq = true; else if (!dead) ehTell(); }      // consistency: Z never leaves flight (HOLD ESC does); a failed land says why. A tap only explains: auto-land + step-out is the HOLD (ehExit)
+        if (gmode === 'fly') { if (dockAssist && !dead) { dockAssist = false; beginDock(null, true); return; } if (landOk && landStill()) landReq = true; else if (!dead) ehTell(); }      // consistency: Z never leaves flight (HOLD ESC does); a failed land says why. A tap only explains: auto-land + step-out is the HOLD (ehExit)
         else if (gmode === 'landed') exitShip();
         else if (gmode === 'foot') { if (nearShip()) { if (R25.noInt || !enterInterior()) boardShip(); } }
         else if (gmode === 'ifoot') { if (ixTarget().kind === 'hatch') interiorF(); }
@@ -5201,6 +5193,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (ft.kind === 'villager' || ft.kind === 'shopper' || ft.kind === 'clerk' || ft.kind === 'dealer') { fightAsk(ft); return; }
             footAct(ft);
         }
+        else if (gmode === 'fly') { enterInteriorFlight(); }      // 2026-11-27: F in flight = step inside, instantly
         else if (gmode === 'ifoot') { if (ixTarget().kind !== 'hatch') interiorF(); }
         else if (gmode === 'sfoot') { if (sk.lt > 0) return; if (stationInteract().kind !== 'ship') stationE(); }
     }
@@ -5215,7 +5208,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         else if (ft.kind === 'store') { questDeliver(ft.obj); openStore(ft.obj); } else if (ft.kind === 'checkout') { questDeliver(ft.obj); r28Checkout(); } else if (ft.kind === 'shelf') r28Grab(ft.obj); else if (ft.kind === 'burger') openBurger(ft.obj); else if (ft.kind === 'cvs') cvsUse(ft.obj);
         else if (ft.kind === 'creature') tameStart(ft.obj);
         else if (ft.kind === 'resource') harvStart(ft.obj);
-        else if (ft.kind === 'world') ft.obj.use({ aPlay: aPlay, giveItem: function (it) { giveItem(it, 1); }, heal: function (frac) { hp = Math.min(hpMax, hp + hpMax * clamp(+frac || 1, 0, 1)); sinceHit = 0; } });      // F · REST restores health
+        else if (ft.kind === 'world') ft.obj.use({ aPlay: aPlay, giveItem: function (it) { giveItem(it, 1); }, heal: function (frac) { hp = Math.min(HP_MAX, hp + HP_MAX * clamp(+frac || 1, 0, 1)); sinceHit = 0; } });      // F · REST restores health
         else punch();
     }
     // rev 19: "near the ship" = within BOARD_L ship lengths of the spot on the ground directly under the hull (the old test measured to the hull origin, ~1.1 L above the feet, so it was never true on foot)
@@ -5296,7 +5289,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // human mesh and camera follow): it eases toward the physical height but never sinks below the ground.
     var FOOT_R = 0.26, FOOT_SLIDE_A = [0, 0.7, -0.7, 1.4, -1.4], FOOT_SLIDE_K = [1, 0.8, 0.8, 0.5, 0.5];
     var fsR = new THREE.Vector3(), fsF = new THREE.Vector3(), fsC = new THREE.Vector3(), fsT = new THREE.Vector3();
-    function mFloor(x, y, z, ref) { if (!ps) return hum.gr; var r = ps.groundTruth ? ps.groundTruth(x, y, z) : ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); if (BK.n > 0 && ref > 0) { var bf = blkFloor(x, y, z, ref); if (bf > r) r = bf; } return r > 0 ? r : hum.gr; }      // mashup: ref = the feet radius, so the STEEV blocks are part of the ground (columns of 1 H cubes)
+    function mFloor(x, y, z, ref) { if (!ps) return hum.gr; var r = ps.groundTruth ? ps.groundTruth(x, y, z) : ps.meshFloorLocal ? ps.meshFloorLocal(x, y, z) : ps.floorLocal(x, y, z); return r > 0 ? r : hum.gr; }
     // ground radius under the footprint: max over the centre and four points at FOOT_R human heights around it (dir = unit local direction)
     function footFloor(dir, H, ref) {
         var a = FOOT_R * H / ((ps && ps.radius) || 1), best, v; if (!(ref > 0)) ref = hum.hr; best = mFloor(dir.x, dir.y, dir.z, ref);
@@ -5431,9 +5424,9 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             THREE: THREE, FOOT_SLIDE_A: FOOT_SLIDE_A, FOOT_SLIDE_K: FOOT_SLIDE_K, G_WALK: G_WALK, G_RUN: G_RUN, JET_HOLD: JET_HOLD, JET_UP: JET_UP, MOUSE_SENS: MOUSE_SENS,
             R27: R27, X: X, aPlay: aPlay, clamp: clamp, damp: damp, fl: fl, footFloor: footFloor, footWind: footWind, fsC: fsC, fsC2: fsC2, fsT: fsT,
             gA: gA, gB: gB, gC: gC, gD: gD, gE: gE, gQ: gQ, gQi: gQi, groundCam: groundCam, hum: hum, jetFx: jetFx, mFloor: mFloor, mM: mM, objBegin: objBegin, objPush: objPush,
-            styEggTick: styEggTick, styU: styU, styUpW: styUpW, styWallO: styWallO, styleFx: styleFx, styleStep: styleStep, styleSync: styleSync, vTmp: vTmp,
-            get fx() { return fx; }, get L() { return L; }, get ps() { return ps; }, get keys() { return keys; }, get cmdOpen() { return cmdOpen; }, get curStyle() { return curStyle; },
-            get stylesMod() { return stylesMod; }, get fxJump() { return fxJump; }, get fxSpeed() { return fxSpeed; }, get scanT() { return scanT; },
+            styUpW: styUpW, vTmp: vTmp,
+            get fx() { return fx; }, get L() { return L; }, get ps() { return ps; }, get keys() { return keys; }, get cmdOpen() { return cmdOpen; },
+            get fxJump() { return fxJump; }, get fxSpeed() { return fxSpeed; }, get scanT() { return scanT; },
             get mdx() { return mdx; }, set mdx(v) { mdx = v; }, get mdy() { return mdy; }, set mdy(v) { mdy = v; },
             get flT() { return flT; }, set flT(v) { flT = v; }, get jetT() { return jetT; }, set jetT(v) { jetT = v; }, get jetLvl() { return jetLvl; }, set jetLvl(v) { jetLvl = v; },
             get jumpHeld() { return jumpHeld; }, set jumpHeld(v) { jumpHeld = v; }, get shake() { return shake; }, set shake(v) { shake = v; }, get styFov() { return styFov; }, set styFov(v) { styFov = v; }, get fovAdd() { return footFovAdd; }, set fovAdd(v) { footFovAdd = v; }
@@ -5680,7 +5673,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         lazyBuilt = false;
         if (HB.errT > 0) HB.errT -= dt; else try { hubLife(dt); } catch (eh0) { HB.fail = true; HB.errT = 2; warnOnce('hubLife', eh0); }      // hub/village can never break landing
         if (VG.errT > 0) VG.errT -= dt; else try { villageLife(dt); } catch (ev0) { VG.fail = true; VG.errT = 2; warnOnce('villageLife', ev0); }
-        if (gmode === 'ifoot') { interiorStep(dt); return; }
+        if (gmode === 'ifoot') { if (IXF.on) ixFlightTick(dt); interiorStep(dt); return; }
         if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') { stationStep(dt); return; }
         if (gmode !== 'fly') { groundStep(dt); return; }
         var i, bodies = gatherBodies();
@@ -6002,7 +5995,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (station && station.group.visible && sk.cd <= 0 && !lf.on) {
                 for (var dk2 = 0; dk2 <= 4; dk2++) { vTmp.lerpVectors(bhPrev, P, dk2 / 4); if (station.mouth.trigger(vTmp)) { beginDock(); break; } }
             }
-            if (space && sk.cd <= 0 && !lf.on && gmode === 'fly') dkTrigger(P);          // rev 27: derelict mouths dock like the station
         }
         // rev 12: ramming. Touching a hostile = 45 HP (boss 70) + hard bounce; it takes 25 % of its max HP; 1 s invulnerability after a ram.
         if (!dead) {
@@ -6067,6 +6059,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (!lmsg && !dead && !lf.on && station && station.group.visible && station.mouth && sk.cd <= 0 && !sk.mode && STN()) {
                 if (P.distanceTo(station.mouth.pos) < 8 * 0.5 * station.length) { dockAssist = true; lmsg = 'Z · DOCK'; }
             }
+            if (!lmsg && !dead && !R25.noInt && R25.mod) lmsg = 'F · GO INSIDE';      // 2026-11-27: instant interior toggle; dim (not ready) so it never competes with LAND / DOCK
             setPrompt(lmsg, landOk || dockAssist);
         }
         // chase camera (rigid) + fov
@@ -6250,7 +6243,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                             }
                         }
                     }
-                    if (!dead1 && R27.cvOn) dead1 = cvBoltHit(bo, bp);
                     if (!dead1 && space && gmode === 'fly') dead1 = r28MineBolt(bo, bp, pv);      // rev 28: ore / ice / crystal rocks
                 } else {
                     var d2p = dead ? 1e30 : segDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, P.x, P.y, P.z);
@@ -6568,16 +6560,16 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gput(el, x, y, w, h) { var S = 'calc(var(--g) * '; el.style.left = S + x + ')'; el.style.top = S + y + ')'; if (w != null) { el.style.width = S + w + ')'; el.style.height = S + h + ')'; } }
     function slotRec(attr, val, par, cls) { var d = document.createElement('div'); d.className = 'si-s is-empty' + (cls ? ' ' + cls : ''); d.setAttribute(attr, String(val)); d.innerHTML = '<canvas width="16" height="16"></canvas><em></em>'; (par || elP).appendChild(d); var cv = d.firstChild; return { el: d, cv: cv, ctx: cv.getContext('2d'), n: d.lastChild, k: '' }; }
     var elLblC = mkd('si-l', 'Crafting'), elLblI = mkd('si-l', 'Inventory'), elInvU = mkd('si-u', ''), elPv = mkd('si-pv', '<canvas></canvas>'), elArrow = mkd('si-ar', '<i></i>'), elRb = mkd('si-rb', '<i></i>');
-    var armorRec = [], offRec, elChar, elDex, dxL, dxD, chN, chS, chP, chD, chL, chR;
+    var armorRec = [], offRec, elChar, elDex, dxL, dxD, chN, chD;
     (function buildInv() {
         var i;
         for (i = 0; i < 4; i++) armorRec.push(slotRec('data-a', i));
         offRec = slotRec('data-oh', 0);
         for (i = 0; i < INV_SLOTS; i++) invSlots.push(slotRec('data-i', i));
         for (i = 0; i < INV_COLS; i++) invWSlots.push(slotRec('data-w', i));
-        elChar = mkd('si-char', '<b class="ch-a" data-ch="-1">&#9664;</b><span class="ch-n"></span><b class="ch-a" data-ch="1">&#9654;</b><canvas class="ch-p" width="16" height="16"></canvas><div class="ch-s"></div><div class="ch-d"></div>');
+        elChar = mkd('si-char', '<span class="ch-n"></span><div class="ch-d"></div>');
         elDex = mkd('si-dex', '<div class="dx-l"></div><div class="dx-d"></div>'); dxL = elDex.children[0]; dxD = elDex.children[1];
-        chL = elChar.children[0]; chN = elChar.children[1]; chR = elChar.children[2]; chP = elChar.children[3]; chD = elChar.children[5]; chS = elChar.children[4];
+        chN = elChar.children[0]; chD = elChar.children[1];
     })();
     function invPaint(sl, ic, key) {          // pooled canvas per slot; repaint only when the icon changes
         if (sl.k === key) return;
@@ -6679,7 +6671,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (t.closest && t.closest('.si-tabs') && t.parentNode === elTabs) { invSetMode(['inv', 'char', 'dex'][Array.prototype.indexOf.call(elTabs.children, t)] || 'inv'); return; }
         var dr = t.closest && t.closest('[data-dx]'); if (dr) { DXS.sel = dr.getAttribute('data-dx'); DXS.sig = ''; dexFill(); aPlay('ui', { vel: 0.4 }); return; }
         if (t.closest && t.closest('.si-rb')) { r28BookSet(!R28.book); return; }
-        var ca = t.closest && t.closest('[data-ch]'); if (ca) { styleCycle(+ca.getAttribute('data-ch')); return; }
         if (!s || s.getAttribute('data-w') == null) return;
         hbSelect(+s.getAttribute('data-w')); aPlay('ui', { vel: 0.6 }); invFill(); invTip(s);
     });
@@ -6719,7 +6710,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         gput(elChar, 62, 8, 106, 70); elChar.style.display = invMode === 'char' ? '' : 'none';
         gput(elDex, 7, 7, 162, 152); elDex.style.display = dx ? 'flex' : 'none';
         for (i = 0; i < modCells.length; i++) { gput(modCells[i].el, 94 + 15 * i, 27, 15, 18); modCells[i].el.style.display = invMode === 'char' ? '' : 'none'; }
-        gput(chL, 0, 0, 12, 14); gput(chN, 12, 0, 82, 14); gput(chR, 94, 0, 12, 14); gput(chP, 0, 18, 24, 24); gput(chS, 30, 38, 76, 8); gput(chD, 0, 48, 106, 24);
+        gput(chN, 0, 0, 106, 14); gput(chD, 0, 18, 106, 24);
         for (i = 0; i < elTabs.children.length; i++) elTabs.children[i].classList.toggle('is-on', i === (invMode === 'inv' ? 0 : invMode === 'char' ? 1 : 2));
         elInv.classList.toggle('is-book', R28.book);
         pvResize();
@@ -6753,13 +6744,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (c === 'KeyR') { r28BookSet(!R28.book); return; }
         if (c === 'Tab') { invSetMode(invMode === 'inv' ? 'char' : invMode === 'char' ? 'dex' : 'inv'); return; }
         if (invMode === 'dex') { if (c === 'ArrowDown' || c === 'KeyS') dexStep(1); else if (c === 'ArrowUp' || c === 'KeyW') dexStep(-1); return; }
-        if (invMode === 'char' && (c === 'ArrowLeft' || c === 'KeyA')) { styleCycle(-1); return; }
-        if (invMode === 'char' && (c === 'ArrowRight' || c === 'KeyD')) { styleCycle(1); return; }
         if (/^Digit[1-9]$/.test(c)) { hbSelect(+c.slice(5) - 1); invFill(); return; }
         if (c === 'ArrowDown') { invTop++; invFill(); } else if (c === 'ArrowUp') { invTop--; invFill(); }
     }
-    // ─── rev 25: gorCoin stacks, 3x3 crafting, interior, pets, crew, missions (ship-craft.js / ship-interior.js, guarded) ──────────────────────────
-    var R25 = { mod: null, int: null, L: 0, craftOn: false, force: false, cand: null, t: 0, ctm: null, ctF: 0, tdt: 0 };
+    // ─── rev 25: gorCoin stacks, 3x3 crafting, interior, pets (ship-craft.js / ship-interior.js, guarded) ──────────────────────────
+    var R25 = { mod: null, int: null, L: 0, craftOn: false, force: false, t: 0, ctm: null, ctF: 0, tdt: 0 };
     var ix = { on: false, snap: 0, from: '', w: new THREE.Vector3(), q: new THREE.Quaternion(), sc: 1 };
     var ik = { hp: new THREE.Vector3(), yaw: 0, pitch: 0.3, vv: 0, air: false, jumpHeld: false, moving: false, running: false };
     import('./ship-interior.js').then(function (m) { R25.mod = m; }).catch(function (e) { console.info('[ship] ship-interior unavailable', e); });
@@ -6940,7 +6929,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function pvBuild() {
         if (!pv.r || !humanMod) return;
         if (pv.h) { pv.sc.remove(pv.h.group); pv.h.dispose(); pv.h = null; }
-        pv.h = makeHuman(effColor(), curStyleId); pv.h.group.scale.setScalar(1); pv.sc.add(pv.h.group); pv.sid = curStyleId;
+        pv.h = makeHuman(effColor()); pv.h.group.scale.setScalar(1); pv.sc.add(pv.h.group);
     }
     function pvResize() {
         if (!pv.r) return;
@@ -6951,7 +6940,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!invOpen) { pv.raf = 0; return; }
         pv.raf = requestAnimationFrame(pvLoop);
         var dt = Math.min(0.05, (t - pv.last) / 1000 || 0.016); pv.last = t;
-        if (!pv.h || pv.sid !== curStyleId) pvBuild();
+        if (!pv.h) pvBuild();
         if (!pv.h) return;
         var bx = elPv.getBoundingClientRect(), tx = clamp((pv.mx - (bx.left + bx.width / 2)) / Math.max(1, window.innerWidth * 0.35), -1, 1), ty = clamp((pv.my - (bx.top + bx.height * 0.3)) / Math.max(1, window.innerHeight * 0.4), -1, 1);
         pv.yaw += (tx * 1.0 - pv.yaw) * Math.min(1, 8 * dt);
@@ -6961,83 +6950,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function pvStart() { pvInit(); pvResize(); if (pv.r && !pv.raf) { pv.last = performance.now(); pv.raf = requestAnimationFrame(pvLoop); } }
     function pvStop() { if (pv.raf) { cancelAnimationFrame(pv.raf); pv.raf = 0; } }
-    // ─── rev 30: character styles (ship-styles.js, guarded): list, selection (profile + net), re-skin, and the locomotion step the foot controller calls ───
-    var stylesMod = null, curStyle = null, curStyleId = '', styIn = { keys: null, mouse: null, camYaw: 0, mdx: 0, mdy: 0 }, styCtx = { onGround: true, floorNormal: null, slope: 0, speed: 0, airTime: 0, facing: 0, mouse: null };
-    var PILOT_DEF = { id: 'pilot', name: 'PILOT', abilities: ['Walk, Shift to run, Space to jump', 'Hold Space in the air for the jetpack', 'Suit tiers scale speed and flight'] };
-    function stylesList() {
-        var raw = stylesMod && stylesMod.STYLES, arr = [], out = [PILOT_DEF];
-        if (Array.isArray(raw)) arr = raw; else if (raw && typeof raw === 'object') arr = Object.keys(raw).map(function (k) { var v = raw[k]; return (v && typeof v === 'object') ? Object.assign({ id: k }, v) : { id: k, name: String(v) }; });
-        arr.forEach(function (s) { if (typeof s === 'string') s = { id: s, name: s.toUpperCase() }; if (s && typeof s.id === 'string' && s.id !== 'pilot') out.push(s); });
-        return out;
-    }
-    function styleDef(id) { var l = stylesList(), i; for (i = 0; i < l.length; i++) if (l[i].id === (id || 'pilot')) return l[i]; return PILOT_DEF; }
-    function skinArg(id) {
-        var o = null; if (id && stylesMod && typeof stylesMod.skinFor === 'function') { try { o = stylesMod.skinFor(id); } catch (e0) { o = null; } }
-        return { role: (o && o.role) || null, extra: (o && Array.isArray(o.extra)) ? o.extra : [], rig: (o && o.rig) || null };
-    }
-    function skinRig(obj, id) { if (obj && obj.setSkin) obj.setSkin(skinArg(id)); }
-    function styleEnv() { return { walk: G_WALK, grav: 22, jump: 8.5 }; }      // the mashup styles keep their own tuned jump
-    function styleSet(id, quiet) {
-        var pf = ensureProfile(userName()); id = (id && id !== 'pilot' && stylesList().some(function (s) { return s.id === id; })) ? id : '';
-        if (curStyle) { try { if (curStyle.reset) curStyle.reset(); } catch (e0) { /* ignore */ } }
-        styDrop(); curStyle = null; curStyleId = id; pf.style = id;
-        if (id && stylesMod && typeof stylesMod.createStyle === 'function') { try { curStyle = stylesMod.createStyle(id, styleEnv()); } catch (e1) { console.info('[ship] createStyle failed', id, e1); curStyle = null; } }
-        skinRig(hum.obj, id); if (pv.h) { skinRig(pv.h, id); pv.sid = id; }
-        hum.sAnim = null; jumpHeld = true;
-        if (net && net.setStyle) net.setStyle(id);
-        if (!quiet) { if (!curUser) curUser = userName(); writeSave(); aPlay('ui', { vel: 0.7 }); addRow('', '', 'STYLE · ' + styleDef(id).name, 'is-sys'); }
-        if (invOpen) { invFill(); }
-    }
-    function styleSync() {       // cheap per-frame: follow the profile's style (profile switch, module arrival)
-        var pf = curProfile(), want = (pf && typeof pf.style === 'string') ? pf.style : '';
-        if (want === curStyleId) return;
-        if (want && !stylesMod) return;
-        styleSet(want, true);
-    }
-    function styleCycle(dir) {
-        var l = stylesList(), i = 0, j; if (l.length < 2) { aPlay('ui', { vel: 0.3, pitch: 0.6 }); return; }
-        for (j = 0; j < l.length; j++) if (l[j].id === (curStyleId || 'pilot')) i = j;
-        j = (i + dir + l.length) % l.length; styleSet(l[j].id === 'pilot' ? '' : l[j].id);
-    }
-    import('./ship-styles.js').then(function (m) { stylesMod = m; styleSync(); if (invOpen) invFill(); }).catch(function (e) { console.info('[ship] ship-styles unavailable (PILOT only)', e); });
-    var STYLE_TXT = {
-        MARO: ['Jump chain: single, double, triple', 'Long jump, backflip, side flip, wall kick', 'Dive, ground pound, slide, punch'],
-        JOSHI: ['Flutter jump: hold Space past the apex', 'Throw eggs, tongue grab', 'Ground pound; Space 2 s = jetpack flight'],
-        STEEV: ['Sprint jump, sneak at ledges', 'Mine and place blocks', 'Opens the 3x3 crafting table'],
-        SONIK: ['Momentum builds on flats and slopes', 'Roll and spin dash (charge, release)', 'Homing attack in the air'],
-        SWIFT: ['Double-tap W to dash (air dash once)', 'Hold C in the air to fast fall', 'Right click reflects, left click jabs'],
-        SPARKLET: ['Tiny and fast', 'Left click zaps a chain arc'],
-        JELLY: ['Five mini-jumps, then hold Space to glide', 'Hold right click to sleep and heal (you are hit harder)'],
-        HAULER: ['Slow and heavy', 'C in the air for a quake pound', 'Right click grabs, left click throws'],
-        HOPPER: ['Hold Space after the apex to flutter (0.9 s)', 'High air control'],
-        HUM: ['Two jumps, then hold Space to feather-fall', 'Left click sings nearby mobs to sleep'],
-        RACER: ['Hold W to ramp up to 1.6x speed', 'Slow to turn: you drift', 'Left click rams at speed'],
-        SEER: ['Double jump, hold Space to float briefly', 'Right click reflects bolts']
-    };
-    function abilityLines(def) {
-        var tx = STYLE_TXT[def.id]; if (tx) return tx;
-        var a = def.abilities, out = [], k;
-        if (Array.isArray(a)) a.forEach(function (x) { out.push(typeof x === 'string' ? x : (x && (x.name || x.id) ? String(x.name || x.id) + (x.desc ? ' · ' + x.desc : (x.text ? ' · ' + x.text : '')) : '')); });
-        else if (a && typeof a === 'object') for (k in a) out.push(typeof a[k] === 'string' ? k + ' · ' + a[k] : (a[k] && a[k].desc ? k + ' · ' + a[k].desc : k));
-        if (def.blurb) out.push(def.blurb); if (def.desc) out.push(def.desc); if (def.portraitHint && out.length < 3) out.push(String(def.portraitHint));
-        out = out.filter(Boolean).slice(0, 3); while (out.length < 3) out.push('');
-        return out;
-    }
-    function hexOfCol(c) { return '#' + ('000000' + (c >>> 0).toString(16)).slice(-6); }
-    function portraitPaint(def, id) {
-        var c = chP.getContext('2d'), sk0 = skinArg(id), ex = sk0.extra, hue = (hash25(id || 'pilot') % 360), col = def.color != null ? hexOfCol(def.color) : (def.palette && typeof def.palette === 'object' && def.palette.main != null ? hexOfCol(def.palette.main) : (id ? 'hsl(' + hue + ',55%,58%)' : hexOfCol(effColor()))), has = function (n) { return ex.indexOf(n) >= 0; };
-        c.clearRect(0, 0, 16, 16); c.fillStyle = '#20182c'; c.fillRect(0, 0, 16, 16);
-        c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(2, 12, 12, 4); c.fillStyle = col; c.fillRect(2, 12, 12, 4); c.fillStyle = 'rgba(0,0,0,.3)'; c.fillRect(2, 14, 12, 2);
-        var hx = has('blocky') || has('cube') ? 3 : 4, hw = has('blocky') || has('cube') ? 10 : 8;
-        c.fillStyle = col; c.fillRect(hx, 3, hw, 9); c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(hx, 3, hw, 1); c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(hx + hw - 1, 4, 1, 8);
-        c.fillStyle = '#0b0b16'; c.fillRect(has('visor') ? 3 : 5, 6, has('visor') ? 10 : 6, 2); c.fillStyle = '#9fe8ff'; c.fillRect(has('visor') ? 4 : 6, 6, 2, 1);
-        c.fillStyle = '#0b0b16'; c.fillRect(6, 10, 4, 1);
-        if (has('cap')) { c.fillStyle = '#ff7a3a'; c.fillRect(3, 1, 10, 3); c.fillRect(2, 3, 6, 1); }
-        if (has('crest')) { c.fillStyle = '#ffd36a'; c.fillRect(7, 0, 2, 3); }
-        if (has('quills')) { c.fillStyle = '#e8d4ff'; c.fillRect(3, 2, 1, 2); c.fillRect(6, 0, 1, 3); c.fillRect(9, 0, 1, 3); c.fillRect(12, 2, 1, 2); }
-        if (has('snout')) { c.fillStyle = col; c.fillRect(11, 8, 4, 3); c.fillStyle = '#0b0b16'; c.fillRect(14, 8, 1, 1); }
-        if (has('tail')) { c.fillStyle = col; c.fillRect(13, 12, 3, 1); c.fillRect(15, 10, 1, 3); }
-    }
+    var PILOT_LINES = ['Walk, Shift to run, Space to jump', 'Hold Space in the air for the jetpack', 'Suit tiers scale speed and flight'];
     // ── Q25 DEX tab: species seen/caught per planet, pixel icon from the recipe (ship-icons.creatureIcon), base stat bars, grafts, moves ──
     var DXS = { sel: '', sig: '', ids: [], urls: {} }, DX_ST = ['hp', 'atk', 'def', 'spd', 'sp'];
     function monIconUrl(rec, dim) {
@@ -7080,126 +6993,14 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         dxD.innerHTML = d;
     }
     function charFill() {
-        var l = stylesList(), id = curStyleId || 'pilot', def = styleDef(id), i = 0, j, ln = abilityLines(def);
-        for (j = 0; j < l.length; j++) if (l[j].id === id) i = j;
-        chN.textContent = String(def.name || id).toUpperCase(); chS.textContent = l.length > 1 ? 'STYLE ' + (i + 1) + ' / ' + l.length : 'PILOT ONLY';
-        chL.classList.toggle('is-off', l.length < 2); chR.classList.toggle('is-off', l.length < 2);
-        chD.innerHTML = ln.map(function (t) { return '<div>' + qEsc(t) + '</div>'; }).join('');
-        portraitPaint(def, curStyleId);
+        chN.textContent = 'PILOT';
+        chD.innerHTML = PILOT_LINES.map(function (t) { return '<div>' + qEsc(t) + '</div>'; }).join('');
     }
-    // ═══ mashup (rev 31): styles live on the foot controller (real slope / wall ctx), collidable STEEV blocks, night mobs, planet rooms (host-simulated) ═══════════
-    var styU = {}, styM = { l: false, r: false }, STY_EMPTY = {}, styFloorN = { x: 0, y: 1, z: 0 };
+    // ═══ night mobs + planet rooms (host-simulated). The movement styles / STEEV blocks were cut 2026-11-27. ═══
+    var styFov = 1, styUpW = new THREE.Vector3();      // styUpW = the on-foot world-up vector (written by ship-foot each frame)
     var footFovAdd = 0;      // indoor FOV widening written by ship-foot (degrees)
-    var styFov = 1, styUpW = new THREE.Vector3(), styN = { x: 0, y: 1, z: 0 }, styWallO = { x: 0, y: 0, z: 0 }, styAimO = { x: 0, y: 0, z: -1 }, styTgPool = [], styTg = [];
-    var styTgt = { dist: 99, mat: 'air', hardness: 0.75, cx: 0, cy: 0, cz: 0, px: null, py: null, pz: null };
     var snA = new THREE.Vector3(), snB = new THREE.Vector3(), snC = new THREE.Vector3(), snD = new THREE.Vector3(), snM = new THREE.Matrix4(), snQ = new THREE.Quaternion();
-    document.addEventListener('mousedown', function (e) { if (e.button === 0) styM.l = true; else if (e.button === 2) styM.r = true; }, true);
-    document.addEventListener('mouseup', function (e) { if (e.button === 0) styM.l = false; else if (e.button === 2) styM.r = false; }, true);
     function hwU() { return hOf(L); }
-    // ── STEEV blocks: 1 H cubes on a lattice anchored at the first placement (profile.blk[planet]); columns act as extra ground in mFloor ──
-    var BK_MAT = ['dirt', 'stone', 'plank', 'table', 'torch', 'door', 'glass', 'brick', 'wool'], BK_COL = [0x8a6a4a, 0x8d8d9a, 0xc9a266, 0xb5793a, 0xffd36a, 0x7a5230, 0x9fe8ff, 0xb5503c, 0xe8e0f0], BK_HARD = [0.75, 1.5, 1, 1, 0.1, 1, 0.4, 1.5, 0.5], BK_MAX = 64;
-    var BK = { n: 0, nid: '', basis: false, cols: new Map(), list: [], e1: new THREE.Vector3(1, 0, 0), e2: new THREE.Vector3(0, 0, 1), e3: new THREE.Vector3(0, 1, 0), H: 1, mesh: null, grp: null, ci: 0, cj: 0, ck: 0 };
-    function bkCol(i, j) { return (i + 1048576) * 2097152 + (j + 1048576); }
-    function bkAt(i, j, k) { var c = BK.cols.get(bkCol(i, j)); if (!c) return -1; for (var q = 0; q < c.length; q++) if (c[q].k === k) return c[q].m; return -1; }
-    function blkFloor(x, y, z, ref) {      // (x,y,z) = a planet-local DIRECTION (not necessarily unit); the point is that direction at radius ref
-        var e1 = BK.e1, e2 = BK.e2, e3 = BK.e3, H = BK.H, l = Math.sqrt(x * x + y * y + z * z) || 1, dz = (x * e3.x + y * e3.y + z * e3.z) / l, k = ref / (l * H);
-        if (dz < 0.55) return 0;
-        var c = BK.cols.get(bkCol(Math.floor((x * e1.x + y * e1.y + z * e1.z) * k), Math.floor((x * e2.x + y * e2.y + z * e2.z) * k)));
-        if (!c) return 0;
-        var rw = ref * dz / H, best = -1e9, q, r;
-        for (q = 0; q < c.length; q++) { r = c[q]; if (r.k < rw + 0.999 && r.k + 1 > best) best = r.k + 1; }
-        return best > -1e8 ? best * H / dz : 0;
-    }
-    function bkCellOf(p) {
-        var H = BK.H; BK.ci = Math.floor(p.dot(BK.e1) / H); BK.cj = Math.floor(p.dot(BK.e2) / H); BK.ck = Math.floor(p.dot(BK.e3) / H);
-    }
-    function bkCenter(i, j, k, out) { return out.set(0, 0, 0).addScaledVector(BK.e1, (i + 0.5) * BK.H).addScaledVector(BK.e2, (j + 0.5) * BK.H).addScaledVector(BK.e3, (k + 0.5) * BK.H); }
-    function bkRebuild() {
-        BK.cols.clear(); BK.n = BK.list.length;
-        BK.list.forEach(function (r) { var k = bkCol(r.i, r.j), c = BK.cols.get(k); if (!c) BK.cols.set(k, c = []); c.push(r); });
-        if (!BK.mesh) {
-            var gm = new THREE.BoxGeometry(1, 1, 1), pc = gm.attributes.position.count, cl = new Float32Array(pc * 3), fk = [0.78, 0.78, 1, 0.5, 0.88, 0.7], i, f;     // per-face shade: +x -x +y -y +z -z
-            for (i = 0; i < pc; i++) { f = fk[Math.floor(i / 4)]; cl[i * 3] = cl[i * 3 + 1] = cl[i * 3 + 2] = f; }
-            gm.setAttribute('color', new THREE.BufferAttribute(cl, 3));
-            var cv = document.createElement('canvas'); cv.width = cv.height = 16; var c2 = cv.getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0, 0, 16, 16);
-            c2.fillStyle = 'rgba(0,0,0,.28)'; c2.fillRect(0, 0, 16, 1); c2.fillRect(0, 15, 16, 1); c2.fillRect(0, 0, 1, 16); c2.fillRect(15, 0, 1, 16);
-            for (i = 0; i < 26; i++) { c2.fillStyle = 'rgba(0,0,0,' + (0.05 + 0.06 * ((i * 7) % 3)) + ')'; c2.fillRect((i * 5) % 14 + 1, (i * 11) % 14 + 1, 2, 2); }
-            var tx = new THREE.CanvasTexture(cv); tx.magFilter = THREE.NearestFilter; tx.minFilter = THREE.NearestFilter;
-            BK.mesh = new THREE.InstancedMesh(gm, new THREE.MeshBasicMaterial({ map: tx, vertexColors: true }), BK_MAX); BK.mesh.frustumCulled = false; BK.mesh.count = 0;
-            BK.grp = new THREE.Group(); BK.grp.add(BK.mesh); scene.add(BK.grp);
-        }
-        var m = BK.mesh, H = BK.H, cc = new THREE.Color();
-        BK.list.forEach(function (r, q) {
-            snM.makeBasis(BK.e1, BK.e2, BK.e3).scale(snA.set(H, H, H)); bkCenter(r.i, r.j, r.k, snB); snM.setPosition(snB); m.setMatrixAt(q, snM);
-            m.setColorAt(q, cc.setHex(BK_COL[r.m]));
-        });
-        m.count = BK.list.length; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
-    }
-    function bkSave() {
-        if (!BK.nid || !BK.basis) return; var pf = ensureProfile(userName()); if (!curUser) curUser = userName();
-        pf.blk[BK.nid] = { b: [BK.e3.x, BK.e3.y, BK.e3.z, BK.e1.x, BK.e1.y, BK.e1.z].map(function (v) { return +v.toFixed(6); }), c: BK.list.map(function (r) { return [r.i, r.j, r.k, r.m]; }) };
-        var ks = Object.keys(pf.blk); if (ks.length > 24) delete pf.blk[ks[0]];
-        writeSave();
-    }
-    function bkLoad(pid) {
-        BK.nid = pid; BK.list = []; BK.basis = false; BK.H = hwU();
-        var pf = curProfile(), d = pf && pf.blk && pf.blk[pid];
-        if (d && Array.isArray(d.b) && d.b.length === 6 && Array.isArray(d.c)) {
-            BK.e3.set(d.b[0], d.b[1], d.b[2]).normalize(); BK.e1.set(d.b[3], d.b[4], d.b[5]); BK.e1.addScaledVector(BK.e3, -BK.e1.dot(BK.e3)).normalize(); BK.e2.crossVectors(BK.e3, BK.e1); BK.basis = true;
-            d.c.slice(0, BK_MAX).forEach(function (a) { if (a && a.length === 4 && isFinite(a[0] + a[1] + a[2]) && a[3] >= 0 && a[3] < BK_MAT.length) BK.list.push({ i: a[0] | 0, j: a[1] | 0, k: a[2] | 0, m: a[3] | 0 }); });
-        }
-        bkRebuild();
-    }
-    function bkTick() {
-        var node = land.node, on = !!node && (gmode === 'foot' || gmode === 'landed' || gmode === 'landing');
-        if (!on) { if (BK.grp) BK.grp.visible = false; if (BK.n > 0 || BK.nid) { BK.n = 0; BK.nid = ''; BK.cols.clear(); } return; }
-        var pid = String(node.id); if (BK.nid !== pid) bkLoad(pid);
-        if (BK.grp) { BK.grp.visible = BK.list.length > 0; BK.grp.position.copy(node.anchor.position); BK.grp.quaternion.copy(node.mesh.quaternion); }
-    }
-    function bkBasisFromHere() {
-        BK.e3.copy(hum.pos).normalize(); BK.e1.copy(hum.hf).addScaledVector(BK.e3, -hum.hf.dot(BK.e3)).normalize(); BK.e2.crossVectors(BK.e3, BK.e1); BK.basis = true; BK.H = hwU();
-    }
-    function bkLocal(w, out) { return out.copy(w).sub(land.node.anchor.position).applyQuaternion(snQ.copy(land.node.mesh.quaternion).invert()); }
-    function bkTarget() {      // ray from the head along the camera: first block cell hit (or the terrain: place only) within 3 H
-        var T = styTgt, node = land.node, H = hwU(), t, prevI = 0, prevJ = 0, prevK = 0, havePrev = false, hit = false;
-        T.dist = 99; T.mat = 'air'; T.px = null;
-        if (!node || !hum.obj) return T;
-        snC.copy(hum.w).addScaledVector(styUpW, 0.8 * H); bkLocal(snC, snA);
-        snD.set(0, 0, -1).applyQuaternion(camera.quaternion).applyQuaternion(snQ.copy(node.mesh.quaternion).invert());
-        if (!BK.basis) bkBasisFromHere();
-        for (t = 0.25 * H; t <= 3 * H; t += 0.125 * H) {
-            snB.copy(snA).addScaledVector(snD, t); bkCellOf(snB);
-            if (VG.v && VG.v.overlaps(snB, 0.05 * H)) { T.dist = t / H; T.mat = 'air'; T.cx = T.cy = T.cz = 0; T.px = null; hit = true; break; }      // a village wall: not breakable, not a place target
-            var m = BK.n ? bkAt(BK.ci, BK.cj, BK.ck) : -1;
-            if (m >= 0) { T.dist = t / H; T.mat = BK_MAT[m]; T.hardness = BK_HARD[m]; T.cx = BK.ci; T.cy = BK.cj; T.cz = BK.ck; if (havePrev) { T.px = prevI; T.py = prevJ; T.pz = prevK; } hit = true; break; }
-            var l = snB.length(); if (l < mFloor(snB.x / l, snB.y / l, snB.z / l)) { T.dist = t / H; T.mat = 'air'; T.cx = T.cy = T.cz = 0; if (havePrev) { T.px = prevI; T.py = prevJ; T.pz = prevK; } hit = true; break; }
-            prevI = BK.ci; prevJ = BK.cj; prevK = BK.ck; havePrev = true;
-        }
-        return T;
-    }
-    function bkPlace(i, j, k, mi) {
-        if (!land.node || !hum.obj) return false;
-        if (!BK.basis) bkBasisFromHere();
-        if (bkAt(i, j, k) >= 0) return false;
-        bkCenter(i, j, k, snB); if (VG.v && VG.v.overlaps(snB, BK.H * 0.75)) return false;      // village walls are indestructible and never built into
-        bkCenter(i, j, k, snB); if (snB.normalize().dot(BK.e3) < Math.cos(0.45)) return false;      // build zone: 0.45 rad round the anchor
-        var pu = hum.pos.dot(BK.e1) / BK.H, pv = hum.pos.dot(BK.e2) / BK.H, pw = hum.pos.dot(BK.e3) / BK.H;
-        if (Math.abs(pu - (i + 0.5)) < 0.5 + FOOT_R && Math.abs(pv - (j + 0.5)) < 0.5 + FOOT_R && pw < k + 1 - 0.02 && pw + 1 > k + 0.02) return false;      // not inside the capsule
-        var mm = BK_MAT.indexOf(mi); if (mm < 0) mm = 0;
-        BK.list.push({ i: i, j: j, k: k, m: mm }); if (BK.list.length > BK_MAX) BK.list.shift();
-        bkRebuild(); bkSave(); return true;
-    }
-    function bkBreak(i, j, k) {
-        for (var q = 0; q < BK.list.length; q++) { var r = BK.list[q]; if (r.i === i && r.j === j && r.k === k) { BK.list.splice(q, 1); bkRebuild(); bkSave(); return true; } }
-        return false;
-    }
-    function bkExplode(wpos, radiusH) {      // creeper blast: every block whose centre is within radius H
-        if (!BK.n || !land.node) return 0;
-        bkLocal(wpos, snA); var rr = radiusH * BK.H, n = 0;
-        for (var q = BK.list.length - 1; q >= 0; q--) { var r = BK.list[q]; bkCenter(r.i, r.j, r.k, snB); if (snB.distanceTo(snA) <= rr + 0.5 * BK.H) { BK.list.splice(q, 1); n++; } }
-        if (n) { bkRebuild(); bkSave(); }
-        return n;
-    }
     // ── mob item stacks ──
     var MOB_ITEM = { boomdust: [0xffa040, 30, 'Boomdust', 'Still a little warm.'], 'warp pearl': [0x8a3cff, 80, 'Warp Pearl', 'Falls up, sometimes.'], 'rotten bite': [0x7a8a4a, 4, 'Rotten Bite', 'Do not.'], bone: [0xe8e0d0, 8, 'Bone', 'Rattles on its own.'], bolt: [0xe8d4ff, 10, 'Bolt', 'Pointy and honest.'], goo: [0x9cffd0, 12, 'Creature Goo', 'Swallowed whole.'] };
     function mobGive(id, n) {
@@ -7207,110 +7008,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var d = MOB_ITEM[id]; if (!d) return;
         giveItem({ id: 'mob-' + id.replace(/\W+/g, '-'), kind: 'material', base: id, name: d[2], color: d[0], price: d[1], blurb: d[3], tags: ['mob'], stackKey: 'mob-' + id.replace(/\W+/g, '-') }, n);
         addRow('', '', '+' + n + ' ' + d[2].toUpperCase(), 'is-sys');
-    }
-    // ── style step: the real ctx ──
-    function styleStep(dt, up, right, H) {
-        var sty = curStyle; if (!sty || typeof sty.step !== 'function') return null;
-        styIn.keys = cmdOpen ? STY_EMPTY : keys; styIn.mouse = cmdOpen ? STY_EMPTY : styM; styIn.camYaw = 0; styIn.mdx = 0; styIn.mdy = 0;
-        var c = styCtx, i, e;
-        c.onGround = !hum.air; c.speed = hum.sSpd || 0; c.airTime = hum.airT || 0; c.mouse = styIn.mouse;
-        // floor normal from four rendered-floor samples round the feet (tangent frame: x right, y up, z back)
-        var d = 0.3 * H, a = d / (ps.radius || 1), dir = snA.copy(hum.pos).normalize(), hf = hum.hf;
-        var hR = mFloor(dir.x + right.x * a, dir.y + right.y * a, dir.z + right.z * a), hL = mFloor(dir.x - right.x * a, dir.y - right.y * a, dir.z - right.z * a);
-        var hF = mFloor(dir.x + hf.x * a, dir.y + hf.y * a, dir.z + hf.z * a), hB = mFloor(dir.x - hf.x * a, dir.y - hf.y * a, dir.z - hf.z * a);
-        var gx = (hR - hL) / (2 * d), gf = (hF - hB) / (2 * d), onBlk = !hum.air && BK.n > 0 && hum.hr > mFloor(dir.x, dir.y, dir.z) + 0.3 * H;
-        if (onBlk) { gx = 0; gf = 0; }
-        var il = 1 / Math.sqrt(gx * gx + 1 + gf * gf), k = Math.min(1, 14 * dt);
-        styN.x += (-gx * il - styN.x) * k; styN.y += (il - styN.y) * k; styN.z += (gf * il - styN.z) * k;
-        c.floorNormal = styN; c.slope = Math.acos(clamp(styN.y / (Math.sqrt(styN.x * styN.x + styN.y * styN.y + styN.z * styN.z) || 1), -1, 1)) * 57.29578;
-        if (hum.wallT < 0.12) { styWallO.x = hum.wallX; styWallO.z = hum.wallZ; c.wallNormal = styWallO; c.wallH = hum.wallH; } else c.wallNormal = undefined;
-        c.facing = Math.atan2(-hum.face.dot(right), hum.face.dot(hf));
-        // aim (camera ray) + homing / tongue targets + hostile proximity
-        snB.set(0, 0, -1).applyQuaternion(camera.quaternion); snC.set(0, 0, 0);
-        styAimO.x = snB.dot(right); styAimO.y = snB.dot(styUpW); styAimO.z = -snB.dot(snD.copy(hf).applyQuaternion(land.node.mesh.quaternion)); c.aim = styAimO;
-        var Hw = hwU(), nT = 0, near = 99, fuse = 0, qM = land.node.mesh.quaternion;
-        for (i = 0; i < R27.gnd.length && nT < 8; i++) {
-            e = R27.gnd[i]; if (!e.alive || !e.mob || e.mode !== 'planet') continue;
-            snC.subVectors(e.w, hum.w); var dd = snC.length() / Hw; if (dd < near) near = dd; if (e.fuseT > 0) fuse = Math.max(fuse, e.fuseT);
-            if (dd > 12) continue;
-            var tg = styTgPool[nT] || (styTgPool[nT] = { x: 0, y: 0, z: 0 });
-            tg.x = snC.dot(right) / Hw; tg.y = snC.dot(styUpW) / Hw; tg.z = -snC.dot(snD.copy(hf).applyQuaternion(qM)) / Hw; nT++;
-        }
-        styTg.length = nT; for (i = 0; i < nT; i++) styTg[i] = styTgPool[i];
-        c.targets = styTg; c.hostileNear = near; c.fuse = fuse;
-        c.target = (curStyleId === 'STEEV') ? bkTarget() : undefined;
-        try { return sty.step(styIn, c, dt) || null; } catch (e0) { console.info('[ship] style step failed, back to PILOT', e0); curStyle = null; return null; }
-    }
-    var styEgg = [], styEggGeo = null, styEggMat = null, styStats = { eggs: 0, tongue: 0, placed: 0, broke: 0, poundHits: 0, homing: 0, last: '' };
-    function styleFx(list, H, up, right) {
-        var i, e, k, Hw = hwU();
-        for (i = 0; i < list.length; i++) {
-            e = list[i]; styStats.last = e.type;
-            if (e.type === 'egg') {
-                if (!styEggGeo) { styEggGeo = new THREE.SphereGeometry(0.08, 8, 6); styEggMat = new THREE.MeshBasicMaterial({ color: 0xf4f0d8 }); }
-                var m = new THREE.Mesh(styEggGeo, styEggMat); m.scale.setScalar(H); scene.add(m);
-                gD.copy(right).multiplyScalar(e.x).addScaledVector(up, e.y).addScaledVector(hum.hf, -e.z).applyQuaternion(land.node.mesh.quaternion).multiplyScalar(H).add(hum.w); m.position.copy(gD);
-                gE.copy(right).multiplyScalar(e.dx).addScaledVector(up, e.dy).addScaledVector(hum.hf, -e.dz).applyQuaternion(land.node.mesh.quaternion).multiplyScalar((e.v || 14) * H);
-                styEgg.push({ m: m, v: gE.clone(), t: 2.5, b: e.n | 0, dmg: e.dmg || 8 }); if (styEgg.length > 12) { k = styEgg.shift(); scene.remove(k.m); }
-                styStats.eggs++; aPlay('ui', { vel: 0.6, pitch: 1.4 });
-            } else if (e.type === 'blockPlace') { if (bkPlace(e.x | 0, e.y | 0, e.z | 0, e.tag)) { styStats.placed++; aPlay('ui', { vel: 0.5 }); } }
-            else if (e.type === 'blockBreak') { if (bkBreak(e.x | 0, e.y | 0, e.z | 0)) { styStats.broke++; aPlay('hit', { pitch: 1.2, vel: 0.4 }); } }
-            else if (e.type === 'melee') { punch(e.dmg, true); }
-            else if (e.type === 'tongue') tongueGrab(Math.min(3, e.r || 3));
-            else if (e.type === 'craft') { R25.sty = true; if (!invOpen) openInv(); }
-            else if (e.type === 'pound' || e.type === 'groundpound') { aPlay('hit', { pitch: 0.3, vel: 0.8 }); shake = Math.max(shake, 0.05 * L); styStats.poundHits += mobAoe(hum.w, (e.r || 2), e.dmg || 12); }
-            else if (e.type === 'homing') { styStats.homing++; aPlay('hit', { pitch: 0.9, vel: 0.5 }); if (styTg.length && e.n >= 0 && e.n < styTg.length) mobNearHurt(6, 3); }
-            else if (e.type === 'zap') { mobNearHurt(e.dmg || 5, e.r || 6); aPlay('hit', { pitch: 1.4, vel: 0.4 }); }
-            else if (e.type === 'sing') { aPlay('ui', { vel: 0.5, pitch: 1.2 }); var sgR = (e.r || 4) * Hw; R27.gnd.forEach(function (sg) { if (sg.alive && sg.mob && !sg.remote && sg.w.distanceTo(hum.w) < sgR) sg.sleepT = gt + (e.v || 3); }); }
-            else if (e.type === 'dash') { sa.iF = Math.max(sa.iF, e.v || 0.15); }
-            else if (e.type === 'reflect') { sa.rT = e.v || 0.3; sa.rR = e.r || 1.6; aPlay('ui', { vel: 0.5, pitch: 1.8 }); }
-            else if (e.type === 'regen') { if (stylesMod && regenOk()) hp = stylesMod.regenStep(hp, HP_MAX, e.v || 0, 1, true); }
-            else if (e.type === 'grab') {
-                var gb = null, gd = 2 * Hw, gc, gx; for (k = 0; k < R27.gnd.length; k++) { gc = R27.gnd[k]; if (!gc.alive || !gc.mob || gc.remote || gc.styHeld || gc.styFly) continue; gx = gc.w.distanceTo(hum.w); if (gx < gd) { gd = gx; gb = gc; } }
-                if (gb && curStyle && curStyle.grab) { sa.held = gb; gb.styHeld = true; curStyle.grab(1); aPlay('tame', { vel: 0.5, pitch: 0.7 }); }
-            }
-            else if (e.type === 'throw') {
-                aPlay('hit', { pitch: 0.7, vel: 0.6 });
-                if (sa.held && sa.held.alive) {
-                    var tm = sa.held; sa.held = null; tm.styHeld = false;
-                    gE.copy(right).multiplyScalar(e.dx).addScaledVector(up, e.dy).addScaledVector(hum.hf, -e.dz).applyQuaternion(land.node.mesh.quaternion).normalize();
-                    tm.styFly = { p0: tm.w.clone(), v: { x: gE.x * (e.v || 14) * Hw, y: gE.y * (e.v || 14) * Hw, z: gE.z * (e.v || 14) * Hw }, up: tm.up.clone(), t: 0, dmg: e.dmg || 10 };
-                } else mobAoe(hum.w, e.r || 4, e.dmg || 10);
-            }
-            else if (e.type === 'spindash' || e.type === 'spinRelease') { aPlay('hit', { pitch: 0.9, vel: 0.5 }); mobAoe(hum.w, 1.6, 5); }
-        }
-    }
-    // Q41 style ability consumers: dash i-frames (sa.iF), reflect window (sa.rT/sa.rR), regen (event gated on calm), HAULER grab (sa.held) + throw (mob.styFly)
-    var sa = { iF: 0, rT: 0, rR: 1.6, held: null }, saV = { x: 0, y: 0, z: 0 }, saW = new THREE.Vector3(), saP0 = new THREE.Vector3(), saQ = new THREE.Quaternion(), SA_G = 22;
-    function styDrop() { if (sa.held) { sa.held.styHeld = false; sa.held = null; } for (var i = 0; i < R27.gnd.length; i++) { R27.gnd[i].styHeld = false; R27.gnd[i].styFly = null; } sa.iF = sa.rT = 0; }
-    function saLocal(e, w) {      // world point -> the mob's planet-local dir/hr
-        if (!e.node) return; saQ.copy(e.node.mesh.quaternion).invert(); saW.copy(w).sub(e.node.anchor.position).applyQuaternion(saQ);
-        var l = saW.length(); if (l > 1e-6) { e.dir.copy(saW).divideScalar(l); e.hr = l; }
-    }
-    function regenOk() { return sinceHit > 3 && !FG.on && !(styCtx.hostileNear < 8); }      // out of fight: no recent hit, no fight session, no hostile mob within 8 H
-    function styCarry(e) {      // held mob rides in front of the chest (hand height)
-        var Hw = hwU(); saW.copy(hum.w).addScaledVector(styUpW, 1.1 * Hw).addScaledVector(snD.copy(hum.hf).applyQuaternion(land.node.mesh.quaternion), 0.5 * Hw); saLocal(e, saW);
-    }
-    function styFlyTick(e, dt) {
-        var f = e.styFly, Hw = hwU(); if (!stylesMod) { e.styFly = null; return; } f.t += dt;
-        stylesMod.throwArc(saV, f.p0, f.v, f.up, SA_G * Hw, f.t); saW.set(saV.x, saV.y, saV.z); saLocal(e, saW);
-        var fl = mFloor(e.dir.x, e.dir.y, e.dir.z);
-        if (f.t > 0.12 && (e.hr <= fl + 0.02 * L || f.t > 3)) { e.hr = Math.max(e.hr, fl); e.styFly = null; mobHurt(e, f.dmg, 'me'); fx.impact(e.w, 0xe8d4ff, 1.2, 'hit'); aPlay('hit', { pitch: 0.5, vel: 0.7 }); }
-    }
-    function styAbilTick(dt) {
-        if (sa.iF > 0) sa.iF -= dt; if (sa.rT > 0) sa.rT -= dt;
-        for (var i = 0; i < R27.gnd.length; i++) { var e = R27.gnd[i]; if (e.styFly && e.alive) styFlyTick(e, dt); }
-    }
-    function styEggTick(dt) {
-        var Hw = hwU(), i, g, j, d; styAbilTick(dt);
-        for (i = styEgg.length - 1; i >= 0; i--) {
-            g = styEgg[i]; g.t -= dt; g.v.addScaledVector(styUpW, -7 * Hw * dt); g.m.position.addScaledVector(g.v, dt);
-            for (j = 0; j < R27.gnd.length && g.t > 0; j++) {
-                d = R27.gnd[j]; if (!d.alive || !d.mob) continue;
-                if (g.m.position.distanceTo(gndSphere(d, snC)) < d.cr.hitR * GM * L + 0.25 * Hw) { mobHurt(d, g.dmg, 'me'); fx.impact(g.m.position, 0xf4f0d8, 1, 'hit'); g.t = 0; }
-            }
-            if (g.t <= 0) { scene.remove(g.m); styEgg.splice(i, 1); }
-        }
     }
     // ── mobs: spawn / AI (host or local) / snapshots (guests) ──
     var MOB_SPD = 6, MOB_CAP = 12, MB = { peaceful: false, nid: 0, spawnT: 0, host: true, hostId: '', planet: '', joined: false, snapT: 0, seq: 0, last: null, lastAt: 0, hitQ: [], hitT: 0, evQ: [], evT: 0, bolts: [], nightForce: -1, stats: { spawned: 0, killed: 0, exploded: 0, teleports: 0, bolts: 0, stare: 0, snapsOut: 0, snapsIn: 0 }, msgT: 0 };
@@ -7337,12 +7034,13 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.face.copy(r27C).applyQuaternion(land.node.mesh.quaternion);
         e.sdir.copy(e.dir); e.shr = e.hr; e.remote = !mobIsHost(); gndPlace(e); return e;
     }
-    function mobInsideOp(w) {      // world point inside any structure box (same op-local transform as hasLineOfSight)
+    function mobInsideOp(w, mg) {      // world point inside (or within mg op-local units of) any structure box (same op-local transform as hasLineOfSight)
+        mg = mg == null ? 0.3 : mg;
         losQ.copy(land.node.mesh.quaternion).invert();
         losA.copy(w).sub(land.node.anchor.position).applyQuaternion(losQ);
         for (var oi = 0; oi < opList.length; oi++) {
             var o = opList[oi]; losC.copy(losA).applyMatrix4(o.inv);
-            for (var bi = 0; bi < 2; bi++) { var arr = bi ? o.b : o.a; if (!arr) continue; for (var j = 0; j < arr.length; j++) { var q = arr[j]; if (losC.x > q.min.x - 0.3 && losC.x < q.max.x + 0.3 && losC.y > q.min.y - 0.3 && losC.y < q.max.y + 0.3 && losC.z > q.min.z - 0.3 && losC.z < q.max.z + 0.3) return true; } }
+            for (var bi = 0; bi < 2; bi++) { var arr = bi ? o.b : o.a; if (!arr) continue; for (var j = 0; j < arr.length; j++) { var q = arr[j]; if (losC.x > q.min.x - mg && losC.x < q.max.x + mg && losC.y > q.min.y - mg && losC.y < q.max.y + mg && losC.z > q.min.z - mg && losC.z < q.max.z + mg) return true; } }
         }
         return false;
     }
@@ -7365,6 +7063,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var pick = Math.random() * tot, kind = ENM.MOB_KINDS[0]; for (i = 0; i < ws.length; i++) { pick -= ws[i]; if (pick <= 0) { kind = ENM.MOB_KINDS[i]; break; } }
         var d = 20 + Math.random() * 38, a = Math.random() * 6.283, n = 1;
         if (kind === 'zomby') n = 2 + ((Math.random() * 3) | 0);
+        if (kind === 'lurker') {      // ambusher: only waits beside a structure (store, house, pad); up to 8 tries at random bearings, none = no spawn this second
+            for (i = 0; i < 8; i++) { var la = Math.random() * 6.283, le = mobSpawnAt(kind, 14 + Math.random() * 40, la); if (!le) continue; if (opList.length && mobInsideOp(le.w, 12)) break; gndFree(le); MB.stats.spawned--; }
+            return;
+        }
+        if (kind === 'skitter') n = 1 + ((Math.random() * 2) | 0);
         for (i = 0; i < n && live + i < MOB_CAP; i++) mobSpawnAt(kind, d + (Math.random() - 0.5) * 3, a + (Math.random() - 0.5) * 0.06);
     }
     function mobTargets() {      // me + on-foot players the relay shows (host sim aims at the nearest)
@@ -7378,6 +7081,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (e.remote) { MB.hitQ.push([e.mid, Math.round(dmg)]); return; }      // guest: the host applies it
         e.hp -= dmg; e.lastBy = by || 'me';
         if (e.mob === 'ender' && !e.angry) { e.angry = true; e.lookT = 1; }
+        if (e.mob === 'lurker' && !e.angry) { e.angry = true; e.tpT = e.cr.stats.lurk.pounceFor; }
+        if (e.mob === 'skitter') e.fleeT = e.cr.stats.skit.fleeFor;
         if (e.hp <= 0) { if (e.mob) mobKill(e, e.lastBy === 'me'); else gndKill(e); }      // hub WARDEN is a non-mob ground enemy
     }
     // consistency: ONE kill-reward path. Tier-scaled gorCoin (addUnits = float text + units chime), party XP, quest event stays with the caller; the 'kill' cue plays once in the caller.
@@ -7408,8 +7113,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         losFrom.copy(from).addScaledVector(losU, 0.8 * Hw);
         return hasLineOfSight(losFrom, to);
     }
-    function punch(dmg, fromStyle) {
-        if ((punchCd > 0 && !fromStyle) || !hum.obj || cmdOpen) return; if (!fromStyle) punchCd = 0.35; dmg = dmg > 0 ? dmg : 6; var Hw = hwU(), hit = 0;
+    function punch(dmg) {
+        if (punchCd > 0 || !hum.obj || cmdOpen) return; punchCd = 0.35; dmg = dmg > 0 ? dmg : 6; var Hw = hwU(), hit = 0;
         gA.copy(hum.hf).applyQuaternion(land.node.mesh.quaternion);
         R27.gnd.slice().forEach(function (e) {
             if (!e.alive || e.held) return; snC.subVectors(e.w, hum.w); var d = snC.length(); if (d > 2.2 * Hw + e.cr.hitR * GM * L || snC.divideScalar(d || 1).dot(gA) < 0.3 || !losMelee(hum.w, e.w)) return;
@@ -7418,18 +7123,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         });
         if (VG.v) { var vp = VG.v.punchHit(hum.pos, hum.hf, 2.2 * Hw, dmg); if (vp) { hit++; fx.impact(hum.w, vp.type === 'golum' ? 0xb070ff : 0xffd36a, 1, 'hit'); } }      // villagers flinch + the golums answer; golums are tough
         aPlay(hit ? 'hit' : 'ui', { vel: 0.5, pitch: hit ? 1 : 0.8 });
-    }
-    function tongueGrab(rH) {
-        var Hw = hwU(), best = null, bd = rH * Hw, kind = '', i, c, d;
-        for (i = 0; i < R27.gnd.length; i++) { c = R27.gnd[i]; if (!c.alive || !c.mob) continue; d = c.w.distanceTo(hum.w); if (d < bd && losMelee(hum.w, c.w)) { bd = d; best = c; kind = 'mob'; } }
-        var cl = (ps && ps.creatures) ? ps.creatures() : [], cb = null;
-        for (i = 0; i < cl.length; i++) { c = cl[i]; if (!c.pos) continue; d = c.pos.distanceTo(hum.w); if (d < bd && losMelee(hum.w, c.pos)) { bd = d; cb = c; best = null; kind = 'creature'; } }
-        if (!kind) return false;
-        styStats.tongue++;
-        if (kind === 'mob') { var dr = []; try { dr = ENM.mobDrops(best.mob, Math.random) || []; } catch (e0) { dr = []; } dr.forEach(function (x) { mobGive(x.id, x.n); }); fx.impact(best.w, 0x9cffd0, 1.5, 'hit'); gndFree(best); MB.stats.killed++; }
-        else { try { ps.setCreatureTamed(cb.id, true, land.node.id); var cid = cb.id, nid = land.node.id; setTimeout(function () { try { ps.setCreatureTamed(cid, false, nid); } catch (e1) { /* ignore */ } }, 25000); } catch (e2) { /* ignore */ } mobGive('goo', 1); }
-        if (curStyle && curStyle.swallow) curStyle.swallow(1);
-        aPlay('tame', { vel: 0.5 }); return true;
     }
     function mobMoveDir(e, v, s) {      // steer round walls: the wanted heading, then +-0.7 / +-1.4 rad
         for (var i = 0; i < 5; i++) { snD.copy(v); if (FOOT_SLIDE_A[i] !== 0) snD.applyAxisAngle(e.up, FOOT_SLIDE_A[i]); if (gndMove(e, snD, s * FOOT_SLIDE_K[i])) return true; }
@@ -7443,7 +7136,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function mobTeleport(e, tw, minH, maxH) {
         if (e.hub) return false;
         var Hw = hwU(), R = ps.radius || 1, d = (minH + Math.random() * (maxH - minH)) * Hw;
-        bkLocal(tw, snA); snA.normalize(); snB.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); snB.addScaledVector(snA, -snB.dot(snA)).normalize();
+        snQ.copy(land.node.mesh.quaternion).invert(); snA.copy(tw).sub(land.node.anchor.position).applyQuaternion(snQ).normalize(); snB.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); snB.addScaledVector(snA, -snB.dot(snA)).normalize();
         snD.copy(snA).addScaledVector(snB, d / R).normalize(); if (!ps.landLocal(snD.x, snD.y, snD.z)) return false;
         if (e.cr.teleport) e.cr.teleport(); e.dir.copy(snD); e.hr = mFloor(snD.x, snD.y, snD.z, e.hr); gndPlace(e); if (e.cr.teleport) e.cr.teleport(); MB.stats.teleports++; return true;
     }
@@ -7454,7 +7147,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var dH = e.w.distanceTo(hum.w) / Hw;
         if (dH < ex.radius + 0.5 && mobSees(e)) footHurt(Math.round(ex.edgeDmg + (ex.dmg - ex.edgeDmg) * clamp(1 - dH / ex.radius, 0, 1)));
         mobEv({ k: 'x', p: [+e.w.x.toFixed(2), +e.w.y.toFixed(2), +e.w.z.toFixed(2)], r: ex.radius, a: ex.dmg, b: ex.edgeDmg });
-        bkExplode(e.w, ex.radius);
         for (var q = 0; q < 3 && !e.hub; q++) { snD.copy(e.face).applyAxisAngle(e.up, q * 1.047); try { ps.scar(e.w, snD, 2 * ex.radius * Hw, 25); } catch (e0) { /* ignore */ } }
         gndFree(e);
     }
@@ -7503,12 +7195,45 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 if (dm > 2.6) moving = mobMoveDir(e, r27C, sp * 1.4);
                 else if (e.cd <= 0) { e.cd = 1.2; if (me && !mobSees(e)) { /* no line of sight: the claw misses, same as zomby */ } else if (me) footHurt(7); else mobEv({ k: 'a', i: e.mid, d: 7, r: 3.4 }); aPlay('hit', { dist: aDist(e.w), pitch: 0.5, vel: 0.5 }); }
             }
+        } else if (kind === 'brute') {      // slow heavy: walks you down, a visible windup, one huge hit
+            if (dH < 45 && tl > 1e-9) {
+                e.face.lerp(r27C, damp(3.5, dt)).normalize();
+                if (dm > 3.4) { moving = mobMoveDir(e, r27C, sp); cr.setWindup(0); }
+                else if (e.cd <= 0) {
+                    e.cd = 2.2; cr.setWindup(0);
+                    if (me && !mobSees(e)) { /* wall between: the smash hits stone */ } else if (me) { footHurt(14); shake = Math.max(shake, 0.2 * L); } else mobEv({ k: 'a', i: e.mid, d: 14, r: 4.4 });
+                    aPlay('hit', { dist: aDist(e.w), pitch: 0.3, vel: 0.9 });
+                } else if (e.cd < 0.9) cr.setWindup(1 - e.cd / 0.9);
+            }
+        } else if (kind === 'lurker') {      // ambusher: motionless until you are close, then a fast pounce, then a normal chase; re-hides when you leave
+            var lk = st.lurk;
+            if (!e.angry) { if (dH < lk.wake && tl > 1e-9 && (!me || mobSees(e))) { e.angry = true; e.tpT = lk.pounceFor; aPlay('hit', { dist: aDist(e.w), pitch: 0.4, vel: 0.5 }); } }
+            else if (dH > lk.rest) e.angry = false;
+            else if (tl > 1e-9) {
+                e.face.lerp(r27C, damp(10, dt)).normalize();
+                var lmul = e.tpT > 0 ? lk.pounce : 1; if (e.tpT > 0) e.tpT -= dt;
+                if (dm > 1.8) moving = mobMoveDir(e, r27C, sp * lmul);
+                else if (e.cd <= 0) { e.cd = 1.1; if (me && !mobSees(e)) { /* wall between */ } else if (me) footHurt(9); else mobEv({ k: 'a', i: e.mid, d: 9, r: 2.4 }); aPlay('hit', { dist: aDist(e.w), pitch: 0.7, vel: 0.5 }); }
+            }
+        } else if (kind === 'skitter') {      // fast skittish: holds a ring around you, darts in every few seconds for one bite, then bolts; hits make it bolt too
+            var sk2 = st.skit; e.tpT += dt;
+            if (tl > 1e-9) e.face.lerp(r27C, damp(9, dt)).normalize();
+            if (dH < 60 && tl > 1e-9) {
+                if (e.fleeT > 0) { e.fleeT -= dt; snA.copy(r27C).negate(); moving = mobMoveDir(e, snA, sp * 1.1); }
+                else if (e.dashT > 0) {
+                    e.dashT -= dt; moving = mobMoveDir(e, r27C, sp * 1.5);
+                    if (dm <= 1.5 && e.cd <= 0) { e.cd = 0.8; e.dashT = 0; e.fleeT = sk2.fleeFor; if (me && !mobSees(e)) { /* wall between */ } else if (me) footHurt(4); else mobEv({ k: 'a', i: e.mid, d: 4, r: 2.4 }); aPlay('hit', { dist: aDist(e.w), pitch: 1.3, vel: 0.4 }); }
+                } else if (e.tpT > sk2.every && dH < sk2.far + 6) { e.tpT = 0; e.dashT = sk2.dashFor; }
+                else if (dH < sk2.near) { snA.copy(r27C).negate(); moving = mobMoveDir(e, snA, sp); }
+                else if (dH > sk2.far) moving = mobMoveDir(e, r27C, sp);
+                else { snA.crossVectors(e.up, r27C); if (((e.mid + Math.floor(gt / 1.5)) & 1)) snA.negate(); moving = mobMoveDir(e, snA, sp * 0.8); }
+            }
         }
         cr.setSpeed(moving ? st.speed : 0); e.mvd = moving;
     }
     var mobLosP = new THREE.Vector3();
     function mobSees(e) {      // the mob's eye to the player's chest: one ray, called only once a mob is already in range
-        if (e.hub || e.mode === 'derelict' || !hum.obj) return true;
+        if (e.hub || !hum.obj) return true;
         var Hw = hwU(); snA.copy(e.w).addScaledVector(e.up, 0.8 * Hw); snB.copy(hum.w).addScaledVector(styUpW, 0.5 * Hw);
         return hasLineOfSight(snA, snB);
     }
@@ -7518,8 +7243,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             if (b.t > 0 && !hasLineOfSight(mobLosP, b.p)) { b.t = 0; fx.impact(b.p, 0xe8d4ff, 0.8, 'hit'); }
             if (b.mine) {      // Q41: a reflected bolt hurts the first mob it meets
                 for (var bj = 0; bj < R27.gnd.length && b.t > 0; bj++) { var bm = R27.gnd[bj]; if (bm.alive && bm.mob && b.p.distanceTo(gndSphere(bm, snA)) < bm.cr.hitR * GM * L + 0.3 * hwU()) { mobHurt(bm, (b.dmg || 4) * 2, 'me'); fx.impact(b.p, 0xe8d4ff, 1, 'hit'); b.t = 0; } }
-            } else if (hum.obj && sa.rT > 0 && stylesMod && b.p.distanceTo(snA.copy(hum.w).addScaledVector(styUpW, 0.5 * hwU())) < sa.rR * hwU()) {
-                saW.copy(b.src).sub(b.p); stylesMod.reflectVel(saV, b.v.x, b.v.y, b.v.z, saW.x, saW.y, saW.z, 1.25); b.v.set(saV.x, saV.y, saV.z); b.mine = true; b.t = 2; aPlay('hit', { pitch: 1.8, vel: 0.5 });
             } else if (hum.obj && b.p.distanceTo(snA.copy(hum.w).addScaledVector(styUpW, 0.5 * hwU())) < 0.55 * hwU()) { footHurt(b.dmg || 4); b.t = 0; }
             if (b.t <= 0) MB.bolts.splice(i, 1);
         }
@@ -7580,7 +7303,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function mobTick(dt) {
         if (punchCd > 0) punchCd -= dt;
-        bkTick();
         if (gmode !== 'foot' || !hum.obj || !land.node) return;
         mobSpawnTick(dt); mobBoltTick(dt); mobSnapOut(dt); mobFlush(dt);
     }
@@ -7905,7 +7627,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!HB.fight && ((rm && rm.id === 'start') || p.z < 24)) { ftI.kind = 'hubexit'; ftI.label = 'F · LEAVE'; return ftI; }
         return null;
     }
-    // ═══ villages: one per lush/rocky planet (ship-village.js). Planet-local frame under the ride group (like the hub); huts are solid for the capsule and indestructible for STEEV ═══
+    // ═══ villages: one per lush/rocky planet (ship-village.js). Planet-local frame under the ride group (like the hub); huts are solid for the capsule ═══
     var villMod = null, VG = { v: null, node: null, nid: '', L: 0, fail: false, nightForce: -1, evT: 0 }, vgA = new THREE.Vector3(), vgB = new THREE.Vector3(), vgQ = new THREE.Quaternion();
     var vgCtx = { t: 0, night: 0, player: null, known: null, mobs: [], hurtMob: function (ref, dmg) { if (ref && ref.alive) { mobHurt(ref, dmg, 'golum'); fx.impact(ref.w, 0xb070ff, 1.5, 'hit'); aPlay('hit', { dist: aDist(ref.w), pitch: 0.7 }); } }, hurtPlayer: function (dmg) { footHurt(dmg); addRow('', '', 'GOLUM HIT · -' + dmg, 'is-sys'); } };
     import('./ship-village.js').then(function (m) { villMod = m; }).catch(function (e) { console.info('[ship] ship-village unavailable', e); });
@@ -7958,7 +7680,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!VG.v || !v) return;
         var m = VG.v.market(v); if (!m) return;
         questDeliver(v);      // consistency: the village trader takes quest deliveries like a 7/11 counter
-        if (openTrade(m, v.name + ' · TRADER', String(v.name).toUpperCase(), '') && shopCtx) shopCtx.vil = true;
+        if (openTrade(m, v.name + ' · TRADER', String(v.name).toUpperCase()) && shopCtx) shopCtx.vil = true;
     }
     // ── menus (kitchen, pens, pods, board) ──
     var menuOpen = false, menuSpec = null, menuRows = [], menuSel = 0;
@@ -8409,69 +8131,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         R27.tamedKey = key;
         for (var ti = 0; ti < pf.taken.length; ti++) { var t = pf.taken[ti]; if (t.id && t.n === String(ps.active.id)) { try { ps.setCreatureTamed(t.id, true, t.n); } catch (e0) { /* ignore */ } } }
     }
-    // ── crew + missions ──
-    function r25Cand() { var pf = curProfile(); return (R25.cand && pf && pf.crew.length < 4) ? R25.cand : null; }
-    function r25BurgerVisit(bh) {
-        var pf = ensureProfile(userName()); pf.visits = (pf.visits | 0) + 1; R25.cand = null;
-        try { if (bh && typeof bh.recruit === 'function' && pf.crew.length < 4) R25.cand = bh.recruit(pf.visits); } catch (e0) { R25.cand = null; }
-        writeSave();
-    }
-    function r25Hire() {
-        var pf = ensureProfile(userName()), c = r25Cand(); if (!c) return;
-        var m = { id: 'c' + c.seed, seed: c.seed, name: c.name, role: c.role, color: c.color, rank: 1, lines: (c.lines || []).map(String).slice(0, 3), busy: '' };
-        pf.crew.push(m); R25.cand = null;
-        try { if (world && world.burgerHouse) world.burgerHouse.candidate = null; } catch (e0) { /* ignore */ }
-        aPlay('hire'); addRow(String(m.name).toUpperCase(), cssHex(m.color), m.lines[0] || 'Reporting for duty.');
-        addRow('', '', m.name + ' joined your crew (' + m.role + ') · ' + pf.crew.length + '/4', 'is-sys'); writeSave();
-    }
     var PART_MAP = { 'plasma-coil': 'coil', 'flux-capacitor': 'capacitor', 'hull-plate': 'plate', 'logic-chip': 'chip', 'fuel-cell': 'battery' };
-    function genMission(seed) {
-        var m = null, r = mulberry32(seed);
-        try { if (station && station.interior && station.interior.missions) m = station.interior.missions(seed, 1)[0]; } catch (e0) { m = null; }
-        if (!m || !(m.title || m.name)) {
-            var kinds = [['mine', 'Mine ore on '], ['scout', 'Scout the belt of '], ['trade', 'Trade run to '], ['bounty', 'Bounty hunt over ']], k = kinds[(r() * 4) | 0], pl = ['Papers', 'Ember', 'the Rim', 'Vesper', 'Cinder'][(r() * 5) | 0], mins = 3 + ((r() * 18) | 0);
-            m = { kind: k[0], title: k[1] + pl, minutes: mins, reward: { gor: Math.round((40 + mins * (8 + r() * 10)) / 5) * 5, stacks: [{ item: 'hull-plate', n: 1 + ((r() * 3) | 0) }], itemChance: 0.25 } };
-        }
-        var rw = m.reward || {};
-        return { id: 'm' + seed.toString(36), name: String(m.title || m.name), kind: m.kind || 'mine', minutes: clamp(m.minutes | 0 || 5, 1, 30), gor: Math.max(10, rw.gor | 0 || 60), stacks: (rw.stacks || []).map(function (s) { return { k: PART_MAP[s.item] || s.item, n: Math.max(1, s.n | 0) }; }), chance: rw.itemChance || 0.2, crewId: '', start: 0, end: 0 };
-    }
-    function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-    function r25Board() {
-        var pf = ensureProfile(userName()), b = pf.board;
-        if (!b.seed) b.seed = (hash25(userName()) ^ (pf.created | 0)) >>> 0 || 7;
-        while (b.list.length < 3) { b.seed = (Math.imul(b.seed, 1664525) + 1013904223) >>> 0; b.list.push(genMission(b.seed)); }
-        return b;
-    }
-    function missionDone(pf, m, i) {
-        var c = pf.crew.filter(function (x) { return x.id === m.crewId; })[0], got = [], r = Math.random();
-        pf.gor = (pf.gor | 0) + m.gor;
-        m.stacks.forEach(function (s) {
-            var base = null, pi; for (pi = 0; pi < CRF.PARTS.length; pi++) if (CRF.PARTS[pi].id === s.k) base = CRF.PARTS[pi];
-            if (!base) base = R25_SCRAP[0]; giveItem(base, s.n); got.push(s.n + ' ' + base.name);
-        });
-        if (r < m.chance) { try { var gi = ITM.generateItem((Math.random() * 1e9) >>> 0); giveItem(gi, 1); got.push(gi.name); } catch (e0) { warnOnce('mission.roll', e0); } }
-        if (c) { c.rank = (c.rank | 0) + 1; c.busy = ''; }
-        aPlay('units', { n: 6 }); if (c) aPlay('levelUp');
-        addRow(c ? String(c.name).toUpperCase() : 'CREW', c ? cssHex(c.color) : '#ffd36a', 'back from "' + m.name + '": +' + CRF.fmt(m.gor) + (got.length ? ', ' + got.join(', ') : '') + (c ? ' · rank ' + c.rank : ''));
-        pf.board.seed = (Math.imul(pf.board.seed || 1, 1664525) + 1013904223) >>> 0; pf.board.list[i] = genMission(pf.board.seed);
-    }
-    function missionTick() {
-        var pf = curProfile(); if (!pf || !pf.board) return;
-        var now = Date.now(), i, ch = false;
-        for (i = 0; i < pf.board.list.length; i++) { var m = pf.board.list[i]; if (m && m.end > 0 && m.end <= now) { missionDone(pf, m, i); ch = true; } }
-        if (ch) { writeSave(); r25Refresh(); }
-    }
-    function boardSync() {
-        var int = R25.int, pf = curProfile(); if (!int || !pf || !int.board || !int.board.setMissions) return;
-        var b = r25Board(), now = Date.now();
-        try { int.board.setMissions(b.list.map(function (m) { var c = pf.crew.filter(function (x) { return x.id === m.crewId; })[0]; return { title: m.name, status: m.end > 0 ? (c ? c.name : 'CREW') + ' ' + fmtT((m.end - now) / 1000) : 'OPEN ' + m.minutes + ' MIN · ' + CRF.fmt(m.gor) }; })); } catch (e0) { /* ignore */ }
-    }
     function r25Tick(dt) {
         questTick(dt); hullTick(dt); r27Tick(dt);
         if (tame.on) tameTick(dt);
         if (harv.on) harvTick(dt);
-        R25.t += dt; if (R25.t < 1) return; R25.t = 0;
-        missionTick(); if (ix.on) boardSync();
     }
     // ── interior ──
     function ensureInt() {
@@ -8487,13 +8151,11 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             int.cargo.setStacks(pf.items.slice(0, 24).map(function (r) { var it = itemOf(r); return { id: r.id, name: it ? it.name : r.id, count: r.n, color: it ? it.color : 0x888888 }; }));
             for (i = 0; i < 4; i++) {
                 int.pens[i].clear(); var p = pf.petPens[i]; if (p) int.pens[i].setPet({ seed: p.seed, name: p.name, tier: 1 });
-                int.pods[i].clear(); var c = pf.crew[i]; if (c) int.pods[i].setCrew({ seed: c.seed, name: c.name, color: c.color });
             }
-            var am = ptMon(), fp = -1;      // the active POKEMANS lives in the ship too: it takes the first free pen (same pet system, no second one)
-            if (am) { for (i = 0; i < 4; i++) if (!pf.petPens[i]) { fp = i; break; } if (fp >= 0) int.pens[fp].setPet({ seed: (am.sp.bodyRecipe.seed | 0) || 1, name: am.sp.name, plan: ptBodyRec(am).plan, tier: 1 }); }
+            var am = ptMon();      // the active POKEDEX POKEMANS walks the ship with you (same pet rig as the pens; pens stay for stored pets)
+            if (am) int.companion.setPet({ seed: (am.sp.bodyRecipe.seed | 0) || 1, name: am.sp.name, plan: ptBodyRec(am).plan }); else int.companion.clear();
         } catch (e0) { console.info('[ship] interior sync', e0); }
         r27Interior(int, pf);
-        boardSync();
     }
     function enterInterior() {
         if (ix.on) return true;
@@ -8514,6 +8176,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function leaveInterior(fadeSound) {
         if (!ix.on) return;
+        if (IXF.on) { leaveInteriorFlight(); return; }
         ix.on = false; gmode = ix.from; closeMenu(); closeInv();
         if (R25.int) R25.int.setVisible(false);
         shipRoot.visible = true;
@@ -8533,35 +8196,95 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             var d = hum.w.distanceTo(o.pos), lim = Math.max(o.radius || 0, 0.18 * L) + 0.1 * L;
             if (d < lim && d / lim < bd) { bd = d / lim; best = { kind: kind, obj: o, label: label, i: idx || 0 }; }
         }
-        test(int.hatch, 'hatch', 'Z · STEP OUT');
+        if (!IXF.on) test(int.hatch, 'hatch', 'Z · STEP OUT'); else test(int.cockpit, 'cockpit', 'F · BACK TO FLYING');
         test(int.table, 'table', 'F · CRAFTING TABLE');
         test(int.kitchen, 'kitchen', 'F · KITCHEN');
-        test(int.board, 'board', 'F · MISSIONS');
-        for (i = 0; i < 4; i++) { test(int.pens[i], 'pen', 'F · PEN ' + (i + 1) + (pf && pf.petPens[i] ? ' · ' + pf.petPens[i].name : ''), i); test(int.pods[i], 'pod', 'F · POD ' + (i + 1) + (pf && pf.crew[i] ? ' · ' + pf.crew[i].name : ''), i); }
+        for (i = 0; i < 4; i++) { test(int.pens[i], 'pen', 'F · PEN ' + (i + 1) + (pf && pf.petPens[i] ? ' · ' + pf.petPens[i].name : ''), i); }
         if (best) { ixI.kind = best.kind; ixI.obj = best.obj; ixI.label = best.label; ixI.i = best.i; }
         return ixI;
+    }
+    // ── 2026-11-27: instant interior toggle in flight. F in flight steps inside (no docking sequence): the ship coasts on autopilot (velocity vector and heading
+    //    held, no input, no damage), the interior hull rides the ship so the cockpit window shows the live sky, and F at the cockpit hands the ship back exactly
+    //    where the autopilot took it. If the coast would reach a planet, the autopilot brakes to a stop IXF_STOP_L ship lengths short. One 0.25 s fade each way. ──
+    var IXF = { on: false, vel: new THREE.Vector3(), fade: null, held: false }, IXF_STOP_L = 3, IXF_DECEL = 30;
+    var ixfQ = new THREE.Quaternion(), ixfQY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), ixfV = new THREE.Vector3(), ixfN = new THREE.Vector3();
+    function ixFade() {      // switch happens at once under a black flash that fades out over 0.25 s
+        var el = IXF.fade;
+        if (!el) { el = IXF.fade = document.createElement('div'); el.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;z-index:60'; document.body.appendChild(el); }
+        el.style.transition = 'none'; el.style.opacity = '1'; void el.offsetWidth; el.style.transition = 'opacity 0.25s linear'; el.style.opacity = '0';
+    }
+    function ixFlightPose(int) {      // interior +Z = ship nose (-Z in ship space): half-turn about Y; the cockpit window centre sits half a ship length ahead of the hull centre
+        ixfQ.copy(shipRoot.quaternion).multiply(ixfQY);
+        int.group.quaternion.copy(ixfQ);
+        ixfV.set(0, 4.45, 29.7).multiplyScalar(int.unit).applyQuaternion(ixfQ);
+        ixfN.set(0, 0, -1).applyQuaternion(shipRoot.quaternion).multiplyScalar(0.5 * L);
+        int.group.position.copy(shipRoot.position).add(ixfN).sub(ixfV);
+        int.group.updateMatrixWorld(true);
+    }
+    function enterInteriorFlight() {
+        if (gmode !== 'fly' || ix.on || dead || state !== 'piloting' || boarding || exiting || cmdOpen || storeOpen || menuOpen || invOpen || R25.noInt || photo.on || resumePend || sk.mode) return false;
+        var int = ensureInt(); if (!int) return false;
+        IXF.vel.copy(vel); IXF.on = true; IXF.climb = null; IXF.held = false; landReq = false; dockAssist = false; firing = false; mdx = mdy = 0;
+        jetKill(); eh.on = false; eh.t = 0; ehShow(0, '');
+        if (!hum.obj) { hum.obj = makeHuman(effColor()); scene.add(hum.obj.group); }
+        ix.from = 'fly'; ix.w.copy(hum.w); ix.q.copy(hum.obj.group.quaternion); ix.sc = hum.obj.group.scale.x;
+        ix.on = true; gmode = 'ifoot'; shipRoot.visible = false; combatRoot.visible = false; hum.obj.group.visible = true;
+        ixFlightPose(int); int.setVisible(true);
+        var lp = int.spawn.localPos; ik.hp.copy(lp); ik.hp.y = 0; ik.yaw = Math.PI; ik.pitch = 0.3; ik.vv = 0; ik.air = false; ik.jumpHeld = true;
+        camera.near = 0.01 * L; camera.updateProjectionMatrix();
+        camRelInit = true; ix.snap = 3; setGround(true, true); setPrompt('', false);
+        r25Refresh(); ixFade(); aPlay('land', { vel: 0.3 });
+        addRow('', '', 'INSIDE · autopilot holds course · F at the cockpit to fly', 'is-sys');
+        return true;
+    }
+    function leaveInteriorFlight() {
+        if (!IXF.on || !ix.on) return false;
+        ix.on = false; IXF.on = false; IXF.held = false; gmode = 'fly'; closeMenu(); closeInv();
+        if (R25.int) R25.int.setVisible(false);
+        shipRoot.visible = true; combatRoot.visible = true; if (hum.obj) hum.obj.group.visible = false;
+        vel.copy(IXF.vel); var fw = ixfN.set(0, 0, -1).applyQuaternion(shipRoot.quaternion).dot(vel);
+        speed = fw; throttle = clamp(fw / CRUISE, THROTTLE_MIN, 1); pulse = 0; pulseT = 0;      // the flight model keeps chasing the speed the autopilot held
+        keys = Object.create(null); mdx = mdy = 0; camRelInit = false;
+        camera.near = baseNear; camera.updateProjectionMatrix();
+        fov = camera.fov; chaseTargets(0); camera.position.copy(camPos); camera.quaternion.copy(camQuat);
+        setGround(false, false); setPrompt('', false); ixFade(); aPlay('ui', { vel: 0.5 });
+        return true;
+    }
+    function ixFlightTick(dt) {      // the ship keeps moving while you are inside: constant velocity + heading, stopped IXF_STOP_L lengths short of any planet
+        var P = shipRoot.position, bodies = gatherBodies(), i, rb, c, dist, base, d, vr, vmax, fo, held = false;
+        psCalls = 0; stepN++;
+        for (i = 0; i < bodies.length; i++) {
+            rb = bodies[i]; syncPlanet(rb.node); c = rb.node.anchor.position;
+            if (rb.pN === stepN - 1 && dt > 1e-5) { rb.vx = (c.x - rb.px) / dt; rb.vy = (c.y - rb.py) / dt; rb.vz = (c.z - rb.pz) / dt; } else { rb.vx = rb.vy = rb.vz = 0; }
+            rb.px = c.x; rb.py = c.y; rb.pz = c.z; rb.pN = stepN;      // bodies orbit: brake on the velocity RELATIVE to the body, else a planet can drift into a stopped ship
+            ixfN.subVectors(P, c); dist = ixfN.length(); if (dist < 1e-6) continue; ixfN.divideScalar(dist);
+            base = HARD_F * rb.R;      // the hard sphere, not the local floor: planets spin, so terrain up to ~1.07 R rotates under a parked ship (measured: floor r at one point swung 1.013-1.071 R)
+            d = dist - base - IXF_STOP_L * L; vr = IXF.vel.dot(ixfN) - (rb.vx * ixfN.x + rb.vy * ixfN.y + rb.vz * ixfN.z);
+            if (d < 0) {      // entered while already inside the hold radius (low atmosphere): climb out gently, then hold
+                vmax = Math.min(-d * 0.5, 60 * L);      // 60 L/s: planets are ~13k L in radius, so the climb from low atmosphere takes tens of seconds, not minutes
+                if (vr < vmax) { IXF.vel.addScaledVector(ixfN, vmax - vr); held = true; IXF.climb = rb.node; }
+                continue;
+            }
+            if (IXF.climb === rb.node && vr > 0) { IXF.vel.addScaledVector(ixfN, -vr); IXF.climb = null; held = true; continue; }      // the climb we added stops at THIS body's hold radius; a player's own outward coast (and other bodies) never touched
+            if (vr >= 0) continue;
+            vmax = Math.min(Math.sqrt(2 * IXF_DECEL * L * Math.max(0, d)), Math.max(0, d) / dt);
+            if (-vr > vmax) { IXF.vel.addScaledVector(ixfN, -vmax - vr); held = true; }
+        }
+        if (held && !IXF.held) addRow('', '', 'AUTOPILOT · holding ' + IXF_STOP_L + ' ship lengths off the planet', 'is-sys');
+        IXF.held = held;
+        P.addScaledVector(IXF.vel, dt); vel.copy(IXF.vel); speed = vel.length();
+        if (ps) { try { ps.moonMin = MOON_L * L; ps.footMode = false; ps.update(dt, P); } catch (e) { planetFail(e); } }
+        if (R25.int) ixFlightPose(R25.int);
     }
     function interiorF() {
         var t = ixTarget(), pf = ensureProfile(userName());
         if (t.kind === 'hatch') leaveInterior(true);
+        else if (t.kind === 'cockpit') leaveInteriorFlight();
         else if (t.kind === 'table') { R25.force = true; openInv(); R25.force = false; }
         else if (t.kind === 'kitchen') openMenu({ build: function () {
             var rows = [], p2 = ensureProfile(userName());
             p2.items.forEach(function (r, idx) { var it = itemOf(r); if (it && (it.kind === 'food' || it.kind === 'drink' || it.kind === 'snack' || it.kind === 'fries' || it.category === 'food')) rows.push({ name: it.name, sub: 'x' + r.n, fn: function () { eatSlot(idx); return true; } }); });
             return { title: 'KITCHEN · EAT', rows: rows };
-        } });
-        else if (t.kind === 'board') openMenu({ build: function () {
-            var p2 = ensureProfile(userName()), b = r25Board(), now = Date.now();
-            return { title: 'MISSION BOARD', rows: b.list.map(function (m, mi) {
-                var c = p2.crew.filter(function (x) { return x.id === m.crewId; })[0];
-                return { name: m.name, sub: m.end > 0 ? (c ? c.name : 'CREW') + ' · ' + fmtT((m.end - now) / 1000) : m.minutes + ' MIN · ' + CRF.fmt(m.gor), fn: function () {
-                    if (m.end > 0) return true;
-                    var free = p2.crew.filter(function (x) { return !x.busy; });
-                    if (!free.length) { addRow('', '', p2.crew.length ? 'all crew are out on missions' : 'no crew · recruit at the Burger House', 'is-sys'); return false; }
-                    closeMenu(); setTimeout(function () { openMenu({ build: function () { return { title: 'ASSIGN CREW · ' + m.name, rows: free.map(function (cw) { return { name: cw.name.toUpperCase(), sub: cw.role + ' · rank ' + cw.rank, fn: function () { m.crewId = cw.id; m.start = Date.now(); m.end = m.start + m.minutes * 60000; cw.busy = m.id; addRow(String(cw.name).toUpperCase(), cssHex(cw.color), 'on it. ' + m.minutes + ' min.'); writeSave(); boardSync(); return false; } }; }) }; } }); }, 0);
-                    return true;
-                } };
-            }) };
         } });
         else if (t.kind === 'pen') {
             var pi = t.i;
@@ -8574,11 +8297,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 } else p2.items.forEach(function (r) { var it = itemOf(r); if (it && it.pet) rows.push({ name: it.name, sub: 'x' + r.n + ' · put in pen', fn: function () { takeKey(r.id, 1); p2.petPens[pi] = JSON.parse(JSON.stringify(it.pet)); addRow('', '', it.name + ' settles in', 'is-sys'); writeSave(); r25Refresh(); return false; } }); });
                 return { title: 'PEN ' + (pi + 1), rows: rows };
             } });
-        } else if (t.kind === 'pod') {
-            var c = pf.crew[t.i];
-            if (!c) { addRow('', '', 'empty bunk · recruit crew at a Burger House', 'is-sys'); return; }
-            c.li = ((c.li | 0) + 1) % Math.max(1, c.lines.length);
-            addRow(String(c.name).toUpperCase(), cssHex(c.color), (c.lines[c.li] || '...') + '  [' + c.role + ' · rank ' + c.rank + (c.busy ? ' · on a mission' : '') + ']'); aPlay('npc', { seed: c.name });
         }
     }
     var ikA = new THREE.Vector3(), ikB = new THREE.Vector3(), ikC = new THREE.Vector3(), ikQ = new THREE.Quaternion();
@@ -8696,7 +8414,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (ctx.mode === 'trade') { tradeFill(ctx, pf); tab = -1; }
         if (tab === 0) {
             var menu = ctx.items || [];
-            if (ctx.mode === 'burger' && r25Cand()) { var cd0 = r25Cand(); shopRows.push({ k: 'r', tag: 'CR', name: 'HIRE ' + String(cd0.name).toUpperCase(), sub: String(cd0.role).toUpperCase() + ' · JOINS YOUR CREW', price: 0 }); }
             if (ctx.mode === 'store' && st && ITM.dailyDeal) {
                 try { var dl = ITM.dailyDeal(st.id); shopRows.push({ k: 'deal', deal: dl, tag: 'DL', name: dl.name, sub: 'TODAY ONLY · COMBO OF 3', price: dl.price, was: dl.originalPrice, special: true, info: dl.name + '\n' + dl.items.map(function (x) { return '- ' + x.name; }).join('\n') + '\n' + dl.blurb }); } catch (e0) { /* ignore */ }
             }
@@ -8795,7 +8512,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var c = bh.clerk, line = '';
         try { line = world.npcSay('burger', 'fries') || ''; } catch (e) { line = ''; }
         if (!line && c && typeof c.say === 'function') line = c.say('fries');
-        r25BurgerVisit(bh);
         shopOpenCommon({ mode: 'burger', items: ITM.FRIES_TIERS || (bh.menu && bh.menu.length ? bh.menu : [ITM.FRIES]) }, 'BURGER HOUSE', String((c && c.name) || 'CLERK').toUpperCase(), line, 'burger');
     }
     function closeStore() {
@@ -8814,7 +8530,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!row || !shopCtx) return;
         if (!curUser) curUser = userName();
         if (row.k === '-') { aPlay('ui', { vel: 0.3 }); return; }
-        if (row.k === 'r') { r25Hire(); shopFill(); return; }
         if (row.k === 'tb' || row.k === 'ts') { tradePick(row, pf); return; }
         if (row.k === 'x') {
             var ow = pf.weapons[row.i]; if (!ow) return;
@@ -8963,7 +8678,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 onSfx: function (n, p) { var FSX = { hit_light: 'hit', hit_heavy: 'hit', hit_crit: 'explosion', shot: 'laser', boost: 'boost', ko: 'explosion', jump: 'jump', tech: 'boost' }; aPlay(FSX[n] || n, p ? { pitch: p } : undefined); },      // same cue map as smash.html
                 skyPalette: night > 0.5 ? { top: '#07051a', horizon: '#2a1a5a' } : { top: '#2a4a9a', horizon: '#9ac0ff' },
                 fighters: [
-                    Object.assign({ slot: 0, styleId: curStyleId || 'PILOT', name: userName(), color: suitMid(), isLocal: true, isBot: false, id: 'me' }, meF || {}),
+                    Object.assign({ slot: 0, styleId: 'PILOT', name: userName(), color: suitMid(), isLocal: true, isBot: false, id: 'me' }, meF || {}),
                     Object.assign({ slot: 1, styleId: styleNpc, name: info.name, color: 0xffd36a, isLocal: false, isBot: true, id: info.id, cpuLevel: FG_TIER[role] || 4 }, npcF || {})
                 ]
             });
@@ -9121,7 +8836,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     })();
     function freighterHud() {
         var fr = space && space.freighters, i, W = window.innerWidth, H = window.innerHeight;
-        cvTick();
         for (i = 0; i < frtEls.length; i++) {
             var m = frtEls[i], f = fr && fr[i], show = false;
             if (f && f.pos) {
@@ -9163,7 +8877,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         sk.len = sk.cum[sk.cum.length - 1];
     }
     function beginDock(dd, auto) {
-        R27.dsite = dd ? dkSite(dd) : null;
         if (!STN() || sk.mode || gmode !== 'fly' || dead || state !== 'piloting' || boarding || exiting) return false;
         var pad = 0, i;
         for (i = 0; i < STN().pads.length; i++) if (STN().pads[i].free) { pad = i; break; }
@@ -9176,7 +8889,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         lfOff(); killBolts(); combatRoot.visible = false; firing = false; mdx = mdy = 0; keys = Object.create(null);
         vel.set(0, 0, 0); speed = 0; throttle = 0; pulse = 0; pulseT = 0; eh.on = false; eh.t = 0; ehShow(0, '');
         setGround(true, false); setPrompt('DOCKING', true);
-        addRow('', '', (sk.auto ? 'AUTOPILOT · ' : '') + 'DOCKING · ' + (R27.dsite ? 'DERELICT' : (STN().interior.stores[0] ? String(STN().interior.stores[0].name).toUpperCase() : '7/11 ORBITAL')), 'is-sys');
+        addRow('', '', (sk.auto ? 'AUTOPILOT · ' : '') + 'DOCKING · ' + (STN().interior.stores[0] ? String(STN().interior.stores[0].name).toUpperCase() : '7/11 ORBITAL'), 'is-sys');
         aPlay('liftoff', { vel: 0.6 }); aPlay('warp');
         return true;
     }
@@ -9203,7 +8916,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
         combatRoot.visible = true; gmode = 'fly'; setGround(false, false); setPrompt('', false);
         net && net.setMode && net.setMode('fly');
-        dkLeave();
     }
     function dockCancel() {      // Q30: W during the autopilot dock: control returns where the ship is, drifting with the station
         sk.mode = ''; sk.auto = false; sk.cd = 4; gmode = 'fly';
@@ -9223,15 +8935,14 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!hum.obj) { hum.obj = makeHuman(effColor()); scene.add(hum.obj.group); } else hum.obj.setColor(effColor());
         hum.obj.group.visible = true;
         var px = sk.shipL.x;
-        if (R27.dsite && R27.dsite.spawn) sk.hp.copy(R27.dsite.spawn); else sk.hp.set(px + (px > 0 ? -1.7 : 1.7), 0, sk.shipL.z + 0.4);
+        sk.hp.set(px + (px > 0 ? -1.7 : 1.7), 0, sk.shipL.z + 0.4);
         sk.yaw = Math.atan2(-(sk.shipL.x - sk.hp.x), -(sk.shipL.z - sk.hp.z)); sk.pitch = 0.3; sk.vv = 0; sk.air = false; sk.jumpHeld = true;
         sk.moving = sk.running = false; camRelInit = false; mdx = mdy = 0;
         setGround(true, true); setPrompt('', false);
         net && net.setMode && net.setMode('landed'); sk.nl = 0.4;
         shake = Math.max(shake, 0.06 * L); aPlay('land', { vel: 1 });
         STN().toWorld(sk.shipL, skB); for (var i = 0; i < 3; i++) fx.impact(skB, 0x9ab0ff, 2);
-        if (R27.dsite) { addRow('', '', 'DERELICT · loot crates glow in the far room (F) · something is awake in here', 'is-sys'); dkOnDock(R27.dsite.d); }
-        else addRow('', '', sk.auto ? 'DOCKED · Z to step out · F at the counter, NPCs, shipyard, map pedestal' : 'DOCKED · F near the counter, NPCs, shipyard, map pedestal or your ship', 'is-sys');
+        addRow('', '', sk.auto ? 'DOCKED · Z to step out · F at the counter, NPCs, shipyard, map pedestal' : 'DOCKED · F near the counter, NPCs, shipyard, map pedestal or your ship', 'is-sys');
         sk.auto = false; sk.lt = DOCK_LT; sk.ls = 0;      // Q45: landing-light sequence; F (shop) waits for it
         r28Dock();
     }
@@ -9246,7 +8957,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (camera.near !== baseNear) { camera.near = baseNear; camera.updateProjectionMatrix(); }
         net && net.setMode && net.setMode('fly');
         shake = Math.max(shake, 0.05 * L);
-        dkLeave();
     }
     function skCollide(p, yFoot) {
         var b = STN().deck.bounds, w = STN().deck.walls, i, r = SK_R, q;
@@ -9273,15 +8983,14 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!STN() || !hum.obj || sk.mode !== 'deck' || storeOpen) return skI;
         var hw = hum.w, st0 = STN().interior.stores[0], npcs = STN().interior.npcs, ped = STN().interior.mapPedestal, i;
         if (st0 && hw.distanceTo(st0.counter.pos) < Math.max(st0.counter.radius * 1.8, 2 * SK_H * L)) { skI.kind = 'store'; skI.obj = st0; skI.label = 'F · SHOP'; return skI; }
-        var cv = !R27.dsite && STN().interior.cvs;      // Q14b station POKEMANS CVS: same {kind, cvs} shape as world.nearCvs
+        var cv = STN().interior.cvs;      // Q14b station POKEMANS CVS: same {kind, cvs} shape as world.nearCvs
         if (cv && cv.radius) {
             var dR = hw.distanceTo(cv.reviveWin), dH = hw.distanceTo(cv.healWin);
             if (Math.min(dR, dH) < cv.radius) { skI.kind = 'cvs'; skI.obj = { kind: dR <= dH ? 'revive' : 'heal', cvs: cv }; skI.label = dR <= dH ? cvsLabel() : 'F · HEAL'; return skI; }
         }
         for (i = 0; i < npcs.length; i++) if (hw.distanceTo(npcs[i].pos) < 1.4 * L) { skI.kind = 'npc'; skI.obj = npcs[i]; skI.label = 'T · TALK'; return skI; }
         var tr = STN().interior.trade; if (tr && tr.pos && hw.distanceTo(tr.pos) < Math.max(tr.radius || 0, 1.8 * L)) { skI.kind = 'trade'; skI.obj = tr; skI.label = 'F · TRADE'; return skI; }
-        var yd = !R27.dsite && STN().interior.shipyard; if (yd && yd.pos && yd.ships && hw.distanceTo(yd.pos) < Math.max(yd.radius || 0, 1.5 * L)) { skI.kind = 'shipyard'; skI.obj = yd; skI.label = 'F · SHIPYARD'; return skI; }
-        if (R27.dsite) { var dc = dkCrateNear(); if (dc) { skI.kind = 'loot'; skI.obj = dc; skI.label = 'F · LOOT'; return skI; } }
+        var yd = STN().interior.shipyard; if (yd && yd.pos && yd.ships && hw.distanceTo(yd.pos) < Math.max(yd.radius || 0, 1.5 * L)) { skI.kind = 'shipyard'; skI.obj = yd; skI.label = 'F · SHIPYARD'; return skI; }
         if (hw.distanceTo(ped.pos) < ped.radius + 0.3 * L) { skI.kind = 'map'; skI.label = 'F · GALAXY MAP'; return skI; }
         if (hw.distanceTo(shipRoot.position) < BOARD_L * L) { skI.kind = 'ship'; skI.label = R25.mod ? 'Z · ENTER SHIP · HOLD LAUNCH' : 'Z · LAUNCH'; return skI; }
         return skI;
@@ -9290,9 +8999,8 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         var si = stationInteract();
         if (si.kind === 'store') openStore(si.obj);
         else if (si.kind === 'cvs') cvsUse(si.obj);
-        else if (si.kind === 'trade') { if (si.obj.refresh && Math.floor(Date.now() / 864e5) !== si.obj.day) si.obj.refresh(); openTrade(si.obj, 'STATION TRADE', 'TRADER', null, 'st'); }      // roll the stock over at UTC midnight
+        else if (si.kind === 'trade') { if (si.obj.refresh && Math.floor(Date.now() / 864e5) !== si.obj.day) si.obj.refresh(); openTrade(si.obj, 'STATION TRADE', 'TRADER', 'st'); }      // roll the stock over at UTC midnight
         else if (si.kind === 'shipyard') openShipyard();
-        else if (si.kind === 'loot') dkLoot(si.obj);
         else if (si.kind === 'npc') {
             var n = si.obj; n.li = ((n.li | 0) + 1) % Math.max(1, n.lines.length);
             if (r28Talk({ id: 'station-' + n.name, name: n.name, role: 'shopper', kind: 'station', obj: n, seed: n.name })) return;
@@ -9310,7 +9018,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         shake *= Math.exp(-6 * dt);
         if (shake > 1e-4 * L) { vA.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * shake); camera.position.add(vA); }
         fov += (targetFov({ mode: gmode, base: baseFov }) + (gmode === 'foot' ? footFovAdd : 0) - fov) * damp(4, dt);
-        var near = gmode === 'ifoot' ? Math.min(0.002, 0.02 * L) : (gmode === 'sfoot' ? (R27.dsite ? Math.min(0.003, 0.01 * L) : 0.01 * L) : 0.02 * L);      // rev 27: 0.003 inside a derelict
+        var near = gmode === 'ifoot' ? Math.min(0.002, 0.02 * L) : (gmode === 'sfoot' ? 0.01 * L : 0.02 * L);
         if (Math.abs(camera.fov - fov) > 0.01 || camera.near !== near) { camera.fov = fov; camera.near = near; camera.updateProjectionMatrix(); }
         camera.updateMatrixWorld(true);
         fx.setMotion(vel, 0, false); fx.update(dt, camera);
@@ -9345,8 +9053,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         } else if (m === 'deck') {
             sfootStep(dt);
         }
-        if (R27.dsite) dkTick(dt);
-        else if (m === 'deck' && sk.lt > 0) dkLights(dt);      // Q45: the station deck ticks the landing lights too (dkTick is derelict-only; sk.lt never reached 0 so F at the counter stayed gated)
+        if (m === 'deck' && sk.lt > 0) dkLights(dt);      // Q45: the station deck ticks the landing lights too (sk.lt never reached 0 so F at the counter stayed gated)
         skCommon(dt);
         if (m === 'deck' || sk.mode === 'deck') {
             if (sk.nl > 0) { sk.nl -= dt; if (sk.nl <= 0 && net && net.setMode) net.setMode('foot'); }
@@ -9393,15 +9100,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         groundCam(dt, skC, vTmp, gQ, 16);
     }
 
-    // ═══ rev 27: wiring (audio ambience, weather, creatures + followers, suit, convoys, derelicts, ground predators, relay profile / discoveries / events) ═══
+    // ═══ rev 27: wiring (audio ambience, weather, creatures + followers, suit, ground predators, relay profile / discoveries / events) ═══
     // Every module hook is guarded: an older ship-audio / ship-planet / ship-enemies / ship-interior simply leaves its feature off.
     var R27 = {
-        su: { jetpack: 0, scanner: 0, sprint: 0, storage: 0 }, suitSig: '', suitT: 0, windOn: true, tamedKey: '', dsite: null, cvOn: false, titan: null,
+        su: { jetpack: 0, scanner: 0, sprint: 0, storage: 0 }, suitSig: '', suitT: 0, windOn: true, tamedKey: '', titan: null,
         fire: false, ffCd: 0, gnd: [], gT: 0, nestT: {}, nestSpec: null, nestFor: '', ambT: 0, wxTxt: '', evT: 0, evt: null, evKey: '', sale: 0, sg: 0, ndT: 0,
         meteor: { node: null, until: 0, t: 0, list: [] }, claimed: {}, touchSig: '', intSig: '', follow: { key: '', pet: null, holder: null, pp: new THREE.Vector3(), lpp: new THREE.Vector3(), init: false, name: '', chk: 0 },
         rl: { name: '', key: '', loaded: false, pend: false, retry: 0, sig: '', lastSend: 0, bigWarned: false }, wxOn: false
     };
-    function STN() { return R27.dsite || station; }
+    function STN() { return station; }
     var fsC2 = new THREE.Vector3(), fsW = new THREE.Vector3(), qW = new THREE.Quaternion();
     var r27R = new THREE.Vector3(), r27U = new THREE.Vector3(), r27F = new THREE.Vector3(), r27G = new THREE.Vector3(), r27T = new THREE.Vector3(), r27D = new THREE.Vector3(), r27Qi = new THREE.Quaternion(), r27Fo = { r: 0, n: new THREE.Vector3() };
     var r27A = new THREE.Vector3(), r27B = new THREE.Vector3(), r27C = new THREE.Vector3();
@@ -9433,15 +9140,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function salePrice(p) { return R27.sale > Date.now() ? 0 : p; }
 
-    // ── 5. trade overlay (convoys via space.hail, station via interior.trade) ──
-    function openTrade(trade, title, who, convoyId, stockKey) {
+    // ── 5. trade overlay (station via interior.trade) ──
+    function openTrade(trade, title, who, stockKey) {
         if (storeOpen || cmdOpen || state !== 'piloting' || !trade) return false;
         knownFor(); shopSt = null; shopTab = 0;
         if (stockKey) {      // restore what is left of today's stock (a reload no longer refills a bought-out shelf)
             var pf0 = curProfile(), sv = pf0 && pf0.tstock && pf0.tstock.day === dayKey() ? pf0.tstock.m[stockKey] : null;
             if (sv && trade.sells) trade.sells = trade.sells.filter(function (r) { if (!(r.id in sv)) return false; r.n = Math.min(r.n, sv[r.id] | 0); return r.n > 0; });
         }
-        shopOpenCommon({ mode: 'trade', trade: trade, cid: convoyId || '' }, title, who, convoyId ? 'Cargo is cargo. Make it quick.' : 'Prices move with the day.', null);
+        shopOpenCommon({ mode: 'trade', trade: trade }, title, who, 'Prices move with the day.', null);
         if (shopCtx) shopCtx.stockKey = stockKey || '';
         return true;
     }
@@ -9480,150 +9187,12 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         rec.n--; if (rec.n <= 0) pf.items.splice(row.i, 1);
         pf.gor = (pf.gor | 0) + row.price; aPlay('buy', { pitch: 0.8 }); shopMsg('SOLD ' + row.name + ' · +' + row.price); tradeSaveStock(); writeSave(); shopFill();
     }
-    // convoys: HUD markers (<= 300 L), hail at <= 20 L, piracy, hostile escorts, crates
-    var cvEls = [], cvNear = null, cvNearD = 1e30;
-    function cvEnsure() {
-        while (cvEls.length < 3) { var el = document.createElement('div'); el.className = 'sh-cvm'; el.style.display = 'none'; el.innerHTML = '<i></i><b></b>'; hud.appendChild(el); cvEls.push({ el: el, b: el.lastChild, on: false, txt: '', x: -1e9, y: -1e9, hot: false }); }
-    }
-    function cvTick() {
-        if (!space || !space.convoys || !space.convoys.length) { R27.cvOn = false; return; }
-        cvEnsure();
-        var P = shipRoot.position, i, j, c, W = window.innerWidth, H = window.innerHeight, any = false;
-        cvNear = null; cvNearD = 1e30;
-        for (i = 0; i < cvEls.length; i++) {
-            var m = cvEls[i], show = false; c = space.convoys[i];
-            if (c && c.ships[0] && c.ships[0].pos.x < 1e11 && !dead) {
-                var f = c.ships[0], d = f.pos.distanceTo(P) / L;
-                if (d < 600) any = true;
-                if (c.state === 'attacked') {          // hostile escorts: they harry the player
-                    for (j = 0; j < c.ships.length; j++) {
-                        var s = c.ships[j];
-                        if (s.kind !== 'fighter' || !s.alive) continue;
-                        var ds = s.pos.distanceTo(P) / L;
-                        if (ds < 160 && gt > (s.fireT || 0)) {
-                            s.fireT = gt + 1.3 + Math.random() * 1.2; r27A.subVectors(P, s.pos).normalize(); r27A.x += (Math.random() - 0.5) * 0.04; r27A.y += (Math.random() - 0.5) * 0.04; r27A.normalize();
-                            fireBolt(s.pos.x, s.pos.y, s.pos.z, r27A.x, r27A.y, r27A.z, 90 * L, 2.4, true, 5, L * 2, L * 0.15);
-                        }
-                    }
-                }
-                if (d <= 20 && c.state !== 'attacked' && c.state !== 'fled' && d < cvNearD) { cvNear = c; cvNearD = d; }
-                if (d < 300) {
-                    vSc.copy(f.pos).project(camera);
-                    if (vSc.z < 1 && vSc.z > -1 && Math.abs(vSc.x) < 1.05 && Math.abs(vSc.y) < 1.05) {
-                        show = true;
-                        var tx = (c.faction === 'dealers' ? 'DEALER' : 'CORP') + ' CONVOY ' + Math.round(d) + ' L' + (c.state === 'attacked' ? ' · HOSTILE' : (c === cvNear ? ' · F HAIL' : ''));
-                        if (tx !== m.txt) { m.txt = tx; m.b.textContent = tx; }
-                        var hot = c.state === 'attacked' || c === cvNear; if (hot !== m.hot) { m.hot = hot; m.el.classList.toggle('is-hot', hot); }
-                        var x = (vSc.x * 0.5 + 0.5) * W, y = (-vSc.y * 0.5 + 0.5) * H;
-                        if (Math.abs(x - m.x) > 0.5 || Math.abs(y - m.y) > 0.5) { m.x = x; m.y = y; m.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) translate(-50%,-50%)'; }
-                    }
-                }
-            }
-            if (show !== m.on) { m.on = show; m.el.style.display = show ? '' : 'none'; }
-        }
-        R27.cvOn = any;
-        var cr = space.crates;
-        for (i = 0; i < cr.length; i++) {          // crates: fly through them
-            c = cr[i]; if (c.taken || c.pos.distanceToSquared(P) > (8 * L) * (8 * L)) continue;
-            c.taken = true; var got = [];
-            for (j = 0; j < c.stacks.length; j++) { var st = c.stacks[j]; giveItem(st.item, st.n); got.push(st.n + ' ' + st.item.name); }
-            aPlay('buy', { pitch: 1.2 }); addRow('', '', 'CARGO CRATE · ' + got.join(', '), 'is-sys'); writeSave(); questEvent({ type: 'crate' });
-        }
-    }
-    function cvAttackNow(c) {
-        var d = space.attack(c.id), pf = ensureProfile(userName());
-        pf.rep.corp = clamp(pf.rep.corp + d.corp, -99, 99); pf.rep.dealers = clamp(pf.rep.dealers + d.dealers, -99, 99);
-        addRow('', '', 'PIRACY · ' + (c.faction === 'dealers' ? 'DEALERS' : 'CORP') + ' CONVOY HOSTILE · rep corp ' + pf.rep.corp + ' dealers ' + pf.rep.dealers, 'is-sys'); writeSave();
-    }
-    function cvBoltHit(bo, bp) {
-        var cs = space.convoys, i, j, pv = bo.prev;
-        for (i = 0; i < cs.length; i++) {
-            var c = cs[i];
-            for (j = 0; j < c.ships.length; j++) {
-                var s = c.ships[j]; if (!s.alive || s.pos.x > 1e11) continue;
-                var r = (s.kind === 'hauler' ? 14 : 3.5) * L;
-                if (segDistSq(pv.x, pv.y, pv.z, bp.x, bp.y, bp.z, s.pos.x, s.pos.y, s.pos.z) > r * r) continue;
-                if (c.state === 'cruising' || c.state === 'hailed') cvAttackNow(c);
-                if (s.hit) {
-                    var left = s.hit(bo.dmg); fx.impact(bp, 0xff8a5c, 1.6); aPlay('hit', { dist: aDist(bp), vel: 0.6 });
-                    if (left <= 0) { burst(s.pos, 18, 0, 18, 2); aPlay('explosion', { dist: aDist(s.pos), pitch: 1.1 }); addUnits(UNIT_KILL, s.pos, false); }
-                } else { fx.impact(bp, 0xffb35c, 2); aPlay('shieldHit', { dist: aDist(bp) }); }
-                return true;
-            }
-        }
-        return false;
-    }
-    function cvHail() {
-        if (!cvNear || dead || !space || typeof space.hail !== 'function') return false;
-        var t = null; try { t = space.hail(cvNear.id); } catch (e0) { t = null; }
-        if (!t) return false;
-        return openTrade(t, (cvNear.faction === 'dealers' ? 'DEALER' : 'CORP') + ' CONVOY', 'HAULER', cvNear.id, 'cv:' + cvNear.id);
-    }
-
-    // ── 6. derelicts: the station dock sequence on an adapter that quacks like `station` (deck floor shifted to y = 0) ──
-    function dkSite(d) {
-        if (d._site) return d._site;
-        var FY = d.crates && d.crates[0] ? d.crates[0].localPos.y : -0.5, b = d.deck.bounds, tmp = new THREE.Vector3(), V = THREE.Vector3;
-        var walls = d.deck.walls.map(function (w) { return { name: w.name, field: w.field, min: new V(w.min.x, w.min.y - FY, w.min.z), max: new V(w.max.x, w.max.y - FY, w.max.z) }; });
-        var pts = d.dockPath(), lastW = pts[pts.length - 1], lp = d.toLocal(lastW, new V());
-        var S = {
-            isDerelict: true, d: d, group: d.group, pos: d.pos, quat: d.quat, vel: new V(), mouth: d.mouth,
-            pads: [{ free: true, local: new V(lp.x, lp.y - FY, lp.z) }],
-            spawn: new V(lp.x, 0, lp.z - 1.5),
-            deck: { bounds: { min: new V(b.min.x, b.min.y - FY, b.min.z), max: new V(b.max.x, b.max.y - FY, b.max.z) }, walls: walls },
-            interior: { stores: [], npcs: [], mapPedestal: { pos: new V(1e9, 1e9, 1e9), radius: 0 }, trade: null },
-            toLocal: function (wp, out) { d.toLocal(wp, out); out.y -= FY; return out; },
-            toWorld: function (lv, out) { tmp.set(lv.x, lv.y + FY, lv.z); return d.toWorld(tmp, out); },
-            dockPath: function () { return d.dockPath(); }, launchPath: function () { return d.launchPath(); }, setVisible: function () {}
-        };
-        d._site = S; return S;
-    }
-    function dkTrigger(P) {
-        var ds = space.derelicts, i, k;
-        for (i = 0; i < ds.length; i++) {
-            var d = ds[i]; if (!d.group.visible || !d.mouth || !d.mouth.trigger) continue;
-            for (k = 0; k <= 4; k++) { vTmp.lerpVectors(bhPrev, P, k / 4); if (d.mouth.trigger(vTmp)) { beginDock(d); return; } }
-        }
-    }
-    function dkLeave() { R27.dsite = null; for (var i = 0; i < R27.gnd.length; i++) if (R27.gnd[i].site) R27.gnd[i].g.visible = false; R27.fire = false; }
-    function dkOnDock(d) {
-        if (d._gdDead) return;
-        for (var i = 0; i < R27.gnd.length; i++) if (R27.gnd[i].site && R27.gnd[i].site.d === d && R27.gnd[i].alive) { R27.gnd[i].g.visible = true; return; }
-        var tier = Math.max(1, (d.guardian && d.guardian.tier) | 0), seed = 0xD3AD + (d.index | 0) * 7717;
-        var e = gndMake(seed, tier, null);
-        if (!e) return;
-        e.site = R27.dsite; e.guard = d; e.lp.copy(R27.dsite.toLocal(d.guardian.pos, r27A)); e.lp.y = 0; e.aggro = 60; e.mode = 'derelict';
-        gndPlace(e);
-    }
-    function dkCrateNear() {
-        var d = R27.dsite && R27.dsite.d, i; if (!d) return null;
-        for (i = 0; i < d.crates.length; i++) { var c = d.crates[i]; if (!c.taken && c.pos.distanceToSquared(hum.w) < (0.7 * L) * (0.7 * L)) return c; }
-        return null;
-    }
-    function dkLoot(c) {
-        c.taken = true; var got = [], i;
-        for (i = 0; i < c.stacks.length; i++) { giveItem(c.stacks[i].item, c.stacks[i].n); got.push(c.stacks[i].n + ' ' + c.stacks[i].item.name); }
-        var bpI = r28BpDrop(c.id, c.rare ? 0.6 : 0.12); if (bpI) { giveItem(bpI, 1); got.push(bpI.name); }      // rev 28
-        aPlay(c.rare ? 'levelUp' : 'harvest'); addRow('', '', 'SALVAGE · ' + got.join(', '), 'is-sys'); writeSave();
-        for (i = 0; i < 3; i++) fx.impact(c.pos, c.rare ? 0xff5ce1 : 0xffb030, 2.5);
-    }
+    // ── 6. station dock lights ──
     function ownedN(id) { var pf = curProfile(), n = 0; if (pf) pf.items.forEach(function (r) { if (r.id === id) n += r.n; }); return n; }
     function dkLights(dt) {      // Q45: dock light sequence: a chase of impact flashes from the pad out to the mouth over DOCK_LT s
         sk.lt -= dt; var p = clamp(1 - sk.lt / DOCK_LT, 0, 1), st = Math.floor(p * 6);
         if (st > sk.ls && STN()) { sk.ls = st; STN().toWorld(sk.shipL, skB); vA.lerpVectors(skB, STN().mouth.pos, 1 - st / 6); fx.impact(vA, 0x9ab0ff, 1); }
         if (sk.lt <= 0) { sk.lt = 0; addRow('', '', 'DOCK LIGHTS GREEN', 'is-sys'); }
-    }
-    function dkTick(dt) { try { if (space) space.update(dt, shipRoot.position); } catch (e0) { warnOnce('space.update', e0); } if (sk.mode === 'deck') { if (sk.lt > 0) dkLights(dt); r27Foot(dt); } }
-    function dkCollide(p, r) {
-        var st = R27.dsite, b = st.deck.bounds, w = st.deck.walls, i, q;
-        p.x = clamp(p.x, b.min.x + r, b.max.x - r); p.z = clamp(p.z, b.min.z + r, b.max.z - r);
-        for (i = 0; i < w.length; i++) {
-            q = w[i]; if (q.name === 'mouthField') { if (p.z > q.min.z - r) p.z = q.min.z - r; continue; }
-            var cx = clamp(p.x, q.min.x, q.max.x), cz = clamp(p.z, q.min.z, q.max.z), dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
-            if (d2 >= r * r) continue;
-            if (d2 > 1e-12) { var dd = Math.sqrt(d2), k = (r - dd) / dd; p.x += dx * k; p.z += dz * k; }
-            else { var l = p.x - q.min.x, rr = q.max.x - p.x, t = p.z - q.min.z, bb = q.max.z - p.z, mn = Math.min(l, rr, t, bb); if (mn === l) p.x = q.min.x - r; else if (mn === rr) p.x = q.max.x + r; else if (mn === t) p.z = q.min.z - r; else p.z = q.max.z + r; }
-        }
     }
 
     // ── 7. ground predators (ship-enemies generateGroundEnemy / nestSpec; guarded) ──
@@ -9643,8 +9212,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gndFree(e) { e.alive = false; scene.remove(e.g); try { e.cr.dispose(); } catch (e0) { /* ignore */ } var i = R27.gnd.indexOf(e); if (i >= 0) R27.gnd.splice(i, 1); }
     function gndClear(mode) { for (var i = R27.gnd.length - 1; i >= 0; i--) if (!mode || R27.gnd[i].mode === mode) gndFree(R27.gnd[i]); }
     function gndPlace(e) {          // world position / up from the entity's frame, then the holder pose
-        if (e.mode === 'derelict') { if (!e.site) return; e.site.toWorld(e.lp, e.w); e.up.set(0, 1, 0).applyQuaternion(e.site.quat); }
-        else { if (!e.node) return; e.w.copy(e.dir).multiplyScalar(e.hr).applyQuaternion(e.node.mesh.quaternion).add(e.node.anchor.position); e.up.copy(e.hub ? HB.up : e.dir).applyQuaternion(e.node.mesh.quaternion); }
+        { if (!e.node) return; e.w.copy(e.dir).multiplyScalar(e.hr).applyQuaternion(e.node.mesh.quaternion).add(e.node.anchor.position); e.up.copy(e.hub ? HB.up : e.dir).applyQuaternion(e.node.mesh.quaternion); }
         e.face.addScaledVector(e.up, -e.face.dot(e.up)); if (e.face.lengthSq() < 1e-8) e.face.set(1, 0, 0).addScaledVector(e.up, 0); e.face.normalize();
         r27R.crossVectors(e.face, e.up); r27B.copy(e.face).negate();
         mM.makeBasis(r27R, e.up, r27B); e.g.quaternion.setFromRotationMatrix(mM); e.g.position.copy(e.w);
@@ -9663,7 +9231,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
                 if (e.cd <= 0 && dM < cr.moves[0].reachL * 1.1) { e.mv = dM > reach * 1.3 ? cr.moves[0] : cr.moves[1]; e.ph = 'tele'; e.t = 0; cr.att.type = e.mv.type; cr.att.ph = 'tele'; cr.att.u = 0; }
             }
             cr.setSpeed(moving ? st.speed : 0);
-            if (e.mode === 'derelict' && cr.setBurrowed) cr.setBurrowed(false);
         } else if (e.ph === 'tele') {
             e.t += dt; k = clamp(e.t / mv.tele, 0, 1); cr.att.ph = 'tele'; cr.att.u = k; cr.setWindup(k); cr.setSpeed(0);
             if (tl > 1e-9) e.face.lerp(r27C, damp(8, dt)).normalize();
@@ -9684,19 +9251,14 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     function gndMove(e, v, s) {
         if (!(s > 0)) return false;
         if (e.hub) return hubGndMove(e, v, s);
-        if (e.mode === 'derelict') {
-            r27A.copy(e.w).addScaledVector(v, s); e.site.toLocal(r27A, r27B); e.lp.x = r27B.x; e.lp.z = r27B.z; e.lp.y = 0; dkCollide(e.lp, 0.04);
-        } else {
-            r27A.copy(e.w).addScaledVector(v, s).sub(e.node.anchor.position).applyQuaternion(qW.copy(e.node.mesh.quaternion).invert()).normalize();
-            var fr = ps && ps.active === e.node ? mFloor(r27A.x, r27A.y, r27A.z, e.hr) : e.hr;
-            if (fr - e.hr < 0.03 * L + s) { e.dir.copy(r27A); e.hr = fr; return true; }          // never up a cliff taller than ~0.7 m (STEEV blocks are walls)
-            return false;
-        }
-        return true;
+        r27A.copy(e.w).addScaledVector(v, s).sub(e.node.anchor.position).applyQuaternion(qW.copy(e.node.mesh.quaternion).invert()).normalize();
+        var fr = ps && ps.active === e.node ? mFloor(r27A.x, r27A.y, r27A.z, e.hr) : e.hr;
+        if (fr - e.hr < 0.03 * L + s) { e.dir.copy(r27A); e.hr = fr; return true; }          // never up a cliff taller than ~0.7 m
+        return false;
     }
     function gndSphere(e, out) { out.copy(e.w).addScaledVector(e.up, e.cr.stats.height * 0.5 * GM * L); return e.cr.hitR * GM * L; }
     function footHurt(dmg) {          // on-foot damage never kills: you are knocked to a sliver and the shield regrows
-        dmg = +dmg; if (!isFinite(dmg)) return; if (sa.iF > 0 && curStyle) return; dmg = clamp(dmg, 0, 200);      // Q41: SWIFT dash i-frames
+        dmg = +dmg; if (!isFinite(dmg)) return; dmg = clamp(dmg, 0, 200);
               // PF2: peer-sent damage could be NaN (hp became NaN)
         hp = Math.max(6, hp - dmg); sinceHit = 0; aPlay('hit', { pitch: 0.55, vel: Math.min(1, dmg / 30) });
         shake = Math.max(shake, Math.min(0.5 * L, dmg / 20 * 0.2 * L)); fovKick = Math.max(fovKick, 1.5);
@@ -9705,7 +9267,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (e.mob) { mobKill(e, true); return; }
         for (var i = 0; i < 4; i++) fx.impact(e.w, 0xff8a5c, 3, 'explode');
         aPlay('kill', { dist: aDist(e.w) }); rewardKill((e.cr && e.cr.tier) || 1, e.w, 2, true);
-        if (e.guard) { e.guard._gdDead = true; addRow('', '', 'GUARDIAN DOWN', 'is-sys'); }
         if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000;
         questEvent({ type: 'kill', n: 1 });
         gndFree(e); writeSave();
@@ -9860,7 +9421,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         pf.party.push(mon.id);      // POKEDEX roster: unlimited; the active one is whoever activeMon names (first living by default)
         PKP.trimMons(pf, PKC.PARTY_MAX);      // after the new mon is in party/pen, so a full roster can never evict the catch itself
         if (!pf.items.some(function (r) { return r.id === 'pokedex'; })) giveItem(ITM.POKEDEX, 1);      // the first catch hands over the POKEDEX (the only POKEMANS item in the pack)
-        if (e) { if (e.guard) e.guard._gdDead = true; if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }      // PF2: a caught guardian is dead for the guard spawner too, as in gndKill
+        if (e) { if (e.nest) R27.nestT[e.nest] = Date.now() + (e.respawn || 120) * 1000; gndFree(e); }      // PF2: a caught guardian is dead for the guard spawner too, as in gndKill
         else if (g) { try { ps.setCreatureTamed(g.id, true); } catch (e0) { /* ignore */ } crCache.t = -1e9; pf.taken.push({ n: pid, id: g.id, k: g.kind }); pf.taken = pf.taken.slice(-40); }
         try { ptSpoils(sp.tier, 'catch'); } catch (e2) { warnOnce('graft.drop', e2); }
         discClaim('creature', pid + ':' + sp.name, sp.name);
@@ -10037,7 +9598,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     window.addEventListener('keyup', function (e) { if (e.code !== 'KeyB' || !GB.aim) return; GB.aim = false; if (state === 'piloting') gbThrow(); }, true);
     function footFireTick(dt) {
         if (R27.ffCd > 0) R27.ffCd -= dt;
-        if (!R27.fire || curStyleId === 'STEEV' || R27.ffCd > 0 || cmdOpen || storeOpen || invOpen || !hum.obj || dead) return;
+        if (!R27.fire || R27.ffCd > 0 || cmdOpen || storeOpen || invOpen || !hum.obj || dead) return;
         var wp = curWeapon(), st = wp.stats || STARTER.stats, H = hOf(L);
         R27.ffCd = 1 / clamp((st.rate || 4) * 0.7, 1, 5);
         r27A.set(0, 0, -1).applyQuaternion(camera.quaternion);                           // aim ray: camera centre
@@ -10113,17 +9674,15 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         for (var i = R27.gnd.length - 1; i >= 0; i--) {
             var e = R27.gnd[i];
             if (e.mode === 'planet' && (gmode !== 'foot' || !land.node || e.node !== land.node)) { gndFree(e); continue; }
-            if (e.mode === 'derelict' && !(R27.dsite && R27.dsite === e.site)) { e.g.visible = false; continue; }
-            if (e.styHeld) { e.g.visible = true; styCarry(e); gndPlace(e); continue; }      // Q41: HAULER carries it
             if (e.held) { e.g.visible = false; continue; }      // Q12: inside a GOR BALL while it shakes
             e.g.visible = true; gndPlace(e); if (e.mob) { if (!(e.sleepT > gt)) mobStep(e, dt, hw); } else gndStep(e, dt, hw); if (!e.alive) continue; gndPlace(e); e.cr.update(gt + R27.t, dt);
         }
     }
-    function r27Foot(dt) {          // on foot on a planet, or on foot inside a derelict
+    function r27Foot(dt) {          // on foot on a planet
         mobTick(dt);
-        var onP = gmode === 'foot' && hum.obj, onD = !!R27.dsite && gmode === 'sfoot' && hum.obj;
+        var onP = gmode === 'foot' && hum.obj;
         if (!onP) { elWC.style.display = 'none'; elWLk.style.display = 'none'; }
-        if (!onP && !onD) { R27.fire = false; return; }
+        if (!onP) { R27.fire = false; return; }
         sinceHit += dt; if (sinceHit > 5 && hp < HP_MAX) hp = Math.min(HP_MAX, hp + 5 * dt);
         footFireTick(dt);
         if (onP) gbTick(dt); else { gbHintText = ''; if (GB.on) { if (GB.e) GB.e.held = false; gbEnd(); } else if (GB.m) GB.m.visible = false; }
@@ -10132,7 +9691,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     document.addEventListener('mousedown', function (e) {
         if (state !== 'piloting' || e.button !== 0 || cmdOpen || !locked()) return;
-        if (gmode === 'foot' || (gmode === 'sfoot' && R27.dsite && sk.mode === 'deck')) R27.fire = true;
+        if (gmode === 'foot') R27.fire = true;
     }, true);
     document.addEventListener('mouseup', function (e) { if (e.button === 0) R27.fire = false; }, true);
 
@@ -10484,7 +10043,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     }
     function planetNodes() { var d = engine.drawOrder || [], out = [], i; for (i = 0; i < d.length; i++) { var n = d[i]; if (n && n.anchor && n.mesh && !n.isSun && n.mesh.scale && n.mesh.scale.x > 0) out.push(n); } return out; }
     function planetOfId(pid) { var a = planetNodes(); return a.length ? a[((pid | 0) % a.length + a.length) % a.length] : null; }
-    var EVT_TXT = { titan: 'A TITAN IS HUNTING NEAR ', meteor: 'METEOR SHOWER OVER ', friesSale: 'BURGER HOUSE FRIES ARE FREE', blockade: 'PIRATE BLOCKADE AT THE STATION' };
+    var EVT_TXT = { titan: 'A TITAN IS HUNTING NEAR ', meteor: 'METEOR SHOWER OVER ', friesSale: 'BURGER HOUSE FRIES ARE FREE' };
     function r27Event(ev) {
         if (!EVT_TXT[ev.kind]) return;
         var key = ev.kind + ':' + Math.round((Date.now() + ev.left * 1000) / 20000);
@@ -10506,15 +10065,6 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             R27.titan = { title: title, pos: new THREE.Vector3().copy(pl.anchor.position).addScaledVector(out, pl.mesh.scale.x * 1.5 + 0.7 * len + 300 * L) };
             qPush(gt + 0.5, BOSS_ROLES[(wave >> 2) % 5], BOSS_TIERS.titan, (Math.random() * 1e9) | 0, 3, title, 0, false, false);
             ev.applied = true; addRow('', '', 'TITAN SIGHTED · ' + planetLabel(pl).toUpperCase(), 'is-sys');
-        } else if (ev.kind === 'blockade') {
-            var cs = space.convoys, anchor = station && station.group.visible ? station.pos : shipRoot.position, i, j;
-            for (i = 0; i < cs.length && i < 2; i++) {
-                var c = cs[i];
-                try { if (space.debugNear) space.debugNear('convoy', i, anchor, 90 + i * 25, null); } catch (e0) { /* ignore */ }
-                c.state = 'attacked'; c.faction = i ? 'dealers' : 'corp';
-                for (j = 0; j < c.ships.length; j++) if (c.ships[j].kind === 'fighter') { c.ships[j].alive = true; c.ships[j].hp = 60; }
-            }
-            ev.applied = true; addRow('', '', 'BLOCKADE · 2 convoys are hostile near the station', 'is-sys');
         } else ev.applied = true;
     }
     var meteorFx = [];
@@ -10556,7 +10106,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         if (!am || typeof am.set !== 'function') return;
         R27.ambT -= dt; if (R27.ambT > 0) return; R27.ambT = 0.1;
         var o = ambO, node = ps && ps.active, depth = (node && ps.depth > 0.02) ? ps.depth : 0, place = 'space';
-        if (gmode === 'ifoot' || R27.dsite || HB.in) place = 'interior';      // hub.ambience = 'hub' has no bed of its own yet: the interior bed
+        if (gmode === 'ifoot' || HB.in) place = 'interior';      // hub.ambience = 'hub' has no bed of its own yet: the interior bed
         else if (gmode === 'docking' || gmode === 'launching' || gmode === 'sfoot') place = storeOpen ? 'store' : 'station';
         else if (storeOpen) place = 'store';
         else if (depth > 0) place = (gmode === 'foot' || gmode === 'landed' || gmode === 'landing') ? 'surface' : 'atmo';
@@ -10661,21 +10211,21 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
             stationToWorld: function (v, q) { if (!station) return false; station.toWorld(v, v); q.premultiply(station.quat); return true; },
             planetToWorld: planetToWorld, planetKnown: function (pid) { var n = plNodes[pid]; if (!n) { var dl = engine.drawOrder; for (var i = 0; i < dl.length; i++) if (String(dl[i].id) === pid) { n = dl[i]; break; } plNodes[pid] = n || null; } return !!(n && n.mesh && n.anchor); },
             onPl: mobNetMsg, onProf: r27Prof, onDisc: r27Disc, onEvent: r27Event, onOpen: r27NetOpen,
-            hOf: hOf, buildHuman: function (color, sid) { return makeHuman(color, sid || ''); }, skinHuman: function (h, id) { skinRig(h, id); },
+            hOf: hOf, buildHuman: function (color, sid) { return makeHuman(color, sid || ''); },
             getPose: function () {
-                if (gmode === 'sfoot' && !R27.dsite) {        // rev 22: station frame. x/y/z are STATION-LOCAL (L units); v = -1 flags it (the relay passes v through untouched)
+                if (gmode === 'sfoot') {        // rev 22: station frame. x/y/z are STATION-LOCAL (L units); v = -1 flags it (the relay passes v through untouched)
                     var onDeck = sk.nl <= 0, qq = skQ2.setFromAxisAngle(Y, sk.yaw);
                     if (onDeck) return { x: sk.hp.x, y: sk.hp.y, z: sk.hp.z, qx: qq.x, qy: qq.y, qz: qq.z, qw: qq.w, v: -1, st: (sk.moving ? 1 : 0) | (sk.running ? 2 : 0) | (sk.air ? 4 : 0) | (glowOn ? 8 : 0), hp: hp / HP_MAX * 100 };
                     return { x: sk.shipL.x, y: sk.shipL.y, z: sk.shipL.z, qx: 0, qy: 0, qz: 0, qw: 1, v: -1, st: 0, hp: hp / HP_MAX * 100 };
                 }
                 if (gmode === 'foot' && hum.obj) {
                     var hp0 = hum.obj.group.position, hq = hum.obj.group.quaternion;
-                    return poseLocal({ x: hp0.x, y: hp0.y, z: hp0.z, qx: hq.x, qy: hq.y, qz: hq.z, qw: hq.w, v: 0, st: (hum.moving ? 1 : 0) | (hum.running ? 2 : 0) | (hum.air ? 4 : 0) | (glowOn ? 8 : 0) | (curStyleId ? 16 : 0), hp: hp / HP_MAX * 100 });
+                    return poseLocal({ x: hp0.x, y: hp0.y, z: hp0.z, qx: hq.x, qy: hq.y, qz: hq.z, qw: hq.w, v: 0, st: (hum.moving ? 1 : 0) | (hum.running ? 2 : 0) | (hum.air ? 4 : 0) | (glowOn ? 8 : 0), hp: hp / HP_MAX * 100 });
                 }
                 var p = shipRoot.position, q = shipRoot.quaternion, po = { x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, v: speed, st: (boostNow ? 1 : 0) | (pulse > 0.5 ? 2 : 0) | (dead ? 4 : 0) | (glowOn ? 8 : 0), hp: hp / HP_MAX * 100 };
                 return (gmode === 'landed' || gmode === 'landing') ? poseLocal(po) : po;
             },
-            getPrefs: function (id) { return { name: userName(id), color: effColor(), hs: hullSigNow, style: curStyleId }; },
+            getPrefs: function (id) { return { name: userName(id), color: effColor(), hs: hullSigNow }; },
             buildGhost: function (sig) {         // rev 12: docked ghosts show the low-LOD hull; the full hull swaps in while they fly (ghostFx)
                 var g = null;
                 try {
@@ -11028,7 +10578,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     // ── 6. station board + greeting ──
     var R28_QK = { kill: 'bounty', harvest: 'mine', deliver: 'trade', scan: 'scout', retrieve: 'mine', escort: 'trade' };
     function r28Dock() {
-        var site = STN(); if (!site || !site.interior || R27.dsite) return;
+        var site = STN(); if (!site || !site.interior) return;
         try {
             var qb = site.interior.questBoard;
             if (qb && qb.setQuests) { var offers = QST.offerSet('board|' + qDay(), questCtx('board'), 3); qb.setQuests(offers.map(function (q) { return { title: q.title, reward: (q.reward && q.reward.gor) | 0, kind: R28_QK[q.kind] || 'bounty' }; })); }
@@ -11065,20 +10615,19 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
     var api = {
         rev27: {          // test hooks
             get R() { return R27; }, get sk() { return sk; }, get space() { return space; }, get hum() { return hum; }, get gnd() { return R27.gnd; }, get L() { return L; }, get gmode() { return gmode; }, get hp() { return hp; },
-            hail: cvHail, get cvNear() { return cvNear; }, openTrade: openTrade, tradeFill: tradeFill, discClaim: discClaim, event: r27Event, suitOf: suitOf, suitSync: suitSync, petToggle: petFollowToggle, creatList: creatList, flushCreat: function () { crCache.t = -1e9; }, tameFind: tameFind,
-            beginDock: beginDock, dkSite: dkSite, gndMove: gndMove, gndPlace: gndPlace, gndStep: gndStep, spawnGround: function (kind, tier) {
+            openTrade: openTrade, tradeFill: tradeFill, discClaim: discClaim, event: r27Event, suitOf: suitOf, suitSync: suitSync, petToggle: petFollowToggle, creatList: creatList, flushCreat: function () { crCache.t = -1e9; }, tameFind: tameFind,
+            beginDock: beginDock, gndMove: gndMove, gndPlace: gndPlace, gndStep: gndStep, spawnGround: function (kind, tier) {
                 var e = gndMake((Math.random() * 1e9) | 0, tier || 1, kind || undefined); if (!e) return null;
-                if (R27.dsite) { e.mode = 'derelict'; e.site = R27.dsite; e.lp.copy(sk.hp); e.lp.z -= 4; e.lp.y = 0; }
-                else { e.mode = 'planet'; e.node = land.node; e.dir.copy(hum.pos).normalize(); r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.dir.addScaledVector(r27C, 8 * hOf(L) / (ps.radius || 1)).normalize(); e.hr = mFloor(e.dir.x, e.dir.y, e.dir.z); }
+                { e.mode = 'planet'; e.node = land.node; e.dir.copy(hum.pos).normalize(); r27C.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); r27C.addScaledVector(e.dir, -r27C.dot(e.dir)).normalize(); e.dir.addScaledVector(r27C, 8 * hOf(L) / (ps.radius || 1)).normalize(); e.hr = mFloor(e.dir.x, e.dir.y, e.dir.z); }
                 e.aggro = 40; gndPlace(e); return e;
             },
             footFire: function (on) { R27.fire = !!on; }, windOff: function (b) { R27.windOn = !b; }, wind: function () { return ps && ps.wind ? ps.wind.clone() : null; }
         },
         mashup: {
-            get MB() { return MB; }, get BK() { return BK; }, get styStats() { return styStats; }, get style() { return curStyle; }, get ctx() { return styCtx; }, get tgt() { return styTgt; }, get fov() { return styFov; },
-            blkFloor: blkFloor, footFloor: function (dir, H, ref) { return footFloor(dir, H, ref); }, saved: function () { var pf = curProfile(), d = pf && pf.blk && pf.blk[BK.nid]; return d ? d.c.length : 0; }, mobs: mobList, spawn: function (kind, distH, ang) { return mobSpawnAt(kind, distH == null ? 12 : distH, ang || 0); }, night: function (v) { MB.nightForce = (v == null || v < 0) ? -1 : +v; }, peaceful: function (b) { MB.peaceful = !!b; },
-            place: function (i, j, k, mat) { return bkPlace(i, j, k, mat || 'stone'); }, cellAhead: function () { var T = bkTarget(); return { px: T.px, py: T.py, pz: T.pz, dist: T.dist, mat: T.mat }; }, brk: bkBreak, explodeBlocks: bkExplode, punch: punch, tongue: tongueGrab,
-            hurt: mobHurt, snapNow: function () { MB.snapT = 0; }, applySnap: mobApplySnap, netMsg: mobNetMsg, setStyle: function (id) { styleSet(id, true); }, hostId: function (h) { MB.hostId = h; }
+            get MB() { return MB; }, get fov() { return styFov; },
+            footFloor: function (dir, H, ref) { return footFloor(dir, H, ref); }, mobs: mobList, spawn: function (kind, distH, ang) { return mobSpawnAt(kind, distH == null ? 12 : distH, ang || 0); }, night: function (v) { MB.nightForce = (v == null || v < 0) ? -1 : +v; }, peaceful: function (b) { MB.peaceful = !!b; },
+            punch: punch,
+            hurt: mobHurt, snapNow: function () { MB.snapT = 0; }, applySnap: mobApplySnap, netMsg: mobNetMsg, hostId: function (h) { MB.hostId = h; }
         },
         village: {
             get raw() { return VG; }, get v() { return VG.v; },
@@ -11106,12 +10655,10 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         rev25: {
             set noInterior(b) { R25.noInt = !!b; },
             get snap() { return resumeSnap; }, get lfState() { return { on: lf.on, alt: lf.alt, hover: lf.hover }; },
-            get ix() { return ix.on; }, get int() { return R25.int; }, get craftOn() { return R25.craftOn; }, get grid() { return craftGrid; },
-            enterInterior: enterInterior, leaveInterior: leaveInterior, interiorF: interiorF, ixTarget: ixTarget, forceCraft: function (b) { R25.force = !!b; r25CraftAvail(); if (invOpen) invFill(); },
+            get ix() { return ix.on; }, get int() { return R25.int; }, get modReady() { return !!R25.mod; }, get craftOn() { return R25.craftOn; }, get grid() { return craftGrid; },
+            enterInterior: enterInterior, leaveInterior: leaveInterior, enterInteriorFlight: enterInteriorFlight, leaveInteriorFlight: leaveInteriorFlight, get ixf() { return IXF; }, interiorF: interiorF, ixTarget: ixTarget, forceCraft: function (b) { R25.force = !!b; r25CraftAvail(); if (invOpen) invFill(); },
             give: function (it, n) { giveItem(it, n || 1); writeSave(); return ensureProfile(userName()).items.length; }, openInv: openInv,
-            fastForward: function () { var pf = curProfile(); pf.board.list.forEach(function (m) { if (m.end > 0) m.end = Date.now() - 1; }); missionTick(); return pf.gor; },
-            assign: function (i) { var pf = curProfile(), b = r25Board(), m = b.list[i | 0], c = pf.crew.filter(function (x) { return !x.busy; })[0]; if (!m || !c) return false; m.crewId = c.id; m.start = Date.now(); m.end = m.start + m.minutes * 60000; c.busy = m.id; boardSync(); writeSave(); return true; },
-            petItem: petItem, hire: function (c) { R25.cand = c; r25Hire(); }, tameFind: tameFind, tameStart: tameStart, get tame() { return tame; }, scrap: r25Scrap, ik: ik,
+            petItem: petItem, tameFind: tameFind, tameStart: tameStart, get tame() { return tame; }, scrap: r25Scrap, ik: ik,
         },
         rev28: {
             get R() { return R28; }, get dlg() { return { open: DLG.open, id: DLG.id, name: DLG.name, text: DLG.res ? DLG.res.text : '', choices: DLG.ch.map(function (c) { return c.label; }), done: !!(DLG.res && DLG.res.done), mood: DLG.mood }; },
@@ -11176,7 +10723,7 @@ var firing = false, fireTapT = 0, fireCd = 0, fireSide = 0, playerFired = false;
         shopBuy: function (id) { for (var i = 0; i < shopRows.length; i++) if (shopRows[i].item && shopRows[i].item.id === id) { var n0 = ownedN(id); shopPick(i); return ownedN(id) > n0; } return false; },
         npcs: function () { return npcAudit().map(function (a) { return { id: a.id, kind: a.kind, pos: a.pos, reachable: a.reachable, floorDy: a.floorDy, distToPad: a.distToPad }; }); }, gotoNpc: npcGoto, talkNearest: function () { onKeyTalk(); return DLG.open; }, resetWorld: function () {       // Q39 harness hook: clear what one g-test leaves for the next (enemies, ground mobs, mob bolts, fight, held fire/freeze); re-seeds nothing
             var i; try { if (FG.on) fightEnd(); } catch (e0) { warnOnce('reset.fight', e0); }
-            clearFight(); styDrop();
+            clearFight();
             for (i = R27.gnd.length - 1; i >= 0; i--) if (R27.gnd[i].mob) gndFree(R27.gnd[i]);
             MB.bolts.length = 0; MB.hitQ.length = 0; MB.evQ.length = 0; MB.freeze = false; MB.nightForce = -1;
             firing = false; mdx = mdy = 0; cmdOpen = false; FG.ask = null; return true;

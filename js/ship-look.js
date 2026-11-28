@@ -10,6 +10,7 @@
 //     softMat(T, ps, opts)        THE lit material: vertex colour + vertex normal, shared planet light rig (sky fill + wrapped sun key + moon key + fog, exactly ship-planet LIGHT_GLSL) with a
 //                                 4-step soft toon ramp on the key and a faint view rim. opts.flat = true derives normals per pixel (geometry with no normal attribute), opts.ambient = the flat ambient floor (0.22; the station hangar uses a brighter one).
 //                                 Binds to ps.shared (uLightDir, uUpW, uFogCol, uFogK, uNight) or globalThis.EMGOR_SKY_UNIFORMS.
+//     NEAR_FADE                   { value } shared uniform: surfaces (not up-facing) closer than value world units to the camera dissolve to ~15 % coverage. ship-foot.js drives it (1.2 H on foot).
 //     glowMat(T, uTime)           the emissive twin (neon, windows, lamps): vertex colour, a slow shimmer, no lighting, no tone map.
 //     unlitMat(T, opts)           MeshBasicMaterial pass-through for baked-light / flat things (hub stone, flames, glass): one place to restyle them.
 //     LOOK                        tunables: STEPS (toon bands, baked into the shader define), SOFT (band edge softness), RIM, and BEVEL { geoMin, softMin, frac, rMax, m }.
@@ -68,7 +69,7 @@ void main(){
   #include <logdepthbuf_vertex>
 }`;
 const FRAG_SOFT = /* glsl */`
-uniform vec3 uLight; uniform vec3 uUpW; uniform vec3 uSky; uniform float uFogK; uniform float uNightF; uniform float uRim; uniform float uSoft; uniform float uAmb;
+uniform vec3 uLight; uniform vec3 uUpW; uniform vec3 uSky; uniform float uFogK; uniform float uNightF; uniform float uRim; uniform float uSoft; uniform float uAmb; uniform float uNear;
 varying vec3 vC; varying vec3 vV; varying vec3 vNw;
 #include <common>
 #include <logdepthbuf_pars_fragment>
@@ -84,6 +85,12 @@ void main(){
     if (dot(N, N) < 0.5) N = normalize(cross(dFdx(vV), dFdy(vV)) * mat3(viewMatrix));
     vec3 Nv = normalize(mat3(viewMatrix) * N);
   #endif
+  // camera near-fade (ship-foot.js sets NEAR_FADE): a wall / ceiling / awning within uNear (1.2 H) of the lens dissolves to ~15 % coverage (screen-door dither, no sorting). Up-facing surfaces (floors, plate tops) never fade.
+  float nd = length(vV);
+  if (uNear > 0.0 && nd < uNear && dot(N, Uw) < 0.75) {
+    float cov = mix(0.15, 1.0, smoothstep(0.55 * uNear, uNear, nd));
+    if (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) > cov) discard;
+  }
   float h = dot(N, Uw) * 0.5 + 0.5;
   vec3 fill = mix(vC * vec3(0.2, 0.13, 0.3), uSky * 0.8 + vec3(0.04, 0.02, 0.09), h);
   float w = clamp((dot(N, Lw) + 0.3) / 1.3, 0.0, 1.0);
@@ -107,11 +114,12 @@ void main(){
   gl_FragColor = vec4(vC * (0.94 + 0.08 * sin(uTime * 3.0 + vC.g * 9.0 + vV.x * 0.02)), 1.0);
   #include <colorspace_fragment>
 }`;
+export const NEAR_FADE = { value: 0 };      // world units: fade radius around the camera for every softMat surface (0 = off). ship-foot.js sets 1.2 H each foot frame.
 export function softMat(T, ps, opts) {
   opts = opts || {};
   const m = new T.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG_SOFT, vertexColors: true, side: T.DoubleSide, defines: Object.assign({ STEPS: LOOK.STEPS }, opts.flat ? { FLAT_N: 1 } : {}),
-    uniforms: { uLight: { value: new T.Vector3(-0.62, 0.52, 0.4).normalize() }, uUpW: { value: new T.Vector3(0, 1, 0) }, uSky: { value: new T.Color(0.36, 0.3, 0.5) }, uFogK: { value: 0 }, uNightF: { value: 0 }, uRim: { value: LOOK.RIM }, uSoft: { value: LOOK.SOFT }, uAmb: { value: opts.ambient != null ? opts.ambient : 0.22 } },
+    uniforms: { uNear: NEAR_FADE, uLight: { value: new T.Vector3(-0.62, 0.52, 0.4).normalize() }, uUpW: { value: new T.Vector3(0, 1, 0) }, uSky: { value: new T.Color(0.36, 0.3, 0.5) }, uFogK: { value: 0 }, uNightF: { value: 0 }, uRim: { value: LOOK.RIM }, uSoft: { value: LOOK.SOFT }, uAmb: { value: opts.ambient != null ? opts.ambient : 0.22 } },
   });
   const S = (ps && ps.shared) || (typeof globalThis !== 'undefined' && globalThis.EMGOR_SKY_UNIFORMS) || null;
   if (S) { const u = m.uniforms; u.uLight = S.uLightDir; u.uUpW = S.uUpW; u.uSky = S.uFogCol; u.uFogK = S.uFogK; u.uNightF = S.uNight; }

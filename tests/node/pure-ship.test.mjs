@@ -197,7 +197,7 @@ test('craft: every recipe round-trips its own pattern through match(), sells <= 
 });
 test('craft: recipe table integrity (unique ids, valid tokens, known slots, blueprints reference recipes)', () => {
   const ids = CR.RECIPES.map((r) => r.id); assert.equal(new Set(ids).size, ids.length, 'duplicate recipe ids'); assert.ok(ids.length >= 80);
-  const outs = new Set(ids), SLOTS = ['scope', 'coil', 'chamber', 'engine', 'shield', 'cargo', 'jetpack', 'fuel', 'pens', 'pods'];
+  const outs = new Set(ids), SLOTS = ['scope', 'coil', 'chamber', 'engine', 'shield', 'cargo', 'jetpack', 'fuel', 'pens'];
   for (const r of CR.RECIPES) {
     const toks = r.shapeless ? r.list : [].concat.apply([], r.rows).filter(Boolean); assert.ok(toks.length >= 1 && toks.length <= 9, r.id + ' size ' + toks.length);
     for (const t of toks) { const b = t.replace(/^~/, ''); if (b.startsWith('out:')) assert.ok(outs.has(b.slice(4)), `${r.id}: unknown out ${b}`); else if (b.startsWith('res:')) assert.ok(['crystal', 'plant', 'ore', 'ice', 'spore'].includes(b.slice(4)), `${r.id}: ${b}`); }

@@ -1,5 +1,8 @@
 # NO MANS GOR — HANDOFF (current state 2026-11-04; history below)
 
+> **2026-11-27 spine cut (Mac, verified by node tests + g10/g17/g24/gW3 and interior tests in Chrome):** one spine. Cut: mashup movement styles (MARO/JOSHI/STEEV/SONIK + variants), STEEV blocks, crew/missions, convoys/derelicts, Burger House crew candidate; ship-foot is a single walker (`styleStep`/`styleSync`/`curStyle` gone), ship-styles.js keeps only normRig / wallNormal2 / jetpack input model (originals in `js/_attic/`; cut list in `docs/audit-2026-11-25/changes-spine.md`). Ship colours restored to the 10 original families. Camera LOS pass on foot (wall/roof pull-in). Interior toggle is instant: F in flight enters, F at the cockpit leaves. 7 night mob kinds. H_RATIO is 0.27. GOR BRAWL (smash-*) keeps its own MARO/JOSHI/STEEV/SONIK fighters.
+
+
 > **2026-11-25 overhaul (Mac, three Sonnet builders, verified only by node tests + g10/g17/g24 in headless Chrome, NOT by eye):** full audit + change logs in `docs/audit-2026-11-25/` (audit-*.md, changes-world.md, changes-pokemans.md, changes-brawl.md, each with an owner by-eye checklist). Headlines: 7/11 moved off the landing pad (offset from the real pad radius); every building box rounded by default + toon look module `js/ship-look.js`; ceilings 2.8 H, doors 1.0x1.6 H, huts 3.5x3 H; on-foot camera wall/roof pull-in + indoor mode (boom 1.6 H, FOV +10) + outdoor boom 3.2 H with wheel zoom 2-5 H; walk 4 / run 9 H/s with eased accel; bell / well / hut doors / Burger seats interactive (F). POKEMANS is a real-time on-foot loop now: wilds are ~1 H (log-normal 0.5-2 H, 5% to 3.5 H, 6 body plans), blaster damages them, they fight back, catch chance rises as HP drops (5% full -> ~70-90% low), partner hops out and assists, GOR BALL reach 40 H with lock reticle; single POKEDEX item opens an uncapped roster (one active follower); Alt+1-6 / 0-then-1-6 party swap REMOVED; pixel battle screen (`pokemans-battle.js`) DELETED. GOR BRAWL: FAST physics preset default (CLASSIC selectable), sim 1.15x local, dash burst + dash dance, per-fighter physics, tighter camera, KO hitlag/zoom/sparks, 9-level bot ladder (`js/smash-geom.js` read-only API), NPC levels villager L3-4 / trader L5 / guard L6 / elder L8 / golum L9.
 
 
@@ -12,7 +15,7 @@ Nothing on this branch is merged to main or seen by eye. The gorcave builder (So
 | engine, galaxy tree, pilot scale/clearance, floating origin | `js/galaxy3d.js` | pilot planet scale {4,3} (Q22, pure clearance test `pilot-clearance.test.mjs`); revert = `{root:6,deep:4}` |
 | game loop, flight, landing, HUD, chat cmds, save/pose, fights, CVS use, GOR BALL flight | `js/ship.js` (~10k lines) | split in progress: `ship-foot.js` done (Q27), next candidates in Q27 log |
 | on-foot controller | `js/ship-foot.js` | `createFoot(ctx)`; collision (footFloor/mFloor/objBegin/objPush), hubFootStep, style bridge still in ship.js |
-| H/L scale | `js/ship-scale.js` | `H_RATIO` 0.2 (ship ~5 H), `hOf(L)`; change the ratio only here |
+| H/L scale | `js/ship-scale.js` | `H_RATIO` 0.27, `hOf(L)`; change the ratio only here |
 | planet terrain, sites/pads (6 slots), creatures, rocks API, weather | `js/ship-planet.js` | shader pad slots 5->6 in Q14 (3 GLSL copies) |
 | 7/11, Burger House, CVS, resources | `js/ship-world.js` | |
 | station (docking/launching, deck, station CVS, markers) | `js/ship-station.js` | |
@@ -44,7 +47,7 @@ Z ship (land / step out / board; HOLD = lift off / summon) · W lift off (landed
 ### Open VERIFY ON MAC (BENCHMARK-1..6 condensed; per-item detail in GORCAVE-LOG.md)
 1. g1-g19 in batches (above). Expect g10 pass (Q16); g13 formation ratio ~0.99-1.0; g15 may show punch.noSpawn.
 2. Planet shader pad slots 5->6 (`uPadD[6]`, 3 GLSL copies): no blank planets, no seams at pads. Riskiest edit in the branch.
-3. Scale: H_RATIO 0.2 and pilot {4,3}: player beside ship, hut door, 7/11 + CVS + hub arch, creatures; landing approach (the 2026-10-14 failure mode). Revert = H_RATIO / `{root:6,deep:4}`.
+3. Scale: H_RATIO 0.27 and pilot {4,3}: player beside ship, hut door, 7/11 + CVS + hub arch, creatures; landing approach (the 2026-10-14 failure mode). Revert = H_RATIO / `{root:6,deep:4}`.
 4. Landing: Q03 auto-damp under 3 L, `Z · LAND` while cruising, "SLOW DOWN to land" at speed >= 2; hint bar fades 10 s, returns 6 s on mode change; marker count (ship + 3 + quest); boss HUD 3 bars + pips.
 5. Fights: villager easy / elder hard; idle payout 0; result card coin/xp/part/bond/line/who (Q31); trainer fight end to end (Q24).
 6. POKEMANS loop: shoot a wild with the blaster (HP chip, it fights back, partner hops out), hold B (8-dot arc, 40 H, lock reticle + catch %), 1-3 shakes resolved per shake, caught; starter kit = 3 GOR BALL + POKEDEX; summon, fights beside you, T radial, U manager, faint, REVIVE at planet + station CVS; grafts, food tutor, bond 10/30, DEX tab. GOR BALL on a fast-rotating planet stays on its arc (Q32 `gbLocalize/gbProject`, riskiest frame math). Full bag (400 stacks): no follower flicker, BAG FULL rows.

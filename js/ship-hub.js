@@ -29,19 +29,20 @@ const ARCH = 1.65, ARCH_Y = 0.7;   // 2026-11-25: arch span 4.2 x 1.65 = 6.9 m =
 const DEPTH = 12, TILE = 1.5, GW = 2, PLINTH_H = 0.16;          // dungeon floor y = -DEPTH; gate/corridor half width GW; tile edge
 // z-chain of rooms (x half-width hw, height h). kind: corridor | arena | loot | boss
 const LAYOUT = [
-  { id: 'start', kind: 'corridor', z0: 24, z1: 36, hw: GW, h: 4 },
-  { id: 'c1', kind: 'corridor', z0: 36, z1: 42, hw: GW, h: 4 },
+  { id: 'start', kind: 'corridor', z0: 24, z1: 36, hw: GW, h: 7.2 },
+  { id: 'c1', kind: 'corridor', z0: 36, z1: 42, hw: GW, h: 7.2 },
   { id: 'arena1', kind: 'arena', z0: 42, z1: 62, hw: 10, h: 8 },
-  { id: 'c2', kind: 'corridor', z0: 62, z1: 68, hw: GW, h: 4 },
+  { id: 'c2', kind: 'corridor', z0: 62, z1: 68, hw: GW, h: 7.2 },
   { id: 'arena2', kind: 'arena', z0: 68, z1: 88, hw: 10, h: 8 },
-  { id: 'c3', kind: 'corridor', z0: 88, z1: 94, hw: GW, h: 4 },
-  { id: 'loot', kind: 'loot', z0: 94, z1: 106, hw: 6, h: 5 },
-  { id: 'c4', kind: 'corridor', z0: 106, z1: 112, hw: GW, h: 4 },
+  { id: 'c3', kind: 'corridor', z0: 88, z1: 94, hw: GW, h: 7.2 },
+  { id: 'loot', kind: 'loot', z0: 94, z1: 106, hw: 6, h: 7.2 },
+  { id: 'c4', kind: 'corridor', z0: 106, z1: 112, hw: GW, h: 7.2 },
   { id: 'arena3', kind: 'arena', z0: 112, z1: 132, hw: 10, h: 8 },
-  { id: 'c5', kind: 'corridor', z0: 132, z1: 138, hw: GW, h: 4 },
+  { id: 'c5', kind: 'corridor', z0: 132, z1: 138, hw: GW, h: 7.2 },
   { id: 'boss', kind: 'boss', z0: 138, z1: 172, hw: 16, h: 14 },
 ];
 const GATED = { arena1: 1, arena2: 1, arena3: 1, boss: 1 };
+// 2026-11-27 (world3): corridor + loot ceilings 7.2 m = 4.1 H (were 4 / 5 m = 2.3 / 2.9 H); arenas 8 m (4.6 H) and boss 14 m unchanged; gate gaps stay 4 m (2.3 H).
 const BOSS_PHASES = [{ at: 1, move: 'slam' }, { at: 0.5, move: 'summon', n: 3 }, { at: 0.25, move: 'charge' }];
 const BIOMES = ['rocky', 'lush', 'icy', 'exotic'];
 
@@ -215,7 +216,7 @@ export function createHub(engine, L, opts) {
       if (r.kind !== 'corridor') {
         for (const [za, nz] of [[q.z0, 1], [q.z1, -1]]) { const full = r.id === 'boss' && za === q.z1; if (full) coveStrip(-hw, za, hw, za, 0, nz, y0, 1, R, 2, 4, sk); else { coveStrip(-hw, za, -GW - 0.6, za, 0, nz, y0, 1, R, 2, 4, sk); coveStrip(GW + 0.6, za, hw, za, 0, nz, y0, 1, R, 2, 4, sk); } }
         const ck = colA().multiplyScalar(1.1); coveStrip(-hw, q.z0, -hw, q.z1, 1, 0, y1, -1, R, 2, 6, ck); coveStrip(hw, q.z0, hw, q.z1, -1, 0, y1, -1, R, 2, 6, ck);
-        for (const sx of [-1, 1]) for (const [za, sz] of [[q.z0, 1], [q.z1, -1]]) cornerPillar(sx * hw, za, -sx, sz, y0, y1, 0.55, 3.6, colB());
+        if (r.kind !== 'loot') for (const sx of [-1, 1]) for (const [za, sz] of [[q.z0, 1], [q.z1, -1]]) cornerPillar(sx * hw, za, -sx, sz, y0, y1, 0.55, 3.6, colB());
       } }
     if (GATED[r.id] || r.kind === 'loot') for (const zw of [q.z0, q.z1]) {
       if (zw === q.z1 && r.id === 'boss') continue;

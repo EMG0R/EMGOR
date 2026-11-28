@@ -47,9 +47,9 @@ const VS = 1;                    // 2026-10-14: the whole village layout is 2.5x
 const RP = 7 * VS;                // plaza ring radius (villagers walk it)
 const BIG = 1.0;            // Q60: human scale (1 m, H = 1.75). 2026-11-25 plush pass: interior >= 3.5 x 3 H (6.1 x 5.2 m), ceiling 2.8 H (4.9 m), door 1.03 H x 1.63 H
 const TW = 0.9,      // wall thickness 0.9 m = 0.51 H (half-thickness >= 0.25 H so the 0.3 H foot step can never tunnel a wall)
-   DOOR_W = 1.8 * BIG, DOOR_H = 2.85 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap (1.8 m = 1.03 H), door height (2.85 m = 1.63 H), foundation depth
-const TMPL = [{ id: 'cottage', w: 7.9 * BIG, d: 7.0 * BIG, h: 4.9 * BIG, roof: 'gable' }];      // E2: one hut template (A13: longhouse + tower retired); outer = interior + 2 x TW
-const HUT_R = [20 * BIG, 32 * BIG];      // inner / outer hut ring radius (m): the bigger hut keeps clear of the plaza, plots and stall
+   DOOR_W = 2.275 * BIG, DOOR_H = 3.85 * BIG, FOUND = 1.6 * VS;     // wall thickness, door gap (1.8 m = 1.03 H), door height (2.85 m = 1.63 H), foundation depth
+const TMPL = [{ id: 'cottage', w: 9.675 * BIG, d: 8.8 * BIG, h: 5.95 * BIG, roof: 'gable' }];      // 2026-11-27: interior 4.5 x 4 H (7.875 x 7.0 m), ceiling 3.4 H (5.95 m), door 1.3 x 2.2 H      // E2: one hut template (A13: longhouse + tower retired); outer = interior + 2 x TW
+const HUT_R = [25 * BIG, 41 * BIG];      // inner / outer hut ring radius (m): the bigger hut keeps clear of the plaza, plots and stall
 const BELL_POST = [1.35, 1.35];
 const DOOR_OPEN_R = 1.5 * 1.75 * BIG, DOOR_OPEN_A = 1.75, DOOR_EASE = 7, BELL_CALL_S = 30;      // doors open when the player is within 1.5 H (2.6 m); ~100 deg swing; seconds the bell holds the village at the plaza
 const ROLE_COL = { farmer: 0x8FD06A, trader: 0xFFD36A, elder: 0xB08CFF, kid: 0xFF8AE0 };
@@ -210,8 +210,8 @@ export function createVillage(engine, u, opts) {
   // ── hut interiors (2026-11-25 world2): bed, chest, table + 2 stools, wall shelf, rug disc, hanging lamp. Layout frame per hut: a = lateral (door-facing, -3.05..3.05), b = depth from the hut centre toward the BACK wall
   // (-2.6 = door wall inner face .. 2.6 = back wall). The door lane |a| < 1.2 is kept free; the bed is on one side (mirrored per hut by a seeded flip), chest back corner + table + stools on the other.
   // Props merge into the existing day mesh (LP), the lamp bulb into the glow mesh (EP, dimmed by the day/night setNight). Solids go into `walls` (same boxes as hut walls -> village.solid.a -> objPush). No rng() draws.
-  const IN_A = 3.05, IN_B = 2.6, IA_R = 1.7;       // interior half extents (m); interaction reach (~1 H)
-  const BEDC = rgb(mixHex(TONES.mid, TONES.lo, 0.35)), PILC = rgb(mixHex(TONES.accent, TONES.wall, 0.45)), RUGC = rgb(mixHex(TONES.lo, TONES.mid, 0.5)), RUGC2 = rgb(mixHex(TONES.mid, TONES.hi, 0.3)), LAMPC = [1.5, 1.1, 0.55];
+  const IN_A = (TMPL[0].w - 2 * TW) / 2, IN_B = (TMPL[0].d - 2 * TW) / 2, IA_R = 1.9, EA = IN_A - 3.05, EB = IN_B - 2.6;       // interior half extents (m); interaction reach (~1 H)
+  const BEDC = tint(ROOF, 1.5), PILC = tint(WALL, 1), LAMPC = [1.5, 1.1, 0.55];
   function fbox(P, C, x0, y0, z0, x1, y1, z1, cc) {      // 12-tri flat box (legs, planks, latch)
     const a = [x0, y0, z0], b = [x1, y0, z0], c = [x1, y1, z0], d = [x0, y1, z0], e = [x0, y0, z1], f = [x1, y0, z1], g = [x1, y1, z1], h = [x0, y1, z1];
     quad(P, C, a, d, c, b, cc, [0, 0, -1], 1); quad(P, C, e, f, g, h, cc, [0, 0, 1], 1); quad(P, C, a, e, h, d, cc, [-1, 0, 0], 1); quad(P, C, b, c, g, f, cc, [1, 0, 0], 1); quad(P, C, d, h, g, c, cc, [0, 1, 0], 1); quad(P, C, a, b, f, e, cc, [0, -1, 0], 0.7);
@@ -234,29 +234,26 @@ export function createVillage(engine, u, opts) {
     const FB = (r, y0, y1b, cc) => fbox(LP, LC, r.x0, yb + y0, r.z0, r.x1, yb + y1b, r.z1, cc);
     const solid = (nm, r, hh) => { const b = mkBox('hut' + h.idx + '-' + nm, r.x0, yb - 0.1, r.z0, r.x1, yb + hh, r.z1); walls.push(b); return b; };
     const wood = tint(WOOD, 1.5), woodD = tint(WOOD, 1.1), woodL = tint(WOOD, 1.9), gold = rgb(TONES.accent);
-    // bed (1.0 x 2.0 H = 1.75 x 3.5 m, 0.45 H = 0.79 m tall): frame, mattress + blanket, pillow accent, headboard on the back wall
-    const bed = R(-2.95, -1.2, -0.9, 2.6);
-    RB(R(-2.95, -1.2, -0.9, 2.6), 0, 0.42, wood, 0.1); RB(R(-2.85, -1.3, -0.8, 2.5), 0.42, 0.79, BEDC, 0.14); RB(R(-2.75, -1.4, 1.65, 2.4), 0.79, 0.97, PILC, 0.12);
-    FB(R(-2.95, -1.2, 2.5, 2.6), 0, 1.25, woodD);
+    // 2026-11-27: bed + chest + table only (+ the hanging lamp). Materials: WALL, ROOF (+ the WOOD accent). The room grew by EA / EB m per side; props hug the side / back walls (offsets below).
+    const Rw = (a0, a1, b0, b1) => R(a0 - EA, a1 - EA, b0 + EB, b1 + EB), Rk = (a0, a1, b0, b1) => R(a0 + EA, a1 + EA, b0 + EB, b1 + EB), Rt = (a0, a1, b0, b1) => R(a0 + EA, a1 + EA, b0, b1);
+    const RBw = (r, y0, y1b, cc, rad) => pushBox(LP, LC, r.x0, yb + y0, r.z0, r.x1, yb + y1b, r.z1, cc, rad, 1, 1);
+    // bed (1.0 x 2.0 H = 1.75 x 3.5 m, 0.45 H tall): frame, mattress + blanket, pillow, headboard on the back wall
+    const bed = Rw(-2.95, -1.2, -0.9, 2.6);
+    RBw(Rw(-2.95, -1.2, -0.9, 2.6), 0, 0.42, wood, 0.1); RBw(Rw(-2.85, -1.3, -0.8, 2.5), 0.42, 0.79, BEDC, 0.14); RBw(Rw(-2.75, -1.4, 1.65, 2.4), 0.79, 0.97, PILC, 0.12);
+    FB(Rw(-2.95, -1.2, 2.5, 2.6), 0, 1.25, woodD);
     solid('bed', bed, 0.79);
-    // chest (0.6 H = 1.05 m cube): body + lid + latch on the front (door side) face
-    const chest = R(1.9, 2.95, 1.5, 2.55);
-    RB(chest, 0, 0.7, woodD, 0.1); RB(R(1.88, 2.97, 1.48, 2.57), 0.7, 1.05, wood, 0.16); FB(R(2.28, 2.57, 1.44, 1.5), 0.52, 0.88, gold);
+    // chest (0.6 H cube) in the back corner: body + lid + latch on the door-side face
+    const chest = Rk(1.9, 2.95, 1.5, 2.55);
+    RBw(chest, 0, 0.7, woodD, 0.1); RBw(Rk(1.88, 2.97, 1.48, 2.57), 0.7, 1.05, wood, 0.16); FB(Rk(2.28, 2.57, 1.44, 1.5), 0.52, 0.88, woodL);
     solid('chest', chest, 1.05);
-    // table (1.4 x 1.0 m, top 0.79 m) + 2 stools
-    const tab = R(1.5, 2.9, -0.5, 0.5);
-    RB(tab, 0.66, 0.79, woodL, 0.06); for (const [la, lb] of [[1.62, -0.38], [2.66, -0.38], [1.62, 0.26], [2.66, 0.26]]) FB(R(la, la + 0.12, lb, lb + 0.12), 0, 0.66, woodD);
-    RB(R(2.0, 2.4, -0.12, 0.12), 0.79, 0.93, gold, 0.06);      // a bowl on the table
+    // table (1.4 x 1.0 m, top 0.79 m) against the side wall, mid-depth
+    const tab = Rt(1.5, 2.9, -0.5, 0.5);
+    RBw(tab, 0.66, 0.79, woodL, 0.06); for (const [la, lb] of [[1.62, -0.38], [2.66, -0.38], [1.62, 0.26], [2.66, 0.26]]) FB(Rt(la, la + 0.12, lb, lb + 0.12), 0, 0.66, woodD);
     solid('table', tab, 0.79);
-    for (const sb of [-1.15, 0.95]) { const st = R(1.95, 2.45, sb - 0.25, sb + 0.25); RB(R(1.95, 2.45, sb - 0.25, sb + 0.25), 0.36, 0.5, wood, 0.07); FB(R(2.1, 2.3, sb - 0.1, sb + 0.1), 0, 0.36, woodD); solid('stool', st, 0.5); }
-    // wall shelf on the back wall (above head height, not a solid) + 3 small items
-    FB(R(0.0, 1.7, 2.22, 2.6), 2.0, 2.1, woodL);
-    RB(R(0.15, 0.45, 2.3, 2.55), 2.1, 2.45, rgb(TONES.hi), 0.06); RB(R(0.7, 1.1, 2.3, 2.58), 2.1, 2.28, gold, 0.05); RB(R(1.3, 1.55, 2.32, 2.55), 2.1, 2.4, rgb(TONES.sky), 0.08);
-    // rug disc (r 1.3) in the door lane + the hanging lamp (cord + cap day mesh, shade + bulb glow mesh)
-    const rc = W(0, 0.7); rugDisc(LP, LC, rc[0], yb, rc[1], 1.3, 0.05, RUGC, 14); rugDisc(LP, LC, rc[0], yb + 0.05, rc[1], 0.62, 0.012, RUGC2, 10);
-    const lp = W(0, 0.7); fbox(LP, LC, lp[0] - 0.02, y1 - 1.3, lp[1] - 0.02, lp[0] + 0.02, y1, lp[1] + 0.02, woodD);
-    pushBox(EP, EC, lp[0] - 0.3, y1 - 1.95, lp[1] - 0.3, lp[0] + 0.3, y1 - 1.3, lp[1] + 0.3, LAMPC, 0.2, 1, 1);
-    const spot = (k) => { const b = -0.2 + (k % 3) * 0.9, p = W(-0.75, b), f = W(-2.0, b); return { x: p[0], z: p[1], yaw: Math.atan2(-(f[0] - p[0]), -(f[1] - p[1])) }; };
+    // the hanging lamp over the room centre (cord + cap day mesh, shade glow mesh): the only light prop
+    const lp = W(0, 0.7); fbox(LP, LC, lp[0] - 0.02, y1 - 2.4, lp[1] - 0.02, lp[0] + 0.02, y1, lp[1] + 0.02, woodD);
+    pushBox(EP, EC, lp[0] - 0.3, y1 - 3.05, lp[1] - 0.3, lp[0] + 0.3, y1 - 2.4, lp[1] + 0.3, LAMPC, 0.2, 1, 1);
+    const spot = (k) => { const b = -0.2 + EB + (k % 3) * 0.9, p = W(-0.75 - EA, b), f = W(-2.0 - EA, b); return { x: p[0], z: p[1], yaw: Math.atan2(-(f[0] - p[0]), -(f[1] - p[1])) }; };
     h.fur = { spot, lane: W(0, -1.6), bed: Object.assign(bed, { y: yb }), chest: chest, inner: R(-IN_A, IN_A, -IN_B, IN_B), yb };
   }
   // ── build: huts ──
@@ -285,18 +282,17 @@ export function createVillage(engine, u, opts) {
     zWall('n', cz - hz, cz - hz + TW, doorOn('nz')); zWall('s', cz + hz - TW, cz + hz, doorOn('pz'));
     xWall('w', cx - hx, cx - hx + TW, doorOn('nx')); xWall('e', cx + hx - TW, cx + hx, doorOn('px'));
     const slab = mkBox('hut' + h.idx + '-roof', cx - hx - 0.1, y1, cz - hz - 0.1, cx + hx + 0.1, y1 + 0.35, cz + hz + 0.1); hw.push(slab); walls.push(slab);
-    // corner posts + door frame (visual)
+    // door frame (visual); the corner posts are gone (2026-11-27: wall + roof + one wood accent)
     const post = tint(WOOD, 1);
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) boxG(LP, LC, sx > 0 ? cx + hx - 0.3 : cx - hx - 0.06, y0, sz > 0 ? cz + hz - 0.3 : cz - hz - 0.06, sx > 0 ? cx + hx + 0.06 : cx - hx + 0.3, y1 + 0.05, sz > 0 ? cz + hz + 0.06 : cz - hz + 0.3, post);
     const fr = 0.18;
     if (h.side === 'pz' || h.side === 'nz') { const zz = h.side === 'pz' ? cz + hz : cz - hz; boxG(LP, LC, cx - DOOR_W / 2 - fr, yb, zz - 0.35, cx - DOOR_W / 2, yb + DOOR_H, zz + 0.35, post); boxG(LP, LC, cx + DOOR_W / 2, yb, zz - 0.35, cx + DOOR_W / 2 + fr, yb + DOOR_H, zz + 0.35, post); }
     else { const xx = h.side === 'px' ? cx + hx : cx - hx; boxG(LP, LC, xx - 0.35, yb, cz - DOOR_W / 2 - fr, xx + 0.35, yb + DOOR_H, cz - DOOR_W / 2, post); boxG(LP, LC, xx - 0.35, yb, cz + DOOR_W / 2, xx + 0.35, yb + DOOR_H, cz + DOOR_W / 2 + fr, post); }
     // windows: glowing squares on the two side walls (not the door wall)
     const WC = [1.5, 1.1, 0.55];
-    const wq = (x, y, z, nx, nz) => { const a = nx ? [0, 0.62 * VS] : [0.62 * VS, 0]; const P = EP, C = EC; const q = [[x - a[0], y - 0.55 * VS, z - a[1]], [x + a[0], y - 0.55 * VS, z + a[1]], [x + a[0], y + 0.55 * VS, z + a[1]], [x - a[0], y + 0.55 * VS, z - a[1]]]; quad(P, C, q[0], q[1], q[2], q[3], WC, [nx, 0, nz], 1.0); };
+    const wq = (x, y, z, nx, nz) => { const a = nx ? [0, 1.0 * VS] : [1.0 * VS, 0]; const P = EP, C = EC; const q = [[x - a[0], y - 0.9 * VS, z - a[1]], [x + a[0], y - 0.9 * VS, z + a[1]], [x + a[0], y + 0.9 * VS, z + a[1]], [x - a[0], y + 0.9 * VS, z - a[1]]]; quad(P, C, q[0], q[1], q[2], q[3], WC, [nx, 0, nz], 1.0); };
     const eps = 0.03;
-    if (h.side === 'px' || h.side === 'nx') { wq(cx, yb + 2.7 * VS, cz - hz - eps, 0, -1); wq(cx, yb + 2.7 * VS, cz + hz + eps, 0, 1); }
-    else { wq(cx - hx - eps, yb + 2.7 * VS, cz, -1, 0); wq(cx + hx + eps, yb + 2.7 * VS, cz, 1, 0); }
+    if (h.side === 'px' || h.side === 'nx') { wq(cx, yb + 3.3 * VS, cz - hz - eps, 0, -1); wq(cx, yb + 3.3 * VS, cz + hz + eps, 0, 1); }
+    else { wq(cx - hx - eps, yb + 3.3 * VS, cz, -1, 0); wq(cx + hx + eps, yb + 3.3 * VS, cz, 1, 0); }
     // roof
     const ov = 0.7, rc = tint(ROOF, 0.9 + rng() * 0.2), ax = hx >= hz, ha = (ax ? hx : hz) + ov, hb = (ax ? hz : hx) + ov, yR = y1 + 0.35, rh = tm.roof === 'pyramid' ? hb * 0.95 : hb * 0.72;
     const pt = (a, b, y) => (ax ? [cx + a, y, cz + b] : [cx + b, y, cz + a]);
@@ -304,11 +300,9 @@ export function createVillage(engine, u, opts) {
     const rq = (p0, p1, p2, p3, k) => { quad(LP, LC, p0, p1, p2, p3, rc, rn(p0, p1, p2), k); };
     { const rh2 = Math.min(hb * 0.62, tm.roof === 'pyramid' ? hb * 0.9 : hb * 0.62);      // look rev 28: a soft loaf / dome roof with curved eaves instead of a pitched box
       rboxG(LP, LC, cx - (ax ? ha : hb), yR - 0.3 * rh2, cz - (ax ? hb : ha), cx + (ax ? ha : hb), yR + 1.3 * rh2, cz + (ax ? hb : ha), rc, 0.78 * rh2, 3); }
-    // chimney on the cottage / longhouse
-    if (tm.roof === 'gable') boxG(LP, LC, cx + (ax ? ha * 0.5 : hb * 0.4) - 0.3, yR + 0.2, cz + (ax ? -hb * 0.35 : ha * 0.5) - 0.3, cx + (ax ? ha * 0.5 : hb * 0.4) + 0.3, yR + rh + 1.1, cz + (ax ? -hb * 0.35 : ha * 0.5) + 0.3, tint(STONE, 0.8));
     // 2026-11-05: the hut FLOOR is a drawn slab (top = yb) AND the foot collision surface (village.solid.floors -> ship.js mFloor): inside the walls plus a doorstep out to door.front,
     // so the visible floor and the walkable floor are the same numbers and the sill is flush (yb = the highest ground under the hut, the terrain never pokes through).
-    { const fx0 = cx - hx + TW, fx1 = cx + hx - TW, fz0 = cz - hz + TW, fz1 = cz + hz - TW, fy = yb - 0.3, pc = tint(PATH, 1.05);
+    { const fx0 = cx - hx + TW, fx1 = cx + hx - TW, fz0 = cz - hz + TW, fz1 = cz + hz - TW, fy = yb - 0.3, pc = tint(ROOF, 1.3);
       boxG(LP, LC, fx0, fy, fz0, fx1, yb, fz1, pc); floorRects.push({ x0: fx0, x1: fx1, z0: fz0, z1: fz1, top: yb });
       const dx0 = Math.min(dr.c[0], dr.front[0]), dx1 = Math.max(dr.c[0], dr.front[0]), dz0 = Math.min(dr.c[1], dr.front[1]), dz1 = Math.max(dr.c[1], dr.front[1]), sw = DOOR_W / 2 + 0.1;
       const sx0 = dr.d[0] !== 0 ? dx0 - TW : dx0 - sw, sx1 = dr.d[0] !== 0 ? dx1 + TW : dx1 + sw, sz0 = dr.d[1] !== 0 ? dz0 - TW : dz0 - sw, sz1 = dr.d[1] !== 0 ? dz1 + TW : dz1 + sw;

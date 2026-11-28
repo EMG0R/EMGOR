@@ -238,7 +238,7 @@ var PATCH_VERT = [
 var LIGHT_GLSL = [
     'vec3 litHemiKey(vec3 base, vec3 N, vec3 up, vec3 L, vec3 sky, float night) {',
     '    float h = dot(N, up) * 0.5 + 0.5;',
-    '    vec3 fill = mix(base * vec3(0.2, 0.13, 0.3), sky * (0.8 - 0.4 * night) + vec3(0.04, 0.02, 0.09), h);',
+    '    vec3 fill = mix(base * 0.2, sky * (0.8 - 0.4 * night + 0.1), h);',
     '    float w = clamp((dot(N, L) + 0.3) / 1.3, 0.0, 1.0);',
     '    float wm = clamp((dot(N, -L) + 0.3) / 1.3, 0.0, 1.0);',                                    // A14: the moon sits opposite the sun, cool key at 0.4
     '    vec3 key = vec3(1.0, 0.9, 0.8) * smoothstep(0.0, 1.0, w) * (1.0 - night) + vec3(0.5, 0.62, 1.0) * smoothstep(0.0, 1.0, wm) * 0.4 * night;',
@@ -360,7 +360,7 @@ var PATCH_FRAG = [
     '        col = mix(col, uRSky * (0.35 + 0.65 * ndl), foam * 0.6);',
     '    }',
     '    if (uBiome < 0.5 && uLook > 1.5) col += uRSky * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 6.0) * 0.2 * (1.0 - steep);',
-    '    col = mix(col, col * vec3(0.6, 0.48, 0.74), smoothstep(0.04, 0.22, slope) * step(uBiome, 0.5) * 0.6);',
+    '    col = mix(col, col * 0.6, smoothstep(0.04, 0.22, slope) * step(uBiome, 0.5) * 0.6);',
     '    gcol = mix(gcol, col, uSurf);',
     '    }',
     '    col = gcol;',
@@ -757,8 +757,8 @@ var DOME_FRAG = [
     '    float c = dot(v, normalize(uUp));',
     '    float z = clamp((c - uHor) / (1.0 - uHor), 0.0, 1.0);',   // 0 at the geometric horizon
     '    vec3 hor = uFogCol;',                                            // look rev 28: 3-stop gradient, horizon stop == fog colour exactly
-    '    vec3 mid = mix(uFogCol, uAtmo, 0.55) * (0.35 + 0.65 * uSun) + vec3(0.03, 0.03, 0.14) * (1.0 - uSun);',
-    '    vec3 zen = mix(uAtmo * vec3(0.55, 0.45, 0.95), vec3(0.05, 0.05, 0.26), 1.0 - uSun);',            // A14: indigo night zenith
+    '    vec3 mid = mix(uFogCol, uAtmo, 0.55) * (0.35 + 0.65 * uSun) + uFogCol * 0.2 * (1.0 - uSun);',
+    '    vec3 zen = mix(uAtmo * 0.6, uFogCol * 0.5, 1.0 - uSun);',            // A14: night zenith = family deep stop (fog colour carries it), not constant indigo
     '    float bnd = 0.5 + 0.5 * sin(c * 7.0 + dot(v, vec3(1.3, 0.2, 0.7)) * 2.6 + uTime * 0.2) * (0.6 + 0.4 * sin(dot(v, vec3(0.4, 1.1, -0.8)) * 3.1 - uTime * 0.13));',   // lava-lamp bands, <= 0.05 Hz
     '    vec3 col = mix(hor, mid, smoothstep(0.0, 0.35, z));',
     '    col = mix(col, zen, smoothstep(0.25, 1.0, z));',
@@ -3000,7 +3000,7 @@ export function createPlanetSurface(engine, L) {
         if (ps.sunElev != null) { var se = ps.sunElev, ce = Math.sqrt(Math.max(0, 1 - se * se)); _sx.set(tmpV.y * 0 + 1, 0, 0); if (Math.abs(tmpV.x) > 0.9) _sx.set(0, 1, 0); _sx.crossVectors(tmpV, _sx).normalize(); SH.uLightDir.value.copy(tmpV).multiplyScalar(se).addScaledVector(_sx, ce).normalize(); }   // debug: ps.sunElev = sin(sun elevation) pins the time of day (null = real)
         var sunDot = tmpV.dot(SH.uLightDir.value), sunTerm = smoothstep(-0.25, 0.55, sunDot);
         var fb = 0.28 + 0.72 * sunTerm;
-        var hz = 0.15 + 0.85 * sunTerm, nz = 1 - sunTerm, Sk = rampC[4]; SH.uFogCol.value.set(((A[0] * 0.6 + Sk[0] * 0.4) * hz * 0.95 + 0.04) + 0.06 * nz, ((A[1] * 0.6 + Sk[1] * 0.4) * hz * 0.85 + 0.03) + 0.06 * nz, ((A[2] * 0.6 + Sk[2] * 0.4) * hz + 0.08) + 0.2 * nz);   // A1/A14: horizon = atmo + ramp sky stop; indigo floor at night   // look rev 28: luminous violet-biased haze   // horizon tint = pal.hi, zenith = pal.atmo
+        var hz = 0.15 + 0.85 * sunTerm, nz = 1 - sunTerm, Sk = rampC[4], Dp = rampC[0]; SH.uFogCol.value.set(((A[0] * 0.6 + Sk[0] * 0.4) * hz * 0.95 + 0.04) + 0.5 * Dp[0] * nz, ((A[1] * 0.6 + Sk[1] * 0.4) * hz * 0.85 + 0.03) + 0.5 * Dp[1] * nz, ((A[2] * 0.6 + Sk[2] * 0.4) * hz + 0.04) + 0.5 * Dp[2] * nz);   // A1/A14: horizon = atmo + ramp sky stop; night floor = family deep stop (family-relative, not constant indigo)
         // rev 19: ground visibility >= 400 L (f(400 L) = 0.38, f(150 L) = 0.05); only the haze layer near the top of the atmosphere densifies, and space (depth 0) is clear
         // rev 24: no top-of-atmosphere haze layer; fog density follows the altitude above the ground (clear from the air, f(400 L) = 0.10 on the surface)
         var altF = Math.max(0, ratioD * R - R * (1 + hFrac(dirObj.x, dirObj.y, dirObj.z))) / L;

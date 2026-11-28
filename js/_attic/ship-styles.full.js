@@ -1,0 +1,791 @@
+// ship-styles.js — StyleModule locomotion state machines for the on-foot capsule (docs/mashup-plan.md §1). Pure maths: no DOM, no THREE, no Math.random/Date,
+// no allocation in step() (reused out/fx objects). Working names MARO/JOSHI/STEEV/SONIK only; mechanics/ratios from public community docs, no third-party art/code.
+//
+// createStyle(id, env) -> { id, name, portraitHint, skin, abilities, hitbox, reset(), step(input, ctx, dt) -> out }
+//   env  = { walk:22, grav:22, jump:8.5 }   units: human heights (H) and seconds; defaults = ship.js G_WALK / G_GRAV / G_JUMP
+//   input= { keys:{KeyW..}, mouse:{l,r}, mdx, mdy, camYaw (rad; wish = keys rotated by it) | wx,wz (pre-resolved tangent-frame wish, overrides keys) }
+//   ctx  = { onGround, floorNormal:{x,y,z}, slope (deg), wallNormal?:{x,y,z}, speed, airTime, facing, mouse,
+//            targets?:[{x,y,z}] relative to the player (SONIK homing), target?:{dist,mat,hardness,cx,cy,cz,px,py,pz} (STEEV ray), hostileNear?, fuse?, aim?:{x,y,z} }
+//   out  = { vel:{x,y,z} (H/s, local tangent frame, y = up, forward at yaw f is (-sin f, -cos f)), jumpImpulse, groundSnap, anim:{...rig state + extras},
+//            fx:[{type,x,y,z,dx,dy,dz,v,n,dmg,r,tag}], camHint:{fov,dist,shake}, caution, edgeGuard }   (out and everything in it is REUSED each call: copy what you keep)
+// The style owns vel completely (incl. vertical and gravity); the controller moves the capsule by vel*dt, applies collisions, and reports onGround/wallNormal back.
+// NUMBERS: [doc] = from the cited public docs (ratios/constants converted); [guess] = ours, tune by playing.
+
+const D2R = Math.PI / 180, R2D = 180 / Math.PI;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+
+// ── shared plumbing ──────────────────────────────────────────────────────────────────────────────
+function mkIO() { return { wx: 0, wz: 0, m: 0, jump: false, jumpP: false, crouch: false, crouchP: false, run: false, L: false, LP: false, R: false, RP: false, F: false, FP: false, fwdP: false, slot: -1, pj: false, pc: false, pL: false, pR: false, pF: false, pW: false }; }
+function readIn(io, input, ctx) {
+  const k = input.keys || EMPTY, ms = input.mouse || ctx.mouse || EMPTY;
+  io.pj = io.jump; io.pc = io.crouch; io.pL = io.L; io.pR = io.R; io.pF = io.F; io.pW = io.fwdH;
+  io.jump = !!k.Space; io.crouch = !!(k.KeyC || k.ControlLeft || k.ControlRight); io.run = !!(k.ShiftLeft || k.ShiftRight);
+  io.L = !!(ms.l || ms.left); io.R = !!(ms.r || ms.right); io.F = !!k.KeyF; io.fwdH = !!k.KeyW;
+  io.jumpP = io.jump && !io.pj; io.crouchP = io.crouch && !io.pc; io.LP = io.L && !io.pL; io.RP = io.R && !io.pR; io.FP = io.F && !io.pF; io.fwdP = io.fwdH && !io.pW;
+  io.slot = -1; for (let i = 1; i <= 9; i++) if (k['Digit' + i]) { io.slot = i - 1; break; }
+  let wx, wz;
+  if (input.wx != null) { wx = input.wx; wz = input.wz || 0; }
+  else {
+    const f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0), c = input.camYaw || 0, sn = Math.sin(c), cs = Math.cos(c);
+    wx = -sn * f + cs * s; wz = -cs * f - sn * s;
+  }
+  let m = Math.sqrt(wx * wx + wz * wz); if (m > 1) { wx /= m; wz /= m; m = 1; }
+  io.wx = wx; io.wz = wz; io.m = m;
+}
+const EMPTY = Object.freeze({});
+
+function mkFx() {
+  const pool = [], N = 16; for (let i = 0; i < N; i++) pool.push({ type: '', x: 0, y: 0, z: 0, dx: 0, dy: 0, dz: 0, v: 0, n: 0, dmg: 0, r: 0, tag: '' });
+  let i = 0;
+  return { list: [], clear() { this.list.length = 0; }, emit(type) { const e = pool[i]; i = (i + 1) % N; e.type = type; e.x = e.y = e.z = e.dx = e.dy = e.dz = e.v = e.n = e.dmg = e.r = 0; e.tag = ''; this.list.push(e); return e; } };
+}
+function mkOut(fx) {
+  return {
+    vel: { x: 0, y: 0, z: 0 }, jumpImpulse: 0, groundSnap: true, fx: fx.list, caution: false, edgeGuard: false,
+    anim: { moving: false, running: false, airborne: false, speed: 0, facing: 0, jet: 0, scan: 0, mode: 0, flip: 0, flipKind: 0, crouch: 0, pitch: 0, ball: 0, stamina: 1, tongue: 0, mine: 0, charge: 0, flutter: 0, sprint: 0, caution: 0, slot: 0, hurt: 0 },
+    camHint: { fov: 1, dist: 1, shake: 0 },
+  };
+}
+// shared horizontal helpers (operate on a state object s with vx,vz,face)
+function approach(s, dx, dz, rate, dt) {
+  const ex = dx - s.vx, ez = dz - s.vz, d = Math.sqrt(ex * ex + ez * ez), st = rate * dt;
+  if (d <= st || d < 1e-9) { s.vx = dx; s.vz = dz; } else { s.vx += ex / d * st; s.vz += ez / d * st; }
+}
+function brake(s, rate, dt) { const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz), d = rate * dt; if (sp <= d) { s.vx = s.vz = 0; } else { const k = (sp - d) / sp; s.vx *= k; s.vz *= k; } }
+// ONE ground-locomotion model for every style (feel plan step 2, 60 Hz frames): accel to top in ACC_T (4 f), friction stop in FRIC_T (4.5 f, linear), a wish that opposes the
+// velocity reverses in TURN_T (2 f). k scales all three (style weight, 0.8..1.25). Explicit rates, no lerp: speed after n frames is exact and testable.
+export const LOCO = { ACC_T: 4 / 60, FRIC_T: 4.5 / 60, TURN_T: 2 / 60 };
+function loco(s, tx, tz, top, dt, k) {
+  const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz), tt = Math.sqrt(tx * tx + tz * tz), kk = k || 1;
+  const rate = (hs > 0.05 && s.vx * tx + s.vz * tz < 0) ? 2 * top / (LOCO.TURN_T * kk) : (tt < hs ? top / (LOCO.FRIC_T * kk) : top / (LOCO.ACC_T * kk));
+  approach(s, tx, tz, rate, dt);
+}
+function locoStop(s, top, dt, k) { brake(s, top / (LOCO.FRIC_T * (k || 1)), dt); }
+function turn(s, io, dt, rate) { if (io.m > 0.05) { const t = Math.atan2(-io.wx, -io.wz), d = wrapA(t - s.face), st = rate * dt; s.face = wrapA(s.face + clamp(d, -st, st)); } }
+function airSteer(s, io, dt, acc, cap) { // accelerate toward wish but never beyond max(current speed, cap)
+  if (io.m < 0.05) return;
+  const before = Math.sqrt(s.vx * s.vx + s.vz * s.vz), lim = Math.max(before, cap);
+  s.vx += io.wx * io.m * acc * dt; s.vz += io.wz * io.m * acc * dt;
+  const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (sp > lim) { const k = lim / sp; s.vx *= k; s.vz *= k; }
+}
+function dirOfVel(s, o) { const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (sp > 0.3) { o.x = s.vx / sp; o.z = s.vz / sp; } else { o.x = -Math.sin(s.face); o.z = -Math.cos(s.face); } return sp; }
+
+// ── MARO: 3D-platformer runner [doc S1 ratios] ────────────────────────────────────────────────────
+const M_G = 0, M_AIR = 1, M_SLIDE = 3, M_DIVE = 4, M_BELLY = 5, M_HANG = 6, M_POUND = 7;
+const CHAIN_V = [1, 1.238, 1.643];                 // [doc] initial jump speeds 42/52/69 -> v ratios (apex 1/1.53/2.7)
+function maro(env) {
+  const W = MARO_K.MAX / 1.5, g = env.grav, J = env.jump, RUN = 1.5 * W, A = RUN / 0.35;   // 2026-11: pinned to the SM64 table (run MAX 6 H/s), not env.walk; [guess] run top 1.5x walk, reach top in 0.35 s; [doc] decel 2x accel
+  const fx = mkFx(), out = mkOut(fx), io = mkIO(), a = out.anim, dd = { x: 0, z: 0 };
+  const s = { vx: 0, vz: 0, vy: 0, face: 0, fi: false, mode: M_AIR, chain: 0, landAge: 9, jb: 0, coyote: 0, skidT: 0, skidHs: 0, wallT: 0, wnx: 0, wnz: 0, wdx: 0, wdz: 0, wspd: 0, hang: 0, stun: 0, combo: 0, comboT: 0, punchCd: 0, jgrace: 0, was: false, flipT: 1, flipKind: 0, ctrl: 1, kicks: 0 };
+  function reset() { Object.assign(s, { vx: 0, vz: 0, vy: 0, face: 0, fi: false, mode: M_AIR, chain: 0, landAge: 9, jb: 0, coyote: 0, skidT: 0, skidHs: 0, wallT: 0, hang: 0, stun: 0, combo: 0, comboT: 0, punchCd: 0, jgrace: 0, was: false, flipT: 1, flipKind: 0, ctrl: 1, kicks: 0 }); io.jump = io.crouch = io.L = io.R = io.F = io.fwdH = false; }
+  function doJump(hs) {
+    let vy, kind = 1;
+    if (io.crouch && hs > 0.6 * W && s.stun <= 0) { vy = J * 0.775; const sp = dirOfVel(s, dd); const t = Math.max(sp, W) * 1.8; s.vx = dd.x * t; s.vz = dd.z * t; s.chain = 0; kind = 4; s.ctrl = 0.15; s.flipKind = 0; }   // [doc] long jump: low arc (apex 0.6), 1.8x horizontal
+    else if (io.crouch) { vy = J * 1.304; s.vx = s.vz = 0; s.chain = 0; kind = 5; s.flipKind = 2; s.flipT = 0; }                                          // [doc] backflip apex 1.7
+    else if (s.skidT > 0 && s.skidHs > 0.5 * W) { vy = J * 1.14; const t = 0.8 * s.skidHs; s.vx = io.wx * t; s.vz = io.wz * t; if (io.m > 0.05) s.face = Math.atan2(-io.wx, -io.wz); s.chain = 0; kind = 6; s.flipKind = 3; s.flipT = 0; s.skidT = 0; }  // [doc] side flip apex 1.3
+    else if (s.mode === M_BELLY) { vy = J * 0.9; kind = 7; s.chain = 0; }                                                                                  // [doc] hop out of belly slide
+    else if (s.mode === M_SLIDE) { vy = J; kind = 1; s.chain = 0; }
+    else {
+      let c = (s.landAge <= MARO_K.CHAIN && s.chain > 0 && hs >= MARO_K.CHAIN_MIN * (RUN / MARO_K.MAX)) ? s.chain + 1 : 1;                                                                           // [doc] ~0.4 s window, must be moving
+      if (c >= 3 && hs < 0.6 * W) c = 2; if (c > 3) c = 1;
+      s.chain = c; vy = J * CHAIN_V[c - 1]; kind = c; if (c >= 2) { s.flipKind = 1; s.flipT = 0; }
+    }
+    s.vy = vy; out.jumpImpulse = vy; s.mode = M_AIR; s.jgrace = 0.06; s.jb = 0; s.coyote = 0;
+    const e = fx.emit('jump'); e.n = kind; e.v = vy;
+  }
+  function step(input, ctx, dt) {
+    readIn(io, input, ctx); fx.clear(); out.jumpImpulse = 0;
+    if (!s.fi) { s.face = ctx.facing || 0; s.fi = true; }
+    const grounded = ctx.onGround && s.jgrace <= 0; s.jgrace = Math.max(0, s.jgrace - dt);
+    const n = ctx.floorNormal, slope = ctx.slope != null ? ctx.slope : (n ? Math.acos(clamp(n.y, -1, 1)) * R2D : 0);
+    s.landAge += dt; s.comboT -= dt; s.wallT -= dt; s.jb -= dt; s.coyote -= dt; s.skidT -= dt; s.stun -= dt; s.punchCd -= dt;
+    if (io.jumpP) s.jb = 0.12;
+    if (grounded && !s.was) {                                         // touchdown
+      s.landAge = 0; s.ctrl = 1;
+      if (s.mode === M_DIVE) { s.mode = M_BELLY; s.chain = 0; }
+      else if (s.mode === M_POUND) { const e = fx.emit('pound'); e.dmg = MARO_K.POUND_DMG; e.r = MARO_K.POUND_R; s.stun = MARO_K.POUND_REC; s.vx = s.vz = 0; s.mode = M_G; s.chain = 0; }   // [doc/plan] 12 dmg, 2 H radius
+      else { s.mode = M_G; const e = fx.emit('land'); e.v = -s.vy; }
+      s.vy = 0;
+    } else if (!grounded && s.was && s.mode !== M_AIR && s.mode < M_DIVE) { s.mode = M_AIR; s.coyote = 0.08; }
+    s.was = grounded;
+    let hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+
+    if (grounded) {
+      if (s.mode === M_G && slope > 30) s.mode = M_SLIDE; else if (s.mode === M_SLIDE && slope < 26) s.mode = M_G;   // forced slide on > 30 deg (hysteresis)
+      if (s.jb > 0 && s.stun <= 0) { doJump(hs); }
+      else if (s.mode === M_G) {
+        const top = io.crouch ? W * 0.3 : (io.run ? RUN : W);
+        if (s.stun > 0) brake(s, 3 * A, dt);
+        else if (io.m > 0.05) {
+          if (s.skidT <= 0 && hs > 0.6 * top && s.vx * io.wx + s.vz * io.wz < -0.866 * hs * io.m) { s.skidT = 0.25; s.skidHs = hs; }   // [doc] skid on ~150 deg turn above 60% speed
+          if (s.skidT > 0 && hs > 0.05) brake(s, RUN / LOCO.TURN_T, dt);      // skid = the 2 f reversal; s.skidT (side-flip window) keeps running, control returns the frame the speed hits 0
+          else { const tx = io.wx * top * io.m, tz = io.wz * top * io.m; loco(s, tx, tz, top, dt); turn(s, io, dt, 16); }
+        } else locoStop(s, Math.max(hs, W), dt);
+        if (io.LP && s.punchCd <= 0 && s.stun <= 0) {                // jab-jab-kick 6/6/10 [plan]
+          s.combo = s.comboT > 0 ? (s.combo % 3) + 1 : 1; s.comboT = MARO_K.PUNCH_WIN; s.punchCd = 0.12;
+          const e = fx.emit('melee'); e.n = s.combo; e.dmg = MARO_K.PUNCH_DMG[s.combo - 1]; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); e.r = MARO_K.PUNCH_R;
+        }
+        if (io.crouch) s.chain = 0;
+      } else if (s.mode === M_SLIDE) {
+        const nx = n ? n.x : 0, nz = n ? n.z : 0, dl = Math.sqrt(nx * nx + nz * nz) || 1;
+        const sinS = Math.sin(slope * D2R);
+        s.vx += nx / dl * g * sinS * 1.6 * dt; s.vz += nz / dl * g * sinS * 1.6 * dt;        // [guess] keeps speed, accelerates downhill
+        s.vx += io.wx * io.m * 0.35 * A * dt; s.vz += io.wz * io.m * 0.35 * A * dt;
+        hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (hs > 2.2 * W) { const k = 2.2 * W / hs; s.vx *= k; s.vz *= k; }
+        if (hs > 0.5) s.face = Math.atan2(-s.vx, -s.vz);
+        if (io.LP) { /* no punching on a slide */ }
+      } else if (s.mode === M_BELLY) {
+        brake(s, 0.6 * W, dt); hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);            // low friction
+        if (hs < 0.25 * W) s.mode = M_G;
+      }
+      if (out.jumpImpulse === 0) s.vy = 0;
+    } else {
+      // airborne
+      if (s.coyote > 0 && s.jb > 0 && s.mode === M_AIR && s.vy <= 0) { doJump(hs); }     // coyote jump
+      if (ctx.wallNormal) {
+        const wx = ctx.wallNormal.x, wz = ctx.wallNormal.z, wl = Math.sqrt(wx * wx + wz * wz);
+        if (wl > 0.1 && s.mode !== M_HANG && s.mode !== M_POUND) {
+          const tall = ctx.wallH == null || ctx.wallH >= 1;      // a ledge under 1 H is not a wall to kick off (controller supplies wallH in H)
+          if (tall && s.wallT <= 0) { s.wdx = hs > 0.3 ? s.vx / hs : -Math.sin(s.face); s.wdz = hs > 0.3 ? s.vz / hs : -Math.cos(s.face); s.wspd = hs; }
+          if (tall) { s.wallT = 0.2; s.wnx = wx / wl; s.wnz = wz / wl; }                                // [doc] kick window ~0.2 s after contact
+          const into = tall ? s.vx * s.wnx + s.vz * s.wnz : 0; if (into < 0) { s.vx -= into * s.wnx; s.vz -= into * s.wnz; }
+        }
+      }
+      if (s.jb > 0 && s.wallT > 0 && s.mode !== M_HANG && s.mode !== M_POUND) {                // wall kick: reflect, up 1.0, chainable
+        const dn = s.wdx * s.wnx + s.wdz * s.wnz; let rx, rz;
+        if (dn >= 0) { rx = s.wnx; rz = s.wnz; } else { rx = s.wdx - 2 * dn * s.wnx; rz = s.wdz - 2 * dn * s.wnz; }
+        const rl = Math.sqrt(rx * rx + rz * rz) || 1, sp = Math.max(s.wspd, 0.8 * W);
+        s.vx = rx / rl * sp; s.vz = rz / rl * sp; s.vy = J; out.jumpImpulse = J; s.face = Math.atan2(-s.vx, -s.vz);
+        s.mode = M_AIR; s.wallT = 0; s.jb = 0; s.kicks++; s.flipKind = 4; s.flipT = 0; s.chain = 0; s.ctrl = 0.6;
+        const e = fx.emit('wallKick'); e.n = s.kicks; e.dx = s.wnx; e.dz = s.wnz; e.v = sp;
+      }
+      if (s.mode === M_AIR && io.RP) {                                                       // dive: 1.6x forward, pitched down [doc]
+        const sp = dirOfVel(s, dd), t = Math.max(sp, W) * 1.6; s.vx = dd.x * t; s.vz = dd.z * t; s.vy = Math.max(s.vy, 0) * 0 + J * 0.3; s.mode = M_DIVE; s.chain = 0;
+        s.face = Math.atan2(-dd.x, -dd.z); const e = fx.emit('dive'); e.v = t;
+      } else if ((s.mode === M_AIR || s.mode === M_DIVE) && io.crouchP) {                    // ground pound: 0.25 s hang, then 2.5x grav [doc/plan]
+        s.mode = M_HANG; s.hang = 0.25; s.chain = 0; fx.emit('poundStart');
+      }
+      if (s.mode === M_HANG) { s.vx = s.vz = s.vy = 0; s.hang -= dt; if (s.hang <= 0) { s.mode = M_POUND; s.vy = -J * 1.5; } }
+      else if (s.mode === M_POUND) { s.vy -= g * 2.5 * dt; s.vy = Math.max(s.vy, -70); brake(s, 6 * W, dt); }
+      else {
+        if (s.mode === M_AIR) { s.ctrl = Math.min(1, s.ctrl + dt * 1.2); airSteer(s, io, dt, 0.55 * A * s.ctrl, io.run ? RUN : W); turn(s, io, dt, 8); }
+        s.vy -= g * dt; s.vy = Math.max(s.vy, -40);
+      }
+    }
+    // outputs
+    hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz); const gm = s.mode === M_G || s.mode === M_SLIDE || s.mode === M_BELLY;
+    if (s.flipT < 1) s.flipT = Math.min(1, s.flipT + dt / 0.6);
+    out.vel.x = s.vx; out.vel.z = s.vz; out.vel.y = (grounded && out.jumpImpulse === 0) ? 0 : s.vy; out.groundSnap = grounded && out.jumpImpulse === 0;
+    a.moving = hs > 0.5; a.running = hs > W * 1.15; a.airborne = !grounded; a.speed = clamp(hs / RUN, 0, 1); a.facing = s.face; a.mode = s.mode;
+    a.flip = s.flipT < 1 ? s.flipT : 0; a.flipKind = s.flipKind; a.crouch = (io.crouch && grounded) || s.stun > 0 || s.mode === M_BELLY ? 1 : 0; a.pitch = s.mode === M_DIVE || s.mode === M_BELLY ? 1 : 0;
+    out.camHint.fov = 1 + 0.06 * clamp(hs / RUN, 0, 1.4) + (s.chain === 3 && !grounded ? 0.04 : 0); out.camHint.dist = s.chain === 3 && !grounded ? 1.15 : 1; out.camHint.shake = s.mode === M_POUND ? 0.3 : 0;
+    return out;
+  }
+  return { reset, step, state: s, out };
+}
+
+// ── JOSHI: flutter jumper with eggs + tongue stub [plan; no public numbers] ───────────────────────
+function joshi(env) {
+  const W = env.walk, g = env.grav, J = env.jump, A = W / 0.3;                       // [guess] run 1.0x, no sprint
+  const fx = mkFx(), out = mkOut(fx), io = mkIO(), a = out.anim;
+  const s = { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, fn: 0, fa: false, ft: 0, eggs: 3, eggCd: 0, tongue: -1, hang: 0, pound: 0, stun: 0 };
+  const FL_N = 3, FL_T = 0.3;                                                          // [plan] 0.9 s total = 3 x 0.3 s
+  function reset() { Object.assign(s, { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, fn: 0, fa: false, ft: 0, eggs: 3, eggCd: 0, tongue: -1, hang: 0, pound: 0, stun: 0 }); io.jump = io.crouch = io.L = io.R = io.F = false; }
+  function step(input, ctx, dt) {
+    readIn(io, input, ctx); fx.clear(); out.jumpImpulse = 0;
+    if (!s.fi) { s.face = ctx.facing || 0; s.fi = true; }
+    const grounded = ctx.onGround && s.jgrace <= 0; s.jgrace = Math.max(0, s.jgrace - dt);
+    s.jb -= dt; s.coyote -= dt; s.eggCd -= dt; s.stun -= dt;
+    if (io.jumpP) s.jb = 0.12;
+    if (grounded && !s.was) { s.air = false; s.fn = 0; s.fa = false; s.vy = 0; if (s.pound === 2) { const e = fx.emit('pound'); e.dmg = 8; e.r = 1.6; e.v = 1; s.stun = 0.25; s.vx = s.vz = 0; } else { const e = fx.emit('land'); e.v = -s.vy; } s.pound = 0; }
+    if (!grounded && s.was) { s.air = true; s.coyote = 0.1; }
+    s.was = grounded;
+    let hs;
+    if (grounded) {
+      if (s.jb > 0 && s.stun <= 0) { s.vy = J; out.jumpImpulse = J; s.air = true; s.jgrace = 0.06; s.jb = 0; const e = fx.emit('jump'); e.n = 1; e.v = J; }
+      else {
+        if (s.stun > 0) brake(s, 3 * A, dt);
+        else if (io.m > 0.05) { loco(s, io.wx * W * io.m, io.wz * W * io.m, W, dt); turn(s, io, dt, 14); } else locoStop(s, W, dt);
+        s.vy = 0;
+      }
+    } else {
+      if (s.coyote > 0 && s.jb > 0 && s.vy <= 0 && s.fn === 0 && !s.fa) { s.vy = J; out.jumpImpulse = J; s.jgrace = 0.06; s.jb = 0; s.coyote = 0; const e = fx.emit('jump'); e.n = 1; e.v = J; }
+      airSteer(s, io, dt, 0.9 * A, W); turn(s, io, dt, 10);                          // [plan] air control 0.9 of ground accel
+      if (s.pound === 0 && io.crouchP) { s.pound = 1; s.hang = 0.2; fx.emit('poundStart'); }     // butt stomp
+      if (s.pound === 1) { s.vx = s.vz = s.vy = 0; s.hang -= dt; if (s.hang <= 0) { s.pound = 2; s.vy = -J * 1.3; } }
+      else if (s.pound === 2) { s.vy -= g * 2.2 * dt; brake(s, 6 * W, dt); }
+      else {
+        // flutter: after the apex, hold Space; 3 bursts of 0.3 s (gravity x0.12 + a small kick), chained automatically while held, cancelled on release
+        if (io.jump && s.vy <= 0.2 * J && !s.fa && s.fn < FL_N) { s.fa = true; s.ft = FL_T; s.fn++; s.vy = Math.max(s.vy, 0) + J * 0.18; const e = fx.emit('flutter'); e.n = s.fn; }
+        if (s.fa) { if (!io.jump) s.fa = false; else { s.ft -= dt; if (s.ft <= 0) s.fa = false; } }
+        s.vy -= g * (s.fa ? 0.12 : 1) * dt; s.vy = Math.max(s.vy, -40);
+      }
+    }
+    // egg throw [plan: 8 dmg, 2 bounces, needs an egg]; the game turns this event into a projectile
+    if (io.LP && s.eggs > 0 && s.eggCd <= 0 && s.stun <= 0) {
+      s.eggs--; s.eggCd = 0.3; const e = fx.emit('egg'); const ax = ctx.aim; let dx, dy, dz;
+      if (ax) { dx = ax.x; dy = ax.y; dz = ax.z; } else { const p = 0.35, cp = Math.cos(p); dx = -Math.sin(s.face) * cp; dz = -Math.cos(s.face) * cp; dy = Math.sin(p); }
+      e.dx = dx; e.dy = dy; e.dz = dz; e.v = 30; e.dmg = 8; e.n = 2; e.tag = 'egg';             // v [guess] 30 H/s; n = bounces
+    }
+    // tongue stub: mouse2 = 0.25 s out (emits a grab query at full reach 6 H), 0.25 s in; the game answers via swallow(n)
+    if (s.tongue < 0 && io.R && s.stun <= 0) { s.tongue = 0; }
+    if (s.tongue >= 0) {
+      const t0 = s.tongue; s.tongue += dt;
+      if (t0 < 0.25 && s.tongue >= 0.25) { const e = fx.emit('tongue'); e.r = 6; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); }
+      if (s.tongue >= 0.5) s.tongue = -1;
+    }
+    hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    out.vel.x = s.vx; out.vel.z = s.vz; out.vel.y = (grounded && out.jumpImpulse === 0) ? 0 : s.vy; out.groundSnap = grounded && out.jumpImpulse === 0;
+    a.moving = hs > 0.5; a.running = false; a.airborne = !grounded; a.speed = clamp(hs / W, 0, 1); a.facing = s.face; a.mode = s.pound ? 2 : s.fa ? 1 : 0;
+    a.flutter = s.fa ? 1 : 0; a.stamina = (FL_N - s.fn + (s.fa ? s.ft / FL_T : 0)) / FL_N; if (a.stamina > 1) a.stamina = 1;
+    a.tongue = s.tongue < 0 ? 0 : (s.tongue < 0.25 ? s.tongue / 0.25 : (0.5 - s.tongue) / 0.25); a.crouch = s.stun > 0 ? 1 : 0;
+    out.camHint.fov = 1; out.camHint.dist = 1; out.camHint.shake = s.pound === 2 ? 0.2 : 0;
+    return out;
+  }
+  return { reset, step, state: s, out, swallow(n) { s.eggs = Math.min(9, s.eggs + (n | 0)); }, get eggs() { return s.eggs; },
+    previewArc(buf, ctx) {                                                            // 8 points (x,y,z relative) of the egg arc for the dotted-line preview; buf = Float32Array(24)
+      const ax = ctx && ctx.aim; let dx, dy, dz; if (ax) { dx = ax.x; dy = ax.y; dz = ax.z; } else { const p = 0.35, cp = Math.cos(p); dx = -Math.sin(s.face) * cp; dz = -Math.cos(s.face) * cp; dy = Math.sin(p); }
+      for (let i = 0; i < 8; i++) { const t = (i + 1) * 0.1; buf[i * 3] = dx * 30 * t; buf[i * 3 + 1] = dy * 30 * t - 0.5 * g * 0.6 * t * t; buf[i * 3 + 2] = dz * 30 * t; }
+      return buf;
+    } };
+}
+
+// ── STEEV: block-world walker/builder [doc S3 ratios] ─────────────────────────────────────────────
+const HOTBAR = ['dirt', 'stone', 'plank', 'table', 'torch', 'door', 'glass', 'brick', 'wool'];
+function steev(env) {
+  const W = env.walk, g = env.grav, JS = Math.sqrt(2 * g * 1.0), A = W / 0.12;      // [guess] apex 1.0 H (plan: 0.5 H + tune); [doc] walk 4.317 / sprint 5.612 = 1.3x, sprint-jump flat 1.65x [plan]
+  const BLK = 0.4, REACH = 5 * BLK;                                                  // [doc] reach 5 blocks, block = 0.4 H [plan]
+  const fx = mkFx(), out = mkOut(fx), io = mkIO(), a = out.anim, dd = { x: 0, z: 0 };
+  const s = { vx: 0, vz: 0, vy: 0, face: 0, fi: false, jgrace: 0, was: false, sprint: false, tapT: 9, mineT: 0, mx: 0, my: 0, mz: 0, mineCd: 0, placeCd: 0, slot: 0, tool: 1, airSp: 0, sprintJump: false };
+  const hot = env.hotbar || HOTBAR;
+  function reset() { Object.assign(s, { vx: 0, vz: 0, vy: 0, face: 0, fi: false, jgrace: 0, was: false, sprint: false, tapT: 9, mineT: 0, mineCd: 0, placeCd: 0, slot: 0, tool: 1, airSp: 0, sprintJump: false }); io.jump = io.crouch = io.L = io.R = io.F = io.fwdH = false; }
+  function step(input, ctx, dt) {
+    readIn(io, input, ctx); fx.clear(); out.jumpImpulse = 0;
+    if (!s.fi) { s.face = ctx.facing || 0; s.fi = true; }
+    const grounded = ctx.onGround && s.jgrace <= 0; s.jgrace = Math.max(0, s.jgrace - dt);
+    s.tapT += dt; s.mineCd -= dt; s.placeCd -= dt;
+    if (io.slot >= 0) s.slot = io.slot;
+    // sprint: Shift held, or double-tap W within 0.3 s; ends when W is released / movement stops
+    if (io.fwdP) { if (s.tapT < 0.3) s.sprint = true; s.tapT = 0; }
+    if (io.run && io.m > 0.05) s.sprint = true;
+    if (io.m < 0.05 || io.crouch) s.sprint = false;
+    const top = io.crouch ? W * 0.3 : (s.sprint ? 1.3 * W : W);                      // [doc] sneak 0.3, sprint 1.3
+    if (grounded && !s.was) { s.vy = 0; s.sprintJump = false; const e = fx.emit('land'); e.v = 0; }
+    s.was = grounded;
+    if (grounded) {
+      if (io.jump) {                                                                  // holding Space auto-hops, like the original
+        s.vy = JS; out.jumpImpulse = JS; s.jgrace = 0.06; s.sprintJump = s.sprint; if (s.sprint) { dirOfVel(s, dd); const t = 1.65 * W; s.vx = (io.m > 0.05 ? io.wx : dd.x) * t; s.vz = (io.m > 0.05 ? io.wz : dd.z) * t; }
+        const e = fx.emit('jump'); e.n = s.sprint ? 2 : 1; e.v = JS;
+      } else {
+        if (io.m > 0.05) { loco(s, io.wx * top * io.m, io.wz * top * io.m, top, dt); turn(s, io, dt, 20); } else locoStop(s, Math.max(Math.sqrt(s.vx * s.vx + s.vz * s.vz), W), dt);
+        s.vy = 0;
+      }
+    } else {
+      airSteer(s, io, dt, s.sprintJump ? 0.12 * A : 0.25 * A, s.sprintJump ? 1.65 * W : top); turn(s, io, dt, 8);    // flat momentum in the air (no drag)
+      s.vy -= g * dt; s.vy = Math.max(s.vy, -40);
+    }
+    // block interaction through ctx.target (ray result supplied by the game)
+    const T = ctx.target, ok = T && T.dist != null && T.dist <= REACH;
+    if (io.L && ok && T.mat !== 'air') {
+      if (s.mineT === 0 || s.mx !== T.cx || s.my !== T.cy || s.mz !== T.cz) { s.mx = T.cx; s.my = T.cy; s.mz = T.cz; s.mineT = 0.0001; fx.emit('mineStart').tag = T.mat || ''; }
+      const hard = T.hardness != null ? T.hardness : 0.75;                            // [doc] dirt ~0.75 s by hand
+      if (s.mineCd <= 0) { s.mineT += dt * s.tool; if (s.mineT >= hard) { const e = fx.emit('blockBreak'); e.x = T.cx; e.y = T.cy; e.z = T.cz; e.tag = T.mat || ''; e.v = hard; s.mineT = 0; s.mineCd = 0.25; } }
+    } else s.mineT = 0;
+    if (ok && (io.RP || (io.R && s.placeCd <= 0)) && T.px != null) {                  // place the selected hotbar block on the face cell; 4/s while held
+      const e = fx.emit('blockPlace'); e.x = T.px; e.y = T.py; e.z = T.pz; e.n = s.slot; e.tag = hot[s.slot] || 'dirt'; s.placeCd = 0.25;
+    }
+    if (io.FP && ok && T.mat === 'table') { const e = fx.emit('craft'); e.x = T.cx; e.y = T.cy; e.z = T.cz; e.tag = 'table'; }   // crafting-table ability -> game opens ship-craft 3x3
+    const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    out.caution = (ctx.hostileNear != null && ctx.hostileNear < 7) || (ctx.fuse != null && ctx.fuse > 0);                   // fused-mob: hostile close / fuse hissing -> HUD/camera nudge
+    out.edgeGuard = io.crouch && grounded;                                          // sneak: controller should refuse to walk off ledges
+    out.vel.x = s.vx; out.vel.z = s.vz; out.vel.y = (grounded && out.jumpImpulse === 0) ? 0 : s.vy; out.groundSnap = grounded && out.jumpImpulse === 0;
+    a.moving = hs > 0.5; a.running = s.sprint; a.airborne = !grounded; a.speed = clamp(hs / (1.65 * W), 0, 1); a.facing = s.face; a.mode = s.sprint ? 1 : 0;
+    a.crouch = io.crouch && grounded ? 1 : 0; a.mine = s.mineT > 0 ? Math.min(1, s.mineT / (T && T.hardness != null ? T.hardness : 0.75)) : 0; a.sprint = s.sprint ? 1 : 0; a.caution = out.caution ? 1 : 0; a.slot = s.slot;
+    out.camHint.fov = 1 + (s.sprint ? 0.08 : 0); out.camHint.dist = 1; out.camHint.shake = 0;
+    return out;
+  }
+  return { reset, step, state: s, out, setTool(t) { s.tool = t; } };
+}
+
+export const SONIK_K = { TOP: 16, SPIN: 3.1 };   // H/s: cruise run; spin-dash release = (8 + charge/2) * SPIN (3 taps ~ 34 H/s, measured peak >= 28)
+// ── SONIK: momentum runner [doc S4 constants, px/frame@60 converted] ─────────────────────────────
+function sonik(env) {
+  const g = env.grav, J = env.jump, W = SONIK_K.TOP / 1.5;                            // 2026-11: pinned to absolute H/s (SONIK is the speed character), not env.walk
+  const TOP = SONIK_K.TOP, SC = TOP / 6;                                             // [guess] cruise run 16 H/s; SC = H/s per (px/frame) so every guide constant scales with it
+  const ACC = TOP / 0.25, DEC = TOP / LOCO.TURN_T, FRC = 0.046875 * SC * 60, AIRA = 0.09375 * SC * 60;     // [doc]
+  const SLP = 0.125 * SC * 60, SLP_UP = 0.078125 * SC * 60, SLP_DN = 0.3125 * SC * 60;                       // [doc] slope factors (stand / roll uphill / roll downhill)
+  const RFRC = 0.0234375 * SC * 60, RDEC = 0.125 * SC * 60;                                                  // [doc] roll friction / decel
+  const FALL = 2.5 * SC, ROLLMIN = 1.03 * SC, UNROLL = 0.5 * SC, VMAX = 2.6 * TOP;                          // [doc] fall-off 2.5, roll start 1.03, unroll 0.5; max [guess]
+  const HOME_SP = 2 * W, HOME_T = 0.35, HOME_R = 8;                                  // [plan] 8 H range, 0.35 s; speed [guess] 2x walk
+  const fx = mkFx(), out = mkOut(fx), io = mkIO(), a = out.anim, hitbox = { r: 0.2, h: 0.9, rolling: false };
+  const s = { gsp: 0, vx: 0, vy: 0, vz: 0, face: 0, fi: false, air: true, roll: false, charge: -1, lock: 0, jb: 0, jgrace: 0, was: false, jumped: false, homing: 0, hrx: 0, hry: 0, hrz: 0, hused: false, tx: 0, ty: 0, tz: 0, ny: 1, relCut: false, hitIdx: -1 };
+  function reset() { Object.assign(s, { gsp: 0, vx: 0, vy: 0, vz: 0, face: 0, fi: false, air: true, roll: false, charge: -1, lock: 0, jb: 0, jgrace: 0, was: false, jumped: false, homing: 0, hused: false, relCut: false, hitIdx: -1 }); hitbox.rolling = false; hitbox.h = 0.9; io.jump = io.crouch = io.L = io.R = io.F = false; }
+  // tangent along the heading on the floor plane (writes s.tx/ty/tz)
+  function tangent(n) {
+    const hx = -Math.sin(s.face), hz = -Math.cos(s.face);
+    let nx = 0, ny = 1, nz = 0; if (n) { nx = n.x; ny = n.y; nz = n.z; }
+    const d = hx * nx + hz * nz; let tx = hx - d * nx, ty = -d * ny, tz = hz - d * nz; const l = Math.sqrt(tx * tx + ty * ty + tz * tz) || 1;
+    s.tx = tx / l; s.ty = ty / l; s.tz = tz / l; s.ny = ny;
+  }
+  function step(input, ctx, dt) {
+    readIn(io, input, ctx); fx.clear(); out.jumpImpulse = 0;
+    if (!s.fi) { s.face = ctx.facing || 0; s.fi = true; }
+    const grounded = ctx.onGround && s.jgrace <= 0 && s.homing <= 0; s.jgrace = Math.max(0, s.jgrace - dt);
+    const n = ctx.floorNormal, slope = ctx.slope != null ? ctx.slope : (n ? Math.acos(clamp(n.y, -1, 1)) * R2D : 0);
+    s.jb -= dt; s.lock -= dt; if (io.jumpP) s.jb = 0.1;
+    if (grounded && !s.was) {                                                        // landing: horizontal speed becomes ground speed along the new tangent
+      s.air = false; s.hused = false; s.jumped = false; s.homing = 0;
+      const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+      if (hs > 1) s.face = Math.atan2(-s.vx, -s.vz);
+      tangent(n); s.gsp = hs * (hs > 1 ? 1 : 0) + (s.vy < 0 && slope > 25 ? -s.vy * 0.3 * Math.sin(slope * D2R) : 0);
+      const e = fx.emit('land'); e.v = -s.vy; s.vy = 0;
+    }
+    if (!grounded && s.was) s.air = true;
+    s.was = grounded;
+
+    if (grounded) {
+      tangent(n);
+      const ag = Math.abs(s.gsp);
+      // spin dash: crouch, then jump taps rev it up (+2 each, cap 8, decays x31/32 per frame), releasing crouch launches [doc]
+      if (s.charge >= 0) {
+        s.charge *= Math.pow(31 / 32, dt * 60);
+        if (io.jumpP) { s.charge = Math.min(8, s.charge + 2); const e = fx.emit('spinCharge'); e.v = s.charge; e.n = 1; }
+        s.gsp = 0;
+        if (!io.crouch) { const rel = (8 + Math.floor(s.charge) / 2) * SONIK_K.SPIN; s.gsp = rel; s.roll = true; const e = fx.emit('spinRelease'); e.v = rel; e.n = Math.floor(s.charge); s.charge = -1; s.lock = 0; }
+        else if (io.m > 0.05) turn(s, io, dt, 6);
+      } else if (io.crouch && io.jumpP && ag < ROLLMIN && !s.roll) {
+        s.charge = 2; s.gsp = 0; const e = fx.emit('spinCharge'); e.v = 2; e.n = 0;
+      } else if (s.jb > 0 && s.lock <= 0) {                                          // jump: leaves along the floor normal; height scales with speed [task/guess]
+        const frac = clamp(ag / TOP, 0, 1.5), vj = J * (0.95 + 0.35 * Math.min(1, frac)) + (s.roll ? 0 : 0);
+        const nx = n ? n.x : 0, ny = n ? n.y : 1, nz = n ? n.z : 0;
+        s.vx = s.tx * s.gsp + nx * vj; s.vy = s.ty * s.gsp + ny * vj; s.vz = s.tz * s.gsp + nz * vj;
+        out.jumpImpulse = vj; s.jgrace = 0.06; s.jb = 0; s.jumped = true; s.air = true; s.roll = false; s.hused = false;
+        const e = fx.emit('jump'); e.v = vj; e.n = Math.round(frac * 100);
+      } else {
+        if (!s.roll && io.crouch && ag >= ROLLMIN) { s.roll = true; fx.emit('roll'); }
+        if (s.roll && ag < UNROLL) s.roll = false;
+        // slope: gravity along the heading tangent (ty > 0 = uphill)
+        const sf = s.roll ? (s.gsp * s.ty > 0 ? SLP_UP : SLP_DN) : SLP;
+        s.gsp -= sf * s.ty * dt;      // ty>0 = heading is uphill: slows gsp>0, speeds gsp<0
+        if (s.lock <= 0) {
+          if (s.roll) {
+            if (io.m > 0.05) { const al = io.wx * -Math.sin(s.face) + io.wz * -Math.cos(s.face); if (al * Math.sign(s.gsp || 1) < -0.3) s.gsp -= Math.sign(s.gsp) * RDEC * dt; turn(s, io, dt, 1.5); }
+            s.gsp -= Math.sign(s.gsp) * RFRC * dt;
+          } else if (io.m > 0.05) {
+            const hx = -Math.sin(s.face), hz = -Math.cos(s.face), al = (io.wx * hx + io.wz * hz) / io.m;     // wish alignment with heading
+            if (s.gsp > 0.3 * TOP && al < -0.5) s.gsp = Math.max(0, s.gsp - DEC * dt);                         // brake against the run
+            else {
+              turn(s, io, dt, 14 / (1 + 3 * clamp(Math.abs(s.gsp) / TOP, 0, 1.5)));                           // turn rate falls with speed
+              if (s.gsp < TOP * io.m) s.gsp = Math.min(TOP * io.m, s.gsp + ACC * dt * Math.max(0, al + 0.3));
+              else if (s.gsp > TOP * io.m && s.gsp <= TOP) s.gsp = Math.max(TOP * io.m, s.gsp - FRC * dt);
+            }
+          } else { const d = (TOP / LOCO.FRIC_T) * dt; s.gsp = Math.abs(s.gsp) <= d ? 0 : s.gsp - Math.sign(s.gsp) * d; }      // release: same stop model as every style (SONIK keeps ACC slower: momentum is its ability)
+        }
+        if (Math.abs(s.gsp) < FALL && slope >= 45) { s.lock = 0.5; if (slope >= 60) { s.vx = s.tx * s.gsp; s.vy = s.ty * s.gsp; s.vz = s.tz * s.gsp; s.jgrace = 0.2; s.air = true; } }   // [doc] fall-off + 0.5 s control lock
+        s.gsp = clamp(s.gsp, -VMAX, VMAX);
+      }
+      if (s.air) { /* became airborne this step via jump/detach */ }
+      else if (s.charge < 0) { s.vx = s.tx * s.gsp; s.vy = s.ty * s.gsp; s.vz = s.tz * s.gsp; }
+      else { s.vx = s.vy = s.vz = 0; }
+    } else if (s.homing > 0) {
+      // homing dash toward the locked target (relative position tracked and refreshed from ctx.targets)
+      s.homing -= dt; const T = ctx.targets;
+      if (T && T.length) { let bi = -1, bd = 9; for (let i = 0; i < T.length; i++) { const dx = T[i].x - s.hrx, dy = T[i].y - s.hry, dz = T[i].z - s.hrz, d = dx * dx + dy * dy + dz * dz; if (d < bd) { bd = d; bi = i; } } if (bi >= 0) { s.hrx = T[bi].x; s.hry = T[bi].y; s.hrz = T[bi].z; s.hitIdx = bi; } }
+      const d = Math.sqrt(s.hrx * s.hrx + s.hry * s.hry + s.hrz * s.hrz) || 1;
+      s.vx = s.hrx / d * HOME_SP; s.vy = s.hry / d * HOME_SP; s.vz = s.hrz / d * HOME_SP;
+      s.hrx -= s.vx * dt; s.hry -= s.vy * dt; s.hrz -= s.vz * dt;
+      if (d < 0.6 || ctx.hitTarget) {                                                // connect: bounce (apex 0.7 [plan]) and re-arm
+        const e = fx.emit('homingHit'); e.n = s.hitIdx; e.dmg = 6; s.vy = J * Math.sqrt(0.7) * 1.05; s.vx *= 0.25; s.vz *= 0.25; s.homing = 0; s.hused = false; s.jumped = true; out.jumpImpulse = s.vy;
+      } else if (s.homing <= 0) { s.vx *= 0.5; s.vz *= 0.5; s.vy = 0; }
+    } else {
+      // airborne: variable jump height, air accel (only while under top speed), gravity
+      if (s.jumped && !io.jump && s.vy > 0.615 * J) s.vy = 0.615 * J;                // [doc] release cap 4/6.5 of jump speed
+      if (io.m > 0.05) { const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (hs < TOP || (s.vx * io.wx + s.vz * io.wz) < 0) { s.vx += io.wx * io.m * AIRA * dt; s.vz += io.wz * io.m * AIRA * dt; } turn(s, io, dt, 8); }
+      s.vy -= g * dt; s.vy = Math.max(s.vy, -45);
+      if (!s.hused && (io.RP || io.jumpP) && s.jumped !== undefined && ctx.targets && ctx.targets.length) {      // homing attack: nearest in the forward cone within 8 H
+        const fx0 = -Math.sin(s.face), fz0 = -Math.cos(s.face); let bi = -1, bd = HOME_R * HOME_R;
+        for (let i = 0; i < ctx.targets.length; i++) { const t = ctx.targets[i], d2 = t.x * t.x + t.y * t.y + t.z * t.z; if (d2 > bd || d2 < 1e-6) continue; const dl = Math.sqrt(d2); if ((t.x * fx0 + t.z * fz0) / dl < 0.34) continue; bd = d2; bi = i; }   // cone ~70 deg
+        if (bi >= 0) { const t = ctx.targets[bi]; s.hrx = t.x; s.hry = t.y; s.hrz = t.z; s.homing = HOME_T; s.hused = true; s.hitIdx = bi; s.face = Math.atan2(-t.x, -t.z); const e = fx.emit('homing'); e.n = bi; e.dx = t.x; e.dy = t.y; e.dz = t.z; e.v = HOME_SP; }
+      }
+    }
+    // outputs
+    const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz), onG = grounded && !s.air;
+    hitbox.rolling = s.roll || s.charge >= 0 || (s.air && s.jumped); hitbox.h = hitbox.rolling ? 0.5 * (hitbox.hStand || 0.9) / 0.9 : (hitbox.hStand || 0.9);
+    out.vel.x = s.vx; out.vel.y = s.vy; out.vel.z = s.vz; out.groundSnap = onG && out.jumpImpulse === 0 && s.homing <= 0;       // glued to terrain at speed while on the ground
+    a.moving = hs > 0.5; a.running = hs > 0.7 * TOP; a.airborne = !onG; a.speed = clamp(hs / TOP, 0, 1); a.facing = s.face; a.mode = s.homing > 0 ? 3 : s.charge >= 0 ? 2 : s.roll ? 1 : 0;
+    a.ball = hitbox.rolling ? 1 : 0; a.charge = s.charge >= 0 ? s.charge / 8 : 0; a.crouch = s.charge >= 0 ? 1 : 0; a.pitch = s.homing > 0 ? 1 : 0;
+    out.camHint.fov = 1 + 0.25 * clamp(hs / (2 * TOP), 0, 1); out.camHint.dist = 1 + 0.35 * clamp(hs / (2 * TOP), 0, 1); out.camHint.shake = s.charge >= 0 ? 0.15 * s.charge / 8 : 0;
+    return out;
+  }
+  return { reset, step, state: s, out, hitbox };
+}
+
+// ── Q35 variants: SWIFT / SPARKLET (dash+zap), JELLY (float), HAULER (heavy) — one parameterised machine, tuned by table (docs/mashup-plan.md §1.5) ─────────────
+// P: spd/jump/acc (x walk, x jump, seconds to top), air (air accel x ground), dash (double-tap W dash), fastFall, reflect (mouse2), melee dmg, zap (mouse1 chain arc), mini (air mini-jumps incl. the first), glide, sleep (mouse2 hold regen),
+//    pound (crouch in air), grab (mouse2 grab + mouse1 throw, game answers with grab(n)). Events: dash zap reflect regen grab throw + existing jump land pound poundStart melee. [guess] numbers unless noted.
+const VARIANTS = {
+  SWIFT:    { spd: 1.15, jump: 1, acc: 0.25, air: 0.9, dash: true, fastFall: 1.6, reflect: true, melee: 5 },                                 // [plan] 0.35 s dash, i-frames 0.15, air dash x1, fast fall x1.6, reflector on mouse2
+  SPARKLET: { spd: 1.4, jump: 0.9, acc: 0.2, air: 1, zap: 5, zapChain: 2, zapR: 6 },                                                        // [plan] 1.4x speed, zap arc chains 2 mobs for 5 dmg
+  JELLY:    { spd: 0.85, jump: 0.775, acc: 0.35, air: 1, mini: 5, glide: 0.15, glideV: 3, sleep: true, regen: 5 },                          // [plan] 5 mini-jumps (apex 0.6), then glide; sleep regens 5 hp/s
+  HAULER:   { spd: 0.7, jump: 0.8, acc: 0.45, air: 0.5, pound: true, poundDmg: 14, poundR: 3, grab: true, throwDmg: 10, throwR: 4 },        // [plan] 0.7x, quake pound, grab+throw within 4 H
+  // Q46: HOPPER (flutter hop, JOSHI minus tongue), HUM (slow-fall after the 2nd jump + sing AoE), RACER (accel ramp to 1.6x, low accel = drifts, ram), SEER (double jump + short float + reflect). glideT = max seconds of glide per airtime; ramp = top speed x after 2 s of held input; sing = sleep seconds; ram = melee dmg when fast.
+  HOPPER:   { spd: 1, jump: 1, acc: 0.2, air: 0.9, mini: 1, glide: 0.12, glideV: 1.5, glideT: 0.9 },                                         // [plan] floaty mobility: gravity x0.12 for 0.9 s
+  HUM:      { spd: 0.8, jump: 0.85, acc: 0.3, air: 1.1, mini: 2, glide: 0.2, glideV: 2, sing: 3, singR: 4 },                                  // [plan] lightest: gravity x0.2 after 2nd jump, sing sleeps mobs 3 s r 4 H
+  RACER:    { spd: 1, ramp: 1.6, jump: 0.85, acc: 0.9, air: 0.6, ram: 10 },                                                                   // [plan] accel curve to 1.6x, drift (slow turn-out of speed), ram 10 dmg at speed
+  SEER:     { spd: 1, jump: 1.05, acc: 0.25, air: 1.1, mini: 2, glide: 0.3, glideV: 4, glideT: 0.6, reflect: true },                           // [guess] not in plan (skip-list roster): double jump, brief float, reflect
+};
+function variant(env, P) {
+  const W = env.walk * P.spd, g = env.grav, J = env.jump * P.jump, A = W / P.acc, DS = 3.2 * env.walk, DT0 = 0.35, LK = clamp(P.acc / 0.25, 0.8, 1.25);
+  const fx = mkFx(), out = mkOut(fx), io = mkIO(), a = out.anim; out.vulnerable = false;
+  const s = { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, ddx: 0, ddz: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, glT: 0, run: 0, singCd: 0, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 };
+  function reset() { Object.assign(s, { vx: 0, vz: 0, vy: 0, face: 0, fi: false, air: true, jb: 0, coyote: 0, jgrace: 0, was: false, n: 0, adash: false, dashT: 0, dashCd: 0, tap: 0, spin: 0, zapCd: 0, sleep: 0, regenT: 0, gl: false, glT: 0, run: 0, singCd: 0, pound: 0, hang: 0, stun: 0, held: 0, meleeCd: 0 }); io.jump = io.crouch = io.L = io.R = io.F = io.fwdH = false; }
+  function jumpNow(v) { s.vy = v; out.jumpImpulse = v; s.air = true; s.jgrace = 0.06; s.jb = 0; s.n++; const e = fx.emit('jump'); e.n = s.n; e.v = v; }
+  function aimDir(ctx, e) { const ax = ctx.aim; if (ax) { e.dx = ax.x; e.dy = ax.y; e.dz = ax.z; } else { e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); } }
+  function step(input, ctx, dt) {
+    readIn(io, input, ctx); fx.clear(); out.jumpImpulse = 0;
+    if (!s.fi) { s.face = ctx.facing || 0; s.fi = true; }
+    const grounded = ctx.onGround && s.jgrace <= 0; s.jgrace = Math.max(0, s.jgrace - dt);
+    s.jb -= dt; s.coyote -= dt; s.dashCd -= dt; s.tap -= dt; s.spin -= dt; s.zapCd -= dt; s.stun -= dt; s.meleeCd -= dt; s.singCd -= dt;
+    if (io.jumpP) s.jb = 0.12;
+    let wantDash = false; if (io.fwdP) { wantDash = P.dash && s.tap > 0; s.tap = wantDash ? 0 : 0.25; }
+    if (grounded && !s.was) {
+      s.air = false; s.n = 0; s.adash = false; s.gl = false; s.glT = 0; s.vy = 0;
+      if (s.pound === 2) { const e = fx.emit('pound'); e.dmg = P.poundDmg; e.r = P.poundR; e.v = 1; s.stun = 0.35; s.vx = s.vz = 0; } else { const e = fx.emit('land'); e.v = -s.vy; }
+      s.pound = 0;
+    }
+    if (!grounded && s.was) { s.air = true; s.coyote = 0.1; }
+    s.was = grounded;
+    if (P.dash && wantDash && s.dashCd <= 0 && s.stun <= 0 && s.pound === 0 && (grounded || !s.adash)) {
+      let dx, dz; if (io.m > 0.05) { dx = io.wx; dz = io.wz; const l = Math.sqrt(dx * dx + dz * dz) || 1; dx /= l; dz /= l; } else { dx = -Math.sin(s.face); dz = -Math.cos(s.face); }
+      s.dashT = DT0; s.ddx = dx; s.ddz = dz; s.dashCd = 0.6; if (!grounded) s.adash = true; s.face = Math.atan2(-dx, -dz);
+      const e = fx.emit('dash'); e.n = grounded ? 0 : 1; e.v = 0.15; e.dx = dx; e.dz = dz;           // v = i-frame seconds
+    }
+    if (s.dashT > 0) {                                                                // dash owns the velocity for 0.35 s; in the air it holds height
+      s.dashT -= dt; s.vx = s.ddx * DS; s.vz = s.ddz * DS; if (!grounded) s.vy = 0;
+      if (s.dashT <= 0) { s.vx *= W / DS; s.vz *= W / DS; }
+    } else {
+      s.sleep = (grounded && P.sleep && io.R && s.stun <= 0) ? s.sleep + dt : 0;
+      if (grounded) {
+        if (s.jb > 0 && s.stun <= 0 && s.sleep <= 0) { s.n = 0; jumpNow(J); }
+        else {
+          if (s.stun > 0 || s.sleep > 0) brake(s, 3 * A, dt);
+          else if (io.m > 0.05) { if (P.ramp) s.run = Math.min(2, s.run + dt); const Wr = P.ramp ? W * (1 + (P.ramp - 1) * s.run / 2) : W; loco(s, io.wx * Wr * io.m, io.wz * Wr * io.m, Wr, dt, LK); turn(s, io, dt, 14); } else { s.run = Math.max(0, s.run - 2 * dt); locoStop(s, Math.max(Math.sqrt(s.vx * s.vx + s.vz * s.vz), W), dt, LK); }
+          s.vy = 0;
+          if (s.sleep > 0) { s.regenT += dt; if (s.regenT >= 1) { s.regenT -= 1; const e = fx.emit('regen'); e.v = P.regen; } } else s.regenT = 0;
+        }
+      } else {
+        if (s.coyote > 0 && s.jb > 0 && s.vy <= 0 && s.n === 0) { jumpNow(J); s.coyote = 0; }
+        else if (P.mini && io.jumpP && s.n < P.mini && s.pound === 0) jumpNow(J);       // mini-jumps: each press in the air, up to P.mini total
+        airSteer(s, io, dt, P.air * A, W); turn(s, io, dt, 10);
+        if (P.pound && s.pound === 0 && io.crouchP) { s.pound = 1; s.hang = 0.25; fx.emit('poundStart'); }
+        let gm = 1;
+        if (s.pound === 1) { s.vx = s.vz = s.vy = 0; s.hang -= dt; if (s.hang <= 0) { s.pound = 2; s.vy = -J * 1.2; } gm = 0; }
+        else if (s.pound === 2) { gm = 2.4; brake(s, 6 * W, dt); }
+        else if (P.fastFall && io.crouch && s.vy <= 0) gm = P.fastFall;
+        else if (P.glide && io.jump && s.n >= P.mini && s.vy < 0 && !(P.glideT && s.glT >= P.glideT)) { gm = P.glide; s.gl = true; s.glT += dt; } else s.gl = false;
+        s.vy -= g * gm * dt; s.vy = Math.max(s.vy, s.gl ? -P.glideV : -40);
+      }
+    }
+    // actions
+    const hs0 = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    if (P.sing && io.LP && s.singCd <= 0 && s.stun <= 0) { s.singCd = 1.5; const e = fx.emit('sing'); e.r = P.singR; e.v = P.sing; }
+    if (P.ram && io.LP && s.meleeCd <= 0 && s.stun <= 0 && hs0 > 1.3 * env.walk) { s.meleeCd = 0.4; const e = fx.emit('melee'); e.n = 2; e.dmg = P.ram; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); e.r = 1.6; }
+    if (P.reflect && io.RP && s.spin <= 0 && s.stun <= 0) { s.spin = 0.3; const e = fx.emit('reflect'); e.r = 1.6; e.v = 0.3; }
+    if (P.melee && io.LP && s.meleeCd <= 0 && s.stun <= 0 && s.dashT <= 0) { s.meleeCd = 0.25; const e = fx.emit('melee'); e.n = 1; e.dmg = P.melee; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); e.r = 1.3; }
+    if (P.zap && io.LP && s.zapCd <= 0 && s.stun <= 0) { s.zapCd = 0.4; const e = fx.emit('zap'); aimDir(ctx, e); e.dmg = P.zap; e.n = P.zapChain; e.r = P.zapR; }
+    if (P.grab && s.stun <= 0) {
+      if (io.RP && grounded && s.held <= 0) { const e = fx.emit('grab'); e.r = P.throwR; e.dx = -Math.sin(s.face); e.dz = -Math.cos(s.face); }
+      else if (io.LP && s.held > 0) { s.held--; const e = fx.emit('throw'); aimDir(ctx, e); e.dmg = P.throwDmg; e.r = P.throwR; e.v = 14; }
+    }
+    const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    out.vel.x = s.vx; out.vel.z = s.vz; out.vel.y = (grounded && out.jumpImpulse === 0) ? 0 : s.vy; out.groundSnap = grounded && out.jumpImpulse === 0;
+    out.vulnerable = s.sleep > 0;
+    a.moving = hs > 0.5; a.running = s.dashT > 0; a.airborne = !grounded; a.speed = clamp(hs / W, 0, 1.5); a.facing = s.face; a.mode = s.pound ? 2 : s.dashT > 0 ? 3 : s.spin > 0 ? 4 : s.sleep > 0 ? 5 : s.gl ? 1 : 0;
+    a.flutter = s.gl ? 1 : 0; a.sprint = s.dashT > 0 ? 1 : 0; a.crouch = (s.stun > 0 || s.sleep > 0) ? 1 : 0; a.tongue = s.held > 0 ? 1 : 0; a.charge = s.spin > 0 ? s.spin / 0.3 : 0;
+    a.stamina = P.glideT ? clamp(1 - s.glT / P.glideT, 0, 1) : P.mini ? clamp((P.mini - s.n) / P.mini, 0, 1) : 1;
+    out.camHint.fov = s.dashT > 0 ? 1.12 : 1; out.camHint.dist = 1; out.camHint.shake = s.pound === 2 ? 0.2 : 0;
+    return out;
+  }
+  return { reset, step, state: s, out, grab(n) { s.held = Math.min(3, s.held + (n | 0)); }, get held() { return s.held; } };
+}
+const mkVariant = id => env => variant(env, VARIANTS[id]);
+
+// Q10: rig recipes (pure data + maths; ship-human.js setRig applies them to bones/extras). PILOT = today's human.
+const RIG_ENUM = { headShape: ['round', 'cube', 'snout'], torso: ['normal', 'stout', 'slim', 'lizard', 'box', 'barrel', 'pear', 'dome', 'low', 'robe'], limbShape: ['cyl', 'cube'], feet: ['normal', 'big', 'none'], eyeStyle: ['helmet', 'visor', 'dots', 'none'] };
+const HEAD_R = 0.14;       // round rig: head ellipsoid y-radius at headScale 1 (helmet top = head centre + HEAD_R * hs[1])
+const FEATS = ['nose', 'moustache', 'swept', 'antenna', 'ears', 'longshoes', 'bigmitts', 'ridge', 'dome', 'wings', 'robe', 'hood', 'orbs', 'backspikes'];
+const PILOT_HS = 1.3;      // 2026-11 scale retune: the default pilot's head reads at 1.3x
+const TORSO_S = { normal: [1, 1, 1], stout: [1.3, 0.88, 1.25], slim: [0.85, 1.05, 0.85], lizard: [0.8, 1.12, 1.0], box: [1.1, 1, 1.1], barrel: [1.5, 1.0, 1.4], pear: [1.2, 0.92, 1.15], dome: [1.55, 0.78, 1.5], low: [1.4, 0.78, 1.25], robe: [1.05, 1.12, 1.05] };   // [x, y, z] bone scale of the torso
+export const GAITS = {            // stride = step frequency x, bounce = hip bob x, arm = arm swing x, lean = forward torso lean x. [guess] tune by playing
+  PILOT: { stride: 1, bounce: 1, arm: 1, lean: 1 },
+  MARO:  { stride: 1.1, bounce: 1.5, arm: 0.7, lean: 1.2 },
+  JOSHI: { stride: 1.35, bounce: 0.8, arm: 0.4, lean: 1.6 },
+  STEEV: { stride: 0.9, bounce: 0.5, arm: 1.15, lean: 0.4 },
+  SONIK: { stride: 1.6, bounce: 0.8, arm: 1.3, lean: 1.8 },
+  SWIFT: { stride: 1.5, bounce: 0.7, arm: 1.2, lean: 1.7 },
+  SPARKLET: { stride: 1.9, bounce: 1.2, arm: 1.4, lean: 1.0 },
+  JELLY: { stride: 0.7, bounce: 1.8, arm: 0.5, lean: 0.2 },
+  HAULER: { stride: 0.7, bounce: 0.6, arm: 0.6, lean: 0.6 },
+  HOPPER: { stride: 1.2, bounce: 1.6, arm: 0.3, lean: 0.5 },
+  HUM: { stride: 1.0, bounce: 1.3, arm: 1.6, lean: 0.1 },
+  RACER: { stride: 1.8, bounce: 0.3, arm: 0.4, lean: 2.2 },
+  SEER: { stride: 0.8, bounce: 0.4, arm: 0.2, lean: 0.0 },
+};
+const num = (v, d, a, b) => { v = +v; return v === v ? clamp(v, a, b) : d; };
+const pick = (v, list) => list.indexOf(v) >= 0 ? v : list[0];
+// normRig(recipe, styleId?) -> flat, fully-defaulted rig: { headShape, hs:[x,y,z], neck, torso, ts:[x,y,z], arm, leg, limbShape, feet, tail:{len,spikes}|null, quills, cap:bool, crest, eyeStyle, palette,
+//   gait:{stride,bounce,arm,lean}, extras:[names for ship-human genAtt], hipOff (hips rise so scaled legs still reach y=0), top (helmet top y), hitbox:{r,h} }
+export function normRig(rc, id) {
+  rc = rc || {};
+  const hsr = rc.headScale === undefined && (!id || String(id).toUpperCase() === 'PILOT') ? PILOT_HS : rc.headScale, hs = typeof hsr === 'object' && hsr ? [num(hsr.x, 1, 0.5, 2.5), num(hsr.y, 1, 0.5, 2.5), num(hsr.z, 1, 0.5, 2.5)] : [num(hsr, 1, 0.5, 2.5), num(hsr, 1, 0.5, 2.5), num(hsr, 1, 0.5, 2.5)];
+  const ll = rc.limbLen || {}, arm = num(ll.arm, 1, 0.4, 1.6), leg = num(ll.leg, 1, 0.5, 1.8);
+  const headShape = pick(rc.headShape, RIG_ENUM.headShape), torso = pick(rc.torso, RIG_ENUM.torso), limbShape = pick(rc.limbShape, RIG_ENUM.limbShape), feet = pick(rc.feet, RIG_ENUM.feet), eyeStyle = pick(rc.eyeStyle, RIG_ENUM.eyeStyle);
+  const ts = TORSO_S[torso].slice(), neck = rc.neck !== false;
+  const tl = rc.tail ? { len: num(rc.tail.len, 1, 0.3, 3), spikes: Math.round(num(rc.tail.spikes, 0, 0, 6)) } : null;
+  const quills = Math.round(num(rc.quills, 0, 0, 9)), stance = num(rc.stance, 0, 0, 0.4), feat = Array.isArray(rc.feat) ? rc.feat.filter(f => FEATS.indexOf(f) >= 0).slice(0, 6) : [];
+  const gk = rc.gait && typeof rc.gait === 'object' ? rc.gait : (GAITS[String(id || '').toUpperCase()] || GAITS.PILOT), g0 = GAITS.PILOT;
+  const gait = { stride: num(gk.stride, g0.stride, 0.3, 3), bounce: num(gk.bounce, g0.bounce, 0, 3), arm: num(gk.arm, g0.arm, 0, 3), lean: num(gk.lean, g0.lean, 0, 3) };
+  const extras = [];
+  if (rc.cap) extras.push('cap');
+  if (headShape === 'cube') extras.push('cube'); else if (headShape === 'snout') extras.push('snout');
+  if (tl) extras.push('tail');
+  if (quills) extras.push('quills');
+  if (eyeStyle === 'visor') extras.push('visor');
+  if (rc.crest) extras.push('crest');
+  if (limbShape === 'cube') extras.push('blocky');
+  if (feet === 'big') extras.push('bigfeet');
+  for (let i = 0; i < feat.length; i++) if (extras.indexOf(feat[i]) < 0) extras.push(feat[i]);
+  const hipOff = 0.5 * (leg - 1), hipY = 0.52 + hipOff, headDrop = neck ? 0 : 0.04;
+  const top = hipY + (0.93 - 0.52) * ts[1] - headDrop + HEAD_R * hs[1];
+  const hitbox = { r: +(0.2 * Math.max(ts[0], ts[2], 0.8 * hs[0], 0.9 * (tl ? 1 + 0.1 * tl.len : 1))).toFixed(3), h: +top.toFixed(3) };
+  return { headShape, hs, neck, torso, ts, arm, leg, limbShape, feet, tail: tl, quills, cap: !!rc.cap, crest: !!rc.crest, eyeStyle, palette: rc.palette && typeof rc.palette === 'object' ? { theme: rc.palette.theme != null ? rc.palette.theme : null, base: rc.palette.base != null ? rc.palette.base : null, accent: rc.palette.accent != null ? rc.palette.accent : null, deep: rc.palette.deep != null ? rc.palette.deep : null } : null, stance, gait, extras, hipOff, headDrop, top, hitbox };
+}
+// rigParts(normRigOut) -> flat list of part tokens ('torso:stout', 'feet:big', 'tail', ...) that ship-human setRig builds from a normalised rig. Pure; used to compare recipes.
+export function rigParts(r) {
+  const p = ['head:' + r.headShape, 'headScale:' + r.hs.join('x'), 'neck:' + (r.neck ? 1 : 0), 'torso:' + r.torso, 'torsoScale:' + r.ts.join('x'), 'arm:' + r.arm, 'leg:' + r.leg, 'limb:' + r.limbShape, 'feet:' + r.feet, 'eyes:' + r.eyeStyle];
+  if (r.tail) p.push('tail:' + r.tail.len + '/' + r.tail.spikes);
+  if (r.quills) p.push('quills:' + r.quills);
+  if (r.stance) p.push('stance:' + r.stance);
+  if (r.cap) p.push('cap'); if (r.crest) p.push('crest');
+  for (let i = 0; i < r.extras.length; i++) p.push('x:' + r.extras[i]);
+  return p;
+}
+// ── registry + skins ─────────────────────────────────────────────────────────────────────────────
+const SKINS = {           // round rig: silhouettes differ by shape (torso, head scale, limb length, extras / feat), palette = theme + base + accent (+ deep)
+  MARO:  { color: 0xB86CFF, suit: { jetpack: 0, scanner: 0, sprint: 1, storage: 0 }, role: 'miner', rig: { headShape: 'round', headScale: 1.1, torso: 'stout', limbLen: { arm: 0.75, leg: 0.85 }, limbShape: 'cyl', feet: 'big', cap: 'brim', eyeStyle: 'dots', feat: ['nose', 'moustache'], palette: { theme: 0xB86CFF, base: 0xF2C9A8, accent: 0xFF8A2A, deep: 0x3A2A7A } } },                       // stocky, round cap, big nose + moustache, violet + orange
+  JOSHI: { color: 0x59E08A, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 1 }, role: 'scout', rig: { headShape: 'snout', headScale: { x: 0.95, y: 1.3, z: 1 }, torso: 'lizard', limbLen: { arm: 0.6, leg: 1.15 }, limbShape: 'cyl', feet: 'normal', tail: { len: 1.7, spikes: 3 }, crest: true, eyeStyle: 'helmet', palette: { theme: 0x59E08A, base: 0xBFF5D2, accent: 0xFF9A3C, deep: 0x1F7A4A } } },    // tall thin lizard, long round head, nub snout, tail + crest
+  STEEV: { color: 0x30C0C8, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 2 }, role: 'miner', rig: { headShape: 'cube', headScale: { x: 1.2, y: 1.05, z: 1.2 }, neck: false, torso: 'box', limbLen: { arm: 1, leg: 1 }, limbShape: 'cube', feet: 'normal', eyeStyle: 'helmet', palette: { theme: 0x30C0C8, base: 0xC98F64, accent: 0x5A3A22, deep: 0x3A4A9A } } },           // chamfered block head + limbs, square eyes, teal shirt
+  SONIK: { color: 0xFFC93C, suit: { jetpack: 0, scanner: 1, sprint: 3, storage: 0 }, role: null,    rig: { headShape: 'round', headScale: 1, torso: 'slim', limbLen: { arm: 1, leg: 1.35 }, limbShape: 'cyl', feet: 'big', quills: 5, eyeStyle: 'visor', feat: ['backspikes', 'longshoes'], palette: { theme: 0xFFC93C, base: 0xFFE7A8, accent: 0x7A4CC8, deep: 0x5A3A9A } } },          // spiky quills front + back, pointed visor, long shoes
+  SWIFT:    { color: 0xFF5C8A, suit: { jetpack: 0, scanner: 0, sprint: 2, storage: 0 }, role: 'scout', rig: { headShape: 'snout', headScale: 0.9, torso: 'slim', limbLen: { arm: 1.3, leg: 1.5 }, limbShape: 'cyl', feet: 'normal', tail: { len: 2.2, spikes: 0 }, crest: true, eyeStyle: 'none', feat: ['swept'], palette: { theme: 0xFF5C8A, base: 0xFFC2D6, accent: 0x7A2E5C, deep: 0x4A1E3C } } },                 // lean, swept aero helmet over a blank mask, long tail
+  SPARKLET: { color: 0x5CE1FF, suit: { jetpack: 0, scanner: 1, sprint: 2, storage: 0 }, role: null,    rig: { headShape: 'round', headScale: 1.45, neck: false, torso: 'normal', limbLen: { arm: 0.5, leg: 0.5 }, limbShape: 'cyl', feet: 'none', tail: { len: 0.6, spikes: 2 }, quills: 3, eyeStyle: 'helmet', feat: ['antenna'], palette: { theme: 0x5CE1FF, base: 0xD8F8FF, accent: 0xFFE36B, deep: 0x1F6A8A } } },   // tiny, huge head, antenna bulb, three quills
+  JELLY:    { color: 0xC8A2FF, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 1 }, role: 'miner', rig: { headShape: 'round', headScale: { x: 1.4, y: 1.1, z: 1.4 }, neck: false, torso: 'dome', limbLen: { arm: 0.4, leg: 0.5 }, limbShape: 'cyl', feet: 'none', eyeStyle: 'helmet', feat: ['dome'], palette: { theme: 0xC8A2FF, base: 0xEBDDFF, accent: 0xFF9AD0, deep: 0x7A5AC8 } } },   // wide flat body under a soft bell with hanging tentacles
+  HAULER:   { color: 0xE0702A, suit: { jetpack: 0, scanner: 0, sprint: 0, storage: 3 }, role: 'miner', rig: { headShape: 'cube', headScale: { x: 1.1, y: 0.85, z: 1.1 }, neck: false, torso: 'barrel', limbLen: { arm: 1.5, leg: 0.7 }, limbShape: 'cyl', feet: 'big', cap: true, eyeStyle: 'visor', feat: ['bigmitts', 'ridge'], palette: { theme: 0xE0702A, base: 0xF0C9A0, accent: 0x4A4A55, deep: 0x3A2A22 } } },        // barrel torso, huge mitts, hard hat on a block head
+  HOPPER:   { color: 0xFFD84A, suit: { jetpack: 0, scanner: 0, sprint: 1, storage: 0 }, role: 'scout', rig: { headShape: 'round', headScale: { x: 1.35, y: 0.95, z: 1.1 }, neck: false, torso: 'pear', limbLen: { arm: 0.4, leg: 1.25 }, limbShape: 'cyl', feet: 'big', eyeStyle: 'helmet', feat: ['ears', 'longshoes'], palette: { theme: 0xFFD84A, base: 0xFFF0A8, accent: 0x4DA8FF, deep: 0xB08A1A } } },     // pear body, long ears, long springy feet
+  HUM:      { color: 0xF2F2FF, suit: { jetpack: 0, scanner: 1, sprint: 0, storage: 0 }, role: null,    rig: { headShape: 'round', headScale: 1.15, neck: true, torso: 'slim', limbLen: { arm: 0.6, leg: 0.45 }, limbShape: 'cyl', feet: 'none', tail: { len: 0.9, spikes: 1 }, eyeStyle: 'visor', feat: ['wings'], palette: { theme: 0xF2F2FF, base: 0xFFFFFF, accent: 0x9AB8FF, deep: 0x6A6A9A } } },   // small and pale with flapping wings
+  RACER:    { color: 0x3DDC5C, suit: { jetpack: 0, scanner: 0, sprint: 3, storage: 0 }, role: null,    rig: { headShape: 'snout', headScale: { x: 1, y: 0.8, z: 1.3 }, neck: false, torso: 'low', limbLen: { arm: 0.8, leg: 0.75 }, limbShape: 'cyl', feet: 'big', cap: 'brim', quills: 4, eyeStyle: 'visor', stance: 0.22, palette: { theme: 0x3DDC5C, base: 0xC9FFD6, accent: 0xFF3D6E, deep: 0x1F6A2E } } },  // low, wide, splayed stance, visor helmet with fins
+  SEER:     { color: 0x7A5CFF, suit: { jetpack: 0, scanner: 2, sprint: 0, storage: 0 }, role: 'scout', rig: { headShape: 'round', headScale: 0.95, neck: true, torso: 'robe', limbLen: { arm: 1.3, leg: 0.8 }, limbShape: 'cyl', feet: 'none', eyeStyle: 'none', feat: ['robe', 'hood', 'orbs'], palette: { theme: 0x7A5CFF, base: 0xB9A9FF, accent: 0xFFD36A, deep: 0x2A1E66 } } },       // robe cone, hooded blank face, three floating orbs
+};
+// Q08: MARO action table part 1 — pure, allocation-free state machine in TRUE human heights (H) per docs/next-stage-plan.md §C (SM64 community constants x0.1875 speed / x5.625 accel).
+// maro() reads these constants for: chain window + min speed, pound radius/damage/recovery, punch combo window/damage/radius (CONSISTENCY-1). The rest of the table (wall kick, dive, ledge, slide, bonk) still runs the env-scaled prototype; maroTable() remains the tested reference.
+// Ground-only states here: idle walk run skid crouch crawl jump1 jump2 jump3 longjump backflip sideflip. Wall/dive/pound/ledge/slide/bonk/punch arrive in Q09.
+export const MARO_K = {
+  G: 22.5, V1: 7.9, V2: 9.75, V3: 12.9, CHAIN: 0.17, ACC: 6.2, MAX: 6.0, SKID: 11, SKID_MIN: 3.0, SKID_COS: 0, DECEL: 9,   // SKID_COS: skid when cos(turn) < 0 (> 90 deg)
+  LJ_F: 19.2, LJ_Y: 5.6, LJ_MUL: 3.2, LJ_MIN: 1.5, BF_Y: 11.6, SF_Y: 11.6, SF_F: 1.5, CRAWL: 1.9, RUN_T: 4.0, TRIPLE_MIN: 3.75, CHAIN_MIN: 0.19, TERM: 14.06, SKID_MAXT: 0.6,
+  // Q09 part 2 (all [guess] where the spec gives no number): wall kick / dive / belly slide / ground pound / ledge / steep slide / bonk / punch chain
+  WK_WIN: 0.17, WK_Y: 9.75, WK_OUT: 4.5, DIVE_F: 9, BELLY_FR: 0.55, BELLY_END: 1.0, HOP_Y: 6.0, POUND_HANG: 0.33, POUND_G: 56, POUND_TERM: 40, POUND_R: 3, POUND_DMG: 12, POUND_REC: 0.3,
+  LEDGE_REACH: 0.19, LEDGE_VMAX: 7.5, HANDS: 0.95, LEDGE_UP: 7.5, LEDGE_FWD: 1.5, LEDGE_CD: 0.4, STEEP: 0.62, SLIDE_MAX: 14, BONK_V: 3, BONK_T: 0.5, BONK_BACK: 2,
+  PUNCH_WIN: 0.27, PUNCH_R: 1.4, PUNCH_DMG: [6, 6, 10],
+};
+export const MA = { IDLE: 0, WALK: 1, RUN: 2, SKID: 3, CROUCH: 4, CRAWL: 5, JUMP1: 6, JUMP2: 7, JUMP3: 8, LONG: 9, BACK: 10, SIDE: 11, WALLKICK: 12, DIVE: 13, BELLY: 14, POUND: 15, LEDGE: 16, SLIDE: 17, BONK: 18, PUNCH1: 19, PUNCH2: 20, KICK: 21, POUNDL: 22 };
+export const FX = { NONE: 0, STOMP: 1, HIT: 2, BONK: 3 };   // s.fx for one step: STOMP/HIT carry s.fxR (radius H) + s.fxDmg
+export const MA_NAMES = ['idle', 'walk', 'run', 'skid', 'crouch', 'crawl', 'jump1', 'jump2', 'jump3', 'longjump', 'backflip', 'sideflip', 'wallkick', 'dive', 'belly', 'pound', 'ledge', 'slide', 'bonk', 'punch1', 'punch2', 'kick', 'poundland'];
+export function maroTable() {
+  const K = MARO_K, s = { mode: MA.IDLE, vx: 0, vz: 0, vy: 0, y: 0, face: 0, chain: 0, landAge: 9, skidT: 0, grounded: true, jumps: 0, lock: 0, hang: 0, noLedge: 0, punchT: 0, fx: 0, fxR: 0, fxDmg: 0, lnx: 0, lnz: 1 };
+  const BELLY_LN = Math.log(K.BELLY_FR);
+  // io: { wx, wz, m (0..1 wish, tangent frame, forward = -z), jumpP, crouch, diveP, poundP, punchP (press edges),
+//       wallT (s since wall contact, default 9), wallNx/wallNz (unit normal pointing AWAY from the wall), wallHit (pushing into a wall now),
+//       slope (rise/run, default 0) + slopeX/slopeZ (unit downhill), ledgeTop (absolute y of a ledge in reach, else undefined) + ledgeNx/ledgeNz }.
+// Returns s (reused); s.fx/fxR/fxDmg are valid for the one step that raised them. Floor is y = 0 unless io.floor given.
+  function step(io, dt) {
+    const floor = io.floor || 0, wasG = s.grounded; let hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    s.landAge += dt; s.fx = 0; s.noLedge -= dt;
+    if (s.grounded) {
+      const wantMove = io.m > 0.05;
+      if (io.jumpP) {                                                       // jump family
+        let hx = 0, hz = 0; if (hs > 0.05) { hx = s.vx / hs; hz = s.vz / hs; } else { hx = -Math.sin(s.face); hz = -Math.cos(s.face); }
+        if (s.mode === MA.BELLY) { s.vy = K.HOP_Y; s.mode = MA.JUMP1; s.chain = 0; }   // belly slide hop-out keeps speed
+        else if (s.mode === MA.SKID && s.skidT > 0) {                       // side flip: reverse to the wished direction
+          s.vy = K.SF_Y; s.mode = MA.SIDE; s.chain = 0; if (wantMove) { s.vx = io.wx * K.SF_F; s.vz = io.wz * K.SF_F; s.face = Math.atan2(-io.wx, -io.wz); } else { s.vx = s.vz = 0; }
+        } else if (io.crouch && hs >= K.LJ_MIN) {                           // long jump
+          const f = Math.min(hs * K.LJ_MUL, K.LJ_F); s.vx = hx * f; s.vz = hz * f; s.vy = K.LJ_Y; s.mode = MA.LONG; s.chain = 0;
+        } else if (io.crouch) { s.vx = s.vz = 0; s.vy = K.BF_Y; s.mode = MA.BACK; s.chain = 0; }   // backflip: straight up
+        else {
+          let c = (s.landAge <= K.CHAIN && s.chain > 0 && hs >= K.CHAIN_MIN) ? s.chain + 1 : 1;
+          if (c >= 3 && hs < K.TRIPLE_MIN) c = 2; if (c > 3) c = 1;
+          s.chain = c; s.vy = c === 1 ? K.V1 : c === 2 ? K.V2 : K.V3; s.mode = MA.JUMP1 + c - 1;
+        }
+        s.grounded = false; s.skidT = 0; s.lock = 0; s.punchT = 0; s.jumps++;
+      } else if (s.mode !== MA.BONK && io.wallHit && io.wallNx !== undefined && -(s.vx * io.wallNx + s.vz * io.wallNz) > K.BONK_V) {   // bonk: ran into a wall, not jumping
+        s.vx = io.wallNx * K.BONK_BACK; s.vz = io.wallNz * K.BONK_BACK; s.mode = MA.BONK; s.lock = K.BONK_T; s.chain = 0; s.punchT = 0; s.fx = FX.BONK; s.vy = 0; s.y = floor;
+      } else if (s.lock > 0) {                                              // bonk / stomp recovery: no control, friction only
+        const d = K.DECEL * dt; if (hs <= d) { s.vx = s.vz = 0; } else { s.vx -= s.vx / hs * d; s.vz -= s.vz / hs * d; }
+        s.lock -= dt; if (s.lock <= 0) { s.lock = 0; s.mode = MA.IDLE; } s.vy = 0; s.y = floor;
+      } else if (s.mode === MA.BELLY) {                                     // belly slide: exponential friction, hop out with jump
+        const k = Math.exp(BELLY_LN * dt); s.vx *= k; s.vz *= k; hs *= k;
+        if (hs < K.BELLY_END) { s.vx = s.vz = 0; s.mode = MA.IDLE; } s.vy = 0; s.y = floor;
+      } else if (io.punchP && !io.crouch && (s.mode === MA.IDLE || s.mode === MA.WALK || s.mode === MA.RUN || s.mode === MA.PUNCH1 || s.mode === MA.PUNCH2)) {   // jab / jab / kick
+        const n = (s.mode === MA.PUNCH1 || s.mode === MA.PUNCH2) && s.punchT <= K.PUNCH_WIN ? s.mode - MA.PUNCH1 + 1 : 0;   // 0 jab, 1 jab, 2 kick
+        if (n < 3) { s.mode = n === 0 ? MA.PUNCH1 : n === 1 ? MA.PUNCH2 : MA.KICK; s.punchT = 0; s.fx = FX.HIT; s.fxR = K.PUNCH_R; s.fxDmg = K.PUNCH_DMG[n]; }
+        s.vy = 0; s.y = floor;
+      } else if (s.mode === MA.PUNCH1 || s.mode === MA.PUNCH2 || s.mode === MA.KICK) {   // swing: friction, window to chain, then back to idle
+        const d = K.DECEL * dt; if (hs <= d) { s.vx = s.vz = 0; } else { s.vx -= s.vx / hs * d; s.vz -= s.vz / hs * d; }
+        s.punchT += dt; if (s.punchT > K.PUNCH_WIN) { s.mode = MA.IDLE; s.punchT = 0; } s.vy = 0; s.y = floor;
+      } else if (io.slope > K.STEEP && io.slopeX !== undefined) {           // steep slide: accelerate downhill, steering off
+        const sn = io.slope / Math.sqrt(1 + io.slope * io.slope); s.vx += io.slopeX * K.G * sn * dt; s.vz += io.slopeZ * K.G * sn * dt;
+        const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (sp > K.SLIDE_MAX) { s.vx *= K.SLIDE_MAX / sp; s.vz *= K.SLIDE_MAX / sp; }
+        s.face = Math.atan2(-io.slopeX, -io.slopeZ); s.mode = MA.SLIDE; s.chain = 0; s.vy = 0; s.y = floor;
+      } else if (s.mode === MA.SKID && s.skidT > 0) {                       // skidding: brake hard, then hand back control
+        const d = K.SKID * dt; if (hs <= d) { s.vx = s.vz = 0; hs = 0; } else { s.vx -= s.vx / hs * d; s.vz -= s.vz / hs * d; hs -= d; }
+        s.skidT -= dt; if (hs <= 0 || s.skidT <= 0) { s.skidT = 0; s.mode = MA.IDLE; }
+      } else {
+        if (io.crouch) {                                                    // crouch / crawl
+          s.chain = 0;
+          if (wantMove) { s.vx = io.wx * K.CRAWL * io.m; s.vz = io.wz * K.CRAWL * io.m; s.face = Math.atan2(-io.wx, -io.wz); s.mode = MA.CRAWL; }
+          else { s.vx = s.vz = 0; s.mode = MA.CROUCH; }
+        } else if (wantMove) {
+          const dot = hs > 0.05 ? (s.vx * io.wx + s.vz * io.wz) / (hs * Math.sqrt(io.wx * io.wx + io.wz * io.wz)) : 1;
+          if (hs > K.SKID_MIN && dot < K.SKID_COS) { s.mode = MA.SKID; s.skidT = K.SKID_MAXT; }   // > 90 deg turn at speed
+          else {
+            const tx = io.wx * K.MAX * io.m, tz = io.wz * K.MAX * io.m, ex = tx - s.vx, ez = tz - s.vz, d = Math.sqrt(ex * ex + ez * ez), st = K.ACC * dt;
+            if (d <= st || d < 1e-9) { s.vx = tx; s.vz = tz; } else { s.vx += ex / d * st; s.vz += ez / d * st; }
+            s.face = Math.atan2(-io.wx, -io.wz);
+            hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz); s.mode = hs > K.RUN_T ? MA.RUN : MA.WALK;
+          }
+        } else {
+          const d = K.DECEL * dt; if (hs <= d) { s.vx = s.vz = 0; } else { s.vx -= s.vx / hs * d; s.vz -= s.vz / hs * d; }
+          s.mode = (s.vx * s.vx + s.vz * s.vz) > 0.01 ? MA.WALK : MA.IDLE;
+        }
+        s.vy = 0; s.y = floor;
+      }
+    }
+    if (!s.grounded) {                                                      // airborne: exact ballistic step, light steering
+      hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+      if (s.mode === MA.LEDGE) {                                            // hanging: hop up on jump / forward, drop on crouch
+        s.vx = s.vz = s.vy = 0;
+        if (io.crouch) { s.mode = MA.JUMP1; s.chain = 0; s.noLedge = K.LEDGE_CD; }
+        else if (io.jumpP || io.m > 0.05) { s.vy = K.LEDGE_UP; s.vx = -s.lnx * K.LEDGE_FWD; s.vz = -s.lnz * K.LEDGE_FWD; s.mode = MA.JUMP1; s.chain = 0; s.noLedge = K.LEDGE_CD; }
+        if (s.mode === MA.LEDGE) return s;
+      }
+      const m0 = s.mode;
+      if (io.jumpP && io.wallT <= K.WK_WIN && io.wallNx !== undefined && m0 !== MA.POUND && m0 !== MA.DIVE) {   // wall kick: window after wall contact
+        s.vy = K.WK_Y; s.vx = io.wallNx * K.WK_OUT; s.vz = io.wallNz * K.WK_OUT; s.face = Math.atan2(-io.wallNx, -io.wallNz); s.mode = MA.WALLKICK; s.chain = 0; s.jumps++;
+      } else if (io.diveP && m0 !== MA.DIVE && m0 !== MA.POUND) {           // dive: fast forward, nose-down
+        let hx = 0, hz = 0; if (hs > 0.05) { hx = s.vx / hs; hz = s.vz / hs; } else { hx = -Math.sin(s.face); hz = -Math.cos(s.face); }
+        s.vx = hx * K.DIVE_F; s.vz = hz * K.DIVE_F; if (s.vy > 0) s.vy = 0; s.mode = MA.DIVE; s.face = Math.atan2(-hx, -hz);
+      } else if (io.poundP && m0 !== MA.POUND && m0 !== MA.DIVE) {          // ground pound: hang, then fall hard
+        s.vx = s.vz = 0; s.vy = 0; s.hang = K.POUND_HANG; s.mode = MA.POUND; s.chain = 0;
+      } else if (m0 !== MA.POUND && m0 !== MA.DIVE && s.noLedge <= 0 && s.vy <= 0 && hs < K.LEDGE_VMAX && io.ledgeTop !== undefined && Math.abs(io.ledgeTop - (s.y + K.HANDS)) <= K.LEDGE_REACH) {   // auto ledge grab
+        s.mode = MA.LEDGE; s.vx = s.vz = s.vy = 0; s.y = io.ledgeTop - K.HANDS; s.chain = 0;
+        if (io.ledgeNx !== undefined) { s.lnx = io.ledgeNx; s.lnz = io.ledgeNz; } else { s.lnx = Math.sin(s.face); s.lnz = Math.cos(s.face); }
+        s.face = Math.atan2(s.lnx, s.lnz); return s;
+      }
+      const fall = s.mode === MA.POUND, G = fall ? (s.hang > 0 ? 0 : K.POUND_G) : K.G, TERM = fall ? K.POUND_TERM : K.TERM;
+      if (fall && s.hang > 0) { s.hang -= dt; s.vy = 0; }
+      if (io.m > 0.05 && s.mode !== MA.BACK && s.mode !== MA.POUND && s.mode !== MA.DIVE) {
+        const lim = Math.max(hs, K.MAX), ax = io.wx * io.m * K.ACC * 0.55 * dt, az = io.wz * io.m * K.ACC * 0.55 * dt;
+        s.vx += ax; s.vz += az; const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz); if (sp > lim) { s.vx *= lim / sp; s.vz *= lim / sp; }
+      }
+      const y1 = s.y + s.vy * dt - 0.5 * G * dt * dt; s.vy = Math.max(s.vy - G * dt, -TERM);
+      if (y1 <= floor && s.vy <= 0) {                                       // touchdown
+        s.y = floor; s.vy = 0; s.grounded = true; s.landAge = 0;
+        if (s.mode !== MA.JUMP1 && s.mode !== MA.JUMP2) s.chain = 0; else s.chain = s.mode - MA.JUMP1 + 1;
+        if (s.mode === MA.POUND) { s.vx = s.vz = 0; s.mode = MA.POUNDL; s.lock = K.POUND_REC; s.fx = FX.STOMP; s.fxR = K.POUND_R; s.fxDmg = K.POUND_DMG; }
+        else if (s.mode === MA.DIVE) s.mode = MA.BELLY;
+        else s.mode = MA.IDLE;
+      } else s.y = y1;
+    }
+    return s;
+  }
+  function reset() { s.mode = MA.IDLE; s.vx = s.vz = s.vy = s.y = s.face = 0; s.chain = 0; s.landAge = 9; s.skidT = 0; s.grounded = true; s.jumps = 0; s.lock = s.hang = s.noLedge = s.punchT = s.fx = 0; }
+  return { s, step, reset };
+}
+// Q06: wall normal in the tangent frame (x right, z back) from the wanted move (dx,dz) and the first free slide direction (sx,sz):
+// perpendicular to the slide, facing against the move. Writes out.x/out.z; returns false when the slide is degenerate or parallel to the move.
+export function wallNormal2(dx, dz, sx, sz, out) {
+  const sl = Math.sqrt(sx * sx + sz * sz); if (sl < 1e-6) return false;
+  let nx = -sz / sl, nz = sx / sl;
+  const d = nx * dx + nz * dz; if (Math.abs(d) < 1e-3) return false;
+  if (d > 0) { nx = -nx; nz = -nz; }
+  out.x = nx; out.z = nz; return true;
+}
+export const STYLES = {
+  MARO:  { id: 'MARO',  name: 'MARO',  portraitHint: 'stout runner, round cap, violet and orange',        skin: SKINS.MARO,  abilities: ['jumpChain', 'longJump', 'backflip', 'sideFlip', 'wallKick', 'dive', 'groundPound', 'slide', 'punch'], hitbox: { r: 0.24, h: 1.0 }, make: maro },
+  JOSHI: { id: 'JOSHI', name: 'JOSHI', portraitHint: 'round lizard, nub nose, mint with orange crest',    skin: SKINS.JOSHI, abilities: ['flutter', 'eggThrow', 'tongue', 'groundPound'],                                                      hitbox: { r: 0.26, h: 0.95 }, make: joshi },
+  STEEV: { id: 'STEEV', name: 'STEEV', portraitHint: 'cube head, block limbs, teal shirt',                skin: SKINS.STEEV, abilities: ['sprintJump', 'blockMine', 'blockPlace', 'craftTable', 'sneak'],                                      hitbox: { r: 0.2, h: 1.05 }, make: steev },
+  SONIK: { id: 'SONIK', name: 'SONIK', portraitHint: 'quilled gold runner, pointed visor',                skin: SKINS.SONIK, abilities: ['momentum', 'roll', 'spinDash', 'homingAttack'],                                                      hitbox: { r: 0.2, h: 0.9 }, make: sonik },
+  SWIFT:    { id: 'SWIFT',    name: 'SWIFT',    portraitHint: 'lean pink dasher, long tail, blank mask',          skin: SKINS.SWIFT,    abilities: ['dash', 'airDash', 'fastFall', 'reflect', 'jab'],             hitbox: { r: 0.2, h: 1.0 },  make: mkVariant('SWIFT') },
+  SPARKLET: { id: 'SPARKLET', name: 'SPARKLET', portraitHint: 'tiny big-headed spark, cyan, three quills',        skin: SKINS.SPARKLET, abilities: ['fastRun', 'zapArc', 'chainZap'],                              hitbox: { r: 0.2, h: 0.7 },  make: mkVariant('SPARKLET') },
+  JELLY:    { id: 'JELLY',    name: 'JELLY',    portraitHint: 'wide lavender dome, no neck, stub limbs',          skin: SKINS.JELLY,    abilities: ['miniJumps', 'glide', 'sleepRegen'],                           hitbox: { r: 0.3, h: 0.8 },  make: mkVariant('JELLY') },
+  HAULER:   { id: 'HAULER',   name: 'HAULER',   portraitHint: 'broad rust slab, long arms, visor, hard cap',      skin: SKINS.HAULER,   abilities: ['quakePound', 'grab', 'throw', 'slowStrong'],                  hitbox: { r: 0.3, h: 1.0 },  make: mkVariant('HAULER') },
+  HOPPER:   { id: 'HOPPER',   name: 'HOPPER',   portraitHint: 'yellow wide-head springer, big feet',             skin: SKINS.HOPPER,   abilities: ['flutterHop', 'highAirControl', 'miniHop'],                              hitbox: { r: 0.25, h: 1.0 },  make: mkVariant('HOPPER') },
+  HUM:      { id: 'HUM',      name: 'HUM',      portraitHint: 'pale light singer, visor, small tail',            skin: SKINS.HUM,      abilities: ['featherFall', 'singSleep', 'doubleJump'],                   hitbox: { r: 0.2, h: 0.8 },   make: mkVariant('HUM') },
+  RACER:    { id: 'RACER',    name: 'RACER',    portraitHint: 'low green shell, quills, visor',                  skin: SKINS.RACER,    abilities: ['speedRamp', 'drift', 'ram'],                                 hitbox: { r: 0.22, h: 0.9 },  make: mkVariant('RACER') },
+  SEER:     { id: 'SEER',     name: 'SEER',     portraitHint: 'indigo robed seer, long arms, blank face',        skin: SKINS.SEER,     abilities: ['doubleJump', 'float', 'reflect'],                            hitbox: { r: 0.2, h: 1.0 },   make: mkVariant('SEER') },
+};
+export function skinFor(id) {
+  const k = SKINS[String(id || '').toUpperCase()];
+  if (!k) return { color: 0xB86CFF };
+  const rg = normRig(k.rig, id), rig = Object.assign({}, k.rig, { gait: rg.gait });
+  return { color: k.color, suit: Object.assign({}, k.suit), role: k.role, extra: rg.extras.slice(), rig, hitbox: rg.hitbox };
+}
+export function createStyle(id, env) {
+  const S = STYLES[String(id || '').toUpperCase()]; if (!S) return null;
+  const e = Object.assign({ walk: 22, grav: 22, jump: 8.5 }, env || {});
+  const m = S.make(e), api = { id: S.id, name: S.name, portraitHint: S.portraitHint, skin: skinFor(S.id), abilities: S.abilities.slice(), hitbox: m.hitbox || Object.assign({}, S.hitbox), reset: m.reset, step: m.step, state: m.state };
+  {      // consistency: the capsule is the visible body (normRig recipe), not a hand-typed number; SONIK keeps its rolling squash
+    const rh = api.skin.hitbox; if (rh && rh.r > 0 && rh.h > 0) { api.hitbox.r = rh.r; if (S.id === 'SONIK') api.hitbox.hStand = rh.h; else api.hitbox.h = rh.h; }
+  }
+  for (const k of ['swallow', 'previewArc', 'setTool', 'grab']) if (m[k]) api[k] = m[k];
+  if ('held' in m) Object.defineProperty(api, 'held', { get() { return m.held; } });
+  if ('eggs' in m) Object.defineProperty(api, 'eggs', { get() { return m.eggs; } });
+  m.reset(); return api;
+}
+// Q41 ability maths for the game-side consumers (ship.js): pure, no allocation (write into `out`).
+// reflectVel: send a bolt back at its source ((sx,sy,sz) = source minus bolt position), speed x k; degenerate source -> plain reversal.
+export function reflectVel(out, vx, vy, vz, sx, sy, sz, k) {
+  const sp = Math.sqrt(vx * vx + vy * vy + vz * vz) * (k > 0 ? k : 1), sl = Math.sqrt(sx * sx + sy * sy + sz * sz);
+  if (sl > 1e-6) { out.x = sx / sl * sp; out.y = sy / sl * sp; out.z = sz / sl * sp; } else { out.x = -vx; out.y = -vy; out.z = -vz; }
+  return out;
+}
+// regenStep: hp after dt seconds at `rate` hp/s, capped at max; no regen while `calm` is false (in a fight) or hp is not finite.
+export function regenStep(hp, max, rate, dt, calm) {
+  if (!calm || !(rate > 0) || !(dt > 0) || !isFinite(hp)) return hp;
+  return Math.min(max, hp + rate * dt);
+}
+// throwArc: ballistic position at time t: p0 + v0 t - up * g t^2 / 2 (up is a unit vector, g in world units/s^2).
+export function throwArc(out, p0, v0, up, g, t) {
+  const h = 0.5 * g * t * t;
+  out.x = p0.x + v0.x * t - up.x * h; out.y = p0.y + v0.y * t - up.y * h; out.z = p0.z + v0.z * t - up.z * h;
+  return out;
+}
+
+// ── jetpack input model (one for every style, pure + allocation-free) ───────────────────────────────
+// tap Space (released < HOLD) = the style's own jump (chain, flutter, ...); hold Space >= HOLD s continuously while airborne = jetpack (a grounded hold jumps first, then ignites in the air);
+// release = cut; Shift = dive (exponential descent). The style keeps owning the jump: the jetpack only overrides its vertical velocity (state.vy) while it burns.
+// Default (no style) dives whenever Shift is down in the air; styles use Shift as sprint, so they dive only on a Shift PRESS made in the air.
+export const JET_K = { HOLD: 0.18, RAMP: 1.2, UP: 3, DIVE_V0: 3, DIVE_TAU: 0.6, DIVE_CAP: 48, THRUST: { MARO: 1, SONIK: 1, JOSHI: 1, STEEV: 1, SWIFT: 1, SPARKLET: 1, JELLY: 1, HAULER: 1, HOPPER: 1, HUM: 1, RACER: 1, SEER: 1 } };
+export function mkJetSM() { return { t: 0, jet: false, k: 1, dive: false, diveT: 0, sh: false, shAir: false }; }
+// j: state; held = Space down; air = airborne; shift = Shift down; styled = a style owns the body. Returns j (jet, k = ramp 1..3.5, dive, diveT).
+export function jetStep(j, dt, held, air, shift, styled) {
+  if (air && held) j.t += dt; else j.t = 0;
+  if (!air) j.shAir = false; else if (shift && !j.sh) j.shAir = true;
+  if (!shift) j.shAir = false;
+  j.sh = shift;
+  j.dive = air && shift && (!styled || j.shAir);
+  if (j.dive) j.diveT += dt; else j.diveT = 0;
+  j.jet = j.t > JET_K.HOLD && !j.dive;
+  j.k = 1 + 2.5 * clamp((j.t - JET_K.HOLD) / JET_K.RAMP, 0, 1);
+  return j;
+}
+export function jetThrust(id) { const t = JET_K.THRUST[String(id || '').toUpperCase()]; return t > 0 ? t : 1; }

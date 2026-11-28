@@ -1,3 +1,5 @@
+HISTORICAL — cut 2026-11-27, see docs/audit-2026-11-25/changes-spine.md
+
 # GOR MASHUP — plan v1 (character styles, proximity fights, mobs, hubs, villages)
 
 Status 2026-10-06: plan only, nothing built. Builds on docs/ship-mode.md (on-foot capsule, ps, relay) and docs/smash-plan.md v2 (2D fighter, host-authoritative net).

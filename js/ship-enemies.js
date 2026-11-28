@@ -1488,15 +1488,21 @@ export function nestSpec(planetSeed, biome) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════
-// MOBS (mashup plan section 3): block-world night monsters, original voxel-stack looks. Additive; same return shape as
+// MOBS: night monsters (7 kinds, see the table at MOB_KINDS), original voxel-stack looks. Additive; same return shape as
 // generateGroundEnemy (+ `mob: kind`). Built in metres (length = body length, root scale 1). Nose -Z, up +Y. Speeds in human heights/s.
 //   generateMob(THREE, seed, kind) -> ground-enemy contract + { mob, setFuse(0..1) [kreeper], teleport() [ender] }
 //   stats.explode{radius(H),dmg,edgeDmg,fuse} | stats.stare{...}, stats.teleport | stats.burnsInDay, stats.group | stats.ranged{range,interval,boltSpeed}
 //   mobSpawnRule(kind, {night, lightLevel(0..1), biome}) -> weight >= 0 ; mobDrops(kind, rng) -> [{ id, n }]
 // ══════════════════════════════════════════════════════════════════════════════════════════════
-export const MOB_KINDS = ['kreeper', 'ender', 'zomby', 'skelly'];
-const MOB_SETS = { rocky: ['zomby', 'skelly'], lush: ['zomby', 'kreeper'], icy: ['skelly', 'ender'], exotic: MOB_KINDS };
-const MOB_BASEW = { zomby: 1, skelly: 0.8, kreeper: 0.7, ender: 0.25 };
+export const MOB_KINDS = ['kreeper', 'ender', 'zomby', 'skelly', 'brute', 'lurker', 'skitter'];      // new kinds are appended: net snapshots send the index
+// 2026-11-27 night mob table (size in H = height / HUMAN_H; speed in H/s before MOB_SPD):
+//   zomby   1.0 H  1.2  chaser, packs of 2-4, burns in daylight         skelly  1.0 H  2.2  ranged archer, strafes
+//   kreeper 0.9 H  1.8  charging fuse bomb                              ender   1.6 H  3.2  teleporter, hates being looked at
+//   brute   2.4 H  0.7  slow heavy: 90 hp, long windup, 14 dmg          lurker  0.8 H  0.0 -> 6  ambush: sits still beside structures, pounces inside 7 H
+//   skitter 0.86 H 4.6  fast skittish: circles at range, darts in to bite, flees when hurt
+export const MOB_LURK_NEAR = true;      // lurker spawns only within reach of a structure (ship.js mobSpawnTick checks)
+const MOB_SETS = { rocky: ['zomby', 'skelly', 'brute', 'lurker'], lush: ['zomby', 'kreeper', 'skitter', 'lurker'], icy: ['skelly', 'ender', 'brute', 'skitter'], exotic: MOB_KINDS };
+const MOB_BASEW = { zomby: 1, skelly: 0.8, kreeper: 0.7, ender: 0.25, brute: 0.3, lurker: 0.5, skitter: 0.6 };
 export function mobSpawnRule(kind, o) {
   o = o || {};
   const set = MOB_SETS[o.biome]; if (!set || !set.includes(kind) || !MOB_BASEW[kind]) return 0;
@@ -1513,10 +1519,13 @@ export function mobDrops(kind, rng) {
   else if (kind === 'ender') { if (rng() < 0.5) push('warp pearl', 1); }
   else if (kind === 'zomby') { push('rotten bite', ri2(1, 2)); if (rng() < 0.05) push('gor coin', 1); }
   else if (kind === 'skelly') { push('bone', ri2(0, 2)); push('bolt', ri2(0, 2)); }
+  else if (kind === 'brute') { push('goo', ri2(1, 3)); push('gor coin', ri2(1, 3)); }
+  else if (kind === 'lurker') { push('goo', ri2(0, 2)); if (rng() < 0.3) push('warp pearl', 1); }
+  else if (kind === 'skitter') { push('bone', ri2(0, 1)); if (rng() < 0.25) push('gor coin', 1); }
   return out;
 }
 export function generateMob(THREE, seed, kind) {
-  kind = MOB_KINDS.includes(kind) ? kind : MOB_KINDS[((seed | 0) % 4 + 4) % 4];
+  kind = MOB_KINDS.includes(kind) ? kind : MOB_KINDS[((seed | 0) % MOB_KINDS.length + MOB_KINDS.length) % MOB_KINDS.length];
   const r = mulberry((seed | 0) * 2654435761 + 4141 + MOB_KINDS.indexOf(kind) * 211);
   const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
   const col = (h, s, l) => new THREE.Color().setHSL(((h % 1) + 1) % 1, s, l);
@@ -1526,6 +1535,9 @@ export function generateMob(THREE, seed, kind) {
     ender: { base: col(0.76 + j, 0.35, 0.045), alt: col(0.8 + j, 0.5, 0.1), eye: col(0.8, 1, 0.68), acc: col(0.78, 1, 0.5) },
     zomby: { base: col(0.42 + j, 0.3, 0.22), alt: col(0.5 + j, 0.3, 0.12), eye: col(0.12, 1, 0.62), acc: col(0.62, 0.35, 0.28) },
     skelly: { base: col(0.12 + j, 0.2, 0.62), alt: col(0.14 + j, 0.25, 0.38), eye: col(0.52, 1, 0.65), acc: col(0.5, 0.9, 0.55) },
+    brute: { base: col(0.02 + j, 0.22, 0.2), alt: col(0.06 + j, 0.25, 0.1), eye: col(0.04, 1, 0.58), acc: col(0.08, 0.5, 0.3) },
+    lurker: { base: col(0.58 + j, 0.2, 0.16), alt: col(0.62 + j, 0.3, 0.08), eye: col(0.14, 1, 0.6), acc: col(0.6, 0.35, 0.28) },
+    skitter: { base: col(0.9 + j, 0.4, 0.34), alt: col(0.95 + j, 0.5, 0.2), eye: col(0.5, 1, 0.65), acc: col(0.12, 0.8, 0.55) },
   }[kind];
   const solid = [];
   function add(g, colorFn, fx, piv, boost) {
@@ -1588,6 +1600,39 @@ export function generateMob(THREE, seed, kind) {
     box(0.4, 0.4, 0.4, 0, 1.68, -0.1, vox(P.base, P.alt, 0.06)); box(0.44, 0.1, 0.44, 0, 1.9, -0.1, Vc);
     for (const s of [-1, 1]) { const g = new THREE.BoxGeometry(0.1, 0.05, 0.02); g.translate(s * 0.1, 1.72, -0.31); glow(g, 2.4); }
     eyeRecs.push({ pos: [-0.1, 1.72, -0.32], r: 0.035 }, { pos: [0.1, 1.72, -0.32], r: 0.035 });
+  } else if (kind === 'brute') {
+    // 4.2 m hulking slab: tiny head sunk between huge shoulders, two oversized fists dragging low, stub legs (reads as a boulder with intent)
+    height = 4.2; length = 2.2; hp = 90; dmg = 14; speedH = 0.7; hitW = 0.9;
+    const Vr = vox(P.base, P.alt, 0.12), Vp = vox(P.acc, P.alt, 0.1);
+    leg(0, -0.55, 1.2, 0, 0.7, 1.2, 0.8, 0, 0.3, Vr); leg(1, 0.55, 1.2, 0, 0.7, 1.2, 0.8, Math.PI, 0.3, Vr);
+    box(1.9, 1.6, 1.2, 0, 2.0, 0.05, Vr); box(2.3, 0.5, 1.3, 0, 2.95, 0, Vp); box(1.3, 0.3, 1.0, 0, 1.2, 0, Vp);
+    for (const sd of [-1, 1]) { box(0.7, 1.9, 0.7, sd * 1.35, 2.0, -0.15, Vr, [0.25, sd < 0 ? 0 : Math.PI, 9, 0.02], V3(sd * 1.35, 3.0, 0)); box(0.95, 0.95, 0.95, sd * 1.35, 0.75, -0.2, Vp, [0.25, sd < 0 ? 0 : Math.PI, 9, 0.02], V3(sd * 1.35, 3.0, 0)); }
+    headC = V3(0, 3.35, -0.25);
+    box(0.7, 0.55, 0.6, 0, 3.35, -0.25, vox(P.base, P.alt, 0.07));
+    for (const sd of [-1, 1]) { const g = new THREE.BoxGeometry(0.2, 0.08, 0.02); g.translate(sd * 0.17, 3.38, -0.56); glow(g, 2.8); }
+    for (let k = 0; k < 3; k++) box(0.22, 0.4 + 0.1 * k, 0.22, -0.5 + k * 0.5, 3.5 + 0.1 * k, 0.15, Vp);      // back spikes
+    eyeRecs.push({ pos: [-0.17, 3.38, -0.58], r: 0.07 }, { pos: [0.17, 3.38, -0.58], r: 0.07 });
+  } else if (kind === 'lurker') {
+    // 1.5 m low six-legged shell: wide flat carapace, legs splayed out wide, a row of small glowing eyes along the front edge
+    height = 1.5; length = 1.5; hp = 28; dmg = 9; speedH = 2.4; hitW = 0.5;
+    const Vs = vox(P.base, P.alt, 0.1), Vl = vox(P.acc, P.alt, 0.06);
+    for (let k = 0; k < 6; k++) { const sd = k % 2 ? 1 : -1, z = -0.4 + Math.floor(k / 2) * 0.4; leg(k, sd * 0.45, 0.6, z, 0.12, 0.6, 0.12, k * 1.05, 0.55, Vl); box(0.55, 0.1, 0.12, sd * 0.72, 0.62, z, Vl); }
+    box(1.3, 0.35, 1.5, 0, 0.8, 0, Vs); box(1.0, 0.25, 1.2, 0, 1.08, 0.05, Vs); box(0.6, 0.18, 0.5, 0, 1.28, 0.1, Vl);
+    headC = V3(0, 0.85, -0.78);
+    box(0.5, 0.3, 0.3, 0, 0.85, -0.78, vox(P.base, P.alt, 0.05));
+    for (let k = 0; k < 4; k++) { const g = new THREE.BoxGeometry(0.07, 0.07, 0.02); g.translate(-0.21 + k * 0.14, 0.9, -0.94); glow(g, 2.8); eyeRecs.push({ pos: [-0.21 + k * 0.14, 0.9, -0.96], r: 0.03 }); }
+  } else if (kind === 'skitter') {
+    // 1.55 m long-legged dog-bird: lean body, thin stilts, whip tail, big head with one wide visor eye
+    height = 1.55; length = 1.2; hp = 14; dmg = 4; speedH = 4.6; hitW = 0.28;
+    const Vs = vox(P.base, P.alt, 0.06), Vt = vox(P.acc, P.alt, 0.05);
+    for (let k = 0; k < 4; k++) { const sx = k % 2 ? 0.14 : -0.14, sz = k < 2 ? -0.32 : 0.32; leg(k, sx, 0.78, sz, 0.07, 0.78, 0.07, (k === 1 || k === 2) ? Math.PI : 0, 0.8, Vs); }
+    box(0.34, 0.3, 0.9, 0, 0.92, 0, Vs); box(0.2, 0.18, 0.5, 0, 1.08, 0.05, Vt);
+    box(0.08, 0.08, 0.7, 0, 1.0, 0.75, Vt, [0.25, 0, 7, 0.02], V3(0, 1.0, 0.4));      // tail
+    box(0.1, 0.4, 0.1, 0, 1.2, -0.42, Vs);
+    headC = V3(0, 1.38, -0.52);
+    box(0.34, 0.26, 0.4, 0, 1.38, -0.52, vox(P.base, P.alt, 0.05)); box(0.14, 0.1, 0.22, 0, 1.32, -0.82, Vt);
+    { const g = new THREE.BoxGeometry(0.3, 0.07, 0.02); g.translate(0, 1.43, -0.73); glow(g, 3.0); }
+    eyeRecs.push({ pos: [-0.1, 1.43, -0.74], r: 0.04 }, { pos: [0.1, 1.43, -0.74], r: 0.04 });
   } else {
     // thin bone-pale archer: rib bands, hollow glow in the eye sockets, a curved bolt-bow with a drawn string
     height = 1.8; length = 0.8; hp = 20; dmg = 4; speedH = 2.2; hitW = 0.22;
@@ -1650,6 +1695,14 @@ export function generateMob(THREE, seed, kind) {
   } else if (kind === 'zomby') {
     stats.speed = 1.2 * 0.55 / 0.55; stats.chase = 0.55; stats.burnsInDay = true; stats.burn = { lightAbove: 12, dps: 1, secs: 8 }; stats.group = { min: 2, max: 4 };
     moves = [{ type: 'melee', limb: 0, name: 'swipe', tele: 0.4, dmg: 3, cd: 1, dur: 0.25, rec: 0.35, reachL: 1.4 }]; attacks = ['melee'];
+  } else if (kind === 'brute') {
+    stats.chase = 0.7; moves = [{ type: 'melee', limb: 0, name: 'smash', tele: 0.9, dmg: 14, cd: 2.2, dur: 0.4, rec: 0.7, reachL: 3.4 }]; attacks = ['melee'];
+  } else if (kind === 'lurker') {
+    stats.lurk = { wake: 7, rest: 30, pounce: 4.2, pounceFor: 1.1 };      // sits still until you are within `wake` H, pounces at `pounce` x speed for `pounceFor` s, re-hides beyond `rest` H
+    moves = [{ type: 'melee', limb: 0, name: 'bite', tele: 0.3, dmg: 9, cd: 1.1, dur: 0.2, rec: 0.3, reachL: 1.8 }]; attacks = ['melee'];
+  } else if (kind === 'skitter') {
+    stats.skit = { near: 7, far: 13, dash: 2.4, dashFor: 1.3, fleeFor: 2.2, every: 3.2 };      // circles between near and far (H), darts in to bite, flees when hurt
+    moves = [{ type: 'melee', limb: 0, name: 'nip', tele: 0.2, dmg: 4, cd: 0.8, dur: 0.15, rec: 0.2, reachL: 1.5 }]; attacks = ['melee'];
   } else {
     stats.ranged = { range: 14, interval: 2, boltSpeed: 28, minRange: 8, closeInterval: 2, farInterval: 1, farRange: 10, dmg: 4, gravity: 0.2 };
     moves = [{ type: 'shoot', limb: 0, name: 'shoot', tele: 0.5, dmg: 4, cd: 2, dur: 0.2, rec: 0.3, reachL: 14 * HUMAN_H }]; attacks = ['shoot'];
@@ -1657,7 +1710,7 @@ export function generateMob(THREE, seed, kind) {
   const gait = { phase: 0, rate: 2 * Math.PI * 0.9 / (height * 0.9 + 0.5), speed: 0 };
   let fuse = 0, hitV = 0;
   const out = {
-    group, length, hitR: height * 0.5, eye: eyes[0], eyes, stats, attacks, tier: 1, role: kind, kind, mob: kind, seed, signature: kind,
+    group, length, hitR: height * 0.5, eye: eyes[0], eyes, stats, attacks, tier: kind === 'brute' ? 3 : (kind === 'lurker' || kind === 'ender') ? 2 : 1, role: kind, kind, mob: kind, seed, signature: kind,
     tris, ground: true, legs, limbs: [limb], moves, att, gait, shieldMesh: null, plan: kind, mats: [mat], bow: !!bow,
     get surface() { return 1; },
     get fuse() { return fuse; },

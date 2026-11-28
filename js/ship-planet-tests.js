@@ -1,8 +1,9 @@
 // ship-planet-tests.js — re-runnable checks for docs/ship-mode.md "Revision 18 — planet flight model (guaranteed)".
 //
 //   const t = await import('./js/ship-planet-tests.js');
-//   const res = await t.runAll(window.EMGOR_GALAXY.engine, window.EMGOR_SHIP);          // all seven guarantees
+//   const res = await t.runAll(window.EMGOR_GALAXY.engine, window.EMGOR_SHIP);          // every guarantee (g1-g14, g16-g26, gP*, gC*, gH1, gE*, gW3)
 //   await t.runAll(engine, ship, { only: ['g2', 'g4'], minutes: 5, trials: 20 });
+// 2026-11-27 spine cut: g15 (mashup on foot) and gF1-gF3 (style feel) removed with the movement styles.
 // rev 19 (docs/ship-mode.md "Revision 19 -> A"): g8 every-planet landing sweep, g9 never-see-through (id-pass readback), g10 land/foot/board/lift-off on 3 sites,
 //   g11 entry/exit shake at 15 %, g12 honest blasters, g13 boss formation.  Keys: only: ['g8'] ... ; runAll(.., { only: ['g12'] }).
 //
@@ -858,103 +859,6 @@ async function flightSub(T, ship, node, o) {
 }
 
 
-// ─── 15. mashup on foot: the four styles run for real, STEEV blocks collide, night mobs behave (rev 31) ───────────────────────────────────────────────
-//   numbers: MARO triple-jump apex ratios + wall kicks, JOSHI flutter airtime gain, SONIK spin-dash speed, STEEV placed blocks stop the capsule + persist; kreeper fuse+explode (hp,
-//   blocks destroyed), ender stare, zomby day burn, skelly bolts, punch. Two-window relay (host handoff) is exercised by hand (ship.mashup.netMsg).
-async function g15(T, o) {
-    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), res = { pass: true }, dt = 0.016, i, mu = ship.mashup, g = ship._g, hum = g.hum;
-    var cands = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; }), node = null;
-    // Q51: after g4/g14 in one page the first candidate may not re-engage (orbit phase / leftover state); reset, then try every candidate, one more time after a settle
-    for (var pass = 0; pass < 2 && !node; pass++) {
-        T.reset();
-        for (i = 0; i < cands.length && !node; i++) { try { if (T.engage(cands[i])) node = cands[i]; } catch (e) { /* next */ } }
-        if (!node) T.step(120, 0.05);
-    }
-    if (!node) return { pass: false, why: 'no planet' };
-    await T.pause(); T.fly(); T.clearKeys(); T.near(node);
-    var d = T.landDir(node); T.hoverAt(node, d, 2); T.step(30);
-    if (!ship.land()) return { pass: false, why: 'land refused' };
-    for (i = 0; i < 900 && ship.gmode !== 'landed'; i++) T.step(1);
-    T.step(80); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
-    if (ship.gmode !== 'foot') return { pass: false, why: 'did not step out' };
-    ship.rev27.windOff(true); mu.peaceful(true); mu.night(1);
-    if (o.shot) {        // leave the scene up for a screenshot: 'wall' | 'kreeper' | 'ender'
-        if (o.shot === 'wall') {
-            mu.setStyle('STEEV'); T.step(20, dt); mu.place(0, 0, 0, 'stone'); var B = mu.BK, p0 = hum.pos.dot(B.e1) / B.H, q0 = hum.pos.dot(B.e2) / B.H, b0 = Math.floor(hum.pos.dot(B.e3) / B.H) - 1, mats = ['brick', 'stone', 'plank', 'glass'];
-            for (var wv = -3; wv <= 3; wv++) for (var wk = 0; wk < 3; wk++) mu.place(Math.floor(p0) + 5, Math.floor(q0) + wv, b0 + wk, mats[(wv + wk + 8) % 4]);
-            hum.hf.copy(B.e1); hum.face.copy(B.e1); hum.pitch = 0.5; T.step(40, dt); return { shot: 'wall', blocks: B.n };
-        }
-        mu.peaceful(true); hum.pitch = 0.3; T.step(10, dt);
-        if (o.shot === 'kreeper') { var kr0 = mu.spawn('kreeper', 4, 0); for (i = 0; i < 400 && kr0.fuseT < 0.9; i++) T.step(1, dt); mu.MB.freeze = true; return { shot: 'kreeper', fuse: kr0.fuseT }; }
-        var en0 = mu.spawn('ender', 9, 0); for (i = 0; i < 400 && !en0.angry; i++) T.step(1, dt); T.step(20, dt); mu.MB.freeze = true; return { shot: 'ender', angry: en0.angry, lookT: en0.lookT };
-    }
-    function apex(sty, n) {       // n jumps with W held: apex height over the take-off ground, in H
-        var out = [], k, a0, mx, wasAir, t;
-        T.kd('KeyW');
-        for (k = 0; k < n; k++) {
-            for (t = 0; t < 300 && hum.air; t++) T.step(1, dt);
-            a0 = hum.hr; mx = 0; T.kd('Space'); T.step(2, dt); T.ku('Space'); wasAir = false;
-            for (t = 0; t < 400; t++) { T.step(1, dt); mx = Math.max(mx, hum.hr - a0); if (hum.air) wasAir = true; if (wasAir && !hum.air) break; }
-            out.push(+(mx / H).toFixed(2)); T.step(4, dt);
-        }
-        T.ku('KeyW'); return out;
-    }
-    // MARO
-    mu.setStyle('MARO'); T.step(30, dt);
-    var ap = apex('MARO', 3); res.maro = { apex_H: ap, tripleRatio: +(ap[2] / ap[0]).toFixed(2) }; if (!(ap[2] > ap[0] * 1.8)) res.pass = false;
-    // JOSHI flutter: hold Space airtime vs tap airtime
-    mu.setStyle('JOSHI'); T.step(60, dt);
-    function airtime(hold) { var t = 0; T.kd('Space'); T.step(2, dt); if (!hold) T.ku('Space'); for (t = 0; t < 3000 && (hum.air || t < 4); t++) { T.step(1, dt); if (hold && t * dt > 1.6) break; } if (hold) T.ku('Space'); var a = 0; for (a = 0; a < 600 && hum.air; a++) T.step(1, dt); return (t + a) * dt; }
-    var tTap = airtime(false); T.step(40, dt); var tHold = airtime(true); T.step(40, dt);
-    res.joshi = { tap_s: +tTap.toFixed(2), flutter_s: +tHold.toFixed(2), eggs: mu.style.eggs }; if (!(tHold > tTap * 1.4)) res.pass = false;
-    // SONIK spin dash
-    mu.setStyle('SONIK'); T.step(60, dt);
-    T.kd('KeyC'); T.step(6, dt); for (i = 0; i < 3; i++) { T.kd('Space'); T.step(2, dt); T.ku('Space'); T.step(6, dt); }
-    T.ku('KeyC'); var sp = 0; for (i = 0; i < 80; i++) { T.step(1, dt); sp = Math.max(sp, g.hum.sSpd || 0); }
-    res.sonik = { spinDashPeak_Hps: +sp.toFixed(1), slopeSeen_deg: +mu.ctx.slope.toFixed(1) }; if (!(sp >= 28)) res.pass = false;
-    // STEEV: one real RMB placement, then a wall; the capsule must stop at it, it must survive a save/load
-    mu.setStyle('STEEV'); T.step(30, dt);
-    hum.pitch = 1.0; T.step(4, dt); document.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true })); T.step(3, dt); document.dispatchEvent(new MouseEvent('mouseup', { button: 2, bubbles: true })); T.step(4, dt);
-    var placedReal = mu.styStats.placed;
-    if (!mu.BK.basis) mu.place(0, 0, 0, 'stone');
-    var e1 = mu.BK.e1, e2 = mu.BK.e2, e3 = mu.BK.e3, Hh = mu.BK.H, pu = hum.pos.dot(e1) / Hh, pv = hum.pos.dot(e2) / Hh, pw = Math.floor(hum.pos.dot(e3) / Hh);
-    var fwd = hum.hf.dot(e1) >= 0 ? 1 : -1, wu = Math.floor(pu) + fwd * 5;      // a wall 5 cells ahead along lattice e1, 7 wide, 2 high
-    var base = Math.floor(hum.pos.dot(e3) / Hh) - 1;
-    for (var wv = -3; wv <= 3; wv++) for (var wk = 0; wk < 3; wk++) mu.place(wu, Math.floor(pv) + wv, base + wk, 'brick');
-    var n0 = mu.BK.n; T.step(10, dt);
-    var f0 = hum.pos.dot(e1) / Hh * fwd, maxF = -1e9, hf0 = hum.hf.clone();
-    hum.hf.copy(e1).multiplyScalar(fwd).addScaledVector(hum.pos.clone().normalize(), -e1.dot(hum.pos.clone().normalize()) * fwd).normalize(); hum.face.copy(hum.hf);
-    var trace = []; T.kd('KeyW'); for (i = 0; i < 180; i++) { T.step(1, dt); maxF = Math.max(maxF, hum.pos.dot(e1) / Hh * fwd); if (i % 20 === 0) trace.push([+(hum.pos.dot(e1) / Hh * fwd).toFixed(2), +(hum.hr / Hh - hum.pos.dot(e3) / Hh * 0).toFixed(1), hum.air ? 1 : 0, +(hum.hf.dot(e1) * fwd).toFixed(2)]); } T.ku('KeyW');
-    var wallFace = (wu + (fwd > 0 ? 0 : 1)) * fwd;
-    res.steev = { realRmbPlaced: placedReal, blocks: n0, stoppedShortBy_H: +(wallFace - maxF).toFixed(2), savedInProfile: mu.saved(), wu: wu, fwd: fwd, trace: trace, bkn: mu.BK.n }; if (!(maxF < wallFace + 0.01 && n0 >= 20)) res.pass = false;
-    // slope + wall ctx while running MARO into the wall; wall kick count
-    mu.setStyle('MARO'); T.step(20, dt); T.kd('KeyW'); var wallFrames = 0, kicks0 = mu.style.state.kicks | 0;
-    for (i = 0; i < 160; i++) { if (i % 25 === 5) { T.kd('Space'); T.step(1, dt); T.ku('Space'); } T.step(1, dt); if (mu.ctx.wallNormal) wallFrames++; }
-    T.ku('KeyW'); res.maroWall = { wallNormalFrames: wallFrames, kicks: (mu.style.state.kicks | 0) - kicks0 }; if (!wallFrames) res.pass = false;
-    // MOBS
-    mu.peaceful(false); mu.mobs().forEach(function (m) { m.alive = false; }); mu.setStyle('');
-    var hp0 = ship.rev27.hp; hum.hf.copy(hf0); T.step(5, dt);
-    var kr = mu.spawn('kreeper', 6, 0), nb = mu.BK.n; if (nb < 2) { mu.place(wu + fwd * 8, 0, base, 'stone'); }
-    // blocks right at the creeper: put two beside it
-    var kc = kr && kr.dir.clone(); T.step(1, dt); var fuseSeen = 0;
-    for (i = 0; i < 500 && kr && kr.alive; i++) { T.step(1, dt); fuseSeen = Math.max(fuseSeen, kr.fuseT || 0); }
-    res.kreeper = { spawned: !!kr, maxFuse_s: +fuseSeen.toFixed(2), exploded: mu.MB.stats.exploded, hpLost: Math.round(hp0 - ship.rev27.hp) };
-    if (!(mu.MB.stats.exploded >= 1)) res.pass = false;
-    var en = mu.spawn('ender', 12, 0); hum.pitch = 0.3; var angryAt = -1;
-    for (i = 0; i < 400 && en && en.alive; i++) { T.step(1, dt); if (en.angry && angryAt < 0) angryAt = i * dt; }
-    res.ender = { stares: mu.MB.stats.stare, angryAfter_s: +angryAt.toFixed(2), teleports: mu.MB.stats.teleports }; if (!(mu.MB.stats.stare >= 1)) res.pass = false;
-    mu.mobs().forEach(function (m) { m.alive = false; });
-    mu.night(0); var zb = mu.spawn('zomby', 15, 1); var zh0 = zb && zb.hp; T.step(120, dt); res.zomby = { dayBurn_hp: zb ? +(zh0 - zb.hp).toFixed(2) : -1 }; if (!(zb && zb.hp < zh0 - 0.5)) res.pass = false;
-    mu.mobs().forEach(function (m) { m.alive = false; }); mu.night(1);
-    var sk = mu.spawn('skelly', 10, 0); T.step(260, dt); res.skelly = { bolts: mu.MB.stats.bolts }; if (!(mu.MB.stats.bolts >= 1)) res.pass = false;
-    var tz = mu.spawn('zomby', 2, 0), tzh = tz && tz.hp; if (!tz) { res.pass = false; res.punch = { dmg: -1, noSpawn: true }; } else hum.hf.copy(tz.w).sub(hum.w);
-    // Q16: spawn can return null (cap / no ground) depending on earlier mobs in this run
-    T.step(2, dt); mu.punch(); res.punch = { dmg: tz ? +(tzh - tz.hp).toFixed(1) : -1 }; if (!(tz && tzh - tz.hp >= 5.5)) res.pass = false;
-    mu.mobs().forEach(function (m) { m.alive = false; }); mu.night(-1); mu.peaceful(true); ship.rev27.windOff(false);
-    ship.mashup.mobs().length = 0; T.clearKeys(); T.fly();
-    return res;
-}
-
 // g16 rendered-frame parity: the parked ship never moves relative to the planet as drawn (spinTime vs engine.time, commit 094f8c3 regression)
 async function g16(T, o) {
     var ship = T.ship, THREE = T.THREE, L = T.L(), res = { pass: true }, i;
@@ -1345,9 +1249,9 @@ export async function runAll(engine, ship, opts) {
     opts = opts || {};
     var T = mk(engine, ship, opts), out = {}, only = opts.only, t0 = performance.now();
     await T.setup();
-    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g15', g15], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21], ['g22', g22], ['g23', g23]];
+    var list = [['g1', g1], ['g2', g2], ['g3', g3], ['g4', g4], ['g5', g5], ['g6', g6], ['g7', g7], ['g8', g8], ['g9', g9], ['g10', g10], ['g11', g11], ['g12', g12], ['g13', g13], ['g14', g14], ['g16', g16], ['g17', g17], ['g18', g18], ['g19', g19], ['g20', g20], ['g21', g21], ['g22', g22], ['g23', g23]];
     list.push(['g24', g24]); list.push(['gP1', function (T, o) { return gpTests.gP1(T, o); }]); list.push(['gP2', function (T, o) { return gpTests.gP2(T, o); }]);
-    Object.keys(tests).forEach(function (k) { if (!list.some(function (l) { return l[0] === k; })) list.push([k, tests[k]]); });      // tests appended after the export (gF*) register themselves on `tests`
+    Object.keys(tests).forEach(function (k) { if (!list.some(function (l) { return l[0] === k; })) list.push([k, tests[k]]); });      // tests appended after the export register themselves on `tests`
     for (var i = 0; i < list.length; i++) {
         if (only && only.indexOf(list[i][0]) < 0) continue;
         T.reset();
@@ -1359,67 +1263,9 @@ export async function runAll(engine, ship, opts) {
     out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
     return out;
 }
-export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g15: g15, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21, g22: g22, g23: g23, g24: g24 };
+export var tests = { g14: g14, g1: g1, g2: g2, g3: g3, g4: g4, g5: g5, g6: g6, g7: g7, g8: g8, g9: g9, g10: g10, g11: g11, g12: g12, g13: g13, g16: g16, g17: g17, g18: g18, g19: g19, g20: g20, g21: g21, g22: g22, g23: g23, g24: g24 };
 export { mk as makeHarness };
 
-// ─── gF1 / gF2 / gF3 — feel plan step 2 (self-contained): input latency + motion curves on foot, synthetic key events, frame counts at 60 Hz ───────────────────────────
-//   F1 keydown -> >= 0.005 H displacement (~1 px at foot camera) <= 2 f · F2 key release -> < 5 % of peak speed <= 6 f · F3 Space keydown -> airborne <= 1 f · turnaround (hold the opposite key) -> velocity along the old heading <= 0 in <= 3 f
-//   Styles: PILOT (no style) + MARO JOSHI STEEV SWIFT SONIK. gF1/gF2/gF3 each run the whole table (one landing per run) and assert their own column; opts.feelStyles overrides the list.
-var gFeelCache = null;
-async function gFeelRun(T, o) {
-    if (gFeelCache && performance.now() - gFeelCache.at < 90000 && !(o && o.feelFresh)) return gFeelCache.res;      // gF1/gF2/gF3 share one run inside a runAll
-    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), g = ship._g, hum = g.hum, mu = ship.mashup, dt = 1 / 60, i, rows = {}, styles = (o && o.feelStyles) || ['', 'MARO', 'JOSHI', 'STEEV', 'SWIFT', 'SONIK'];
-    var cands = T.planets().filter(function (n) { return !T.isGas(n) && T.reachable(n) && n.mesh.scale.x > 120 * L; }), node = null;
-    for (var pass = 0; pass < 2 && !node; pass++) { T.reset(); for (i = 0; i < cands.length && !node; i++) { try { if (T.engage(cands[i])) node = cands[i]; } catch (e) { /* next */ } } if (!node) T.step(120, 0.05); }
-    if (!node) return { pass: false, why: 'no planet' };
-    await T.pause(); T.fly(); T.clearKeys(); T.near(node);
-    var d = T.landDir(node); T.hoverAt(node, d, 2); T.step(30);
-    if (!ship.land()) return { pass: false, why: 'land refused' };
-    for (i = 0; i < 900 && ship.gmode !== 'landed'; i++) T.step(1);
-    T.step(80); T.kd('KeyZ'); T.ku('KeyZ'); T.step(8);
-    if (ship.gmode !== 'foot') return { pass: false, why: 'did not step out' };
-    ship.rev27.windOff(true); mu.peaceful(true);
-    var p0 = new THREE.Vector3(), h0 = new THREE.Vector3(), vel = new THREE.Vector3();
-    function grounded() { for (var k = 0; k < 200 && hum.air; k++) T.step(1, dt); T.step(10, dt); }
-    function relevel() { var up = hum.pos.clone().normalize(); hum.hf.addScaledVector(up, -hum.hf.dot(up)).normalize(); }
-    styles.forEach(function (sid) {
-        var r = { F1: -1, F2: -1, F3: -1, turn: -1, peakHs: 0 }, f, v, pk = 0;
-        mu.setStyle(sid); T.clearKeys(); T.step(40, dt); grounded();
-        // F1: from standing still, W down
-        relevel(); p0.copy(hum.pos); h0.copy(hum.hf); T.kd('KeyW');
-        for (f = 1; f <= 12; f++) { T.step(1, dt); if (r.F1 < 0 && hum.pos.distanceTo(p0) / H >= 0.005) r.F1 = f; }
-        // reach top speed, remember the peak per-frame speed
-        var last = hum.pos.clone();
-        for (f = 0; f < 60; f++) { T.step(1, dt); v = hum.pos.distanceTo(last) / (H * dt); last.copy(hum.pos); if (v > pk) pk = v; }
-        r.peakHs = +pk.toFixed(2);
-        // F2: release
-        T.ku('KeyW'); last.copy(hum.pos);
-        for (f = 1; f <= 30; f++) { T.step(1, dt); v = hum.pos.distanceTo(last) / (H * dt); last.copy(hum.pos); if (v < 0.05 * pk) { r.F2 = f; break; } }
-        T.step(20, dt); grounded();
-        // turnaround: run along W, then swap to S
-        relevel(); T.kd('KeyW'); T.step(40, dt); h0.copy(hum.hf); last.copy(hum.pos); T.ku('KeyW'); T.kd('KeyS');
-        for (f = 1; f <= 30; f++) { T.step(1, dt); vel.subVectors(hum.pos, last); last.copy(hum.pos); if (vel.dot(h0) <= 0) { r.turn = f; break; } }
-        T.ku('KeyS'); T.step(30, dt); grounded();
-        // F3: Space down -> airborne
-        T.kd('Space');
-        for (f = 1; f <= 6; f++) { T.step(1, dt); if (hum.air) { r.F3 = f; break; } }
-        T.ku('Space'); T.step(5, dt); grounded();
-        rows[sid || 'PILOT'] = r;
-    });
-    T.clearKeys(); mu.setStyle('');
-    var res = { pass: true, rows: rows }; gFeelCache = { at: performance.now(), res: res };
-    return res;
-}
-function gFeelAssert(col, max) {
-    return async function (T, o) {
-        var r = await gFeelRun(T, o); if (!r.rows) return r;
-        var out = { pass: true }, k;
-        for (k in r.rows) { var v = r.rows[k][col]; out[k] = v; if (!(v >= 0 && v <= max)) out.pass = false; }
-        out.rows = r.rows; return out;
-    };
-}
-var gF1 = gFeelAssert('F1', 2), gF2 = gFeelAssert('F2', 6), gF3 = gFeelAssert('F3', 1);
-tests.gF1 = gF1; tests.gF2 = gF2; tests.gF3 = gF3;
 
 
 // ── gP1 / gP2: the PLAYER's path with synthetic KeyboardEvents only (no debug hooks once on foot, bar the landing + warping next to the village) ──
@@ -1762,3 +1608,72 @@ async function gE2(T, o) {
     return out;
 }
 tests.gE2 = gE2;
+
+// ── gW3 (2026-11-27 world3): third-person foot camera line of sight. Land on foot, put the walker on the pad side of the 7/11, walk (key events) through the apron, door and aisle to the counter at three camera pitches
+//    (low / level / high). Every frame: the segment head -> camera must not touch any structure box (7/11 interior walls, Burger House, CVS) or the pad plate disc, and the camera must be >= 0.3 H above the ground truth
+//    under it (the pad plane is the floor on the pad). The plate and the floor lift are the old "platform across the vision" bug: the lens used to sit ~0.15 H over the plane under a 0.12 H plate. ──
+async function gW3(T, o) {
+    var ship = T.ship, THREE = T.THREE, L = T.L(), H = ship._g.hOf(L), foot = await import('./ship-foot.js'), out = { frames: 0, inside: 0, bad: [], minH: 99, lifted: 0, indoorFov: 0 };
+    if (ship.gmode !== 'foot' && !(await gpTests.gpFoot(T))) return { pass: false, error: 'never reached foot' };
+    T.step(40);
+    var sto = ship.world && ship.world.stores && ship.world.stores[0];
+    if (!sto || !sto.interior) return { pass: false, error: 'no 7/11 on this planet' };
+    var hum = ship._g.hum, ps = ship.ps, node = ps.active, I = sto.interior, hd = I.size.d / 2, up = new THREE.Vector3(), fw = new THREE.Vector3(), rt = new THREE.Vector3();
+    var a = new THREE.Vector3(), b = new THREE.Vector3(), cl = new THREE.Vector3(), qi = new THREE.Quaternion();
+    function groundAt(v) { var d = v.clone().normalize(), r = ps.groundTruth(d.x, d.y, d.z); return d.multiplyScalar(r); }
+    function storePt(x, z) { return groundAt(new THREE.Vector3(x, 0, z).applyMatrix4(I.matrix)); }
+    var start = storePt(0, hd + 12);      // on the parking slabs, between the pad and the glass front
+    hum.pos.copy(start); hum.hr = hum.gr = hum.vh = start.length(); hum.air = false; hum.vv = 0;
+    up.copy(hum.pos).normalize(); fw.copy(storePt(0, hd)).sub(hum.pos); fw.addScaledVector(up, -fw.dot(up)).normalize(); hum.hf.copy(fw); hum.face.copy(fw);
+    T.step(60);
+    function segBox(p, q, m, boxes) {      // planet-local segment p->q against store-local AABBs (inverse of m)
+        var inv = new THREE.Matrix4().copy(m).invert(), A = p.clone().applyMatrix4(inv), B = q.clone().applyMatrix4(inv), i, k, t0, t1, d, lo, hi, ta, tb, s;
+        for (i = 0; i < boxes.length; i++) {
+            t0 = 0; t1 = 1;
+            for (k = 0; k < 3 && t0 <= t1; k++) {
+                var ak = k === 0 ? A.x : k === 1 ? A.y : A.z, bk = k === 0 ? B.x : k === 1 ? B.y : B.z; d = bk - ak; lo = k === 0 ? boxes[i].min.x : k === 1 ? boxes[i].min.y : boxes[i].min.z; hi = k === 0 ? boxes[i].max.x : k === 1 ? boxes[i].max.y : boxes[i].max.z;
+                if (Math.abs(d) < 1e-9) { if (ak < lo || ak > hi) t0 = 2; continue; }
+                ta = (lo - ak) / d; tb = (hi - ak) / d; if (ta > tb) { s = ta; ta = tb; tb = s; } if (ta > t0) t0 = ta; if (tb < t1) t1 = tb;
+            }
+            if (t0 <= t1) return boxes[i].name || 'box';
+        }
+        return null;
+    }
+    function plateAt(q) {
+        for (var i = 0; i < ps.outposts.length; i++) { var op = ps.outposts[i], rad = op.pad.position.length(), al = q.dot(op.dir); if (al > rad + 0.12 * H || al < rad - 0.03 * L) continue; if (q.lengthSq() - al * al <= op.radius * op.radius) return true; }
+        return false;
+    }
+    function check(tag) {
+        var cam = T.engine.camera, head = foot.CAMDBG.head; if (!head) return;
+        qi.copy(node.mesh.quaternion).invert(); cl.copy(cam.position).sub(node.anchor.position).applyQuaternion(qi);
+        var hit = null, w = ship.world, k, s;
+        if (sto.interior.walls) hit = segBox(head, cl, sto.interior.matrix, sto.interior.walls);
+        if (!hit && w.burgerHouse && w.burgerHouse.walls) hit = segBox(head, cl, w.burgerHouse.matrix, w.burgerHouse.walls);
+        if (!hit && w.cvs && w.cvs.walls) hit = segBox(head, cl, w.cvs.matrix, w.cvs.walls);
+        for (k = 0; k <= 24 && !hit; k++) { s = k / 24; a.copy(head).lerp(cl, s); if (plateAt(a)) hit = 'plate'; }
+        var gh = (cl.length() - ps.groundTruth(cl.x, cl.y, cl.z)) / H;
+        out.frames++; if (gh < out.minH) out.minH = gh; if (foot.CAMDBG.lifted) out.lifted++; if (T.engine.camera.fov > 60) out.indoorFov++;
+        if (I.inside && I.inside(hum.pos)) out.inside++;
+        if ((hit || gh < 0.3) && out.bad.length < 8) out.bad.push({ tag: tag, hit: hit, heightH: +gh.toFixed(2), at: out.frames, pitch: +hum.pitch.toFixed(2) });
+    }
+    function driveTo(wp, tol, maxF, tag) {
+        for (var f = 0; f < maxF; f++) {
+            var d = wp.clone().sub(hum.pos), u = hum.pos.clone().normalize(); d.addScaledVector(u, -d.dot(u)); if (d.length() / L < tol) break;
+            var fwd = hum.hf.clone(); fwd.addScaledVector(u, -fwd.dot(u)).normalize(); var r = new THREE.Vector3().crossVectors(fwd, u).normalize(), p = d.dot(fwd) / L, q = d.dot(r) / L;
+            ['KeyW', 'KeyS', 'KeyA', 'KeyD'].forEach(function (k) { T.ku(k); });
+            if (p > 0.1) T.kd('KeyW'); else if (p < -0.1) T.kd('KeyS'); if (q > 0.1) T.kd('KeyD'); else if (q < -0.1) T.kd('KeyA');
+            T.step(1, 0.016); check(tag);
+        }
+        ['KeyW', 'KeyS', 'KeyA', 'KeyD'].forEach(function (k) { T.ku(k); });
+    }
+    [-0.25, 0.3, 0.9].forEach(function (pitch) {
+        hum.pos.copy(start); hum.hr = hum.gr = hum.vh = start.length(); T.step(20); hum.pitch = pitch;
+        hum.hf.copy(fw); hum.face.copy(fw);
+        driveTo(storePt(0, hd + 1.5), 0.5, 900, 'to-door p' + pitch); driveTo(storePt(0, hd - 4), 0.5, 600, 'in-door p' + pitch); driveTo(storePt(0, 0), 0.6, 700, 'aisle p' + pitch);
+        driveTo(sto.counter.pos.clone(), 0.8, 700, 'counter p' + pitch);
+    });
+    T.clearKeys(); T.step(10);
+    out.pass = out.bad.length === 0 && out.frames > 300 && out.inside > 60 && out.minH >= 0.3;
+    return out;
+}
+tests.gW3 = gW3;

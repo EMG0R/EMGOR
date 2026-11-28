@@ -15,8 +15,8 @@
 //   station.interior { stores:[storeLike], npcs:[{human,name,lines[3],pos,localPos}], mapPedestal:{pos,radius}, windows:[{pos,w,h}] }
 //   station.interior.trade { pos, radius, buys:[stackKey], buyPrices:{key:gorCoin}, sells:[{id,item,n,price}], day }  TRADE terminal on the right wall (market seeded per UTC day; refresh(day?) rebuilds)
 //   station.interior.shipyard { pos, radius, ships:[{kind,name,price,stats:{cruise,boost,cargo,guns,hp} (pct deltas vs hauler; guns absolute),blurb}] }  hangar-back alcove, 2 turntable display pads (fighter, explorer)
-//   station.interior.questBoard { pos, radius, quests, setQuests([{title,reward,kind}]) }  'BOUNTIES' screen beside the mission board;  .landingFee (0)  .greetingLine(seed?) seeded PA line on dock
-//   station.interior.cvs { id, name, pos, reviveWin, healWin (world), radius }  Q14b POKEMANS CVS on the right wall (null-safe: derelicts have none)
+//   station.interior.questBoard { pos, radius, quests, setQuests([{title,reward,kind}]) }  'BOUNTIES' screen;  .landingFee (0)  .greetingLine(seed?) seeded PA line on dock
+//   station.interior.cvs { id, name, pos, reviveWin, healWin (world), radius }  Q14b POKEMANS CVS on the right wall 
 //   station.toLocal(v)/toWorld(v)  (local in L units)   station.setVisible(b)   station.stats {tris, meshes}   station.dispose()
 import { STORE_NAME, STORE_DIMS, createStandaloneStore, createCvsProp, transformBoxes, fillStoreRecord } from './ship-world.js';
 import * as lingo from './ship-lingo.js';
@@ -181,7 +181,7 @@ export function createStation(engine, L, opts) {
     group, unit: L, lenL: 0, length: 0, pos: group.position, quat: group.quaternion, vel: new T.Vector3(),
     mouth: { pos: new T.Vector3(), dir: new T.Vector3(0, 0, 1), halfW: MOUTH_HW * L, halfH: MOUTH_HH * L, trigger: null },
     pads: [], deck: { walls: [], bounds: { min: new T.Vector3(), max: new T.Vector3() }, floorAt: null },
-    interior: { stores: [], npcs: [], mapPedestal: { pos: new T.Vector3(), radius: 0.45 * L }, windows: [], board: { pos: new T.Vector3(), radius: 0.6 * L }, missions: null, landingFee: 0, greetingLine: null, shipyard: { pos: new T.Vector3(), radius: 3 * L, ships: SHIPS }, questBoard: { pos: new T.Vector3(), radius: 0.6 * L, quests: [], setQuests: null }, trade: { pos: new T.Vector3(), radius: 0.6 * L, buys: [], buyPrices: {}, sells: [], day: 0, refresh: null } },
+    interior: { stores: [], npcs: [], mapPedestal: { pos: new T.Vector3(), radius: 0.45 * L }, windows: [], landingFee: 0, greetingLine: null, shipyard: { pos: new T.Vector3(), radius: 3 * L, ships: SHIPS }, questBoard: { pos: new T.Vector3(), radius: 0.6 * L, quests: [], setQuests: null }, trade: { pos: new T.Vector3(), radius: 0.6 * L, buys: [], buyPrices: {}, sells: [], day: 0, refresh: null } },
     stats: { tris: 0, meshes: 0 },
   };
   const uTime = { value: 0 }, uPx = { value: 6.5 }, uH = { value: 900 };
@@ -224,7 +224,7 @@ export function createStation(engine, L, opts) {
   let cvp = null;                                 // Q14b POKEMANS CVS prop on the right wall (shares ss.assets)
   let ss = null;                                  // the standalone INTERGALACTIC 7/11 (x1.5 scale, rotated so its glass front faces +x into the hangar)
   const STORE_S = 1.5 * HUMAN_H / 1.75;           // L per metre
-  const lay = { counter: new T.Vector3(), clerk: new T.Vector3(), ped: new T.Vector3(), board: new T.Vector3(), yard: [new T.Vector3(), new T.Vector3()], quest: new T.Vector3(), trade: new T.Vector3(), npc: [] };
+  const lay = { counter: new T.Vector3(), clerk: new T.Vector3(), ped: new T.Vector3(), yard: [new T.Vector3(), new T.Vector3()], quest: new T.Vector3(), trade: new T.Vector3(), npc: [] };
 
   function build(newLenL) {
     lenL = newLenL; st.lenL = lenL; st.length = lenL * L;
@@ -266,23 +266,19 @@ export function createStation(engine, L, opts) {
     // ── store zone (left wall), map pedestal (right wall), clerk ──
     const cz = zF - 11;
     // the INTERGALACTIC 7/11 (ship-world.js standalone store) fills the left wall here; see layoutNpcs()
-    lay.ped.set(3.7, 0, cz); lay.board.set(HW - 0.12, 1.5, cz - 4);
-    // TRADE terminal: amber screen on the right wall, 7 L aft of the mission board's neighbour
+    lay.ped.set(3.7, 0, cz);
+    // TRADE terminal: amber screen on the right wall, on the right wall
     lay.trade.set(HW - 0.12, 1.3, cz + 3.6);
     B.bx(HW - 0.1, HW - 0.04, 0.7, 1.9, cz + 3.6 - 0.7, cz + 3.6 + 0.7, C.hull3);
     E.bx(HW - 0.14, HW - 0.1, 0.8, 1.8, cz + 3.6 - 0.6, cz + 3.6 + 0.6, C.amber, 0.9);
     E.bx(HW - 0.15, HW - 0.1, 1.85, 1.9, cz + 3.6 - 0.7, cz + 3.6 + 0.7, C.cyan, 0.9);
     lt(HW - 0.3, 1.3, cz + 3.6, 0.1, C.amber, 4, 0.3, 0.6);
-    // mission board: glowing screen on the right wall (data in st.interior.board / missions())
-    B.bx(HW - 0.1, HW - 0.04, 0.9, 2.1, cz - 4 - 0.95, cz - 4 + 0.95, C.hull3);
-    E.bx(HW - 0.14, HW - 0.1, 1.0, 2.0, cz - 4 - 0.85, cz - 4 + 0.85, C.cyan, 0.9);
-    E.bx(HW - 0.15, HW - 0.1, 2.05, 2.1, cz - 4 - 0.95, cz - 4 + 0.95, C.mag, 0.9);
     B.shape(new T.CylinderGeometry(0.1, 0.13, 0.05, 10), C.hull2, new T.Matrix4().makeTranslation(3.7, 0.025, cz));
     B.shape(new T.CylinderGeometry(0.05, 0.08, 0.04, 10), C.violet, new T.Matrix4().makeTranslation(3.7, 0.07, cz), 0.8);
     E.shape(new T.TorusGeometry(0.08, 0.006, 4, 16), C.cyan, new T.Matrix4().makeRotationX(Math.PI / 2).premultiply(new T.Matrix4().makeTranslation(3.7, 0.12, cz)));
     E.shape(new T.OctahedronGeometry(0.035), C.mag, new T.Matrix4().makeTranslation(3.7, 0.17, cz));
     lt(3.7, 0.17, cz, 0.09, C.mag, 4, 0, 0.6);
-    // ── shipyard alcove (back wall): two display pads + sign; bounties screen beside the mission board ──
+    // ── shipyard alcove (back wall): two display pads + sign; bounties screen ──
     const yx = [-2.8, 2.8], yz = zR + 3.2;
     yx.forEach((px, i) => {
       B.shape(new T.CylinderGeometry(1.5, 1.6, 0.18, 20), C.hull2, new T.Matrix4().makeTranslation(px, 0.09, yz));
@@ -469,7 +465,7 @@ export function createStation(engine, L, opts) {
     // push the store's walls / shelves into the deck colliders (station-local L, axis aligned: the yaw is 90 degrees)
     storeWalls = transformBoxes(T, ss.interior.walls.concat(ss.interior.aisles), ss.group.matrix);
     storeWalls.forEach((w) => st.deck.walls.push({ name: 'store-' + w.name, min: w.min, max: w.max, field: false }));
-    // Q14b POKEMANS CVS: right wall between the mission board and the trade terminal, windows facing -x into the hangar
+    // Q14b POKEMANS CVS: right wall beside the trade terminal, windows facing -x into the hangar
     if (!cvp) { cvp = createCvsProp(T, ss.assets); group.add(cvp.group); st.interior.cvs = { id: 'station-cvs', name: 'POKEMANS CVS', pos: new T.Vector3(), reviveWin: new T.Vector3(), healWin: new T.Vector3(), radius: 0, localRevive: new T.Vector3(), localHeal: new T.Vector3() }; }
     cvp.group.scale.setScalar(STORE_S); cvp.group.rotation.set(0, -Math.PI / 2, 0);
     cvp.group.position.set(HW - 0.08 - 2.85 * STORE_S, 0, cz - 2.0); cvp.group.updateMatrix(); cvp.group.updateMatrixWorld(true);
@@ -523,7 +519,6 @@ export function createStation(engine, L, opts) {
     if (cv) { toW(cv.localRevive.x, 0, cv.localRevive.z, cv.reviveWin); toW(cv.localHeal.x, 0, cv.localHeal.z, cv.healWin); cv.pos.copy(cv.reviveWin).add(cv.healWin).multiplyScalar(0.5); cv.radius = 3 * STORE_S * L; }
     st.interior.npcs.forEach((n) => toW(n.localPos.x, 0, n.localPos.z, n.pos));
     toW(lay.ped.x, 0, lay.ped.z, st.interior.mapPedestal.pos); st.interior.mapPedestal.radius = 0.45 * L;
-    toW(lay.board.x, lay.board.y, lay.board.z, st.interior.board.pos); st.interior.board.radius = 0.6 * L;
     toW(lay.trade.x, lay.trade.y, lay.trade.z, st.interior.trade.pos); st.interior.trade.radius = 0.8 * L;
     toW(0, 0, lay.yard[0].z, st.interior.shipyard.pos); st.interior.shipyard.radius = 6 * L;
     toW(lay.quest.x, lay.quest.y, lay.quest.z, st.interior.questBoard.pos); st.interior.questBoard.radius = 0.8 * L;
@@ -541,21 +536,6 @@ export function createStation(engine, L, opts) {
   st.interior.greetingLine = (seed) => {
     const r = mul(typeof seed === 'number' ? seed : Array.from(String(seed == null ? Math.floor(Date.now() / 864e5) : seed)).reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 11));
     return PA_LINES[Math.floor(r() * PA_LINES.length)];
-  };
-
-  // ── missions (rev 25 E): seeded, deterministic per seed; planetId is a real node id from engine.drawOrder ──
-  st.interior.missions = (seed, n) => {
-    n = n == null ? 3 : n; const r = mul(typeof seed === 'number' ? seed : (Array.from(String(seed)).reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 7)));
-    const nodes = (engine.drawOrder || []).filter((q) => q && q.id != null), kinds = ['mine', 'scout', 'trade', 'bounty'];
-    const ITEMS = ['fuel-cell', 'plasma-coil', 'hull-plate', 'flux-capacitor', 'logic-chip'], out = [];
-    for (let i = 0; i < n; i++) {
-      const kind = kinds[Math.floor(r() * 4)], node = nodes.length ? nodes[Math.floor(r() * nodes.length)] : null;
-      const pid = node ? node.id : 'unknown', pname = node ? (node.name || node.title || node.id) : 'the void', minutes = 3 + Math.floor(r() * 18);
-      const T2 = { mine: ['Mine ore on ', 'ore'], scout: ['Scout the belt of ', 'belt survey'], trade: ['Trade run to ', 'cargo'], bounty: ['Bounty hunt over ', 'wanted ship'] }[kind];
-      out.push({ id: 'm' + i + '-' + Math.floor(r() * 1e6).toString(36), kind, title: T2[0] + pname, planetId: pid, target: T2[1], minutes,
-        reward: { gor: Math.round((40 + minutes * (8 + r() * 10)) / 5) * 5, stacks: [{ item: ITEMS[Math.floor(r() * ITEMS.length)], n: 1 + Math.floor(r() * 4) }], itemChance: Math.round((0.1 + r() * 0.35) * 100) / 100 } });
-    }
-    return out;
   };
 
   // ── API ──

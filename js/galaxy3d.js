@@ -61,24 +61,28 @@ import * as GL from './galaxy-layout.js';
         return a;
     }
 
-    // ─── LOCKED color scheme: six violet-anchored families (A1, 2026-11-23) ─
+    // ─── LOCKED color scheme: the ten NMS-style families (restored 2026-11-27) ─
     // Each family is ONE 5-stop ramp [deep shadow, low, mid, high, sky] plus
-    // a sea, an atmosphere glow and ONE accent. lo = ramp[1], hi = ramp[3] so
-    // the orbital shader keeps its shape; the landed terrain, flora, rocks,
-    // water and sky horizon all sample the same ramp (ps.palette exposes it).
-    // The accent is reserved for bioluminescence, signs, creature markings.
-    // OLD_TO_NEW keeps the id -> family roll of the old ten families, each
-    // mapped to its nearest hue, so a saved planet stays recognisably itself.
+    // a sea, an atmosphere glow and ONE accent. lo = ramp[1], hi = ramp[3] are
+    // the original hand-picked terrain tones (pre cdcc583); deep = lo with
+    // lightness x0.45, mid = lerp(lo, hi, 0.5), sky = hi + 0.25 lightness
+    // (clamped 0.95). Landed terrain, flora, rocks, water and sky horizon all
+    // sample the ramp (ps.palette exposes it). Sea / atmo / acc are the old
+    // table values verbatim. The accent is reserved for bioluminescence,
+    // signs, creature markings. A node rolls its family from its id (uniform
+    // over ten, same roll as before cdcc583); children inherit the family.
     var PALETTES = [
-        { name: 'dusk-lav', ramp: [0x1E1536, 0x4B3A7C, 0x8A74C4, 0xB9A5E3, 0xE6DCF7], sea: 0x2C3E7A, atmo: 0xC9A8FF, acc: 0xFFC38A },
-        { name: 'ember',    ramp: [0x2A1230, 0x6A2F55, 0xB8566A, 0xE8907A, 0xFAD3C0], sea: 0x34357A, atmo: 0xFF9FC8, acc: 0x7DF0E0 },
-        { name: 'sand',     ramp: [0x2B1B3A, 0x6B4A55, 0xB08060, 0xE0B98A, 0xF8E6C8], sea: 0x2F4A8A, atmo: 0xF2B6D8, acc: 0x8FE8FF },
-        { name: 'moss',     ramp: [0x1C1F33, 0x2F4A4A, 0x5E8A78, 0x9FC4A4, 0xDDEBD4], sea: 0x3A2F78, atmo: 0xB8A8FF, acc: 0xFFB0E8 },
-        { name: 'glacier',  ramp: [0x1A2046, 0x3C4A86, 0x7C8FD0, 0xB4C4F4, 0xE8EEFF], sea: 0x1B2A5E, atmo: 0xA8C4FF, acc: 0xE08CFF },
-        { name: 'wine',     ramp: [0x140B24, 0x4A1F4A, 0x8E2F5C, 0xC8506A, 0xF0A8B0], sea: 0x2A3A78, atmo: 0xA8B8FF, acc: 0x6CFFD0 }
+        { name: 'coral-sea',   ramp: [0x70271A, 0xD96D5A, 0xE78873, 0xF4A28C, 0xFDECE8], sea: 0x2E8C8C, atmo: 0x7DE8F0, acc: 0xFFE3C8 },
+        { name: 'gilded',      ramp: [0x523C15, 0xB7852F, 0xD09F3D, 0xE8B84B, 0xF6E5BC], sea: 0x6D4FA3, atmo: 0xF26BD8, acc: 0xFFE9A8 },
+        { name: 'mint-rose',   ramp: [0x255C47, 0x5FBF9A, 0x7FD3B0, 0x9FE6C5, 0xEBFAF3], sea: 0xB5496B, atmo: 0xFFA7C4, acc: 0xEAFFF2 },
+        { name: 'tide-fire',   ramp: [0x502917, 0xB25A33, 0xC97241, 0xE08B4F, 0xF3D2BB], sea: 0x2FB3A8, atmo: 0x63F2DC, acc: 0xFFC894 },
+        { name: 'lav-heath',   ramp: [0x3C2960, 0x8B6FC2, 0xA28AD3, 0xB9A5E3, 0xF0ECF9], sea: 0x7FA893, atmo: 0xD9B8FF, acc: 0xF2E8FF },
+        { name: 'ember-ice',   ramp: [0x49131F, 0xA32B44, 0xBD3850, 0xD6455C, 0xEDADB8], sea: 0x3E6C99, atmo: 0xA8D8FF, acc: 0xFF9AA8 },
+        { name: 'absinthe',    ramp: [0x404F1A, 0x8FB03A, 0xAAC84D, 0xC4E060, 0xECF5CB], sea: 0x7A4A8C, atmo: 0xE0A8F2, acc: 0xF4FFB8 },
+        { name: 'orchard',     ramp: [0x743B1B, 0xDB8E63, 0xE6A379, 0xF2B98F, 0xFCF1E8], sea: 0x2F8C66, atmo: 0x8FF2C2, acc: 0xFFE0C2 },
+        { name: 'dune-sky',    ramp: [0x5C4321, 0xC29455, 0xD3AA72, 0xE3C08F, 0xFAF4EB], sea: 0x3573B5, atmo: 0x7FB8FF, acc: 0xFFEFC4 },
+        { name: 'rose-quartz', ramp: [0x672A3E, 0xC97A94, 0xD991A6, 0xE8A8B8, 0xFAEBEF], sea: 0x5C6FA8, atmo: 0x93A8F2, acc: 0xFFD8E8 }
     ];
-    // old family index (coral, gilded, mint, tide-fire, lav-heath, ember-ice, absinthe, orchard, dune-sky, rose-quartz) -> new family
-    var OLD_TO_NEW = [1, 2, 3, 1, 0, 5, 3, 2, 2, 4];
 
     // one consistent, fixed world-space light direction for every planet
     // shader — stylized in-shader lighting, deliberately NOT physical.
@@ -165,7 +169,7 @@ import * as GL from './galaxy-layout.js';
     function familyIndexFor(node) {
         if (node._famIdx !== undefined) return node._famIdx;
         var rng = mulberry32(hash32(node.id + '::family'));
-        var idx = OLD_TO_NEW[Math.floor(rng() * OLD_TO_NEW.length)];   // same roll as the old ten families
+        var idx = Math.floor(rng() * PALETTES.length);
         node._famIdx = idx;
         return idx;
     }
@@ -191,16 +195,16 @@ import * as GL from './galaxy-layout.js';
         // per-node tint stream (own id) — inherits the FAMILY, re-rolls
         // the exact hues, per the coherent-but-distinct subsystem rule.
         var crng = mulberry32(hash32(node.id + '::tint'));
-        var dh = (crng() - 0.5) * 0.04, dl = (crng() - 0.5) * 0.05, ramp = [], ri, ro = { h: 0, s: 0, l: 0 };
+        var dh = (crng() - 0.5) * 0.05, dl = (crng() - 0.5) * 0.08, ramp = [], ri, ro = { h: 0, s: 0, l: 0 };
         for (ri = 0; ri < 5; ri++) {      // one shared hue / lightness wobble so the ramp stays one ramp
             var rc = new THREE.Color(fam.ramp[ri]); rc.getHSL(ro);
             rc.setHSL(((ro.h + dh) % 1 + 1) % 1, ro.s, clamp(ro.l + dl, 0.05, 0.95)); ramp.push(rc);
         }
         node.pal = {
             ramp: ramp, deep: ramp[0], lo: ramp[1], mid: ramp[2], hi: ramp[3], sky: ramp[4],
-            sea: jitterColor(fam.sea, crng, 0.02, 0.05),
-            atmo: jitterColor(fam.atmo, crng, 0.02, 0.05),
-            acc: jitterColor(fam.acc, crng, 0.02, 0.04)
+            sea: jitterColor(fam.sea, crng, 0.05, 0.08),
+            atmo: jitterColor(fam.atmo, crng, 0.03, 0.06),
+            acc: jitterColor(fam.acc, crng, 0.04, 0.06)
         };
         node.pal.ring = node.pal.atmo.clone().lerp(new THREE.Color(0xffffff), 0.35);
         // seeded per-node size variance — real visual variety between

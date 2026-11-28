@@ -8,28 +8,27 @@
 //   interior.group / setVisible(b)           in engine.scene, hidden until shown
 //   interior.pocket                          Vector3 (live, = group.position)
 //   interior.unit                            world units per model unit (U)
-//   interior.rooms                           [{name,min,max}]  local L units: aft (hatch/table/kitchen), cargo, quarters (pens+pods), cockpit
+//   interior.rooms                           [{name,min,max}]  local L units: aft (hatch/table/kitchen), cargo, quarters (pens + bunk bays), cockpit
 //   interior.deck.floorAt(worldPos,out?)     -> { point(world), normal(world), height(world), inside }
 //   interior.deck.walls                      [{name,min,max}] AABBs, LOCAL L units (same as station.deck.walls); cargo crates move with setStacks
-//   interior.hatch / spawn / table / kitchen / board     { pos(world), radius(world) }; spawn also { dir(world, looks down the hall), localPos }
+//   interior.hatch / spawn / table / kitchen / cockpit     { pos(world), radius(world) }; spawn also { dir(world, looks down the hall), localPos }
 //   interior.pens[4] {pos,radius,pet,setPet(item),clear()}    item = { seed, name, tier? }  (generateEnemy tier 1 model, scaled)
-//   interior.pods[4] {pos,radius,crew,setCrew(member),clear()} member = { seed, name, color }
-//   interior.board.setMissions([{title,status,progress?|have+target?}])   redraws the glowing screen; active/partial missions get a progress bar
+//   interior.companion {setPet(item{seed,name,plan?}),clear()}            the active POKEDEX POKEMANS: walks the hall beside the player
+//   interior.cockpit {pos(world),radius}                                  the pilot seat: F there returns to flying (ship.js)
 //   interior.trophies {pos,radius,setDiscoveries([{kind,name,by}])}      OBSERVATION room (left wall alcove, wide window): <=24 framed plaques, one atlas texture
 //   interior.kitchen.setMenu(items)          <=6 item boxes on the counter, item.color or hashed colour
 //   pens[i].setPet(item): item = {seed,name,plan?} -> createPet (walker|jelly|strider); idles in the pen, hops to the player within 2 L
-//   pods[i].setCrew(member): member = {seed,name,color,role?} -> createHuman with role; idles, looks at the player when near
 //   interior.cargo.setStacks(stacks)         stacks = [{id|name,count,color?}] -> up to 24 instanced crates sized by count
 //   interior.windows                         [{pos,w,h}] world; the cockpit opening is a real hole, the live star sky shows through
-//   interior.update(t, dt, playerWorldPos)   lights, pets, crew idle, screen pulse
+//   interior.update(t, dt, playerWorldPos)   lights, pets, companion
 //   interior.toLocal(v,out?) / toWorld(v,out?)   local = L units
 //   interior.stats {tris, draws}   interior.dispose()
-import { createHuman, createPet } from './ship-human.js';
+import { createPet } from './ship-human.js';
 
 const HW = 10, HL = 30, HH = 8, PLAT = 0.8, RAMP0 = 21, RAMP1 = 23.5;
 const C = { hull: 0x4a4366, hull2: 0x38324f, hull3: 0x262138, panel: 0x5b5380, violet: 0x8A3CFF, cyan: 0x5CE8FF, mag: 0xFF5CE1, amber: 0xFFC46B, white: 0xF4F8FF, floor: 0x625b80, wall: 0x6a6190, dark: 0x1a1626, wood: 0x8a5a2b, wood2: 0xb98a4f, steel: 0x9a96b0 };
-const CREW_S = 2.0, PET_S = 2.2, N_PEN = 4, N_POD = 4, N_CRATE = 24, N_PLAQUE = 24, N_MENU = 6;
-const BZ = 26.0;                                   // mission board centre z
+const PET_S = 2.2, N_PEN = 4, N_CRATE = 24, N_PLAQUE = 24, N_MENU = 6;
+const BZ = 26.0;                                   // cockpit side console centre z
 const OPZ0 = -26, OPZ1 = -16, OZ0 = -27, OZ1 = -15, OX = -22;   // observation alcove: opening in the left wall, room z range, back-wall x
 const KIND_COL = { planet: 0x5CE8FF, moon: 0x9ad8ff, creature: 0xFF5CE1, fauna: 0xFF5CE1, flora: 0x7CFF8A, plant: 0x7CFF8A, mineral: 0xFFC46B, resource: 0xFFC46B, ship: 0x8A3CFF, station: 0xF4F8FF, anomaly: 0xFF6B6B, star: 0xFFE98A };
 
@@ -157,39 +156,6 @@ export function createInterior(engine, L, opts) {
   const matLight = new T.ShaderMaterial({ vertexShader: VERT_LIGHT, fragmentShader: FRAG_LIGHT, uniforms: { uPx, uH }, transparent: true, depthWrite: false, blending: T.AdditiveBlending });
   const matGlass = new T.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.17, depthWrite: false, side: T.DoubleSide });
   const quadGeo = new T.PlaneGeometry(1, 1);
-
-  // ── board canvas ──
-  const bc = document.createElement('canvas'); bc.width = 512; bc.height = 272;
-  const btex = new T.CanvasTexture(bc); btex.colorSpace = T.SRGBColorSpace; btex.anisotropy = 4;
-  const matBoard = new T.MeshBasicMaterial({ map: btex, toneMapped: false, side: T.DoubleSide });
-  function missionProgress(r) {
-    let p = r.progress;
-    if (p == null && r.target > 0) p = (r.have != null ? r.have : r.cur != null ? r.cur : r.count) / r.target;
-    if (p == null && /^(active|open|prog|run|doing|ongoing)/i.test(String(r.status || ''))) p = 0;
-    if (p == null || !isFinite(p)) return null;
-    return /^(done|complete|paid)/i.test(String(r.status || '')) ? 1 : Math.max(0, Math.min(1, +p));
-  }
-  function drawBoard(list) {
-    const x = bc.getContext('2d');
-    x.fillStyle = '#0b0716'; x.fillRect(0, 0, 512, 272);
-    x.strokeStyle = '#8a3cff'; x.lineWidth = 6; x.strokeRect(4, 4, 504, 264);
-    x.strokeStyle = '#5ce8ff'; x.lineWidth = 2; x.strokeRect(14, 14, 484, 244);
-    x.font = '700 30px monospace'; x.textAlign = 'left'; x.fillStyle = '#ff5ce1'; x.shadowColor = '#ff5ce1'; x.shadowBlur = 12; x.fillText('MISSION BOARD', 30, 56); x.shadowBlur = 0;
-    const rows = (list && list.length) ? list.slice(0, 3) : [{ title: 'no contracts posted', status: '' }];
-    rows.forEach((r, i) => {
-      const y = 108 + i * 52, p = missionProgress(r);
-      x.fillStyle = 'rgba(138,60,255,0.22)'; x.fillRect(28, y - 30, 456, 46);
-      x.fillStyle = '#e8f6ff'; x.font = '600 22px monospace'; x.textAlign = 'left'; x.fillText(String(r.title || '').slice(0, 28), 40, y - 8);
-      x.fillStyle = '#5ce8ff'; x.textAlign = 'right'; x.fillText(String(p == null ? (r.status || '') : p >= 1 ? 'DONE' : Math.round(p * 100) + '%').slice(0, 10), 474, y - 8); x.textAlign = 'left';
-      if (p != null) {
-        x.fillStyle = '#1b1230'; x.fillRect(40, y + 1, 434, 9);
-        if (p > 0) { const g = x.createLinearGradient(40, 0, 474, 0); g.addColorStop(0, '#5ce8ff'); g.addColorStop(1, '#ff5ce1'); x.fillStyle = g; x.fillRect(40, y + 1, Math.max(4, 434 * p), 9); }
-        x.strokeStyle = 'rgba(92,232,255,0.5)'; x.lineWidth = 1; x.strokeRect(40.5, y + 1.5, 433, 8);
-      }
-    });
-    btex.needsUpdate = true;
-  }
-  drawBoard([]);
 
   // ── trophy plaque atlas: 8x3 cells, one texture, one draw ──
   const CW = 128, CH = 112, pc = document.createElement('canvas'); pc.width = CW * 8; pc.height = CH * 3;
@@ -343,31 +309,36 @@ export function createInterior(engine, L, opts) {
     const cx = (s ? 1 : -1) * (5.0 + c * 1.8), cz = -9 + r * 3.6; E.bx(cx - 0.95, cx + 0.95, 0.0, 0.02, cz - 0.95, cz - 0.9, C.cyan, 0.35); E.bx(cx - 0.95, cx + 0.95, 0.0, 0.02, cz + 0.9, cz + 0.95, C.cyan, 0.35);
   }
   E.bx(-0.07, 0.07, 0.0, 0.03, -12, 7.5, C.mag, 0.5);
-  // pens (left) and pods (right)
+  // pens (left) and bunk bays (right, decor)
   const penZ = [10.5, 13.5, 16.5, 19.5];
-  const penLocal = penZ.map((z) => new T.Vector3(-7.4, 0, z)), podLocal = penZ.map((z) => new T.Vector3(7.4, 0, z));
-  penLocal.concat(podLocal).forEach((p, i) => {
-    const pod = i >= N_PEN, sd = pod ? 1 : -1;
+  const penLocal = penZ.map((z) => new T.Vector3(-7.4, 0, z)), bunkLocal = penZ.map((z) => new T.Vector3(7.4, 0, z));
+  penLocal.forEach((p, i) => {
     B.shape(new T.CylinderGeometry(1.45, 1.6, 0.35, 14), C.hull3, new T.Matrix4().makeTranslation(p.x, 0.18, p.z));
     B.shape(new T.CylinderGeometry(1.45, 1.45, 0.25, 14), C.hull2, new T.Matrix4().makeTranslation(p.x, 3.55, p.z));
-    B.bx(sd > 0 ? HW - 0.5 : -HW, sd > 0 ? HW : -HW + 0.5, 0.2, 3.6, p.z - 0.5, p.z + 0.5, C.hull3);
-    E.shape(new T.TorusGeometry(1.35, 0.05, 4, 20), pod ? C.mag : C.cyan, new T.Matrix4().makeRotationX(Math.PI / 2).premultiply(new T.Matrix4().makeTranslation(p.x, 0.4, p.z)));
-    E.shape(new T.TorusGeometry(1.35, 0.05, 4, 20), pod ? C.mag : C.cyan, new T.Matrix4().makeRotationX(Math.PI / 2).premultiply(new T.Matrix4().makeTranslation(p.x, 3.4, p.z)));
-    G.shape(new T.CylinderGeometry(1.35, 1.35, 3.0, 16, 1, true), pod ? 0xff9ae8 : 0x7ff0ff, new T.Matrix4().makeTranslation(p.x, 1.9, p.z));
-    if (pod) { B.bx(p.x - 0.5, p.x + 0.5, 0.2, 0.34, p.z - 0.5, p.z + 0.5, C.hull); E.bx(HW - 0.55, HW - 0.5, 1.6, 2.4, p.z - 0.3, p.z + 0.3, C.amber, 0.8); }
-    lt(p.x, 3.7, p.z, 0.55, pod ? C.mag : C.cyan, 4, i * 0.13, 0.35);
-    W((pod ? 'pod' : 'pen') + (i % 4), p.x - 1.6, p.x + 1.6, 0, 3.7, p.z - 1.6, p.z + 1.6);
+    B.bx(-HW, -HW + 0.5, 0.2, 3.6, p.z - 0.5, p.z + 0.5, C.hull3);
+    E.shape(new T.TorusGeometry(1.35, 0.05, 4, 20), C.cyan, new T.Matrix4().makeRotationX(Math.PI / 2).premultiply(new T.Matrix4().makeTranslation(p.x, 0.4, p.z)));
+    E.shape(new T.TorusGeometry(1.35, 0.05, 4, 20), C.cyan, new T.Matrix4().makeRotationX(Math.PI / 2).premultiply(new T.Matrix4().makeTranslation(p.x, 3.4, p.z)));
+    G.shape(new T.CylinderGeometry(1.35, 1.35, 3.0, 16, 1, true), 0x7ff0ff, new T.Matrix4().makeTranslation(p.x, 1.9, p.z));
+    lt(p.x, 3.7, p.z, 0.55, C.cyan, 4, i * 0.13, 0.35);
+    W('pen' + i, p.x - 1.6, p.x + 1.6, 0, 3.7, p.z - 1.6, p.z + 1.6);
   });
-  // board: left wall in the cockpit
-  const BXs = -HW + 0.05;
+  // right wall: bunk bays (a bench, a wall panel and an amber strip each; no crew live here any more)
+  bunkLocal.forEach((p, i) => {
+    B.bx(HW - 0.5, HW, 0.2, 3.6, p.z - 0.5, p.z + 0.5, C.hull3);
+    B.bx(p.x - 0.9, HW - 0.5, 0.2, 1.0, p.z - 1.1, p.z + 1.1, C.hull);
+    E.bx(p.x - 0.9, HW - 0.5, 1.0, 1.04, p.z - 1.1, p.z + 1.1, C.amber, 0.6);
+    E.bx(HW - 0.55, HW - 0.5, 1.6, 2.4, p.z - 0.3, p.z + 0.3, C.amber, 0.8);
+    lt(p.x, 3.7, p.z, 0.55, C.amber, 4, i * 0.13, 0.3);
+    W('bunk' + i, p.x - 0.9, HW, 0, 1.0, p.z - 1.1, p.z + 1.1);
+  });
+  // cockpit side console: left wall, no screen (the mission board was cut)
   B.bx(-HW, -HW + 0.25, PLAT + 1.0, PLAT + 4.8, BZ - 3.5, BZ + 3.5, C.hull3);
   E.bx(-HW + 0.25, -HW + 0.32, PLAT + 0.95, PLAT + 1.02, BZ - 3.5, BZ + 3.5, C.violet); E.bx(-HW + 0.25, -HW + 0.32, PLAT + 4.78, PLAT + 4.85, BZ - 3.5, BZ + 3.5, C.violet);
   B.bx(-HW + 0.3, -HW + 1.5, PLAT, PLAT + 1.1, BZ - 3.0, BZ + 3.0, C.hull); E.bx(-HW + 0.3, -HW + 1.5, PLAT + 1.1, PLAT + 1.14, BZ - 2.9, BZ + 2.9, C.cyan, 0.45);
   W('boardDesk', -HW, -HW + 1.5, PLAT, PLAT + 1.2, BZ - 3.0, BZ + 3.0);
-  lt(-HW + 1.2, PLAT + 5.6, BZ, 0.8, C.mag, 4, 0.5, 0.25);   // above the frame, not a blob in front of the screen
-  const board = spot(-HW + 2.2, PLAT, BZ, 4.0, {});
-  const boardMesh = new T.Mesh(new T.PlaneGeometry(6, 3.18), matBoard);
-  boardMesh.position.set(-HW + 0.36, PLAT + 2.9, BZ); boardMesh.rotation.y = Math.PI / 2; boardMesh.name = 'interior-board';
+  lt(-HW + 1.2, PLAT + 5.6, BZ, 0.8, C.mag, 4, 0.5, 0.25);
+  // cockpit zone: the pilot seats; F here hands the ship back (ship.js)
+  const cockpit = spot(0, PLAT, 25.5, 4.5);
   // spawn + hatch
   const trophies = spot(-16, 0, -21, 6.5);
   const hatch = spot(0, 0, -HL + 1.6, 2.8);
@@ -395,14 +366,14 @@ export function createInterior(engine, L, opts) {
   const crateWalls = [];
   for (let i = 0; i < N_CRATE; i++) { crateMesh.setColorAt(i, new T.Color(0x333333)); crateWalls.push(W('crate' + i, 0, 0, -100, -100, 0, 0)); }
   crateMesh.count = N_CRATE;
-  [hullMesh, emiMesh, glassMesh, lightMesh, crateMesh, boardMesh, plaqueMesh, menuMesh].forEach((m) => { m.frustumCulled = false; group.add(m); });
+  [hullMesh, emiMesh, glassMesh, lightMesh, crateMesh, plaqueMesh, menuMesh].forEach((m) => { m.frustumCulled = false; group.add(m); });
   const hullTris = Math.round(B.tris() + E.tris() + G.tris() + lights.length * 2 + 12 * N_CRATE + 2 + 2 * N_PLAQUE + 12 * N_MENU);
 
   // ── pens / pods ──
   const IDLE = { moving: false, running: false, airborne: false, speed: 0, facing: 0 };
-  const pens = [], pods = [];
-  const petModels = new Array(N_PEN).fill(null), crewModels = new Array(N_POD).fill(null);
-  const prng = mul(77), PEN_Y = 0.36, CREW_BASE = Math.PI / 2;
+  const pens = [];
+  const petModels = new Array(N_PEN).fill(null);
+  const prng = mul(77), PEN_Y = 0.36;
   penLocal.forEach((p, i) => {
     const pen = spot(p.x, 0, p.z, 3.2, { pet: null, index: i });
     pen.setPet = (item) => {
@@ -420,23 +391,31 @@ export function createInterior(engine, L, opts) {
     pen.clear = () => pen.setPet(null);
     pens.push(pen);
   });
-  podLocal.forEach((p, i) => {
-    const pod = spot(p.x, 0, p.z, 3.2, { crew: null, index: i });
-    pod.setCrew = (member) => {
-      if (crewModels[i]) { try { crewModels[i].dispose(); } catch (e) { /* ignore */ } if (crewModels[i].group.parent) crewModels[i].group.parent.remove(crewModels[i].group); crewModels[i] = null; }
-      pod.crew = member || null;
-      if (!member) return;
+  // ── companion: the active POKEDEX POKEMANS walks the hall with the player (same pet rig as the pens) ──
+  let companionModel = null;
+  const companion = {
+    item: null,
+    setPet(item) {
+      if (companionModel) { try { companionModel.dispose(); } catch (e) { /* ignore */ } if (companionModel.group.parent) companionModel.group.parent.remove(companionModel.group); companionModel = null; }
+      companion.item = item || null;
+      if (!item) return;
       try {
-        const h = createHuman(T, { color: member.color != null ? member.color : 0xB86CFF, role: member.role || null });
-        h.group.traverse((o) => { o.frustumCulled = false; });
-        h.group.scale.setScalar(CREW_S); h.group.position.set(p.x - 0.35, PEN_Y, p.z + 0.4); h.group.rotation.y = CREW_BASE;
-        group.add(h.group); h.sway = prng() * 6.28; crewModels[i] = h;
-      } catch (e) { console.info('[interior] crew failed', e); crewModels[i] = null; }
-    };
-    pod.clear = () => pod.setCrew(null);
-    pods.push(pod);
-  });
-
+        const m = createPet(T, { seed: (item.seed | 0) || hashStr(item.name || 'pet'), plan: item.plan });
+        m.group.traverse((o) => { o.frustumCulled = false; });
+        m.group.scale.setScalar(PET_S); m.group.position.set(0, 0, -22.5); m.setMood(0.8); group.add(m.group); companionModel = m;
+      } catch (e) { console.info('[interior] companion failed', e); companionModel = null; }
+    },
+    clear() { companion.setPet(null); },
+  };
+  const _ct = new T.Vector3();
+  function updateCompanion(dt, pl) {
+    if (!pl) return;
+    const g = companionModel.group, dx = pl.x - g.position.x, dz = pl.z - g.position.z, d = Math.hypot(dx, dz);
+    _ct.set(pl.x, 0, pl.z);
+    companionModel.follow(_ct, dt, d > 6 ? { dist: 1.4, rate: 7 } : { dist: 1.6, rate: 3.2 });
+    g.position.x = Math.max(-HW + 1, Math.min(HW - 1, g.position.x)); g.position.z = Math.max(-HL + 1, Math.min(HL - 1, g.position.z));
+    g.position.y = heightAt(g.position.x, g.position.z);
+  }
   // ── cargo ──
   const cargo = {
     stacks: [],
@@ -458,7 +437,6 @@ export function createInterior(engine, L, opts) {
     },
   };
   cargo.setStacks([]);
-  board.setMissions = (list) => { board.missions = list || []; drawBoard(board.missions); };
   kitchen.menu = [];
   kitchen.setMenu = (items) => {
     items = (items || []).filter(Boolean).slice(0, N_MENU); kitchen.menu = items;
@@ -490,7 +468,7 @@ export function createInterior(engine, L, opts) {
   const windows = [win];
   const _tg = new T.Vector3(), _v = new T.Vector3(), _inv = new T.Matrix4(), _n = new T.Vector3();
   const interior = {
-    group, pocket: group.position, unit: U, rooms, windows, hatch, spawn, table, kitchen, board, pens, pods, cargo, trophies, observation: trophies,
+    group, pocket: group.position, unit: U, rooms, windows, hatch, spawn, table, kitchen, cockpit, companion, pens, cargo, trophies, observation: trophies,
     deck: { walls, floorAt(wp, out) {
       const o = out || { point: new T.Vector3(), normal: new T.Vector3(), height: 0, inside: false };
       const l = _v.copy(wp).applyMatrix4(_inv.copy(group.matrixWorld).invert());
@@ -515,7 +493,6 @@ export function createInterior(engine, L, opts) {
         lightCol[i * 3] = l.c.r * k; lightCol[i * 3 + 1] = l.c.g * k; lightCol[i * 3 + 2] = l.c.b * k;
       }
       lightMesh.instanceColor.needsUpdate = true;
-      matBoard.color.setScalar(0.9 + 0.1 * Math.sin(t * 2.2));
       let pl = null; if (playerPos) pl = interior.toLocal(playerPos, new T.Vector3());
       for (let i = 0; i < N_PEN; i++) {
         const m = petModels[i]; if (!m) continue;
@@ -532,30 +509,22 @@ export function createInterior(engine, L, opts) {
         const ox = g.position.x - c.x, oz = g.position.z - c.z, od = Math.hypot(ox, oz);
         if (od > 0.95) { g.position.x = c.x + ox / od * 0.95; g.position.z = c.z + oz / od * 0.95; }
       }
-      for (let i = 0; i < N_POD; i++) {
-        const h = crewModels[i]; if (!h) continue;
-        try { h.update(dt, IDLE); } catch (e) { /* ignore */ }
-        const g = h.group, c = podLocal[i];
-        let want = CREW_BASE + Math.sin(t * 0.5 + h.sway) * 0.14;
-        if (pl && Math.hypot(pl.x - c.x, pl.z - c.z) < 1.35 + 2.5) want = Math.atan2(-(pl.x - g.position.x), -(pl.z - g.position.z));
-        let df = want - g.rotation.y; df = Math.atan2(Math.sin(df), Math.cos(df));
-        g.rotation.y += df * Math.min(1, dt * 4);
-      }
+      if (companionModel) updateCompanion(dt, pl);
     },
     dispose() {
       if (group.parent) group.parent.remove(group);
       petModels.forEach((m) => { try { m && m.dispose(); } catch (e) { /* ignore */ } });
       plaqueMesh.geometry.dispose(); menuMesh.geometry.dispose(); menuMesh.dispose(); matPlaque.dispose(); ptex.dispose();
-      crewModels.forEach((h) => { try { h && h.dispose(); } catch (e) { /* ignore */ } });
-      [hullMesh, emiMesh, glassMesh, boardMesh].forEach((m) => m.geometry.dispose());
+      if (companionModel) { try { companionModel.dispose(); } catch (e) { /* ignore */ } }
+      [hullMesh, emiMesh, glassMesh].forEach((m) => m.geometry.dispose());
       lightMesh.geometry.dispose(); lightMesh.dispose(); crateMesh.geometry.dispose(); crateMesh.dispose();
-      quadGeo.dispose(); matLit.dispose(); matEmi.dispose(); matCrate.dispose(); matLight.dispose(); matGlass.dispose(); matBoard.dispose(); btex.dispose();
+      quadGeo.dispose(); matLit.dispose(); matEmi.dispose(); matCrate.dispose(); matLight.dispose(); matGlass.dispose();
     },
   };
   return interior;
 }
 
-// ── dev view: only when this module is imported on a page loaded with ?interior2 (window.__int2.view('pen'|'pod'|'trophy'|'board'|'kitchen')) ──
+// ── dev view: only when this module is imported on a page loaded with ?interior2 (window.__int2.view('pen'|'trophy'|'kitchen')) ──
 try {
   if (typeof location !== 'undefined' && /[?&]interior2(&|$)/.test(location.search) && typeof document !== 'undefined') {
     import('three').then((THREE) => {
@@ -566,13 +535,11 @@ try {
       const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(55, W / H, 0.05, 200);
       const it = createInterior({ THREE, scene: sc, renderer: r }, 1, { scale: 1, pocket: new THREE.Vector3(0, 0, 0) }); it.setVisible(true);
       ['walker', 'jelly', 'strider', 0].forEach((pl, i) => it.pens[i].setPet({ seed: 11 + i * 7, plan: pl, name: 'p' + i }));
-      ['pilot', 'miner', 'chef', 'scout'].forEach((ro, i) => it.pods[i].setCrew({ seed: i, name: ro, role: ro, color: [0xB86CFF, 0x5CE8FF, 0xFFC46B, 0xFF5CE1][i] }));
       it.trophies.setDiscoveries([{ kind: 'planet', name: 'Zorbulon', by: 'EMGOR' }, { kind: 'creature', name: 'Glim Hopper', by: 'Dana' }, { kind: 'flora', name: 'Violet Reed', by: 'Alex' }, { kind: 'mineral', name: 'Lydian Ore', by: 'kowl' }, { kind: 'star', name: 'Old Faithful', by: 'EMGOR' }, { kind: 'anomaly', name: 'The Hum', by: 'neptr' }]);
       it.kitchen.setMenu([{ name: 'stew', color: 0xFF5CE1 }, { name: 'ore', color: 0xFFC46B }, { name: 'reed', color: 0x7CFF8A }, { name: 'ice', color: 0x5CE8FF }, { name: 'goo', color: 0x8A3CFF }, { name: 'bun', color: 0xF4F8FF }]);
-      it.board.setMissions([{ title: 'Haul 12 ore', status: 'active', have: 5, target: 12 }, { title: 'Scan Zorbulon', status: 'active', progress: 0.8 }, { title: 'Feed the pets', status: 'done' }]);
       const player = new THREE.Vector3(0, 1.5, 0), look = new THREE.Vector3(), views = {
-        pen: [[-3.6, 2.4, 8.6], [-7.4, 1.3, 11.2], [-5.2, 1.5, 10.6]], pod: [[3.6, 2.6, 13.0], [7.2, 1.4, 15.0], [5.6, 1.5, 14.2]],
-        trophy: [[-15, 3.2, -19.5], [-16, 2.9, -27], [-15, 1.5, -22]], board: [[-3.5, 3.6, 24.5], [-9.6, 3.6, 26], [0, 1.5, 26]], kitchen: [[2.5, 3, -16], [8.5, 1.8, -20], [2, 1.5, -16]],
+        pen: [[-3.6, 2.4, 8.6], [-7.4, 1.3, 11.2], [-5.2, 1.5, 10.6]],
+        trophy: [[-15, 3.2, -19.5], [-16, 2.9, -27], [-15, 1.5, -22]], kitchen: [[2.5, 3, -16], [8.5, 1.8, -20], [2, 1.5, -16]],
       };
       window.__int2 = { it, cam, player, view(n) { const v = views[n]; cam.position.set(...v[0]); look.set(...v[1]); cam.lookAt(look); player.set(...v[2]); } };
       window.__int2.view('pen');

@@ -59,7 +59,6 @@ export function connect(engine, hooks) {
     var myName = prefs.name || ('PILOT-' + id.slice(-4)).toUpperCase();
     var myColor = prefs.color != null ? prefs.color : DEFAULT_COLOR;
     var myHs = typeof prefs.hs === 'string' ? prefs.hs.slice(0, 40) : '';     // rev 26: hull signature (ship-hull hullSignature) so ghosts rebuild the same upgraded hull
-    var myStyle = typeof prefs.style === 'string' ? prefs.style.slice(0, 16) : '';      // rev 30: character style id ('' = PILOT); rides in hi + foot pos so ghosts re-skin
     var myState = 'docked', myMode = 'fly';      // rev 14: myMode fly | landed | foot (sub-state of 'piloting')
 
     var ws = null, open = false, kicked = false, destroyed = false, fails = 0;
@@ -139,7 +138,6 @@ export function connect(engine, hooks) {
     }
     function applyLook(g, rec) {
         var nm = cleanName(rec.name, g.name || 'PILOT');
-        if (typeof rec.style === 'string') setGhostStyle(g, rec.style.slice(0, 16));
         if (typeof rec.hs === 'string' && rec.hs !== (g.hs || '') && hooks.buildGhost) {      // rev 26: the sender's upgraded hull
             g.hs = rec.hs;
             try {
@@ -265,7 +263,7 @@ export function connect(engine, hooks) {
             g.root.visible = true;
             // rev 14: on foot -> a humanoid at their own pose (0.09 L tall; never smaller than a few pixels), label + mark follow the human
             if (foot) {
-                if (!g.human) { try { g.human = hooks.buildHuman(g.color >= 0 ? g.color : DEFAULT_COLOR, g.style || ''); scene.add(g.human.group); } catch (e) { g.human = null; } }
+                if (!g.human) { try { g.human = hooks.buildHuman(g.color >= 0 ? g.color : DEFAULT_COLOR); scene.add(g.human.group); } catch (e) { g.human = null; } }
                 if (g.human) {
                     sampleAt(g, rt, g.fsamples);
                     if (g.sf && hooks.stationToWorld) hooks.stationToWorld(vP, qP);
@@ -331,9 +329,7 @@ export function connect(engine, hooks) {
         if (!open || !ws) return false;
         try { ws.send(JSON.stringify(o)); lastSent = performance.now(); return true; } catch (e) { return false; }
     }
-    function sendHi() { var o = { t: 'hi', v: 1, id: id, name: myName, color: myColor }; if (myHs) o.hs = myHs; if (myStyle) o.style = myStyle; send(o); }
-    function setStyle(s) { s = typeof s === 'string' ? s.slice(0, 16) : ''; if (s === myStyle) return; myStyle = s; lastPos = 0; sendHi(); }
-    function setGhostStyle(g, s) { s = s || ''; if (s === (g.style || '')) return; g.style = s; if (g.human && hooks.skinHuman) { try { hooks.skinHuman(g.human, s); } catch (e) { /* keep the current skin */ } } }
+    function sendHi() { var o = { t: 'hi', v: 1, id: id, name: myName, color: myColor }; if (myHs) o.hs = myHs; send(o); }
     function setHullSig(sig) { sig = typeof sig === 'string' ? sig.slice(0, 40) : ''; if (sig === myHs) return; myHs = sig; sendHi(); }
 
     function schedule(ms) {
@@ -422,9 +418,8 @@ export function connect(engine, hooks) {
                 var pf = (!sf && m.frame === 'planet' && typeof m.pid === 'string' && isFinite(m.lx) && isFinite(m.lqw) && hooks.planetToWorld && (!hooks.planetKnown || hooks.planetKnown(m.pid))) ? m.pid : '';      // unknown planet id here: keep the world pose
                 if ((g.pf || '') !== pf) { g.samples.length = 0; g.fsamples.length = 0; }
                 g.pf = pf;
-                if (pf) m = { t: m.t, id: m.id, x: m.lx, y: m.ly, z: m.lz, qx: m.lqx, qy: m.lqy, qz: m.lqz, qw: m.lqw, v: 0, st: m.st, hp: m.hp, mode: m.mode, style: m.style };
+                if (pf) m = { t: m.t, id: m.id, x: m.lx, y: m.ly, z: m.lz, qx: m.lqx, qy: m.lqy, qz: m.lqz, qw: m.lqw, v: 0, st: m.st, hp: m.hp, mode: m.mode };
                 g.mode = m.mode === 'foot' ? 'foot' : (m.mode === 'landed' ? 'landed' : 'fly');
-                if (g.mode === 'foot') setGhostStyle(g, typeof m.style === 'string' ? m.style.slice(0, 16) : '');
                 var cp = cleanPose(m); if (!cp) break;      // PF2: NaN / string / huge pose from a peer never reaches the interpolator
                 if (g.mode === 'foot') pushFoot(g, cp, now); else { g.fsamples.length = 0; pushSample(g, cp, now); }
                 break;
@@ -473,7 +468,7 @@ export function connect(engine, hooks) {
         var o = { t: 'pos', id: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), qx: r4(p.qx), qy: r4(p.qy), qz: r4(p.qz), qw: r4(p.qw), v: Math.round(p.v * 10) / 10, st: p.st | 0, hp: Math.max(0, Math.min(255, Math.round(p.hp))) };
         if (p.v === -1) o.frame = 'station';
         if (myMode !== 'fly') o.mode = myMode;          // rev 14: 'landed' | 'foot' (foot: x/y/z/q are the HUMAN's pose, st bits 1 moving 2 running 4 airborne)
-        if (myMode === 'foot') { o.x = r4(p.x); o.y = r4(p.y); o.z = r4(p.z); if (myStyle) { o.style = myStyle; o.st = (o.st | 16); } }
+        if (myMode === 'foot') { o.x = r4(p.x); o.y = r4(p.y); o.z = r4(p.z); }
         if (myMode !== 'fly' && typeof p.pid === 'string' && isFinite(p.lx)) {      // 2026-10-14 (audit A1): planet frame (L units + local quaternion); x/y/z stay world for old peers
             o.frame = 'planet'; o.pid = p.pid.slice(0, 48); o.lx = r4(p.lx); o.ly = r4(p.ly); o.lz = r4(p.lz); o.lqx = r4(p.lqx); o.lqy = r4(p.lqy); o.lqz = r4(p.lqz); o.lqw = r4(p.lqw);
         }
@@ -539,7 +534,7 @@ export function connect(engine, hooks) {
         get id() { return id; },
         get ghosts() { return ghosts; },
         get clockOn() { return clockOn; },
-        update: update, sendPos: sendPos, setState: setState, setMode: setMode, sendFire: sendFire, sendKill: sendKill, plEnter: plEnter, plLeave: plLeave, plSnap: plSnap, plEv: plEv, sendChat: sendChat, sendGor: sendGor, setHullSig: setHullSig, setStyle: setStyle, profSave: profSave, profLoad: profLoad, discClaim: discClaim, discList: discList, eventNow: eventNow,
+        update: update, sendPos: sendPos, setState: setState, setMode: setMode, sendFire: sendFire, sendKill: sendKill, plEnter: plEnter, plLeave: plLeave, plSnap: plSnap, plEv: plEv, sendChat: sendChat, sendGor: sendGor, setHullSig: setHullSig, profSave: profSave, profLoad: profLoad, discClaim: discClaim, discList: discList, eventNow: eventNow,
         setName: setName, setColor: setColor, onRoster: onRoster, destroy: destroy
     };
     current = net;
@@ -549,7 +544,6 @@ export function connect(engine, hooks) {
 
 // thin module-level wrappers (plan's export list); they act on the live instance
 export function setHullSig(sig) { if (current && current.setHullSig) current.setHullSig(sig); }
-export function setStyle(s) { if (current && current.setStyle) current.setStyle(s); }
 export function sendPos() { if (current) current.sendPos(); }
 export function onRoster(fn) { if (current) current.onRoster(fn); }
 export function setName(n) { if (current) current.setName(n); }

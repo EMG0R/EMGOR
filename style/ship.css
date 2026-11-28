@@ -651,10 +651,6 @@ body.is-piloting .ship-online { display: none; }
 .sq-f { margin-top: 6px; font-size: 11px; letter-spacing: 0.04em; color: var(--hud-dim); font-family: var(--hud-font); }
 
 /* ─── revision 27: convoy markers, weather glyph, event banner ─────────── */
-.sh-cvm { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; will-change: transform; pointer-events: none; color: var(--hud-hot); }
-.sh-cvm i { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 11px solid currentColor; filter: drop-shadow(0 0 6px currentColor); }
-.sh-cvm b { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; white-space: nowrap; text-shadow: 0 0 6px currentColor, var(--hud-shadow); }
-.sh-cvm.is-hot { color: var(--hud-alert); }
 .sh-wx { position: absolute; right: 18px; top: calc(7vh + 62px); font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: var(--hud-ink); text-shadow: 0 0 8px color-mix(in srgb, var(--hud-ink) 70%, transparent), var(--hud-shadow); display: none; pointer-events: none; }
 .sh-wx.is-on { display: block; }
 .sh-wx[data-wx="storm"] { color: var(--hud-ink); text-shadow: 0 0 8px color-mix(in srgb, var(--hud-alert) 70%, transparent), var(--hud-shadow); }
@@ -864,8 +860,8 @@ body.sh-photo .gor-prompt, body.sh-photo .gor-reveal, body.sh-photo .gor-toasts,
 .is-inv .gor-toasts, .is-inv .gor-prompt, .is-inv .gor-reveal, .is-inv .sh-qt { opacity: 0; }
 
 /* A11: ground HUD idle-hide. After 6 s without input or motion the secondary chips fade (quest tracker, NPC dots, depth, weather, cvm, ribbon); they return within 120 ms and whenever their own state changes. Hint bar, hotbar, HP, markers, toasts and coins stay. */
-#ship-hud .sh-qt, #ship-hud .sh-gd.is-npc, #ship-hud .sh-depth, #ship-hud .sh-wx, #ship-hud .sh-cvm, #ship-hud .sh-ribbon { transition: opacity 0.1s linear; }
-#ship-hud.is-idle .sh-qt, #ship-hud.is-idle .sh-gd.is-npc, #ship-hud.is-idle .sh-depth, #ship-hud.is-idle .sh-wx, #ship-hud.is-idle .sh-cvm, #ship-hud.is-idle .sh-ribbon { opacity: 0 !important; transition: opacity 0.4s ease; pointer-events: none; }
+#ship-hud .sh-qt, #ship-hud .sh-gd.is-npc, #ship-hud .sh-depth, #ship-hud .sh-wx, #ship-hud .sh-ribbon { transition: opacity 0.1s linear; }
+#ship-hud.is-idle .sh-qt, #ship-hud.is-idle .sh-gd.is-npc, #ship-hud.is-idle .sh-depth, #ship-hud.is-idle .sh-wx, #ship-hud.is-idle .sh-ribbon { opacity: 0 !important; transition: opacity 0.4s ease; pointer-events: none; }
 
 /* E2 (core-loop): the tracker never clips (wraps, keeps a min width and a left gutter) and the ground prompt sits above the hotbar (hotbar = bottom 46 px + 44 px + its 11 px name line) */
 .sh-qt { left: max(16px, env(safe-area-inset-left)); min-width: 180px; box-sizing: border-box; padding-left: 10px; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }

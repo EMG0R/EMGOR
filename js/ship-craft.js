@@ -9,7 +9,7 @@
 //   combine(stacks)  deterministic, order-independent: tags merge -> category 'weapon-mod'|'ship-upgrade'|'food'|'junk', tier=max+1, blended effect,
 //                    generated name ("Flux-Capacitor Fent Burger Mk II"), price, icon fields. Output crafts again forever.
 //   applyMod(weapon, mod)        -> { weapon, line }  (3 slots: scope/coil/chamber on weapon.mods; stats rebuilt from weapon.baseStats; pure)
-//   applyUpgrade(profile, upg)   -> { profile, line } (profile.upgrades[slot] += level; fuel/pens/pods also counters; pure)
+//   applyUpgrade(profile, upg)   -> { profile, line } (profile.upgrades[slot] += level; fuel/pens also counters; pure)
 //   sellPrice(item)              -> gorCoin int;  stackKeyOf(item); itemTags(item)
 // stack = { id, item, n }.  crafted item = { id, name, kind, base, infusion, modifier, color, price, blurb, tier, category, tags, stackKey, comp, frags,
 //   iconHint, mod?:{slot,delta:{dmg,rate,range,speed,spread (fractions), count (add)},special}, upgrade?:{slot,level}, effect? (foods) }
@@ -135,7 +135,6 @@ export const RECIPES = [
   R('jetpack-booster', 'Jetpack Booster', 'gyro|battery|fin', UPG('jetpack', 1, { base: 'Jetpack Booster', color: 0xFFE24A })),
   R('jetpack-mk2', 'Twin Jetpack Booster', 'gyro gyro|battery battery|fin fin', UPG('jetpack', 2, { base: 'Twin Jetpack Booster', color: 0xFFF08A, price: 440, tier: 3 })),
   R('pen-kit', 'Creature Pen Kit', 'plate lens plate|plate . plate|plate plate plate', UPG('pens', 1, { base: 'Pen Kit', color: 0xBEEFFF, price: 300, blurb: 'A glass pod with a tiny door. Adds one pen.' })),
-  R('crew-pod-kit', 'Crew Pod Kit', 'plate plate|battery fin|plate plate', UPG('pods', 1, { base: 'Crew Pod Kit', color: 0xA8A0C8, price: 300, blurb: 'A bunk with opinions. Adds one crew pod.' })),
   // creature treats + snack combos
   R('creature-treat', 'Creature Treat', '~fries infusion:any', FOOD('Creature Treat', 0xFFB06C, 16, E(60, {}, { treat: 1 }), { count: 2, blurb: 'Creatures will follow you home for this.' })),
   R('creature-treat-salt', 'Salted Creature Treat', '~out:seasoning-salt base:beef-jerky', FOOD('Salted Creature Treat', 0xE8C8A8, 55, E(60, {}, { treat: 2 }), { count: 2, blurb: 'Jerky, salted twice. Very good boy.' })),
@@ -315,7 +314,7 @@ export function applyUpgrade(profile, upgrade) {
   const cur = ups[slot] || 0, cap = UPGRADE_CAP[slot] || (slot.indexOf('suit-') === 0 ? 3 : 0);
   if (cap && cur >= cap) return { profile, line: slot.toUpperCase() + ' MAXED', refused: true };
   ups[slot] = cap ? Math.min(cap, slot.indexOf('suit-') === 0 ? Math.max(cur, lv) : cur + lv) : cur + lv; p.upgrades = ups;
-  if (slot === 'pens') p.pens = (p.pens || 0) + lv; else if (slot === 'pods') p.pods = (p.pods || 0) + lv; else if (slot === 'fuel') p.fuelMax = (p.fuelMax || 100) + 25 * lv;
+  if (slot === 'pens') p.pens = (p.pens || 0) + lv; else if (slot === 'fuel') p.fuelMax = (p.fuelMax || 100) + 25 * lv;
   return { profile: p, line: slot.toUpperCase() + ' +' + lv + ' (now ' + ups[slot] + ')' };
 }
 export const SELL_K = 0.4;      // the one sell factor: every shop sells your bag at SELL_K x item price (ship.js SELL tab included)
@@ -349,7 +348,6 @@ const NEW = [
   R('jetpack-refined', 'Gel Jetpack Booster', '~out:bio-gel out:alloy-ingot out:cryo-cell', UPG('jetpack', 1, { base: 'Gel Jetpack Booster', color: 0xFFE24A, price: 260 })),
   R('fuel-refined', 'Bio Fuel Cell', '~out:bio-gel out:bio-gel out:crystal-lens', UPG('fuel', 1, { base: 'Bio Fuel Cell', color: 0x7CFF3A, price: 230, hint: 'energy' })),
   R('pen-refined', 'Glass Pen Kit', '~out:crystal-lens out:alloy-ingot out:bio-gel', UPG('pens', 1, { base: 'Glass Pen Kit', color: 0xBEEFFF, price: 320 })),
-  R('pod-refined', 'Spore Crew Pod Kit', '~out:alloy-ingot out:bio-gel out:spore-paste', UPG('pods', 1, { base: 'Spore Crew Pod Kit', color: 0xA8A0C8, price: 320 })),
   // suit kits T1-T3
   R('suit-jetpack-1', 'Suit Jetpack T1', '~res:ice res:ore res:ore', SUIT('jetpack', 1, 'Suit Jetpack T1', 0xFFE24A, 120)),
   R('suit-jetpack-2', 'Suit Jetpack T2', '~out:cryo-cell out:alloy-ingot res:ore', SUIT('jetpack', 2, 'Suit Jetpack T2', 0xFFE24A, 320)),
@@ -370,10 +368,9 @@ const NEW = [
   R('treat-crawler', 'Crawler Treat', '~res:plant res:ore', TREAT('crawler', 'Crawler Treat', 0xFFB030)),
   R('treat-hopper', 'Hopper Treat', '~res:spore res:ice', TREAT('hopper', 'Hopper Treat', 0xE080FF)),
   R('pet-toy', 'Pet Toy', '~out:bio-gel res:crystal', MAT('Pet Toy', 0xFF8AE8, 80, { tier: 1, hint: 'donut', tags: ['pet-toy'], blurb: 'Squeaks at a frequency only the right creature hears.' })),
-  R('crew-ration', 'Crew Ration', '~out:bio-gel food:any', FOOD('Crew Ration', 0xC8E88A, 90, E(300, {}, { missionSpeed: 0.2 }), { tier: 1, tags: ['ration'], hint: 'can', blurb: 'Crew mission speed +20%. Tastes like a schedule.' })),
   R('beacon', 'Beacon', '~out:crystal-lens out:alloy-ingot antenna', { cat: 'tool', base: 'Beacon', color: 0x8A6CFF, price: 400, tier: 1, tags: ['beacon'], hint: 'stick', blurb: 'Plant it. Fast-travel back to it from anywhere.' }),
 ];
-// blueprints: locked recipes, unlocked by a 'bp:<id>' item (derelict loot, bounty rewards)
+// blueprints: locked recipes, unlocked by a 'bp:<id>' item (bounty rewards)
 const BP = (id, name, pattern, out, price) => Object.assign(R(id, name, pattern, Object.assign({ tier: 4 }, out)), { bp: id, bpPrice: price || 900 });
 const NEWBP = [
   BP('s-weapon-core', 'S-Class Weapon Core', '~out:bolt-core out:crystal-lens out:crystal-lens out:spore-paste', MOD('chamber', { dmg: 1.0, rate: 0.4, count: 1 }, { base: 'S-Class Weapon Core', price: 2400, special: 'overcharge', color: 0xFF5CE1 })),
@@ -386,7 +383,6 @@ const NEWBP = [
   BP('hyper-jetpack', 'Hyper Jetpack', '~out:cryo-cell out:cryo-cell out:alloy-ingot out:bio-gel out:spore-paste', UPG('suit-jetpack', 4, { base: 'Hyper Jetpack', color: 0xFFF08A, price: 1900, noMk: true })),
   BP('omni-scanner', 'Omni Scanner', '~out:crystal-lens out:crystal-lens out:crystal-lens out:spore-paste out:cryo-cell', UPG('suit-scanner', 4, { base: 'Omni Scanner', color: 0x5CE8FF, price: 1900, noMk: true })),
   BP('habitat-pen', 'Habitat Pen Kit', '~out:crystal-lens out:bio-gel out:bio-gel out:alloy-ingot out:spore-paste', UPG('pens', 2, { base: 'Habitat Pen Kit', color: 0xBEEFFF, price: 1500 })),
-  BP('captain-suite', 'Captain Suite Kit', '~out:alloy-ingot out:alloy-ingot out:bio-gel out:spore-paste out:crystal-lens', UPG('pods', 2, { base: 'Captain Suite Kit', color: 0xA8A0C8, price: 1500 })),
   BP('golden-fries', 'Golden Fries', '~out:fries-seasoning out:fries-seasoning fries fries out:crystal-lens', FOOD('Golden Fries', 0xFFD700, 500, E(600, { chroma: 0.4, contrast: 0.3, double: 0.1 }, { speed: 1.4, jump: 1.3 }), { kind: 'fries', hint: 'bag', blurb: 'Gold-flecked. Moves you faster than is polite.' })),
 ];
 for (const r of NEW.concat(NEWBP)) RECIPES.push(r);

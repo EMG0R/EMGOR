@@ -358,8 +358,8 @@ export function createHuman(THREE, opts = {}) {
       else { ell(0.02, 0.02, 0.02, -0.105, hy, hz - 0.01, 0xBFFFE0, 'hips', { emis: true, sm: true }); }
     }
 
-    // ── per-style silhouettes (ship-styles.js rigs): each is its own shape built from capsules / ellipsoids ──
-    if (cubeH) { rbox(0.3, 0.27, 0.29, 0.07, 0, 0.93, 0, 'B', 'head'); rbox(0.31, 0.04, 0.3, 0.015, 0, 1.03, 0, 'A', 'head'); }                      // STEEV / HAULER: chamfered head block (+ hair slab)
+    // ── per-rig silhouettes (ship-styles.js normRig): each is its own shape built from capsules / ellipsoids ──
+    if (cubeH) { rbox(0.3, 0.27, 0.29, 0.07, 0, 0.93, 0, 'B', 'head'); rbox(0.31, 0.04, 0.3, 0.015, 0, 1.03, 0, 'A', 'head'); }                      // HAULER: chamfered head block (+ hair slab)
     if (EX.has('snout')) { ell(0.065, 0.048, 0.075, 0, 0.9, -0.14, 'B', 'head'); ell(0.012, 0.01, 0.01, -0.02, 0.915, -0.208, EYE, 'head', { sm: true }); ell(0.012, 0.01, 0.01, 0.02, 0.915, -0.208, EYE, 'head', { sm: true }); }
     if (EX.has('nose')) ell(0.052, 0.048, 0.05, 0, 0.91, -0.15, 'B', 'head');
     if (EX.has('moustache')) { cap([-0.045, 0.875, -0.14], [0.045, 0.875, -0.14], 0.014, EYE, 'head'); ell(0.02, 0.016, 0.02, -0.052, 0.872, -0.133, EYE, 'head', { sm: true }); ell(0.02, 0.016, 0.02, 0.052, 0.872, -0.133, EYE, 'head', { sm: true }); }
@@ -418,7 +418,7 @@ export function createHuman(THREE, opts = {}) {
   const attGlass = new THREE.SkinnedMesh(new THREE.BufferGeometry(), glassMat);
   attGlass.frustumCulled = false; attGlass.renderOrder = 10; attGlass.visible = false; attGlass.bind(skeleton, lit.bindMatrix);
   group.add(attLit, attEmi, attGlass);
-  // ── jet fx: per nozzle an outer (orange) + inner (pale) cone flame hanging off the pack, plus a pooled ring of puffs. Real meshes (not skinned) so the look is identical in every style.
+  // ── jet fx: per nozzle an outer (orange) + inner (pale) cone flame hanging off the pack, plus a pooled ring of puffs. Real meshes (not skinned) so the look is identical for every rig.
   const JETFX = { flames: [], puffs: [], t: 0, ph: 0 };
   const jetFx = new THREE.Group(); jetFx.name = 'jetFx'; bones.pack.add(jetFx); jetFx.position.set(0, 0.44 - 0.66, 0.205 - 0.125);      // = the 'jet' bone origin; the pack bone vibrates, the flames ride it
   const flameGeo = new THREE.ConeGeometry(1, 1, 7, 1, true); flameGeo.rotateX(Math.PI); flameGeo.translate(0, -0.5, 0);      // apex down, base at y=0, length 1
@@ -565,7 +565,7 @@ export function createHuman(THREE, opts = {}) {
     wasAir = !!st.airborne;
     sqzT = Math.max(0, sqzT - dt); takeT = Math.max(0, takeT - dt);
     if (sqzT <= 0) sqz = damp(sqz, 0, 11, dt);
-    crouch = damp(crouch, st.crouch > 0.5 ? 1 : 0, st.crouch > 0.5 ? 30 : 9, dt);      // MARO styles drive crouch (long-jump / backflip wind-up, slide)
+    crouch = damp(crouch, st.crouch > 0.5 ? 1 : 0, st.crouch > 0.5 ? 30 : 9, dt);      // crouch input (st.crouch)
     pit = damp(pit, st.pitch > 0.5 ? 1 : 0, 14, dt);                              // dive / belly slide: body face-down
     if (st.facing != null) group.rotation.y = st.facing;
 
