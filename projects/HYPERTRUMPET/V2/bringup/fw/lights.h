@@ -182,12 +182,11 @@ static void lightsCompute(float dt) {
         bool strip = i < STRIP_N; float x = strip ? (float)(STRIP_FROM_END ? (STRIP_N - 1 - i) : i) : ((i - STRIP_N) + 0.5f) / 16.0f * STRIP_N;   // x = distance from the near (mouthpiece) end
         RGB c = { 0, 0, 0 };
         if(!dark) {
-            const float u = x - g_ps;                                          // 4.14: pattern slides linearly from the mouthpiece end toward the bell
-            const float p = u * (1.0f / 45.0f);                             // pink -> light blue -> pink every 90 px
-            float pc[3]; palCol(p, pc);
-            const float sh = 0.5f + 0.5f * sinf(u * (6.2831853f / 24.0f));    // travelling pulses, 24 px apart, same speed
-            const float k = bri * (0.55f + 0.45f * sh);
-            c.r = pc[0] * k; c.g = pc[1] * k; c.b = pc[2] * k;
+            // 4.15: sparse dots travelling mouthpiece -> bell, one every 40 px, black between. Head 2-3 px, short fading tail.
+            const float SP = 40.0f, u = x - g_ps; const float fi = floorf(u / SP); const float f = u - fi * SP, d = SP - f;
+            const float head = fmaxf(expf(-f * f / 1.6f), expf(-d * d / 1.6f)), tail = d < 12.0f ? 0.55f * expf(-d / 3.0f) : 0.0f; const float v = head > tail ? head : tail;
+            const int ci = ((int)fi) & 1; const float k = bri * v;          // alternate pink / light blue per dot
+            c.r = kPal[ci][0] * (1.0f / 255.0f) * k; c.g = kPal[ci][1] * (1.0f / 255.0f) * k; c.b = kPal[ci][2] * (1.0f / 255.0f) * k;
         }
         if(!strip) { int k = i - STRIP_N; c.r += (kBlue.r - c.r) * g_flash[k]; c.g += (kBlue.g - c.g) * g_flash[k]; c.b += (kBlue.b - c.b) * g_flash[k]; }
         if(c.r > 1) c.r = 1; if(c.g > 1) c.g = 1; if(c.b > 1) c.b = 1;
