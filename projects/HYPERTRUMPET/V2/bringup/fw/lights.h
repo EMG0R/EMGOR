@@ -176,16 +176,17 @@ static void lightsCompute(float dt) {
     g_lvl += (l - g_lvl) * (1.0f - expf(-dt / (l > g_lvl ? 0.040f : 0.250f)));
     g_envs = g_lvl; g_capBoost = 1.0f + 1.0f * g_lvl;
     const bool dark = g_act < 0.003f;
-    g_pp += dt * (0.04f + 0.56f * g_lvl); g_pw += dt * (0.07f + 0.9f * g_lvl); g_ps += dt * (0.4f + 7.0f * g_lvl);   // palette phase, warp clock, travel clock (all faster when louder)
+    g_ps += dt * (20.0f + 280.0f * g_lvl); if(g_ps > 1.0e6f) g_ps -= 1.0e6f;   // 4.14: travel position in px; speed 20 .. 300 px/s follows loudness
     const float bri = g_act * (0.70f + 0.30f * g_lvl);   // 4.13: high floor, no dark colours while lit
     for(int i = 0; i < STRIP_N + 16; i++) {
         bool strip = i < STRIP_N; float x = strip ? (float)(STRIP_FROM_END ? (STRIP_N - 1 - i) : i) : ((i - STRIP_N) + 0.5f) / 16.0f * STRIP_N;   // x = distance from the near (mouthpiece) end
         RGB c = { 0, 0, 0 };
         if(!dark) {
-            const float p = g_pp + x * 0.022f + 1.1f * (vnoise(x * 0.035f + g_pw + 11.0f) - 0.5f) + 0.5f * (vnoise(x * 0.09f - g_pw * 0.6f + 47.0f) - 0.5f);
+            const float u = x - g_ps;                                          // 4.14: pattern slides linearly from the mouthpiece end toward the bell
+            const float p = u * (1.0f / 45.0f);                             // pink -> light blue -> pink every 90 px
             float pc[3]; palCol(p, pc);
-            const float sh = 0.7f * vnoise(x * 0.07f - g_ps) + 0.3f * vnoise(x * 0.19f - g_ps * 1.7f + 5.0f);   // shimmer travelling toward the bell
-            const float k = bri * (0.80f + 0.20f * sh);
+            const float sh = 0.5f + 0.5f * sinf(u * (6.2831853f / 24.0f));    // travelling pulses, 24 px apart, same speed
+            const float k = bri * (0.55f + 0.45f * sh);
             c.r = pc[0] * k; c.g = pc[1] * k; c.b = pc[2] * k;
         }
         if(!strip) { int k = i - STRIP_N; c.r += (kBlue.r - c.r) * g_flash[k]; c.g += (kBlue.g - c.g) * g_flash[k]; c.b += (kBlue.b - c.b) * g_flash[k]; }
